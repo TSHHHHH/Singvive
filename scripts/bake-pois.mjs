@@ -60,7 +60,9 @@ const RESIDENTIAL_GRID_DEG = 0.0018; // ~200m
 //           the kept ones by way id to get their real footprint.
 //   Pass 4: shop nodes sit INSIDE a building — pull buildings near them and
 //           match by point-in-polygon.
-const ID_BATCH_SIZE = 500; // 500 ids per by-id query answers in ~6s
+// Smaller batches cost the server less and 504 far less often. 250 answers in
+// ~3s; 500 was tipping dense batches into repeated gateway timeouts.
+const ID_BATCH_SIZE = 250;
 const AROUND_RADIUS_M = 15; // how far from a node to look for its building
 
 const QUERIES = [
@@ -261,6 +263,14 @@ function ringAreaM2(ring) {
   return Math.abs(area) / 2;
 }
 
+/**
+ * Run one Overpass query.
+ *
+ * `q.optional` marks a query whose failure should NOT abort the bake — the
+ * footprint passes are enrichment, so a dead batch costs those POIs their
+ * outline and nothing more. Only the two base passes are fatal, since without
+ * them there is no file worth writing.
+ */
 async function runQuery(q) {
   const body = 'data=' + encodeURIComponent(q.body);
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
@@ -282,7 +292,12 @@ async function runQuery(q) {
       return json.elements ?? [];
     } catch (err) {
       if (attempt === MAX_RETRIES) {
-        throw new Error(`${q.label}: gave up after ${MAX_RETRIES} attempts — ${err.message}`);
+        const msg = `${q.label}: gave up after ${MAX_RETRIES} attempts — ${err.message}`;
+        if (q.optional) {
+          console.error(`  ${msg} (skipping — these POIs keep no outline)`);
+          return null;
+        }
+        throw new Error(msg);
       }
       // 429 = rate limited, 504 = too expensive for the server. Both want a
       // real pause, not an immediate retry.
@@ -324,8 +339,9 @@ async function main() {
       const elements = await runQuery({
         label: `footprints ${i + 1}-${i + batch.length}`,
         body: `[out:json][timeout:600];way(id:${ids});out geom tags;`,
+        optional: true,
       });
-      for (const el of elements) {
+      for (const el of elements ?? []) {
         if (!el.geometry || el.geometry.length < 4) continue;
         const poi = byOsmId.get(`way/${el.id}`);
         if (!poi) continue;
@@ -358,12 +374,13 @@ async function main() {
 )->.p;
 way["building"](around.p:${AROUND_RADIUS_M});
 out geom tags;`,
+      optional: true,
     });
 
     // Index candidate buildings into a coarse grid so matching isn't O(n*m).
     const GRID = 0.002; // ~220m
     const grid = new Map();
-    for (const el of elements) {
+    for (const el of elements ?? []) {
       if (!el.geometry || el.geometry.length < 4) continue;
       const ring = el.geometry.map((g) => [g.lat, g.lon]);
       const c = ringCentroid(el.geometry);
