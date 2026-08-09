@@ -1,0 +1,16 @@
+{
+  "enabled": true,
+  "name": "Game Logic Purity Guard",
+  "description": "Before writing to any file in src/game/, reminds the agent to verify: no React/DOM imports, no Math.random(), all RNG through seeded Rng class, and strict typing (no `any`).",
+  "version": "1",
+  "when": {
+    "type": "preToolUse",
+    "toolTypes": [
+      "write"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "You are about to write to a file. If this file is under src/game/, verify the following before proceeding: 1) No React or DOM imports (react, react-dom, document, window). 2) No Math.random() — all randomness must go through the seeded Rng class. 3) No `any` types. 4) Functions should be pure: take explicit params, return new values. If the file is NOT under src/game/, proceed normally."
+  }
+}

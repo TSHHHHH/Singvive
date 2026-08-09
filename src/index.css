@@ -1,0 +1,55 @@
+@import 'leaflet/dist/leaflet.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: #0b0d0a;
+  color: #d7dbcf;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  overscroll-behavior: none;
+}
+
+/* Dark, desaturated apocalyptic map tiles */
+.apoc-tiles {
+  filter: grayscale(0.55) brightness(0.62) contrast(1.05) sepia(0.25) hue-rotate(-8deg);
+}
+
+/* thin scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #3a4030 transparent;
+}
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: #3a4030;
+  border-radius: 4px;
+}
+
+@keyframes pulse-danger {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.pulse-danger {
+  animation: pulse-danger 1.6s ease-in-out infinite;
+}

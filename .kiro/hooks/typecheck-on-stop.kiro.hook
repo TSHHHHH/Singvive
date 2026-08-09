@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "name": "Typecheck on Agent Stop",
+  "description": "Runs TypeScript type checking after the agent completes work to catch any type errors introduced during the session.",
+  "version": "1",
+  "when": {
+    "type": "agentStop"
+  },
+  "then": {
+    "type": "runCommand",
+    "command": "npx tsc -b --noEmit"
+  }
+}
