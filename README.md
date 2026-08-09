@@ -244,9 +244,19 @@ npm run lint      # oxlint
 npm run bake:pois
 ```
 
-Queries Overpass across the whole island and rewrites `public/pois.json` (~5 min, deliberately
-rate-limited to be polite to a free API). It is **not** part of `npm run build` — a flaky Overpass
-should never break a deploy. Run it manually when you want fresher OSM data, then commit the result.
+Rewrites `public/pois.json` — ~8.6k POIs, **1.0 MB raw / 0.20 MB gzipped**, in about 30 seconds. It
+is **not** part of `npm run build` — a flaky Overpass should never break a deploy. Run it manually for
+fresher OSM data, then commit the result.
+
+Two things keep it fast, and both are load-bearing:
+
+- **Two whole-island queries, not per-cell tiling.** Overpass costs scale with *statement count*, not
+  area. An earlier version tiled the island into 40 cells with one `nwr` per tag — 640 index scans —
+  and got a steady stream of 429s and 504s. Collapsing tags into regex alternations (`shop~"^(a|b)$"`)
+  made it two queries totalling ~20s. Don't re-expand the statements.
+- **Residential thinning.** OSM has ~45k apartment blocks in Singapore; `world.ts` uses at most 100 per
+  run. Keeping one per ~200m cell cuts that to ~4.4k while still leaving ~175 candidates inside any
+  1.5 km scavenge radius. Without it, void decks alone are ~5 MB.
 
 `scripts/bake-pois.mjs` imports `classifyOsm` straight from `src/game/poi.ts` (Node strips the
 `import type`), so classification logic lives in exactly one place — edit `poi.ts`, re-bake.

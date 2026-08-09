@@ -1,15 +1,20 @@
 // Build-time POI bake.
 //
-// Queries Overpass once for the whole of Singapore and writes public/pois.json,
-// which the game loads instead of hitting Overpass per run. Run this manually
-// when you want to refresh map data — it is NOT part of `npm run build`, so a
-// flaky Overpass never breaks a deploy.
+// Queries Overpass for the whole of Singapore and writes public/pois.json,
+// which the game loads instead of hitting Overpass per run. Run manually when
+// you want to refresh map data — it is NOT part of `npm run build`, so a flaky
+// Overpass can never break a deploy.
 //
 //   npm run bake:pois
 //
-// Spawns are arbitrary map clicks, so this has to cover the whole island rather
-// than the curated neighbourhoods. Singapore is small enough that the result is
-// a single static file the client filters by radius.
+// Spawns are arbitrary map clicks, so this covers the whole island rather than
+// the curated neighbourhoods; the client filters it by radius.
+//
+// Query shape matters a lot here. An earlier version tiled the island into 40
+// cells with one `nwr` statement per tag — 640 index scans — and the public API
+// answered with a steady stream of 429s and 504s. Collapsing the tags into
+// regex alternations makes it TWO whole-island queries that finish in ~30s
+// total. Keep it that way: statement count is the cost driver, not area.
 //
 // classifyOsm is imported from the app source (Node strips the `import type`),
 // so classification stays single-sourced — edit src/game/poi.ts, re-bake, done.
@@ -23,43 +28,51 @@ import { classifyOsm } from '../src/game/poi.ts';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT_FILE = resolve(HERE, '../public/pois.json');
 
-// Matches SG_BOUNDS in src/game/singapore.ts, padded slightly so POIs just past
-// the edge still show up for a spawn placed near the boundary.
-const BOUNDS = { minLat: 1.19, maxLat: 1.49, minLng: 103.59, maxLng: 104.06 };
-
-// Degrees per query cell. Smaller = more requests but less chance of a server
-// timeout on the dense central/eastern estates.
-const CELL = 0.06;
+// Matches SG_BOUNDS in src/game/singapore.ts, padded so POIs just past the edge
+// still appear for a spawn placed near the boundary.
+const BBOX = '(1.19,103.59,1.49,104.06)';
 
 const ENDPOINTS = [
   'https://overpass-api.de/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
 ];
 
-const DELAY_MS = 2000; // be polite to a free, volunteer-run API
+const DELAY_MS = 5000; // between queries — the free API allows 2 slots per IP
 const MAX_RETRIES = 4;
 const COORD_DP = 5; // ~1m precision; more is wasted bytes
+const MAX_RING_POINTS = 10; // outlines are drawn as rough footprints, not survey data
 
-const POI_FILTERS = [
-  'nwr["shop"="supermarket"]',
-  'nwr["shop"="convenience"]',
-  'nwr["shop"="chemist"]',
-  'nwr["amenity"="pharmacy"]',
-  'nwr["amenity"="hospital"]',
-  'nwr["amenity"="clinic"]',
-  'nwr["amenity"="doctors"]',
-  'nwr["shop"="hardware"]',
-  'nwr["shop"="doityourself"]',
-  'nwr["amenity"="fuel"]',
-  'nwr["amenity"="police"]',
-  'nwr["amenity"="food_court"]',
-  'nwr["amenity"="marketplace"]',
-  'nwr["amenity"="community_centre"]',
-  'nwr["station"="subway"]',
-  'nwr["station"="light_rail"]',
+// world.ts keeps only the 100 nearest void decks per run, and a 1.5km scavenge
+// radius covers ~7km². Retaining one block per 200m cell leaves ~175 candidates
+// in range — comfortably above the cap — while cutting ~45k blocks to ~9k.
+// Without this, residential alone is ~5MB of the payload.
+const RESIDENTIAL_GRID_DEG = 0.0018; // ~200m
+
+const QUERIES = [
+  {
+    label: 'shops & amenities',
+    // `out geom` gives way rings for building outlines. Most of these are point
+    // nodes, so it stays cheap.
+    body: `[out:json][timeout:600];
+(
+  nwr["shop"~"^(supermarket|convenience|kiosk|chemist|hardware|doityourself|trade)$"]${BBOX};
+  nwr["amenity"~"^(pharmacy|hospital|clinic|doctors|fuel|police|food_court|marketplace|community_centre|hawker_centre)$"]${BBOX};
+  nwr["station"~"^(subway|light_rail)$"]${BBOX};
+  nwr["railway"="station"]${BBOX};
+);
+out geom tags;`,
+  },
+  {
+    label: 'HDB blocks',
+    // Centroids only — polygon geometry for 45k blocks is a 100MB+ response and
+    // they render as rectangles anyway.
+    body: `[out:json][timeout:600];
+(
+  nwr["building"~"^(apartments|residential)$"]${BBOX};
+);
+out center tags;`,
+  },
 ];
-
-const BUILDING_FILTERS = ['nwr["building"="apartments"]', 'nwr["building"="residential"]'];
 
 const NAME_BY_CATEGORY = {
   supermarket: 'Supermarket',
@@ -77,27 +90,6 @@ const NAME_BY_CATEGORY = {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const round = (n) => Number(n.toFixed(COORD_DP));
 
-/**
- * bbox query for one cell. Shops/amenities get full geometry (mostly point
- * nodes, so cheap) for building outlines; HDB blocks get centroids only —
- * polygon geometry for thousands of blocks times out the free servers, and
- * they render as rectangles anyway.
- */
-function buildQuery(s, w, n, e) {
-  const bbox = `(${s},${w},${n},${e})`;
-  const pois = POI_FILTERS.map((f) => `  ${f}${bbox};`).join('\n');
-  const buildings = BUILDING_FILTERS.map((f) => `  ${f}${bbox};`).join('\n');
-  return `[out:json][timeout:180];
-(
-${pois}
-);
-out geom tags;
-(
-${buildings}
-);
-out center tags;`;
-}
-
 function ringCentroid(ring) {
   let lat = 0;
   let lng = 0;
@@ -106,6 +98,18 @@ function ringCentroid(ring) {
     lng += p.lon;
   }
   return { lat: lat / ring.length, lng: lng / ring.length };
+}
+
+/** Uniformly sample a ring down to MAX_RING_POINTS, always keeping the first. */
+function simplifyRing(ring) {
+  if (ring.length <= MAX_RING_POINTS) return ring.map((p) => [round(p.lat), round(p.lon)]);
+  const step = ring.length / MAX_RING_POINTS;
+  const out = [];
+  for (let i = 0; i < MAX_RING_POINTS; i++) {
+    const p = ring[Math.floor(i * step)];
+    out.push([round(p.lat), round(p.lon)]);
+  }
+  return out;
 }
 
 // Mirrors parseElements() in src/game/overpass.ts.
@@ -125,7 +129,7 @@ function parseElements(elements) {
       const c = ringCentroid(ring);
       lat = c.lat;
       lng = c.lng;
-      outline = ring.map((p) => [round(p.lat), round(p.lon)]);
+      outline = simplifyRing(ring);
     }
     if (lat == null || lng == null) continue;
 
@@ -143,10 +147,39 @@ function parseElements(elements) {
   return out;
 }
 
-async function fetchCell(query, label) {
-  const body = 'data=' + encodeURIComponent(query);
+/**
+ * Keep at most one residential POI per grid cell so coverage stays even across
+ * the island. Non-residential POIs pass through untouched — shops and MRT
+ * stations are the scarce, interesting ones.
+ */
+function thinResidential(pois) {
+  const kept = [];
+  const taken = new Set();
+  // Sort by osmId so the choice is deterministic across re-bakes.
+  const residential = pois
+    .filter((p) => p.category === 'residential')
+    .sort((a, b) => (a.osmId < b.osmId ? -1 : 1));
+
+  for (const p of pois) if (p.category !== 'residential') kept.push(p);
+
+  let dropped = 0;
+  for (const p of residential) {
+    const cell = `${Math.floor(p.lat / RESIDENTIAL_GRID_DEG)},${Math.floor(p.lng / RESIDENTIAL_GRID_DEG)}`;
+    if (taken.has(cell)) {
+      dropped++;
+      continue;
+    }
+    taken.add(cell);
+    kept.push(p);
+  }
+  return { kept, dropped };
+}
+
+async function runQuery(q) {
+  const body = 'data=' + encodeURIComponent(q.body);
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     const endpoint = ENDPOINTS[(attempt - 1) % ENDPOINTS.length];
+    const started = Date.now();
     try {
       const res = await fetch(endpoint, {
         method: 'POST',
@@ -156,80 +189,60 @@ async function fetchCell(query, label) {
         },
         body,
       });
-      // 429 = rate limited, 504 = query timed out server-side. Both retryable.
-      if (res.status === 429 || res.status === 504) {
-        throw new Error(`HTTP ${res.status}`);
-      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
+      const secs = ((Date.now() - started) / 1000).toFixed(1);
+      console.log(`  ${q.label}: ${json.elements?.length ?? 0} elements in ${secs}s`);
       return json.elements ?? [];
     } catch (err) {
       if (attempt === MAX_RETRIES) {
-        throw new Error(`${label}: gave up after ${MAX_RETRIES} attempts — ${err.message}`);
+        throw new Error(`${q.label}: gave up after ${MAX_RETRIES} attempts — ${err.message}`);
       }
+      // 429 = rate limited, 504 = too expensive for the server. Both want a
+      // real pause, not an immediate retry.
       const backoff = DELAY_MS * 2 ** attempt;
-      console.warn(`  ${label}: ${err.message} — retrying in ${backoff / 1000}s`);
+      console.warn(`  ${q.label}: ${err.message} — retrying in ${backoff / 1000}s`);
       await sleep(backoff);
     }
   }
 }
 
 async function main() {
-  const cells = [];
-  for (let lat = BOUNDS.minLat; lat < BOUNDS.maxLat; lat += CELL) {
-    for (let lng = BOUNDS.minLng; lng < BOUNDS.maxLng; lng += CELL) {
-      cells.push([lat, lng, Math.min(lat + CELL, BOUNDS.maxLat), Math.min(lng + CELL, BOUNDS.maxLng)]);
-    }
-  }
-
-  console.log(`Baking Singapore POIs across ${cells.length} cells...`);
+  console.log('Baking Singapore POIs...');
   const byId = new Map();
-  let failed = 0;
 
-  for (let i = 0; i < cells.length; i++) {
-    const [s, w, n, e] = cells[i];
-    const label = `cell ${i + 1}/${cells.length}`;
-    try {
-      const elements = await fetchCell(buildQuery(s, w, n, e), label);
-      const parsed = parseElements(elements);
-      // Cells overlap at edges and OSM ways span them — dedupe by OSM id.
-      for (const p of parsed) byId.set(p.osmId, p);
-      console.log(`  ${label}: +${parsed.length} (total ${byId.size})`);
-    } catch (err) {
-      failed++;
-      console.error(`  ${err.message}`);
-    }
-    if (i < cells.length - 1) await sleep(DELAY_MS);
+  for (let i = 0; i < QUERIES.length; i++) {
+    const elements = await runQuery(QUERIES[i]);
+    for (const p of parseElements(elements)) byId.set(p.osmId, p);
+    if (i < QUERIES.length - 1) await sleep(DELAY_MS);
   }
 
   if (byId.size === 0) {
     console.error('\nNo POIs fetched — refusing to write an empty file.');
     process.exit(1);
   }
-  if (failed > 0) {
-    console.error(
-      `\n${failed} of ${cells.length} cells failed. public/pois.json will have holes in it.\n` +
-        'Re-run before deploying, or those areas will fall back to the simulated world.',
-    );
-  }
 
-  const pois = [...byId.values()];
+  const { kept, dropped } = thinResidential([...byId.values()]);
+  // Sort north-to-south so the file compresses better (nearby coords cluster).
+  kept.sort((a, b) => a.lat - b.lat || a.lng - b.lng);
+
   const byCategory = {};
-  for (const p of pois) byCategory[p.category] = (byCategory[p.category] ?? 0) + 1;
+  for (const p of kept) byCategory[p.category] = (byCategory[p.category] ?? 0) + 1;
 
   mkdirSync(dirname(OUT_FILE), { recursive: true });
-  const json = JSON.stringify({ generated: new Date().toISOString(), pois });
+  const json = JSON.stringify({ generated: new Date().toISOString(), pois: kept });
   writeFileSync(OUT_FILE, json);
 
   const bytes = statSync(OUT_FILE).size;
   const gz = gzipSync(json).length;
-  console.log(`\nWrote public/pois.json — ${pois.length} POIs`);
-  console.log(`  ${(bytes / 1e6).toFixed(2)} MB raw, ${(gz / 1e6).toFixed(2)} MB gzipped (what users download)`);
+  console.log(`\nWrote public/pois.json — ${kept.length} POIs (thinned ${dropped} HDB blocks)`);
+  console.log(
+    `  ${(bytes / 1e6).toFixed(2)} MB raw, ${(gz / 1e6).toFixed(2)} MB gzipped (what users download)`,
+  );
   console.log('  ' + Object.entries(byCategory).map(([k, v]) => `${k}:${v}`).join(' '));
-  if (failed > 0) process.exit(1);
 }
 
 main().catch((err) => {
-  console.error(err);
+  console.error(err.message ?? err);
   process.exit(1);
 });
