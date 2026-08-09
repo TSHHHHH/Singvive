@@ -36,7 +36,11 @@ function ringArea(ring: [number, number][]): number {
 }
 
 function sizeFor(category: PoiCategory, outline?: [number, number][]): LocationSize {
-  if (outline) {
+  // Void decks now ship with real footprints (bake pass 3), and an HDB slab is
+  // 1000-3000m² — deriving size from area would promote nearly every block to
+  // `large` (5 searches instead of 3) and quietly rebalance the loot economy.
+  // They stay on the category default; the outline is for display only.
+  if (outline && category !== 'residential') {
     const a = ringArea(outline);
     if (a > 1500) return 'large';
     if (a > 400) return 'medium';

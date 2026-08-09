@@ -258,6 +258,29 @@ Two things keep it fast, and both are load-bearing:
   run. Keeping one per ~200m cell cuts that to ~4.4k while still leaving ~175 candidates inside any
   1.5 km scavenge radius. Without it, void decks alone are ~5 MB.
 
+The bake runs four passes. The last two exist because OSM maps most shops as point *nodes* inside a
+building rather than as the building — straight from Overpass only ~10% of locations have any shape:
+
+1. Shops & amenities (`out geom`).
+2. HDB blocks (`out center` — polygon geometry for 45k blocks is a 100MB+ response).
+3. Re-fetch the kept void decks **by way id** to get their real footprints (they were always
+   buildings; pass 2 only asked for centroids). Batches of 500.
+4. Buildings within 15m of the remaining point POIs, matched by **point-in-polygon**; smallest
+   containing building wins, so a unit inside a mall gets the unit, not the mall.
+
+Two rules in pass 4 are load-bearing:
+
+- **One outline per building.** A mall is one OSM building holding many POI nodes. Giving every tenant
+  the mall polygon stacks a dozen identical giant shapes in different colours — visually worse than no
+  outline. The building is drawn once for its richest tenant; co-tenants stay as badges, which reads
+  correctly as "shops inside this building".
+- **Simplify with Douglas-Peucker, never by sampling every Nth vertex.** Sampling discards the corners
+  that define a footprint and turns complex buildings (MRT concourses run 65-74 points) into spiky
+  arrows.
+
+Void decks keep their category-default `size` even though they now have outlines — see the comment in
+`world.ts`, it's a deliberate balance decision, not an oversight.
+
 `scripts/bake-pois.mjs` imports `classifyOsm` straight from `src/game/poi.ts` (Node strips the
 `import type`), so classification logic lives in exactly one place — edit `poi.ts`, re-bake.
 
