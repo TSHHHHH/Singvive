@@ -30,7 +30,14 @@ const OUT_FILE = resolve(HERE, '../public/pois.json');
 
 // Matches SG_BOUNDS in src/game/singapore.ts, padded so POIs just past the edge
 // still appear for a spawn placed near the boundary.
-const BBOX = '(1.19,103.59,1.49,104.06)';
+const BOUNDS = { minLat: 1.19, maxLat: 1.49, minLng: 103.59, maxLng: 104.06 };
+const BBOX = `(${BOUNDS.minLat},${BOUNDS.minLng},${BOUNDS.maxLat},${BOUNDS.maxLng})`;
+
+// Pass 4's `around` set-query is the most expensive thing here — island-wide it
+// took 81s on a good day and 504'd on a bad one. Splitting it into a grid keeps
+// each query cheap, and with `optional` a single bad chunk costs only its own
+// POIs' outlines.
+const PASS4_GRID = 3; // 3x3 = 9 chunks
 
 const ENDPOINTS = [
   'https://overpass-api.de/api/interpreter',
@@ -363,31 +370,60 @@ async function main() {
   const nodePois = kept.filter((p) => !p.outline && p.osmId.startsWith('node/'));
   if (nodePois.length) {
     console.log(`\nMatching ${nodePois.length} point POIs to their buildings...`);
-    const elements = await runQuery({
-      label: 'buildings around POI nodes',
-      body: `[out:json][timeout:600];
-(
-  node["shop"~"^(supermarket|convenience|kiosk|chemist|hardware|doityourself|trade)$"]${BBOX};
-  node["amenity"~"^(pharmacy|hospital|clinic|doctors|fuel|police|food_court|marketplace|community_centre|hawker_centre)$"]${BBOX};
-  node["station"~"^(subway|light_rail)$"]${BBOX};
-  node["railway"="station"]${BBOX};
-)->.p;
-way["building"](around.p:${AROUND_RADIUS_M});
-out geom tags;`,
-      optional: true,
-    });
-
     // Index candidate buildings into a coarse grid so matching isn't O(n*m).
     const GRID = 0.002; // ~220m
     const grid = new Map();
-    for (const el of elements ?? []) {
-      if (!el.geometry || el.geometry.length < 4) continue;
-      const ring = el.geometry.map((g) => [g.lat, g.lon]);
-      const c = ringCentroid(el.geometry);
-      const key = `${Math.floor(c.lat / GRID)},${Math.floor(c.lng / GRID)}`;
-      if (!grid.has(key)) grid.set(key, []);
-      grid.get(key).push({ id: el.id, ring, geometry: el.geometry, area: ringAreaM2(ring) });
+    const seenBuildings = new Set();
+    let chunksFailed = 0;
+
+    const latStep = (BOUNDS.maxLat - BOUNDS.minLat) / PASS4_GRID;
+    const lngStep = (BOUNDS.maxLng - BOUNDS.minLng) / PASS4_GRID;
+
+    for (let a = 0; a < PASS4_GRID; a++) {
+      for (let b = 0; b < PASS4_GRID; b++) {
+        const s = BOUNDS.minLat + a * latStep;
+        const w = BOUNDS.minLng + b * lngStep;
+        // Pad the chunk so a building straddling the seam is still found for a
+        // node just inside the neighbouring chunk.
+        const pad = 0.001;
+        const box = `(${s - pad},${w - pad},${s + latStep + pad},${w + lngStep + pad})`;
+        const n = a * PASS4_GRID + b + 1;
+
+        const elements = await runQuery({
+          label: `buildings chunk ${n}/${PASS4_GRID * PASS4_GRID}`,
+          body: `[out:json][timeout:600];
+(
+  node["shop"~"^(supermarket|convenience|kiosk|chemist|hardware|doityourself|trade)$"]${box};
+  node["amenity"~"^(pharmacy|hospital|clinic|doctors|fuel|police|food_court|marketplace|community_centre|hawker_centre)$"]${box};
+  node["station"~"^(subway|light_rail)$"]${box};
+  node["railway"="station"]${box};
+)->.p;
+way["building"](around.p:${AROUND_RADIUS_M});
+out geom tags;`,
+          optional: true,
+        });
+
+        if (elements === null) {
+          chunksFailed++;
+          continue;
+        }
+        for (const el of elements) {
+          if (!el.geometry || el.geometry.length < 4) continue;
+          if (seenBuildings.has(el.id)) continue; // chunks overlap at the seams
+          seenBuildings.add(el.id);
+          const ring = el.geometry.map((g) => [g.lat, g.lon]);
+          const c = ringCentroid(el.geometry);
+          const key = `${Math.floor(c.lat / GRID)},${Math.floor(c.lng / GRID)}`;
+          if (!grid.has(key)) grid.set(key, []);
+          grid.get(key).push({ id: el.id, ring, geometry: el.geometry, area: ringAreaM2(ring) });
+        }
+        await sleep(DELAY_MS);
+      }
     }
+    console.log(
+      `  ${seenBuildings.size} candidate buildings` +
+        (chunksFailed ? ` (${chunksFailed} chunk(s) failed)` : ''),
+    );
 
     let matched = 0;
     for (const poi of nodePois) {
