@@ -9,7 +9,12 @@ import {
   inSingapore,
 } from '../game/singapore';
 import { playerIcon } from '../components/mapIcons';
-import { TILE_ATTRIBUTION, TILE_MAX_NATIVE_ZOOM, TILE_URL } from '../components/tileConfig';
+import {
+  TILE_ATTRIBUTION,
+  TILE_MAX_NATIVE_ZOOM,
+  TILE_SUBDOMAINS,
+  TILE_URL,
+} from '../components/tileConfig';
 
 const bounds = L.latLngBounds(
   [SG_BOUNDS.minLat, SG_BOUNDS.minLng],
@@ -119,6 +124,7 @@ export function SpawnSelect() {
           <TileLayer
             attribution={TILE_ATTRIBUTION}
             url={TILE_URL}
+            subdomains={TILE_SUBDOMAINS}
             maxZoom={20}
             maxNativeZoom={TILE_MAX_NATIVE_ZOOM}
           />

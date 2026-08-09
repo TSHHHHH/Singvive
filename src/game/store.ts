@@ -13,7 +13,8 @@ import type {
 } from './types';
 import { Rng, randomSeed } from './rng';
 import { maxHpFor, sumTraitMod } from './character';
-import { fetchOsmPois, haversine } from './overpass';
+import { fetchOsmPois, haversine, type RawPoi } from './overpass';
+import { bakedPoisNear } from './bakedPois';
 import { buildLocations, generateFallbackWorld } from './world';
 import { itemDef, rollLoot, type LootStack } from './loot';
 import {
@@ -650,18 +651,30 @@ export const useGame = create<State>((set, get) => {
       const seed = randomSeed();
       const rng = new Rng(seed);
 
-      // Single Overpass round-trip. A successful-but-sparse response means the
-      // spot is genuinely remote (sea/forest/reserve) — reject so the player can
-      // pick again. A thrown request means the API is down — fall back to a
-      // simulated neighbourhood rather than blocking the player.
+      // Map data, in order of preference:
+      //   1. the pre-baked island-wide set (static file, can't rate-limit us)
+      //   2. a live Overpass call, if the bake is missing or malformed
+      //   3. a simulated neighbourhood, if both are unavailable
+      let raw: RawPoi[] | null = null;
+      try {
+        raw = await bakedPoisNear(spawn.lat, spawn.lng, SCAVENGE_RADIUS);
+      } catch {
+        try {
+          raw = await fetchOsmPois(spawn.lat, spawn.lng, SCAVENGE_RADIUS);
+        } catch {
+          raw = null;
+        }
+      }
+
       let list: LocationState[];
       let usedFallback = false;
       let worldError: string | null = null;
-      try {
-        const raw = await fetchOsmPois(spawn.lat, spawn.lng, SCAVENGE_RADIUS);
+      if (raw) {
+        // Real data but almost nothing nearby means the spot is genuinely
+        // remote (sea/forest/reserve) — reject so the player can pick again.
         if (raw.length < 5) return 'remote';
         list = buildLocations(rng, spawn, raw);
-      } catch {
+      } else {
         list = generateFallbackWorld(rng, spawn, SCAVENGE_RADIUS);
         usedFallback = true;
         worldError = 'Live map data unavailable — using a simulated neighbourhood.';

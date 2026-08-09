@@ -50,11 +50,22 @@ const FogGridLayer = L.GridLayer.extend({
   createTile(this: FogLayer, coords: L.Coords): HTMLElement {
     const tileSize = this.getTileSize();
     const canvas = document.createElement('canvas');
-    canvas.width = tileSize.x;
-    canvas.height = tileSize.y;
+
+    // Back the canvas at device resolution, not CSS resolution. Without this
+    // the fog is a half-res bitmap stretched over the whole map on any
+    // high-DPI screen, which reads as the *basemap* being blurry — it isn't.
+    // Leaflet sizes the tile element in CSS px itself; scaling the context by
+    // the same factor lets all the drawing below stay in CSS px.
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.round(tileSize.x * dpr);
+    canvas.height = Math.round(tileSize.y * dpr);
+    canvas.style.width = `${tileSize.x}px`;
+    canvas.style.height = `${tileSize.y}px`;
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return canvas;
+
+    ctx.scale(dpr, dpr);
 
     // Fill with fog colour
     ctx.fillStyle = FOG_COLOUR;

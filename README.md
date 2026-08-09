@@ -51,16 +51,20 @@ currency, and the survivor is always moving — the map is explored, not surveye
 ## 3. Systems
 
 ### 3.1 World generation (real locations)
-- On spawn, the game queries the **OpenStreetMap Overpass API** for POIs and HDB buildings within
-  ~1.5 km. Shops/amenities are fetched with full geometry (`out geom`, for outlines); HDB blocks with
-  centroids only (`out center`, kept light so the query doesn't time out).
+- Real locations come from **OpenStreetMap**, pre-baked into `public/pois.json` at build time
+  (`npm run bake:pois`) rather than queried per run. On spawn the game loads that static file once and
+  filters it to POIs within ~1.5 km. Shops/amenities carry full geometry (`out geom`, for outlines);
+  HDB blocks are centroids only (`out center`, kept light).
+- Data sources degrade in order: **baked file → live Overpass → procedural fallback**. Baking removes
+  the per-run dependency on a volunteer-run API that rate-limits by IP — a static file on the CDN
+  can't throttle, works offline once cached, and returns in milliseconds.
 - Each element is classified into a **category**; a **seeded RNG** assigns **size** (small/med/large),
   a **base danger (1–5)**, remaining searches, and a faction. A given seed reproduces the same world.
 - Density is high (up to ~**220 locations**, incl. up to ~100 void decks) — fog of war means only the
   handful you've explored are ever drawn, so world size is decoupled from render cost.
-- **Pre-flight spawn check:** before committing a spawn, a lightweight Overpass count rejects
-  wilderness/reservoir/sea clicks (<10 buildings within 500 m) with a notice. Procedural generation is
-  reserved strictly as a **timeout fallback**, not for empty areas.
+- **Remote-spawn check:** if a real data source returns fewer than 5 POIs in range, the click was
+  wilderness/reservoir/sea — the spawn is rejected with a notice so the player picks again. Procedural
+  generation is reserved strictly as a **data-unavailable fallback**, never for genuinely empty areas.
 
 **POI categories → real-life resources** (Singapore-flavoured):
 
@@ -197,8 +201,8 @@ currency, and the survivor is always moving — the map is explored, not surveye
 | Concern | Choice |
 |---|---|
 | Framework | React 19 + TypeScript + Vite |
-| Map | Leaflet + react-leaflet, **Stadia "Alidade Smooth Dark"** tiles, canvas renderer + custom fog overlay |
-| Real data | OpenStreetMap Overpass API (no API key; `out geom`/`out center`, pre-flight `out count`) |
+| Map | Leaflet + react-leaflet, **CARTO "Dark Matter"** tiles (keyless, retina `@2x`, native z20; Stadia + Esri kept in `tileConfig.ts` as alternatives), canvas renderer + custom fog overlay |
+| Real data | OpenStreetMap, pre-baked to `public/pois.json` via `npm run bake:pois`; live Overpass as fallback |
 | State | Zustand (single store) |
 | Inventory DnD | Custom pointer-drag over a cell grid (backpack ↔ stash ↔ equipment slots) |
 | Determinism | `seedrandom`, wrapped in a forkable `Rng` |
@@ -231,7 +235,26 @@ the DOM. `window.__game` exposes the live store for dev inspection.
 npm install
 npm run dev       # http://localhost:5173
 npm run build     # typecheck (tsc -b) + production build
+npm run lint      # oxlint
 ```
+
+### Refreshing map data
+
+```bash
+npm run bake:pois
+```
+
+Queries Overpass across the whole island and rewrites `public/pois.json` (~5 min, deliberately
+rate-limited to be polite to a free API). It is **not** part of `npm run build` — a flaky Overpass
+should never break a deploy. Run it manually when you want fresher OSM data, then commit the result.
+
+`scripts/bake-pois.mjs` imports `classifyOsm` straight from `src/game/poi.ts` (Node strips the
+`import type`), so classification logic lives in exactly one place — edit `poi.ts`, re-bake.
+
+### Deploying
+
+Static SPA, no backend. Cloudflare Pages: build `npm run build`, output `dist`, Node pinned by
+`.nvmrc`. No `_redirects` needed — the app is phase-based state with no router, so every URL is `/`.
 
 ---
 
@@ -250,8 +273,13 @@ Good areas for another agent to extend or pressure-test:
   survival length.
 
 ### Known constraints
-- Overpass has rate limits and latency → pre-flight is lightweight, the main query is kept small
-  (`out center` for HDB), and a procedural timeout fallback exists.
+- Overpass has rate limits and latency → map data is pre-baked to a static file, so the live API is
+  only touched by `npm run bake:pois` and as a runtime fallback. Baked data is a point-in-time
+  snapshot: new shops in OSM won't appear until the next bake.
 - Many Singapore shops are mapped as **point nodes**, not buildings, so not every POI has a drawable
   outline — those render as a category badge instead.
-- The Stadia basemap needs an API key off-localhost (fallback ready).
+- The Stadia basemap needs an API key off-localhost, so the deployed build uses CARTO Dark Matter
+  instead — keyless, and it serves the `@2x` tiles that keep the map sharp on high-DPI screens.
+  **Any replacement basemap must support both `{r}` (retina) and native z20**, or the map goes soft:
+  Esri was tried and looks blurry for exactly that reason. `TILE_MAX_NATIVE_ZOOM` must match whatever
+  the provider actually serves, since Leaflet upscales beyond it rather than showing blank tiles.

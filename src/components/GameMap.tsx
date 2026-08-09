@@ -2,7 +2,12 @@ import { MapContainer, TileLayer, Marker, Circle, Polygon, useMap, useMapEvents 
 import { Fragment, useEffect, useRef, useState } from 'react';
 import type { Poi } from '../game/types';
 import { poiIcon, playerIcon, unknownIcon, evacIcon, dangerColor } from './mapIcons';
-import { TILE_ATTRIBUTION, TILE_MAX_NATIVE_ZOOM, TILE_URL } from './tileConfig';
+import {
+  TILE_ATTRIBUTION,
+  TILE_MAX_NATIVE_ZOOM,
+  TILE_SUBDOMAINS,
+  TILE_URL,
+} from './tileConfig';
 import { POI_CONFIG } from '../game/poi';
 import { haversine } from '../game/overpass';
 import { visibilityOf } from '../game/fog';
@@ -128,6 +133,7 @@ export function GameMap({
       <TileLayer
         attribution={TILE_ATTRIBUTION}
         url={TILE_URL}
+        subdomains={TILE_SUBDOMAINS}
         maxZoom={20}
         maxNativeZoom={TILE_MAX_NATIVE_ZOOM}
       />
