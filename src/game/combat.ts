@@ -209,6 +209,29 @@ export function makeZombie(rng: Rng, danger: number, _category?: PoiCategory): E
   };
 }
 
+/**
+ * Deliberately kept out of ZOMBIE_TYPES: no ordinary danger roll can ever
+ * reach it. This is only what a block sends once its heat is pinned.
+ */
+const BLOCK_HUNTER = { name: 'Corridor Hulk', hp: 110, atk: 5, def: 3, dmg: 26, inf: 0.6, armor: 5 };
+
+/** The thing a maxed-out block sends down the corridor after you. */
+export function makeBlockHunter(rng: Rng, danger: number): Enemy {
+  const r = rng.fork('hunter');
+  const hp = BLOCK_HUNTER.hp + danger * 4 + r.int(-6, 8);
+  return {
+    name: BLOCK_HUNTER.name,
+    kind: 'zombie',
+    hp,
+    maxHp: hp,
+    attack: BLOCK_HUNTER.atk,
+    defense: BLOCK_HUNTER.def,
+    damage: BLOCK_HUNTER.dmg,
+    infectious: BLOCK_HUNTER.inf,
+    armor: BLOCK_HUNTER.armor,
+  };
+}
+
 const HUMAN_NAMES: Record<Exclude<FactionId, null>, string> = {
   syndicate_88: '88 Syndicate Runner',
   idtf: 'IDTF Deserter',

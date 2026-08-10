@@ -157,6 +157,7 @@ function NoiseRings({ pulses }: { pulses: NoisePulse[] }) {
             center={[p.lat, p.lng]}
             radius={p.radiusMeters * (0.2 + 0.8 * t)}
             className="noise-ring"
+            interactive={false}
             pathOptions={{
               color: '#d92d2d',
               weight: 3,
@@ -214,10 +215,14 @@ export function GameMap({
         currentRevealRadius={travelRange}
       />
 
-      {/* travelable range — a planning ring, not vision */}
+      {/* Travelable range — a planning ring, not vision. Must stay
+          non-interactive: its fill covers everywhere you can actually walk, so
+          a hit-testable ring would swallow every ground-pick inside your own
+          range and leave only out-of-range taps working. */}
       <Circle
         center={[home.lat, home.lng]}
         radius={travelRange}
+        interactive={false}
         pathOptions={{ color: '#e8e5dd', weight: 1.5, fillOpacity: 0.03, dashArray: '4 6' }}
       />
 

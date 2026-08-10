@@ -46,8 +46,11 @@ export function hasEvacKit(items: ItemInstance[]): boolean {
  * farthest available is used anyway.
  */
 export function pickEvacZone(locations: LocationState[]): string | null {
-  const faraway = locations.filter((l) => l.distanceFromSpawn >= MIN_FIRST_EVAC_DIST);
-  const pool = faraway.length > 0 ? faraway : locations;
+  // Synthetic waypoints are connective tissue, not places — a chopper doesn't
+  // stage at a drain culvert.
+  const real = locations.filter((l) => l.category !== 'waypoint');
+  const faraway = real.filter((l) => l.distanceFromSpawn >= MIN_FIRST_EVAC_DIST);
+  const pool = faraway.length > 0 ? faraway : real;
   let best: LocationState | null = null;
   for (const l of pool) {
     if (!best || l.distanceFromSpawn > best.distanceFromSpawn) best = l;
@@ -68,7 +71,7 @@ export function pickNextEvacZone(
   let best: LocationState | null = null;
   let bestD = -1;
   for (const l of locations) {
-    if (l.id === excludeId) continue;
+    if (l.id === excludeId || l.category === 'waypoint') continue;
     const d = haversine(fromLat, fromLng, l.lat, l.lng);
     if (d > bestD) {
       bestD = d;

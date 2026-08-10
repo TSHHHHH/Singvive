@@ -7,10 +7,28 @@ export const METER_MAX = 100;
 
 /** Passive depletion per HOUR spent awake/active. */
 export const DEPLETION_PER_HOUR = {
-  hunger: 1.6,
-  thirst: 2.2,
+  hunger: 1.1,
+  thirst: 1.5,
   energy: 2.9,
 };
+
+/**
+ * A sleeping body burns far less. Without this, an eight-hour night ate most of
+ * a meal and a bottle, so resting meant immediately re-opening the pack.
+ */
+export const SLEEP_DEPLETION_MULT = 0.3;
+
+/** Below this, an empty stomach / dry throat starts costing HP. */
+export const STARVING_THRESHOLD = 20;
+/** HP per hour lost at a completely empty meter (scales in from the threshold). */
+const STARVE_HP_PER_HOUR = 2.5;
+const DEHYDRATE_HP_PER_HOUR = 4;
+
+/** 0 when the meter is above the threshold, ramping to 1 at empty. */
+function starvationSeverity(meter: number): number {
+  if (meter >= STARVING_THRESHOLD) return 0;
+  return (STARVING_THRESHOLD - meter) / STARVING_THRESHOLD;
+}
 
 export function clampMeter(v: number): number {
   return Math.max(0, Math.min(METER_MAX, v));
@@ -38,19 +56,26 @@ export function tickMeters(
   effectiveMaxHp: number,
   hours: number,
   bleedDrain = 0,
+  opts: { sleeping?: boolean } = {},
 ): Meters {
-  const hunger = clampMeter(meters.hunger - DEPLETION_PER_HOUR.hunger * hours);
-  const thirst = clampMeter(meters.thirst - DEPLETION_PER_HOUR.thirst * hours);
+  const mult = opts.sleeping ? SLEEP_DEPLETION_MULT : 1;
+  const hunger = clampMeter(meters.hunger - DEPLETION_PER_HOUR.hunger * hours * mult);
+  const thirst = clampMeter(meters.thirst - DEPLETION_PER_HOUR.thirst * hours * mult);
   const energy = clampMeter(meters.energy - DEPLETION_PER_HOUR.energy * hours);
+
+  // Running empty no longer kills outright — it grinds HP down, so the run ends
+  // on health and you get warning time to find food or water.
+  const starving = starvationSeverity(hunger);
+  const parched = starvationSeverity(thirst);
 
   let health = meters.health;
   health -= bleedDrain * hours;
-  if (hunger <= 0) health -= 2.5 * hours;
-  if (thirst <= 0) health -= 3.5 * hours;
+  health -= starving * STARVE_HP_PER_HOUR * hours;
+  health -= parched * DEHYDRATE_HP_PER_HOUR * hours;
   if (meters.infection > 0) health -= (meters.infection / 25) * hours;
 
   // passive recovery when the body is stable (fed, hydrated, not bleeding out)
-  if (bleedDrain === 0 && hunger > 0 && thirst > 0 && meters.infection < 50) {
+  if (bleedDrain === 0 && starving === 0 && parched === 0 && meters.infection < 50) {
     health += HP_REGEN_PER_HOUR * hours;
   }
 
@@ -245,7 +270,12 @@ export function checkDeath(meters: Meters, parts?: BodyParts): DeathCause {
   if (meters.infection >= METER_MAX) return 'infection';
   if (parts && parts.head.condition <= 0) return 'head';
   if (parts && parts.torso.condition <= 0) return 'torso';
-  if (meters.health <= 0) return 'health';
+  if (meters.health <= 0) {
+    // attribute the collapse to whatever was draining you
+    if (meters.thirst <= 0) return 'dehydration';
+    if (meters.hunger <= 0) return 'starvation';
+    return 'health';
+  }
   return null;
 }
 

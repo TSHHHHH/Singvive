@@ -113,7 +113,152 @@ export function buildLocations(
     }
     kept.push(loc);
   }
-  return kept.sort((a, b) => a.distanceFromSpawn - b.distanceFromSpawn).slice(0, MAX_LOCATIONS);
+  const capped = kept
+    .sort((a, b) => a.distanceFromSpawn - b.distanceFromSpawn)
+    .slice(0, MAX_LOCATIONS);
+
+  // Bridging runs *after* the cap, and its output is exempt from it: the whole
+  // point is the far, sparse edges, which are exactly what the cap trims.
+  return bridgeWorld(rng, spawn, capped);
+}
+
+// ---------------------------------------------------------------------------
+// Connectivity.
+//
+// Travel is gated on a single push (see fog.travelableRange), so a cluster of
+// POIs further than one push from everything else is a cage: walk in, and no
+// destination is ever selectable again. Open-ground trekking (game/wilds.ts) is
+// the safety net that makes this survivable, but a world you can only cross by
+// walking through empty lots isn't a world — it's a gap.
+//
+// So we guarantee the property instead of hoping the OSM data has it: build the
+// reachability graph, and wherever a hop is too long, lay down synthetic
+// waypoints until it isn't. Deterministic per seed, and it only ever adds what
+// the geometry actually demands — a dense town centre generates none at all.
+// ---------------------------------------------------------------------------
+
+/**
+ * The hop length every link is guaranteed to fit inside. Deliberately well under
+ * a healthy survivor's range: this has to hold for a low-endurance build with a
+ * hurt leg, carrying too much, in the rain.
+ */
+const GUARANTEED_HOP = 420; // metres
+
+/** Stops a pathological world (one distant island) from spawning hundreds. */
+const MAX_BRIDGE_NODES = 80;
+
+/** What the road left behind, for naming the fillers. */
+const WAYPOINT_NAMES = [
+  'Drain Culvert',
+  'Bus Stop',
+  'Multi-Storey Carpark',
+  'Overhead Bridge',
+  'Service Road',
+  'Stalled Traffic',
+  'Covered Walkway',
+  'Canal Path',
+  'Construction Hoarding',
+  'Bin Centre',
+];
+
+function makeWaypoint(
+  rng: Rng,
+  spawn: { lat: number; lng: number },
+  lat: number,
+  lng: number,
+  index: number,
+): LocationState {
+  const r = rng.fork(`bridge:${index}`);
+  return {
+    id: `bridge/${index}`,
+    name: r.pick(WAYPOINT_NAMES),
+    category: 'waypoint',
+    lat,
+    lng,
+    size: 'small',
+    baseDanger: 2,
+    currentDanger: 2,
+    remainingSearches: SEARCHES_BY_SIZE.small,
+    exhausted: false,
+    cleared: false,
+    looted: false,
+    factionId: null, // nobody claims a drain
+    isFactionRevealed: false,
+    isMrtStation: false,
+    discovered: false,
+    lastSeen: null,
+    distanceFromSpawn: Math.round(haversine(spawn.lat, spawn.lng, lat, lng)),
+  };
+}
+
+/**
+ * Grow a spanning tree outward from spawn, laying waypoints across any hop
+ * longer than GUARANTEED_HOP. Prim's algorithm, so it always bridges the
+ * *cheapest* remaining gap — fillers land on the shortest crossing rather than
+ * wherever the iteration order happened to look.
+ */
+function bridgeWorld(
+  rng: Rng,
+  spawn: { lat: number; lng: number },
+  nodes: LocationState[],
+): LocationState[] {
+  if (nodes.length === 0) return nodes;
+  const bridgeRng = rng.fork('bridge');
+  const fillers: LocationState[] = [];
+
+  const inTree = new Array<boolean>(nodes.length).fill(false);
+  // Cheapest known link from the reached set to each outstanding node. The
+  // survivor starts standing at spawn, so spawn itself seeds the tree.
+  const best = nodes.map((n) => haversine(spawn.lat, spawn.lng, n.lat, n.lng));
+  const bestFrom = nodes.map(() => ({ lat: spawn.lat, lng: spawn.lng }));
+
+  /** Fold a newly reached point into the frontier. */
+  const relax = (from: { lat: number; lng: number }) => {
+    for (let v = 0; v < nodes.length; v++) {
+      if (inTree[v]) continue;
+      const d = haversine(from.lat, from.lng, nodes[v].lat, nodes[v].lng);
+      if (d < best[v]) {
+        best[v] = d;
+        bestFrom[v] = from;
+      }
+    }
+  };
+
+  for (let added = 0; added < nodes.length; added++) {
+    // nearest outstanding node to anything already reachable
+    let u = -1;
+    for (let v = 0; v < nodes.length; v++) {
+      if (inTree[v]) continue;
+      if (u === -1 || best[v] < best[u]) u = v;
+    }
+    if (u === -1) break;
+
+    const target = nodes[u];
+    if (best[u] > GUARANTEED_HOP && fillers.length < MAX_BRIDGE_NODES) {
+      // Lay stepping stones along the gap, evenly spaced so no single leg
+      // exceeds the guaranteed hop.
+      const from = bestFrom[u];
+      const legs = Math.ceil(best[u] / GUARANTEED_HOP);
+      for (let i = 1; i < legs && fillers.length < MAX_BRIDGE_NODES; i++) {
+        const t = i / legs;
+        const wp = makeWaypoint(
+          bridgeRng,
+          spawn,
+          from.lat + (target.lat - from.lat) * t,
+          from.lng + (target.lng - from.lng) * t,
+          fillers.length,
+        );
+        fillers.push(wp);
+        relax(wp);
+      }
+    }
+
+    inTree[u] = true;
+    relax(target);
+  }
+
+  if (fillers.length === 0) return nodes;
+  return [...nodes, ...fillers].sort((a, b) => a.distanceFromSpawn - b.distanceFromSpawn);
 }
 
 // Rough weight for how often each category appears in a Singapore town.

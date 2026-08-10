@@ -144,7 +144,9 @@ export type PoiCategory =
   | 'police'
   | 'residential'
   | 'foodcourt'
-  | 'mrt';
+  | 'mrt'
+  /** Synthetic connective tissue inserted by the world builder — see world.ts. */
+  | 'waypoint';
 
 export type FactionId = 'idtf' | 'pasir_panjang' | 'syndicate_88' | 'sta' | null;
 export type LocationSize = 'small' | 'medium' | 'large';
@@ -305,6 +307,10 @@ export interface CombatContext {
   roadAmbush?: boolean;
   /** jumped mid-crossing in open ground — there is no site to search at all. */
   wilds?: boolean;
+  /** the HDB unit this fight came out of — settled instead of a site search. */
+  hdbUnit?: { level: number; unitId: string; lootMod: number };
+  /** cut off on the stairwell — there's nothing to search, you just fight clear. */
+  hdbStairs?: boolean;
 }
 
 export interface CombatState {
@@ -324,6 +330,44 @@ export interface CombatState {
   quickBeltItems: (string | null)[];
   /** Rounds resolve only while the player has committed a stance. */
   awaitingStance: boolean;
+}
+
+// ---------- Run statistics ----------
+/**
+ * Cumulative counters for the current run. Display only — nothing here ever
+ * feeds back into a gameplay roll, so adding a counter can never change balance.
+ */
+export interface RunStats {
+  zombieKills: number;
+  humanKills: number;
+  fightsFled: number;
+  /** Metres actually walked (treks and site-to-site legs; MRT rides excluded). */
+  distanceM: number;
+  poisSearched: number;
+  hdbUnitsCleared: number;
+  itemsLooted: number;
+  /** Sum of item `value` for everything ever picked up, kept or not. */
+  lootValue: number;
+  nightsSlept: number;
+}
+
+// ---------- Timeline ----------
+export interface LootStackRef {
+  defId: string;
+  count: number;
+}
+
+/** One line of the run's timeline, stamped with the in-game moment it happened. */
+export interface GameLogEntry {
+  id: number;
+  text: string;
+  tone: 'info' | 'good' | 'bad';
+  day: number;
+  hour: number;
+  /** What the search yielded — rendered as chips under the entry. */
+  loot?: LootStackRef[];
+  /** What wouldn't fit in the pack. */
+  leftover?: LootStackRef[];
 }
 
 // ---------- Scores ----------

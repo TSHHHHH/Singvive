@@ -18,6 +18,7 @@ export type IconName =
   | 'poi.residential'
   | 'poi.foodcourt'
   | 'poi.mrt'
+  | 'poi.waypoint'
   | 'poi.unknown'
   // --- factions ---
   | 'faction.idtf'
@@ -70,6 +71,11 @@ export type IconName =
   | 'action.here'
   | 'action.target'
   | 'action.kills'
+  | 'action.stats'
+  | 'action.dayLogs'
+  | 'action.close'
+  // --- run statistics ---
+  | 'stat.value'
   // --- weather / time ---
   | 'weather.clear'
   | 'weather.cloudy'
@@ -100,6 +106,7 @@ export const EMOJI_FALLBACK: Record<IconName, string> = {
   'poi.residential': '🏢',
   'poi.foodcourt': '🍜',
   'poi.mrt': '🚉',
+  'poi.waypoint': '🛣️',
   'poi.unknown': '❓',
 
   'faction.idtf': '🎖️',
@@ -152,6 +159,11 @@ export const EMOJI_FALLBACK: Record<IconName, string> = {
   'action.here': '📍',
   'action.target': '🎯',
   'action.kills': '💀',
+  'action.stats': '📊',
+  'action.dayLogs': '🗓️',
+  'action.close': '✕',
+
+  'stat.value': '💰',
 
   'weather.clear': '☀️',
   'weather.cloudy': '☁️',

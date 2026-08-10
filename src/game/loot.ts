@@ -100,6 +100,12 @@ export const LOOT_TABLES: Record<PoiCategory, LootEntry[]> = {
     ['snacks', 8], ['soft_drink', 7], ['water_bottle', 5], ['isotonic', 4],
     ['coffee', 4], ['batteries', 3], ['torch', 2],
   ],
+  // Roadside scraps only. Waypoints exist so the map is walkable, not so it's
+  // farmable — anything richer here would undercut going to a real building.
+  waypoint: [
+    ['scrap_metal', 10], ['duct_tape', 5], ['water_bottle', 4], ['snacks', 4],
+    ['batteries', 3], ['fuel_can', 2],
+  ],
 };
 
 export interface LootStack {

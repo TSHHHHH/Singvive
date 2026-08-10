@@ -30,14 +30,16 @@ export interface SettingDef {
 export interface LogViewMode {
   id: string;
   label: string;
+  /** Fits the square toggles in the timeline header; `label` is for Settings. */
+  shortLabel: string;
   count: number;
 }
 
 export const LOG_VIEW_MODES: LogViewMode[] = [
-  { id: 'full', label: 'Full', count: Infinity },
-  { id: 'latest', label: 'Latest', count: 1 },
-  { id: 'recent5', label: 'Recent 5', count: 5 },
-  { id: 'recent10', label: 'Recent 10', count: 10 },
+  { id: 'full', label: 'Full', shortLabel: 'All', count: Infinity },
+  { id: 'latest', label: 'Latest', shortLabel: '1', count: 1 },
+  { id: 'recent5', label: 'Recent 5', shortLabel: '5', count: 5 },
+  { id: 'recent10', label: 'Recent 10', shortLabel: '10', count: 10 },
 ];
 
 export function logViewMode(id: string): LogViewMode {

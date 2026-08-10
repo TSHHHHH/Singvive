@@ -4,7 +4,11 @@ import { POI_CONFIG } from '../game/poi';
 import { Icon } from '../icons/Icon';
 import type { ItemInstance } from '../game/types';
 
-export function StashLogbook({ onClose }: { onClose: () => void }) {
+/**
+ * Read-only index of every cache you've left behind. Rendered as the body of the
+ * side panel — the panel owns the header and the close control.
+ */
+export function StashLogbook() {
   const items = useGame((s) => s.items);
   const locations = useGame((s) => s.locations);
   const currentPositionId = useGame((s) => s.currentPositionId);
@@ -22,16 +26,8 @@ export function StashLogbook({ onClose }: { onClose: () => void }) {
   const entries = [...byLocation.entries()].filter(([, arr]) => arr.length > 0);
 
   return (
-    <div className="absolute inset-0 z-[1000] flex items-start justify-center overflow-y-auto bg-black/80 p-4">
-      <div className="my-auto w-full max-w-lg rounded-xl border border-white/10 bg-concrete-900 p-5">
-        <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-lg font-bold text-signal">📓 Stash Logbook</h3>
-          <button onClick={onClose} className="text-white/50 hover:text-white">
-            ✕
-          </button>
-        </div>
-
-        {entries.length === 0 ? (
+    <>
+      {entries.length === 0 ? (
           <p className="text-sm text-white/40">
             No caches yet. Travel to a location and deposit loot into its stash.
           </p>
@@ -66,10 +62,9 @@ export function StashLogbook({ onClose }: { onClose: () => void }) {
             })}
           </ul>
         )}
-        <p className="mt-4 text-[11px] text-white/30">
-          Caches are read-only from here — travel to a location to withdraw from its stash.
-        </p>
-      </div>
-    </div>
+      <p className="mt-4 text-[11px] text-white/30">
+        Caches are read-only from here — travel to a location to withdraw from its stash.
+      </p>
+    </>
   );
 }

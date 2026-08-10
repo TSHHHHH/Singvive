@@ -109,6 +109,7 @@ const NAME_BY_CATEGORY: Record<PoiCategory, string> = {
   residential: 'HDB Block',
   foodcourt: 'Hawker Centre',
   mrt: 'MRT Station',
+  waypoint: 'Waypoint',
 };
 
 function parseElements(elements: OsmElement[]): RawPoi[] {

@@ -26,6 +26,7 @@ export const POI_CONFIG: Record<PoiCategory, PoiCategoryConfig> = {
   residential: { label: 'HDB Void Deck', richness: 2, baseDanger: 2, color: '#8a867e', icon: 'poi.residential', blurb: 'Void deck & flats — common household loot. The 88 Syndicate works these estates.' },
   foodcourt: { label: 'Hawker Centre', richness: 3, baseDanger: 2, color: '#cfccc4', icon: 'poi.foodcourt', blurb: 'Food stalls.' },
   mrt: { label: 'MRT Station', richness: 2, baseDanger: 3, color: '#2bc4d9', icon: 'poi.mrt', blurb: 'Transit hub. Fast-travel node held by the Subterranean Transit Authority.' },
+  waypoint: { label: 'Waypoint', richness: 1, baseDanger: 2, color: '#6b7075', icon: 'poi.waypoint', blurb: 'Not a destination — a place to stop between them. Whatever the road left behind.' },
 };
 
 /**

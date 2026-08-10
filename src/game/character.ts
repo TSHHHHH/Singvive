@@ -377,6 +377,20 @@ export function attributesFromTraits(traitIds: string[]): Attributes {
   return attrs;
 }
 
+/**
+ * Which traits are moving an attribute, and by how much. Drives the hover
+ * readout on the attribute row — the player can see *why* a stat isn't 5.
+ */
+export function attributeSources(
+  traitIds: string[],
+  key: AttributeKey,
+): { name: string; mod: number }[] {
+  const modKey = ATTRIBUTE_MOD_KEYS[key];
+  return getTraits(traitIds)
+    .map((t) => ({ name: t.name, mod: (t[modKey] as number | undefined) ?? 0 }))
+    .filter((s) => s.mod !== 0);
+}
+
 export function maxHpFor(character: Character): number {
   const bonus = sumTraitMod(character.traitIds, 'maxHpBonus');
   return 60 + character.attributes.endurance * 6 + bonus;

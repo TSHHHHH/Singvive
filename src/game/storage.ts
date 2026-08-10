@@ -2,13 +2,17 @@ import type {
   BodyParts,
   Character,
   Equipment,
+  GameLogEntry,
   HighScore,
   ItemInstance,
   LocationState,
   Meters,
+  RunStats,
 } from './types';
 import type { ExploredCircle } from './fog';
+import type { HdbDungeon } from './hdbDungeon';
 import { migrateFactionId } from './factions';
+import { normalizeRunStats } from './stats';
 
 const RUN_KEY = 'singvive.run.v6'; // v6: extraction goal + horde clock
 const SCORES_KEY = 'singvive.scores.v1';
@@ -33,6 +37,16 @@ export interface SavedRun {
   hordeLevel: number;
   evacZoneId: string | null;
   evacDeadline: number | null;
+  /** Explored HDB blocks, so a cleared unit stays cleared between visits. */
+  hdbBlocks?: Record<string, HdbDungeon>;
+  /** Display-only run counters. Absent on saves written before they existed. */
+  stats?: RunStats;
+  /**
+   * The whole timeline, every day of it. The Timeline column only renders the
+   * current day; Day Logs reads the rest out of here, so it has to survive a
+   * reload or the archive is empty for anyone who resumes a run.
+   */
+  log?: GameLogEntry[];
 }
 
 export function saveRun(run: SavedRun): void {
@@ -62,6 +76,13 @@ export function loadRun(): SavedRun | null {
     for (const loc of Object.values(parsed.locations ?? {})) {
       loc.factionId = migrateFactionId(loc.factionId);
     }
+    // Migration: run counters and the persisted timeline are newer than v6 saves.
+    // A resumed old run starts its stats from zero rather than back-filling
+    // guesses — `kills` is the only number that survived, so seed with it.
+    parsed.stats = normalizeRunStats(
+      parsed.stats ?? { zombieKills: parsed.kills ?? 0 },
+    );
+    if (!parsed.log) parsed.log = [];
     return parsed;
   } catch {
     return null;

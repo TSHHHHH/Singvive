@@ -11,6 +11,10 @@ const toneClass: Record<string, string> = {
   info: 'text-white/60',
 };
 
+/** Every control in the timeline header shares one box, so the row reads even. */
+const CTRL =
+  'flex h-6 w-8 shrink-0 items-center justify-center rounded border border-white/10 text-[10px] leading-none transition';
+
 const dotClass: Record<string, string> = {
   good: 'bg-signal',
   bad: 'bg-hiss',
@@ -18,13 +22,22 @@ const dotClass: Record<string, string> = {
 };
 
 /**
- * The run's timeline. Entries read oldest → newest down a connecting spine, each
- * stamped with the in-game day/time. How many entries are shown is driven by the
- * `logView` setting (Full / Latest / Recent N). A pending event lands as a live,
- * interactive node at the end; the most recent item is always highlighted.
+ * The run's timeline — today, and only today. Entries read oldest → newest down
+ * a connecting spine. Everything from previous days is rolled into the Day Logs
+ * archive so this column stays short enough to actually read; how much of
+ * *today* is shown is still driven by the `logView` setting (Full / Latest /
+ * Recent N). A pending event lands as a live, interactive node at the end; the
+ * most recent item is always highlighted.
  */
-export function LogPanel({ onOpenSettings }: { onOpenSettings?: () => void }) {
+export function LogPanel({
+  onOpenSettings,
+  onOpenDayLogs,
+}: {
+  onOpenSettings?: () => void;
+  onOpenDayLogs?: () => void;
+}) {
   const log = useGame((s) => s.log);
+  const day = useGame((s) => s.day);
   const pending = useGame((s) => s.pendingEvent);
   const items = useGame((s) => s.items);
   const resolveEvent = useGame((s) => s.resolveEvent);
@@ -35,7 +48,9 @@ export function LogPanel({ onOpenSettings }: { onOpenSettings?: () => void }) {
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const chronological = [...log].reverse(); // stored newest-first; show chronologically
+  const earlierDays = log.some((e) => e.day < day);
+  // stored newest-first; show chronologically, and only what happened today
+  const chronological = log.filter((e) => e.day === day).reverse();
   const total = chronological.length;
   const shown =
     mode.count === Infinity ? chronological : chronological.slice(Math.max(0, total - mode.count));
@@ -49,7 +64,7 @@ export function LogPanel({ onOpenSettings }: { onOpenSettings?: () => void }) {
   useEffect(() => {
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [log.length, pending, viewId]);
+  }, [log.length, pending, viewId, day]);
 
   const hasItem = (defId?: string) =>
     !defId || items.some((i) => i.container === 'backpack' && i.defId === defId);
@@ -57,30 +72,40 @@ export function LogPanel({ onOpenSettings }: { onOpenSettings?: () => void }) {
   return (
     <div className="flex h-full min-w-0 flex-col">
       <div className="mb-2 flex shrink-0 items-center justify-between gap-2">
-        <h3 className="text-xs uppercase tracking-widest text-white/30">Timeline</h3>
+        <h3 className="text-xs uppercase tracking-widest text-white/30">
+          Timeline <span className="text-white/20">· day {day}</span>
+        </h3>
+        {/* One row of identically-sized controls — the view toggles and the two
+            sheet openers all read as the same kind of thing, so they look it. */}
         <div className="flex items-center gap-1">
-          {/* inline view toggle (mirrors the Settings panel) */}
-          <div className="flex overflow-hidden rounded border border-white/10">
-            {LOG_VIEW_MODES.map((m) => (
-              <button
-                key={m.id}
-                onClick={() => setSetting('logView', m.id)}
-                title={`Show ${m.label.toLowerCase()}`}
-                className={`px-1.5 py-0.5 text-[10px] transition ${
-                  viewId === m.id
-                    ? 'bg-signal/20 text-signal'
-                    : 'text-white/40 hover:bg-white/5 hover:text-white/70'
-                }`}
-              >
-                {m.label}
-              </button>
-            ))}
-          </div>
+          {onOpenDayLogs && (
+            <button
+              onClick={onOpenDayLogs}
+              title="Day logs — every previous day"
+              className={`${CTRL} text-white/40 hover:bg-white/5 hover:text-white/70`}
+            >
+              <Icon name="action.dayLogs" />
+            </button>
+          )}
+          {LOG_VIEW_MODES.map((m) => (
+            <button
+              key={m.id}
+              onClick={() => setSetting('logView', m.id)}
+              title={`Show ${m.label.toLowerCase()}`}
+              className={`${CTRL} ${
+                viewId === m.id
+                  ? 'bg-signal/20 text-signal'
+                  : 'text-white/40 hover:bg-white/5 hover:text-white/70'
+              }`}
+            >
+              {m.shortLabel}
+            </button>
+          ))}
           {onOpenSettings && (
             <button
               onClick={onOpenSettings}
               title="Settings"
-              className="rounded border border-white/10 px-1.5 py-0.5 text-[11px] text-white/40 hover:bg-white/5 hover:text-white/70"
+              className={`${CTRL} text-white/40 hover:bg-white/5 hover:text-white/70`}
             >
               <Icon name="action.settings" />
             </button>
@@ -90,15 +115,24 @@ export function LogPanel({ onOpenSettings }: { onOpenSettings?: () => void }) {
 
       <div ref={scrollRef} className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden pl-1.5 pr-2">
         {shown.length === 0 && !ev ? (
-          <p className="text-white/30">Your story starts here…</p>
+          <p className="text-white/30">
+            {earlierDays ? 'A fresh day. Nothing has happened yet.' : 'Your story starts here…'}
+          </p>
         ) : (
           <ol className="relative flex flex-col">
             {/* connecting spine */}
             <div className="absolute bottom-2 left-[5px] top-1 w-px bg-white/10" />
 
-            {hiddenCount > 0 && (
+            {(hiddenCount > 0 || earlierDays) && (
               <li className="relative mb-1 pl-4 text-[10px] italic text-white/25">
-                …{hiddenCount} earlier {hiddenCount === 1 ? 'entry' : 'entries'} hidden
+                {hiddenCount > 0 &&
+                  `…${hiddenCount} earlier ${hiddenCount === 1 ? 'entry' : 'entries'} today hidden`}
+                {hiddenCount > 0 && earlierDays && ' · '}
+                {earlierDays && onOpenDayLogs && (
+                  <button onClick={onOpenDayLogs} className="underline hover:text-white/50">
+                    previous days in Day logs
+                  </button>
+                )}
               </li>
             )}
 
@@ -119,7 +153,7 @@ export function LogPanel({ onOpenSettings }: { onOpenSettings?: () => void }) {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="text-[10px] uppercase tracking-wide text-white/25">
-                        Day {e.day} · {formatClock(e.hour)}
+                        {formatClock(e.hour)}
                       </span>
                       {isLatest && (
                         <span className="rounded bg-signal/20 px-1 text-[9px] font-semibold uppercase tracking-wide text-signal">

@@ -122,12 +122,40 @@ function zoneForCell(seed: string, cx: number, cy: number): HazardZone | null {
   };
 }
 
-/** Every hazard whose circle comes within `radiusM` of a point. */
+/**
+ * Ground the field is forbidden to touch. The survivor wakes up somewhere; that
+ * somewhere must not already be inside a horde pocket, or the run opens with an
+ * unearned fight and a first step that reads as broken.
+ */
+export interface SafeAnchor {
+  lat: number;
+  lng: number;
+  radiusM?: number;
+}
+
+/** How much clear ground the spawn point is guaranteed. */
+export const SPAWN_SAFE_RADIUS = 400;
+
+/** True when a zone reaches into the protected bubble and must be suppressed. */
+function suppressed(z: HazardZone, safe?: SafeAnchor): boolean {
+  if (!safe) return false;
+  const clear = safe.radiusM ?? SPAWN_SAFE_RADIUS;
+  return haversine(safe.lat, safe.lng, z.lat, z.lng) < clear + z.radiusM;
+}
+
+/**
+ * Every hazard whose circle comes within `radiusM` of a point.
+ *
+ * Pass the run's spawn as `safe` — every caller should, and consistently, since
+ * a zone suppressed for the map but not for the encounter roll would be an
+ * invisible ambush.
+ */
 export function hazardZonesNear(
   seed: string,
   lat: number,
   lng: number,
   radiusM: number,
+  safe?: SafeAnchor,
 ): HazardZone[] {
   const reach = radiusM + 250; // widest zone radius, so edge cells aren't missed
   const spanX = Math.ceil(reach / CELL_M);
@@ -138,7 +166,7 @@ export function hazardZonesNear(
   for (let dy = -spanY; dy <= spanY; dy++) {
     for (let dx = -spanX; dx <= spanX; dx++) {
       const z = zoneForCell(seed, cx0 + dx, cy0 + dy);
-      if (!z) continue;
+      if (!z || suppressed(z, safe)) continue;
       if (haversine(lat, lng, z.lat, z.lng) <= radiusM + z.radiusM) out.push(z);
     }
   }
@@ -157,6 +185,7 @@ export function hazardsOnPath(
   seed: string,
   from: { lat: number; lng: number },
   to: { lat: number; lng: number },
+  safe?: SafeAnchor,
 ): HazardZone[] {
   const dist = haversine(from.lat, from.lng, to.lat, to.lng);
   const steps = Math.max(1, Math.ceil(dist / PATH_STEP_M));
@@ -165,7 +194,7 @@ export function hazardsOnPath(
     const t = i / steps;
     const lat = from.lat + (to.lat - from.lat) * t;
     const lng = from.lng + (to.lng - from.lng) * t;
-    for (const z of hazardZonesNear(seed, lat, lng, 0)) seen.set(z.id, z);
+    for (const z of hazardZonesNear(seed, lat, lng, 0, safe)) seen.set(z.id, z);
   }
   return [...seen.values()];
 }
@@ -209,6 +238,8 @@ export function trekRisk(
     hordeIntensity: number; // 0..1
     weatherEncounterMod: number;
     traitEncounterMod: number;
+    /** The run's spawn — hazards are never allowed to reach it. */
+    safe?: SafeAnchor;
   },
   /**
    * Pass the subset the survivor has actually *sensed* to price the crossing as
@@ -218,7 +249,7 @@ export function trekRisk(
   hazardsOverride?: HazardZone[],
 ): TrekRisk {
   const dist = haversine(from.lat, from.lng, to.lat, to.lng);
-  const hazards = hazardsOverride ?? hazardsOnPath(seed, from, to);
+  const hazards = hazardsOverride ?? hazardsOnPath(seed, from, to, opts.safe);
 
   let p = (dist / 100) * 0.018 * OPEN_GROUND_ENCOUNTER_MULT;
   if (opts.band === 'night') p += 0.14;
