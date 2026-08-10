@@ -1,3 +1,5 @@
+import { Icon } from '../icons/Icon';
+import type { IconName } from '../icons/keys';
 import { TIME_LABEL } from '../game/weather';
 import type { TimeOfDay } from '../game/types';
 
@@ -21,9 +23,9 @@ export function DigitalClock({
 
   const night = band === 'night';
   const dusk = band === 'dusk';
-  const glyph = night ? '🌙' : dusk ? '🌆' : '☀️';
-  // amber at dusk, cold blue at night, toxic green by day
-  const color = night ? '#7fb0e0' : dusk ? '#e0a458' : '#8fd88f';
+  const icon: IconName = night ? 'time.night' : dusk ? 'time.dusk' : 'time.day';
+  // amber at dusk, cold blue at night, signal green by day
+  const color = night ? '#2bc4d9' : dusk ? '#cfccc4' : '#e8e5dd';
 
   return (
     <div
@@ -37,7 +39,7 @@ export function DigitalClock({
         </span>
       </div>
       <div className="flex items-baseline gap-1.5">
-        <span className="text-lg leading-none">{glyph}</span>
+        <Icon name={icon} size={18} className="leading-none" />
         <span
           className="font-mono text-3xl font-bold leading-none tabular-nums"
           style={{ color, textShadow: `0 0 8px ${color}66` }}

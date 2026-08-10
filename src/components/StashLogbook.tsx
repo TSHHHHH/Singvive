@@ -1,6 +1,7 @@
 import { useGame } from '../game/store';
 import { itemDef } from '../game/loot';
 import { POI_CONFIG } from '../game/poi';
+import { Icon } from '../icons/Icon';
 import type { ItemInstance } from '../game/types';
 
 export function StashLogbook({ onClose }: { onClose: () => void }) {
@@ -22,9 +23,9 @@ export function StashLogbook({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="absolute inset-0 z-[1000] flex items-start justify-center overflow-y-auto bg-black/80 p-4">
-      <div className="my-auto w-full max-w-lg rounded-xl border border-white/10 bg-rot-900 p-5">
+      <div className="my-auto w-full max-w-lg rounded-xl border border-white/10 bg-concrete-900 p-5">
         <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-lg font-bold text-toxic">📓 Stash Logbook</h3>
+          <h3 className="text-lg font-bold text-signal">📓 Stash Logbook</h3>
           <button onClick={onClose} className="text-white/50 hover:text-white">
             ✕
           </button>
@@ -46,8 +47,8 @@ export function StashLogbook({ onClose }: { onClose: () => void }) {
                 <li key={locId} className="rounded-lg border border-white/10 bg-black/40 p-3">
                   <div className="flex items-center justify-between">
                     <span className="font-semibold">
-                      {POI_CONFIG[loc.category].glyph} {loc.name}
-                      {here && <span className="ml-2 text-[11px] text-toxic">(here)</span>}
+                      <Icon name={POI_CONFIG[loc.category].icon} /> {loc.name}
+                      {here && <span className="ml-2 text-[11px] text-signal">(here)</span>}
                     </span>
                     <span className="text-[11px] text-white/40">
                       {loc.lat.toFixed(4)}, {loc.lng.toFixed(4)}

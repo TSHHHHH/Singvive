@@ -28,7 +28,11 @@ export type FlavorKey =
   | 'roadAmbush'
   | 'roadHazard'
   | 'roadFind'
-  | 'rest';
+  | 'rest'
+  | 'trekOut'
+  | 'trekArrive'
+  | 'trekAmbush'
+  | 'restExposed';
 
 const POOLS: Record<FlavorKey, string[]> = {
   wake: [
@@ -99,6 +103,28 @@ const POOLS: Record<FlavorKey, string[]> = {
     'You hunker down till first light, one ear open.',
     'You wedge the door shut and drift off, knife in hand.',
     'A few stolen hours of sleep. The streets refill by dawn.',
+  ],
+  trekOut: [
+    'No door worth knocking on out there. You strike off across open ground.',
+    'You leave the buildings behind and cut across the open.',
+    'Nothing charted that way. You go anyway, keeping to the drains.',
+    'You pick a line across the empty ground and commit to it.',
+  ],
+  trekArrive: [
+    'You stop in the open, nothing but sky and silence. No walls, no door.',
+    'You reach the spot. Bare ground, no shelter — you can\'t stay long.',
+    'Open ground. You crouch low and take stock.',
+    'You pull up short of nothing in particular. At least it\'s new ground.',
+  ],
+  trekAmbush: [
+    'Out in the open with nowhere to duck — and something comes at you.',
+    'Halfway across, the ground gives up what it was hiding.',
+    'No cover, no warning. It\'s on you before you can pick a line.',
+  ],
+  restExposed: [
+    'You sleep rough in the open, and it barely counts as sleep.',
+    'No roof, no door. You doze in snatches, jerking awake at every sound.',
+    'You lie in the dirt with one hand on your weapon and wait out the dark.',
   ],
 };
 

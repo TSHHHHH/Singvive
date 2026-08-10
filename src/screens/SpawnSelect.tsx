@@ -96,7 +96,7 @@ export function SpawnSelect() {
         <button onClick={resetToMenu} className="text-xs text-white/40 hover:text-white/70">
           ← Back
         </button>
-        <h2 className="text-lg font-bold text-toxic">Choose where you wake up</h2>
+        <h2 className="text-lg font-bold text-signal">Choose where you wake up</h2>
         <button
           onClick={randomSpawn}
           className="rounded bg-white/10 px-3 py-1.5 text-sm hover:bg-white/20"
@@ -106,7 +106,7 @@ export function SpawnSelect() {
       </div>
 
       {rejected && (
-        <div className="mb-2 rounded border border-red-500/40 bg-red-900/40 px-3 py-2 text-sm text-red-200">
+        <div className="mb-2 rounded border border-hiss/50 bg-hiss/10 px-3 py-2 text-sm text-hiss">
           {rejected}
         </div>
       )}
@@ -152,7 +152,7 @@ export function SpawnSelect() {
         <p className="text-sm text-white/50">
           {picked ? (
             <>
-              Spawn: <span className="text-toxic">{picked.name}</span>
+              Spawn: <span className="text-signal">{picked.name}</span>
             </>
           ) : (
             'Click anywhere in Singapore, or roll a random spawn.'
@@ -161,7 +161,7 @@ export function SpawnSelect() {
         <button
           onClick={confirm}
           disabled={!picked || loading}
-          className="rounded-lg bg-toxic/80 px-6 py-2.5 font-bold text-black transition hover:bg-toxic disabled:opacity-30"
+          className="rounded-lg bg-signal/80 px-6 py-2.5 font-bold text-black transition hover:bg-signal disabled:opacity-30"
         >
           Wake up here →
         </button>

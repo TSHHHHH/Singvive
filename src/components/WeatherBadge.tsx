@@ -1,4 +1,5 @@
-import { WEATHER_GLYPH, WEATHER_LABEL, weatherEffects } from '../game/weather';
+import { WEATHER_ICON, WEATHER_LABEL, weatherEffects } from '../game/weather';
+import { Icon } from '../icons/Icon';
 import type { WeatherKind } from '../game/types';
 
 /** Weather readout that reveals its buffs/debuffs on hover. */
@@ -7,15 +8,15 @@ export function WeatherBadge({ weather }: { weather: WeatherKind }) {
   return (
     <div className="group relative inline-flex">
       <span className="flex cursor-help items-center gap-1 border-b border-dashed border-white/20">
-        {WEATHER_GLYPH[weather]} {WEATHER_LABEL[weather]}
+        <Icon name={WEATHER_ICON[weather]} /> {WEATHER_LABEL[weather]}
       </span>
-      <div className="pointer-events-none absolute left-0 top-full z-[50] mt-1 hidden w-max min-w-[9rem] rounded-lg border border-white/15 bg-rot-900 p-2 shadow-xl group-hover:block">
+      <div className="pointer-events-none absolute left-0 top-full z-[50] mt-1 hidden w-max min-w-[9rem] rounded-lg border border-white/15 bg-concrete-900 p-2 shadow-xl group-hover:block">
         <div className="mb-1 text-[11px] font-semibold uppercase tracking-widest text-white/40">
           {WEATHER_LABEL[weather]} — effects
         </div>
         <ul className="flex flex-col gap-0.5">
           {effects.map((e, i) => (
-            <li key={i} className={`text-xs ${e.good ? 'text-toxic' : 'text-red-300'}`}>
+            <li key={i} className={`text-xs ${e.good ? 'text-signal' : 'text-hiss'}`}>
               {e.good ? '▲' : '▼'} {e.label}
             </li>
           ))}

@@ -85,7 +85,7 @@ export function InventoryGrid({
               key={inst.uid}
               onPointerDown={(e) => onItemPointerDown(e, inst)}
               className={`absolute flex cursor-grab flex-col items-center justify-center rounded text-center active:cursor-grabbing ${
-                selected ? 'ring-2 ring-toxic' : 'ring-1 ring-black/40'
+                selected ? 'ring-2 ring-signal' : 'ring-1 ring-black/40'
               }`}
               style={{
                 left: inst.x * CELL + 1,

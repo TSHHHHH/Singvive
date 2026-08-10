@@ -14,10 +14,13 @@ import { visibilityOf } from '../game/fog';
 import { FogOverlay } from './FogOverlay';
 import type { ExploredCircle } from '../game/fog';
 import type { TravelAnim } from '../game/store';
+import type { NoisePulse } from '../game/noise';
+import { HAZARD_CONFIG, type HazardZone } from '../game/wilds';
+import { trekTargetIcon } from './mapIcons';
 
-// Amber outline for buildings you can see but haven't identified — stands out
+// White outline for buildings you can see but haven't identified — stands out
 // against the dark map like the "?" blips do.
-const UNKNOWN_STROKE = '#e6b83f';
+const UNKNOWN_STROKE = '#e8e5dd';
 
 const easeInOut = (t: number) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
 
@@ -43,6 +46,23 @@ function saveZoom(zoom: number): void {
 function ZoomMemory() {
   useMapEvents({
     zoomend: (e) => saveZoom(e.target.getZoom()),
+  });
+  return null;
+}
+
+/**
+ * Tapping bare map picks a spot to cross to on foot. Clicks that landed on a
+ * marker or a building outline belong to that POI, not to the ground under it,
+ * so they're filtered out here — Leaflet still bubbles vector clicks to the map.
+ */
+function GroundPicker({ onPick }: { onPick: (lat: number, lng: number) => void }) {
+  useMapEvents({
+    click: (e) => {
+      const t = e.originalEvent.target as Element | null;
+      if (t && typeof t.closest === 'function' && t.closest('.leaflet-marker-icon')) return;
+      if (t && t.classList?.contains('leaflet-interactive')) return;
+      onPick(e.latlng.lat, e.latlng.lng);
+    },
   });
   return null;
 }
@@ -104,7 +124,51 @@ interface Props {
   travelAnim: TravelAnim | null;
   /** id of the extraction zone — shown as an always-visible beacon */
   evacZoneId: string | null;
+  /** expanding rings of noise the player has made */
+  noisePulses: NoisePulse[];
+  /** diegetic frame feedback — no numbers, just the edges of vision */
+  vitals: { bleeding: boolean; exhausted: boolean; infected: boolean };
+  /** hazard pockets the survivor can currently sense */
+  hazards: HazardZone[];
+  /** open-ground spot the player is considering crossing to */
+  trekTarget: { lat: number; lng: number } | null;
   onSelect: (poi: Poi) => void;
+  onPickGround: (lat: number, lng: number) => void;
+}
+
+/** Rings fade themselves out; this just drops them once they're done. */
+function NoiseRings({ pulses }: { pulses: NoisePulse[] }) {
+  const [, force] = useState(0);
+  useEffect(() => {
+    if (pulses.length === 0) return;
+    const t = setInterval(() => force((n) => n + 1), 300);
+    return () => clearInterval(t);
+  }, [pulses.length]);
+
+  const now = Date.now();
+  return (
+    <>
+      {pulses.map((p) => {
+        const t = Math.min(1, (now - p.startedAt) / 1500);
+        if (t >= 1) return null;
+        return (
+          <Circle
+            key={p.id}
+            center={[p.lat, p.lng]}
+            radius={p.radiusMeters * (0.2 + 0.8 * t)}
+            className="noise-ring"
+            pathOptions={{
+              color: '#d92d2d',
+              weight: 3,
+              opacity: 0.6 * (1 - t),
+              fillOpacity: 0.05 * (1 - t),
+              fillColor: '#d92d2d',
+            }}
+          />
+        );
+      })}
+    </>
+  );
 }
 
 export function GameMap({
@@ -117,19 +181,26 @@ export function GameMap({
   exploredArea,
   travelAnim,
   evacZoneId,
+  noisePulses,
+  vitals,
+  hazards,
+  trekTarget,
   onSelect,
+  onPickGround,
 }: Props) {
   const evacPoi = evacZoneId ? pois.find((p) => p.id === evacZoneId) : null;
   return (
+    <div className="relative h-full w-full">
     <MapContainer
       center={[home.lat, home.lng]}
       zoom={loadZoom()}
       preferCanvas
       className="h-full w-full"
-      style={{ background: '#0b0d0a' }}
+      style={{ background: '#08080a' }}
       zoomControl={false}
     >
       <ZoomMemory />
+      <GroundPicker onPick={onPickGround} />
       <TileLayer
         attribution={TILE_ATTRIBUTION}
         url={TILE_URL}
@@ -147,8 +218,39 @@ export function GameMap({
       <Circle
         center={[home.lat, home.lng]}
         radius={travelRange}
-        pathOptions={{ color: '#6b8e23', weight: 1.5, fillOpacity: 0.03, dashArray: '4 6' }}
+        pathOptions={{ color: '#e8e5dd', weight: 1.5, fillOpacity: 0.03, dashArray: '4 6' }}
       />
+
+      {/* Hazard pockets you can sense. Drawn under the pins — this is ground,
+          not a destination, and it's never clickable. */}
+      {hazards.map((z) => {
+        const cfg = HAZARD_CONFIG[z.kind];
+        return (
+          <Circle
+            key={z.id}
+            center={[z.lat, z.lng]}
+            radius={z.radiusM}
+            interactive={false}
+            pathOptions={{
+              color: cfg.color,
+              weight: 1,
+              opacity: 0.35 + z.severity * 0.12,
+              dashArray: '3 5',
+              fillColor: cfg.color,
+              fillOpacity: 0.05 + z.severity * 0.035,
+            }}
+          />
+        );
+      })}
+
+      {trekTarget && (
+        <Marker
+          position={[trekTarget.lat, trekTarget.lng]}
+          icon={trekTargetIcon()}
+          zIndexOffset={800}
+          interactive={false}
+        />
+      )}
 
       {pois.map((poi) => {
         const d = haversine(home.lat, home.lng, poi.lat, poi.lng);
@@ -229,7 +331,20 @@ export function GameMap({
         />
       )}
 
+      <NoiseRings pulses={noisePulses} />
       <PlayerMarker home={home} travelAnim={travelAnim} />
     </MapContainer>
+
+      {/* ---- diegetic vignettes: the frame tells you how bad it is ---- */}
+      {vitals.infected && (
+        <div className="vignette-infection pointer-events-none absolute inset-0 z-[450]" />
+      )}
+      {vitals.exhausted && (
+        <div className="vignette-fatigue pointer-events-none absolute inset-0 z-[450]" />
+      )}
+      {vitals.bleeding && (
+        <div className="vignette-bleed pointer-events-none absolute inset-0 z-[450]" />
+      )}
+    </div>
   );
 }

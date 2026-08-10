@@ -8,6 +8,7 @@ import type {
   Meters,
 } from './types';
 import type { ExploredCircle } from './fog';
+import { migrateFactionId } from './factions';
 
 const RUN_KEY = 'singvive.run.v6'; // v6: extraction goal + horde clock
 const SCORES_KEY = 'singvive.scores.v1';
@@ -56,6 +57,10 @@ export function loadRun(): SavedRun | null {
       delete char.traitId;
     } else if (!char.traitIds) {
       char.traitIds = [];
+    }
+    // Migration: factions were renamed to their Singaporean institutional ids
+    for (const loc of Object.values(parsed.locations ?? {})) {
+      loc.factionId = migrateFactionId(loc.factionId);
     }
     return parsed;
   } catch {

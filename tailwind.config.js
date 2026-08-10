@@ -7,13 +7,24 @@ export default {
         mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
       },
       colors: {
-        // apocalyptic palette
-        rot: {
-          50: '#f3f5f0',
-          900: '#12160f',
+        // Brutalist-bureau palette: poured concrete, bureau ochre, hiss red.
+        concrete: {
+          50: '#e8e5dd', // signage off-white
+          200: '#b7b3a9',
+          400: '#6f6d68',
+          600: '#3a3a3c',
+          800: '#1c1c1e',
+          900: '#111112', // panel ground
+          950: '#08080a', // page ground
         },
-        blood: '#8b1e1e',
-        toxic: '#6b8e23',
+        // The bureau prints in black and white. Colour is reserved for
+        // exactly two things: danger (red) and live telemetry (cyan).
+        signal: '#e8e5dd', // signage white — the primary action colour
+        hiss: '#d92d2d', // the resonance red, danger only
+        astral: '#2bc4d9', // terminal cyan, live readouts only
+      },
+      boxShadow: {
+        signage: '0 0 0 1px rgba(232,229,221,0.28), 0 12px 40px -12px rgba(0,0,0,0.95)',
       },
     },
   },

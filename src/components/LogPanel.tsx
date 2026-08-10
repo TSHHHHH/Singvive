@@ -1,18 +1,19 @@
 import { useEffect, useRef } from 'react';
 import { useGame } from '../game/store';
 import { itemDef } from '../game/loot';
+import { Icon } from '../icons/Icon';
 import { formatClock } from '../game/survival';
 import { LOG_VIEW_MODES, logViewMode, useSetting, useSettings } from '../game/settings';
 
 const toneClass: Record<string, string> = {
-  good: 'text-toxic',
-  bad: 'text-red-400',
+  good: 'text-signal',
+  bad: 'text-hiss',
   info: 'text-white/60',
 };
 
 const dotClass: Record<string, string> = {
-  good: 'bg-toxic',
-  bad: 'bg-red-400',
+  good: 'bg-signal',
+  bad: 'bg-hiss',
   info: 'bg-white/30',
 };
 
@@ -67,7 +68,7 @@ export function LogPanel({ onOpenSettings }: { onOpenSettings?: () => void }) {
                 title={`Show ${m.label.toLowerCase()}`}
                 className={`px-1.5 py-0.5 text-[10px] transition ${
                   viewId === m.id
-                    ? 'bg-toxic/20 text-toxic'
+                    ? 'bg-signal/20 text-signal'
                     : 'text-white/40 hover:bg-white/5 hover:text-white/70'
                 }`}
               >
@@ -81,7 +82,7 @@ export function LogPanel({ onOpenSettings }: { onOpenSettings?: () => void }) {
               title="Settings"
               className="rounded border border-white/10 px-1.5 py-0.5 text-[11px] text-white/40 hover:bg-white/5 hover:text-white/70"
             >
-              ⚙
+              <Icon name="action.settings" />
             </button>
           )}
         </div>
@@ -106,14 +107,14 @@ export function LogPanel({ onOpenSettings }: { onOpenSettings?: () => void }) {
               return (
                 <li
                   key={e.id}
-                  className={`relative flex gap-3 pb-3 pl-4 ${
+                  className={`relative flex gap-2 pb-2.5 pl-4 ${
                     isLatest ? 'rounded bg-white/[0.04]' : ''
                   }`}
                 >
                   <span
-                    className={`absolute left-0 top-[5px] h-[11px] w-[11px] rounded-full border-2 border-rot-900 ${
+                    className={`absolute left-0 top-[5px] h-[11px] w-[11px] rounded-full border-2 border-concrete-900 ${
                       dotClass[e.tone] ?? 'bg-white/30'
-                    } ${isLatest ? 'ring-2 ring-toxic/60' : ''}`}
+                    } ${isLatest ? 'ring-2 ring-signal/60' : ''}`}
                   />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
@@ -121,14 +122,36 @@ export function LogPanel({ onOpenSettings }: { onOpenSettings?: () => void }) {
                         Day {e.day} · {formatClock(e.hour)}
                       </span>
                       {isLatest && (
-                        <span className="rounded bg-toxic/20 px-1 text-[9px] font-semibold uppercase tracking-wide text-toxic">
+                        <span className="rounded bg-signal/20 px-1 text-[9px] font-semibold uppercase tracking-wide text-signal">
                           Latest
                         </span>
                       )}
                     </div>
-                    <div className={`whitespace-normal break-words text-[13px] leading-snug ${toneClass[e.tone] ?? 'text-white/60'}`}>
+                    <div className={`whitespace-normal break-words text-[12px] leading-snug ${toneClass[e.tone] ?? 'text-white/60'}`}>
                       {e.text}
                     </div>
+                    {/* a haul reads inline, in the timeline — no popup to dismiss */}
+                    {e.loot && e.loot.length > 0 && (
+                      <ul className="mt-1 flex flex-col gap-px">
+                        {e.loot.map((s, i) => (
+                          <li
+                            key={i}
+                            className="flex justify-between gap-2 border-l border-white/15 bg-white/[0.04] px-2 py-0.5 text-[11px]"
+                          >
+                            <span className="truncate text-concrete-200">
+                              {itemDef(s.defId).name}
+                            </span>
+                            <span className="shrink-0 tabular-nums text-signal">×{s.count}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {e.leftover && e.leftover.length > 0 && (
+                      <div className="mt-1 text-[10px] text-hiss">
+                        Pack full — left behind{' '}
+                        {e.leftover.map((s) => `${itemDef(s.defId).name} ×${s.count}`).join(', ')}
+                      </div>
+                    )}
                   </div>
                 </li>
               );
@@ -136,35 +159,35 @@ export function LogPanel({ onOpenSettings }: { onOpenSettings?: () => void }) {
 
             {/* live event node — always the most recent item when present */}
             {ev && (
-              <li className="relative flex gap-3 pl-4">
-                <span className="absolute left-0 top-[5px] h-[11px] w-[11px] animate-pulse rounded-full border-2 border-rot-900 bg-amber-400" />
-                <div className="min-w-0 flex-1 rounded-lg border border-amber-500/40 bg-amber-500/[0.07] p-3">
+              <li className="relative flex gap-2 pl-4">
+                <span className="absolute left-0 top-[5px] h-[11px] w-[11px] animate-pulse rounded-full border-2 border-concrete-900 bg-signal" />
+                <div className="min-w-0 flex-1 rounded-lg border border-signal/40 bg-white/[0.05] p-2.5">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold text-amber-300">{ev.title}</span>
-                    <span className="rounded bg-amber-400/20 px-1 text-[9px] font-semibold uppercase tracking-wide text-amber-300">
+                    <span className="text-sm font-bold text-concrete-50">{ev.title}</span>
+                    <span className="rounded bg-white/15 px-1 text-[9px] font-semibold uppercase tracking-wide text-concrete-50">
                       Now
                     </span>
                   </div>
-                  <p className="mt-1 break-words text-[13px] leading-snug text-white/70">{ev.text}</p>
-                  <div className="mt-3 flex flex-col gap-2">
+                  <p className="mt-1 break-words text-[12px] leading-snug text-white/70">{ev.text}</p>
+                  <div className="mt-2.5 flex flex-col gap-1.5">
                     {ev.choices.map((c) => {
                       const affordable = c.kind !== 'pay' || hasItem(c.itemId);
                       const tone =
                         c.kind === 'fight'
-                          ? 'border-red-500/50 text-red-300 hover:bg-red-500/10'
+                          ? 'border-hiss/50 text-hiss hover:bg-hiss/10'
                           : c.kind === 'leave'
                             ? 'border-white/15 text-white/60 hover:bg-white/5'
-                            : 'border-toxic/40 text-toxic hover:bg-toxic/10';
+                            : 'border-signal/40 text-signal hover:bg-signal/10';
                       return (
                         <button
                           key={c.id}
                           disabled={!affordable}
                           onClick={() => resolveEvent(c.id)}
-                          className={`whitespace-normal break-words rounded border px-3 py-2 text-left text-sm transition disabled:opacity-30 ${tone}`}
+                          className={`whitespace-normal break-words rounded border px-2.5 py-1.5 text-left text-[13px] transition disabled:opacity-30 ${tone}`}
                         >
                           {c.label}
                           {c.kind === 'pay' && !affordable && c.itemId && (
-                            <span className="ml-1 text-[11px] text-red-400">
+                            <span className="ml-1 text-[11px] text-hiss">
                               (no {itemDef(c.itemId).name})
                             </span>
                           )}

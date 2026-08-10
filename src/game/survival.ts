@@ -147,9 +147,14 @@ export function armCombatPenalty(parts: BodyParts): number {
  * Land a wound of `damage` on a weighted-random body part: lower its condition
  * and possibly start bleeding. Pure — returns a new BodyParts.
  */
-export function applyWound(parts: BodyParts, damage: number, rng: Rng): BodyParts {
+export function applyWound(
+  parts: BodyParts,
+  damage: number,
+  rng: Rng,
+  limbDamageMult = 1,
+): BodyParts {
   const target = rng.weighted(WOUND_WEIGHTS);
-  const conditionLoss = damage * 1.5;
+  const conditionLoss = damage * 1.5 * limbDamageMult;
   const bleedChance = Math.min(0.6, damage / 40);
   const bleeding = parts[target].bleeding || rng.chance(bleedChance);
   return {

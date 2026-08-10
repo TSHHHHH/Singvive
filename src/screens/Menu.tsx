@@ -6,7 +6,7 @@ export function Menu() {
   return (
     <div className="flex min-h-full items-center justify-center p-6">
       <div className="w-full max-w-md text-center">
-        <h1 className="mb-1 text-5xl font-black tracking-tight text-toxic drop-shadow">
+        <h1 className="mb-1 text-5xl font-black tracking-tight text-signal drop-shadow">
           SINGVIVE
         </h1>
         <p className="mb-8 text-sm uppercase tracking-[0.3em] text-white/40">
@@ -16,7 +16,7 @@ export function Menu() {
         <div className="flex flex-col gap-3">
           <button
             onClick={goToCharacter}
-            className="rounded-lg bg-toxic/80 px-6 py-3 font-bold text-black transition hover:bg-toxic"
+            className="rounded-lg bg-signal/80 px-6 py-3 font-bold text-black transition hover:bg-signal"
           >
             New Survivor
           </button>

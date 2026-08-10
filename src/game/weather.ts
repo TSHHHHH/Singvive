@@ -1,3 +1,4 @@
+import type { IconName } from '../icons/keys';
 import type { WeatherKind, WeatherState, TimeOfDay } from './types';
 import type { Rng } from './rng';
 
@@ -17,12 +18,12 @@ export const WEATHER_LABEL: Record<WeatherKind, string> = {
   haze: 'Haze',
 };
 
-export const WEATHER_GLYPH: Record<WeatherKind, string> = {
-  clear: '☀️',
-  cloudy: '☁️',
-  rain: '🌧️',
-  thunderstorm: '⛈️',
-  haze: '🌫️',
+export const WEATHER_ICON: Record<WeatherKind, IconName> = {
+  clear: 'weather.clear',
+  cloudy: 'weather.cloudy',
+  rain: 'weather.rain',
+  thunderstorm: 'weather.thunderstorm',
+  haze: 'weather.haze',
 };
 
 export const TIME_LABEL: Record<TimeOfDay, string> = {

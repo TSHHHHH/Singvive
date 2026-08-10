@@ -25,11 +25,11 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md rounded-xl border border-white/10 bg-rot-900 p-5"
+        className="w-full max-w-md rounded-xl border border-white/10 bg-concrete-900 p-5"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-lg font-bold text-toxic">⚙ Settings</h3>
+          <h3 className="text-lg font-bold text-signal">⚙ Settings</h3>
           <button onClick={onClose} className="text-xs text-white/40 hover:text-white/70">
             ✕ close
           </button>
@@ -59,7 +59,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
                               onClick={() => setSetting(def.key, opt.value)}
                               className={`rounded border px-2.5 py-1 text-xs transition ${
                                 active
-                                  ? 'border-toxic bg-toxic/15 text-toxic'
+                                  ? 'border-signal bg-signal/15 text-signal'
                                   : 'border-white/10 bg-white/5 text-white/60 hover:border-white/30'
                               }`}
                             >

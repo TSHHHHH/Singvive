@@ -1,5 +1,8 @@
+import type { IconName } from '../icons/keys';
+
 // ---------- Phases ----------
-export type GamePhase = 'menu' | 'character' | 'spawn' | 'game' | 'combat' | 'death';
+// Combat no longer has its own phase — it renders as a panel inside 'game'.
+export type GamePhase = 'menu' | 'character' | 'spawn' | 'game' | 'death';
 
 // ---------- Character ----------
 export type AttributeKey = 'strength' | 'dexterity' | 'endurance' | 'perception' | 'wits';
@@ -143,7 +146,7 @@ export type PoiCategory =
   | 'foodcourt'
   | 'mrt';
 
-export type FactionId = 'saf' | 'hawker' | 'raiders' | 'transit' | null;
+export type FactionId = 'idtf' | 'pasir_panjang' | 'syndicate_88' | 'sta' | null;
 export type LocationSize = 'small' | 'medium' | 'large';
 
 /** Last-known snapshot of a discovered location (fog-of-war memory). */
@@ -168,6 +171,8 @@ export interface LocationState {
   size: LocationSize;
   baseDanger: number; // 1..5 resting level
   currentDanger: number; // float, depletes when cleared, regenerates over time
+  /** Noise the site has heard lately — decays 1 per 2 in-game hours. */
+  tempDangerBoost?: number;
   remainingSearches: number;
   exhausted: boolean; // remainingSearches hit 0 — permanently picked clean
   cleared: boolean; // visited & searched at least once
@@ -230,6 +235,53 @@ export interface Enemy {
   defense: number; // modifier
   damage: number; // per hit
   infectious: number; // 0..1 chance to infect on hit (0 for humans)
+  armor: number; // flat damage soak — bypassed by the precision stance
+}
+
+/** Back-compat alias for the spec's naming. */
+export type Combatant = Enemy;
+
+export type StanceId = 'aggressive' | 'guarded' | 'precision' | 'disengage';
+
+export interface StanceDef {
+  id: StanceId;
+  name: string;
+  /** semantic icon key — see src/icons/keys.ts */
+  icon: IconName;
+  description: string;
+  attackMod: number;
+  damageMod: number;
+  defenseMod: number;
+  /** Multiplier on limb damage taken. */
+  limbDamageMult: number;
+  critChanceBonus: number; // 0..1
+  ignoresArmor: boolean;
+  /** Extra in-game hours burned per round. */
+  timeCostHours: number;
+  fleeDcMod: number;
+  /** Enemy gets a parting swing before you disengage. */
+  opportunityAttack: boolean;
+  opportunityAccuracy: number;
+}
+
+export type TerrainId =
+  | 'hdb_corridor'
+  | 'void_deck'
+  | 'supermarket_aisle'
+  | 'mrt_concourse'
+  | 'open_ground';
+
+export interface TerrainModifier {
+  id: TerrainId;
+  name: string;
+  defenseMod: number;
+  dodgeMod: number; // 0..1 chance delta to shrug off a connecting hit
+  fleeDcMod: number;
+  meleeAccuracyMod: number;
+  rangedAccuracyMod: number;
+  ambushRateMod: number;
+  /** Local danger added to the site when a gun goes off here. */
+  gunshotDangerMod: number;
 }
 
 /** Back-compat alias while combat is generalized. */
@@ -243,13 +295,16 @@ export interface CombatLogEntry {
 
 /** What to do once a fight ends (win/flee). */
 export interface CombatContext {
-  locationId: string;
+  /** null when the fight happens out in the open, away from any site. */
+  locationId: string | null;
   /** true if fleeing still yields the (partial) search loot. */
   grantOnFlee: boolean;
   /** dropped gear granted to the backpack on a human-combat win. */
   drops?: string[];
   /** road ambush on the approach — winning doesn't auto-search the site. */
   roadAmbush?: boolean;
+  /** jumped mid-crossing in open ground — there is no site to search at all. */
+  wilds?: boolean;
 }
 
 export interface CombatState {
@@ -261,6 +316,14 @@ export interface CombatState {
   outcome: 'win' | 'flee' | 'dead' | null;
   playerHpSnapshot: number; // HP entering combat (for summary)
   context: CombatContext;
+
+  /** Stance chosen before the next round resolves. */
+  selectedStance: StanceId;
+  terrain: TerrainModifier;
+  /** Quick-belt slots: 3 backpack item uids (null = empty slot). */
+  quickBeltItems: (string | null)[];
+  /** Rounds resolve only while the player has committed a stance. */
+  awaitingStance: boolean;
 }
 
 // ---------- Scores ----------

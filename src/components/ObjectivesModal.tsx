@@ -43,27 +43,27 @@ export function ObjectivesModal({
       onClick={onClose}
     >
       <div
-        className="max-h-[90%] w-full max-w-md overflow-y-auto rounded-xl border border-white/10 bg-rot-900 p-5"
+        className="max-h-[90%] w-full max-w-md overflow-y-auto rounded-xl border border-white/10 bg-concrete-900 p-5"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-lg font-bold text-toxic">🎯 Objectives</h3>
+          <h3 className="text-lg font-bold text-signal">🎯 Objectives</h3>
           <button onClick={onClose} className="text-xs text-white/40 hover:text-white/70">
             ✕ close
           </button>
         </div>
 
         {/* ---- Extraction ---- */}
-        <section className="rounded-lg border border-toxic/30 bg-toxic/[0.06] p-3">
+        <section className="rounded-lg border border-signal/30 bg-signal/[0.06] p-3">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-bold text-toxic">🚁 Escape Singapore</span>
+            <span className="text-sm font-bold text-signal">🚁 Escape Singapore</span>
             <span className="text-[11px] text-white/40">
               {atEvac ? 'you are here' : evacZoneName ? `${evacDist} m away` : '—'}
             </span>
           </div>
           {evacZoneName ? (
             <p className="mt-1 text-[13px] text-white/70">
-              Reach <span className="font-semibold text-toxic">{evacZoneName}</span> with the full
+              Reach <span className="font-semibold text-signal">{evacZoneName}</span> with the full
               evac kit and signal for a lift out.
             </p>
           ) : (
@@ -73,7 +73,7 @@ export function ObjectivesModal({
           {windowText && (
             <div
               className={`mt-2 text-[11px] font-semibold ${
-                urgent ? 'animate-pulse text-red-400' : 'text-amber-300/90'
+                urgent ? 'animate-pulse text-hiss' : 'text-concrete-200'
               }`}
             >
               ⏳ Window closes in {windowText}
@@ -85,7 +85,7 @@ export function ObjectivesModal({
               <span
                 key={r.id}
                 className={`rounded px-1.5 py-0.5 text-[11px] ${
-                  r.have ? 'bg-toxic/15 text-toxic' : 'bg-white/5 text-white/40'
+                  r.have ? 'bg-signal/15 text-signal' : 'bg-white/5 text-white/40'
                 }`}
               >
                 {r.have ? '✓' : '○'} {r.name}
@@ -97,7 +97,7 @@ export function ObjectivesModal({
             <button
               onClick={onEvac}
               disabled={!evacReady}
-              className="mt-3 w-full rounded-lg bg-toxic/80 py-2 text-sm font-bold text-black transition hover:bg-toxic disabled:opacity-30"
+              className="mt-3 w-full rounded-lg bg-signal/80 py-2 text-sm font-bold text-black transition hover:bg-signal disabled:opacity-30"
             >
               {evacReady ? '🚁 Call for evac — escape!' : 'Evac kit incomplete'}
             </button>

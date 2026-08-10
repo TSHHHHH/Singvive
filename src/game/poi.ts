@@ -1,4 +1,5 @@
 import type { PoiCategory } from './types';
+import type { IconName } from '../icons/keys';
 
 export interface PoiCategoryConfig {
   label: string;
@@ -8,22 +9,23 @@ export interface PoiCategoryConfig {
   baseDanger: number;
   /** marker colour */
   color: string;
-  /** short emoji-ish glyph for the map pin */
-  glyph: string;
+
+  /** semantic icon key — see src/icons/keys.ts */
+  icon: IconName;
   blurb: string;
 }
 
 export const POI_CONFIG: Record<PoiCategory, PoiCategoryConfig> = {
-  supermarket: { label: 'Supermarket', richness: 5, baseDanger: 2, color: '#4caf50', glyph: '🛒', blurb: 'Food & water in bulk.' },
-  convenience: { label: 'Convenience Store', richness: 3, baseDanger: 1, color: '#8bc34a', glyph: '🏪', blurb: 'Snacks & drinks.' },
-  pharmacy: { label: 'Pharmacy', richness: 3, baseDanger: 2, color: '#e91e63', glyph: '💊', blurb: 'Medicine & bandages.' },
-  hospital: { label: 'Hospital / Clinic', richness: 4, baseDanger: 4, color: '#f44336', glyph: '🏥', blurb: 'Serious medical supplies. Crawling with the dead.' },
-  hardware: { label: 'Hardware Store', richness: 4, baseDanger: 2, color: '#ff9800', glyph: '🔧', blurb: 'Tools, melee weapons, crafting parts.' },
-  fuel: { label: 'Petrol Station', richness: 3, baseDanger: 3, color: '#ffc107', glyph: '⛽', blurb: 'Fuel & roadside snacks.' },
-  police: { label: 'Police Station', richness: 3, baseDanger: 5, color: '#2196f3', glyph: '🚓', blurb: 'Firearms & ammo. Extremely dangerous.' },
-  residential: { label: 'HDB Void Deck', richness: 2, baseDanger: 2, color: '#9e9e9e', glyph: '🏢', blurb: 'Void deck & flats — common household loot. Void Deck Raiders lurk here.' },
-  foodcourt: { label: 'Hawker Centre', richness: 3, baseDanger: 2, color: '#ff7043', glyph: '🍜', blurb: 'Food stalls.' },
-  mrt: { label: 'MRT Station', richness: 2, baseDanger: 3, color: '#00b0d8', glyph: '🚉', blurb: 'Transit hub. Fast-travel node held by the Transit Coalition.' },
+  supermarket: { label: 'Supermarket', richness: 5, baseDanger: 2, color: '#e8e5dd', icon: 'poi.supermarket', blurb: 'Food & water in bulk.' },
+  convenience: { label: 'Convenience Store', richness: 3, baseDanger: 1, color: '#cfccc4', icon: 'poi.convenience', blurb: 'Snacks & drinks.' },
+  pharmacy: { label: 'Pharmacy', richness: 3, baseDanger: 2, color: '#b7b3a9', icon: 'poi.pharmacy', blurb: 'Medicine & bandages.' },
+  hospital: { label: 'Hospital / Clinic', richness: 4, baseDanger: 4, color: '#9c9890', icon: 'poi.hospital', blurb: 'Serious medical supplies. Crawling with the dead.' },
+  hardware: { label: 'Hardware Store', richness: 4, baseDanger: 2, color: '#cfccc4', icon: 'poi.hardware', blurb: 'Tools, melee weapons, crafting parts.' },
+  fuel: { label: 'Petrol Station', richness: 3, baseDanger: 3, color: '#b7b3a9', icon: 'poi.fuel', blurb: 'Fuel & roadside snacks.' },
+  police: { label: 'Police Station', richness: 3, baseDanger: 5, color: '#9c9890', icon: 'poi.police', blurb: 'Firearms & ammo. Extremely dangerous.' },
+  residential: { label: 'HDB Void Deck', richness: 2, baseDanger: 2, color: '#8a867e', icon: 'poi.residential', blurb: 'Void deck & flats — common household loot. The 88 Syndicate works these estates.' },
+  foodcourt: { label: 'Hawker Centre', richness: 3, baseDanger: 2, color: '#cfccc4', icon: 'poi.foodcourt', blurb: 'Food stalls.' },
+  mrt: { label: 'MRT Station', richness: 2, baseDanger: 3, color: '#2bc4d9', icon: 'poi.mrt', blurb: 'Transit hub. Fast-travel node held by the Subterranean Transit Authority.' },
 };
 
 /**

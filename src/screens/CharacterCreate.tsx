@@ -75,20 +75,20 @@ export function CharacterCreate() {
     const incompatible = !selected && isIncompatible(t.id, traitIds);
     const disabled = !selected && !canPickTrait(t.id, traitIds);
 
-    if (selected && t.category === 'positive') return 'border-toxic bg-toxic/15';
-    if (selected && t.category === 'negative') return 'border-blood bg-blood/15';
+    if (selected && t.category === 'positive') return 'border-signal bg-signal/15';
+    if (selected && t.category === 'negative') return 'border-hiss bg-hiss/15';
     if (incompatible || disabled) {
       return 'border-white/5 bg-white/[0.02] opacity-40 cursor-not-allowed';
     }
     return t.category === 'positive'
-      ? 'border-toxic/20 bg-toxic/[0.04] hover:border-toxic/60'
-      : 'border-blood/20 bg-blood/[0.04] hover:border-blood/60';
+      ? 'border-signal/20 bg-signal/[0.04] hover:border-signal/60'
+      : 'border-hiss/20 bg-hiss/[0.04] hover:border-hiss/60';
   };
 
   const renderTile = (t: Trait, side: Side) => {
     const selected = traitIds.includes(t.id);
     const isLocked = locked[side] === t.id;
-    const accent = side === 'positive' ? 'text-toxic' : 'text-blood';
+    const accent = side === 'positive' ? 'text-signal' : 'text-hiss';
     const sign = side === 'positive' ? '−' : '+';
 
     return (
@@ -142,7 +142,7 @@ export function CharacterCreate() {
   const renderDetail = (side: Side) => {
     const id = locked[side] ?? hovered[side];
     const t = id ? getTrait(id) : null;
-    const accent = side === 'positive' ? 'text-toxic' : 'text-blood';
+    const accent = side === 'positive' ? 'text-signal' : 'text-hiss';
     const pinned = t != null && locked[side] === t.id;
 
     return (
@@ -187,7 +187,7 @@ export function CharacterCreate() {
       <div className="flex min-w-0 flex-col">
         <div className="mb-2 flex items-baseline justify-between border-b border-white/10 pb-1">
           <span
-            className={`text-sm font-bold uppercase tracking-widest ${isPos ? 'text-toxic' : 'text-blood'}`}
+            className={`text-sm font-bold uppercase tracking-widest ${isPos ? 'text-signal' : 'text-hiss'}`}
           >
             {isPos ? 'Positive (−)' : 'Negative (+)'}
           </span>
@@ -212,7 +212,7 @@ export function CharacterCreate() {
 
       {/* ---- header ---- */}
       <div className="mt-2 text-center">
-        <h2 className="text-2xl font-bold uppercase tracking-[0.2em] text-toxic">
+        <h2 className="text-2xl font-bold uppercase tracking-[0.2em] text-signal">
           Personal Modifiers
         </h2>
         <p className="mt-1 text-[11px] leading-relaxed text-white/45">
@@ -229,14 +229,14 @@ export function CharacterCreate() {
               onChange={(e) => setName(e.target.value)}
               maxLength={16}
               placeholder="Survivor"
-              className="w-48 rounded border border-white/15 bg-black/40 px-3 py-1.5 text-sm outline-none focus:border-toxic"
+              className="w-48 rounded border border-white/15 bg-black/40 px-3 py-1.5 text-sm outline-none focus:border-signal"
             />
           </label>
           <div className="flex flex-col items-center">
             <span className="text-[10px] uppercase tracking-widest text-white/40">Points left</span>
             <span
               className={`text-3xl font-bold tabular-nums ${
-                budgetRemaining < 0 ? 'text-blood' : 'text-toxic'
+                budgetRemaining < 0 ? 'text-hiss' : 'text-signal'
               }`}
             >
               {budgetRemaining}
@@ -283,7 +283,7 @@ export function CharacterCreate() {
                   {delta !== 0 && (
                     <span
                       className={`shrink-0 text-[10px] tabular-nums ${
-                        delta > 0 ? 'text-toxic' : 'text-blood'
+                        delta > 0 ? 'text-signal' : 'text-hiss'
                       }`}
                     >
                       {delta > 0 ? `+${delta}` : delta}
@@ -298,7 +298,7 @@ export function CharacterCreate() {
 
       <button
         onClick={start}
-        className="mx-auto mt-6 block w-full max-w-sm rounded-lg bg-toxic/80 px-6 py-3 font-bold uppercase tracking-widest text-black transition hover:bg-toxic"
+        className="mx-auto mt-6 block w-full max-w-sm rounded-lg bg-signal/80 px-6 py-3 font-bold uppercase tracking-widest text-black transition hover:bg-signal"
       >
         Next →
       </button>

@@ -9,7 +9,7 @@ export function DeathScreen() {
     <div className="flex min-h-full items-center justify-center p-6">
       <div className="w-full max-w-md text-center">
         <div className="mb-2 text-6xl">{escaped ? '🚁' : '💀'}</div>
-        <h1 className={`text-3xl font-black ${escaped ? 'text-toxic' : 'text-red-500'}`}>
+        <h1 className={`text-3xl font-black ${escaped ? 'text-signal' : 'text-hiss'}`}>
           {escaped ? 'YOU ESCAPED' : 'YOU DIED'}
         </h1>
         <p className="mt-1 text-sm text-white/50">
@@ -30,11 +30,11 @@ export function DeathScreen() {
           {escaped ? (
             <>
               {character?.name} escaped Singapore on day{' '}
-              <span className="text-toxic">{day}</span>.
+              <span className="text-signal">{day}</span>.
             </>
           ) : (
             <>
-              {character?.name} lasted <span className="text-toxic">{day}</span>{' '}
+              {character?.name} lasted <span className="text-signal">{day}</span>{' '}
               {day === 1 ? 'day' : 'days'} in the ruins of Singapore.
             </>
           )}
@@ -63,7 +63,7 @@ export function DeathScreen() {
 
         <button
           onClick={resetToMenu}
-          className="mt-8 rounded-lg bg-toxic/80 px-8 py-3 font-bold text-black hover:bg-toxic"
+          className="mt-8 rounded-lg bg-signal/80 px-8 py-3 font-bold text-black hover:bg-signal"
         >
           Try again
         </button>
@@ -75,7 +75,7 @@ export function DeathScreen() {
 function Stat({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-lg border border-white/10 bg-black/40 py-3">
-      <div className="text-2xl font-black text-toxic tabular-nums">{value}</div>
+      <div className="text-2xl font-black text-signal tabular-nums">{value}</div>
       <div className="text-[11px] uppercase tracking-widest text-white/40">{label}</div>
     </div>
   );

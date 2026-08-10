@@ -1,5 +1,6 @@
 import L from 'leaflet';
 import { POI_CONFIG } from '../game/poi';
+import { iconMarkup } from '../icons/markup';
 import type { Poi } from '../game/types';
 
 /** A coloured circular pin with the category glyph. Avoids Leaflet's
@@ -19,14 +20,14 @@ export function poiIcon(poi: Poi): L.DivIcon {
       box-shadow:0 0 6px rgba(0,0,0,.6);
       opacity:${dim ? 0.4 : 1};
       filter:${dim ? 'grayscale(1)' : 'none'};
-    ">${cfg.glyph}</div>`,
+    ">${iconMarkup(cfg.icon, { size: 15, color: '#08080a' })}</div>`,
     iconSize: [30, 30],
     iconAnchor: [15, 15],
   });
 }
 
 /** Anonymous "?" blip — something is there, but you must go find out what.
- *  Amber + glow so it stands out against the dark map. */
+ *  White + glow so it stands out against the dark map. */
 export function unknownIcon(): L.DivIcon {
   return L.divIcon({
     className: '',
@@ -34,8 +35,8 @@ export function unknownIcon(): L.DivIcon {
       width:24px;height:24px;border-radius:50%;
       display:flex;align-items:center;justify-content:center;
       font-size:14px;font-weight:700;color:#1a1204;cursor:pointer;
-      background:#e6b83f;border:2px solid #ffe9a8;
-      box-shadow:0 0 8px rgba(230,184,63,.85);
+      background:#e8e5dd;border:2px solid #ffffff;
+      box-shadow:0 0 8px rgba(232,229,221,.7);
     ">?</div>`,
     iconSize: [24, 24],
     iconAnchor: [12, 12],
@@ -50,9 +51,9 @@ export function playerIcon(): L.DivIcon {
     html: `<div style="
       width:34px;height:34px;border-radius:50%;
       display:flex;align-items:center;justify-content:center;
-      font-size:18px;background:#1b2a1b;border:2px solid #6b8e23;
-      box-shadow:0 0 10px rgba(107,142,35,.7);
-    ">🧍</div>`,
+      font-size:18px;background:#1c1c1e;border:2px solid #e8e5dd;
+      box-shadow:0 0 10px rgba(232,229,221,.6);
+    ">${iconMarkup('combat.player', { size: 18, color: '#e8e5dd' })}</div>`,
     iconSize: [34, 34],
     iconAnchor: [17, 17],
   });
@@ -65,28 +66,42 @@ export function evacIcon(): L.DivIcon {
     html: `<div style="
       width:38px;height:38px;border-radius:50%;
       display:flex;align-items:center;justify-content:center;
-      font-size:20px;background:rgba(20,40,20,.85);
-      border:2px solid #7bd88f;
-      box-shadow:0 0 12px rgba(123,216,143,.9);
+      font-size:20px;background:rgba(20,26,30,.9);
+      border:2px solid #2bc4d9;
+      box-shadow:0 0 12px rgba(43,196,217,.9);
       animation:evacPulse 1.8s ease-in-out infinite;
-    ">🚁</div>
-    <style>@keyframes evacPulse{0%,100%{box-shadow:0 0 8px rgba(123,216,143,.6)}50%{box-shadow:0 0 18px rgba(123,216,143,1)}}</style>`,
+    ">${iconMarkup('action.evac', { size: 20, color: '#2bc4d9' })}</div>
+    <style>@keyframes evacPulse{0%,100%{box-shadow:0 0 8px rgba(43,196,217,.6)}50%{box-shadow:0 0 18px rgba(43,196,217,1)}}</style>`,
     iconSize: [38, 38],
     iconAnchor: [19, 19],
+  });
+}
+
+/** Where you're thinking of crossing to — bare ground, not a place. */
+export function trekTargetIcon(): L.DivIcon {
+  return L.divIcon({
+    className: '',
+    html: `<div style="
+      width:22px;height:22px;border-radius:50%;
+      border:2px dashed #e8e5dd;opacity:.85;
+      box-shadow:0 0 6px rgba(0,0,0,.6);
+    "></div>`,
+    iconSize: [22, 22],
+    iconAnchor: [11, 11],
   });
 }
 
 export function dangerColor(danger: number): string {
   switch (danger) {
     case 1:
-      return '#7bd88f';
+      return '#b7b3a9';
     case 2:
-      return '#d8cf7b';
+      return '#cfccc4';
     case 3:
-      return '#e0a458';
+      return '#d9683d';
     case 4:
-      return '#e06a4b';
+      return '#d9683d';
     default:
-      return '#e0342b';
+      return '#d92d2d';
   }
 }

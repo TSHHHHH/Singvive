@@ -1,4 +1,5 @@
 import { POI_CONFIG } from '../game/poi';
+import { Icon } from '../icons/Icon';
 import { FACTION_CONFIG } from '../game/factions';
 import { dangerColor } from './mapIcons';
 import { formatDuration, type estimateExpedition } from '../game/travel';
@@ -17,6 +18,8 @@ interface Props {
   onTravel: () => void;
   onMrt: () => void;
   onOpenStash: () => void;
+  /** HDB blocks are entered floor by floor instead of searched. */
+  onEnterBlock?: () => void;
 }
 
 /** The pinned "what am I looking at" card — drives the core travel/search action. */
@@ -28,7 +31,7 @@ function UnknownCard({ est, energyLow, outOfRange, onTravel }: Props) {
   return (
     <>
       <div className="flex items-center gap-2">
-        <span className="text-2xl opacity-60">❓</span>
+        <Icon name="poi.unknown" size={22} className="opacity-60" />
         <div className="min-w-0 flex-1">
           <div className="font-bold text-white/70">Unknown location</div>
           <div className="text-xs text-white/40">
@@ -38,24 +41,24 @@ function UnknownCard({ est, energyLow, outOfRange, onTravel }: Props) {
       </div>
       {est && (
         <div className="mt-2 flex justify-between rounded bg-black/30 p-2 text-xs text-white/55">
-          <span>🚶 Travel there</span>
+          <span><Icon name="action.travel" /> Travel there</span>
           <span className="text-white/80">{formatDuration(est.travelMin)}</span>
         </div>
       )}
       {est?.arrivalAtNight && (
-        <div className="mt-1 text-xs text-red-400">
+        <div className="mt-1 text-xs text-hiss">
           🌙 You'd arrive after dark — far more dangerous.
         </div>
       )}
       {outOfRange && (
-        <div className="mt-1 text-xs text-red-400">
+        <div className="mt-1 text-xs text-hiss">
           ⛔ Beyond your range — hop closer, rest, or ride the MRT.
         </div>
       )}
       <button
         disabled={energyLow || outOfRange}
         onClick={onTravel}
-        className="mt-3 w-full rounded bg-toxic/80 py-2 text-sm font-bold text-black hover:bg-toxic disabled:opacity-30"
+        className="mt-3 w-full rounded bg-signal/80 py-2 text-sm font-bold text-black hover:bg-signal disabled:opacity-30"
       >
         {energyLow
           ? 'Too exhausted — sleep first'
@@ -67,8 +70,20 @@ function UnknownCard({ est, energyLow, outOfRange, onTravel }: Props) {
   );
 }
 
-function KnownCard({ sel, here, est, energyLow, outOfRange, canMrt, onTravel, onMrt, onOpenStash }: Props) {
+function KnownCard({
+  sel,
+  here,
+  est,
+  energyLow,
+  outOfRange,
+  canMrt,
+  onTravel,
+  onMrt,
+  onOpenStash,
+  onEnterBlock,
+}: Props) {
   const cfg = POI_CONFIG[sel.category];
+  const isBlock = sel.category === 'residential';
   const inSight = here;
   const mem = sel.lastSeen;
   const useMem = !inSight && !!mem;
@@ -82,7 +97,7 @@ function KnownCard({ sel, here, est, energyLow, outOfRange, canMrt, onTravel, on
   return (
     <>
       <div className="flex items-center gap-2">
-        <span className="text-2xl">{cfg.glyph}</span>
+        <Icon name={cfg.icon} size={22} />
         <div className="min-w-0 flex-1">
           <div className="truncate font-bold">{sel.name}</div>
           <div className="text-xs text-white/40">
@@ -90,7 +105,7 @@ function KnownCard({ sel, here, est, energyLow, outOfRange, canMrt, onTravel, on
           </div>
         </div>
         {here ? (
-          <span className="rounded bg-toxic/20 px-2 py-0.5 text-[11px] text-toxic">HERE</span>
+          <span className="rounded bg-signal/20 px-2 py-0.5 text-[11px] text-signal">HERE</span>
         ) : (
           <span className="rounded bg-white/10 px-2 py-0.5 text-[11px] text-white/50">last seen</span>
         )}
@@ -98,10 +113,10 @@ function KnownCard({ sel, here, est, energyLow, outOfRange, canMrt, onTravel, on
 
       {faction && (
         <div
-          className="mt-2 rounded bg-black/30 px-2 py-1 text-xs"
-          style={{ color: faction.color }}
+          className="mt-2 rounded border bg-black/30 px-2 py-1 text-xs"
+          style={{ color: faction.color, borderColor: `${faction.color}66` }}
         >
-          {faction.glyph} {faction.name} territory
+          <Icon name={faction.icon} /> {faction.shortName} territory
         </div>
       )}
 
@@ -116,26 +131,30 @@ function KnownCard({ sel, here, est, energyLow, outOfRange, canMrt, onTravel, on
         </span>
       </div>
       <div className="mt-1 text-xs text-white/40">
-        {exhausted ? 'Picked clean — exhausted.' : `${searches} search${searches === 1 ? '' : 'es'} left`}
-        {useMem && <span className="text-amber-300/70"> · intel may be stale</span>}
+        {isBlock
+          ? '12 floors — cleared unit by unit, not searched.'
+          : exhausted
+            ? 'Picked clean — exhausted.'
+            : `${searches} search${searches === 1 ? '' : 'es'} left`}
+        {useMem && <span className="text-concrete-400"> · intel may be stale</span>}
       </div>
 
       {est && !here && (
         <div className="mt-2 rounded bg-black/30 p-2 text-xs text-white/55">
           <div className="flex justify-between">
-            <span>🚶 Travel here</span>
+            <span><Icon name="action.travel" /> Travel here</span>
             <span className="text-white/80">
               {formatDuration(est.travelMin)}
-              {est.weatherSlowed && <span className="text-sky-300"> · rain</span>}
-              {est.encumbered && <span className="text-red-300"> · heavy</span>}
+              {est.weatherSlowed && <span className="text-astral"> · rain</span>}
+              {est.encumbered && <span className="text-hiss"> · heavy</span>}
             </span>
           </div>
           <div className="flex justify-between">
-            <span>🔦 Search</span>
+            <span><Icon name="action.search" /> Search</span>
             <span className="text-white/80">{formatDuration(est.searchMin)}</span>
           </div>
           {(est.arrivalAtNight || est.doneAtNight) && (
-            <div className="mt-1 text-red-400">🌙 You'll be out after dark — far more dangerous.</div>
+            <div className="mt-1 text-hiss">🌙 You'll be out after dark — far more dangerous.</div>
           )}
         </div>
       )}
@@ -143,44 +162,55 @@ function KnownCard({ sel, here, est, energyLow, outOfRange, canMrt, onTravel, on
       <div className="mt-3 flex flex-col gap-2">
         {here ? (
           <>
-            <button
-              disabled={sel.exhausted}
-              onClick={onTravel}
-              className="w-full rounded bg-toxic/80 py-2 text-sm font-bold text-black hover:bg-toxic disabled:opacity-30"
-            >
-              {sel.exhausted ? 'Nothing left to search' : 'Search again'}
-            </button>
+            {isBlock ? (
+              <button
+                onClick={onEnterBlock ?? onTravel}
+                className="w-full rounded bg-signal/90 py-2 text-sm font-bold text-black hover:bg-signal"
+              >
+                <Icon name="hdb.enterBlock" /> Enter the block
+              </button>
+            ) : (
+              <button
+                disabled={sel.exhausted}
+                onClick={onTravel}
+                className="w-full rounded bg-signal/80 py-2 text-sm font-bold text-black hover:bg-signal disabled:opacity-30"
+              >
+                {sel.exhausted ? 'Nothing left to search' : 'Search again'}
+              </button>
+            )}
             <button
               onClick={onOpenStash}
               className="w-full rounded border border-white/15 py-2 text-sm hover:bg-white/5"
             >
-              📦 Open stash here
+              <Icon name="action.stash" /> Open stash here
             </button>
           </>
         ) : (
           <>
             {outOfRange && !canMrt && (
-              <div className="text-xs text-red-400">
+              <div className="text-xs text-hiss">
                 ⛔ Beyond your range — hop closer, rest, or ride the MRT.
               </div>
             )}
             <button
               disabled={energyLow || outOfRange}
               onClick={onTravel}
-              className="w-full rounded bg-toxic/80 py-2 text-sm font-bold text-black hover:bg-toxic disabled:opacity-30"
+              className="w-full rounded bg-signal/80 py-2 text-sm font-bold text-black hover:bg-signal disabled:opacity-30"
             >
               {energyLow
                 ? 'Too exhausted — sleep first'
                 : outOfRange
                   ? 'Too far to reach'
-                  : `Travel & search · ${est ? formatDuration(est.totalMin) : ''}`}
+                  : isBlock
+                    ? `Travel & enter · ${est ? formatDuration(est.travelMin) : ''}`
+                    : `Travel & search · ${est ? formatDuration(est.totalMin) : ''}`}
             </button>
             {canMrt && (
               <button
                 onClick={onMrt}
-                className="w-full rounded bg-sky-700/70 py-2 text-sm font-semibold hover:bg-sky-600"
+                className="w-full rounded border border-astral/40 bg-astral/10 text-astral py-2 text-sm font-semibold hover:bg-astral/20"
               >
-                🚆 Ride MRT here (fast · toll)
+                <Icon name="action.mrt" /> Ride MRT here (fast · toll)
               </button>
             )}
           </>

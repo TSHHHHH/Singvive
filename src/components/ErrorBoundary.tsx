@@ -33,7 +33,7 @@ export class ErrorBoundary extends Component<Props, State> {
       <div className="flex min-h-full items-center justify-center p-6">
         <div className="w-full max-w-md text-center">
           <div className="mb-2 text-6xl">📻</div>
-          <h1 className="text-3xl font-black text-red-500">SIGNAL LOST</h1>
+          <h1 className="text-3xl font-black text-hiss">SIGNAL LOST</h1>
           <p className="mt-1 text-sm text-white/50">
             Something broke. Your run is saved — reloading should pick up where you left off.
           </p>
@@ -44,7 +44,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
           <button
             onClick={() => window.location.reload()}
-            className="mt-8 rounded-lg bg-toxic/80 px-8 py-3 font-bold text-black hover:bg-toxic"
+            className="mt-8 rounded-lg bg-signal/80 px-8 py-3 font-bold text-black hover:bg-signal"
           >
             Reload
           </button>

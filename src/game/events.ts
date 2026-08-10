@@ -40,19 +40,19 @@ export function rollPreScavengeEvent(rng: Rng, loc: LocationState): GameEvent | 
   const faction = loc.factionId;
 
   // --- Faction shakedown (revealed, claimed, non-transit) ---
-  if (faction && faction !== 'transit' && loc.isFactionRevealed && rng.chance(0.55)) {
+  if (faction && faction !== 'sta' && loc.isFactionRevealed && rng.chance(0.55)) {
     const cfg = FACTION_CONFIG[faction];
     const tribute = itemDef(cfg.tribute);
     return {
       kind: 'faction_shakedown',
       factionId: faction,
-      hostile: cfg.hostile,
-      title: `${cfg.name} Shakedown`,
-      text: `The ${cfg.name} block the way in. "Toll's one ${tribute.name}. Pay up, or turn around."`,
+      hostile: cfg.hostileByDefault,
+      title: `${cfg.shortName} Shakedown`,
+      text: `${cfg.name} runners block the way in. "Toll's one ${tribute.name}. Pay up, or turn around."`,
       choices: [
         { id: 'pay', kind: 'pay', itemId: cfg.tribute, label: `Pay 1× ${tribute.name}` },
         { id: 'talk', kind: 'check', attr: 'wits', dc, label: `Talk your way past (Wits DC ${dc})` },
-        cfg.hostile
+        cfg.hostileByDefault
           ? { id: 'fight', kind: 'fight', label: 'Refuse — draw down' }
           : { id: 'leave', kind: 'leave', label: 'Back off (skip search)' },
       ],
@@ -101,15 +101,15 @@ export function rollPreScavengeEvent(rng: Rng, loc: LocationState): GameEvent | 
 
 /** The MRT toll gate event when using fast travel. */
 export function mrtTollEvent(): GameEvent {
-  const tribute = itemDef(FACTION_CONFIG.transit.tribute);
+  const tribute = itemDef(FACTION_CONFIG.sta.tribute);
   return {
     kind: 'mrt_toll',
-    factionId: 'transit',
+    factionId: 'sta',
     hostile: false,
-    title: 'Transit Coalition Toll',
-    text: `A Transit marshal bars the turnstile. "Tunnel's not free — one ${tribute.name} for passage."`,
+    title: 'STA Turnstile Toll',
+    text: `An STA marshal bars the turnstile. "Tunnel's not free — one ${tribute.name} for passage."`,
     choices: [
-      { id: 'pay', kind: 'pay', itemId: FACTION_CONFIG.transit.tribute, label: `Pay 1× ${tribute.name}` },
+      { id: 'pay', kind: 'pay', itemId: FACTION_CONFIG.sta.tribute, label: `Pay 1× ${tribute.name}` },
       { id: 'leave', kind: 'leave', label: 'Take the surface instead' },
     ],
   };

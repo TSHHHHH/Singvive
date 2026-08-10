@@ -159,7 +159,7 @@ export function InventoryPanel({ onClose }: { onClose?: () => void }) {
     <div className="flex flex-col gap-3" onPointerMove={onPointerMove} onPointerUp={onPointerUp}>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3 text-xs">
-          <span className={encumbered ? 'font-semibold text-red-400' : 'text-white/60'}>
+          <span className={encumbered ? 'font-semibold text-hiss' : 'text-white/60'}>
             🎒 {load.toFixed(1)} / {carry} kg{encumbered ? ' · Encumbered' : ''}
           </span>
           <span className="text-white/40">Value {totalLootValue(items)}</span>
@@ -186,8 +186,8 @@ export function InventoryPanel({ onClose }: { onClose?: () => void }) {
               className={`flex min-h-[64px] flex-col items-center justify-center gap-0.5 rounded border p-1.5 text-center ${
                 highlighted
                   ? drag?.target && 'valid' in drag.target && drag.target.valid
-                    ? 'border-toxic bg-toxic/20'
-                    : 'border-red-500 bg-red-500/10'
+                    ? 'border-signal bg-signal/20'
+                    : 'border-hiss bg-hiss/10'
                   : 'border-white/10 bg-black/40'
               }`}
             >
@@ -262,7 +262,7 @@ export function InventoryPanel({ onClose }: { onClose?: () => void }) {
               {usable && (
                 <button
                   onClick={() => useItem(selected.uid)}
-                  className="rounded bg-toxic/80 px-3 py-1.5 text-sm font-semibold text-black hover:bg-toxic"
+                  className="rounded bg-signal/80 px-3 py-1.5 text-sm font-semibold text-black hover:bg-signal"
                 >
                   Use
                 </button>
@@ -273,7 +273,7 @@ export function InventoryPanel({ onClose }: { onClose?: () => void }) {
                     equipItem(selected.uid, def.slot!);
                     setSelectedUid(null);
                   }}
-                  className="rounded bg-sky-700/70 px-3 py-1.5 text-sm hover:bg-sky-600"
+                  className="rounded border border-astral/40 bg-astral/10 text-astral px-3 py-1.5 text-sm hover:bg-astral/20"
                 >
                   Equip
                 </button>

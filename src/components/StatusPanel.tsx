@@ -9,9 +9,9 @@ import {
 import { ATTRIBUTE_KEYS, ATTRIBUTE_LABELS, getTraits } from '../game/character';
 
 function partColor(condition: number): string {
-  if (condition >= 80) return '#4c8f3a';
-  if (condition >= 50) return '#c9b03f';
-  if (condition >= 25) return '#d98c3f';
+  if (condition >= 80) return '#b7b3a9';
+  if (condition >= 50) return '#cfccc4';
+  if (condition >= 25) return '#d9683d';
   return '#c0392b';
 }
 
@@ -28,16 +28,16 @@ export function StatusPanel() {
       <section className="rounded-lg border border-white/10 bg-black/30 p-3">
         <h4 className="mb-2 text-[11px] uppercase tracking-widest text-white/30">Condition</h4>
         <div className="flex flex-col gap-1.5">
-          <MeterBar label="Health" icon="❤️" value={meters.health} max={effMax} color="#c0392b" />
+          <MeterBar label="Health" icon="meter.health" value={meters.health} max={effMax} color="#d92d2d" />
           {injuryPenalty > 0 && (
-            <div className="-mt-1 pl-7 text-[11px] text-red-400/80">
+            <div className="-mt-1 pl-7 text-[11px] text-hiss/80">
               −{injuryPenalty} max HP from injuries
             </div>
           )}
-          <MeterBar label="Hunger" icon="🍖" value={meters.hunger} max={100} color="#c9843f" />
-          <MeterBar label="Thirst" icon="💧" value={meters.thirst} max={100} color="#3a8fb5" />
-          <MeterBar label="Energy" icon="⚡" value={meters.energy} max={100} color="#c9b03f" />
-          <MeterBar label="Infection" icon="☣️" value={meters.infection} max={100} color="#7fbf4b" danger />
+          <MeterBar label="Hunger" icon="meter.hunger" value={meters.hunger} max={100} color="#b7b3a9" />
+          <MeterBar label="Thirst" icon="meter.thirst" value={meters.thirst} max={100} color="#2bc4d9" />
+          <MeterBar label="Energy" icon="meter.energy" value={meters.energy} max={100} color="#e8e5dd" />
+          <MeterBar label="Infection" icon="meter.infection" value={meters.infection} max={100} color="#2bc4d9" danger />
         </div>
       </section>
 
@@ -56,7 +56,7 @@ export function StatusPanel() {
                 <div className="flex items-center justify-between text-[11px] text-white/50">
                   <span>{BODY_PART_LABEL[id]}</span>
                   <span>
-                    {p.bleeding && <span className="mr-1 text-red-500">🩸</span>}
+                    {p.bleeding && <span className="mr-1 text-hiss">🩸</span>}
                     {Math.round(p.condition)}%
                   </span>
                 </div>
@@ -79,7 +79,7 @@ export function StatusPanel() {
           <div className="grid grid-cols-5 gap-1 text-center">
             {ATTRIBUTE_KEYS.map((k) => (
               <div key={k} className="rounded bg-black/30 py-1">
-                <div className="text-sm font-bold tabular-nums text-toxic">
+                <div className="text-sm font-bold tabular-nums text-signal">
                   {character.attributes[k]}
                 </div>
                 <div className="text-[10px] uppercase text-white/40">
@@ -96,8 +96,8 @@ export function StatusPanel() {
                   title={t.description}
                   className={`rounded px-1.5 py-0.5 text-[11px] ${
                     t.category === 'positive'
-                      ? 'bg-toxic/15 text-toxic'
-                      : 'bg-blood/15 text-red-300'
+                      ? 'bg-signal/15 text-signal'
+                      : 'bg-hiss/15 text-hiss'
                   }`}
                 >
                   {t.name}

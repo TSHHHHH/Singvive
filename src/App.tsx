@@ -3,7 +3,6 @@ import { Menu } from './screens/Menu';
 import { CharacterCreate } from './screens/CharacterCreate';
 import { SpawnSelect } from './screens/SpawnSelect';
 import { GameScreen } from './screens/GameScreen';
-import { CombatScreen } from './screens/CombatScreen';
 import { DeathScreen } from './screens/DeathScreen';
 
 export default function App() {
@@ -18,12 +17,8 @@ export default function App() {
         </div>
       )}
       {phase === 'spawn' && <SpawnSelect />}
+      {/* Combat is an overlay panel inside the game screen — no phase switch. */}
       {phase === 'game' && <GameScreen />}
-      {phase === 'combat' && (
-        <div className="h-full overflow-y-auto">
-          <CombatScreen />
-        </div>
-      )}
       {phase === 'death' && <DeathScreen />}
     </div>
   );

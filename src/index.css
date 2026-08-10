@@ -16,29 +16,41 @@ body,
 }
 
 body {
-  background: #0b0d0a;
-  color: #d7dbcf;
+  background: #08080a;
+  color: #d6d2c8;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   overscroll-behavior: none;
 }
 
-/* Dark, desaturated apocalyptic map tiles */
+/* Poured-concrete map: drained of colour, lit like a service corridor. */
 .apoc-tiles {
-  filter: grayscale(0.55) brightness(0.62) contrast(1.05) sepia(0.25) hue-rotate(-8deg);
+  filter: grayscale(0.92) brightness(0.55) contrast(1.25) sepia(0.12);
+}
+
+/* Bureau signage: stencilled, wide, upper-case. */
+.signage {
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  font-weight: 800;
+}
+
+/* Hairline rule used to separate bureau panels. */
+.rule {
+  border-top: 1px solid rgba(232, 229, 221, 0.12);
 }
 
 /* thin scrollbars */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #3a4030 transparent;
+  scrollbar-color: #3a3a3c transparent;
 }
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 ::-webkit-scrollbar-thumb {
-  background: #3a4030;
-  border-radius: 4px;
+  background: #3a3a3c;
+  border-radius: 0;
 }
 
 @keyframes pulse-danger {
@@ -52,4 +64,46 @@ body {
 }
 .pulse-danger {
   animation: pulse-danger 1.6s ease-in-out infinite;
+}
+
+/* ---------- diegetic map feedback (Module 4) ---------- */
+
+/* Bleeding: the frame throbs red at the edges. */
+@keyframes vignette-bleed {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+.vignette-bleed {
+  animation: vignette-bleed 1.4s ease-in-out infinite;
+  box-shadow: inset 0 0 90px 30px rgba(217, 45, 45, 0.55);
+}
+
+/* Exhaustion: the edges of vision close in. */
+.vignette-fatigue {
+  box-shadow: inset 0 0 140px 60px rgba(0, 0, 0, 0.85);
+}
+
+/* Infection: a cold resonance crawls in from the corners. */
+.vignette-infection {
+  box-shadow: inset 0 0 110px 40px rgba(127, 178, 196, 0.35);
+}
+
+/* An expanding ring of noise leaving the player. */
+@keyframes noise-ring {
+  from {
+    opacity: 0.6;
+    stroke-width: 3;
+  }
+  to {
+    opacity: 0;
+    stroke-width: 1;
+  }
+}
+.noise-ring path {
+  animation: noise-ring 1.5s ease-out forwards;
 }
