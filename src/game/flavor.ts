@@ -20,6 +20,7 @@ export type FlavorKey =
   | 'wakeOffline'
   | 'setout'
   | 'arrive'
+  | 'atDoor'
   | 'charted'
   | 'searchFound'
   | 'searchEmpty'
@@ -50,11 +51,20 @@ const POOLS: Record<FlavorKey, string[]> = {
     'You steel yourself and set off for {name}.',
     'Keeping low, you push on toward {name}.',
   ],
+  // Arrival stops at the frontage — going inside is its own decision now, so
+  // none of these may put the survivor through the door.
   arrive: [
     'You reach {name} in one piece.',
-    'You duck into {name}, back to the wall.',
-    '{name} looms up out of the murk. You slip inside.',
+    'You pull up short of {name}, back to the wall.',
+    '{name} looms up out of the murk.',
     'You make it to {name}, breath held.',
+  ],
+  atDoor: [
+    'The way in is right there. Whether you take it is up to you.',
+    'You could go in. You could also keep walking.',
+    'Nothing moves at the entrance. Nothing you can see, anyway.',
+    'The door\'s within reach. Your call.',
+    'You size up the entrance and wait for your pulse to settle.',
   ],
   charted: [
     'So that\'s what {name} was. Marked on your map now.',

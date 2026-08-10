@@ -16,6 +16,8 @@ interface Props {
   outOfRange?: boolean;
   canMrt: boolean;
   onTravel: () => void;
+  /** Step through the door of the site you're already standing at. */
+  onEnter: () => void;
   onMrt: () => void;
   onOpenStash: () => void;
   /** HDB blocks are entered floor by floor instead of searched. */
@@ -78,6 +80,7 @@ function KnownCard({
   outOfRange,
   canMrt,
   onTravel,
+  onEnter,
   onMrt,
   onOpenStash,
   onEnterBlock,
@@ -150,7 +153,7 @@ function KnownCard({
             </span>
           </div>
           <div className="flex justify-between">
-            <span><Icon name="action.search" /> Search</span>
+            <span><Icon name="action.search" /> Search, once inside</span>
             <span className="text-white/80">{formatDuration(est.searchMin)}</span>
           </div>
           {(est.arrivalAtNight || est.doneAtNight) && (
@@ -164,7 +167,7 @@ function KnownCard({
           <>
             {isBlock ? (
               <button
-                onClick={onEnterBlock ?? onTravel}
+                onClick={onEnterBlock ?? onEnter}
                 className="w-full rounded bg-signal/90 py-2 text-sm font-bold text-black hover:bg-signal"
               >
                 <Icon name="hdb.enterBlock" /> Enter the block
@@ -172,10 +175,14 @@ function KnownCard({
             ) : (
               <button
                 disabled={sel.exhausted}
-                onClick={onTravel}
+                onClick={onEnter}
                 className="w-full rounded bg-signal/80 py-2 text-sm font-bold text-black hover:bg-signal disabled:opacity-30"
               >
-                {sel.exhausted ? 'Nothing left to search' : 'Search again'}
+                {sel.exhausted
+                  ? 'Nothing left to search'
+                  : sel.cleared
+                    ? 'Go back in and search'
+                    : 'Go inside and search'}
               </button>
             )}
             <button
@@ -201,9 +208,7 @@ function KnownCard({
                 ? 'Too exhausted — sleep first'
                 : outOfRange
                   ? 'Too far to reach'
-                  : isBlock
-                    ? `Travel & enter · ${est ? formatDuration(est.travelMin) : ''}`
-                    : `Travel & search · ${est ? formatDuration(est.totalMin) : ''}`}
+                  : `Travel here · ${est ? formatDuration(est.travelMin) : ''}`}
             </button>
             {canMrt && (
               <button

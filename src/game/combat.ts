@@ -17,6 +17,7 @@ import type { Rng } from './rng';
 import { environmentCombatMods } from './weather';
 import { itemDef } from './loot';
 import { sumTraitMod } from './character';
+import { energyAttackBonus, energyDodgeBonus, energyFleeDcModifier } from './survival';
 
 const EQUIP_SLOTS: EquipSlot[] = ['head', 'body', 'mainHand', 'offHand'];
 
@@ -266,6 +267,38 @@ export function makeHuman(rng: Rng, faction: Exclude<FactionId, null>, danger: n
   };
 }
 
+/**
+ * Not everyone who fights you belongs to somebody. A doorway argument with a
+ * scavenger or a starving stranger is its own thing — no colours, no armour,
+ * and no organisation to answer to afterwards. They hit softer than a faction
+ * runner because they are not soldiers; they're just in your way, or you're
+ * in theirs.
+ */
+const LONER_NAMES = {
+  scavenger: 'Rival Scavenger',
+  survivor: 'Desperate Survivor',
+} as const;
+
+export type LonerKind = keyof typeof LONER_NAMES;
+
+export function makeLoner(rng: Rng, kind: LonerKind, danger: number): Enemy {
+  const r = rng.fork('loner');
+  // The scavenger came equipped and fed; the survivor came because they had to.
+  const tough = kind === 'scavenger';
+  const hp = (tough ? 26 : 18) + danger * 4 + r.int(-3, 6);
+  return {
+    name: LONER_NAMES[kind],
+    kind: 'human',
+    hp,
+    maxHp: hp,
+    attack: 1 + Math.floor(danger / 3) + (tough ? 1 : 0),
+    defense: Math.floor(danger / 3),
+    damage: (tough ? 7 : 5) + danger + r.int(0, 2),
+    infectious: 0,
+    armor: tough ? 1 : 0,
+  };
+}
+
 /** Derive the player's combat stats from attributes, traits and equipped gear.
  *  `armPenalty` reflects injured arms lowering accuracy. */
 export function playerCombatStats(
@@ -342,6 +375,7 @@ export function resolveRound(
   round: number,
   stance: StanceDef,
   terrain: TerrainModifier,
+  energy = 50,
 ): RoundResult {
   const env = environmentCombatMods(weather);
   const log: CombatLogEntry[] = [];
@@ -352,7 +386,12 @@ export function resolveRound(
   const dangerNoise = player.ranged ? terrain.gunshotDangerMod : 0;
 
   // --- Player attack ---
-  const pAtkMod = player.attack + env.playerAccuracy + stance.attackMod + terrainAccuracy(player, terrain);
+  const pAtkMod =
+    player.attack +
+    env.playerAccuracy +
+    stance.attackMod +
+    terrainAccuracy(player, terrain) +
+    energyAttackBonus(energy);
   const pRoll = rng.d20();
   const pTotal = pRoll + pAtkMod;
   const pTarget = 10 + zombie.defense;
@@ -409,8 +448,9 @@ export function resolveRound(
     text: `${zombie.name} lunges (d20 ${zRoll}${fmt(zombie.attack + env.zombieAttack)} = ${zTotal} vs ${defense})`,
   });
   if (zRoll === 20 || zTotal >= defense) {
-    // Terrain footing gives a last chance to slip the blow.
-    const dodgeChance = Math.max(0, Math.min(0.9, terrain.dodgeMod));
+    // Terrain footing — plus whatever reflexes you have left — gives a last
+    // chance to slip the blow.
+    const dodgeChance = Math.max(0, Math.min(0.9, terrain.dodgeMod + energyDodgeBonus(energy)));
     if (dodgeChance > 0 && rng.chance(dodgeChance)) {
       log.push({ round, tone: 'player', text: `You twist clear — the ${terrain.name} gives you room.` });
     } else {
@@ -465,6 +505,7 @@ export function attemptFlee(
   round: number,
   stance: StanceDef,
   terrain: TerrainModifier,
+  energy = 50,
 ): FleeResult {
   const log: CombatLogEntry[] = [];
   let playerDamage = 0;
@@ -490,7 +531,8 @@ export function attemptFlee(
 
   const roll = rng.d20();
   const total = roll + Math.floor((attrs.dexterity + attrs.perception) / 2);
-  const target = 12 + zombie.attack + terrain.fleeDcMod + stance.fleeDcMod;
+  const target =
+    12 + zombie.attack + terrain.fleeDcMod + stance.fleeDcMod + energyFleeDcModifier(energy);
   log.push({ round, tone: 'roll', text: `Flee check (d20 ${roll} = ${total} vs ${target})` });
   if (roll === 20 || total >= target) {
     log.push({ round, tone: 'good', text: `You break away and escape into the streets.` });

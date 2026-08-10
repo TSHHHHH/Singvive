@@ -66,21 +66,45 @@ body {
   animation: pulse-danger 1.6s ease-in-out infinite;
 }
 
-/* ---------- diegetic map feedback (Module 4) ---------- */
-
-/* Bleeding: the frame throbs red at the edges. */
-@keyframes vignette-bleed {
-  0%,
-  100% {
-    opacity: 0.35;
-  }
-  50% {
-    opacity: 0.85;
+@media (prefers-reduced-motion: reduce) {
+  .pulse-danger {
+    animation: none;
+    opacity: 0.9;
   }
 }
-.vignette-bleed {
-  animation: vignette-bleed 1.4s ease-in-out infinite;
-  box-shadow: inset 0 0 90px 30px rgba(217, 45, 45, 0.55);
+
+/* The extraction beacon's glow. Lives here rather than in the marker's own
+   HTML so the icon can be a single shared, cached L.DivIcon. */
+@keyframes evacPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 8px rgba(43, 196, 217, 0.6);
+  }
+  50% {
+    box-shadow: 0 0 18px rgba(43, 196, 217, 1);
+  }
+}
+.evac-beacon {
+  animation: evacPulse 1.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .evac-beacon {
+    animation: none;
+    box-shadow: 0 0 12px rgba(43, 196, 217, 0.9);
+  }
+}
+
+/* ---------- diegetic map feedback (Module 4) ---------- */
+
+/* The vitals vignettes sit full-screen over the Leaflet map, each one a
+   viewport-sized blurred inset shadow. Both are static — nothing here may
+   animate, or the repaint invalidates the map canvas underneath it every frame.
+   Bleeding is signalled on the body doll instead. */
+.vignette-fatigue,
+.vignette-infection {
+  transform: translateZ(0);
+  contain: layout paint;
 }
 
 /* Exhaustion: the edges of vision close in. */

@@ -31,7 +31,9 @@ export const FACTION_CONFIG: Record<Exclude<FactionId, null>, FactionData> = {
     hostileByDefault: false,
     blurb: 'What is left of the standing order — armouries, clinics, checkpoints. Orderly, but they tax entry.',
     tribute: 'ammo_box',
-    preferredPoiCategories: ['police', 'hospital'],
+    // Schools were the designated shelters when it fell — so they were theirs
+    // to hold, and mostly still are.
+    preferredPoiCategories: ['police', 'hospital', 'school'],
   },
   pasir_panjang: {
     id: 'pasir_panjang',
@@ -53,7 +55,9 @@ export const FACTION_CONFIG: Record<Exclude<FactionId, null>, FactionData> = {
     hostileByDefault: true,
     blurb: 'Void-deck muscle turned estate warlords. They take what they want.',
     tribute: 'jewellery',
-    preferredPoiCategories: ['residential', 'hardware'],
+    // Estates first, but the Jurong yards are where the materials are — and
+    // muscle follows materials.
+    preferredPoiCategories: ['residential', 'hardware', 'industrial'],
   },
   sta: {
     id: 'sta',

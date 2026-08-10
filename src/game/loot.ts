@@ -100,6 +100,21 @@ export const LOOT_TABLES: Record<PoiCategory, LootEntry[]> = {
     ['snacks', 8], ['soft_drink', 7], ['water_bottle', 5], ['isotonic', 4],
     ['coffee', 4], ['batteries', 3], ['torch', 2],
   ],
+  // The west's payoff: the best source of materials and fuel outside a hardware
+  // store, and the only place a run reliably finds heavy protective gear. Thin
+  // on food and medicine — a warehouse feeds nobody.
+  industrial: [
+    ['scrap_metal', 10], ['duct_tape', 8], ['fuel_can', 8], ['toolbox', 6],
+    ['crowbar', 5], ['hammer', 5], ['fire_axe', 3], ['hard_hat', 6],
+    ['work_vest', 5], ['torch', 4], ['batteries', 4], ['parang', 2],
+  ],
+  // Canteen, sick bay and workshop, in that order — a broad, shallow spread
+  // rather than a specialist's stop.
+  school: [
+    ['snacks', 8], ['water_bottle', 7], ['instant_noodles', 5], ['canned_food', 4],
+    ['bandage', 6], ['antiseptic', 4], ['painkillers', 4], ['batteries', 5],
+    ['duct_tape', 4], ['scrap_metal', 3], ['hammer', 3], ['torch', 3],
+  ],
   // Roadside scraps only. Waypoints exist so the map is walkable, not so it's
   // farmable — anything richer here would undercut going to a real building.
   waypoint: [

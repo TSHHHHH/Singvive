@@ -18,6 +18,8 @@ export type IconName =
   | 'poi.residential'
   | 'poi.foodcourt'
   | 'poi.mrt'
+  | 'poi.industrial'
+  | 'poi.school'
   | 'poi.waypoint'
   | 'poi.unknown'
   // --- factions ---
@@ -106,6 +108,8 @@ export const EMOJI_FALLBACK: Record<IconName, string> = {
   'poi.residential': '🏢',
   'poi.foodcourt': '🍜',
   'poi.mrt': '🚉',
+  'poi.industrial': '🏭',
+  'poi.school': '🏫',
   'poi.waypoint': '🛣️',
   'poi.unknown': '❓',
 

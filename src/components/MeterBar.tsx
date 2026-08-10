@@ -1,5 +1,6 @@
 import { Icon } from '../icons/Icon';
 import type { IconName } from '../icons/keys';
+import type { MeterModifier } from '../game/survival';
 
 interface Props {
   label: string;
@@ -8,25 +9,55 @@ interface Props {
   color: string;
   danger?: boolean; // invert: higher is worse (infection)
   icon: IconName;
+  /** Colour the fill by how far the meter sits from the 50% baseline. */
+  dynamic?: boolean;
+  /** Modifier lines shown on hover ("+15% travel speed"). */
+  modifiers?: MeterModifier[];
 }
 
-export function MeterBar({ label, value, max, color, danger, icon }: Props) {
+// Baseline-relative colouring: above 55 you're being buffed, below 45 you're
+// being taxed, and the band between is the neutral middle.
+const GOOD = '#5fbf6a';
+const NEUTRAL = '#d9c14a';
+const BAD = '#d9542b';
+
+export function dynamicMeterColor(pct: number): string {
+  if (pct > 55) return GOOD;
+  if (pct >= 45) return NEUTRAL;
+  return BAD;
+}
+
+export function MeterBar({ label, value, max, color, danger, icon, dynamic, modifiers }: Props) {
   const pct = Math.max(0, Math.min(100, (value / max) * 100));
   const low = danger ? pct > 60 : pct < 25;
+  const fill = dynamic ? dynamicMeterColor(pct) : color;
+  const hasTip = !!modifiers?.length;
+
   return (
-    <div className="flex items-center gap-2">
+    <div className="group relative flex items-center gap-2">
       <span className="w-5 text-center text-sm" title={label}>
         <Icon name={icon} title={label} />
       </span>
       <div className="relative h-3 flex-1 overflow-hidden rounded bg-black/50 ring-1 ring-white/10">
         <div
           className={`h-full transition-all duration-300 ${low ? 'pulse-danger' : ''}`}
-          style={{ width: `${pct}%`, background: color }}
+          style={{ width: `${pct}%`, background: fill }}
         />
       </div>
       <span className="w-9 text-right text-sm tabular-nums text-white/70">
         {Math.round(value)}
       </span>
+
+      {hasTip && (
+        <div className="pointer-events-none absolute bottom-full left-5 z-20 mb-1 hidden w-max max-w-[200px] rounded border border-white/15 bg-black/90 px-2 py-1.5 text-[10px] leading-relaxed shadow-lg group-hover:block">
+          <div className="mb-0.5 uppercase tracking-widest text-white/40">{label}</div>
+          {modifiers!.map((m) => (
+            <div key={m.text} className={m.good ? 'text-emerald-300' : 'text-hiss'}>
+              {m.text}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

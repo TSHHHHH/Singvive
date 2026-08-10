@@ -26,6 +26,8 @@ export const POI_CONFIG: Record<PoiCategory, PoiCategoryConfig> = {
   residential: { label: 'HDB Void Deck', richness: 2, baseDanger: 2, color: '#8a867e', icon: 'poi.residential', blurb: 'Void deck & flats — common household loot. The 88 Syndicate works these estates.' },
   foodcourt: { label: 'Hawker Centre', richness: 3, baseDanger: 2, color: '#cfccc4', icon: 'poi.foodcourt', blurb: 'Food stalls.' },
   mrt: { label: 'MRT Station', richness: 2, baseDanger: 3, color: '#2bc4d9', icon: 'poi.mrt', blurb: 'Transit hub. Fast-travel node held by the Subterranean Transit Authority.' },
+  industrial: { label: 'Industrial Unit', richness: 4, baseDanger: 3, color: '#a8863f', icon: 'poi.industrial', blurb: 'Warehouse floor & loading bay. Tools, fuel and materials — and a lot of dark corners.' },
+  school: { label: 'School', richness: 3, baseDanger: 3, color: '#7fa8b2', icon: 'poi.school', blurb: 'Canteen, sick bay, workshop. They were used as shelters, which is exactly the problem.' },
   waypoint: { label: 'Waypoint', richness: 1, baseDanger: 2, color: '#6b7075', icon: 'poi.waypoint', blurb: 'Not a destination — a place to stop between them. Whatever the road left behind.' },
 };
 
@@ -49,6 +51,12 @@ export function classifyOsm(tags: Record<string, string>): PoiCategory | null {
     return 'foodcourt';
   if (tags.station === 'subway' || tags.station === 'light_rail' || tags.railway === 'station')
     return 'mrt';
+  if (amenity === 'school' || amenity === 'college' || amenity === 'university') return 'school';
+  // Checked before the residential fallback: an industrial estate is tagged by
+  // building *and* landuse, and the building tag is the more specific truth.
+  if (building === 'industrial' || building === 'warehouse' || building === 'factory')
+    return 'industrial';
+  if (tags.landuse === 'industrial' || tags.man_made === 'works') return 'industrial';
   if (
     building === 'residential' ||
     building === 'apartments' ||

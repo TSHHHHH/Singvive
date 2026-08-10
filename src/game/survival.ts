@@ -34,6 +34,53 @@ export function clampMeter(v: number): number {
   return Math.max(0, Math.min(METER_MAX, v));
 }
 
+// ---------- Dynamic condition scaling ----------
+//
+// Every meter reads as a continuous signal rather than a set of cliffs: 50 is
+// the neutral baseline, 100 is a full buff, 0 is a full debuff. Each derived
+// multiplier below is a linear ride off that delta, so the bars matter at every
+// point on the scale instead of only when they cross a threshold.
+
+/** Normalized −1..+1 signal for a 0..100 meter, neutral at 50. */
+export function getMeterDelta(value: number): number {
+  return Math.max(-1.0, Math.min(1.0, (value - 50) / 50));
+}
+
+/** Passive/resting HP recovery scaling from hunger. 0.5x .. 1.5x */
+export function hpRegenMultiplier(hunger: number): number {
+  return 1.0 + getMeterDelta(hunger) * 0.5;
+}
+
+/** How much energy a rest actually returns. 0.2x .. 1.8x */
+export function restEnergyMultiplier(hunger: number, thirst: number): number {
+  return 1.0 + getMeterDelta(hunger) * 0.3 + getMeterDelta(thirst) * 0.5;
+}
+
+/** Energy burn rate while moving/acting — dehydration burns up to 1.3x faster. */
+export function activeEnergyDrainMultiplier(thirst: number): number {
+  return 1.0 - getMeterDelta(thirst) * 0.3;
+}
+
+/** Walking pace scaling from energy. 0.7x .. 1.3x */
+export function travelSpeedMultiplier(energy: number): number {
+  return 1.0 + getMeterDelta(energy) * 0.3;
+}
+
+/** d20 attack-roll bonus from energy. −2 .. +2 */
+export function energyAttackBonus(energy: number): number {
+  return Math.round(getMeterDelta(energy) * 2);
+}
+
+/** Additional chance to slip a connecting blow. −0.15 .. +0.15 */
+export function energyDodgeBonus(energy: number): number {
+  return getMeterDelta(energy) * 0.15;
+}
+
+/** Flee DC shift — exhaustion makes breaking contact harder. +3 .. −3 */
+export function energyFleeDcModifier(energy: number): number {
+  return -Math.round(getMeterDelta(energy) * 3);
+}
+
 export function initialMeters(maxHp: number): Meters {
   return {
     health: maxHp,
@@ -42,6 +89,65 @@ export function initialMeters(maxHp: number): Meters {
     energy: 90,
     infection: 0,
   };
+}
+
+/** Signed percentage label for a multiplier, e.g. 1.15 -> "+15%". */
+function pctLabel(mult: number): string {
+  const pct = Math.round((mult - 1) * 100);
+  return pct > 0 ? `+${pct}%` : `${pct}%`;
+}
+
+/** Signed integer label, e.g. 2 -> "+2". */
+function signLabel(n: number): string {
+  return n > 0 ? `+${n}` : `${n}`;
+}
+
+/** A single tooltip line: the text, and whether it helps or hurts. */
+export interface MeterModifier {
+  text: string;
+  good: boolean;
+}
+
+/**
+ * Human-readable list of the modifiers a meter is currently applying, for the
+ * condition bars' tooltips. Empty when the meter sits at the neutral baseline.
+ * `good` is the effect's direction, not the number's sign — more energy drain
+ * is a bigger number and still bad news.
+ */
+export function meterModifiers(
+  meter: 'hunger' | 'thirst' | 'energy',
+  meters: Pick<Meters, 'hunger' | 'thirst' | 'energy'>,
+): MeterModifier[] {
+  const out: MeterModifier[] = [];
+  switch (meter) {
+    case 'hunger': {
+      const d = getMeterDelta(meters.hunger);
+      if (d === 0) break;
+      out.push({ text: `${pctLabel(hpRegenMultiplier(meters.hunger))} HP recovery`, good: d > 0 });
+      out.push({ text: `${pctLabel(1 + d * 0.3)} rest energy gain`, good: d > 0 });
+      break;
+    }
+    case 'thirst': {
+      const d = getMeterDelta(meters.thirst);
+      if (d === 0) break;
+      out.push({ text: `${pctLabel(1 + d * 0.5)} rest energy gain`, good: d > 0 });
+      out.push({
+        text: `${pctLabel(activeEnergyDrainMultiplier(meters.thirst))} energy drain`,
+        good: d > 0,
+      });
+      break;
+    }
+    case 'energy': {
+      const d = getMeterDelta(meters.energy);
+      if (d === 0) break;
+      out.push({ text: `${pctLabel(travelSpeedMultiplier(meters.energy))} travel speed`, good: d > 0 });
+      out.push({ text: `${signLabel(energyAttackBonus(meters.energy))} to hit`, good: d > 0 });
+      out.push({ text: `${pctLabel(1 + energyDodgeBonus(meters.energy))} dodge chance`, good: d > 0 });
+      out.push({ text: `${signLabel(energyFleeDcModifier(meters.energy))} flee DC`, good: d > 0 });
+      break;
+    }
+  }
+  return out;
 }
 
 export const HP_REGEN_PER_HOUR = 2;
@@ -61,7 +167,10 @@ export function tickMeters(
   const mult = opts.sleeping ? SLEEP_DEPLETION_MULT : 1;
   const hunger = clampMeter(meters.hunger - DEPLETION_PER_HOUR.hunger * hours * mult);
   const thirst = clampMeter(meters.thirst - DEPLETION_PER_HOUR.thirst * hours * mult);
-  const energy = clampMeter(meters.energy - DEPLETION_PER_HOUR.energy * hours);
+  // A dry survivor burns through their reserves faster on the move; asleep, the
+  // body is idling, so the active-drain penalty doesn't apply.
+  const energyMult = opts.sleeping ? mult : activeEnergyDrainMultiplier(meters.thirst);
+  const energy = clampMeter(meters.energy - DEPLETION_PER_HOUR.energy * hours * energyMult);
 
   // Running empty no longer kills outright — it grinds HP down, so the run ends
   // on health and you get warning time to find food or water.
@@ -76,7 +185,8 @@ export function tickMeters(
 
   // passive recovery when the body is stable (fed, hydrated, not bleeding out)
   if (bleedDrain === 0 && starving === 0 && parched === 0 && meters.infection < 50) {
-    health += HP_REGEN_PER_HOUR * hours;
+    // A well-fed body knits itself back together faster than a hungry one.
+    health += HP_REGEN_PER_HOUR * hours * hpRegenMultiplier(hunger);
   }
 
   return {
@@ -251,9 +361,19 @@ export function treatInjuries(
   return next;
 }
 
-/** Restore energy from sleeping `hours`, on top of the normal drain tick. */
-export function sleepRestore(energy: number, hours: number): number {
-  return clampMeter(energy + hours * 9);
+export const REST_ENERGY_PER_HOUR = 9;
+
+/**
+ * Restore energy from sleeping `hours`, on top of the normal drain tick. Sleep
+ * on an empty stomach and a dry throat and the night gives much less back.
+ */
+export function sleepRestore(
+  energy: number,
+  hours: number,
+  fuel: { hunger: number; thirst: number } = { hunger: 50, thirst: 50 },
+): number {
+  const gain = hours * REST_ENERGY_PER_HOUR * restEnergyMultiplier(fuel.hunger, fuel.thirst);
+  return clampMeter(energy + Math.max(0, gain));
 }
 
 export type DeathCause =

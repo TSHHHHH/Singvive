@@ -145,6 +145,8 @@ export type PoiCategory =
   | 'residential'
   | 'foodcourt'
   | 'mrt'
+  | 'industrial'
+  | 'school'
   /** Synthetic connective tissue inserted by the world builder — see world.ts. */
   | 'waypoint';
 
@@ -183,6 +185,16 @@ export interface LocationState {
   factionId: FactionId;
   isFactionRevealed: boolean;
   isMrtStation: boolean;
+
+  // ---- doorway memory -----------------------------------------------------
+  // What this entrance remembers about you. All optional: saves written before
+  // the doorway remembered anything simply come back with a clean slate.
+  /** A security door you already got through stays open. */
+  doorForced?: boolean;
+  /** Last day (inclusive) a paid faction toll still buys you passage. */
+  tollPaidThroughDay?: number;
+  /** Day the survivor camped here was dealt with, one way or another. */
+  survivorSettledDay?: number;
 
   // fog of war
   discovered: boolean; // ever seen — kept as memory even when out of sight

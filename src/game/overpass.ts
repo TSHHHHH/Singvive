@@ -49,6 +49,9 @@ function buildQuery(lat: number, lng: number, radius: number): string {
     'nwr["amenity"="community_centre"]',
     'nwr["station"="subway"]',
     'nwr["station"="light_rail"]',
+    'nwr["amenity"="school"]',
+    'nwr["amenity"="college"]',
+    'nwr["amenity"="university"]',
   ]
     .map((f) => `  ${f}(around:${radius},${lat},${lng});`)
     .join('\n');
@@ -62,10 +65,22 @@ function buildQuery(lat: number, lng: number, radius: number): string {
     .map((f) => `  ${f}(around:${radius},${lat},${lng});`)
     .join('\n');
 
+  // Industrial gets its own group and cap for the same reason the HDBs do, but
+  // pointing the other way: the west is warehouses the way the heartlands are
+  // void decks, and a shared limit would let whichever land use dominates the
+  // spawn starve the other.
+  const industrial = [
+    'nwr["building"="industrial"]',
+    'nwr["building"="warehouse"]',
+    'nwr["building"="factory"]',
+  ]
+    .map((f) => `  ${f}(around:${radius},${lat},${lng});`)
+    .join('\n');
+
   // Shops/amenities: full geometry (mostly point nodes, so cheap) for outlines.
-  // HDB buildings: centroid only (`out center`) — polygon geometry for ~180
-  // blocks times out the free Overpass servers, and they render as rectangles
-  // anyway. This keeps the query light while still populating the estates.
+  // HDB and industrial buildings: centroid only (`out center`) — polygon
+  // geometry for hundreds of large buildings times out the free Overpass
+  // servers, and they render as rectangles anyway.
   return `[out:json][timeout:25];
 (
 ${filters}
@@ -74,7 +89,11 @@ out geom tags 220;
 (
 ${buildings}
 );
-out center tags 180;`;
+out center tags 180;
+(
+${industrial}
+);
+out center tags 120;`;
 }
 
 interface OsmElement {
@@ -109,6 +128,8 @@ const NAME_BY_CATEGORY: Record<PoiCategory, string> = {
   residential: 'HDB Block',
   foodcourt: 'Hawker Centre',
   mrt: 'MRT Station',
+  industrial: 'Industrial Unit',
+  school: 'School',
   waypoint: 'Waypoint',
 };
 

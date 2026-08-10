@@ -11,6 +11,8 @@ import type {
 } from './types';
 import type { ExploredCircle } from './fog';
 import type { HdbDungeon } from './hdbDungeon';
+import type { EventClock } from './store';
+import type { FactionStanding } from './events';
 import { migrateFactionId } from './factions';
 import { normalizeRunStats } from './stats';
 
@@ -39,6 +41,10 @@ export interface SavedRun {
   evacDeadline: number | null;
   /** Explored HDB blocks, so a cleared unit stays cleared between visits. */
   hdbBlocks?: Record<string, HdbDungeon>;
+  /** Doorway-event rate limiter, so reloading can't farm encounters. */
+  eventClock?: EventClock;
+  /** How each faction feels about you. Absent on saves from before standing. */
+  factionStanding?: FactionStanding;
   /** Display-only run counters. Absent on saves written before they existed. */
   stats?: RunStats;
   /**

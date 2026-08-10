@@ -391,6 +391,72 @@ export function attributeSources(
     .filter((s) => s.mod !== 0);
 }
 
+/**
+ * The concrete buffs/debuffs an attribute value is buying right now, phrased
+ * against the BASE_ATTRIBUTE baseline so a 5 reads as neutral. Mirrors the real
+ * formulas in combat/inventory/travel/fog/hdbDungeon — keep them in sync.
+ */
+export interface AttributeEffect {
+  label: string;
+  good: boolean;
+}
+
+// Mirror of hdbDungeon.senseChance — duplicated rather than imported so the
+// character module stays free of dungeon imports.
+const senseChanceOf = (v: number) => Math.max(0.05, Math.min(0.95, 0.15 + (v - 3) * 0.11));
+
+export function attributeEffects(key: AttributeKey, value: number): AttributeEffect[] {
+  const d = value - BASE_ATTRIBUTE;
+  const half = Math.floor(value / 2) - Math.floor(BASE_ATTRIBUTE / 2);
+  const sense = Math.round((senseChanceOf(value) - senseChanceOf(BASE_ATTRIBUTE)) * 100);
+  const num = (n: number, text: string, unit = ''): [number, string] => [
+    n,
+    `${n > 0 ? '+' : ''}${n}${unit} ${text}`,
+  ];
+  const pct = (n: number, text: string): [number, string] => [
+    n,
+    `${n > 0 ? '+' : ''}${Math.round(n * 100)}% ${text}`,
+  ];
+
+  let rows: [number, string][];
+  switch (key) {
+    case 'strength':
+      rows = [num(half, 'melee damage'), num(d * 3, 'kg carry capacity')];
+      break;
+    case 'dexterity':
+      rows = [
+        num(d, 'attack accuracy'),
+        num(half, 'defense'),
+        pct(d * 0.03, 'travel speed'),
+        num(sense, 'scout read chance', '%'),
+        num(d, 'flee & stairwell checks'),
+      ];
+      break;
+    case 'endurance':
+      rows = [
+        num(d * 6, 'max HP'),
+        num(d * 2, 'kg carry capacity'),
+        pct(d * 0.06, 'travel speed'),
+        num(d, 'stairwell retreat checks'),
+      ];
+      break;
+    case 'perception':
+      rows = [
+        num(Math.floor(d / 2), 'loot rolls per search'),
+        num(d, 'awareness (fog & blip range)'),
+        num(sense, 'threat-sense chance', '%'),
+        num(Math.floor(d / 2), 'flee checks'),
+      ];
+      break;
+    case 'wits':
+      rows = [num(sense, 'chance to read a room', '%')];
+      break;
+  }
+  return rows
+    .filter(([n]) => n !== 0)
+    .map(([n, label]) => ({ label, good: n > 0 }));
+}
+
 export function maxHpFor(character: Character): number {
   const bonus = sumTraitMod(character.traitIds, 'maxHpBonus');
   return 60 + character.attributes.endurance * 6 + bonus;

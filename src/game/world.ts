@@ -47,7 +47,17 @@ function sizeFor(category: PoiCategory, outline?: [number, number][]): LocationS
     return 'small';
   }
   // fallback by category footprint expectations
-  if (category === 'hospital' || category === 'police' || category === 'supermarket') return 'large';
+  // Warehouses and school campuses are big floors to sweep — and they arrive
+  // without outlines (centroid-only in the query), so the fallback is the only
+  // thing that sizes them.
+  if (
+    category === 'hospital' ||
+    category === 'police' ||
+    category === 'supermarket' ||
+    category === 'industrial' ||
+    category === 'school'
+  )
+    return 'large';
   if (category === 'residential' || category === 'foodcourt' || category === 'hardware') return 'medium';
   return 'small';
 }

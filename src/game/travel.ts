@@ -1,7 +1,7 @@
 import type { Attributes, PoiCategory, WeatherKind } from './types';
 import { POI_CONFIG } from './poi';
 import { timeOfDay, weatherTravelMult } from './weather';
-import { HOURS_PER_DAY } from './survival';
+import { HOURS_PER_DAY, travelSpeedMultiplier } from './survival';
 
 // Cautious on-foot pace through a ruined city.
 const BASE_SPEED_M_PER_MIN = 72; // ~4.3 km/h
@@ -16,12 +16,11 @@ export const URBAN_DECAY_DETOUR = 1.4;
 /**
  * Walking speed in metres/minute, shaped by the survivor's build and how
  * exhausted they are. Endurance matters most; dexterity helps you pick a line;
- * running on empty is slow.
+ * energy scales the pace continuously (0.7x spent .. 1.3x fresh).
  */
 export function walkSpeed(attrs: Attributes, energy: number, legFactor = 1): number {
   const statFactor = 1 + (attrs.endurance - 5) * 0.06 + (attrs.dexterity - 5) * 0.03;
-  const energyFactor = energy < 20 ? 0.65 : energy < 45 ? 0.85 : 1;
-  return BASE_SPEED_M_PER_MIN * statFactor * energyFactor * legFactor;
+  return BASE_SPEED_M_PER_MIN * statFactor * travelSpeedMultiplier(energy) * legFactor;
 }
 
 /** Minutes to search a place, driven by how much there is to pick through. */

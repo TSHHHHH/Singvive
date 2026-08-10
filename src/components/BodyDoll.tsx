@@ -112,15 +112,22 @@ export function BodyDoll({ bodyParts, height = 150 }: Props) {
                   {p.bleeding ? ' · bleeding' : ''}
                 </title>
               </rect>
+              {/* Bleeding used to throb the whole map frame red; it lives here
+                  now — a pip plus a halo on the limb that's actually open. */}
               {p.bleeding && (
-                <circle
-                  cx={PIP[id][0]}
-                  cy={PIP[id][1]}
-                  r={4}
-                  fill="#d92d2d"
-                  className="pulse-danger"
-                  pointerEvents="none"
-                />
+                <g className="pulse-danger" pointerEvents="none">
+                  <rect
+                    x={s.x - 2.5}
+                    y={s.y - 2.5}
+                    width={s.w + 5}
+                    height={s.h + 5}
+                    rx={s.rx + 2.5}
+                    fill="none"
+                    stroke="#d92d2d"
+                    strokeWidth={2}
+                  />
+                  <circle cx={PIP[id][0]} cy={PIP[id][1]} r={4} fill="#d92d2d" />
+                </g>
               )}
             </g>
           );

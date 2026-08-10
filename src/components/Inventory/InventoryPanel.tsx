@@ -154,22 +154,17 @@ export function InventoryPanel({ onClose }: { onClose?: () => void }) {
   const carry = character ? maxCarry(character.attributes, equipment) : 0;
   const load = containerWeight(items, BACKPACK);
   const encumbered = character ? isEncumbered(items, character.attributes, equipment) : false;
+  const loadPct = carry > 0 ? (load / carry) * 100 : 0;
 
   return (
     <div className="flex flex-col gap-3" onPointerMove={onPointerMove} onPointerUp={onPointerUp}>
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3 text-xs">
-          <span className={encumbered ? 'font-semibold text-hiss' : 'text-white/60'}>
-            🎒 {load.toFixed(1)} / {carry} kg{encumbered ? ' · Encumbered' : ''}
-          </span>
-          <span className="text-white/40">Value {totalLootValue(items)}</span>
-        </div>
-        {onClose && (
+      {onClose && (
+        <div className="flex justify-end">
           <button onClick={onClose} className="text-white/50 hover:text-white">
             ✕
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Equipment slots — drag items here to equip */}
       <div className="grid grid-cols-4 gap-2">
@@ -210,30 +205,39 @@ export function InventoryPanel({ onClose }: { onClose?: () => void }) {
         })}
       </div>
 
-      {/* Grids */}
-      <div className="flex flex-wrap gap-4">
-        <InventoryGrid
-          grid={BACKPACK}
-          title="Backpack"
-          items={items}
-          selectedUid={selectedUid}
-          draggingUid={drag?.uid ?? null}
-          preview={gridPreview(BACKPACK)}
-          gridRef={(el) => (gridRefs.current[BACKPACK] = el)}
-          onItemPointerDown={onItemPointerDown}
-        />
-        {stashContainer && (
-          <InventoryGrid
-            grid={stashContainer}
-            title={`Stash · ${hereLoc!.name}`}
-            items={items}
-            selectedUid={selectedUid}
-            draggingUid={drag?.uid ?? null}
-            preview={gridPreview(stashContainer)}
-            gridRef={(el) => (gridRefs.current[stashContainer] = el)}
-            onItemPointerDown={onItemPointerDown}
+      <InventoryGrid
+        grid={BACKPACK}
+        title="Backpack"
+        items={items}
+        selectedUid={selectedUid}
+        draggingUid={drag?.uid ?? null}
+        preview={gridPreview(BACKPACK)}
+        gridRef={(el) => (gridRefs.current[BACKPACK] = el)}
+        onItemPointerDown={onItemPointerDown}
+      />
+
+      {/* Carry gauge — sits directly under the backpack it measures */}
+      <div className="rounded-lg border border-white/10 bg-black/40 px-3 py-2">
+        <div className="flex items-baseline justify-between text-[11px]">
+          <span className="uppercase tracking-widest text-white/40">Carry weight</span>
+          <span className={encumbered ? 'font-semibold text-hiss' : 'text-white/60'}>
+            {load.toFixed(1)} / {carry} kg{encumbered ? ' · Encumbered' : ''}
+          </span>
+        </div>
+        <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-white/10">
+          <div
+            className={`h-full rounded-full transition-[width] duration-200 ${
+              encumbered ? 'bg-hiss' : loadPct > 80 ? 'bg-amber-400' : 'bg-signal'
+            }`}
+            style={{ width: `${Math.min(100, loadPct)}%` }}
           />
-        )}
+        </div>
+        <div className="mt-1.5 flex items-baseline justify-between text-[11px] text-white/40">
+          <span>
+            {items.filter((i) => i.container === BACKPACK).length} items carried
+          </span>
+          <span>Value {totalLootValue(items)}</span>
+        </div>
       </div>
 
       {/* Dedicated item detail box — always present */}
@@ -304,6 +308,19 @@ export function InventoryPanel({ onClose }: { onClose?: () => void }) {
           </p>
         )}
       </div>
+
+      {stashContainer && (
+        <InventoryGrid
+          grid={stashContainer}
+          title={`Stash · ${hereLoc!.name}`}
+          items={items}
+          selectedUid={selectedUid}
+          draggingUid={drag?.uid ?? null}
+          preview={gridPreview(stashContainer)}
+          gridRef={(el) => (gridRefs.current[stashContainer] = el)}
+          onItemPointerDown={onItemPointerDown}
+        />
+      )}
     </div>
   );
 }

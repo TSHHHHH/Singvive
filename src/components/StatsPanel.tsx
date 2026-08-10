@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useGame } from '../game/store';
 import { Icon } from '../icons/Icon';
 import { STAT_GROUPS } from '../game/stats';
@@ -8,7 +9,9 @@ import { ATTRIBUTE_KEYS, ATTRIBUTE_LABELS, getTraits } from '../game/character';
  * attributes and traits) above what they've done (counters that only ever go up).
  */
 export function StatsPanel() {
-  const { character, stats, day } = useGame();
+  const { character, stats, day } = useGame(
+    useShallow((s) => ({ character: s.character, stats: s.stats, day: s.day })),
+  );
   const traits = character ? getTraits(character.traitIds) : [];
 
   return (

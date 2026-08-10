@@ -1,5 +1,5 @@
 import { MapContainer, TileLayer, Marker, Circle, Polygon, useMap, useMapEvents } from 'react-leaflet';
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { Fragment, memo, useEffect, useRef, useState } from 'react';
 import type { Poi } from '../game/types';
 import { poiIcon, playerIcon, unknownIcon, evacIcon, dangerColor } from './mapIcons';
 import {
@@ -23,6 +23,10 @@ import { trekTargetIcon } from './mapIcons';
 const UNKNOWN_STROKE = '#e8e5dd';
 
 const easeInOut = (t: number) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
+
+/** How close to the viewport edge the walker gets before the camera follows,
+ *  as a fraction of the map's shorter side. */
+const FOLLOW_MARGIN = 0.28;
 
 // The player's chosen zoom persists across the whole game (and future sessions)
 // so moving around never snaps it back.
@@ -97,7 +101,23 @@ function PlayerMarker({
       const lat = fromLat + (toLat - fromLat) * e;
       const lng = fromLng + (toLng - fromLng) * e;
       setPos({ lat, lng });
-      map.panTo([lat, lng], { animate: false });
+
+      // Panning repositions every marker, fog tile and vector on the map, so
+      // it must not run per frame. Follow only once the walker has drifted
+      // near the edge of the viewport — inside the middle of the screen the
+      // camera can simply hold still.
+      const p = map.latLngToContainerPoint([lat, lng]);
+      const size = map.getSize();
+      const margin = Math.min(size.x, size.y) * FOLLOW_MARGIN;
+      if (
+        p.x < margin ||
+        p.y < margin ||
+        p.x > size.x - margin ||
+        p.y > size.y - margin
+      ) {
+        map.panTo([lat, lng], { animate: false });
+      }
+
       if (t < 1) rafRef.current = requestAnimationFrame(tick);
     };
     rafRef.current = requestAnimationFrame(tick);
@@ -127,7 +147,8 @@ interface Props {
   /** expanding rings of noise the player has made */
   noisePulses: NoisePulse[];
   /** diegetic frame feedback — no numbers, just the edges of vision */
-  vitals: { bleeding: boolean; exhausted: boolean; infected: boolean };
+  /** Bleeding is deliberately absent — it reads on the body doll, not here. */
+  vitals: { exhausted: boolean; infected: boolean };
   /** hazard pockets the survivor can currently sense */
   hazards: HazardZone[];
   /** open-ground spot the player is considering crossing to */
@@ -172,7 +193,12 @@ function NoiseRings({ pulses }: { pulses: NoisePulse[] }) {
   );
 }
 
-export function GameMap({
+/**
+ * Rendering the map means handing react-leaflet a Marker and a Polygon for
+ * every visible POI, so a re-render is never cheap — it is memoised, and every
+ * prop it takes is kept identity-stable by the caller.
+ */
+function GameMapInner({
   home,
   pois,
   selectedId,
@@ -347,9 +373,8 @@ export function GameMap({
       {vitals.exhausted && (
         <div className="vignette-fatigue pointer-events-none absolute inset-0 z-[450]" />
       )}
-      {vitals.bleeding && (
-        <div className="vignette-bleed pointer-events-none absolute inset-0 z-[450]" />
-      )}
     </div>
   );
 }
+
+export const GameMap = memo(GameMapInner);

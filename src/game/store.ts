@@ -59,6 +59,8 @@ import { estimateExpedition, estimateMrtTravel } from './travel';
 import {
   makeBlockHunter,
   makeHuman,
+  makeLoner,
+  type LonerKind,
   makeZombie,
   playerCombatStats,
   resolveRound,
@@ -68,9 +70,17 @@ import {
   STANCES,
 } from './combat';
 import {
+  EVENT_COOLDOWN_HOURS,
+  EVENT_MAX_PER_DAY,
+  clampStanding,
+  emptyStanding,
+  isTerminal,
   mrtTollEvent,
   rollCheck,
   rollPreScavengeEvent,
+  type DoorwayMark,
+  type EventEffect,
+  type FactionStanding,
   type GameEvent,
 } from './events';
 import {
@@ -82,6 +92,7 @@ import {
   type SavedRun,
 } from './storage';
 import { POI_CONFIG } from './poi';
+import { FACTION_CONFIG } from './factions';
 import { flavor } from './flavor';
 import {
   trekRisk,
@@ -163,6 +174,17 @@ interface PendingEvent {
   mrtTo?: string;
 }
 
+/** @see GameStore._eventClock */
+export interface EventClock {
+  /** Absolute in-game hour of the last doorway event, or null if none yet. */
+  lastAt: number | null;
+  /** The day `count` refers to. */
+  day: number;
+  count: number;
+}
+
+const freshEventClock = (): EventClock => ({ lastAt: null, day: 1, count: 0 });
+
 /** In-flight walking animation between two points. Purely visual — the clock has
  *  already advanced; arrival logic fires when the glide finishes. */
 export interface TravelAnim {
@@ -224,6 +246,19 @@ interface State {
 
   pendingEvent: PendingEvent | null;
   _eventRng: Rng | null;
+  /**
+   * Rate limiter for doorway events: when the last one fired (absolute hours
+   * since the run began) and how many have fired today. Keeps encounters rare
+   * enough to land as events instead of turnstiles.
+   */
+  _eventClock: EventClock;
+  /**
+   * How each faction feels about you, -3..+3. Paying tolls and behaving at
+   * their water points buys goodwill; refusing and drawing down spends it.
+   * At +2 they stop charging you at the door; at -2 even the orderly ones
+   * open fire.
+   */
+  factionStanding: FactionStanding;
 
   log: GameLogEntry[];
 
@@ -237,6 +272,8 @@ interface State {
   commitCharacter: (c: Character) => void;
   setSpawn: (spawn: { lat: number; lng: number; name: string }) => Promise<'ok' | 'remote'>;
   travel: (locationId: string) => void;
+  /** Step inside the site you're standing at — the doorway, then the search. */
+  enter: () => void;
   /** Strike out to bare coordinates — no site, no loot, no shelter. */
   trek: (lat: number, lng: number) => void;
   mrtTravel: (toId: string) => void;
@@ -366,6 +403,9 @@ export const useGame = create<State>((set, get) => {
       evacDeadline: s.evacDeadline,
       // Snapshot the block you're standing in too, so a reload keeps it cleared.
       hdbBlocks: s.hdb ? { ...s.hdbBlocks, [s.hdb.locationId]: s.hdb } : s.hdbBlocks,
+      // Otherwise a reload would be a free way to reset the doorway cooldown.
+      eventClock: s._eventClock,
+      factionStanding: s.factionStanding,
     };
     saveRun(run);
   };
@@ -730,6 +770,93 @@ export const useGame = create<State>((set, get) => {
     set({ combat, _combatRng: humanRng.fork('fight') });
   };
 
+  /**
+   * A fight with somebody who answers to nobody. The scavenger is carrying the
+   * haul they came for, so beating them means taking it; the starving stranger
+   * has almost nothing, which is the whole reason they picked a fight over a
+   * bottle of water.
+   */
+  const startLonerCombat = (locationId: string, kind: LonerKind) => {
+    const s = get();
+    const loc = s.locations[locationId];
+    const rng = new Rng(s.seed).fork(`loner:${loc.id}:${s.day}:${Math.round(s.hour)}`);
+    const enemy = makeLoner(rng, kind, Math.round(loc.currentDanger));
+    const drops =
+      kind === 'scavenger'
+        ? [rng.pick(['canned_food', 'medkit', 'batteries', 'duct_tape', 'ammo_box', 'toolbox'])]
+        : rng.chance(0.3)
+          ? [rng.pick(['snacks', 'bandage'])]
+          : [];
+    const combat: CombatState = {
+      locationId,
+      zombie: enemy,
+      round: 0,
+      log: [{ round: 0, tone: 'bad', text: `The ${enemy.name} comes at you!` }],
+      over: false,
+      outcome: null,
+      playerHpSnapshot: s.meters.health,
+      context: { locationId, grantOnFlee: false, drops },
+      selectedStance: 'guarded',
+      terrain: terrainForCategory(loc.category),
+      quickBeltItems: initialQuickBelt(),
+      awaitingStance: true,
+    };
+    set({ combat, _combatRng: rng.fork('fight') });
+  };
+
+  /**
+   * The doorway. This is the moment a survivor commits to going *inside* — not
+   * the moment they walk up to the building — so it is the only place a
+   * doorway event may fire. Arriving somewhere never freezes the screen.
+   *
+   * A roll is suppressed entirely when the site is spent, when another event
+   * fired too recently, or when the day's budget is used up; anything the
+   * doorway itself remembers is handled inside rollPreScavengeEvent.
+   */
+  const enterLocation = (locationId: string) => {
+    const s = get();
+    const loc = s.locations[locationId];
+    if (!loc) return;
+
+    // Nothing to guard and nothing to take — don't stage a confrontation over
+    // an empty room. (HDB blocks are never "exhausted"; they run unit by unit.)
+    if (loc.exhausted && loc.category !== 'residential') {
+      attemptSearch(locationId);
+      return;
+    }
+
+    const now = totalGameHour(s.day, s.hour);
+    const clock = s._eventClock.day === s.day ? s._eventClock : { ...s._eventClock, day: s.day, count: 0 };
+    const onCooldown = clock.lastAt !== null && now - clock.lastAt < EVENT_COOLDOWN_HOURS;
+    if (onCooldown || clock.count >= EVENT_MAX_PER_DAY) {
+      if (clock !== s._eventClock) set({ _eventClock: clock });
+      attemptSearch(locationId);
+      return;
+    }
+
+    const eventRng = new Rng(s.seed).fork(`event:${loc.id}:${s.day}:${Math.round(s.hour)}`);
+    const event = rollPreScavengeEvent(eventRng, loc, {
+      day: s.day,
+      time: timeOfDay(s.hour),
+      weather: weatherKindFor(s.seed, s.day),
+      standing: s.factionStanding,
+    });
+
+    if (event) {
+      // A beat of foreshadowing before the prompt — you notice, then you decide.
+      pushLog(event.tell, 'info');
+      set({
+        pendingEvent: { locationId, event },
+        _eventRng: eventRng,
+        _eventClock: { ...clock, lastAt: now, count: clock.count + 1 },
+      });
+      return;
+    }
+
+    if (clock !== s._eventClock) set({ _eventClock: clock });
+    attemptSearch(locationId);
+  };
+
   // Roll the encounter chance for searching a location right now.
   const attemptSearch = (locationId: string) => {
     const s = get();
@@ -915,13 +1042,12 @@ export const useGame = create<State>((set, get) => {
     // Did a previous run end on this doorstep? Something is still here.
     if (resolveGhost(loc2)) return;
 
-    const eventRng = new Rng(s2.seed).fork(`event:${loc.id}:${s2.day}:${loc2.remainingSearches}`);
-    const event = rollPreScavengeEvent(eventRng, loc2);
-    if (event) {
-      set({ pendingEvent: { locationId: loc.id, event }, _eventRng: eventRng });
-      return;
-    }
-    attemptSearch(loc.id);
+    // Arrival ends here, at the frontage. Going inside is a separate decision
+    // the survivor has to actually make — which is what gives the doorway its
+    // weight, and what stops an encounter from feeling like it ambushed you
+    // for the crime of walking down a street.
+    if (!loc2.exhausted) pushLog(flavor('atDoor', { name: loc.name }), 'info');
+    persist();
   };
 
   // Set by trek()'s en-route roll; consumed when the crossing lands.
@@ -1014,6 +1140,8 @@ export const useGame = create<State>((set, get) => {
     ghostOffer: null,
     pendingEvent: null,
     _eventRng: null,
+    _eventClock: freshEventClock(),
+    factionStanding: emptyStanding(),
     log: [],
     deathCause: null,
     finalScore: 0,
@@ -1236,6 +1364,16 @@ export const useGame = create<State>((set, get) => {
       setTimeout(() => arriveAt(loc.id), durationMs);
     },
 
+    enter: () => {
+      const s = get();
+      if (s.combat || s.pendingEvent || s.travelAnim || s.hdb) return;
+      if (!s.currentPositionId) {
+        pushLog('There\'s nothing to go into out here.', 'info');
+        return;
+      }
+      enterLocation(s.currentPositionId);
+    },
+
     // Walk out to bare coordinates. This is the release valve on a sparse map:
     // wherever the pins thin out, the streets between them are still walkable,
     // so no survivor is ever boxed in by the POI data. It is deliberately the
@@ -1370,7 +1508,6 @@ export const useGame = create<State>((set, get) => {
       const ev = pe.event;
       const choice = ev.choices.find((c) => c.id === choiceId);
       if (!choice) return;
-      const loc = s.locations[pe.locationId];
       const rng = s._eventRng ?? new Rng(s.seed).fork(`ev2:${pe.locationId}:${s.day}`);
       set({ pendingEvent: null, _eventRng: null });
 
@@ -1397,32 +1534,148 @@ export const useGame = create<State>((set, get) => {
         }
       };
 
-      const fightOut = () => {
-        if (ev.factionId && ev.factionId !== 'sta') {
+      const fightOut = (foe?: LonerKind) => {
+        if (foe) {
+          startLonerCombat(pe.locationId, foe);
+        } else if (ev.factionId && ev.factionId !== 'sta') {
           startHumanCombat(pe.locationId, ev.factionId, false);
         } else {
           startHumanCombat(pe.locationId, 'syndicate_88', false);
         }
       };
 
+      // --- effect interpreter --------------------------------------------
+      // What a choice does is data on the choice, not a branch in here. Costs
+      // and rewards land first; the one terminal effect (access / deny /
+      // fight / zombies) is applied last, because it may hand control to
+      // combat or to the search and never come back.
+      const mark = (m: DoorwayMark) => {
+        const locs = get().locations;
+        const cur = locs[pe.locationId];
+        if (!cur) return;
+        const patch: Partial<LocationState> = {};
+        if (m.door) patch.doorForced = true;
+        if (m.survivorSettled) patch.survivorSettledDay = s.day;
+        if (m.tollDays !== undefined) patch.tollPaidThroughDay = s.day + m.tollDays;
+        set({ locations: { ...locs, [pe.locationId]: { ...cur, ...patch } } });
+      };
+
+      const shiftStanding = (delta: number) => {
+        const id = ev.factionId;
+        if (!id) return;
+        const cur = get().factionStanding;
+        const next = clampStanding((cur[id] ?? 0) + delta);
+        if (next === cur[id]) return;
+        set({ factionStanding: { ...cur, [id]: next } });
+        const cfg = FACTION_CONFIG[id];
+        pushLog(
+          delta > 0
+            ? `${cfg.shortName} think better of you. (standing ${next > 0 ? '+' : ''}${next})`
+            : `${cfg.shortName} won't forget that. (standing ${next > 0 ? '+' : ''}${next})`,
+          delta > 0 ? 'good' : 'bad',
+        );
+      };
+
+      /** @returns false if the survivor died partway through. */
+      const applyOne = (e: EventEffect): boolean => {
+        switch (e.t) {
+          case 'mark':
+            mark(e.mark);
+            return true;
+          case 'standing':
+            shiftStanding(e.delta);
+            return true;
+          case 'time':
+            if (e.line) pushLog(e.line, 'info');
+            return !advanceTime(e.hours);
+          case 'energy': {
+            const cur = get();
+            set({ meters: { ...cur.meters, energy: clampMeter(cur.meters.energy - e.amount) } });
+            if (e.line) pushLog(e.line, 'info');
+            return true;
+          }
+          case 'wound': {
+            const cur = get();
+            set({ bodyParts: applyWound(cur.bodyParts, e.amount, rng) });
+            pushLog(e.line, 'bad');
+            return true;
+          }
+          case 'noise': {
+            const cur = get();
+            get().emitNoise(cur.currentPos.lat, cur.currentPos.lng, e.radius, e.intensity);
+            return true;
+          }
+          case 'gain': {
+            const cur = get();
+            const def = itemDef(e.defId);
+            const r = addToGrid(cur.items, 'backpack', e.defId, e.count ?? 1);
+            if (r.leftover > 0 && (e.count ?? 1) === r.leftover) {
+              pushLog(`${def.name} — but your pack is full.`, 'info');
+            } else {
+              set({ items: r.items });
+              const got = (e.count ?? 1) - r.leftover;
+              pushLog(`You come away with ${got}× ${def.name}.`, 'good');
+            }
+            return true;
+          }
+          case 'intel': {
+            const locs = get().locations;
+            const cur = locs[pe.locationId];
+            if (!cur) return true;
+            const updated: LocationState = { ...cur, isFactionRevealed: true, discovered: true };
+            updated.lastSeen = snapshot(updated);
+            set({ locations: { ...locs, [pe.locationId]: updated } });
+            const richness = POI_CONFIG[cur.category].richness;
+            const holder = cur.factionId ? FACTION_CONFIG[cur.factionId].shortName : 'nobody';
+            pushLog(
+              `You read ${cur.name}: held by ${holder}, danger ${Math.max(1, Math.round(cur.currentDanger))}/5, ` +
+                `${richness >= 4 ? 'still worth a lot' : richness >= 2 ? 'worth a look' : 'thin pickings'}.`,
+              'good',
+            );
+            return true;
+          }
+          // --- terminal ---
+          case 'deny':
+            pushLog(e.line, 'info');
+            persist();
+            return true;
+          case 'fight':
+            fightOut(e.foe);
+            return true;
+          case 'zombies':
+            pushLog(e.line, 'bad');
+            startZombieCombat(pe.locationId, false);
+            return true;
+          case 'access':
+            grantAccess();
+            return true;
+        }
+      };
+
+      const run = (effects: EventEffect[]) => {
+        const terminal = effects.find(isTerminal);
+        for (const e of effects) {
+          if (isTerminal(e)) continue;
+          if (!applyOne(e)) return; // died to the clock or the wound
+        }
+        if (terminal) applyOne(terminal);
+        else persist();
+      };
+
       switch (choice.kind) {
         case 'leave':
-          pushLog('You back off.', 'info');
-          persist();
+        case 'fight':
+          run(choice.onSuccess);
           break;
         case 'pay':
           if (choice.itemId && hasBackpackItem(choice.itemId)) {
             consumeBackpackItem(choice.itemId);
-            pushLog(`Paid 1× ${itemDef(choice.itemId).name}.`, 'info');
-            grantAccess();
+            pushLog(`Handed over 1× ${itemDef(choice.itemId).name}.`, 'info');
+            run(choice.onSuccess);
           } else {
             pushLog("You don't have what they want.", 'bad');
-            if (ev.hostile) fightOut();
-            else persist();
+            run(choice.onFailure ?? [{ t: 'deny', line: 'That ends the conversation.' }]);
           }
-          break;
-        case 'fight':
-          fightOut();
           break;
         case 'check': {
           const attrVal = s.character!.attributes[choice.attr!];
@@ -1431,17 +1684,7 @@ export const useGame = create<State>((set, get) => {
             `${choice.label.split(' (')[0]} — d20 ${res.roll}+${attrVal}=${res.total} vs ${res.dc}: ${res.success ? 'success' : 'failure'}`,
             res.success ? 'good' : 'bad',
           );
-          if (res.success) {
-            grantAccess();
-          } else if (ev.kind === 'locked_door') {
-            startZombieCombat(pe.locationId, false); // the noise draws the dead
-            pushLog('The racket draws something out.', 'bad');
-          } else if (ev.hostile || FACTION_HOSTILE(ev.factionId, loc)) {
-            fightOut();
-          } else {
-            pushLog('They turn you away.', 'bad');
-            persist();
-          }
+          run(res.success ? choice.onSuccess : (choice.onFailure ?? [{ t: 'access' }]));
           break;
         }
       }
@@ -1456,9 +1699,10 @@ export const useGame = create<State>((set, get) => {
       // what four walls would give you, and the night gets a vote — otherwise
       // trekking out and napping would be a free reset.
       const exposed = s.currentPositionId === null;
+      const fullRest = sleepRestore(s.meters.energy, hoursToMorning, s.meters);
       const restedEnergy = exposed
-        ? Math.round(s.meters.energy + (sleepRestore(s.meters.energy, hoursToMorning) - s.meters.energy) * EXPOSED_SLEEP_RECOVERY)
-        : sleepRestore(s.meters.energy, hoursToMorning);
+        ? Math.round(s.meters.energy + (fullRest - s.meters.energy) * EXPOSED_SLEEP_RECOVERY)
+        : fullRest;
       if (advanceTime(hoursToMorning, restedEnergy, true)) return;
       bumpStats({ nightsSlept: 1 });
 
@@ -1917,7 +2161,7 @@ export const useGame = create<State>((set, get) => {
       if (!unit?.service) return;
 
       if (unit.service === 'safe_bunk') {
-        const restored = sleepRestore(s.meters.energy, 6);
+        const restored = sleepRestore(s.meters.energy, 6, s.meters);
         if (advanceTime(6, restored, true)) return;
         pushLog('You sleep six hours behind a locked gate. Nothing finds you.', 'good');
       } else if (unit.service === 'field_doctor') {
@@ -2023,6 +2267,7 @@ export const useGame = create<State>((set, get) => {
         round,
         stance,
         s.combat.terrain,
+        s.meters.energy,
       );
       const bodyParts =
         res.playerDamage > 0
@@ -2084,6 +2329,7 @@ export const useGame = create<State>((set, get) => {
         round,
         stance,
         s.combat.terrain,
+        s.meters.energy,
       );
       const bodyParts =
         res.playerDamage > 0
@@ -2218,6 +2464,8 @@ export const useGame = create<State>((set, get) => {
         ghostOffer: null,
         pendingEvent: null,
         _eventRng: null,
+        _eventClock: freshEventClock(),
+        factionStanding: emptyStanding(),
         log: [],
         stats: emptyRunStats(),
         hasSavedRun: !!loadRun(),
@@ -2263,6 +2511,8 @@ export const useGame = create<State>((set, get) => {
         ghostOffer: null,
         pendingEvent: null,
         _eventRng: null,
+        _eventClock: run.eventClock ?? { ...freshEventClock(), day: run.day },
+        factionStanding: { ...emptyStanding(), ...(run.factionStanding ?? {}) },
         // The timeline is the run's memory — a resumed run keeps every day of it.
         log: run.log ?? [],
       });
@@ -2283,10 +2533,6 @@ function consumeOne(items: ItemInstance[], uid: string): ItemInstance[] {
     if (inst.stack > 1) out.push({ ...inst, stack: inst.stack - 1 });
   }
   return out;
-}
-
-function FACTION_HOSTILE(faction: FactionId, _loc: LocationState): boolean {
-  return faction === 'syndicate_88';
 }
 
 // Dev/debug handle — lets tooling inspect the live store without fighting

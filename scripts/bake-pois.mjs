@@ -80,7 +80,7 @@ const QUERIES = [
     body: `[out:json][timeout:600];
 (
   nwr["shop"~"^(supermarket|convenience|kiosk|chemist|hardware|doityourself|trade)$"]${BBOX};
-  nwr["amenity"~"^(pharmacy|hospital|clinic|doctors|fuel|police|food_court|marketplace|community_centre|hawker_centre)$"]${BBOX};
+  nwr["amenity"~"^(pharmacy|hospital|clinic|doctors|fuel|police|food_court|marketplace|community_centre|hawker_centre|school|college|university)$"]${BBOX};
   nwr["station"~"^(subway|light_rail)$"]${BBOX};
   nwr["railway"="station"]${BBOX};
 );
@@ -93,6 +93,17 @@ out geom tags;`,
     body: `[out:json][timeout:600];
 (
   nwr["building"~"^(apartments|residential)$"]${BBOX};
+);
+out center tags;`,
+  },
+  {
+    label: 'industrial units',
+    // The west is warehouses the way the heartlands are void decks — without
+    // these, Jurong and Tuas bake out as empty ground. Centroids only, same
+    // reasoning as the HDB pass: these are large, numerous, and read as boxes.
+    body: `[out:json][timeout:600];
+(
+  nwr["building"~"^(industrial|warehouse|factory)$"]${BBOX};
 );
 out center tags;`,
   },
@@ -109,6 +120,8 @@ const NAME_BY_CATEGORY = {
   residential: 'HDB Block',
   foodcourt: 'Hawker Centre',
   mrt: 'MRT Station',
+  industrial: 'Industrial Unit',
+  school: 'School',
 };
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -216,23 +229,28 @@ function parseElements(elements) {
 }
 
 /**
- * Keep at most one residential POI per grid cell so coverage stays even across
- * the island. Non-residential POIs pass through untouched — shops and MRT
- * stations are the scarce, interesting ones.
+ * Keep at most one POI per grid cell for the categories that come as fields of
+ * near-identical buildings — void decks in the heartlands, warehouse units in
+ * the west. Everything else passes through untouched: shops and MRT stations
+ * are the scarce, interesting ones.
  */
-function thinResidential(pois) {
+const THINNED_CATEGORIES = new Set(['residential', 'industrial']);
+
+function thinDenseCategories(pois) {
   const kept = [];
   const taken = new Set();
   // Sort by osmId so the choice is deterministic across re-bakes.
-  const residential = pois
-    .filter((p) => p.category === 'residential')
+  const dense = pois
+    .filter((p) => THINNED_CATEGORIES.has(p.category))
     .sort((a, b) => (a.osmId < b.osmId ? -1 : 1));
 
-  for (const p of pois) if (p.category !== 'residential') kept.push(p);
+  for (const p of pois) if (!THINNED_CATEGORIES.has(p.category)) kept.push(p);
 
   let dropped = 0;
-  for (const p of residential) {
-    const cell = `${Math.floor(p.lat / RESIDENTIAL_GRID_DEG)},${Math.floor(p.lng / RESIDENTIAL_GRID_DEG)}`;
+  for (const p of dense) {
+    // Cell key includes the category, so a warehouse never displaces an HDB
+    // block that happens to sit in the same 200m square.
+    const cell = `${p.category}:${Math.floor(p.lat / RESIDENTIAL_GRID_DEG)},${Math.floor(p.lng / RESIDENTIAL_GRID_DEG)}`;
     if (taken.has(cell)) {
       dropped++;
       continue;
@@ -330,7 +348,7 @@ async function main() {
     process.exit(1);
   }
 
-  const { kept, dropped } = thinResidential([...byId.values()]);
+  const { kept, dropped } = thinDenseCategories([...byId.values()]);
 
   // --- Pass 3: real footprints for the void decks we kept -------------------
   // They're building ways; we only asked for centroids. Re-fetch by id.
@@ -484,7 +502,7 @@ out geom tags;`,
 
   const bytes = statSync(OUT_FILE).size;
   const gz = gzipSync(json).length;
-  console.log(`\nWrote public/pois.json — ${kept.length} POIs (thinned ${dropped} HDB blocks)`);
+  console.log(`\nWrote public/pois.json — ${kept.length} POIs (thinned ${dropped} HDB/industrial units)`);
   console.log(
     `  ${(bytes / 1e6).toFixed(2)} MB raw, ${(gz / 1e6).toFixed(2)} MB gzipped (what users download)`,
   );

@@ -98,12 +98,14 @@ export function InventoryGrid({
               }}
               title={def.name}
             >
-              <span className="text-base leading-none drop-shadow">{itemGlyph(def)}</span>
-              <span className="px-0.5 text-[8px] font-bold leading-tight text-black/80">
-                {def.name.length > 10 ? def.name.slice(0, 9) + '…' : def.name}
+              <span
+                className="leading-none drop-shadow"
+                style={{ fontSize: Math.min(w, h) > 1 ? 26 : 18 }}
+              >
+                {itemGlyph(def)}
               </span>
               {def.stackable && inst.stack > 1 && (
-                <span className="absolute bottom-0 right-0.5 text-[10px] font-black text-black">
+                <span className="absolute bottom-0 right-0 rounded-tl bg-black/60 px-1 text-[10px] font-black leading-tight text-white">
                   ×{inst.stack}
                 </span>
               )}

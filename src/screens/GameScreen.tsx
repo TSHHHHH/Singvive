@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useGame } from '../game/store';
 import { GameMap } from '../components/GameMap';
 import { ConditionPanel } from '../components/ConditionPanel';
@@ -58,6 +59,9 @@ const SIDE_PANELS: Record<SidePanel, { label: string; icon: IconName }> = {
 const PANEL_BUTTONS: SidePanel[] = ['inventory', 'logbook', 'stats'];
 
 export function GameScreen() {
+  // Subscribing to the whole store meant every write re-rendered this screen —
+  // including the log, which grows on almost every action and which nothing
+  // here reads. Naming the slice keeps re-renders to changes that matter.
   const {
     spawn,
     locations,
@@ -79,6 +83,7 @@ export function GameScreen() {
     evacDeadline,
     callEvac,
     travel,
+    enter,
     trek,
     mrtTravel,
     rest,
@@ -91,7 +96,43 @@ export function GameScreen() {
     equipment,
     bodyParts,
     exploredArea,
-  } = useGame();
+  } = useGame(
+    useShallow((s) => ({
+      spawn: s.spawn,
+      locations: s.locations,
+      currentPos: s.currentPos,
+      currentPositionId: s.currentPositionId,
+      worldLoading: s.worldLoading,
+      worldError: s.worldError,
+      travelAnim: s.travelAnim,
+      pendingEvent: s.pendingEvent,
+      combat: s.combat,
+      hdb: s.hdb,
+      hdbEnter: s.hdbEnter,
+      ghostOffer: s.ghostOffer,
+      acceptGhostTrade: s.acceptGhostTrade,
+      declineGhostTrade: s.declineGhostTrade,
+      noisePulses: s.noisePulses,
+      hordeLevel: s.hordeLevel,
+      evacZoneId: s.evacZoneId,
+      evacDeadline: s.evacDeadline,
+      callEvac: s.callEvac,
+      travel: s.travel,
+      enter: s.enter,
+      trek: s.trek,
+      mrtTravel: s.mrtTravel,
+      rest: s.rest,
+      meters: s.meters,
+      character: s.character,
+      hour: s.hour,
+      day: s.day,
+      seed: s.seed,
+      items: s.items,
+      equipment: s.equipment,
+      bodyParts: s.bodyParts,
+      exploredArea: s.exploredArea,
+    })),
+  );
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // A spot on bare map the player is considering walking to. Mutually exclusive
@@ -109,21 +150,142 @@ export function GameScreen() {
     if (pendingEvent || combat) setMobileView('log');
   }, [pendingEvent, combat]);
 
+  // The map is memoised, so everything handed to it has to hold its identity
+  // across renders it doesn't care about — otherwise it rebuilds every marker.
+  const pickGround = useCallback((lat: number, lng: number) => {
+    setSelectedId(null);
+    setTrekTarget({ lat, lng });
+  }, []);
+
+  const selectPoi = useCallback((loc: LocationState) => {
+    setTrekTarget(null);
+    setSelectedId(loc.id);
+  }, []);
+
+  const exhausted = meters.energy < 25;
+  const infected = meters.infection >= 35;
+  const mapVitals = useMemo(() => ({ exhausted, infected }), [exhausted, infected]);
+
   const locationList = useMemo(() => Object.values(locations), [locations]);
+
+  // ---- derived state -----------------------------------------------------
+  // Everything below is recomputed from the store, not stored, and some of it
+  // isn't cheap. It's memoised so that a purely local change — opening a panel,
+  // switching mobile tabs — doesn't re-derive the weather, the walkable range
+  // and the whole hazard field for nothing.
+  const sel = selectedId ? locations[selectedId] ?? null : null;
+  const weather = useMemo(() => rollWeather(new Rng(seed), day), [seed, day]);
+  const time = timeOfDay(hour);
+  const encumbered = useMemo(
+    () => (character ? isEncumbered(items, character.attributes, equipment) : false),
+    [character, items, equipment],
+  );
+
+  const legFactor = legTravelFactor(bodyParts);
+  const travelRange = useMemo(
+    () =>
+      character
+        ? travelableRange(character.attributes, meters.energy, legFactor, weather, encumbered)
+        : 400,
+    [character, meters.energy, legFactor, weather, encumbered],
+  );
+  const blipRange = useMemo(() => {
+    const awarenessValue = character
+      ? awareness(
+          character.attributes.perception,
+          equipAwarenessMod(equipment),
+          traitAwarenessMod(character.traitIds),
+        )
+      : 0;
+    return travelRange + blipMargin(awarenessValue);
+  }, [character, equipment, travelRange]);
+
+  // Hazards are sensed the same way blips are: out to the awareness ring, never
+  // beyond. Everything drawn and everything quoted on the trek card comes from
+  // this set — the store rolls against the real field, which may be worse. The
+  // scan costs real time and hands the memoised map a fresh array, so it is only
+  // redone when the player or their reach actually moves.
+  const sensedHazards = useMemo(
+    () => hazardZonesNear(seed, currentPos.lat, currentPos.lng, blipRange, spawn ?? undefined),
+    [seed, currentPos.lat, currentPos.lng, blipRange, spawn],
+  );
+
+  const trekDist = trekTarget
+    ? Math.round(haversine(currentPos.lat, currentPos.lng, trekTarget.lat, trekTarget.lng))
+    : 0;
+
+  const est = useMemo(
+    () =>
+      sel && character
+        ? estimateExpedition(
+            Math.round(haversine(currentPos.lat, currentPos.lng, sel.lat, sel.lng)),
+            sel.category,
+            character.attributes,
+            meters.energy,
+            hour,
+            weather,
+            encumbered,
+            legFactor,
+          )
+        : null,
+    [sel, character, currentPos.lat, currentPos.lng, meters.energy, hour, weather, encumbered, legFactor],
+  );
+
+  const trekEst = useMemo(
+    () =>
+      trekTarget && character
+        ? estimateExpedition(
+            trekDist,
+            'fuel', // only the travel leg is used — there's nothing out there to search
+            character.attributes,
+            meters.energy,
+            hour,
+            weather,
+            encumbered,
+            legFactor,
+          )
+        : null,
+    [trekTarget, character, trekDist, meters.energy, hour, weather, encumbered, legFactor],
+  );
+
+  const trekInfo = useMemo(() => {
+    if (!trekTarget || !character) return null;
+    const sensedIds = new Set(sensedHazards.map((z) => z.id));
+    const onPath = hazardsOnPath(seed, currentPos, trekTarget, spawn ?? undefined);
+    const known = onPath.filter((z) => sensedIds.has(z.id));
+    return {
+      risk: trekRisk(
+        seed,
+        currentPos,
+        trekTarget,
+        {
+          band: time,
+          hordeIntensity: hordeIntensity(hordeLevel),
+          weatherEncounterMod: weatherEncounterMod(weather),
+          traitEncounterMod: sumTraitMod(character.traitIds, 'encounterChanceMod'),
+          safe: spawn ?? undefined,
+        },
+        known,
+      ),
+      // The route leaves the sensed bubble entirely — the quote is a guess.
+      blind: trekDist > blipRange,
+    };
+  }, [
+    trekTarget,
+    character,
+    sensedHazards,
+    seed,
+    currentPos,
+    spawn,
+    time,
+    hordeLevel,
+    weather,
+    trekDist,
+    blipRange,
+  ]);
+
   if (!spawn) return null;
 
-  const sel = selectedId ? locations[selectedId] ?? null : null;
-  const weather = rollWeather(new Rng(seed), day);
-  const time = timeOfDay(hour);
-  const encumbered = character ? isEncumbered(items, character.attributes, equipment) : false;
-
-  const travelRange = character
-    ? travelableRange(character.attributes, meters.energy, legTravelFactor(bodyParts), weather, encumbered)
-    : 400;
-  const awarenessValue = character
-    ? awareness(character.attributes.perception, equipAwarenessMod(equipment), traitAwarenessMod(character.traitIds))
-    : 0;
-  const blipRange = travelRange + blipMargin(awarenessValue);
   const selHere = sel ? sel.id === currentPositionId : false;
 
   const here = currentPositionId ? locations[currentPositionId] : null;
@@ -136,79 +298,12 @@ export function GameScreen() {
     here.cleared
   );
 
-  const est =
-    sel && character
-      ? estimateExpedition(
-          Math.round(haversine(currentPos.lat, currentPos.lng, sel.lat, sel.lng)),
-          sel.category,
-          character.attributes,
-          meters.energy,
-          hour,
-          weather,
-          encumbered,
-          legTravelFactor(bodyParts),
-        )
-      : null;
-
   const openStash = () => setSidePanel('inventory');
 
   const selDist = sel
     ? Math.round(haversine(currentPos.lat, currentPos.lng, sel.lat, sel.lng))
     : 0;
   const selOutOfRange = !!sel && !selHere && selDist > travelRange;
-
-  // --- open ground -------------------------------------------------------
-  // Hazards are sensed the same way blips are: out to the awareness ring, never
-  // beyond. Everything drawn and everything quoted on the trek card comes from
-  // this set — the store rolls against the real field, which may be worse.
-  const sensedHazards = hazardZonesNear(seed, currentPos.lat, currentPos.lng, blipRange, spawn);
-
-  const trekDist = trekTarget
-    ? Math.round(haversine(currentPos.lat, currentPos.lng, trekTarget.lat, trekTarget.lng))
-    : 0;
-  const trekEst =
-    trekTarget && character
-      ? estimateExpedition(
-          trekDist,
-          'fuel', // only the travel leg is used — there's nothing out there to search
-          character.attributes,
-          meters.energy,
-          hour,
-          weather,
-          encumbered,
-          legTravelFactor(bodyParts),
-        )
-      : null;
-  const trekInfo =
-    trekTarget && character
-      ? (() => {
-          const sensedIds = new Set(sensedHazards.map((z) => z.id));
-          const onPath = hazardsOnPath(seed, currentPos, trekTarget, spawn);
-          const known = onPath.filter((z) => sensedIds.has(z.id));
-          return {
-            risk: trekRisk(
-              seed,
-              currentPos,
-              trekTarget,
-              {
-                band: time,
-                hordeIntensity: hordeIntensity(hordeLevel),
-                weatherEncounterMod: weatherEncounterMod(weather),
-                traitEncounterMod: sumTraitMod(character.traitIds, 'encounterChanceMod'),
-                safe: spawn,
-              },
-              known,
-            ),
-            // The route leaves the sensed bubble entirely — the quote is a guess.
-            blind: trekDist > blipRange,
-          };
-        })()
-      : null;
-
-  const pickGround = (lat: number, lng: number) => {
-    setSelectedId(null);
-    setTrekTarget({ lat, lng });
-  };
 
   const cardProps = sel && {
     sel,
@@ -218,6 +313,7 @@ export function GameScreen() {
     outOfRange: selOutOfRange,
     canMrt,
     onTravel: () => travel(sel.id),
+    onEnter: enter,
     onMrt: () => mrtTravel(sel.id),
     onOpenStash: openStash,
   };
@@ -231,6 +327,7 @@ export function GameScreen() {
     energyLow: meters.energy < 5,
     canMrt: false,
     onTravel: () => travel(here.id),
+    onEnter: enter,
     onMrt: () => {},
     onOpenStash: openStash,
     onEnterBlock: hdbEnter,
@@ -339,9 +436,12 @@ export function GameScreen() {
       {/* ================= COLUMN 1: the survivor rail =================
            Everything about *you* and the two places that matter right now,
            read top to bottom: the clock, the goal, your body, then the ground
-           under your feet. */}
+           under your feet.
+           On desktop it also stacks above the slide-out so that panel tucks in
+           behind it — opaque, so nothing shows through mid-slide. On mobile the
+           slide-out covers the whole screen, so the rail stays below it. */}
       <aside
-        className={`flex-col border-white/10 bg-concrete-900/70 md:flex md:h-full md:w-[340px] md:shrink-0 md:border-r ${
+        className={`relative flex-col border-white/10 bg-concrete-900/70 md:z-[750] md:flex md:h-full md:w-[340px] md:shrink-0 md:border-r md:bg-concrete-900 ${
           mobileView === 'hub' ? show(true) : 'hidden'
         } md:flex`}
       >
@@ -426,11 +526,14 @@ export function GameScreen() {
            Toggled from the rail's three buttons, closable from its own header.
            It overlays the map rather than squeezing it, so the map never
            reflows when you check your pack. */}
+      {/* Closed, it parks fully off the left edge — on md that means clearing its
+          own 360px plus the 340px rail it is offset by, so it slides out from
+          behind the rail instead of fading in on top of it. */}
       <div
-        className={`absolute inset-y-0 left-0 z-[700] w-full transition-all duration-200 md:left-[340px] md:w-[360px] ${
+        className={`absolute inset-y-0 left-0 z-[700] w-full transition-transform duration-200 ease-out md:left-[340px] md:w-[360px] ${
           sidePanel
-            ? 'translate-x-0 opacity-100'
-            : 'pointer-events-none -translate-x-full opacity-0'
+            ? 'translate-x-0'
+            : 'pointer-events-none -translate-x-full md:-translate-x-[700px]'
         }`}
       >
         <div className="flex h-full flex-col border-r border-white/10 bg-concrete-900 shadow-2xl">
@@ -494,17 +597,10 @@ export function GameScreen() {
               travelAnim={travelAnim}
               evacZoneId={evacZoneId}
               noisePulses={noisePulses}
-              vitals={{
-                bleeding: Object.values(bodyParts).some((p) => p.bleeding),
-                exhausted: meters.energy < 25,
-                infected: meters.infection >= 35,
-              }}
+              vitals={mapVitals}
               hazards={sensedHazards}
               trekTarget={trekTarget}
-              onSelect={(loc: LocationState) => {
-                setTrekTarget(null);
-                setSelectedId(loc.id);
-              }}
+              onSelect={selectPoi}
               onPickGround={pickGround}
             />
             {worldLoading && (
@@ -570,7 +666,7 @@ export function GameScreen() {
           sel={hereProps.sel}
           atEvac={atEvac}
           evacReady={evacReady}
-          onSearch={() => travel(hereProps.sel.id)}
+          onSearch={enter}
           onOpenStash={openStash}
           onEvac={callEvac}
         />
@@ -737,7 +833,7 @@ function HereCompactBar({
             disabled={sel.exhausted}
             className="shrink-0 rounded bg-signal/80 px-2.5 py-1.5 text-xs font-bold text-black disabled:opacity-30"
           >
-            {sel.exhausted ? 'Empty' : 'Search'}
+            {sel.exhausted ? 'Empty' : 'Go in'}
           </button>
           <button
             onClick={onOpenStash}
