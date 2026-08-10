@@ -87,11 +87,26 @@ export type ItemEffect =
   | { kind: 'heal'; health: number; partHeal?: number; stopsBleeding?: 'one' | 'all' }
   | { kind: 'cure'; infection: number }
   | { kind: 'energy'; energy: number }
-  | { kind: 'weapon'; damage: number; accuracy: number; ranged: boolean }
+  | {
+      kind: 'weapon';
+      damage: number;
+      accuracy: number;
+      ranged: boolean;
+      /** Rounds a single shot burns. Absent ⇒ 1. A shotgun is not cheap to run. */
+      roundsPerShot?: number;
+    }
+  | { kind: 'ammo'; rounds: number }
   | { kind: 'fuel' }
   | { kind: 'misc' };
 
 export type EquipSlot = 'head' | 'body' | 'mainHand' | 'offHand';
+
+/**
+ * How beaten-up an instance is. Derived from its `condition`, never stored —
+ * the game has no abstract rarity ladder, only wear. A find is exciting because
+ * it still works, not because it glows a different colour.
+ */
+export type ConditionTier = 'torn' | 'used' | 'worn' | 'pristine';
 
 export interface ItemModifiers {
   attackBonus?: number;
@@ -111,8 +126,26 @@ export interface ItemDef {
   stackable: boolean;
   maxStack: number;
   color: string; // tailwind-ish hex for the tile
+  icon?: IconName; // specific art; falls back to the item's effect kind
   slot?: EquipSlot; // equippable slot, if any
   modifiers?: ItemModifiers; // combat/capacity bonuses when equipped
+
+  /** Firearms and military kit: gated hard on drop, called out in the UI. */
+  exotic?: boolean;
+  /**
+   * Present ⇒ this item wears out and can be repaired; absent ⇒ it has no
+   * condition at all (most stackable consumables). Only non-stackable items
+   * should set this — see the stacking invariant in inventory.ts.
+   */
+  maxCondition?: number;
+  /** Condition decays with elapsed time rather than with use. */
+  perishable?: boolean;
+  /**
+   * 0..1 chance of surviving the drop gate in `rollLoot`; default 1. A hidden
+   * tuning knob — the player never sees a scarcity badge, they just notice that
+   * good things are hard to find.
+   */
+  scarcity?: number;
 }
 
 /**
@@ -129,6 +162,11 @@ export interface ItemInstance {
   y: number;
   rotated: boolean; // swaps w/h
   stack: number;
+  /**
+   * 0..100 wear. Absent means "as good as new" — which is also what every item
+   * in a save written before conditions existed deserializes to.
+   */
+  condition?: number;
 }
 
 export type Equipment = Record<EquipSlot, ItemInstance | null>;
@@ -185,6 +223,13 @@ export interface LocationState {
   factionId: FactionId;
   isFactionRevealed: boolean;
   isMrtStation: boolean;
+  /**
+   * Canonical station id in the baked rail network (see game/mrt.ts) when this
+   * POI is a station the network actually knows — which is what makes it a
+   * node you can ride from. Absent on a station OSM has but the network
+   * doesn't, e.g. the KTM stops.
+   */
+  mrtStationId?: string;
 
   // ---- doorway memory -----------------------------------------------------
   // What this entrance remembers about you. All optional: saves written before

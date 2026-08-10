@@ -37,6 +37,15 @@ const discovered = import.meta.glob('../assets/icons/*.{png,webp,svg}', {
 /** Icons that must NOT be tinted — listed by key. Everything else is masked. */
 const UNTINTED = new Set<IconName>([]);
 
+/**
+ * Item art is loot sitting in a bag, not a UI glyph — a can of food should look
+ * like a can of food, so the whole `item.*` namespace is drawn as authored
+ * rather than flattened to `currentColor`.
+ */
+function isTinted(key: IconName): boolean {
+  return !UNTINTED.has(key) && !key.startsWith('item.');
+}
+
 function keyFromPath(path: string): IconName {
   const file = path.split('/').pop() ?? '';
   return file.replace(/\.(png|webp|svg)$/, '').replace(/-/g, '.') as IconName;
@@ -45,7 +54,7 @@ function keyFromPath(path: string): IconName {
 export const ICON_ASSETS: Partial<Record<IconName, IconAsset>> = Object.fromEntries(
   Object.entries(discovered).map(([path, src]) => {
     const key = keyFromPath(path);
-    return [key, { src, tint: !UNTINTED.has(key) } satisfies IconAsset];
+    return [key, { src, tint: isTinted(key) } satisfies IconAsset];
   }),
 );
 

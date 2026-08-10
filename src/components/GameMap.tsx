@@ -17,6 +17,8 @@ import type { TravelAnim } from '../game/store';
 import type { NoisePulse } from '../game/noise';
 import { HAZARD_CONFIG, type HazardZone } from '../game/wilds';
 import { trekTargetIcon } from './mapIcons';
+import { MrtOverlay, legendLines, useMrtNetwork } from './MrtOverlay';
+import { Icon } from '../icons/Icon';
 
 // White outline for buildings you can see but haven't identified — stands out
 // against the dark map like the "?" blips do.
@@ -41,6 +43,22 @@ function loadZoom(): number {
 function saveZoom(zoom: number): void {
   try {
     localStorage.setItem(ZOOM_KEY, String(zoom));
+  } catch {
+    /* storage unavailable — non-fatal */
+  }
+}
+
+// Whether the rail network is drawn over the map. Like the zoom, this is a
+// view preference and survives reloads.
+const MRT_KEY = 'singvive.mrtOverlay';
+
+function loadMrtPref(): boolean {
+  return localStorage.getItem(MRT_KEY) === '1';
+}
+
+function saveMrtPref(on: boolean): void {
+  try {
+    localStorage.setItem(MRT_KEY, on ? '1' : '0');
   } catch {
     /* storage unavailable — non-fatal */
   }
@@ -216,6 +234,19 @@ function GameMapInner({
   onPickGround,
 }: Props) {
   const evacPoi = evacZoneId ? pois.find((p) => p.id === evacZoneId) : null;
+
+  // The rail network is a separate file, fetched the first time the player asks
+  // to see it (or already in memory, if the world build got there first).
+  const [showMrt, setShowMrt] = useState(loadMrtPref);
+  const net = useMrtNetwork(showMrt);
+
+  const toggleMrt = () => {
+    setShowMrt((on) => {
+      saveMrtPref(!on);
+      return !on;
+    });
+  };
+
   return (
     <div className="relative h-full w-full">
     <MapContainer
@@ -364,7 +395,39 @@ function GameMapInner({
 
       <NoiseRings pulses={noisePulses} />
       <PlayerMarker home={home} travelAnim={travelAnim} />
+      {showMrt && net && <MrtOverlay net={net} />}
     </MapContainer>
+
+      {/* ---- rail network toggle + legend ---- */}
+      <button
+        onClick={toggleMrt}
+        aria-pressed={showMrt}
+        title="Show the MRT & LRT network"
+        className={`absolute right-2 top-2 z-[500] flex items-center gap-1.5 rounded border px-2 py-1.5 text-[11px] font-semibold shadow-lg backdrop-blur transition-colors ${
+          showMrt
+            ? 'border-astral/50 bg-astral/20 text-astral'
+            : 'border-white/15 bg-black/70 text-white/60 hover:text-white/90'
+        }`}
+      >
+        <Icon name="action.mrt" size={14} /> Rail map
+      </button>
+
+      {showMrt && net && (
+        <div className="absolute right-2 top-11 z-[500] max-w-[45vw] rounded border border-white/10 bg-black/80 p-2 text-[10px] leading-tight text-white/70 shadow-lg backdrop-blur">
+          {legendLines(net).map((line) => (
+            <div key={line.code} className="flex items-center gap-1.5">
+              <span
+                className="inline-block h-0.5 w-4 shrink-0 rounded"
+                style={{ background: line.color }}
+              />
+              <span className="truncate">{line.name}</span>
+            </div>
+          ))}
+          <div className="mt-1 border-t border-white/10 pt-1 text-white/35">
+            OSM · baked {net.generatedAt}
+          </div>
+        </div>
+      )}
 
       {/* ---- diegetic vignettes: the frame tells you how bad it is ---- */}
       {vitals.infected && (

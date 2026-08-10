@@ -1,7 +1,8 @@
 import type { Container, ItemInstance } from '../../game/types';
 import { itemDef } from '../../game/loot';
-import { dimsFor, footprint } from '../../game/inventory';
-import { itemGlyph } from './itemGlyph';
+import { conditionPct, dimsFor, footprint, hasCondition, isBroken } from '../../game/inventory';
+import { Icon } from '../../icons/Icon';
+import { itemIcon } from './itemIcon';
 
 export const CELL = 34;
 
@@ -80,33 +81,61 @@ export function InventoryGrid({
           const { w, h } = footprint(def, inst.rotated);
           const isDragging = draggingUid === inst.uid;
           const selected = selectedUid === inst.uid;
+          const wears = hasCondition(inst);
+          const cond = conditionPct(inst);
+          const broken = isBroken(inst);
           return (
             <div
               key={inst.uid}
               onPointerDown={(e) => onItemPointerDown(e, inst)}
               className={`absolute flex cursor-grab flex-col items-center justify-center rounded text-center active:cursor-grabbing ${
-                selected ? 'ring-2 ring-signal' : 'ring-1 ring-black/40'
+                selected
+                  ? 'ring-2 ring-signal'
+                  : def.exotic
+                    ? 'ring-1 ring-amber-300/70'
+                    : 'ring-1 ring-black/40'
               }`}
               style={{
                 left: inst.x * CELL + 1,
                 top: inst.y * CELL + 1,
                 width: w * CELL - 2,
                 height: h * CELL - 2,
-                background: def.color,
+                // A wash rather than a flat block: item art carries its own
+                // colours, and the def colour is now just a category tint.
+                background: `${def.color}66`,
+                boxShadow: `inset 0 0 0 1px ${def.color}`,
                 opacity: isDragging ? 0.25 : 1,
                 zIndex: selected ? 10 : 5,
               }}
-              title={def.name}
+              title={wears ? `${def.name} — ${cond}%` : def.name}
             >
-              <span
-                className="leading-none drop-shadow"
-                style={{ fontSize: Math.min(w, h) > 1 ? 26 : 18 }}
-              >
-                {itemGlyph(def)}
-              </span>
+              <Icon
+                name={itemIcon(def)}
+                size={Math.min(w, h) > 1 ? 26 : 18}
+                className="drop-shadow"
+              />
               {def.stackable && inst.stack > 1 && (
                 <span className="absolute bottom-0 right-0 rounded-tl bg-black/60 px-1 text-[10px] font-black leading-tight text-white">
                   ×{inst.stack}
+                </span>
+              )}
+              {/* Wear runs along the bottom edge so it reads at a glance across
+                  a full bag without competing with the art. */}
+              {wears && (
+                <span className="pointer-events-none absolute inset-x-0 bottom-0 h-[3px] bg-black/50">
+                  <span
+                    className="block h-full"
+                    style={{
+                      width: `${cond}%`,
+                      background: broken
+                        ? '#e0342b'
+                        : cond < 25
+                          ? '#e0342b'
+                          : cond < 50
+                            ? '#e0a02b'
+                            : '#8fbf4b',
+                    }}
+                  />
                 </span>
               )}
             </div>

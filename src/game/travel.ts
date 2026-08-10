@@ -23,9 +23,16 @@ export function walkSpeed(attrs: Attributes, energy: number, legFactor = 1): num
   return BASE_SPEED_M_PER_MIN * statFactor * travelSpeedMultiplier(energy) * legFactor;
 }
 
-/** Minutes to search a place, driven by how much there is to pick through. */
+/**
+ * Minutes to search a place, driven by how much there is to pick through.
+ *
+ * The flat base carries most of the cost. Turning a place over properly takes
+ * about as long whether or not it turns out to be worth it — and without that
+ * floor, thinning the loot tables would have quietly made searching *cheaper*,
+ * which is the opposite of the point.
+ */
 export function searchMinutes(category: PoiCategory): number {
-  return 12 + POI_CONFIG[category].richness * 6;
+  return 22 + POI_CONFIG[category].richness * 6;
 }
 
 export interface TravelEstimate {
@@ -78,16 +85,30 @@ export function estimateExpedition(
   };
 }
 
-/** Subterranean MRT hop between two stations: −70% time, ignores weather/encumbrance. */
+/**
+ * Changing line costs more than the concourse walk: stairs, a wrong turn in an
+ * unlit interchange, the far platform's turnstiles.
+ */
+export const MRT_CHANGE_MIN = 7;
+
+/**
+ * Subterranean MRT hop: −70% time, ignores weather and encumbrance.
+ *
+ * `distanceM` is distance *along the tunnels* when the rail network is loaded
+ * (see game/mrt.ts) rather than the straight line between the two stations, so
+ * a route that doubles back through an interchange is priced like one.
+ */
 export function estimateMrtTravel(
   distanceM: number,
   attrs: Attributes,
   energy: number,
   currentHour: number,
   legFactor = 1,
+  changes = 0,
 ): { travelMin: number; totalHours: number; arrivalHour: number } {
   const speed = walkSpeed(attrs, energy, legFactor);
-  const travelMin = Math.max(2, Math.round((distanceM / speed) * MRT_TIME_FACTOR));
+  const travelMin =
+    Math.max(2, Math.round((distanceM / speed) * MRT_TIME_FACTOR)) + changes * MRT_CHANGE_MIN;
   return {
     travelMin,
     totalHours: travelMin / 60,

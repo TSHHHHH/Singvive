@@ -18,21 +18,39 @@ import type {
 } from './types';
 import { emptyRunStats, normalizeRunStats } from './stats';
 import { Rng, randomSeed } from './rng';
-import { maxHpFor, sumTraitMod } from './character';
+import { hasTraitFlag, maxHpFor, sumTraitMod } from './character';
 import { fetchOsmPois, haversine, type RawPoi } from './overpass';
 import { bakedPoisNear } from './bakedPois';
+import { describeRoute, getMrtNetwork, loadMrtNetwork, mrtRouteBetween } from './mrt';
 import { buildLocations, generateFallbackWorld } from './world';
-import { itemDef, rollLoot, type LootStack } from './loot';
+import { conditionRoll, itemDef, rollLoot, type LootStack } from './loot';
 import {
   addToGrid,
   canPlace,
   canEquip,
+  degrade,
   emptyEquipment,
   findSlot,
   footprint,
+  isBroken,
   isEncumbered,
+  repair as repairInstance,
+  setBackpackWidthBonus,
+  spoil,
+  tierLabel,
+  tierOf,
   totalLootValue,
 } from './inventory';
+import {
+  canCraft,
+  countOf,
+  FIELD_REPAIRS,
+  RECIPES,
+  REPAIR_AMOUNT,
+  REPAIR_HOURS,
+  REPAIR_INPUTS,
+  REPAIR_TOOL,
+} from './crafting';
 import {
   applyWound,
   armCombatPenalty,
@@ -55,7 +73,7 @@ import {
 } from './survival';
 import { rollWeather, timeOfDay, weatherEncounterMod } from './weather';
 import { snapshot, travelableRange, VISITED_LIGHT_RADIUS, type ExploredCircle } from './fog';
-import { estimateExpedition, estimateMrtTravel } from './travel';
+import { estimateExpedition, estimateMrtTravel, searchMinutes } from './travel';
 import {
   makeBlockHunter,
   makeHuman,
@@ -227,6 +245,12 @@ interface State {
 
   items: ItemInstance[];
   equipment: Equipment;
+  /**
+   * Rounds in the magazine. One pool rather than per-weapon, because the run
+   * only ever carries one firearm and a second number would be bookkeeping
+   * without a decision attached.
+   */
+  rounds: number;
   kills: number;
   /** Display-only run counters — see stats.ts. */
   stats: RunStats;
@@ -286,6 +310,15 @@ interface State {
   transferItem: (uid: string, toContainer: string) => void;
   equipItem: (uid: string, slot: keyof Equipment) => void;
   unequipItem: (slot: keyof Equipment) => void;
+  /** Put an item down for good. The only way to shed weight without a stash. */
+  dropItem: (uid: string) => void;
+  /** Run a recipe from `crafting.ts`, consuming its inputs. */
+  craftItem: (recipeId: string) => void;
+  /**
+   * Patch up one worn instance, carried or equipped. `materialDefId` picks the
+   * route: a full workbench repair, or a whetstone/gun oil in the field.
+   */
+  repairItem: (uid: string, materialDefId?: string) => void;
 
   combatStep: () => void;
   combatFlee: () => void;
@@ -357,6 +390,12 @@ export const useGame = create<State>((set, get) => {
    * Credit a haul to the run counters. Only what actually fit in the pack
    * counts — what was left on the floor was never looted.
    */
+  /** Knowing what a thing is worth is itself a skill — see the Kiasu trait. */
+  const lootValueMod = (): number => {
+    const c = get().character;
+    return c ? sumTraitMod(c.traitIds, 'lootValueMod') : 0;
+  };
+
   const bumpHaul = (loot: LootStack[], leftover: LootStack[]) => {
     const missed = new Map<string, number>();
     for (const st of leftover) missed.set(st.defId, (missed.get(st.defId) ?? 0) + st.count);
@@ -369,7 +408,42 @@ export const useGame = create<State>((set, get) => {
       itemsLooted += kept;
       lootValue += kept * itemDef(st.defId).value;
     }
+    lootValue = Math.round(lootValue * (1 + lootValueMod()));
     if (itemsLooted > 0) bumpStats({ itemsLooted, lootValue });
+  };
+
+  /**
+   * Wear the fight put on your kit. Equipped instances live only in
+   * `equipment` — `equipItem` pulls them out of `items` — so this is the only
+   * place they need touching.
+   *
+   * Returns the log lines worth surfacing: a weapon quietly sliding from
+   * "Brand New" to "Old & Torn" over thirty rounds is the sort of thing a
+   * player should be told about before it fails on them.
+   */
+  const applyWear = (
+    equipment: Equipment,
+    weaponWear: number,
+    armorWear: number,
+  ): { equipment: Equipment; notes: string[] } => {
+    if (weaponWear <= 0 && armorWear <= 0) return { equipment, notes: [] };
+    const next: Equipment = { ...equipment };
+    const notes: string[] = [];
+    for (const slot of Object.keys(next) as (keyof Equipment)[]) {
+      const inst = next[slot];
+      if (!inst) continue;
+      const amount = slot === 'mainHand' ? weaponWear : armorWear;
+      const worn = degrade(inst, amount);
+      if (worn === inst) continue;
+      next[slot] = worn;
+      const name = itemDef(inst.defId).name;
+      if (isBroken(worn) && !isBroken(inst)) {
+        notes.push(`Your ${name} gives out — it needs repairing before it's any use.`);
+      } else if (tierOf(worn) !== tierOf(inst)) {
+        notes.push(`Your ${name} is ${tierLabel(tierOf(worn)).toLowerCase()}.`);
+      }
+    }
+    return { equipment: next, notes };
   };
 
   // Set by an en-route roll in travel(); consumed on arrival to spring a road
@@ -393,6 +467,7 @@ export const useGame = create<State>((set, get) => {
       day: s.day,
       hour: s.hour,
       items: s.items,
+      rounds: s.rounds,
       kills: s.kills,
       stats: s.stats,
       log: s.log,
@@ -412,7 +487,11 @@ export const useGame = create<State>((set, get) => {
 
   const endRun = (cause: Exclude<DeathCause, null>) => {
     const s = get();
-    const score = computeScore(s.day, s.kills, totalLootValue(s.items));
+    const score = computeScore(
+      s.day,
+      s.kills,
+      Math.round(totalLootValue(s.items) * (1 + lootValueMod())),
+    );
     // The body stays where it fell — a later run can come looking.
     saveLegacyRun({
       name: s.character?.name ?? 'Survivor',
@@ -531,8 +610,13 @@ export const useGame = create<State>((set, get) => {
         ? Math.min(HORDE_MAX, s.hordeLevel + daysElapsed * HORDE_PER_DAY)
         : s.hordeLevel;
 
+    // Perishables rot on the clock, not on use — which is what makes a bag
+    // full of hoarded hawker food a liability rather than a stockpile. A stash
+    // is no cooler than a backpack; nowhere in this city has power.
+    const items = spoil(s.items, hours);
+
     // Time in a block is free — only the noise you make raises its heat.
-    set({ hour, day, meters, bodyParts, locations, hordeLevel });
+    set({ hour, day, meters, bodyParts, locations, hordeLevel, items });
 
     // warn once, on the way down, so the HP bleed isn't a silent surprise
     if (s.meters.thirst >= STARVING_THRESHOLD && meters.thirst < STARVING_THRESHOLD) {
@@ -578,19 +662,83 @@ export const useGame = create<State>((set, get) => {
     if (wasNew) pushLog(flavor('charted', { name: loc.name }), 'info');
   };
 
+  /**
+   * Put loot in the pack; put whatever won't fit into the site's stash rather
+   * than deleting it. A full backpack should be a decision about what to come
+   * back for, not a silent tax on searching well.
+   *
+   * `rng` sets the wear each new instance rolls up with — see `conditionRoll`.
+   */
+  const spillover = (
+    items: ItemInstance[],
+    locationId: string,
+    defId: string,
+    count: number,
+    rng: Rng,
+    bias = 0,
+  ): { items: ItemInstance[]; stashed: number; lost: number } => {
+    const condition = conditionRoll(rng, defId, bias);
+    const packed = addToGrid(items, 'backpack', defId, count, condition);
+    if (packed.leftover === 0) return { items: packed.items, stashed: 0, lost: 0 };
+    const spilled = addToGrid(packed.items, locationId, defId, packed.leftover, condition);
+    return {
+      items: spilled.items,
+      stashed: packed.leftover - spilled.leftover,
+      lost: spilled.leftover,
+    };
+  };
+
   const hasBackpackItem = (defId: string): boolean =>
     get().items.some((i) => i.container === 'backpack' && i.defId === defId);
 
   const consumeBackpackItem = (defId: string) => {
-    const items = get().items;
-    const idx = items.findIndex((i) => i.container === 'backpack' && i.defId === defId);
-    if (idx < 0) return;
-    const inst = items[idx];
-    const next =
-      inst.stack > 1
-        ? items.map((i) => (i.uid === inst.uid ? { ...i, stack: i.stack - 1 } : i))
-        : items.filter((i) => i.uid !== inst.uid);
-    set({ items: next });
+    set({ items: consumeOneOf(get().items, defId) });
+  };
+
+  /**
+   * Pure: take one of `defId` out of the backpack, decrementing a stack rather
+   * than removing the tile where it can. Crafting burns several of these in a
+   * row, so it needs a version that doesn't round-trip through the store.
+   */
+  const consumeOneOf = (items: ItemInstance[], defId: string): ItemInstance[] => {
+    const inst = items.find((i) => i.container === 'backpack' && i.defId === defId);
+    if (!inst) return items;
+    return inst.stack > 1
+      ? items.map((i) => (i.uid === inst.uid ? { ...i, stack: i.stack - 1 } : i))
+      : items.filter((i) => i.uid !== inst.uid);
+  };
+
+  /**
+   * Restore condition on one instance — carried or equipped — and burn the
+   * materials it took. Split out because both repair routes end here.
+   */
+  const applyRepair = (uid: string, amount: number, spend: string[]) => {
+    const s = get();
+    let items = s.items;
+    for (const defId of spend) items = consumeOneOf(items, defId);
+
+    let name = '';
+    let after = 0;
+    const carried = items.find((i) => i.uid === uid);
+    let equipment = s.equipment;
+    if (carried) {
+      const fixed = repairInstance(carried, amount);
+      name = itemDef(fixed.defId).name;
+      after = fixed.condition ?? 100;
+      items = items.map((i) => (i.uid === uid ? fixed : i));
+    } else {
+      for (const slot of Object.keys(equipment) as (keyof Equipment)[]) {
+        const inst = equipment[slot];
+        if (!inst || inst.uid !== uid) continue;
+        const fixed = repairInstance(inst, amount);
+        name = itemDef(fixed.defId).name;
+        after = fixed.condition ?? 100;
+        equipment = { ...equipment, [slot]: fixed };
+      }
+    }
+    set({ items, equipment });
+    pushLog(`Worked on the ${name} — back to ${after}%.`, 'good');
+    persist();
   };
 
   // Grant a search's loot into the backpack, deplete danger, spend a search.
@@ -600,8 +748,7 @@ export const useGame = create<State>((set, get) => {
     if (!loc) return;
 
     // searching takes time
-    const searchMinHours = (12 + POI_CONFIG[loc.category].richness * 6) / 60;
-    if (advanceTime(searchMinHours)) return;
+    if (advanceTime(searchMinutes(loc.category) / 60)) return;
 
     const s2 = get();
     const loc2 = s2.locations[locationId];
@@ -615,13 +762,28 @@ export const useGame = create<State>((set, get) => {
       lootMod + perceptionBonus,
     );
 
-    // place loot into backpack
+    /*
+     * How intact the find is. A site is generous with *working* gear in
+     * proportion to what it costs to be standing in it: how dangerous it still
+     * is, and how little of it has already been stripped. The first search of a
+     * police station turns up kit that works; the third search of a picked-over
+     * minimart turns up a blunt knife.
+     */
+    const searchesUsed = 1 - loc2.remainingSearches / Math.max(1, POI_CONFIG[loc2.category].richness);
+    const bias = Math.max(
+      0,
+      Math.min(1, loc2.currentDanger / 6 - Math.max(0, searchesUsed) * 0.35),
+    );
+
+    // place loot into backpack, piling the overflow at the site
     let items = s2.items;
     const leftover: LootStack[] = [];
+    const stashed: LootStack[] = [];
     for (const stack of loot) {
-      const r = addToGrid(items, 'backpack', stack.defId, stack.count);
+      const r = spillover(items, locationId, stack.defId, stack.count, lootRng, bias);
       items = r.items;
-      if (r.leftover > 0) leftover.push({ defId: stack.defId, count: r.leftover });
+      if (r.stashed > 0) stashed.push({ defId: stack.defId, count: r.stashed });
+      if (r.lost > 0) leftover.push({ defId: stack.defId, count: r.lost });
     }
 
     const remaining = loc2.remainingSearches - 1;
@@ -640,15 +802,18 @@ export const useGame = create<State>((set, get) => {
 
     set({ items, locations });
     bumpStats({ poisSearched: 1 });
-    bumpHaul(loot, leftover);
+    bumpHaul(loot, [...stashed, ...leftover]);
     if (loot.length === 0) {
       pushLog(flavor('searchEmpty', { name: loc2.name }), 'info');
     } else {
       pushLog(
         fled ? `Grabbed what you could from ${loc2.name}.` : flavor('searchFound', { name: loc2.name }),
         'good',
-        { loot, leftover },
+        { loot, leftover: [...stashed, ...leftover] },
       );
+    }
+    if (stashed.length > 0) {
+      pushLog(`No room in the pack — the rest is stacked in the stash here.`, 'info');
     }
     persist();
   };
@@ -914,24 +1079,35 @@ export const useGame = create<State>((set, get) => {
     const s = get();
     if (!s.hdb) return;
     const unit = s.hdb.floors[level - 1]?.units.find((u) => u.id === unitId);
-    const loot = rollLoot(rng, 'residential', 3 + lootMod, lootMod);
+    // `lootMod` already carries the whole risk ladder — barricaded door, corner
+    // unit, height. Adding it to the base a second time double-counted it.
+    const loot = rollLoot(rng, 'residential', 2 + lootMod, lootMod);
+    // A door nobody else could get through is the one thing behind which gear
+    // is still in working order. This is the payoff for the noise and the time.
+    const bias = Math.max(0, Math.min(1, lootMod / 5));
     let items = s.items;
     const leftover: LootStack[] = [];
+    const stashed: LootStack[] = [];
     for (const stack of loot) {
-      const r = addToGrid(items, 'backpack', stack.defId, stack.count);
+      const r = spillover(items, s.hdb.locationId, stack.defId, stack.count, rng, bias);
       items = r.items;
-      if (r.leftover > 0) leftover.push({ defId: stack.defId, count: r.leftover });
+      if (r.stashed > 0) stashed.push({ defId: stack.defId, count: r.stashed });
+      if (r.lost > 0) leftover.push({ defId: stack.defId, count: r.lost });
     }
+    const missed = [...stashed, ...leftover];
     const hdb = updateUnit(s.hdb, level, unitId, { state: 'cleared' });
     set({ items, hdb, hdbBlocks: { ...s.hdbBlocks, [hdb.locationId]: hdb } });
     bumpStats({ hdbUnitsCleared: 1 });
-    bumpHaul(loot, leftover);
+    bumpHaul(loot, missed);
     const label = unit?.label ?? 'the unit';
     pushLog(
       loot.length ? `You clear ${label}.` : `${label} is bare.`,
       loot.length ? 'good' : 'info',
-      loot.length ? { loot, leftover } : undefined,
+      loot.length ? { loot, leftover: missed } : undefined,
     );
+    if (stashed.length > 0) {
+      pushLog('Your pack is full — the rest goes in the block stash.', 'info');
+    }
   };
 
   /** Locations whose ghost has already been dealt with this run. */
@@ -1129,6 +1305,7 @@ export const useGame = create<State>((set, get) => {
     hour: START_HOUR,
     items: [],
     equipment: emptyEquipment(),
+    rounds: 0,
     kills: 0,
     stats: emptyRunStats(),
     exploredArea: [],
@@ -1152,6 +1329,7 @@ export const useGame = create<State>((set, get) => {
 
     commitCharacter: (c) => {
       const maxHp = maxHpFor(c);
+      setBackpackWidthBonus(sumTraitMod(c.traitIds, 'gridWidthBonus'));
       set({
         character: c,
         maxHp,
@@ -1176,6 +1354,11 @@ export const useGame = create<State>((set, get) => {
       //   1. the pre-baked island-wide set (static file, can't rate-limit us)
       //   2. a live Overpass call, if the bake is missing or malformed
       //   3. a simulated neighbourhood, if both are unavailable
+      // The rail network rides along with the POIs: it names the stations and
+      // decides which of them are nodes you can ride between. A failure here is
+      // survivable — stations stay ordinary locations.
+      const net = await loadMrtNetwork();
+
       let raw: RawPoi[] | null = null;
       try {
         raw = await bakedPoisNear(spawn.lat, spawn.lng, SCAVENGE_RADIUS);
@@ -1194,7 +1377,7 @@ export const useGame = create<State>((set, get) => {
         // Real data but almost nothing nearby means the spot is genuinely
         // remote (sea/forest/reserve) — reject so the player can pick again.
         if (raw.length < 5) return 'remote';
-        list = buildLocations(rng, spawn, raw);
+        list = buildLocations(rng, spawn, raw, net);
       } else {
         list = generateFallbackWorld(rng, spawn, SCAVENGE_RADIUS);
         usedFallback = true;
@@ -1217,8 +1400,14 @@ export const useGame = create<State>((set, get) => {
         'info',
       );
 
+      // A scavenger by trade gets more out of every site than the search budget
+      // allows anyone else.
+      const searchBonus = sumTraitMod(get().character!.traitIds, 'searchBonusMod');
       const locations: Record<string, LocationState> = {};
-      for (const l of list) locations[l.id] = l;
+      for (const l of list) {
+        locations[l.id] =
+          searchBonus > 0 ? { ...l, remainingSearches: l.remainingSearches + searchBonus } : l;
+      }
 
       // Designate the extraction zone (far-off POI), open its window, and reset
       // the doom clock.
@@ -1237,7 +1426,6 @@ export const useGame = create<State>((set, get) => {
       let items: ItemInstance[] = [];
       items = addToGrid(items, 'backpack', 'water_bottle', 1).items;
       items = addToGrid(items, 'backpack', 'snacks', 2).items;
-      const knifeSlot = findSlot('backpack', items, itemDef('kitchen_knife'));
       const equipment = emptyEquipment();
       equipment.mainHand = {
         uid: `equip_knife`,
@@ -1247,8 +1435,8 @@ export const useGame = create<State>((set, get) => {
         y: 0,
         rotated: false,
         stack: 1,
+        condition: 100,
       };
-      void knifeSlot;
 
       set({ locations, items, equipment });
       persist();
@@ -1483,6 +1671,12 @@ export const useGame = create<State>((set, get) => {
         pushLog('Both stations must be cleared before the tunnel is safe.', 'bad');
         return;
       }
+      // The tunnels only go where the tracks go. Without the network loaded
+      // there's nothing to check against, so the old any-to-any rule stands.
+      if (!mrtRouteBetween(from, to) && getMrtNetwork()) {
+        pushLog(`No line runs from ${from.name} to ${to.name}. The tunnels don't connect.`, 'bad');
+        return;
+      }
       set({ pendingEvent: { locationId: from.id, event: mrtTollEvent(), mrtTo: toId } });
     },
 
@@ -1516,18 +1710,39 @@ export const useGame = create<State>((set, get) => {
           // MRT fast travel through the tunnels
           const to = get().locations[pe.mrtTo];
           const cur = get();
-          const dist = Math.round(haversine(cur.currentPos.lat, cur.currentPos.lng, to.lat, to.lng));
+          const from = cur.locations[pe.locationId];
+          // Along the tracks when the network knows both ends, straight-line
+          // otherwise — a route that doglegs through an interchange should
+          // cost what the dogleg costs.
+          const route = from ? mrtRouteBetween(from, to) : null;
+          const dist =
+            route?.meters ??
+            Math.round(haversine(cur.currentPos.lat, cur.currentPos.lng, to.lat, to.lng));
           const mrt = estimateMrtTravel(
             dist,
             cur.character!.attributes,
             cur.meters.energy,
             cur.hour,
             legTravelFactor(cur.bodyParts),
+            route?.changes ?? 0,
           );
           if (advanceTime(mrt.totalHours)) return;
           set({ currentPos: { lat: to.lat, lng: to.lng }, currentPositionId: to.id });
           discoverLocation(to.id);
-          pushLog(`You ride the tunnels to ${to.name} (weather ignored).`, 'good');
+          // Every station the line passes through is one you've now seen the
+          // platform of, even if you never got off.
+          for (const leg of route?.legs ?? []) {
+            for (const stop of leg.stops) {
+              const passed = Object.values(get().locations).find((l) => l.mrtStationId === stop.id);
+              if (passed) discoverLocation(passed.id);
+            }
+          }
+          pushLog(
+            route
+              ? `You ride the tunnels to ${to.name} — ${describeRoute(route)}.`
+              : `You ride the tunnels to ${to.name} (weather ignored).`,
+            'good',
+          );
           persist();
         } else {
           attemptSearch(pe.locationId);
@@ -1757,6 +1972,9 @@ export const useGame = create<State>((set, get) => {
       const m = { ...s.meters };
       let newBodyParts = s.bodyParts;
       let consumed = false;
+      let newRounds = s.rounds;
+      // Spoiled food still feeds you — it just asks for something back.
+      let spoiledInfection = 0;
       switch (def.effect.kind) {
         case 'food':
           m.hunger = clampMeter(m.hunger + Math.round(def.effect.hunger * (1 + foodEffectMod)));
@@ -1795,11 +2013,29 @@ export const useGame = create<State>((set, get) => {
           consumed = true;
           pushLog(`Had a ${def.name}. Feeling sharper.`, 'good');
           break;
+        case 'ammo': {
+          newRounds = s.rounds + def.effect.rounds;
+          consumed = true;
+          pushLog(`Loaded ${def.effect.rounds} rounds. ${newRounds} in hand.`, 'good');
+          break;
+        }
         default:
           pushLog(`${def.name} can't be used directly.`, 'info');
       }
       if (consumed) {
-        set({ meters: m, bodyParts: newBodyParts, items: consumeOne(s.items, uid) });
+        // Food that has gone over is a gamble, not a refusal — the player took
+        // it knowing the bag had been warm for three days.
+        if (def.perishable && def.effect.kind === 'food' && isBroken(inst)) {
+          spoiledInfection = 12;
+          m.infection = clampMeter(m.infection + spoiledInfection);
+          pushLog(`${def.name} had turned. It sits badly — infection +${spoiledInfection}.`, 'bad');
+        }
+        set({
+          meters: m,
+          bodyParts: newBodyParts,
+          rounds: newRounds,
+          items: consumeOne(s.items, uid),
+        });
         persist();
       }
     },
@@ -1856,6 +2092,119 @@ export const useGame = create<State>((set, get) => {
         ),
       });
       persist();
+    },
+
+    dropItem: (uid) => {
+      const s = get();
+      const inst = s.items.find((i) => i.uid === uid);
+      if (!inst) return;
+      const def = itemDef(inst.defId);
+      // The hoarder can't make themselves let go of anything.
+      if (hasTraitFlag(s.character!.traitIds, 'cannotDropItems')) {
+        pushLog(`You can't bring yourself to leave the ${def.name} behind.`, 'bad');
+        return;
+      }
+      set({ items: s.items.filter((i) => i.uid !== uid) });
+      pushLog(
+        inst.stack > 1 ? `Dropped ${inst.stack}× ${def.name}.` : `Dropped ${def.name}.`,
+        'info',
+      );
+      persist();
+    },
+
+    craftItem: (recipeId) => {
+      const s = get();
+      const recipe = RECIPES.find((r) => r.id === recipeId);
+      if (!recipe) return;
+      // A stash is a workbench: somewhere to put things down and take your time.
+      const atShelter = s.currentPositionId !== null || s.hdb !== null;
+      const check = canCraft(recipe, s.items, atShelter);
+      if (!check.ok) {
+        pushLog(`Can't make that — ${check.reason.toLowerCase()}.`, 'bad');
+        return;
+      }
+      if (advanceTime(recipe.hours)) return;
+
+      let items = get().items;
+      for (const [defId, need] of Object.entries(recipe.inputs)) {
+        for (let n = 0; n < need; n++) items = consumeOneOf(items, defId);
+      }
+      const made = addToGrid(items, 'backpack', recipe.outputDefId, recipe.outputCount);
+      const outName = itemDef(recipe.outputDefId).name;
+      if (made.leftover === recipe.outputCount) {
+        // The inputs are already gone; refusing now would eat them for nothing.
+        const here = s.currentPositionId;
+        const spilled = here
+          ? addToGrid(items, here, recipe.outputDefId, recipe.outputCount)
+          : { items, leftover: recipe.outputCount };
+        set({ items: spilled.items });
+        pushLog(
+          spilled.leftover > 0
+            ? `Made ${outName}, but there was nowhere to put it.`
+            : `Made ${outName} — no room in the pack, so it's in the stash.`,
+          spilled.leftover > 0 ? 'bad' : 'info',
+        );
+      } else {
+        set({ items: made.items });
+        pushLog(`Made ${recipe.outputCount}× ${outName}.`, 'good');
+      }
+      persist();
+    },
+
+    repairItem: (uid, materialDefId) => {
+      const s = get();
+      const inst =
+        s.items.find((i) => i.uid === uid) ??
+        Object.values(s.equipment).find((e) => e?.uid === uid) ??
+        null;
+      if (!inst) return;
+      const def = itemDef(inst.defId);
+      if (def.maxCondition === undefined) {
+        pushLog(`${def.name} isn't something that wears out.`, 'info');
+        return;
+      }
+
+      // Field repairs are quick, weapon-specific and need no workbench; the
+      // toolbox route is slower, costs materials, and fixes anything.
+      const field = materialDefId
+        ? FIELD_REPAIRS.find((f) => f.defId === materialDefId)
+        : undefined;
+      if (field) {
+        const isMelee = def.effect.kind === 'weapon' && !def.effect.ranged;
+        if (def.effect.kind !== 'weapon' || isMelee !== field.melee) {
+          pushLog(`${itemDef(field.defId).name} is no use on a ${def.name}.`, 'bad');
+          return;
+        }
+        if (countOf(s.items, field.defId) < 1) {
+          pushLog(`No ${itemDef(field.defId).name} left.`, 'bad');
+          return;
+        }
+        if (advanceTime(0.5)) return;
+        applyRepair(uid, field.amount, [field.defId]);
+        return;
+      }
+
+      const atShelter = s.currentPositionId !== null || s.hdb !== null;
+      if (!atShelter) {
+        pushLog('You need somewhere to work — find a stash or a shelter.', 'bad');
+        return;
+      }
+      if (countOf(s.items, REPAIR_TOOL) < 1) {
+        pushLog(`You need a ${itemDef(REPAIR_TOOL).name} to do proper repairs.`, 'bad');
+        return;
+      }
+      for (const [defId, need] of Object.entries(REPAIR_INPUTS)) {
+        if (countOf(s.items, defId) < need) {
+          pushLog(`Needs ${need}× ${itemDef(defId).name}.`, 'bad');
+          return;
+        }
+      }
+      if (advanceTime(REPAIR_HOURS)) return;
+      applyRepair(
+        uid,
+        REPAIR_AMOUNT,
+        Object.entries(REPAIR_INPUTS).flatMap(([defId, n]) => Array<string>(n).fill(defId)),
+      );
     },
 
     equipItem: (uid, slot) => {
@@ -2254,6 +2603,7 @@ export const useGame = create<State>((set, get) => {
         s.character!.traitIds,
         s.equipment,
         armCombatPenalty(s.bodyParts),
+        s.rounds,
       );
       const round = s.combat.round + 1;
       const weather = { kind: weatherKindFor(s.seed, s.day), time: timeOfDay(s.hour) };
@@ -2283,22 +2633,36 @@ export const useGame = create<State>((set, get) => {
       const newInfection = clampMeter(s.meters.infection + res.infectionGain);
       const meters: Meters = { ...s.meters, health: newHealth, infection: newInfection };
       const zombie = { ...s.combat.zombie, hp: res.zombieHpAfter };
-      const log = [...s.combat.log, ...res.log];
       const dead = checkDeath(meters, bodyParts) !== null;
 
+      // Gear and ammunition are spent whatever the round's outcome — including
+      // the round that kills you.
+      const { equipment, notes } = applyWear(s.equipment, res.weaponWear, res.armorWear);
+      const rounds = Math.max(0, s.rounds - res.roundsSpent);
+      const log = [
+        ...s.combat.log,
+        ...res.log,
+        ...(res.roundsSpent > 0
+          ? [{ round, tone: 'info' as const, text: `${rounds} rounds left.` }]
+          : []),
+        ...notes.map((text) => ({ round, tone: 'bad' as const, text })),
+      ];
+
       if (res.zombieDead && !dead) {
-        set({ meters, bodyParts, combat: { ...s.combat, zombie, round, log, over: true, outcome: 'win' }, kills: s.kills + 1 });
+        set({ meters, bodyParts, equipment, rounds, combat: { ...s.combat, zombie, round, log, over: true, outcome: 'win' }, kills: s.kills + 1 });
         bumpStats(zombie.kind === 'human' ? { humanKills: 1 } : { zombieKills: 1 });
         if (res.timeCostHours > 0) advanceTime(res.timeCostHours);
         return;
       }
       if (dead) {
-        set({ meters, bodyParts, combat: { ...s.combat, zombie, round, log, over: true, outcome: 'dead' } });
+        set({ meters, bodyParts, equipment, rounds, combat: { ...s.combat, zombie, round, log, over: true, outcome: 'dead' } });
         return;
       }
       set({
         meters,
         bodyParts,
+        equipment,
+        rounds,
         combat: { ...s.combat, zombie, round, log },
       });
 
@@ -2318,6 +2682,7 @@ export const useGame = create<State>((set, get) => {
         s.character!.traitIds,
         s.equipment,
         armCombatPenalty(s.bodyParts),
+        s.rounds,
       );
       const round = s.combat.round + 1;
       const stance = STANCES[s.combat.selectedStance];
@@ -2343,15 +2708,26 @@ export const useGame = create<State>((set, get) => {
       const effMax = effectiveMaxHp(s.maxHp, bodyParts);
       const newHealth = Math.min(effMax, Math.max(0, s.meters.health - res.playerDamage));
       const meters: Meters = { ...s.meters, health: newHealth };
-      const log = [...s.combat.log, ...res.log];
+      // Running costs the weapon nothing, but a parting blow still lands on
+      // your armour.
+      const { equipment, notes } = applyWear(
+        s.equipment,
+        0,
+        res.playerDamage > 0 ? 0.5 + res.playerDamage * 0.15 : 0,
+      );
+      const log = [
+        ...s.combat.log,
+        ...res.log,
+        ...notes.map((text) => ({ round, tone: 'bad' as const, text })),
+      ];
       const dead = checkDeath(meters, bodyParts) !== null;
       if (res.success && !dead) {
-        set({ meters, bodyParts, combat: { ...s.combat, round, log, over: true, outcome: 'flee' } });
+        set({ meters, bodyParts, equipment, combat: { ...s.combat, round, log, over: true, outcome: 'flee' } });
         bumpStats({ fightsFled: 1 });
       } else if (dead) {
-        set({ meters, bodyParts, combat: { ...s.combat, round, log, over: true, outcome: 'dead' } });
+        set({ meters, bodyParts, equipment, combat: { ...s.combat, round, log, over: true, outcome: 'dead' } });
       } else {
-        set({ meters, bodyParts, combat: { ...s.combat, round, log } });
+        set({ meters, bodyParts, equipment, combat: { ...s.combat, round, log } });
       }
     },
 
@@ -2476,6 +2852,10 @@ export const useGame = create<State>((set, get) => {
     continueRun: () => {
       const run = loadRun();
       if (!run) return;
+      // Stations were bound to the network when the run was created; get it
+      // back in memory so the tunnels still route.
+      void loadMrtNetwork();
+      setBackpackWidthBonus(sumTraitMod(run.character.traitIds, 'gridWidthBonus'));
       set({
         phase: 'game',
         character: run.character,
@@ -2491,6 +2871,7 @@ export const useGame = create<State>((set, get) => {
         day: run.day,
         hour: run.hour,
         items: run.items,
+        rounds: run.rounds ?? 0,
         kills: run.kills,
         stats: normalizeRunStats(run.stats),
         usedFallback: run.usedFallback,

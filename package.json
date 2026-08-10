@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "bake:pois": "node --experimental-strip-types scripts/bake-pois.mjs",
+    "bake:mrt": "node scripts/bake-mrt.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

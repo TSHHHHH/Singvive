@@ -5,22 +5,42 @@ import {
   BACKPACK,
   canEquip,
   canPlace,
+  conditionOf,
+  conditionPct,
   containerWeight,
+  effectiveDamage,
+  equipDefenseBonus,
   dimsFor,
   footprint,
+  hasCondition,
+  instanceValue,
+  isBroken,
   isEncumbered,
   maxCarry,
+  tierLabel,
+  tierOf,
   totalLootValue,
 } from '../../game/inventory';
 import type { Container, EquipSlot, ItemInstance } from '../../game/types';
+import {
+  canCraft,
+  countOf,
+  describeInputs,
+  FIELD_REPAIRS,
+  RECIPES,
+  REPAIR_INPUTS,
+  REPAIR_TOOL,
+} from '../../game/crafting';
 import { CELL, InventoryGrid, type DragPreview } from './InventoryGrid';
-import { itemGlyph } from './itemGlyph';
+import { itemIcon } from './itemIcon';
+import { Icon } from '../../icons/Icon';
+import type { IconName } from '../../icons/keys';
 
-const EQUIP_SLOTS: { slot: EquipSlot; label: string; glyph: string }[] = [
-  { slot: 'head', label: 'Head', glyph: '🪖' },
-  { slot: 'body', label: 'Body', glyph: '🦺' },
-  { slot: 'mainHand', label: 'Main Hand', glyph: '🗡️' },
-  { slot: 'offHand', label: 'Off Hand', glyph: '🛡️' },
+const EQUIP_SLOTS: { slot: EquipSlot; label: string; icon: IconName }[] = [
+  { slot: 'head', label: 'Head', icon: 'slot.head' },
+  { slot: 'body', label: 'Body', icon: 'slot.body' },
+  { slot: 'mainHand', label: 'Main Hand', icon: 'slot.mainHand' },
+  { slot: 'offHand', label: 'Off Hand', icon: 'slot.offHand' },
 ];
 
 interface GridDrop {
@@ -58,6 +78,10 @@ export function InventoryPanel({ onClose }: { onClose?: () => void }) {
   const moveItem = useGame((s) => s.moveItem);
   const equipItem = useGame((s) => s.equipItem);
   const unequipItem = useGame((s) => s.unequipItem);
+  const dropItem = useGame((s) => s.dropItem);
+  const craftItem = useGame((s) => s.craftItem);
+  const repairItem = useGame((s) => s.repairItem);
+  const rounds = useGame((s) => s.rounds);
 
   const [selectedUid, setSelectedUid] = useState<string | null>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
@@ -151,6 +175,33 @@ export function InventoryPanel({ onClose }: { onClose?: () => void }) {
     def && def.effect.kind !== 'misc' && def.effect.kind !== 'weapon' && def.effect.kind !== 'fuel';
   const canRotate = def && def.w !== def.h;
 
+  // A whetstone or a bottle of gun oil fixes its own kind of weapon on the
+  // spot; anything else needs the toolbox and a place to sit down.
+  const fieldKit =
+    def?.effect.kind === 'weapon'
+      ? FIELD_REPAIRS.find(
+          (f) => f.melee !== (def.effect as { ranged: boolean }).ranged && countOf(items, f.defId) > 0,
+        )
+      : undefined;
+  const repairable = selected != null && hasCondition(selected) && conditionOf(selected) < 100;
+
+  // Ammunition only matters once you're carrying something that eats it.
+  const hasFirearm =
+    (equipment.mainHand && (itemDef(equipment.mainHand.defId).effect as { ranged?: boolean }).ranged) ||
+    items.some((i) => {
+      const e = itemDef(i.defId).effect;
+      return e.kind === 'weapon' && e.ranged;
+    });
+  const atShelter = stashContainer !== null;
+
+  const craftable = RECIPES.map((recipe) => ({
+    recipe,
+    check: canCraft(recipe, items, atShelter),
+    // Hide recipes you have none of the makings for — otherwise the panel is a
+    // wall of things you can't do.
+    known: Object.keys(recipe.inputs).some((defId) => countOf(items, defId) > 0),
+  })).filter((r) => r.known);
+
   const carry = character ? maxCarry(character.attributes, equipment) : 0;
   const load = containerWeight(items, BACKPACK);
   const encumbered = character ? isEncumbered(items, character.attributes, equipment) : false;
@@ -168,7 +219,7 @@ export function InventoryPanel({ onClose }: { onClose?: () => void }) {
 
       {/* Equipment slots — drag items here to equip */}
       <div className="grid grid-cols-4 gap-2">
-        {EQUIP_SLOTS.map(({ slot, label, glyph }) => {
+        {EQUIP_SLOTS.map(({ slot, label, icon }) => {
           const inst = equipment[slot];
           const eDef = inst ? itemDef(inst.defId) : null;
           const highlighted = drag?.target?.type === 'slot' && drag.target.slot === slot;
@@ -189,7 +240,7 @@ export function InventoryPanel({ onClose }: { onClose?: () => void }) {
               <span className="text-[10px] uppercase tracking-wide text-white/40">{label}</span>
               {eDef ? (
                 <>
-                  <span className="text-lg leading-none">{itemGlyph(eDef)}</span>
+                  <Icon name={itemIcon(eDef)} size={18} title={eDef.name} />
                   <button
                     onClick={() => unequipItem(slot)}
                     className="mt-0.5 rounded bg-white/10 px-1 text-[10px] hover:bg-white/20"
@@ -198,7 +249,7 @@ export function InventoryPanel({ onClose }: { onClose?: () => void }) {
                   </button>
                 </>
               ) : (
-                <span className="text-2xl opacity-20">{glyph}</span>
+                <Icon name={icon} size={24} className="opacity-20" />
               )}
             </div>
           );
@@ -236,7 +287,14 @@ export function InventoryPanel({ onClose }: { onClose?: () => void }) {
           <span>
             {items.filter((i) => i.container === BACKPACK).length} items carried
           </span>
-          <span>Value {totalLootValue(items)}</span>
+          <span className="flex gap-3">
+            {hasFirearm && (
+              <span className={rounds === 0 ? 'font-semibold text-hiss' : 'text-white/60'}>
+                {rounds} rounds
+              </span>
+            )}
+            <span>Value {totalLootValue(items)}</span>
+          </span>
         </div>
       </div>
 
@@ -245,21 +303,60 @@ export function InventoryPanel({ onClose }: { onClose?: () => void }) {
         {selected && def ? (
           <>
             <div className="flex items-start gap-3">
-              <span className="text-3xl leading-none">{itemGlyph(def)}</span>
+              <Icon name={itemIcon(def)} size={30} className="mt-0.5 shrink-0" />
               <div className="min-w-0 flex-1">
-                <div className="font-bold">{def.name}</div>
+                <div className="flex items-baseline gap-2">
+                  <span className="font-bold">{def.name}</span>
+                  {def.exotic && (
+                    <span className="rounded bg-amber-300/15 px-1.5 text-[10px] uppercase tracking-wide text-amber-300">
+                      Exotic
+                    </span>
+                  )}
+                </div>
                 <div className="text-xs uppercase tracking-wide text-white/40">
                   {itemKind(def)} · in {selected.container === BACKPACK ? 'backpack' : 'stash'}
                 </div>
               </div>
             </div>
-            <p className="mt-2 text-[12px] text-white/60">{describeItem(def)}</p>
+            <p className="mt-2 text-[12px] text-white/60">{describeItem(def, selected)}</p>
+
+            {/* Wear is the item's headline stat once things start breaking, so
+                it gets its own row rather than a footnote among the sizes. */}
+            {hasCondition(selected) && (
+              <div className="mt-2">
+                <div className="flex items-baseline justify-between text-[11px]">
+                  <span
+                    className={
+                      isBroken(selected)
+                        ? 'font-semibold text-hiss'
+                        : 'uppercase tracking-wide text-white/50'
+                    }
+                  >
+                    {isBroken(selected) ? 'Broken — unusable until repaired' : tierLabel(tierOf(selected))}
+                  </span>
+                  <span className="text-white/40">{conditionPct(selected)}%</span>
+                </div>
+                <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/10">
+                  <div
+                    className={`h-full rounded-full ${
+                      conditionOf(selected) < 25
+                        ? 'bg-hiss'
+                        : conditionOf(selected) < 50
+                          ? 'bg-amber-400'
+                          : 'bg-signal'
+                    }`}
+                    style={{ width: `${conditionPct(selected)}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
             <div className="mt-2 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-white/40">
               <span>
                 Size {def.w}×{def.h}
               </span>
               <span>{def.weight.toFixed(1)} kg</span>
-              <span>Value {def.value}</span>
+              <span>Value {instanceValue(selected)}</span>
               {def.stackable && selected.stack > 1 && <span>×{selected.stack} stacked</span>}
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
@@ -290,6 +387,19 @@ export function InventoryPanel({ onClose }: { onClose?: () => void }) {
                   ⟳ Rotate
                 </button>
               )}
+              {repairable && (
+                <button
+                  onClick={() => repairItem(selected.uid, fieldKit?.defId)}
+                  className="rounded border border-amber-300/40 bg-amber-300/10 px-3 py-1.5 text-sm text-amber-200 hover:bg-amber-300/20"
+                  title={
+                    fieldKit
+                      ? `Uses 1× ${itemDef(fieldKit.defId).name}`
+                      : `Uses ${describeInputs(REPAIR_INPUTS)} and a ${itemDef(REPAIR_TOOL).name}`
+                  }
+                >
+                  Repair
+                </button>
+              )}
               {stashContainer && (
                 <button
                   onClick={() =>
@@ -300,6 +410,16 @@ export function InventoryPanel({ onClose }: { onClose?: () => void }) {
                   → {selected.container === BACKPACK ? 'Stash' : 'Backpack'}
                 </button>
               )}
+              <button
+                onClick={() => {
+                  dropItem(selected.uid);
+                  setSelectedUid(null);
+                }}
+                className="rounded border border-hiss/40 px-3 py-1.5 text-sm text-hiss/80 hover:bg-hiss/10"
+                title="Gone for good — but the weight goes with it"
+              >
+                Drop
+              </button>
             </div>
           </>
         ) : (
@@ -308,6 +428,39 @@ export function InventoryPanel({ onClose }: { onClose?: () => void }) {
           </p>
         )}
       </div>
+
+      {/* Workbench. Only the recipes you could plausibly run are worth showing,
+          so anything you hold no inputs at all for stays hidden. */}
+      {craftable.length > 0 && (
+        <div className="rounded-lg border border-white/10 bg-black/40 p-3">
+          <div className="mb-2 text-xs uppercase tracking-widest text-white/40">Make</div>
+          <div className="flex flex-col gap-1.5">
+            {craftable.map(({ recipe, check }) => (
+              <button
+                key={recipe.id}
+                disabled={!check.ok}
+                onClick={() => craftItem(recipe.id)}
+                title={recipe.blurb}
+                className={`flex items-baseline justify-between gap-3 rounded px-2 py-1.5 text-left text-[12px] ${
+                  check.ok
+                    ? 'bg-white/5 hover:bg-white/15'
+                    : 'cursor-not-allowed bg-transparent text-white/25'
+                }`}
+              >
+                <span className="min-w-0">
+                  <span className={check.ok ? 'font-semibold' : ''}>{recipe.name}</span>
+                  <span className="block truncate text-white/35">
+                    {describeInputs(recipe.inputs)}
+                  </span>
+                </span>
+                <span className="shrink-0 text-right text-white/35">
+                  {check.ok ? `${recipe.hours}h` : check.reason}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {stashContainer && (
         <InventoryGrid
@@ -345,13 +498,26 @@ function itemKind(def: ReturnType<typeof itemDef>): string {
   }
 }
 
-function describeItem(def: ReturnType<typeof itemDef>): string {
+/**
+ * Gear is described by what it does *now*, with the printed value alongside
+ * whenever wear has taken a bite out of it — the gap is the whole argument for
+ * carrying repair materials.
+ */
+function describeItem(def: ReturnType<typeof itemDef>, inst: ItemInstance): string {
   const e = def.effect;
   if (def.slot) {
     const m = def.modifiers ?? {};
     const parts: string[] = [`${def.slot}`];
-    if (e.kind === 'weapon') parts.push(`${e.damage} dmg`);
-    if (m.defenseBonus) parts.push(`+${m.defenseBonus} def`);
+    if (e.kind === 'weapon') {
+      const dmg = effectiveDamage(inst);
+      parts.push(dmg === e.damage ? `${e.damage} dmg` : `${dmg} dmg (of ${e.damage})`);
+    }
+    if (m.defenseBonus) {
+      const def_ = equipDefenseBonus(inst);
+      parts.push(
+        def_ === m.defenseBonus ? `+${m.defenseBonus} def` : `+${def_} def (of ${m.defenseBonus})`,
+      );
+    }
     if (m.attackBonus) parts.push(`${m.attackBonus > 0 ? '+' : ''}${m.attackBonus} atk`);
     if (m.weightCapacityBonus) parts.push(`+${m.weightCapacityBonus}kg carry`);
     return parts.join(' · ');

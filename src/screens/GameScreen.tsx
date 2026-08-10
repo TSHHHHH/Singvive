@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { useShallow } from 'zustand/react/shallow';
 import { useGame } from '../game/store';
 import { GameMap } from '../components/GameMap';
+import { useMrtNetwork } from '../components/MrtOverlay';
+import { mrtRouteBetween } from '../game/mrt';
 import { ConditionPanel } from '../components/ConditionPanel';
 import { StatsPanel } from '../components/StatsPanel';
 import { LogPanel } from '../components/LogPanel';
@@ -284,12 +286,16 @@ export function GameScreen() {
     blipRange,
   ]);
 
+  // Held only so the ride card re-renders once the network arrives; the routing
+  // itself reads the same cached copy through mrtRouteBetween.
+  const mrtNet = useMrtNetwork();
+
   if (!spawn) return null;
 
   const selHere = sel ? sel.id === currentPositionId : false;
 
   const here = currentPositionId ? locations[currentPositionId] : null;
-  const canMrt = !!(
+  const bothStations = !!(
     sel &&
     sel.isMrtStation &&
     sel.cleared &&
@@ -297,6 +303,10 @@ export function GameScreen() {
     here?.isMrtStation &&
     here.cleared
   );
+  // The tunnels only run where the tracks run. Until the network is loaded
+  // there's nothing to route over, so the old any-station rule stands in.
+  const mrtRoute = bothStations && here && sel ? mrtRouteBetween(here, sel) : null;
+  const canMrt = bothStations && (!!mrtRoute || !mrtNet);
 
   const openStash = () => setSidePanel('inventory');
 
@@ -312,6 +322,7 @@ export function GameScreen() {
     energyLow: meters.energy < 5,
     outOfRange: selOutOfRange,
     canMrt,
+    mrtRoute,
     onTravel: () => travel(sel.id),
     onEnter: enter,
     onMrt: () => mrtTravel(sel.id),

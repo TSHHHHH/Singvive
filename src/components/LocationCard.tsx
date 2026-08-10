@@ -3,6 +3,7 @@ import { Icon } from '../icons/Icon';
 import { FACTION_CONFIG } from '../game/factions';
 import { dangerColor } from './mapIcons';
 import { formatDuration, type estimateExpedition } from '../game/travel';
+import { describeRoute, getMrtNetwork, linesAt, type MrtRoute } from '../game/mrt';
 import type { LocationState } from '../game/types';
 
 type Estimate = ReturnType<typeof estimateExpedition> | null;
@@ -15,6 +16,8 @@ interface Props {
   /** target is beyond the survivor's current one-push travel range */
   outOfRange?: boolean;
   canMrt: boolean;
+  /** The ride from where you're standing to here, when the tunnels connect. */
+  mrtRoute?: MrtRoute | null;
   onTravel: () => void;
   /** Step through the door of the site you're already standing at. */
   onEnter: () => void;
@@ -72,6 +75,35 @@ function UnknownCard({ est, energyLow, outOfRange, onTravel }: Props) {
   );
 }
 
+/**
+ * A real station wears its codes, in the liveries of the lines that serve it —
+ * the shorthand every commuter here already reads at a glance.
+ */
+function StationCodes({ sel }: { sel: LocationState }) {
+  const net = getMrtNetwork();
+  const station = net && sel.mrtStationId ? net.byId.get(sel.mrtStationId) : null;
+  if (!net || !station) return null;
+
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-1 text-[11px]">
+      {station.codes.map((code) => (
+        <span
+          key={code}
+          className="rounded px-1.5 py-0.5 font-bold text-black"
+          style={{ background: net.lineByCode.get(code.slice(0, 2))?.color ?? '#9c9890' }}
+        >
+          {code}
+        </span>
+      ))}
+      <span className="truncate text-white/45">
+        {linesAt(net, station)
+          .map((l) => l.name)
+          .join(' · ')}
+      </span>
+    </div>
+  );
+}
+
 function KnownCard({
   sel,
   here,
@@ -79,6 +111,7 @@ function KnownCard({
   energyLow,
   outOfRange,
   canMrt,
+  mrtRoute,
   onTravel,
   onEnter,
   onMrt,
@@ -113,6 +146,8 @@ function KnownCard({
           <span className="rounded bg-white/10 px-2 py-0.5 text-[11px] text-white/50">last seen</span>
         )}
       </div>
+
+      <StationCodes sel={sel} />
 
       {faction && (
         <div
@@ -213,9 +248,12 @@ function KnownCard({
             {canMrt && (
               <button
                 onClick={onMrt}
-                className="w-full rounded border border-astral/40 bg-astral/10 text-astral py-2 text-sm font-semibold hover:bg-astral/20"
+                className="w-full rounded border border-astral/40 bg-astral/10 py-2 text-sm font-semibold text-astral hover:bg-astral/20"
               >
-                <Icon name="action.mrt" /> Ride MRT here (fast · toll)
+                <Icon name="action.mrt" /> Ride the tunnels here
+                <span className="block text-[11px] font-normal text-astral/70">
+                  {mrtRoute ? `${describeRoute(mrtRoute)} · toll` : 'fast · toll'}
+                </span>
               </button>
             )}
           </>

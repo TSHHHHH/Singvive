@@ -34,6 +34,8 @@ export interface SavedRun {
   hour: number;
   items: ItemInstance[];
   kills: number;
+  /** Loaded rounds. Absent on saves from before firearms needed feeding. */
+  rounds?: number;
   usedFallback: boolean;
   exploredArea: ExploredCircle[];
   hordeLevel: number;

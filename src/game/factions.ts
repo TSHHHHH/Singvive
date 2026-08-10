@@ -67,7 +67,9 @@ export const FACTION_CONFIG: Record<Exclude<FactionId, null>, FactionData> = {
     color: '#2bc4d9',
     hostileByDefault: false,
     blurb: 'They keep the tunnels running — for a toll.',
-    tribute: 'canned_food',
+    // A turnstile wants a card. Handing a machine a tin of food never made
+    // sense, and it priced a train ride at a meal.
+    tribute: 'ez_link_card',
     preferredPoiCategories: ['mrt'],
   },
 };

@@ -3,6 +3,7 @@ import type { Rng } from './rng';
 import { haversine, type RawPoi } from './overpass';
 import { POI_CONFIG, POI_CATEGORIES } from './poi';
 import { assignFaction } from './factions';
+import { STATION_MATCH_M, type MrtNetwork } from './mrt';
 
 // With fog of war, undiscovered locations aren't rendered — so the world can
 // be much denser than what's ever on screen at once. Render cost grows only
@@ -71,6 +72,7 @@ export function buildLocations(
   rng: Rng,
   spawn: { lat: number; lng: number },
   raw: RawPoi[],
+  net?: MrtNetwork | null,
 ): LocationState[] {
   const dangerRng = rng.fork('danger');
   const factionRng = rng.fork('faction');
@@ -127,10 +129,66 @@ export function buildLocations(
     .sort((a, b) => a.distanceFromSpawn - b.distanceFromSpawn)
     .slice(0, MAX_LOCATIONS);
 
+  if (net) attachStations(capped, net);
+
   // Bridging runs *after* the cap, and its output is exempt from it: the whole
   // point is the far, sparse edges, which are exactly what the cap trims.
   return bridgeWorld(rng, spawn, capped);
 }
+
+/**
+ * Bind the run's station POIs to the real network.
+ *
+ * OSM maps a big station as several elements (the concourse, each entrance), so
+ * this is matched station-first and one-to-one: each baked station claims its
+ * single nearest unclaimed POI. Whatever is left over stays an ordinary MRT
+ * location — searchable, but not somewhere you can ride from, which is exactly
+ * right for a sealed side entrance.
+ */
+function attachStations(locs: LocationState[], net: MrtNetwork): void {
+  const candidates = locs.filter((l) => l.category === 'mrt');
+  if (candidates.length === 0) return;
+
+  for (const station of net.stations) {
+    let best: LocationState | null = null;
+    let bestD = STATION_MATCH_M;
+    for (const loc of candidates) {
+      if (loc.mrtStationId) continue;
+      const d = haversine(station.lat, station.lng, loc.lat, loc.lng);
+      if (d <= bestD) {
+        best = loc;
+        bestD = d;
+      }
+    }
+    if (!best) continue;
+    best.mrtStationId = station.id;
+    // OSM names range from "Bishan MRT Station" to nothing at all — take the
+    // network's name whenever the POI isn't already carrying it.
+    if (!best.name.toLowerCase().includes(station.name.toLowerCase())) {
+      best.name = `${station.name} Station`;
+    }
+  }
+
+  // Everything left over is a side entrance to a station that's already been
+  // claimed. Say so, rather than leaving three identically-named "Woodleigh"
+  // pins where only one of them takes you anywhere.
+  for (const loc of candidates) {
+    if (loc.mrtStationId) continue;
+    let nearest: string | null = null;
+    let bestD = ENTRANCE_MATCH_M;
+    for (const station of net.stations) {
+      const d = haversine(station.lat, station.lng, loc.lat, loc.lng);
+      if (d <= bestD) {
+        nearest = station.name;
+        bestD = d;
+      }
+    }
+    if (nearest) loc.name = `${nearest} Entrance`;
+  }
+}
+
+/** How far from a station a leftover POI still reads as one of its entrances. */
+const ENTRANCE_MATCH_M = 400;
 
 // ---------------------------------------------------------------------------
 // Connectivity.

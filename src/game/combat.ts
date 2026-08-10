@@ -17,6 +17,7 @@ import type { Rng } from './rng';
 import { environmentCombatMods } from './weather';
 import { itemDef } from './loot';
 import { sumTraitMod } from './character';
+import { effectiveDamage, equipDefenseBonus, isBroken } from './inventory';
 import { energyAttackBonus, energyDodgeBonus, energyFleeDcModifier } from './survival';
 
 const EQUIP_SLOTS: EquipSlot[] = ['head', 'body', 'mainHand', 'offHand'];
@@ -28,6 +29,10 @@ export interface PlayerCombatStats {
   infectionResist: number; // 0..1
   weaponName: string;
   ranged: boolean;
+  /** A firearm being swung as a club because there are no rounds left. */
+  dry?: boolean;
+  /** Rounds one shot burns; 0 for anything that isn't currently a firearm. */
+  roundsPerShot: number;
 }
 
 // ---------------------------------------------------------------- stances --
@@ -306,9 +311,21 @@ export function playerCombatStats(
   traitIds: string[],
   equipment: Equipment,
   armPenalty = 0,
+  rounds = Infinity,
 ): PlayerCombatStats {
-  const weaponDef = equipment.mainHand ? itemDef(equipment.mainHand.defId) : null;
-  const w = weaponDef && weaponDef.effect.kind === 'weapon' ? weaponDef.effect : null;
+  const mainHand = equipment.mainHand;
+  // A weapon worn through to nothing is a lump of metal — it stops counting as
+  // a weapon entirely rather than quietly dealing 45% damage forever.
+  const usableWeapon = mainHand && !isBroken(mainHand) ? mainHand : null;
+  const weaponDef = usableWeapon ? itemDef(usableWeapon.defId) : null;
+  const rawEffect = weaponDef && weaponDef.effect.kind === 'weapon' ? weaponDef.effect : null;
+
+  // Out of ammo: the gun is still the best club you own. It keeps its weight
+  // and its slot, loses its range, its accuracy and most of its damage — which
+  // is what makes a box of ammo worth carrying rather than worth selling.
+  const perShot = rawEffect?.ranged ? (rawEffect.roundsPerShot ?? 1) : 0;
+  const dry = rawEffect?.ranged === true && rounds < perShot;
+  const w = rawEffect && dry ? { ...rawEffect, accuracy: 0, ranged: false } : rawEffect;
 
   let atkBonus = sumTraitMod(traitIds, 'attackMod');
   let defBonus = sumTraitMod(traitIds, 'defenseMod');
@@ -317,21 +334,32 @@ export function playerCombatStats(
     if (!inst) continue;
     const mods = itemDef(inst.defId).modifiers;
     atkBonus += mods?.attackBonus ?? 0;
-    defBonus += mods?.defenseBonus ?? 0;
+    defBonus += equipDefenseBonus(inst);
   }
 
   const attack = attrs.dexterity + (w?.accuracy ?? 0) + atkBonus - armPenalty;
   const defense = 10 + Math.floor(attrs.dexterity / 2) + defBonus;
-  const baseDamage = w ? w.damage : 4; // unarmed
+  let baseDamage = usableWeapon && w ? effectiveDamage(usableWeapon) : 4; // unarmed
+  if (dry) baseDamage = Math.max(4, Math.round(baseDamage * 0.28));
   const damage = baseDamage + Math.floor(attrs.strength / 2);
   const infectionResist = sumTraitMod(traitIds, 'infectionResist');
+  const brokenName = mainHand && isBroken(mainHand) ? itemDef(mainHand.defId).name : null;
+  const weaponName = weaponDef
+    ? dry
+      ? `${weaponDef.name} (empty)`
+      : weaponDef.name
+    : brokenName
+      ? `Fists (${brokenName} broken)`
+      : 'Fists';
   return {
     attack,
     defense,
     damage,
     infectionResist: Math.min(1, Math.max(0, infectionResist)),
-    weaponName: weaponDef?.name ?? 'Fists',
+    weaponName,
     ranged: w?.ranged ?? false,
+    dry,
+    roundsPerShot: dry ? 0 : perShot,
   };
 }
 
@@ -347,6 +375,12 @@ export interface RoundResult {
   timeCostHours: number;
   /** Extra local danger from noise (gunfire in echoing terrain). */
   dangerNoise: number;
+  /** Condition the main-hand weapon lost this round. */
+  weaponWear: number;
+  /** Condition each worn armour piece lost this round. */
+  armorWear: number;
+  /** Ammunition spent — 1 for a shot that actually went off. */
+  roundsSpent: number;
 }
 
 /** Player's effective defence for a round, including stance and terrain. */
@@ -384,6 +418,13 @@ export function resolveRound(
   let infectionGain = 0;
   const defense = effectiveDefense(player, stance, terrain);
   const dangerNoise = player.ranged ? terrain.gunshotDangerMod : 0;
+  // A shot leaves the barrel every round you fight with a loaded firearm —
+  // there is no "aiming" round that costs nothing.
+  const roundsSpent = player.ranged ? player.roundsPerShot : 0;
+  // Swinging costs the weapon something whether or not it connects; landing on
+  // armour costs it more.
+  let weaponWear = 0;
+  let armorWear = 0;
 
   // --- Player attack ---
   const pAtkMod =
@@ -409,6 +450,7 @@ export function resolveRound(
     const soak = stance.ignoresArmor ? 0 : zombie.armor;
     dmg = Math.max(1, dmg - soak);
     zombieHp -= dmg;
+    weaponWear = 1.5 + (zombie.armor > 0 ? 1.5 : 0);
     log.push({
       round,
       tone: 'good',
@@ -422,6 +464,7 @@ export function resolveRound(
       log.push({ round, tone: 'player', text: `You slip the blow past its armour.` });
     }
   } else {
+    weaponWear = 0.8;
     log.push({ round, tone: 'info', text: `Miss — your ${player.weaponName} swings wide.` });
   }
 
@@ -436,6 +479,9 @@ export function resolveRound(
       limbDamageMult: stance.limbDamageMult,
       timeCostHours: stance.timeCostHours,
       dangerNoise,
+      weaponWear,
+      armorWear,
+      roundsSpent,
     };
   }
 
@@ -456,6 +502,8 @@ export function resolveRound(
     } else {
       const dmg = zombie.damage + rng.int(0, 3);
       playerDamage += dmg;
+      // What your armour turned aside, it paid for.
+      armorWear = 0.5 + dmg * 0.15;
       log.push({ round, tone: 'bad', text: `It rakes you for ${dmg} damage.` });
       // infection check on a connecting hit
       const infChance = zombie.infectious * (1 - player.infectionResist);
@@ -486,6 +534,9 @@ export function resolveRound(
     limbDamageMult: stance.limbDamageMult,
     timeCostHours: stance.timeCostHours,
     dangerNoise,
+    weaponWear,
+    armorWear,
+    roundsSpent,
   };
 }
 

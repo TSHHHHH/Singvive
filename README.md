@@ -157,9 +157,22 @@ currency, and the survivor is always moving — the map is explored, not surveye
 - All checks are `d20 + attribute vs DC(current danger)`.
 
 ### 3.8 MRT highway (Transit Coalition)
-- MRT stations are `transit` locations. Between two **cleared** stations you can fast-travel: a
-  **toll event** (1× food) gates a subterranean hop that's **−70% time and ignores weather**. Unpaid =
-  blocked.
+- The **real Singapore rail network** ships with the game (`public/mrt.json`, baked from OSM — see
+  *Refreshing the rail network*): 186 stations, every line in its official livery, with station codes.
+- Station POIs are **bound to the network** at world build: each baked station claims its nearest POI
+  within 220 m and takes its name and codes. Leftover station elements — OSM maps a big station as
+  several — become *"<name> Entrance"*: searchable, but not somewhere you can ride from.
+- **Map overlay.** A *Rail map* toggle on the map draws the whole network — real track geometry, dots
+  per station, code badges from z15 — in its own Leaflet pane **above the fog**. The MRT map is the one
+  thing every commuter here already knows by heart; fog hides what's *inside* a station, never where
+  the line runs. The preference persists like the zoom does.
+- **Riding is line-aware.** A hop needs a **path along the tracks** between two **cleared** stations,
+  routed by Dijkstra over (station, line) pairs with a change penalty — so it prefers fewer changes,
+  and a dogleg through an interchange is priced as one. Cost is distance *along the tunnels* at
+  −70% time, plus 7 min per change; weather and encumbrance are still ignored. Every station the
+  route passes through is discovered. A **toll event** (1× EZ-link card) still gates the turnstile.
+- Without the network file, riding falls back to the old any-two-cleared-stations rule rather than
+  breaking.
 
 ### 3.9 Inventory, equipment & weight
 - **Spatial Tetris grid** (Tarkov-style): items have **W×H footprints**, **rotate**, and drag between
@@ -202,7 +215,7 @@ currency, and the survivor is always moving — the map is explored, not surveye
 |---|---|
 | Framework | React 19 + TypeScript + Vite |
 | Map | Leaflet + react-leaflet, **CARTO "Dark Matter"** tiles (keyless, retina `@2x`, native z20; Stadia + Esri kept in `tileConfig.ts` as alternatives), canvas renderer + custom fog overlay |
-| Real data | OpenStreetMap, pre-baked to `public/pois.json` via `npm run bake:pois`; live Overpass as fallback |
+| Real data | OpenStreetMap, pre-baked to `public/pois.json` via `npm run bake:pois`; live Overpass as fallback. Rail network baked separately to `public/mrt.json` via `npm run bake:mrt` |
 | State | Zustand (single store) |
 | Inventory DnD | Custom pointer-drag over a cell grid (backpack ↔ stash ↔ equipment slots) |
 | Determinism | `seedrandom`, wrapped in a forkable `Rng` |
@@ -248,7 +261,30 @@ Rewrites `public/pois.json` — ~8.6k POIs, **1.0 MB raw / 0.20 MB gzipped**, in
 is **not** part of `npm run build` — a flaky Overpass should never break a deploy. Run it manually for
 fresher OSM data, then commit the result.
 
-Two things keep it fast, and both are load-bearing:
+### Refreshing the rail network
+
+```bash
+npm run bake:mrt
+```
+
+Rewrites `public/mrt.json` — 186 stations and 12 lines, ~63 KB, in well under a minute. Same rules as
+the POI bake: manual, committed, never part of `npm run build`.
+
+Topology comes from the **station codes**, not from stitching OSM route relations into a path: NS1..NS28
+is an ordered line by construction. The relations are used for exactly two things — the track polylines
+the overlay draws, and deciding which lines are actually *open* (a `construction=*` route relation means
+its stations stay off the map, which is what keeps the unbuilt Jurong Region and Cross Island lines out).
+Branches and the LRT loops are declared in the `CHAINS` table at the top of the script.
+
+Two traps, both already paid for:
+
+- `out geom tags` on a relation silently returns **zero members**. The `tags` modifier switches Overpass
+  to a tags-only print. It must be `out geom`.
+- MRT/LRT interchanges (Choa Chu Kang, Sengkang, Punggol) are two OSM stations sharing a name and a
+  building but *no* station code, so code-merging alone leaves the LRT loops unreachable. Same-named
+  stations within 400 m are folded together.
+
+Two things keep the POI bake fast, and both are load-bearing:
 
 - **Two whole-island queries, not per-cell tiling.** Overpass costs scale with *statement count*, not
   area. An earlier version tiled the island into 40 cells with one `nwr` per tag — 640 index scans —
