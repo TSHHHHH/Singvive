@@ -162,14 +162,18 @@ export function tickMeters(
   effectiveMaxHp: number,
   hours: number,
   bleedDrain = 0,
-  opts: { sleeping?: boolean } = {},
+  opts: { sleeping?: boolean; thirstMult?: number; energyMult?: number } = {},
 ): Meters {
   const mult = opts.sleeping ? SLEEP_DEPLETION_MULT : 1;
+  // Environmental multipliers (a heat wave, today) stack on top of the sleep
+  // rate — sweating through a nap still costs you water, just less of it.
+  const envThirst = opts.thirstMult ?? 1;
+  const envEnergy = opts.energyMult ?? 1;
   const hunger = clampMeter(meters.hunger - DEPLETION_PER_HOUR.hunger * hours * mult);
-  const thirst = clampMeter(meters.thirst - DEPLETION_PER_HOUR.thirst * hours * mult);
+  const thirst = clampMeter(meters.thirst - DEPLETION_PER_HOUR.thirst * hours * mult * envThirst);
   // A dry survivor burns through their reserves faster on the move; asleep, the
   // body is idling, so the active-drain penalty doesn't apply.
-  const energyMult = opts.sleeping ? mult : activeEnergyDrainMultiplier(meters.thirst);
+  const energyMult = (opts.sleeping ? mult : activeEnergyDrainMultiplier(meters.thirst)) * envEnergy;
   const energy = clampMeter(meters.energy - DEPLETION_PER_HOUR.energy * hours * energyMult);
 
   // Running empty no longer kills outright — it grinds HP down, so the run ends

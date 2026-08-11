@@ -56,6 +56,13 @@ export type IconName =
   | 'hdb.trader'
   | 'hdb.doctor'
   | 'hdb.bunk'
+  // --- MRT tunnel run ---
+  | 'tunnel.platform'
+  | 'tunnel.pack'
+  | 'tunnel.scavenge'
+  | 'tunnel.settlement'
+  | 'tunnel.hazard'
+  | 'tunnel.unknown'
   // --- actions / chrome ---
   | 'action.sleep'
   | 'action.inventory'
@@ -84,6 +91,7 @@ export type IconName =
   | 'weather.rain'
   | 'weather.thunderstorm'
   | 'weather.haze'
+  | 'weather.heat'
   | 'time.day'
   | 'time.dusk'
   | 'time.night'
@@ -245,6 +253,12 @@ export const EMOJI_FALLBACK: Record<IconName, string> = {
   'hdb.trader': '🧺',
   'hdb.doctor': '🩺',
   'hdb.bunk': '🛏️',
+  'tunnel.platform': '🚉',
+  'tunnel.pack': '🧟',
+  'tunnel.scavenge': '🧰',
+  'tunnel.settlement': '🔦',
+  'tunnel.hazard': '🌊',
+  'tunnel.unknown': '❔',
 
   'action.sleep': '😴',
   'action.inventory': '🎒',
@@ -273,6 +287,7 @@ export const EMOJI_FALLBACK: Record<IconName, string> = {
   'weather.rain': '🌧️',
   'weather.thunderstorm': '⛈️',
   'weather.haze': '🌫️',
+  'weather.heat': '🥵',
   'time.day': '☀️',
   'time.dusk': '🌆',
   'time.night': '🌙',

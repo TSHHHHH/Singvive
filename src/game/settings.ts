@@ -56,6 +56,19 @@ export const SETTINGS_SCHEMA: SettingDef[] = [
     options: LOG_VIEW_MODES.map((m) => ({ value: m.id, label: m.label })),
     default: 'recent10',
   },
+  {
+    key: 'weatherFx',
+    label: 'Weather effects',
+    description:
+      'Rain, glare and haze drawn over the map. Purely visual — costs GPU fill rate, so it is off unless you ask for it.',
+    group: 'Display',
+    options: [
+      { value: 'off', label: 'Off' },
+      { value: 'subtle', label: 'Subtle' },
+      { value: 'full', label: 'Full' },
+    ],
+    default: 'off',
+  },
 ];
 
 const STORAGE_KEY = 'singvive.settings.v1';
@@ -74,16 +87,34 @@ function loadSettings(): Record<string, string> {
   return defaults();
 }
 
+/** Keys the player has actually set, as opposed to keys sitting on their
+ *  default. Lets a setting distinguish "they chose this" from "nobody's said" —
+ *  which is how an explicit choice gets to override an OS hint. */
+function loadExplicit(): Record<string, true> {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as Record<string, string>;
+      return Object.fromEntries(Object.keys(parsed).map((k) => [k, true as const]));
+    }
+  } catch {
+    /* ignore */
+  }
+  return {};
+}
+
 interface SettingsState {
   values: Record<string, string>;
+  explicit: Record<string, true>;
   setSetting: (key: string, value: string) => void;
 }
 
 export const useSettings = create<SettingsState>((set, get) => ({
   values: loadSettings(),
+  explicit: loadExplicit(),
   setSetting: (key, value) => {
     const values = { ...get().values, [key]: value };
-    set({ values });
+    set({ values, explicit: { ...get().explicit, [key]: true } });
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(values));
     } catch {
@@ -97,4 +128,9 @@ export function useSetting(key: string): string {
   return useSettings(
     (s) => s.values[key] ?? SETTINGS_SCHEMA.find((d) => d.key === key)?.default ?? '',
   );
+}
+
+/** True once the player has picked this setting themselves. */
+export function useSettingIsExplicit(key: string): boolean {
+  return useSettings((s) => s.explicit[key] === true);
 }

@@ -15,8 +15,12 @@ export interface FactionData {
   /** Hostile factions fight when negotiations fail; others just block access. */
   hostileByDefault: boolean;
   blurb: string;
-  /** What they demand at a shakedown/toll (item def id). */
-  tribute: string;
+  /**
+   * What they'll take at a shakedown or a toll, in order of preference. Any one
+   * of them settles it — a gate that accepts exactly one item def is a gate
+   * that's shut most of the time.
+   */
+  tribute: string[];
   /** Where they set up shop — drives seeded territory assignment. */
   preferredPoiCategories: PoiCategory[];
 }
@@ -30,7 +34,7 @@ export const FACTION_CONFIG: Record<Exclude<FactionId, null>, FactionData> = {
     color: '#9fb4c4',
     hostileByDefault: false,
     blurb: 'What is left of the standing order — armouries, clinics, checkpoints. Orderly, but they tax entry.',
-    tribute: 'ammo_box',
+    tribute: ['ammo_box', 'medkit', 'batteries'],
     // Schools were the designated shelters when it fell — so they were theirs
     // to hold, and mostly still are.
     preferredPoiCategories: ['police', 'hospital', 'school'],
@@ -43,7 +47,7 @@ export const FACTION_CONFIG: Record<Exclude<FactionId, null>, FactionData> = {
     color: '#cfccc4',
     hostileByDefault: false,
     blurb: 'The old wholesale traders run the food chain now. Pay in supplies and they let you dig in.',
-    tribute: 'canned_food',
+    tribute: ['canned_food', 'hawker_meal', 'water_bottle'],
     preferredPoiCategories: ['foodcourt', 'supermarket', 'convenience'],
   },
   syndicate_88: {
@@ -54,7 +58,7 @@ export const FACTION_CONFIG: Record<Exclude<FactionId, null>, FactionData> = {
     color: '#d92d2d',
     hostileByDefault: true,
     blurb: 'Void-deck muscle turned estate warlords. They take what they want.',
-    tribute: 'jewellery',
+    tribute: ['jewellery', 'tiger_beer', 'painkillers'],
     // Estates first, but the Jurong yards are where the materials are — and
     // muscle follows materials.
     preferredPoiCategories: ['residential', 'hardware', 'industrial'],
@@ -67,16 +71,24 @@ export const FACTION_CONFIG: Record<Exclude<FactionId, null>, FactionData> = {
     color: '#2bc4d9',
     hostileByDefault: false,
     blurb: 'They keep the tunnels running — for a toll.',
-    // A turnstile wants a card. Handing a machine a tin of food never made
-    // sense, and it priced a train ride at a meal.
-    tribute: 'ez_link_card',
+    // A card first, because a turnstile wants a card. But the marshal on the
+    // gate is a person standing in a dark tunnel, and a person will take a
+    // working torch or a set of cells — gating passage on one uncommon item
+    // meant the tunnels were shut to anyone who hadn't found that item yet.
+    tribute: ['ez_link_card', 'batteries', 'torch', 'canned_food'],
     preferredPoiCategories: ['mrt'],
   },
 };
 
-/** Odds a preferred site is actually claimed, per faction. */
+/**
+ * Odds a preferred site is actually claimed, per faction.
+ *
+ * The STA used to hold *every* station, which made the toll a fixed tax on
+ * every descent rather than a thing that happens sometimes. Roughly half the
+ * platforms now stand empty — nobody on the gate, nothing to pay.
+ */
 const CLAIM_CHANCE: Record<Exclude<FactionId, null>, number> = {
-  sta: 1,
+  sta: 0.55,
   pasir_panjang: 0.7,
   idtf: 0.8,
   syndicate_88: 0.4,

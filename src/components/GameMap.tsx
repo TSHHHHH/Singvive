@@ -1,6 +1,7 @@
 import { MapContainer, TileLayer, Marker, Circle, Polygon, useMap, useMapEvents } from 'react-leaflet';
 import { Fragment, memo, useEffect, useRef, useState } from 'react';
-import type { Poi } from '../game/types';
+import type { Poi, TimeOfDay, WeatherKind } from '../game/types';
+import { WeatherFx } from './WeatherFx';
 import { poiIcon, playerIcon, unknownIcon, evacIcon, dangerColor } from './mapIcons';
 import {
   TILE_ATTRIBUTION,
@@ -169,6 +170,9 @@ interface Props {
   vitals: { exhausted: boolean; infected: boolean };
   /** hazard pockets the survivor can currently sense */
   hazards: HazardZone[];
+  /** today's sky — drives the cosmetic weather overlay only */
+  weather: WeatherKind;
+  time: TimeOfDay;
   /** open-ground spot the player is considering crossing to */
   trekTarget: { lat: number; lng: number } | null;
   onSelect: (poi: Poi) => void;
@@ -229,6 +233,8 @@ function GameMapInner({
   noisePulses,
   vitals,
   hazards,
+  weather,
+  time,
   trekTarget,
   onSelect,
   onPickGround,
@@ -428,6 +434,9 @@ function GameMapInner({
           </div>
         </div>
       )}
+
+      {/* ---- the sky, over everything on the map but under the chrome ---- */}
+      <WeatherFx kind={weather} time={time} />
 
       {/* ---- diegetic vignettes: the frame tells you how bad it is ---- */}
       {vitals.infected && (

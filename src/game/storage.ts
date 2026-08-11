@@ -11,6 +11,7 @@ import type {
 } from './types';
 import type { ExploredCircle } from './fog';
 import type { HdbDungeon } from './hdbDungeon';
+import type { TunnelRun } from './tunnelRun';
 import type { EventClock } from './store';
 import type { FactionStanding } from './events';
 import { migrateFactionId } from './factions';
@@ -43,6 +44,14 @@ export interface SavedRun {
   evacDeadline: number | null;
   /** Explored HDB blocks, so a cleared unit stays cleared between visits. */
   hdbBlocks?: Record<string, HdbDungeon>;
+  /**
+   * The tunnel segment being walked right now, node graph and all. Saved live
+   * rather than cached per segment: the player's position doesn't move until
+   * they surface, so dropping this on reload would refund the rest of the walk.
+   */
+  tunnel?: TunnelRun | null;
+  /** Run counter behind every tunnel rng key. @see TunnelRun.seq */
+  tunnelSeq?: number;
   /** Doorway-event rate limiter, so reloading can't farm encounters. */
   eventClock?: EventClock;
   /** How each faction feels about you. Absent on saves from before standing. */

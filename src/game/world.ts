@@ -190,6 +190,45 @@ function attachStations(locs: LocationState[], net: MrtNetwork): void {
 /** How far from a station a leftover POI still reads as one of its entrances. */
 const ENTRANCE_MATCH_M = 400;
 
+/**
+ * A station the rail network knows but the world doesn't hold — the far end of
+ * a tunnel that runs off the edge of everything you've scavenged.
+ *
+ * This is the fallback, not the normal path: expanding the world around the
+ * station usually turns up its real OSM POI first. It only stands one up when
+ * the bake genuinely has nothing there, so that a tunnel always has an end.
+ */
+export function makeStationLocation(
+  rng: Rng,
+  spawn: { lat: number; lng: number },
+  station: { id: string; name: string; lat: number; lng: number },
+): LocationState {
+  const r = rng.fork(`station:${station.id}`);
+  const baseDanger = Math.max(1, Math.min(5, POI_CONFIG.mrt.baseDanger + r.int(-1, 1)));
+  return {
+    id: `mrt/${station.id}`,
+    name: `${station.name} Station`,
+    category: 'mrt',
+    lat: station.lat,
+    lng: station.lng,
+    size: 'small',
+    baseDanger,
+    currentDanger: baseDanger,
+    remainingSearches: SEARCHES_BY_SIZE.small,
+    exhausted: false,
+    cleared: false,
+    looted: false,
+    // Every platform is STA ground; assignFaction says so at 100% for `mrt`.
+    factionId: assignFaction(r.fork('faction'), 'mrt'),
+    isFactionRevealed: false,
+    isMrtStation: true,
+    mrtStationId: station.id,
+    discovered: false,
+    lastSeen: null,
+    distanceFromSpawn: Math.round(haversine(spawn.lat, spawn.lng, station.lat, station.lng)),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Connectivity.
 //

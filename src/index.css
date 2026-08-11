@@ -117,6 +117,247 @@ body {
   box-shadow: inset 0 0 110px 40px rgba(127, 178, 196, 0.35);
 }
 
+/* ---------- weather FX (see components/WeatherFx.tsx) ----------
+   Every layer below animates `transform` or `opacity` and nothing else, so it
+   is promoted to its own compositor layer and the Leaflet canvas underneath is
+   never repainted.
+
+   Fill rate is the real cost of an overlay like this, so two rules:
+     · only the layers that actually MOVE are oversized and promoted. A static
+       tint needs neither — it can sit exactly on the viewport and skip its own
+       compositor texture entirely.
+     · the overscan is a fixed 380px, not a percentage. -60% made every layer
+       220% x 220% of the viewport = ~4.8x the screen area rasterised and
+       blended per frame, per layer. 380px covers the largest rotation margin
+       (~195px at 9deg) plus the longest travel (232px) with room to spare, and
+       costs a fraction of that. */
+.wx-root {
+  contain: strict;
+}
+.wx-root > div {
+  position: absolute;
+  inset: 0;
+}
+.wx-rain-back,
+.wx-rain-front,
+.wx-heat-shimmer,
+.wx-sun-rays,
+.wx-haze-drift {
+  inset: -380px;
+  will-change: transform;
+  backface-visibility: hidden;
+}
+.wx-flash {
+  will-change: opacity;
+}
+
+/* Rain: two sheets of discrete streaks at different scales and speeds, which
+   reads as depth without a single particle.
+
+   Built from two crossed gradients, because one alone can only draw unbroken
+   pinstripes — a hatch, not rain:
+     · background = evenly spaced vertical lines (the columns rain falls in)
+     · mask       = tapered horizontal dashes (which slice those lines into
+                    individual streaks with soft ends)
+   The slant is a `rotate` on the layer itself, NOT a gradient angle, so the
+   background stays perfectly vertical in local space. That matters: a vertical
+   line pattern is unchanged by a vertical shift, so only the mask's period has
+   to be travelled for a seamless loop — and there is no angled tile left to
+   leave horizontal seams across the frame. */
+@keyframes wx-fall-back {
+  from {
+    transform: rotate(3deg) translate3d(0, 0, 0);
+  }
+  to {
+    transform: rotate(3deg) translate3d(0, 168px, 0);
+  }
+}
+@keyframes wx-fall-front {
+  from {
+    transform: rotate(5deg) translate3d(0, 0, 0);
+  }
+  to {
+    transform: rotate(5deg) translate3d(0, 232px, 0);
+  }
+}
+.wx-rain-back,
+.wx-rain-front {
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+/* far sheet: fine, sparse, dim */
+.wx-rain-back {
+  animation-name: wx-fall-back;
+  animation-duration: 0.85s;
+  background-image: repeating-linear-gradient(
+    to right,
+    rgba(196, 218, 228, 0.3) 0 1px,
+    transparent 1px 27px
+  );
+  mask-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0 4px,
+    rgba(0, 0, 0, 0.85) 15px 27px,
+    transparent 38px 168px
+  );
+  -webkit-mask-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0 4px,
+    rgba(0, 0, 0, 0.85) 15px 27px,
+    transparent 38px 168px
+  );
+}
+
+/* near sheet: longer, brighter, fewer — the streaks you actually read */
+.wx-rain-front {
+  animation-name: wx-fall-front;
+  animation-duration: 0.5s;
+  background-image: repeating-linear-gradient(
+    to right,
+    rgba(226, 240, 246, 0.42) 0 1.5px,
+    transparent 1.5px 63px
+  );
+  mask-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0 6px,
+    rgba(0, 0, 0, 0.9) 22px 44px,
+    transparent 62px 232px
+  );
+  -webkit-mask-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0 6px,
+    rgba(0, 0, 0, 0.9) 22px 44px,
+    transparent 62px 232px
+  );
+}
+
+/* Storm flash: a rare, off-rhythm blanching of the whole frame. */
+@keyframes wx-flash {
+  0%,
+  92%,
+  100% {
+    opacity: 0;
+  }
+  93% {
+    opacity: 0.5;
+  }
+  94.5% {
+    opacity: 0.08;
+  }
+  96% {
+    opacity: 0.38;
+  }
+}
+.wx-flash {
+  background: radial-gradient(ellipse at 62% 12%, #dce9f0 0%, rgba(220, 233, 240, 0.25) 55%, transparent 78%);
+  opacity: 0;
+  animation: wx-flash 9s linear infinite;
+}
+
+/* Haze: warm particulate soup, drifting laterally. */
+@keyframes wx-drift {
+  to {
+    transform: translate3d(12%, 0, 0);
+  }
+}
+.wx-haze {
+  background: linear-gradient(to bottom, rgba(196, 172, 130, 0.22), rgba(160, 140, 108, 0.12));
+}
+.wx-haze-drift {
+  background: radial-gradient(
+      ellipse 40% 30% at 25% 40%,
+      rgba(214, 196, 158, 0.16),
+      transparent 70%
+    ),
+    radial-gradient(ellipse 35% 25% at 72% 62%, rgba(198, 180, 145, 0.14), transparent 70%);
+  animation: wx-drift 34s ease-in-out infinite alternate;
+}
+
+/* Overcast: a flat, static press of grey. Nothing moves — nothing needs to. */
+.wx-overcast {
+  background: linear-gradient(to bottom, rgba(28, 32, 38, 0.3), rgba(20, 24, 30, 0.16));
+}
+
+/* Clear noon: equatorial glare. A static warm wash plus a slowly wheeling fan
+   of god-rays anchored off the top-right corner. */
+.wx-sun-wash {
+  background: radial-gradient(
+    ellipse 70% 55% at 82% 6%,
+    rgba(255, 226, 150, 0.26),
+    rgba(255, 210, 130, 0.08) 45%,
+    transparent 72%
+  );
+}
+@keyframes wx-wheel {
+  to {
+    transform: rotate(9deg);
+  }
+}
+.wx-sun-rays {
+  background: repeating-conic-gradient(
+    from 168deg at 82% 6%,
+    rgba(255, 232, 168, 0.13) 0deg 3deg,
+    transparent 3deg 11deg
+  );
+  mask-image: radial-gradient(ellipse 75% 60% at 82% 6%, #000 10%, transparent 70%);
+  -webkit-mask-image: radial-gradient(ellipse 75% 60% at 82% 6%, #000 10%, transparent 70%);
+  animation: wx-wheel 24s ease-in-out infinite alternate;
+}
+
+/* Heat wave: a flat furnace tint, a white-hot bloom off the top of the frame,
+   and bands of air rising off the concrete. The shimmer travels exactly one
+   band, same seamless-loop rule as the rain. */
+.wx-heat-haze {
+  background: linear-gradient(to bottom, rgba(255, 168, 82, 0.16), rgba(214, 116, 60, 0.2));
+}
+.wx-heat-glare {
+  background: radial-gradient(
+    ellipse 90% 45% at 60% 0%,
+    rgba(255, 244, 214, 0.34),
+    rgba(255, 206, 128, 0.12) 40%,
+    transparent 70%
+  );
+}
+@keyframes wx-rise {
+  to {
+    transform: translate3d(0, -26px, 0);
+  }
+}
+.wx-heat-shimmer {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 236, 200, 0.07) 0 3px,
+    transparent 3px 13px,
+    rgba(255, 226, 178, 0.05) 13px 15px,
+    transparent 15px 26px
+  );
+  background-size: 100% 26px;
+  /* strongest along the ground, gone by the top of the frame */
+  mask-image: linear-gradient(to top, #000 0%, transparent 62%);
+  -webkit-mask-image: linear-gradient(to top, #000 0%, transparent 62%);
+  animation: wx-rise 2.8s linear infinite;
+}
+
+/* Phones: drop the second, denser sheet — one layer carries the read fine and
+   halves the compositor's fill cost on the weakest GPUs. */
+@media (max-width: 767px) {
+  .wx-rain-front,
+  .wx-haze-drift,
+  .wx-heat-shimmer,
+  .wx-sun-rays {
+    display: none;
+  }
+}
+
+/* Reduced motion is handled in WeatherFx.tsx, not here: freezing a rain sheet
+   leaves a static hatch over the whole map, which is uglier than the motion it
+   spares you. The component swaps in these still tints instead — and an
+   explicit choice in Settings overrides the OS hint. */
+.wx-wet-still {
+  background: linear-gradient(to bottom, rgba(120, 148, 168, 0.16), rgba(70, 92, 112, 0.2));
+}
+
 /* An expanding ring of noise leaving the player. */
 @keyframes noise-ring {
   from {

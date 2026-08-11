@@ -154,6 +154,23 @@ export const TERRAIN: Record<TerrainId, TerrainModifier> = {
     ambushRateMod: 0,
     gunshotDangerMod: 1,
   },
+  /**
+   * A running tunnel, not a station hall: one train wide, nowhere to sidestep
+   * and nowhere to break for. Cover is total and useless at the same time —
+   * you can put your back to a wall, but a rifle in here is a bad idea and
+   * there is no direction to run that isn't the way they're coming.
+   */
+  tunnel_bore: {
+    id: 'tunnel_bore',
+    name: 'Tunnel Bore',
+    defenseMod: 2,
+    dodgeMod: -0.1,
+    fleeDcMod: 3,
+    meleeAccuracyMod: 1,
+    rangedAccuracyMod: -1,
+    ambushRateMod: 0.15,
+    gunshotDangerMod: 2,
+  },
   open_ground: {
     id: 'open_ground',
     name: 'Open Ground',
@@ -235,6 +252,30 @@ export function makeBlockHunter(rng: Rng, danger: number): Enemy {
     damage: BLOCK_HUNTER.dmg,
     infectious: BLOCK_HUNTER.inf,
     armor: BLOCK_HUNTER.armor,
+  };
+}
+
+/**
+ * The other end of the same idea, for tunnels: unreachable by any danger roll,
+ * and only ever what a bore sends once the pressure gauge is pinned. Faster and
+ * meaner than the block hulk, and less armoured — it has been running the
+ * tunnels a long time.
+ */
+const TUNNEL_STALKER = { name: 'Tunnel Stalker', hp: 92, atk: 7, def: 4, dmg: 22, inf: 0.5, armor: 2 };
+
+export function makeTunnelStalker(rng: Rng, danger: number): Enemy {
+  const r = rng.fork('stalker');
+  const hp = TUNNEL_STALKER.hp + danger * 5 + r.int(-8, 8);
+  return {
+    name: TUNNEL_STALKER.name,
+    kind: 'zombie',
+    hp,
+    maxHp: hp,
+    attack: TUNNEL_STALKER.atk,
+    defense: TUNNEL_STALKER.def,
+    damage: TUNNEL_STALKER.dmg,
+    infectious: TUNNEL_STALKER.inf,
+    armor: TUNNEL_STALKER.armor,
   };
 }
 

@@ -5,9 +5,9 @@ import { haversine } from './overpass';
  * public/mrt.json.
  *
  * Two things use it. The map overlay draws it — real track geometry, official
- * liveries, station codes. And tunnel travel routes over it: riding the MRT is
- * no longer "teleport between any two cleared stations", it's a path along the
- * lines, which means a dogleg through an interchange costs what a dogleg costs.
+ * liveries, station codes. And travel walks it: no train has run in months, so
+ * a trip is one segment of tunnel between two *adjacent* stations, on foot.
+ * `neighbours` is therefore the load-bearing query here, not `findRoute`.
  */
 
 export interface MrtStation {
@@ -213,6 +213,59 @@ export function stationColor(net: MrtNetwork, station: MrtStation): string {
   return linesAt(net, station)[0]?.color ?? '#9c9890';
 }
 
+/** The line to *name* — a branch answers with its parent. @see linesAt */
+export function displayLine(net: MrtNetwork, line: MrtLine): MrtLine {
+  return (line.parent ? net.lineByCode.get(line.parent) : null) ?? line;
+}
+
+/** One tunnel segment: the next station down the line, and how far it is. */
+export interface MrtSegment {
+  station: MrtStation;
+  line: MrtLine;
+  /** Distance along the tunnel between the two platforms. */
+  meters: number;
+}
+
+/**
+ * The stations one stop away. This is the whole of what travel needs now:
+ * nothing runs, so you walk a single segment at a time.
+ *
+ * Two stations can be joined by more than one line (a branch overlaps its
+ * trunk at the junction); the shortest wins, since that's the tunnel you'd
+ * actually walk.
+ */
+export function neighbours(net: MrtNetwork, stationId: string): MrtSegment[] {
+  const out = new Map<string, MrtSegment>();
+  for (const edge of net.adjacency.get(stationId) ?? []) {
+    const station = net.byId.get(edge.to);
+    const line = net.lineByCode.get(edge.line);
+    if (!station || !line) continue;
+    const seen = out.get(edge.to);
+    if (seen && seen.meters <= edge.meters) continue;
+    out.set(edge.to, { station, line, meters: Math.round(edge.meters) });
+  }
+  return [...out.values()].sort((a, b) => a.meters - b.meters);
+}
+
+/** The segment joining two stations, or null if they aren't neighbours. */
+export function adjacentEdge(
+  net: MrtNetwork,
+  fromId: string,
+  toId: string,
+): MrtSegment | null {
+  return neighbours(net, fromId).find((n) => n.station.id === toId) ?? null;
+}
+
+/** As `adjacentEdge`, for two locations — null unless both are known stations. */
+export function tunnelSegmentBetween(
+  from: { mrtStationId?: string },
+  to: { mrtStationId?: string },
+): MrtSegment | null {
+  const net = cached;
+  if (!net || !from.mrtStationId || !to.mrtStationId) return null;
+  return adjacentEdge(net, from.mrtStationId, to.mrtStationId);
+}
+
 /**
  * Shortest ride from one station to another, in tunnel distance with a penalty
  * per line change so the search prefers the route with fewer changes when two
@@ -299,9 +352,11 @@ export function findRoute(net: MrtNetwork, fromId: string, toId: string): MrtRou
 
 /**
  * The ride between two locations, or null if either isn't a station the network
- * knows, the network isn't loaded, or no line connects them. Callers treat a
- * null as "can't ride" only when the network is actually loaded — see
- * getMrtNetwork().
+ * knows, the network isn't loaded, or no line connects them.
+ *
+ * Nothing travels along a whole route any more — you walk one segment at a
+ * time. This survives for orientation only: it's how the location card tells
+ * you a station is seven stops down the line rather than saying nothing.
  */
 export function mrtRouteBetween(
   from: { mrtStationId?: string },
@@ -310,15 +365,4 @@ export function mrtRouteBetween(
   const net = cached;
   if (!net || !from.mrtStationId || !to.mrtStationId) return null;
   return findRoute(net, from.mrtStationId, to.mrtStationId);
-}
-
-/** "6 stops · 1 change at City Hall" — the one-line ride summary. */
-export function describeRoute(route: MrtRoute): string {
-  const stops = `${route.stops} stop${route.stops === 1 ? '' : 's'}`;
-  if (route.changes === 0) return stops;
-  const at = route.legs
-    .slice(0, -1)
-    .map((l) => l.to.name)
-    .join(', ');
-  return `${stops} · ${route.changes} change${route.changes === 1 ? '' : 's'} at ${at}`;
 }

@@ -110,7 +110,8 @@ export interface EventChoice {
   kind: ChoiceKind;
   attr?: AttributeKey; // for 'check'
   dc?: number;
-  itemId?: string; // for 'pay'
+  /** For 'pay': any one of these settles it, preferred first. */
+  itemIds?: string[];
   /** Applied when the check passes, the item is handed over, or there's no roll. */
   onSuccess: EventEffect[];
   /** Applied when the check fails or the price can't be met. */
@@ -338,7 +339,7 @@ function buildShakedown(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent 
   const dc = dcFor(loc.currentDanger);
   const faction = loc.factionId as Exclude<FactionId, null>;
   const cfg = FACTION_CONFIG[faction];
-  const tribute = itemDef(cfg.tribute);
+  const tribute = itemDef(cfg.tribute[0]);
   const hostile = factionIsHostile(faction, ctx.standing);
   const { tell, text } = prose(rng, 'faction_shakedown', ctx, {
     name: loc.name,
@@ -356,8 +357,8 @@ function buildShakedown(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent 
       {
         id: 'pay',
         kind: 'pay',
-        itemId: cfg.tribute,
-        label: `Pay 1× ${tribute.name}`,
+        itemIds: cfg.tribute,
+        label: `Pay ${priceList(cfg.tribute)}`,
         // Coin buys goodwill, and goodwill is the thing that compounds.
         onSuccess: [
           { t: 'standing', delta: 1 },
@@ -454,8 +455,9 @@ function buildSurvivor(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
       {
         id: 'give',
         kind: 'pay',
-        itemId: 'water_bottle',
-        label: 'Give 1× Bottled Water',
+        // Thirst first, but someone this far gone will take a tin.
+        itemIds: ['water_bottle', 'isotonic', 'canned_food'],
+        label: 'Give 1× Bottled Water, Isotonic Drink or Canned Food',
         // Kindness costs a bottle and buys you what they know about the place.
         onSuccess: [
           settled,
@@ -623,8 +625,8 @@ function buildTap(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
       {
         id: 'trade',
         kind: 'pay',
-        itemId: 'canned_food',
-        label: 'Trade 1× Canned Food for a fill',
+        itemIds: ['canned_food', 'snacks', 'hawker_meal'],
+        label: 'Trade food for a fill',
         onSuccess: [
           { t: 'gain', defId: 'water_bottle', count: 2 },
           { t: 'gain', defId: 'isotonic' },
@@ -765,21 +767,23 @@ export function rollPreScavengeEvent(
   return BUILDERS[rng.weighted(cands)](rng, loc, ctx);
 }
 
-/** The MRT toll gate event when using fast travel. */
+/** The turnstile between a manned platform and the tunnel below it. */
 export function mrtTollEvent(): GameEvent {
-  const tribute = itemDef(FACTION_CONFIG.sta.tribute);
+  const accepted = FACTION_CONFIG.sta.tribute;
   return {
     kind: 'mrt_toll',
     factionId: 'sta',
     title: 'STA Turnstile Toll',
     tell: 'The turnstiles are manned.',
-    text: `An STA marshal bars the turnstile. "Tunnel's not free — one ${tribute.name} for passage."`,
+    text:
+      'An STA marshal has the gate chained at waist height. "Tunnel\'s not free. ' +
+      `Card, cells, a torch, a tin — I'm not fussy. One of them and you're through."`,
     choices: [
       {
         id: 'pay',
         kind: 'pay',
-        itemId: FACTION_CONFIG.sta.tribute,
-        label: `Pay 1× ${tribute.name}`,
+        itemIds: accepted,
+        label: `Pay ${priceList(accepted)}`,
         onSuccess: [{ t: 'standing', delta: 1 }, { t: 'access' }],
         onFailure: [{ t: 'deny', line: 'No fare, no tunnel. You take the stairs back up.' }],
       },
@@ -798,6 +802,13 @@ export interface CheckResult {
   total: number;
   dc: number;
   success: boolean;
+}
+
+/** "1× EZ-Link Card, batteries or a torch" — what a gate will settle for. */
+export function priceList(defIds: string[]): string {
+  const names = defIds.map((id) => itemDef(id).name);
+  if (names.length === 1) return `1× ${names[0]}`;
+  return `1× ${names.slice(0, -1).join(', ')} or ${names[names.length - 1]}`;
 }
 
 /** Resolve an attribute check: d20 + attribute vs DC (natural 20 always passes). */

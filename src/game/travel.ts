@@ -6,7 +6,6 @@ import { HOURS_PER_DAY, travelSpeedMultiplier } from './survival';
 // Cautious on-foot pace through a ruined city.
 const BASE_SPEED_M_PER_MIN = 72; // ~4.3 km/h
 export const ENCUMBERED_TRAVEL_MULT = 1.5;
-export const MRT_TIME_FACTOR = 0.3; // subterranean shortcut: −70%
 
 // Straight-line distance badly understates a real trek through a collapsed city
 // — blocked roads, rubble, detours around the dead. Stretch overland travel time
@@ -86,29 +85,22 @@ export function estimateExpedition(
 }
 
 /**
- * Changing line costs more than the concourse walk: stairs, a wrong turn in an
- * unlit interchange, the far platform's turnstiles.
- */
-export const MRT_CHANGE_MIN = 7;
-
-/**
- * Subterranean MRT hop: −70% time, ignores weather and encumbrance.
+ * Walking one tunnel segment, platform to platform.
  *
- * `distanceM` is distance *along the tunnels* when the rail network is loaded
- * (see game/mrt.ts) rather than the straight line between the two stations, so
- * a route that doubles back through an interchange is priced like one.
+ * No train, so no discount — `distanceM` is the real distance along the bore
+ * and you cover it on foot. What the tunnel buys you is what it *doesn't*
+ * charge: no weather, no encumbrance penalty, and none of URBAN_DECAY_DETOUR,
+ * because a bore is straight and the streets above it are not.
  */
-export function estimateMrtTravel(
+export function estimateTunnelWalk(
   distanceM: number,
   attrs: Attributes,
   energy: number,
   currentHour: number,
   legFactor = 1,
-  changes = 0,
 ): { travelMin: number; totalHours: number; arrivalHour: number } {
   const speed = walkSpeed(attrs, energy, legFactor);
-  const travelMin =
-    Math.max(2, Math.round((distanceM / speed) * MRT_TIME_FACTOR)) + changes * MRT_CHANGE_MIN;
+  const travelMin = Math.max(4, Math.round(distanceM / speed));
   return {
     travelMin,
     totalHours: travelMin / 60,

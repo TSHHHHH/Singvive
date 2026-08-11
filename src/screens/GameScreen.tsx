@@ -3,13 +3,19 @@ import { useShallow } from 'zustand/react/shallow';
 import { useGame } from '../game/store';
 import { GameMap } from '../components/GameMap';
 import { useMrtNetwork } from '../components/MrtOverlay';
-import { mrtRouteBetween } from '../game/mrt';
+import {
+  displayLine,
+  mrtRouteBetween,
+  neighbours,
+  tunnelSegmentBetween,
+  type MrtNetwork,
+} from '../game/mrt';
 import { ConditionPanel } from '../components/ConditionPanel';
 import { StatsPanel } from '../components/StatsPanel';
 import { LogPanel } from '../components/LogPanel';
 import { CombatPanel } from '../components/CombatPanel';
 import { Icon } from '../icons/Icon';
-import { LocationCard } from '../components/LocationCard';
+import { LocationCard, type Departure } from '../components/LocationCard';
 import { TrekCard } from '../components/TrekCard';
 import { InventoryPanel } from '../components/Inventory/InventoryPanel';
 import { StashLogbook } from '../components/StashLogbook';
@@ -21,6 +27,7 @@ import { ObjectivesPanel } from '../components/ObjectivesPanel';
 import { AttributeRow } from '../components/AttributeRow';
 import { DayLogsModal } from '../components/DayLogsModal';
 import { HdbDungeonModal } from '../components/HdbDungeonModal';
+import { TunnelRunView } from '../components/TunnelRunView';
 import { itemDef } from '../game/loot';
 import { estimateExpedition } from '../game/travel';
 import { legTravelFactor } from '../game/survival';
@@ -60,6 +67,22 @@ const SIDE_PANELS: Record<SidePanel, { label: string; icon: IconName }> = {
 /** The three the rail exposes as buttons — objectives opens from its own bar. */
 const PANEL_BUTTONS: SidePanel[] = ['inventory', 'logbook', 'stats'];
 
+const listOf = (names: string[]): string =>
+  names.length <= 1 ? names[0] ?? 'nowhere' : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+
+/**
+ * Why a station you can see on the overlay isn't somewhere you can head for:
+ * how far down the line it is, and which platforms this tunnel actually joins.
+ */
+function tunnelDirections(net: MrtNetwork, here: LocationState, sel: LocationState): string {
+  const route = mrtRouteBetween(here, sel);
+  const exits = neighbours(net, here.mrtStationId!).map((n) => n.station.name);
+  const where = route
+    ? `${route.stops} stops down the ${displayLine(net, route.legs[0].line).name}`
+    : 'not on a line that runs from here';
+  return `${sel.name} is ${where}. From this platform the tunnel only reaches ${listOf(exits)}.`;
+}
+
 export function GameScreen() {
   // Subscribing to the whole store meant every write re-rendered this screen —
   // including the log, which grows on almost every action and which nothing
@@ -87,7 +110,8 @@ export function GameScreen() {
     travel,
     enter,
     trek,
-    mrtTravel,
+    tunnelEnter,
+    tunnel,
     rest,
     meters,
     character,
@@ -122,7 +146,8 @@ export function GameScreen() {
       travel: s.travel,
       enter: s.enter,
       trek: s.trek,
-      mrtTravel: s.mrtTravel,
+      tunnelEnter: s.tunnelEnter,
+      tunnel: s.tunnel,
       rest: s.rest,
       meters: s.meters,
       character: s.character,
@@ -295,18 +320,33 @@ export function GameScreen() {
   const selHere = sel ? sel.id === currentPositionId : false;
 
   const here = currentPositionId ? locations[currentPositionId] : null;
+  // Nothing runs any more, so a trip is one segment on foot: you can only head
+  // for the next station down the line. Neither end has to be cleared — the
+  // stairs down are open, and what's at the far end is the point of going.
   const bothStations = !!(
     sel &&
     sel.isMrtStation &&
-    sel.cleared &&
     sel.id !== currentPositionId &&
-    here?.isMrtStation &&
-    here.cleared
+    here?.isMrtStation
   );
-  // The tunnels only run where the tracks run. Until the network is loaded
-  // there's nothing to route over, so the old any-station rule stands in.
-  const mrtRoute = bothStations && here && sel ? mrtRouteBetween(here, sel) : null;
-  const canMrt = bothStations && (!!mrtRoute || !mrtNet);
+  const tunnelSeg = bothStations && here && sel ? tunnelSegmentBetween(here, sel) : null;
+
+  // A station further down the line isn't a target — but silence there reads as
+  // a bug, so say how far it is and what this platform actually reaches.
+  const tunnelHint =
+    bothStations && !tunnelSeg && mrtNet && here?.mrtStationId && sel
+      ? tunnelDirections(mrtNet, here, sel)
+      : null;
+
+  // The platform's own line map. This is how a run actually starts: the station
+  // at the far end is usually undiscovered, and fog gives it no marker to click.
+  const departures: Departure[] =
+    mrtNet && here?.mrtStationId
+      ? neighbours(mrtNet, here.mrtStationId).map((seg) => ({
+          seg,
+          known: locationList.some((l) => l.mrtStationId === seg.station.id),
+        }))
+      : [];
 
   const openStash = () => setSidePanel('inventory');
 
@@ -321,11 +361,12 @@ export function GameScreen() {
     est,
     energyLow: meters.energy < 5,
     outOfRange: selOutOfRange,
-    canMrt,
-    mrtRoute,
+    canTunnel: !!tunnelSeg,
+    tunnelSeg,
+    tunnelHint,
     onTravel: () => travel(sel.id),
     onEnter: enter,
-    onMrt: () => mrtTravel(sel.id),
+    onTunnel: () => sel.mrtStationId && tunnelEnter(sel.mrtStationId),
     onOpenStash: openStash,
   };
 
@@ -336,10 +377,12 @@ export function GameScreen() {
     here: true,
     est: null,
     energyLow: meters.energy < 5,
-    canMrt: false,
+    canTunnel: false,
+    departures,
+    onDepart: tunnelEnter,
     onTravel: () => travel(here.id),
     onEnter: enter,
-    onMrt: () => {},
+    onTunnel: () => {},
     onOpenStash: openStash,
     onEnterBlock: hdbEnter,
   };
@@ -586,14 +629,27 @@ export function GameScreen() {
         </div>
       </div>
 
-      {/* ================= COLUMN 3: map — or the HDB block, which takes the
-           whole view for the duration of the delve ================= */}
+      {/* ================= COLUMN 3: map — or the HDB block / the tunnel, each
+           of which takes the whole view for the duration ================= */}
       <div
         className={`relative md:flex md:flex-1 ${
-          mobileView === 'map' || hdb ? show(true) : 'hidden'
+          mobileView === 'map' || hdb || tunnel ? show(true) : 'hidden'
         } md:flex`}
       >
-        {hdb ? (
+        {tunnel ? (
+          <>
+            <TunnelRunView />
+            {/* The fight and the turnstile both live in the Timeline column,
+                which on mobile is a different tab entirely. */}
+            {(combat || pendingEvent) && (
+              <div className="pointer-events-none absolute inset-x-0 top-0 z-[600] p-2 md:hidden">
+                <div className="rounded border border-hiss/50 bg-hiss/15 px-2 py-1 text-center text-[11px] text-hiss backdrop-blur">
+                  {combat ? 'Contact — open Timeline' : 'Someone wants a word — open Timeline'}
+                </div>
+              </div>
+            )}
+          </>
+        ) : hdb ? (
           <HdbDungeonModal />
         ) : (
           <>
@@ -610,6 +666,8 @@ export function GameScreen() {
               noisePulses={noisePulses}
               vitals={mapVitals}
               hazards={sensedHazards}
+              weather={weather}
+              time={time}
               trekTarget={trekTarget}
               onSelect={selectPoi}
               onPickGround={pickGround}
@@ -649,7 +707,7 @@ export function GameScreen() {
            The rail's two location slots live in the "Status" tab on mobile,
            which would mean tapping a POI on the map shows you nothing. So the
            target (and only the target) also floats over the map here. */}
-      {targetSlot && !hdb && mobileView === 'map' && (
+      {targetSlot && !hdb && !tunnel && mobileView === 'map' && (
         <div className="pointer-events-none absolute bottom-0 left-0 z-[650] max-w-full p-3 pb-16 md:hidden">
           <div className="pointer-events-auto flex max-h-[55vh] w-80 max-w-[88vw] flex-col overflow-y-auto rounded-lg border border-white/15 bg-concrete-900/95 p-3 shadow-2xl">
             <div className="mb-1 flex items-center justify-between">
@@ -672,7 +730,7 @@ export function GameScreen() {
 
       {/* Slim "you are here" bar on the map tab — enough to search or stash
           without leaving the map. */}
-      {hereProps && !hdb && mobileView === 'map' && (
+      {hereProps && !hdb && !tunnel && mobileView === 'map' && (
         <HereCompactBar
           sel={hereProps.sel}
           atEvac={atEvac}

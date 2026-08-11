@@ -142,6 +142,11 @@ const POOLS: Record<FlavorKey, string[]> = {
 const NIGHT_TAILS = ['The dark presses in close.', 'Every shadow could be moving.'];
 const RAIN_TAILS = ['Rain needles down, cold and loud.', 'The downpour drowns out everything else.'];
 const HAZE_TAILS = ['The haze burns your throat.'];
+const HEAT_TAILS = [
+  'The heat sits on you like a wet blanket.',
+  'Concrete throws the sun back up at you. Your shirt is soaked through.',
+  'Shiok if you had a drink. You do not.',
+];
 
 function pick<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
@@ -160,6 +165,7 @@ export function flavor(key: FlavorKey, ctx: FlavorCtx = {}): string {
     let tail: string | null = null;
     if (ctx.weather === 'rain' || ctx.weather === 'thunderstorm') tail = pick(RAIN_TAILS);
     else if (ctx.weather === 'haze') tail = pick(HAZE_TAILS);
+    else if (ctx.weather === 'heat') tail = pick(HEAT_TAILS);
     else if (ctx.time === 'night') tail = pick(NIGHT_TAILS);
     if (tail) line += ` ${tail}`;
   }

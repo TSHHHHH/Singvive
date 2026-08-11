@@ -21,8 +21,29 @@ import { Rng, randomSeed } from './rng';
 import { hasTraitFlag, maxHpFor, sumTraitMod } from './character';
 import { fetchOsmPois, haversine, type RawPoi } from './overpass';
 import { bakedPoisNear } from './bakedPois';
-import { describeRoute, getMrtNetwork, loadMrtNetwork, mrtRouteBetween } from './mrt';
-import { buildLocations, generateFallbackWorld } from './world';
+import { adjacentEdge, displayLine, getMrtNetwork, loadMrtNetwork, tunnelSegmentBetween } from './mrt';
+import {
+  addPressure,
+  currentNode,
+  FIGHT_PRESSURE,
+  generateTunnelRun,
+  HAZARD_META,
+  HAZARD_PRESSURE,
+  hazardDc,
+  isArrival,
+  markDone,
+  nodeThreat,
+  PRESSURE_MAX,
+  REST_PRESSURE_RELIEF,
+  reachable,
+  SCAVENGE_PRESSURE,
+  stepTo,
+  TUNNEL_NODE_META,
+  tunnelKey,
+  type TunnelNode,
+  type TunnelRun,
+} from './tunnelRun';
+import { buildLocations, generateFallbackWorld, makeStationLocation } from './world';
 import { conditionRoll, itemDef, rollLoot, type LootStack } from './loot';
 import {
   addToGrid,
@@ -71,13 +92,20 @@ import {
   treatInjuries,
   type DeathCause,
 } from './survival';
-import { rollWeather, timeOfDay, weatherEncounterMod } from './weather';
+import {
+  rollWeather,
+  timeOfDay,
+  weatherEncounterMod,
+  weatherEnergyMult,
+  weatherThirstMult,
+} from './weather';
 import { snapshot, travelableRange, VISITED_LIGHT_RADIUS, type ExploredCircle } from './fog';
-import { estimateExpedition, estimateMrtTravel, searchMinutes } from './travel';
+import { estimateExpedition, estimateTunnelWalk, searchMinutes } from './travel';
 import {
   makeBlockHunter,
   makeHuman,
   makeLoner,
+  makeTunnelStalker,
   type LonerKind,
   makeZombie,
   playerCombatStats,
@@ -95,6 +123,7 @@ import {
   isTerminal,
   mrtTollEvent,
   rollCheck,
+  STANDING_TRUSTED,
   rollPreScavengeEvent,
   type DoorwayMark,
   type EventEffect,
@@ -114,6 +143,7 @@ import { FACTION_CONFIG } from './factions';
 import { flavor } from './flavor';
 import {
   trekRisk,
+  HAZARD_CONFIG,
   EXPOSED_SLEEP_MIN_RISK,
   EXPOSED_SLEEP_RECOVERY,
   TREK_LIGHT_RADIUS,
@@ -189,7 +219,8 @@ const LOG_CAP = 4000;
 interface PendingEvent {
   locationId: string;
   event: GameEvent;
-  mrtTo?: string;
+  /** Set when the event is the turnstile standing between you and a tunnel. */
+  tunnelTo?: string;
 }
 
 /** @see GameStore._eventClock */
@@ -202,6 +233,17 @@ export interface EventClock {
 }
 
 const freshEventClock = (): EventClock => ({ lastAt: null, day: 1, count: 0 });
+
+/**
+ * A saved tunnel run is only worth resuming if it still has a graph. Anything
+ * written by an older shape is dropped instead of migrated — the player is
+ * still standing on the departure platform either way, so backing out of the
+ * tunnel costs them the time they already spent and nothing else.
+ */
+function resumableTunnel(saved: TunnelRun | null | undefined): TunnelRun | null {
+  if (!saved?.nodes || !saved.columns?.length || typeof saved.seq !== 'number') return null;
+  return saved;
+}
 
 /** In-flight walking animation between two points. Purely visual — the clock has
  *  already advanced; arrival logic fires when the glide finishes. */
@@ -263,6 +305,17 @@ interface State {
   hdb: HdbDungeon | null;
   /** Every block you've been inside, keyed by location — cleared stays cleared. */
   hdbBlocks: Record<string, HdbDungeon>;
+
+  /**
+   * The tunnel segment you're currently walking, if any. Deliberately NOT
+   * cached per segment the way blocks are: a bore you've memorised isn't a
+   * crawl any more, so every trip generates fresh.
+   */
+  tunnel: TunnelRun | null;
+  /** Bumped per run, folded into the run id — the same trip twice isn't a replay. */
+  tunnelSeq: number;
+  /** The one swap the camp you're standing in will offer. @see ghostOffer */
+  tunnelOffer: { kind: 'trader'; wantDefId: string; giveDefId: string } | null;
   /** Live noise rings for the map to draw. */
   noisePulses: NoisePulse[];
   /** A predecessor's ghost waiting to be resolved at this spot. */
@@ -300,7 +353,20 @@ interface State {
   enter: () => void;
   /** Strike out to bare coordinates — no site, no loot, no shelter. */
   trek: (lat: number, lng: number) => void;
-  mrtTravel: (toId: string) => void;
+  /**
+   * Descend and walk the tunnel to the next station down the line, named by its
+   * network station id. The destination need not be part of the built world —
+   * the tunnels reach past the edge of it, and the far end is built on arrival.
+   */
+  tunnelEnter: (toStationId: string) => void;
+  /** Move onto one of the nodes ahead and deal with whatever is on it. */
+  tunnelStep: (nodeId: string) => void;
+  /** Sleep at the tunnel camp you're standing in. */
+  tunnelRest: () => void;
+  /** Have the camp look at your injuries, for a tin of food. */
+  tunnelTreat: () => void;
+  tunnelAcceptOffer: () => void;
+  tunnelDeclineOffer: () => void;
   resolveEvent: (choiceId: string) => void;
   callEvac: () => void;
   rest: () => void;
@@ -478,6 +544,10 @@ export const useGame = create<State>((set, get) => {
       evacDeadline: s.evacDeadline,
       // Snapshot the block you're standing in too, so a reload keeps it cleared.
       hdbBlocks: s.hdb ? { ...s.hdbBlocks, [s.hdb.locationId]: s.hdb } : s.hdbBlocks,
+      // The tunnel is saved live, not as a cache: you are mid-walk, and a
+      // reload has to put you back on the same node.
+      tunnel: s.tunnel,
+      tunnelSeq: s.tunnelSeq,
       // Otherwise a reload would be a free way to reset the doorway cooldown.
       eventClock: s._eventClock,
       factionStanding: s.factionStanding,
@@ -525,6 +595,10 @@ export const useGame = create<State>((set, get) => {
       combat: null,
       _combatRng: null,
       pendingEvent: null,
+      // Dying underground still ends on the death screen, not behind a map of
+      // the tunnel you didn't finish.
+      tunnel: null,
+      tunnelOffer: null,
       hasSavedRun: false,
     });
   };
@@ -585,7 +659,14 @@ export const useGame = create<State>((set, get) => {
     // injuries slowly recover; bleeding parts drain HP instead
     const { parts: bodyParts, bleedDrain } = tickInjuries(s.bodyParts, hours);
     const effMax = effectiveMaxHp(s.maxHp, bodyParts);
-    let meters = tickMeters(s.meters, effMax, hours, bleedDrain, { sleeping });
+    // The sky taxes the body: a heat wave drains water and stamina faster for
+    // every hour that passes, travelling or not.
+    const skyNow = weatherKindFor(s.seed, s.day);
+    let meters = tickMeters(s.meters, effMax, hours, bleedDrain, {
+      sleeping,
+      thirstMult: weatherThirstMult(skyNow),
+      energyMult: weatherEnergyMult(skyNow),
+    });
     if (restedEnergy != null) meters = { ...meters, energy: restedEnergy };
 
     // danger creeps back toward baseDanger, faster for larger locations
@@ -855,6 +936,8 @@ export const useGame = create<State>((set, get) => {
     hdbUnit?: { level: number; unitId: string; lootMod: number };
     /** Cut off on the stairs — no unit, and nothing at the site to search. */
     hdbStairs?: boolean;
+    /** Met in the bore between two stations. @see CombatContext.tunnel */
+    tunnel?: { nodeId: string; lootMod: number };
   }
 
   const startZombieCombat = (
@@ -891,6 +974,7 @@ export const useGame = create<State>((set, get) => {
         drops: opts.drops,
         hdbUnit: opts.hdbUnit,
         hdbStairs: opts.hdbStairs,
+        tunnel: opts.tunnel,
       },
       selectedStance: 'guarded',
       terrain: opts.terrainOverride ? TERRAIN[opts.terrainOverride] : terrainForCategory(loc.category),
@@ -1110,6 +1194,314 @@ export const useGame = create<State>((set, get) => {
     }
   };
 
+  /**
+   * Move a faction's opinion of you. Lifted out of the event interpreter so
+   * anything can spend or earn goodwill — the tunnel camps are STA people, and
+   * how you treat them counts the same as how you treat their turnstiles.
+   */
+  const shiftStanding = (id: Exclude<FactionId, null>, delta: number) => {
+    const cur = get().factionStanding;
+    const next = clampStanding((cur[id] ?? 0) + delta);
+    if (next === cur[id]) return;
+    set({ factionStanding: { ...cur, [id]: next } });
+    const cfg = FACTION_CONFIG[id];
+    pushLog(
+      delta > 0
+        ? `${cfg.shortName} think better of you. (standing ${next > 0 ? '+' : ''}${next})`
+        : `${cfg.shortName} won't forget that. (standing ${next > 0 ? '+' : ''}${next})`,
+      delta > 0 ? 'good' : 'bad',
+    );
+  };
+
+  // ------------------------------------------------------------- tunnels --
+
+  /** A night on a mat behind someone else's barricade. */
+  const CAMP_REST_HOURS = 5;
+
+  /**
+   * Spend time and hand back the live run, or null if the survivor didn't
+   * survive it. Every tunnel action starts with this: `advanceTime` can end the
+   * run outright, and the run object must be re-read afterwards either way.
+   */
+  const tunnelTick = (hours: number): TunnelRun | null =>
+    advanceTime(hours) ? null : get().tunnel;
+
+  /**
+   * Pull the neighbourhood around a point into the world.
+   *
+   * The world is built once around the spawn, within a 1.5 km radius — but the
+   * tunnels run off the edge of it, and surfacing into a station with nothing
+   * around it is not a place, it's a dead end. So the far end of a tunnel
+   * brings its own neighbourhood with it. Everything arrives undiscovered, so
+   * fog still makes you walk it.
+   */
+  const expandWorldAround = async (lat: number, lng: number, tag: string) => {
+    const s = get();
+    if (!s.spawn) return;
+    let raw: RawPoi[] | null = null;
+    try {
+      raw = await bakedPoisNear(lat, lng, SCAVENGE_RADIUS);
+    } catch {
+      return; // no bake, no expansion — the caller falls back to a bare station
+    }
+    if (!raw?.length) return;
+
+    const built = buildLocations(new Rng(s.seed).fork(tag), s.spawn, raw, getMrtNetwork());
+    const merged = { ...get().locations };
+    let added = 0;
+    for (const loc of built) {
+      // Synthetic bridge waypoints are numbered per build, so they'd collide
+      // across expansions and silently lose their connective tissue.
+      const id = loc.category === 'waypoint' ? `${loc.id}@${tag}` : loc.id;
+      // Anything already in the world keeps whatever state it has earned.
+      if (merged[id]) continue;
+      merged[id] = { ...loc, id };
+      added += 1;
+    }
+    if (added > 0) {
+      set({ locations: merged });
+      persist();
+    }
+  };
+
+  /**
+   * The location a station id refers to, brought into existence if the world
+   * doesn't reach that far yet.
+   */
+  const ensureStationLocation = async (stationId: string): Promise<LocationState | null> => {
+    const known = Object.values(get().locations).find((l) => l.mrtStationId === stationId);
+    if (known) return known;
+
+    const station = getMrtNetwork()?.byId.get(stationId);
+    if (!station) return null;
+
+    await expandWorldAround(station.lat, station.lng, `expand:${stationId}`);
+    const found = Object.values(get().locations).find((l) => l.mrtStationId === stationId);
+    if (found) return found;
+
+    // The bake has no POI for this platform. Stand one up rather than refuse
+    // the trip — the tunnel demonstrably goes somewhere.
+    const s = get();
+    const loc = makeStationLocation(new Rng(s.seed).fork('stations'), s.spawn!, station);
+    set({ locations: { ...s.locations, [loc.id]: loc } });
+    return loc;
+  };
+
+  /** Generate the segment and drop the player onto the departure platform. */
+  const beginTunnel = (toLocationId: string) => {
+    const s = get();
+    const from = s.currentPositionId ? s.locations[s.currentPositionId] : null;
+    const to = s.locations[toLocationId];
+    const net = getMrtNetwork();
+    const seg = from && to ? tunnelSegmentBetween(from, to) : null;
+    if (!from || !to || !seg || !net) return;
+
+    const line = displayLine(net, seg.line);
+    const seq = s.tunnelSeq + 1;
+    const walk = estimateTunnelWalk(
+      seg.meters,
+      s.character!.attributes,
+      s.meters.energy,
+      s.hour,
+      legTravelFactor(s.bodyParts),
+    );
+    const run = generateTunnelRun(new Rng(s.seed).fork(`tunnel:${from.id}:${to.id}:${seq}`), {
+      from,
+      to,
+      lineCode: seg.line.code,
+      lineName: line.name,
+      lineColor: line.color,
+      mode: seg.line.mode,
+      meters: seg.meters,
+      travelMin: walk.travelMin,
+      day: s.day,
+      hour: s.hour,
+      hordeLevel: s.hordeLevel,
+      seq,
+    });
+
+    set({ tunnel: run, tunnelSeq: seq, tunnelOffer: null });
+    pushLog(
+      `You drop off the platform edge at ${from.name} and walk into the ${line.name} bore.`,
+      'info',
+    );
+    persist();
+  };
+
+  /** Climb the stairs at the far end. The run ends here, one way or another. */
+  const arriveTunnel = () => {
+    const s = get();
+    const run = s.tunnel;
+    const to = run ? s.locations[run.toLocationId] : null;
+    if (!run || !to) return;
+
+    set({
+      tunnel: null,
+      tunnelOffer: null,
+      currentPos: { lat: to.lat, lng: to.lng },
+      currentPositionId: to.id,
+    });
+    discoverLocation(to.id);
+    bumpStats({ distanceM: run.meters });
+    pushLog(`Stairs, then daylight. You come up at ${to.name}.`, 'good');
+
+    // Loud crossings arrive loud — but only here, at the one place you're
+    // actually standing. Noise per node would raise danger where you aren't.
+    if (run.pressure > 60) {
+      pushLog('Whatever followed you up the tunnel is close behind.', 'bad');
+      get().emitNoise(to.lat, to.lng, 220, 1);
+    }
+    persist();
+  };
+
+  /**
+   * Empty a stretch of tunnel. Shared by the quiet case and the one where
+   * something came out of the dark first — either way the salvage is the same,
+   * and it spills into the station you're walking *towards*, because the one
+   * behind you is behind you.
+   */
+  const grantTunnelSalvage = (run: TunnelRun, node: TunnelNode, rng: Rng) => {
+    const s = get();
+    const lootMod = node.lootMod ?? 0;
+    const loot = rollLoot(rng, 'mrt', POI_CONFIG.mrt.richness, lootMod);
+    const bias = Math.max(0, Math.min(1, lootMod / 3));
+
+    let items = s.items;
+    const stashed: LootStack[] = [];
+    const lost: LootStack[] = [];
+    for (const stack of loot) {
+      const r = spillover(items, run.toLocationId, stack.defId, stack.count, rng, bias);
+      items = r.items;
+      if (r.stashed > 0) stashed.push({ defId: stack.defId, count: r.stashed });
+      if (r.lost > 0) lost.push({ defId: stack.defId, count: r.lost });
+    }
+    const missed = [...stashed, ...lost];
+    set({ items });
+    bumpHaul(loot, missed);
+    pushLog(
+      loot.length ? `You strip ${node.name}.` : `${node.name} was picked over long ago.`,
+      loot.length ? 'good' : 'info',
+      loot.length ? { loot, leftover: missed } : undefined,
+    );
+    if (stashed.length > 0) {
+      pushLog(`Your pack is full — the rest goes ahead to the ${run.toName} stash.`, 'info');
+    }
+  };
+
+  /**
+   * A fight in the bore. One way wide, so fleeing means shoving past and
+   * carrying on — there is no back to run to.
+   */
+  const startTunnelFight = (run: TunnelRun, node: TunnelNode, lootMod: number) => {
+    const s = get();
+    const threat = nodeThreat(run, node);
+    const pinned = run.pressure >= PRESSURE_MAX;
+    startZombieCombat(run.fromLocationId, false, {
+      terrainOverride: 'tunnel_bore',
+      danger: threat,
+      key: tunnelKey(run, `fight:${node.id}`),
+      // A pinned gauge has been drawing something the whole walk. It arrives.
+      enemy: pinned
+        ? makeTunnelStalker(new Rng(s.seed).fork(tunnelKey(run, `stalker:${node.id}`)), threat)
+        : undefined,
+      intro: pinned
+        ? 'Whatever has been pacing you down the tunnel stops pacing.'
+        : `${node.name}: they come at you down the bore, and the bore is one way wide.`,
+      tunnel: { nodeId: node.id, lootMod },
+    });
+  };
+
+  /** Deal with whatever is on the node just stepped onto. */
+  const resolveTunnelNode = (nodeId: string) => {
+    const s = get();
+    const run = s.tunnel;
+    if (!run) return;
+    const node = run.nodes[nodeId];
+    if (!node) return;
+
+    if (isArrival(run, node)) {
+      arriveTunnel();
+      return;
+    }
+
+    const meta = TUNNEL_NODE_META[node.kind];
+    const rng = new Rng(s.seed).fork(tunnelKey(run, `node:${nodeId}`));
+
+    // ---- something is already in here with you --------------------------
+    if (node.kind === 'pack') {
+      startTunnelFight(run, node, 0);
+      return;
+    }
+
+    // ---- the tunnel itself is the problem -------------------------------
+    if (node.kind === 'hazard') {
+      const after = tunnelTick(meta.minutes / 60);
+      if (!after) return;
+      const hazard = HAZARD_META[node.hazard ?? 'collapse'];
+      const cfg = HAZARD_CONFIG[node.hazard ?? 'collapse'];
+      const check = rollCheck(rng, s.character!.attributes[hazard.attr], hazardDc(node));
+
+      const cur = get();
+      if (check.success) {
+        set({
+          tunnel: markDone(after, nodeId),
+          meters: { ...cur.meters, energy: clampMeter(cur.meters.energy - cfg.energyCost) },
+        });
+        pushLog(`${node.name}: you find the line through and take it.`, 'info');
+      } else {
+        const bodyParts = applyWound(cur.bodyParts, rng.int(6, 16), rng);
+        set({
+          tunnel: addPressure(markDone(after, nodeId), HAZARD_PRESSURE),
+          bodyParts,
+          meters: { ...cur.meters, energy: clampMeter(cur.meters.energy - cfg.energyCost * 2) },
+        });
+        pushLog(`${node.name} takes its toll — you come out the other side hurt.`, 'bad');
+        const cause = checkDeath(get().meters, get().bodyParts);
+        if (cause) {
+          endRun(cause);
+          return;
+        }
+      }
+      persist();
+      return;
+    }
+
+    // ---- salvage, unless the salvage was bait ---------------------------
+    if (node.kind === 'scavenge') {
+      const after = tunnelTick(meta.minutes / 60);
+      if (!after) return;
+      // Picking over a wreck is noisy, and something down here is listening.
+      if (rng.chance(0.25)) {
+        pushLog(`Something was already working ${node.name}.`, 'bad');
+        startTunnelFight(after, node, node.lootMod ?? 0);
+        return;
+      }
+      set({ tunnel: addPressure(markDone(after, nodeId), SCAVENGE_PRESSURE) });
+      grantTunnelSalvage(after, node, rng);
+      persist();
+      return;
+    }
+
+    // ---- people ---------------------------------------------------------
+    if (node.kind === 'settlement') {
+      const after = tunnelTick(meta.minutes / 60);
+      if (!after) return;
+      set({
+        tunnel: markDone(after, nodeId),
+        tunnelOffer: node.offer ? { kind: 'trader', ...node.offer } : null,
+      });
+      pushLog(
+        `${node.name}: lamplight, cooking smoke, and a dozen people deciding what you are.`,
+        'info',
+      );
+      persist();
+      return;
+    }
+
+    set({ tunnel: markDone(run, nodeId) });
+    persist();
+  };
+
   /** Locations whose ghost has already been dealt with this run. */
   const ghostsResolved = new Set<string>();
 
@@ -1313,6 +1705,9 @@ export const useGame = create<State>((set, get) => {
     _combatRng: null,
     hdb: null,
     hdbBlocks: {},
+    tunnel: null,
+    tunnelSeq: 0,
+    tunnelOffer: null,
     noisePulses: [],
     ghostOffer: null,
     pendingEvent: null,
@@ -1458,7 +1853,7 @@ export const useGame = create<State>((set, get) => {
       const dist = Math.round(haversine(s.currentPos.lat, s.currentPos.lng, loc.lat, loc.lng));
 
       // You can only push so far in one go. Beyond your current range you must
-      // hop via a closer waypoint, rest to recover, or ride the MRT.
+      // hop via a closer waypoint, rest to recover, or walk a tunnel segment.
       const range = travelableRange(
         s.character!.attributes,
         s.meters.energy,
@@ -1468,7 +1863,7 @@ export const useGame = create<State>((set, get) => {
       );
       if (dist > range) {
         pushLog(
-          `${loc.name} is ${dist} m off — too far to reach in one push (range ${range} m). Rest, hop closer, or take the MRT.`,
+          `${loc.name} is ${dist} m off — too far to reach in one push (range ${range} m). Rest, hop closer, or go down into the tunnels.`,
           'bad',
         );
         return;
@@ -1658,26 +2053,131 @@ export const useGame = create<State>((set, get) => {
       setTimeout(() => arriveWilds(lat, lng, startedAt), durationMs);
     },
 
-    mrtTravel: (toId) => {
+    tunnelEnter: (toStationId) => {
       const s = get();
       const from = s.currentPositionId ? s.locations[s.currentPositionId] : null;
-      const to = s.locations[toId];
-      if (!from || !to || s.combat || s.pendingEvent) return;
-      if (!from.isMrtStation || !to.isMrtStation) {
-        pushLog('You must be at an MRT station to ride the tunnels.', 'bad');
+      if (!from || s.combat || s.pendingEvent || s.tunnel || s.hdb) return;
+      if (!from.isMrtStation || !from.mrtStationId) {
+        pushLog('You have to be on a platform to get into the tunnels.', 'bad');
         return;
       }
-      if (!from.cleared || !to.cleared) {
-        pushLog('Both stations must be cleared before the tunnel is safe.', 'bad');
+      // One segment at a time — nothing runs, so you walk to the next platform
+      // and no further. Neither end needs to be cleared: the stairs are open,
+      // and what's waiting at the far end is the reason to go.
+      const net = getMrtNetwork();
+      if (!net || !adjacentEdge(net, from.mrtStationId, toStationId)) {
+        pushLog(`That isn't the next stop — the tunnel from here doesn't run that way.`, 'bad');
         return;
       }
-      // The tunnels only go where the tracks go. Without the network loaded
-      // there's nothing to check against, so the old any-to-any rule stands.
-      if (!mrtRouteBetween(from, to) && getMrtNetwork()) {
-        pushLog(`No line runs from ${from.name} to ${to.name}. The tunnels don't connect.`, 'bad');
+      if (s.meters.energy < 5) {
+        pushLog('Too spent to walk a tunnel. Rest first.', 'bad');
         return;
       }
-      set({ pendingEvent: { locationId: from.id, event: mrtTollEvent(), mrtTo: toId } });
+
+      // Resolving the far end can mean building it, so the rest happens once
+      // there is somewhere to arrive.
+      void ensureStationLocation(toStationId).then((to) => {
+        if (!to) return;
+        const cur = get();
+        if (cur.combat || cur.pendingEvent || cur.tunnel || cur.hdb) return;
+
+        // The STA still works the turnstiles at the stations they hold. Pay at
+        // the gate and the descent happens on the other side of the event.
+        if (from.factionId === 'sta' && (cur.factionStanding.sta ?? 0) < STANDING_TRUSTED) {
+          set({ pendingEvent: { locationId: from.id, event: mrtTollEvent(), tunnelTo: to.id } });
+          return;
+        }
+        beginTunnel(to.id);
+      });
+    },
+
+    tunnelStep: (nodeId) => {
+      const s = get();
+      const run = s.tunnel;
+      if (!run || s.combat || s.pendingEvent) return;
+      const node = run.nodes[nodeId];
+      if (!node || !reachable(run).some((n) => n.id === nodeId)) return;
+
+      // The walk between columns is charged first: whatever is on the node
+      // happens after you have already spent the minutes getting to it.
+      const walked = tunnelTick(run.minutesPerHop / 60);
+      if (!walked) return;
+      set({ tunnel: stepTo(walked, nodeId) });
+      // Save the move itself before resolving it. A fight is never part of a
+      // save, so without this a reload mid-contact would rewind you to the
+      // previous node with the minutes already spent.
+      persist();
+
+      resolveTunnelNode(nodeId);
+    },
+
+    tunnelRest: () => {
+      const s = get();
+      const run = s.tunnel;
+      if (!run || s.combat || s.pendingEvent) return;
+      if (currentNode(run).kind !== 'settlement') return;
+
+      const restored = sleepRestore(s.meters.energy, CAMP_REST_HOURS, s.meters);
+      if (advanceTime(CAMP_REST_HOURS, restored, true)) return;
+      const after = get().tunnel;
+      if (!after) return;
+      // Sleeping behind their barricade is the one thing down here that makes
+      // the tunnel quieter rather than louder.
+      set({ tunnel: addPressure(after, -REST_PRESSURE_RELIEF) });
+      shiftStanding('sta', 1);
+      pushLog(
+        `You sleep ${CAMP_REST_HOURS} hours on a mat by the barricade. Someone else keeps watch.`,
+        'good',
+      );
+      persist();
+    },
+
+    tunnelTreat: () => {
+      const s = get();
+      const run = s.tunnel;
+      if (!run || s.combat || s.pendingEvent) return;
+      if (currentNode(run).kind !== 'settlement') return;
+      if (!hasBackpackItem('canned_food')) {
+        pushLog('They will look at your injuries for a tin of food. You have none.', 'bad');
+        return;
+      }
+      consumeBackpackItem('canned_food');
+      if (advanceTime(1)) return;
+      const g = get();
+      const bodyParts = treatInjuries(g.bodyParts, 30, 'all');
+      set({
+        bodyParts,
+        meters: {
+          ...g.meters,
+          health: Math.min(effectiveMaxHp(g.maxHp, bodyParts), g.meters.health + 20),
+        },
+      });
+      shiftStanding('sta', 1);
+      pushLog('Someone with steady hands and boiled water puts you back together.', 'good');
+      persist();
+    },
+
+    tunnelAcceptOffer: () => {
+      const s = get();
+      const offer = s.tunnelOffer;
+      if (!offer || !s.tunnel) return;
+      if (!hasBackpackItem(offer.wantDefId)) {
+        pushLog(`They want ${itemDef(offer.wantDefId).name}. You have none.`, 'bad');
+        return;
+      }
+      consumeBackpackItem(offer.wantDefId);
+      const r = addToGrid(get().items, 'backpack', offer.giveDefId, 1);
+      set({ items: r.items, tunnelOffer: null });
+      shiftStanding('sta', 1);
+      pushLog(
+        `Traded ${itemDef(offer.wantDefId).name} for ${itemDef(offer.giveDefId).name}. Nobody haggles down here.`,
+        'good',
+      );
+      persist();
+    },
+
+    tunnelDeclineOffer: () => {
+      set({ tunnelOffer: null });
     },
 
     callEvac: () => {
@@ -1706,47 +2206,10 @@ export const useGame = create<State>((set, get) => {
       set({ pendingEvent: null, _eventRng: null });
 
       const grantAccess = () => {
-        if (pe.mrtTo) {
-          // MRT fast travel through the tunnels
-          const to = get().locations[pe.mrtTo];
-          const cur = get();
-          const from = cur.locations[pe.locationId];
-          // Along the tracks when the network knows both ends, straight-line
-          // otherwise — a route that doglegs through an interchange should
-          // cost what the dogleg costs.
-          const route = from ? mrtRouteBetween(from, to) : null;
-          const dist =
-            route?.meters ??
-            Math.round(haversine(cur.currentPos.lat, cur.currentPos.lng, to.lat, to.lng));
-          const mrt = estimateMrtTravel(
-            dist,
-            cur.character!.attributes,
-            cur.meters.energy,
-            cur.hour,
-            legTravelFactor(cur.bodyParts),
-            route?.changes ?? 0,
-          );
-          if (advanceTime(mrt.totalHours)) return;
-          set({ currentPos: { lat: to.lat, lng: to.lng }, currentPositionId: to.id });
-          discoverLocation(to.id);
-          // Every station the line passes through is one you've now seen the
-          // platform of, even if you never got off.
-          for (const leg of route?.legs ?? []) {
-            for (const stop of leg.stops) {
-              const passed = Object.values(get().locations).find((l) => l.mrtStationId === stop.id);
-              if (passed) discoverLocation(passed.id);
-            }
-          }
-          pushLog(
-            route
-              ? `You ride the tunnels to ${to.name} — ${describeRoute(route)}.`
-              : `You ride the tunnels to ${to.name} (weather ignored).`,
-            'good',
-          );
-          persist();
-        } else {
-          attemptSearch(pe.locationId);
-        }
+        // Paying at the turnstile buys the stairs down, not a ride — the walk
+        // itself is still ahead of you.
+        if (pe.tunnelTo) beginTunnel(pe.tunnelTo);
+        else attemptSearch(pe.locationId);
       };
 
       const fightOut = (foe?: LonerKind) => {
@@ -1775,21 +2238,6 @@ export const useGame = create<State>((set, get) => {
         set({ locations: { ...locs, [pe.locationId]: { ...cur, ...patch } } });
       };
 
-      const shiftStanding = (delta: number) => {
-        const id = ev.factionId;
-        if (!id) return;
-        const cur = get().factionStanding;
-        const next = clampStanding((cur[id] ?? 0) + delta);
-        if (next === cur[id]) return;
-        set({ factionStanding: { ...cur, [id]: next } });
-        const cfg = FACTION_CONFIG[id];
-        pushLog(
-          delta > 0
-            ? `${cfg.shortName} think better of you. (standing ${next > 0 ? '+' : ''}${next})`
-            : `${cfg.shortName} won't forget that. (standing ${next > 0 ? '+' : ''}${next})`,
-          delta > 0 ? 'good' : 'bad',
-        );
-      };
 
       /** @returns false if the survivor died partway through. */
       const applyOne = (e: EventEffect): boolean => {
@@ -1798,7 +2246,7 @@ export const useGame = create<State>((set, get) => {
             mark(e.mark);
             return true;
           case 'standing':
-            shiftStanding(e.delta);
+            if (ev.factionId) shiftStanding(ev.factionId, e.delta);
             return true;
           case 'time':
             if (e.line) pushLog(e.line, 'info');
@@ -1882,16 +2330,20 @@ export const useGame = create<State>((set, get) => {
         case 'fight':
           run(choice.onSuccess);
           break;
-        case 'pay':
-          if (choice.itemId && hasBackpackItem(choice.itemId)) {
-            consumeBackpackItem(choice.itemId);
-            pushLog(`Handed over 1× ${itemDef(choice.itemId).name}.`, 'info');
+        case 'pay': {
+          // They named several things they'd take; hand over the first one you
+          // actually have, which is also the one they'd rather be given.
+          const paying = choice.itemIds?.find((id) => hasBackpackItem(id));
+          if (paying) {
+            consumeBackpackItem(paying);
+            pushLog(`Handed over 1× ${itemDef(paying).name}.`, 'info');
             run(choice.onSuccess);
           } else {
-            pushLog("You don't have what they want.", 'bad');
+            pushLog("You don't have anything they'll take.", 'bad');
             run(choice.onFailure ?? [{ t: 'deny', line: 'That ends the conversation.' }]);
           }
           break;
+        }
         case 'check': {
           const attrVal = s.character!.attributes[choice.attr!];
           const res = rollCheck(rng, attrVal, choice.dc!);
@@ -2781,7 +3233,31 @@ export const useGame = create<State>((set, get) => {
         }
       }
 
-      if (context.hdbUnit) {
+      // Checked before the site-search fallback: a win underground settles the
+      // node you're standing on, never the station up on the surface.
+      if (context.tunnel) {
+        const { nodeId, lootMod } = context.tunnel;
+        const g = get();
+        const run = g.tunnel;
+        if (run) {
+          const node = run.nodes[nodeId];
+          const after = addPressure(markDone(run, nodeId), FIGHT_PRESSURE);
+          set({ tunnel: after });
+          if (outcome === 'win') {
+            pushLog('It stops moving. The bore goes quiet again.', 'good');
+            // The salvage this fight interrupted is still there afterwards.
+            if (node && node.kind === 'scavenge') {
+              grantTunnelSalvage(after, node, new Rng(g.seed).fork(tunnelKey(after, `loot:${nodeId}`)));
+            } else if (lootMod > 0 && node) {
+              grantTunnelSalvage(after, { ...node, lootMod }, new Rng(g.seed).fork(tunnelKey(after, `loot:${nodeId}`)));
+            }
+          } else {
+            // There is no back. Breaking off means shoving past and walking on.
+            pushLog('You shove past it in the dark and keep walking.', 'info');
+          }
+        }
+        persist();
+      } else if (context.hdbUnit) {
         // The doorway fight settles the unit: won, you take it; fled, you seal it
         // behind you. Either way you never open that door again.
         const { level, unitId, lootMod } = context.hdbUnit;
@@ -2836,6 +3312,9 @@ export const useGame = create<State>((set, get) => {
         _combatRng: null,
         hdb: null,
         hdbBlocks: {},
+        tunnel: null,
+        tunnelSeq: 0,
+        tunnelOffer: null,
         noisePulses: [],
         ghostOffer: null,
         pendingEvent: null,
@@ -2888,6 +3367,12 @@ export const useGame = create<State>((set, get) => {
         _combatRng: null,
         hdb: null,
         hdbBlocks: run.hdbBlocks ?? {},
+        // Unlike a block, a tunnel run resumes exactly where it stopped. The
+        // player's position only moves on arrival, so ejecting them here would
+        // refund every node they hadn't walked yet.
+        tunnel: resumableTunnel(run.tunnel),
+        tunnelSeq: run.tunnelSeq ?? 0,
+        tunnelOffer: null,
         noisePulses: [],
         ghostOffer: null,
         pendingEvent: null,
@@ -2900,6 +3385,16 @@ export const useGame = create<State>((set, get) => {
       // Keep new entries above anything restored, or React keys collide.
       logCounter = (run.log ?? []).reduce((m, e) => Math.max(m, e.id), logCounter);
       pushLog('You pick up where you left off.', 'info');
+
+      // A fight is never part of a save. In the tunnel that would otherwise be
+      // a free pass: reload while something has you cornered and walk off the
+      // node as if you'd won it. It's still standing there.
+      const resumed = get().tunnel;
+      const at = resumed ? resumed.nodes[resumed.currentId] : null;
+      if (resumed && at?.kind === 'pack' && at.state !== 'done') {
+        pushLog('It never left. The bore is still occupied.', 'bad');
+        startTunnelFight(resumed, at, 0);
+      }
     },
   };
 });

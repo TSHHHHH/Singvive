@@ -7,6 +7,7 @@ const WEATHER_MIX: [WeatherKind, number][] = [
   ['cloudy', 4],
   ['rain', 3],
   ['haze', 2],
+  ['heat', 2],
   ['thunderstorm', 1],
 ];
 
@@ -16,6 +17,7 @@ export const WEATHER_LABEL: Record<WeatherKind, string> = {
   rain: 'Rain',
   thunderstorm: 'Thunderstorm',
   haze: 'Haze',
+  heat: 'Heat Wave',
 };
 
 export const WEATHER_ICON: Record<WeatherKind, IconName> = {
@@ -24,6 +26,7 @@ export const WEATHER_ICON: Record<WeatherKind, IconName> = {
   rain: 'weather.rain',
   thunderstorm: 'weather.thunderstorm',
   haze: 'weather.haze',
+  heat: 'weather.heat',
 };
 
 export const TIME_LABEL: Record<TimeOfDay, string> = {
@@ -44,7 +47,23 @@ export function rollWeather(rng: Rng, day: number): WeatherKind {
 export function weatherTravelMult(kind: WeatherKind): number {
   if (kind === 'rain') return 1.5;
   if (kind === 'thunderstorm') return 1.75;
+  // A heat wave doesn't block the way, it just makes you stop in every patch of
+  // shade — a smaller tax than rain, paid in time as well as in water.
+  if (kind === 'heat') return 1.2;
   return 1;
+}
+
+/**
+ * Multiplier on passive thirst and energy drain. This is the heat wave's real
+ * bite: the clock costs you water roughly twice as fast, so a long trek without
+ * a drink in the pack is what actually kills you.
+ */
+export function weatherThirstMult(kind: WeatherKind): number {
+  return kind === 'heat' ? 1.9 : 1;
+}
+
+export function weatherEnergyMult(kind: WeatherKind): number {
+  return kind === 'heat' ? 1.25 : 1;
 }
 
 /**
@@ -63,7 +82,12 @@ export function weatherEffects(kind: WeatherKind): { label: string; good: boolea
   if (t > 1) out.push({ label: `Travel ${Math.round((t - 1) * 100)}% slower`, good: false });
   const e = weatherEncounterMod(kind);
   if (e < 0) out.push({ label: `Encounters ${Math.round(-e * 100)}% less likely`, good: true });
-  const acc = kind === 'thunderstorm' ? -2 : kind === 'rain' || kind === 'haze' ? -1 : 0;
+  const th = weatherThirstMult(kind);
+  if (th > 1) out.push({ label: `Thirst ${Math.round((th - 1) * 100)}% faster`, good: false });
+  const en = weatherEnergyMult(kind);
+  if (en > 1) out.push({ label: `Energy ${Math.round((en - 1) * 100)}% faster`, good: false });
+  const acc =
+    kind === 'thunderstorm' ? -2 : kind === 'rain' || kind === 'haze' || kind === 'heat' ? -1 : 0;
   if (acc < 0) out.push({ label: `Aim ${acc} in combat`, good: false });
   if (kind === 'thunderstorm') out.push({ label: 'Zombies +1 attack', good: false });
   if (out.length === 0) out.push({ label: 'No effects', good: true });
@@ -112,6 +136,11 @@ export function environmentCombatMods(weather: WeatherState): {
   } else if (weather.kind === 'haze') {
     playerAccuracy -= 1;
     notes.push('haze');
+  } else if (weather.kind === 'heat' && weather.time === 'day') {
+    // Sweat in your eyes and glare off the concrete; after dark the heat is
+    // just uncomfortable, not blinding.
+    playerAccuracy -= 1;
+    notes.push('heat');
   }
 
   return { zombieAttack, playerAccuracy, note: notes.join(', ') };

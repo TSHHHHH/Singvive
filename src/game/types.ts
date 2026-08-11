@@ -276,7 +276,7 @@ export interface Meters {
   infection: number; // 0 = clean, 100 = turned
 }
 
-export type WeatherKind = 'clear' | 'cloudy' | 'rain' | 'thunderstorm' | 'haze';
+export type WeatherKind = 'clear' | 'cloudy' | 'rain' | 'thunderstorm' | 'haze' | 'heat';
 export type TimeOfDay = 'day' | 'dusk' | 'night';
 
 export interface WeatherState {
@@ -328,6 +328,7 @@ export type TerrainId =
   | 'void_deck'
   | 'supermarket_aisle'
   | 'mrt_concourse'
+  | 'tunnel_bore'
   | 'open_ground';
 
 export interface TerrainModifier {
@@ -368,6 +369,12 @@ export interface CombatContext {
   hdbUnit?: { level: number; unitId: string; lootMod: number };
   /** cut off on the stairwell — there's nothing to search, you just fight clear. */
   hdbStairs?: boolean;
+  /**
+   * Met in the tunnel between two stations. Winning settles the node, never the
+   * station overhead; `lootMod` rides along when the fight interrupted a
+   * salvage, so the win still pays for it.
+   */
+  tunnel?: { nodeId: string; lootMod: number };
 }
 
 export interface CombatState {

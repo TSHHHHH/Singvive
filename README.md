@@ -79,7 +79,7 @@ currency, and the survivor is always moving — the map is explored, not surveye
 | Police | Neighbourhood police posts | Firearms, ammo, riot gear | 5 |
 | HDB void deck | Housing blocks | Common household loot | 2 |
 | Hawker centre | Food courts, markets | Food | 2 |
-| MRT station | Rail / LRT stations | Transit fast-travel node; light loot | 3 |
+| MRT station | Rail / LRT stations | Way into the tunnels (see 3.8); light loot | 3 |
 
 ### 3.2 Survivor — attributes & the trait economy
 - **Attributes** (point-buy, base 5, spend 6, range 3–10): **Strength** (melee damage, carry
@@ -156,23 +156,56 @@ currency, and the survivor is always moving — the map is explored, not surveye
     (Raiders) then fight; others block access.
 - All checks are `d20 + attribute vs DC(current danger)`.
 
-### 3.8 MRT highway (Transit Coalition)
+### 3.8 The tunnels (Subterranean Transit Authority)
 - The **real Singapore rail network** ships with the game (`public/mrt.json`, baked from OSM — see
   *Refreshing the rail network*): 186 stations, every line in its official livery, with station codes.
 - Station POIs are **bound to the network** at world build: each baked station claims its nearest POI
   within 220 m and takes its name and codes. Leftover station elements — OSM maps a big station as
-  several — become *"<name> Entrance"*: searchable, but not somewhere you can ride from.
-- **Map overlay.** A *Rail map* toggle on the map draws the whole network — real track geometry, dots
-  per station, code badges from z15 — in its own Leaflet pane **above the fog**. The MRT map is the one
+  several — become *"<name> Entrance"*: searchable, but not a way into the tunnels.
+- **Map overlay.** A *Rail map* toggle draws the whole network — one centreline per line, dots per
+  station, code badges from z15 — in its own Leaflet pane **above the fog**. The MRT map is the one
   thing every commuter here already knows by heart; fog hides what's *inside* a station, never where
   the line runs. The preference persists like the zoom does.
-- **Riding is line-aware.** A hop needs a **path along the tracks** between two **cleared** stations,
-  routed by Dijkstra over (station, line) pairs with a change penalty — so it prefers fewer changes,
-  and a dogleg through an interchange is priced as one. Cost is distance *along the tunnels* at
-  −70% time, plus 7 min per change; weather and encumbrance are still ignored. Every station the
-  route passes through is discovered. A **toll event** (1× EZ-link card) still gates the turnstile.
-- Without the network file, riding falls back to the old any-two-cleared-stations rule rather than
-  breaking.
+- **Nothing runs.** Travel is a **tunnel run**: one segment, on foot, between two **adjacent**
+  stations (`mrt.neighbours`). A station further down the line isn't a target — the card says how far
+  off it is and which platforms this one actually reaches. **Neither end has to be cleared**, so the
+  tunnels are how you *find* a station, not just how you get between two you know.
+- **Starting one:** stand at a station and the "you are here" card grows a **Tunnels from this
+  platform** list — the line map on the wall, one button per direction, in the line's own livery.
+  That is the primary entrance, and it has to be: the station at the far end is usually undiscovered,
+  and fog gives it no marker on the map to click (`fog.visibilityOf` returns `hidden`). Selecting an
+  adjacent station you *have* already found still offers the same trip from its target card.
+- **The tunnels run off the edge of the built world.** A neighbour outside the 1.5 km scavenge radius
+  is marked *unmapped* and is still a valid destination: resolving it calls `expandWorldAround`, which
+  pulls that station's neighbourhood out of the baked POI set and merges it in (everything
+  undiscovered, so fog still makes you walk it). Only if the bake has nothing there does
+  `makeStationLocation` stand up a bare platform, so a tunnel always has an end. This is what makes
+  the network a way to *cross the island* rather than a shuttle inside your starting district —
+  Pasir Ris → Tampines takes a 175-location world to 361, and lands you on an interchange with four
+  onward tunnels and 74 walkable POIs. Bridge waypoints are id-tagged per expansion so successive
+  merges don't collide.
+- What the bore buys you is what it doesn't charge: **no travel-range cap, no weather, no
+  encumbrance**, and none of `URBAN_DECAY_DETOUR` — it's straight, and the streets above it aren't.
+  Time is the real track distance at walking pace. There is no train discount any more.
+- **The run itself is a Slay-the-Spire map** (`game/tunnelRun.ts`, `components/TunnelRunView.tsx`):
+  3–6 columns by 3 lanes, forward-only edges, one column of reveal ahead. Four node kinds —
+  **contact** (a fight on `tunnel_bore` terrain), **salvage** (the `mrt` loot table; 25% of the time
+  something is already working it, and winning still pays), **camp** (people living down here: sleep,
+  patch up, one fixed barter, STA standing), **obstruction** (floodwater or collapse: an attribute
+  check, and a wound if you fail).
+- **Pressure** is the run's own gauge, mirroring HDB block heat: only your noise moves it, it adds
+  threat by band, and a pinned gauge sends a **Tunnel Stalker** — unreachable by any ordinary danger
+  roll. Sleeping at a camp is the one thing that lowers it.
+- **Stations are the only exits**, and a run is one segment, so a descent is a commitment. The STA
+  **toll event** gates the *stairs down* at stations they hold, and stops charging at +2 standing.
+  Roughly **45% of platforms stand empty** (`CLAIM_CHANCE.sta`) — no marshal, no fare — because a
+  faction that holds *every* station turns the toll from an event into a fixed tax on movement.
+- **Tributes are lists, not single items.** `FactionData.tribute` is an ordered array and a `pay`
+  choice carries `itemIds`: any one of them settles it, and the store hands over the first you're
+  carrying. The STA gate takes a card, batteries, a torch or a tin — gating passage on one uncommon
+  def id meant the tunnels were shut to anyone who hadn't happened to find that def id yet.
+- A run **survives a reload** — same graph, same node, same rolls (`SavedRun.tunnel`). Unlike a block,
+  it is not cached per segment: every trip generates fresh, because a memorised bore isn't a crawl.
 
 ### 3.9 Inventory, equipment & weight
 - **Spatial Tetris grid** (Tarkov-style): items have **W×H footprints**, **rotate**, and drag between
@@ -276,10 +309,16 @@ the overlay draws, and deciding which lines are actually *open* (a `construction
 its stations stay off the map, which is what keeps the unbuilt Jurong Region and Cross Island lines out).
 Branches and the LRT loops are declared in the `CHAINS` table at the top of the script.
 
-Two traps, both already paid for:
+Three traps, all already paid for:
 
 - `out geom tags` on a relation silently returns **zero members**. The `tags` modifier switches Overpass
   to a tags-only print. It must be `out geom`.
+- **OSM maps each direction of travel as its own way**, so a line arrives as two parallel rails ~15 m
+  apart and draws as a double line. `dedupeWays` keeps one centreline by dropping any way whose length
+  is ≥90% covered (within 30 m) by an already-accepted, *longer* way on the same line. It must be a
+  **cover fraction**, not a nearest-point test: the Changi branch shares the East West alignment for a
+  few hundred metres out of Tanah Merah, and a "reject anything that comes close" rule eats every
+  branch at its junction. Longest-first ordering is what stops two twins deleting each other.
 - MRT/LRT interchanges (Choa Chu Kang, Sengkang, Punggol) are two OSM stations sharing a name and a
   building but *no* station code, so code-merging alone leaves the LRT loops unreachable. Same-named
   stations within 400 m are folded together.

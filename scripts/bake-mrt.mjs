@@ -137,6 +137,106 @@ function perpDistance(p, a, b) {
   return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
 }
 
+// --------------------------------------------------------------- twin track --
+//
+// OSM maps each direction of travel as its own way, so a line arrives as two
+// near-parallel rails ~15m apart and draws as a double line at every zoom. The
+// two are dropped to one here.
+//
+// The test is a *cover fraction*, not a nearest-point test, and that distinction
+// is the whole design: a twin is covered along its entire length, while the
+// Changi branch shares alignment with the East West trunk for a few hundred
+// metres out of Tanah Merah and then leaves. Rejecting any way with a point
+// near an accepted one would eat every branch at its junction.
+
+const MERGE_TOLERANCE_M = 30; // twins measure ~15m apart; genuine alignments, 60m+
+const COVER_FRACTION = 0.9;
+const SAMPLE_STEP_M = 20;
+
+// One equirectangular projection for the whole island — everything below is
+// plane geometry in metres.
+const PROJ_LAT = 1.35;
+const M_PER_DEG_LAT = 111000;
+const M_PER_DEG_LNG = 111000 * Math.cos((PROJ_LAT * Math.PI) / 180);
+const project = ([lat, lng]) => [lng * M_PER_DEG_LNG, lat * M_PER_DEG_LAT];
+
+function distToSegment([px, py], [ax, ay], [bx, by]) {
+  const dx = bx - ax;
+  const dy = by - ay;
+  const lenSq = dx * dx + dy * dy;
+  if (lenSq === 0) return Math.hypot(px - ax, py - ay);
+  let t = ((px - ax) * dx + (py - ay) * dy) / lenSq;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+}
+
+/** Every vertex, plus a point every SAMPLE_STEP_M along each segment. */
+function samplePath(pts) {
+  const out = [pts[0]];
+  for (let i = 1; i < pts.length; i++) {
+    const [ax, ay] = pts[i - 1];
+    const [bx, by] = pts[i];
+    const len = Math.hypot(bx - ax, by - ay);
+    const steps = Math.floor(len / SAMPLE_STEP_M);
+    for (let s = 1; s <= steps; s++) {
+      const t = (s * SAMPLE_STEP_M) / len;
+      out.push([ax + (bx - ax) * t, ay + (by - ay) * t]);
+    }
+    out.push(pts[i]);
+  }
+  return out;
+}
+
+function pathLength(pts) {
+  let len = 0;
+  for (let i = 1; i < pts.length; i++) len += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+  return len;
+}
+
+/**
+ * One centreline per alignment. Ways are considered longest-first so the trunk
+ * is always accepted before its twin — otherwise two twins can each claim to be
+ * covered by the other and both survive (or neither does).
+ *
+ * Linear scan over accepted segments with a bbox reject. The worst line is 76
+ * ways over ~400 segments, a few million cheap tests — a spatial index would be
+ * faster and not worth the code.
+ */
+function dedupeWays(ways) {
+  const projected = ways.map((w) => w.map(project));
+  const order = ways
+    .map((_, i) => i)
+    .sort((a, b) => pathLength(projected[b]) - pathLength(projected[a]));
+
+  const accepted = []; // [a, b] segment pairs in projected metres
+  const covers = (p) => {
+    for (const [a, b] of accepted) {
+      // Cheap bbox reject before the projection maths.
+      if (p[0] < Math.min(a[0], b[0]) - MERGE_TOLERANCE_M) continue;
+      if (p[0] > Math.max(a[0], b[0]) + MERGE_TOLERANCE_M) continue;
+      if (p[1] < Math.min(a[1], b[1]) - MERGE_TOLERANCE_M) continue;
+      if (p[1] > Math.max(a[1], b[1]) + MERGE_TOLERANCE_M) continue;
+      if (distToSegment(p, a, b) <= MERGE_TOLERANCE_M) return true;
+    }
+    return false;
+  };
+
+  const keep = [];
+  for (const i of order) {
+    const pts = projected[i];
+    if (pts.length < 2) continue;
+    const samples = samplePath(pts);
+    let covered = 0;
+    for (const s of samples) if (covers(s)) covered++;
+    if (accepted.length && covered / samples.length >= COVER_FRACTION) continue;
+
+    keep.push(i);
+    for (let k = 1; k < pts.length; k++) accepted.push([pts[k - 1], pts[k]]);
+  }
+  // Back into input order, so the file stays diff-friendly across re-bakes.
+  return keep.sort((a, b) => a - b).map((i) => ways[i]);
+}
+
 /** Douglas-Peucker: keeps the points that define the shape, drops the rest. */
 function douglasPeucker(points, tolerance) {
   if (points.length <= 2) return points;
@@ -395,6 +495,23 @@ function buildShapes(relations) {
       const pts = m.geometry.map((p) => [p.lat, p.lon]);
       out.push(douglasPeucker(pts, SIMPLIFY_TOLERANCE_M).map(([a, b]) => [round(a), round(b)]));
     }
+  }
+
+  // Simplify first, dedupe second: by here every way is 4-6 points, so the
+  // cover test is cheap and measures exactly the geometry that ships.
+  for (const [prefix, ways] of byPrefix) {
+    const kept = dedupeWays(ways);
+    const ptsBefore = ways.reduce((n, w) => n + w.length, 0);
+    const ptsAfter = kept.reduce((n, w) => n + w.length, 0);
+    console.log(
+      `  ${prefix.padEnd(3)} twin tracks: ${ways.length} -> ${kept.length} ways, ` +
+        `${ptsBefore} -> ${ptsAfter} pts`,
+    );
+    // Losing nearly everything means the tolerance swallowed a real alignment.
+    if (ways.length > 20 && ptsAfter < ptsBefore * 0.2) {
+      console.warn(`  ${prefix}: dedupe kept under a fifth of the geometry — check MERGE_TOLERANCE_M`);
+    }
+    byPrefix.set(prefix, kept);
   }
   return byPrefix;
 }

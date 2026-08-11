@@ -205,7 +205,10 @@ export function LogPanel({
                   <p className="mt-1 break-words text-[12px] leading-snug text-white/70">{ev.text}</p>
                   <div className="mt-2.5 flex flex-col gap-1.5">
                     {ev.choices.map((c) => {
-                      const affordable = c.kind !== 'pay' || hasItem(c.itemId);
+                      // A pay choice lists everything they'd take; holding any
+                      // one of them is enough.
+                      const affordable =
+                        c.kind !== 'pay' || !!c.itemIds?.some((id) => hasItem(id));
                       const tone =
                         c.kind === 'fight'
                           ? 'border-hiss/50 text-hiss hover:bg-hiss/10'
@@ -220,10 +223,8 @@ export function LogPanel({
                           className={`whitespace-normal break-words rounded border px-2.5 py-1.5 text-left text-[13px] transition disabled:opacity-30 ${tone}`}
                         >
                           {c.label}
-                          {c.kind === 'pay' && !affordable && c.itemId && (
-                            <span className="ml-1 text-[11px] text-hiss">
-                              (no {itemDef(c.itemId).name})
-                            </span>
+                          {c.kind === 'pay' && !affordable && (
+                            <span className="ml-1 text-[11px] text-hiss">(you have none)</span>
                           )}
                         </button>
                       );
