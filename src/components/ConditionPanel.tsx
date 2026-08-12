@@ -2,7 +2,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useGame } from '../game/store';
 import { MeterBar } from './MeterBar';
 import { BodyDoll } from './BodyDoll';
-import { effectiveMaxHp, meterModifiers, totalInjuryPenalty } from '../game/survival';
+import { countBleeding, effectiveMaxHp, meterModifiers, totalInjuryPenalty } from '../game/survival';
 
 /**
  * Condition at a glance: the figure on the left carries limb damage, the bars on
@@ -15,17 +15,27 @@ export function ConditionPanel({ dollHeight = 132 }: { dollHeight?: number }) {
   );
   const effMax = effectiveMaxHp(maxHp, bodyParts);
   const injuryPenalty = Math.round(totalInjuryPenalty(maxHp, bodyParts));
-  const bleedingCount = Object.values(bodyParts).filter((p) => p.bleeding).length;
+  // Two badges, not one count: a scratch and an open artery need different
+  // reactions, and merging them into "Bleeding ×3" hides which one you have.
+  const minorCount = countBleeding(bodyParts, 'minor');
+  const majorCount = countBleeding(bodyParts, 'major');
 
   return (
     <section className="rounded-lg border border-white/10 bg-black/30 p-2.5">
       <div className="mb-2 flex items-baseline justify-between gap-2">
-        <h4 className="text-[11px] uppercase tracking-widest text-white/30">Condition</h4>
-        {bleedingCount > 0 && (
-          <span className="pulse-danger rounded-sm bg-hiss/20 px-1.5 py-px text-[10px] font-semibold uppercase tracking-widest text-hiss">
-            Bleeding{bleedingCount > 1 ? ` ×${bleedingCount}` : ''}
-          </span>
-        )}
+        <h4 className="text-xs uppercase tracking-widest text-white/30">Condition</h4>
+        <div className="flex items-baseline gap-1.5">
+          {majorCount > 0 && (
+            <span className="pulse-danger rounded-sm bg-hiss/20 px-1.5 py-px text-2xs font-semibold uppercase tracking-widest text-hiss">
+              Bleeding out{majorCount > 1 ? ` ×${majorCount}` : ''}
+            </span>
+          )}
+          {minorCount > 0 && (
+            <span className="rounded-sm bg-white/10 px-1.5 py-px text-2xs font-semibold uppercase tracking-widest text-concrete-200">
+              Bleeding{minorCount > 1 ? ` ×${minorCount}` : ''}
+            </span>
+          )}
+        </div>
       </div>
       <div className="flex items-center gap-3">
         <div className="shrink-0">
@@ -69,7 +79,7 @@ export function ConditionPanel({ dollHeight = 132 }: { dollHeight?: number }) {
             danger
           />
           {injuryPenalty > 0 && (
-            <div className="text-[10px] text-hiss/80">−{injuryPenalty} max HP from injuries</div>
+            <div className="text-2xs text-hiss/80">−{injuryPenalty} max HP from injuries</div>
           )}
         </div>
       </div>

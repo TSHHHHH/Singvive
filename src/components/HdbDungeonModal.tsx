@@ -81,8 +81,8 @@ export function HdbDungeonModal() {
         {/* ---- signage header ---- */}
         <div className="flex shrink-0 items-center justify-between border-b border-concrete-600 bg-concrete-800 px-4 py-2.5">
           <div className="min-w-0">
-            <div className="signage truncate text-[11px] text-signal">{hdb.name}</div>
-            <div className="text-[11px] text-concrete-400">
+            <div className="signage truncate text-xs text-signal">{hdb.name}</div>
+            <div className="text-xs text-concrete-400">
               {hdb.archetype === 'shelter' ? 'Barricaded shelter' : 'Residential block'} ·{' '}
               {floor.layoutType === 'slab' ? 'slab layout' : 'point block'}
             </div>
@@ -101,7 +101,7 @@ export function HdbDungeonModal() {
           {/* ================= LEFT: the block, as a section ================= */}
           <div className="w-52 shrink-0 overflow-y-auto border-r border-concrete-600 bg-concrete-950/60 p-2 md:w-64">
             {band.dcStep > 0 && (
-              <div className="mb-2 rounded border border-hiss/40 bg-hiss/10 px-1.5 py-1 text-[9px] leading-snug text-hiss">
+              <div className="mb-2 rounded border border-hiss/40 bg-hiss/10 px-1.5 py-1 text-2xs leading-snug text-hiss">
                 Going down is a check now — Dex+End vs DC {dc}.
                 {hunting ? ' The stairs are hunted in both directions.' : ' Climbing is still free.'}
               </div>
@@ -115,10 +115,10 @@ export function HdbDungeonModal() {
               <h3 className="signage text-xs text-concrete-50">
                 Level {String(hdb.currentLevel).padStart(2, '0')}
               </h3>
-              <span className="text-[11px] text-concrete-400">
+              <span className="text-xs text-concrete-400">
                 Floor threat{' '}
                 <span className={threat >= 5 ? 'text-hiss' : 'text-signal'}>{threat}</span>{' '}
-                <span className="text-[10px] text-concrete-400/70">
+                <span className="text-2xs text-concrete-400/70">
                   ({parts.base} block
                   {parts.heat > 0 && <span className="text-hiss"> +{parts.heat} heat</span>}
                   {parts.height < 0 && ` ${parts.height} height`})
@@ -147,12 +147,12 @@ export function HdbDungeonModal() {
                     <span className="font-bold">
                       <Icon name={UNIT_ICON[sel.type]} /> {sel.label}
                     </span>
-                    <span className="text-[11px] uppercase tracking-widest text-concrete-400">
+                    <span className="text-xs uppercase tracking-widest text-concrete-400">
                       {sel.state === 'cleared' ? 'cleared' : ENTRY_META[sel.entry].label}
                     </span>
                   </div>
 
-                  <ul className="mt-2 space-y-0.5 text-[11px] text-concrete-200">
+                  <ul className="mt-2 space-y-0.5 text-xs text-concrete-200">
                     <li>
                       Threats:{' '}
                       {sel.scoutedInfo && sel.scoutedInfo.threatCount >= 0 ? (
@@ -193,7 +193,7 @@ export function HdbDungeonModal() {
                         <><Icon name={SERVICE_ICON[sel.service]} /> {SERVICE_LABEL[sel.service]}</>
                       </button>
                     ) : sel.state === 'cleared' ? (
-                      <span className="text-[11px] text-concrete-400">
+                      <span className="text-xs text-concrete-400">
                         You've already been through this one. Nothing left in it.
                       </span>
                     ) : (
@@ -214,7 +214,7 @@ export function HdbDungeonModal() {
             </div>
 
             {/* ---- what your senses can actually read ---- */}
-            <div className="mt-2 flex flex-wrap gap-2 text-[10px] text-concrete-400">
+            <div className="mt-2 flex flex-wrap gap-2 text-2xs text-concrete-400">
               {senses.map((s) => (
                 <span
                   key={s.key}
@@ -250,13 +250,13 @@ function Wing({
 }) {
   return (
     <div className={narrow ? 'w-24' : ''}>
-      <div className="signage mb-1 text-center text-[9px] text-concrete-400">{title}</div>
+      <div className="signage mb-1 text-center text-2xs text-concrete-400">{title}</div>
       <div className="flex flex-col gap-1">
         {units.map((u) => (
           <button
             key={u.id}
             onClick={() => onSelect(u.id)}
-            className={`rounded border px-2 py-2 text-left text-[11px] transition ${
+            className={`rounded border px-2 py-2 text-left text-xs transition ${
               STATE_CLASS[u.state]
             } ${selected === u.id ? 'ring-1 ring-signal' : ''}`}
           >
@@ -264,9 +264,9 @@ function Wing({
               <Icon name={UNIT_ICON[u.type]} /> {u.label}
             </div>
             {u.service ? (
-              <div className="truncate text-[10px] opacity-70"><Icon name={SERVICE_ICON[u.service]} /> {SERVICE_LABEL[u.service]}</div>
+              <div className="truncate text-2xs opacity-70"><Icon name={SERVICE_ICON[u.service]} /> {SERVICE_LABEL[u.service]}</div>
             ) : u.type !== 'stairwell' && u.state !== 'cleared' ? (
-              <div className="truncate text-[10px] opacity-70">
+              <div className="truncate text-2xs opacity-70">
                 {ENTRY_META[u.entry].label}
                 {ENTRY_META[u.entry].heat > 0 && <span className="text-hiss"> ▲</span>}
               </div>
@@ -312,7 +312,7 @@ function BlockSection({
 
   return (
     <>
-      <div className="signage mb-1.5 flex items-baseline justify-between text-[9px] text-concrete-400">
+      <div className="signage mb-1.5 flex items-baseline justify-between text-2xs text-concrete-400">
         <span>Block section</span>
         <span>
           {hdb.height} storeys · {n} stairs
@@ -354,7 +354,7 @@ function BlockSection({
                       ? `Level ${label} — walk here`
                       : `Level ${label} — no stairs you can reach serve it`
               }
-              className={`absolute inset-x-0 flex items-center gap-1.5 overflow-hidden rounded-[2px] border px-1.5 text-[10px] transition ${cls}`}
+              className={`absolute inset-x-0 flex items-center gap-1.5 overflow-hidden rounded-[2px] border px-1.5 text-2xs transition ${cls}`}
               style={{ top: topOf(level), height: ROW }}
             >
               <span className="w-4 shrink-0 text-left font-bold tabular-nums">{label}</span>
@@ -440,7 +440,7 @@ function BlockSection({
                   }}
                 />
                 <span
-                  className={`absolute text-[8px] font-bold ${live ? 'text-signal' : 'text-concrete-400'}`}
+                  className={`absolute text-2xs font-bold ${live ? 'text-signal' : 'text-concrete-400'}`}
                   style={{
                     top: topOf(r.top) - 9,
                     left: `${x}%`,
@@ -472,7 +472,7 @@ function BlockSection({
         </div>
       </div>
 
-      <div className="mt-2.5 space-y-1 text-[9px] leading-snug text-concrete-400">
+      <div className="mt-2.5 space-y-1 text-2xs leading-snug text-concrete-400">
         <div className="flex items-center gap-1.5">
           <span className="inline-block h-3 w-2 border-x border-signal bg-signal/35" />
           stairs you're in
@@ -514,7 +514,7 @@ function HeatGauge({
   return (
     <div className="shrink-0 border-b border-concrete-600 bg-concrete-900/60 px-4 py-2">
       <div className="mb-1 flex items-baseline justify-between gap-3">
-        <span className="signage text-[9px] text-concrete-400">
+        <span className="signage text-2xs text-concrete-400">
           Block heat ·{' '}
           <span className={hunting ? 'text-hiss' : idx >= 3 ? 'text-hiss' : idx >= 1 ? 'text-signal' : 'text-concrete-200'}>
             {band.label}
@@ -523,7 +523,7 @@ function HeatGauge({
             {heat}/{HEAT_MAX}
           </span>
         </span>
-        <span className="text-[10px] tabular-nums text-concrete-400">
+        <span className="text-2xs tabular-nums text-concrete-400">
           {band.dcStep > 0 ? `descent DC ${dc}` : 'descent free'}
         </span>
       </div>
@@ -545,7 +545,7 @@ function HeatGauge({
         ))}
       </div>
 
-      <div className="mt-1 text-[10px] leading-snug">
+      <div className="mt-1 text-2xs leading-snug">
         {hunting ? (
           <span className="text-hiss">
             HUNTING — {Math.round(HUNT_ELITE_CHANCE * 100)}% chance something finds you on every

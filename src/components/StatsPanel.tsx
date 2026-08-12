@@ -18,10 +18,10 @@ export function StatsPanel() {
     <div className="flex flex-col gap-3">
       {character && (
         <section className="rounded-lg border border-white/10 bg-black/30 p-3">
-          <h4 className="mb-2 text-[11px] uppercase tracking-widest text-white/30">Survivor</h4>
+          <h4 className="mb-2 text-xs uppercase tracking-widest text-white/30">Survivor</h4>
           <div className="mb-2 flex items-baseline justify-between">
             <span className="truncate text-sm font-bold text-signal">{character.name}</span>
-            <span className="shrink-0 text-[11px] text-white/40">day {day}</span>
+            <span className="shrink-0 text-xs text-white/40">day {day}</span>
           </div>
           <div className="grid grid-cols-5 gap-1 text-center">
             {ATTRIBUTE_KEYS.map((k) => (
@@ -29,7 +29,7 @@ export function StatsPanel() {
                 <div className="text-sm font-bold tabular-nums text-signal">
                   {character.attributes[k]}
                 </div>
-                <div className="text-[10px] uppercase text-white/40">
+                <div className="text-2xs uppercase text-white/40">
                   {ATTRIBUTE_LABELS[k].slice(0, 3)}
                 </div>
               </div>
@@ -41,7 +41,7 @@ export function StatsPanel() {
                 <span
                   key={t.id}
                   title={t.description}
-                  className={`rounded px-1.5 py-0.5 text-[11px] ${
+                  className={`rounded px-1.5 py-0.5 text-xs ${
                     t.category === 'positive' ? 'bg-signal/15 text-signal' : 'bg-hiss/15 text-hiss'
                   }`}
                 >
@@ -55,14 +55,14 @@ export function StatsPanel() {
 
       {STAT_GROUPS.map((group) => (
         <section key={group.title} className="rounded-lg border border-white/10 bg-black/30 p-3">
-          <h4 className="mb-2 text-[11px] uppercase tracking-widest text-white/30">
+          <h4 className="mb-2 text-xs uppercase tracking-widest text-white/30">
             {group.title}
           </h4>
           <dl className="flex flex-col gap-1">
             {group.rows.map((row) => {
               const raw = stats[row.key];
               return (
-                <div key={row.key} className="flex items-center gap-2 text-[12px]">
+                <div key={row.key} className="flex items-center gap-2 text-xs">
                   <span className="w-5 shrink-0 text-center text-white/40">
                     <Icon name={row.icon} />
                   </span>

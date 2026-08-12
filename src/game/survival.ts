@@ -1,4 +1,4 @@
-import type { BodyPartId, BodyParts, Meters } from './types';
+import type { BleedLevel, BodyPartId, BodyParts, Meters } from './types';
 import type { Rng } from './rng';
 
 export const HOURS_PER_DAY = 24;
@@ -162,7 +162,13 @@ export function tickMeters(
   effectiveMaxHp: number,
   hours: number,
   bleedDrain = 0,
-  opts: { sleeping?: boolean; thirstMult?: number; energyMult?: number } = {},
+  opts: {
+    sleeping?: boolean;
+    thirstMult?: number;
+    energyMult?: number;
+    /** Set by a major bleed only — a minor no longer freezes recovery. */
+    bleedBlocksRegen?: boolean;
+  } = {},
 ): Meters {
   const mult = opts.sleeping ? SLEEP_DEPLETION_MULT : 1;
   // Environmental multipliers (a heat wave, today) stack on top of the sleep
@@ -187,8 +193,10 @@ export function tickMeters(
   health -= parched * DEHYDRATE_HP_PER_HOUR * hours;
   if (meters.infection > 0) health -= (meters.infection / 25) * hours;
 
-  // passive recovery when the body is stable (fed, hydrated, not bleeding out)
-  if (bleedDrain === 0 && starving === 0 && parched === 0 && meters.infection < 50) {
+  // Passive recovery when the body is stable (fed, hydrated, not bleeding out).
+  // A minor bleed no longer counts as "bleeding out" — it drains a trickle and
+  // the body still knits, so an untreated scratch can't stall the whole run.
+  if (!opts.bleedBlocksRegen && starving === 0 && parched === 0 && meters.infection < 50) {
     // A well-fed body knits itself back together faster than a hungry one.
     health += HP_REGEN_PER_HOUR * hours * hpRegenMultiplier(hunger);
   }
@@ -243,11 +251,45 @@ const WOUND_WEIGHTS: [BodyPartId, number][] = [
 ];
 
 const PART_REGEN_PER_HOUR = 1.5;
-const BLEED_DRAIN_PER_HOUR = 2;
+
+// ---------- Bleeding ----------
+// Bleeding used to be one flat, unsurvivable state: every wound bled at the
+// same rate, nothing clotted on its own, and all HP recovery stopped until you
+// found a bandage. A run with no bandage in it was a run you could not finish,
+// which made the dice — not the player — decide the ending.
+//
+// Two severities instead. A `minor` bleed is atmosphere: it barely drains, it
+// clots by itself, and the body keeps recovering through it. A `major` is the
+// emergency the bandage economy is actually built around, and it is rare.
+
+export const MINOR_BLEED_DRAIN_PER_HOUR = 0.5;
+export const MAJOR_BLEED_DRAIN_PER_HOUR = 2.5;
+
+/** Total drain ceiling across all parts, so four wounds can't spiral. */
+export const MAX_BLEED_DRAIN_PER_HOUR = 4;
+
+/** In-game hours a minor bleed takes to clot on its own. */
+export const MINOR_BLEED_CLOT_HOURS = 3;
+
+/** Below this damage a wound physically cannot open a major bleed. */
+const MAJOR_BLEED_MIN_DAMAGE = 12;
+const MAJOR_BLEED_MAX_CHANCE = 0.1;
+const MINOR_BLEED_MAX_CHANCE = 0.5;
+
+/** A part already bleeding minor is likelier to tear open into a major. */
+const REOPEN_MAJOR_MULT = 2;
+
+const BLEED_DRAIN: Record<BleedLevel, number> = {
+  none: 0,
+  minor: MINOR_BLEED_DRAIN_PER_HOUR,
+  major: MAJOR_BLEED_DRAIN_PER_HOUR,
+};
+
+const BLEED_RANK: Record<BleedLevel, number> = { none: 0, minor: 1, major: 2 };
 
 export function initialBodyParts(): BodyParts {
   const parts = {} as BodyParts;
-  for (const id of BODY_PART_IDS) parts[id] = { condition: 100, bleeding: false };
+  for (const id of BODY_PART_IDS) parts[id] = { condition: 100, bleed: 'none', bleedHours: 0 };
   return parts;
 }
 
@@ -269,7 +311,35 @@ export function avgCondition(parts: BodyParts, ids: BodyPartId[]): number {
 }
 
 export function anyBleeding(parts: BodyParts): boolean {
-  return BODY_PART_IDS.some((id) => parts[id].bleeding);
+  return BODY_PART_IDS.some((id) => parts[id].bleed !== 'none');
+}
+
+/** The worst bleed anywhere on the body — drives the HUD and the log tone. */
+export function worstBleed(parts: BodyParts): BleedLevel {
+  let worst: BleedLevel = 'none';
+  for (const id of BODY_PART_IDS) {
+    if (BLEED_RANK[parts[id].bleed] > BLEED_RANK[worst]) worst = parts[id].bleed;
+  }
+  return worst;
+}
+
+export function countBleeding(parts: BodyParts, level: BleedLevel): number {
+  return BODY_PART_IDS.filter((id) => parts[id].bleed === level).length;
+}
+
+/**
+ * How much likelier an encounter is because you are leaking. Blood carries a
+ * long way, and this is where bleeding keeps its teeth now that it no longer
+ * simply drains you to death — the zombie finds you, the timer doesn't kill you.
+ * Additive on the encounter roll, same units as `encounterChanceMod`.
+ */
+export function bleedEncounterMod(parts: BodyParts): number {
+  let mod = 0;
+  for (const id of BODY_PART_IDS) {
+    if (parts[id].bleed === 'minor') mod += 0.04;
+    else if (parts[id].bleed === 'major') mod += 0.1;
+  }
+  return Math.min(0.2, mod);
 }
 
 /** Travel-speed multiplier from leg condition (1 = healthy, down to 0.5). */
@@ -294,37 +364,81 @@ export function applyWound(
 ): BodyParts {
   const target = rng.weighted(WOUND_WEIGHTS);
   const conditionLoss = damage * 1.5 * limbDamageMult;
-  const bleedChance = Math.min(0.6, damage / 40);
-  const bleeding = parts[target].bleeding || rng.chance(bleedChance);
+  const current = parts[target];
+
+  // A major needs a genuinely heavy blow, and even then it is uncommon. Rolled
+  // first, because a hit that opens an artery is not also "a small cut".
+  let bleed: BleedLevel = current.bleed;
+  if (damage >= MAJOR_BLEED_MIN_DAMAGE) {
+    const over = (damage - MAJOR_BLEED_MIN_DAMAGE) / 200;
+    const reopen = current.bleed === 'minor' ? REOPEN_MAJOR_MULT : 1;
+    if (rng.chance(Math.min(MAJOR_BLEED_MAX_CHANCE, over * reopen))) bleed = 'major';
+  }
+  if (bleed !== 'major' && rng.chance(Math.min(MINOR_BLEED_MAX_CHANCE, damage / 30))) {
+    bleed = 'minor';
+  }
+
+  // Taking a fresh hit on a part that is already weeping restarts its clock.
+  const bleedHours = bleed === 'minor' ? MINOR_BLEED_CLOT_HOURS : 0;
+
   return {
     ...parts,
     [target]: {
-      condition: Math.max(0, parts[target].condition - conditionLoss),
-      bleeding,
+      condition: Math.max(0, current.condition - conditionLoss),
+      bleed,
+      bleedHours,
     },
   };
 }
 
 /**
- * Advance injuries by `hours`: untreated parts slowly recover, but bleeding
- * parts don't heal and drain HP. Returns new parts + total bleed drain/hour.
+ * Advance injuries by `hours`. Minor bleeds clot on their own and let the part
+ * keep knitting (slowly) while they do; majors do neither. Returns new parts,
+ * the total drain per hour, and whether anything is bad enough to hold up the
+ * body's passive recovery.
+ *
+ * `selfStopDisabled` is the Hemophiliac trait: nothing clots by itself, so
+ * every scratch has to be dressed by hand.
  */
-export function tickInjuries(parts: BodyParts, hours: number): { parts: BodyParts; bleedDrain: number } {
+export function tickInjuries(
+  parts: BodyParts,
+  hours: number,
+  selfStopDisabled = false,
+): { parts: BodyParts; bleedDrain: number; blocksRegen: boolean } {
   const next = {} as BodyParts;
   let bleedDrain = 0;
+  let blocksRegen = false;
+
   for (const id of BODY_PART_IDS) {
     const p = parts[id];
-    if (p.bleeding) {
-      bleedDrain += BLEED_DRAIN_PER_HOUR;
+    bleedDrain += BLEED_DRAIN[p.bleed];
+
+    if (p.bleed === 'major') {
+      // Never clots, never heals, and pins the body's own recovery.
+      blocksRegen = true;
       next[id] = p;
-    } else {
-      next[id] = {
-        condition: Math.min(100, p.condition + PART_REGEN_PER_HOUR * hours),
-        bleeding: false,
-      };
+      continue;
     }
+
+    if (p.bleed === 'minor') {
+      const left = selfStopDisabled ? p.bleedHours : Math.max(0, p.bleedHours - hours);
+      next[id] = {
+        // Half rate: a weeping wound still closes, just grudgingly.
+        condition: Math.min(100, p.condition + PART_REGEN_PER_HOUR * hours * 0.5),
+        bleed: left > 0 ? 'minor' : 'none',
+        bleedHours: left,
+      };
+      continue;
+    }
+
+    next[id] = {
+      condition: Math.min(100, p.condition + PART_REGEN_PER_HOUR * hours),
+      bleed: 'none',
+      bleedHours: 0,
+    };
   }
-  return { parts: next, bleedDrain };
+
+  return { parts: next, bleedDrain: Math.min(MAX_BLEED_DRAIN_PER_HOUR, bleedDrain), blocksRegen };
 }
 
 /** Heal the most-wounded part and optionally stop bleeding (used by items). */
@@ -337,17 +451,25 @@ export function treatInjuries(
 
   if (stopsBleeding === 'all') {
     for (const id of BODY_PART_IDS) {
-      if (next[id].bleeding) next[id] = { ...next[id], bleeding: false };
+      if (next[id].bleed !== 'none') next[id] = { ...next[id], bleed: 'none', bleedHours: 0 };
     }
   } else if (stopsBleeding === 'one') {
-    // stop the worst-condition bleeding part
+    // Spend it on the worst bleed on the body — severity first, then condition.
+    // A single bandage burnt on a scratch while an artery is open would be a
+    // trap, and the player can't aim it.
     let worst: BodyPartId | null = null;
     for (const id of BODY_PART_IDS) {
-      if (next[id].bleeding && (worst === null || next[id].condition < next[worst].condition)) {
+      if (next[id].bleed === 'none') continue;
+      if (
+        worst === null ||
+        BLEED_RANK[next[id].bleed] > BLEED_RANK[next[worst].bleed] ||
+        (BLEED_RANK[next[id].bleed] === BLEED_RANK[next[worst].bleed] &&
+          next[id].condition < next[worst].condition)
+      ) {
         worst = id;
       }
     }
-    if (worst) next[worst] = { ...next[worst], bleeding: false };
+    if (worst) next[worst] = { ...next[worst], bleed: 'none', bleedHours: 0 };
   }
 
   if (partHeal > 0) {
@@ -417,9 +539,20 @@ export function computeScore(days: number, kills: number, lootValue: number): nu
   return days * 100 + kills * 25 + lootValue;
 }
 
-/** "8:30", "19:05" from a float hour. */
-export function formatClock(hour: number): string {
-  const h = Math.floor(hour) % 24;
+export type ClockFormat = '24' | '12';
+
+/**
+ * "08:30" / "19:05", or "8:30 am" / "7:05 pm" on a 12-hour clock. The 24-hour
+ * form pads the hour: the timeline now runs the time inline with the entry, and
+ * a ragged left edge on the text is worse than one wasted character.
+ */
+export function formatClock(hour: number, format: ClockFormat = '24'): string {
+  const h = ((Math.floor(hour) % 24) + 24) % 24;
   const m = Math.floor((hour - Math.floor(hour)) * 60);
-  return `${h}:${m.toString().padStart(2, '0')}`;
+  const mm = m.toString().padStart(2, '0');
+  if (format === '12') {
+    const suffix = h < 12 ? 'am' : 'pm';
+    return `${h % 12 === 0 ? 12 : h % 12}:${mm} ${suffix}`;
+  }
+  return `${h.toString().padStart(2, '0')}:${mm}`;
 }

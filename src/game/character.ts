@@ -1,5 +1,6 @@
 import type { Attributes, AttributeKey, Character, Equipment, Trait } from './types';
 import { itemDef } from './loot';
+import { clampStanding, emptyStanding, type FactionStanding } from './factions';
 
 export const ATTRIBUTE_KEYS: AttributeKey[] = [
   'strength',
@@ -139,11 +140,24 @@ export const TRAITS: Trait[] = [
   {
     id: 'kampong_spirit',
     name: 'Kampong Spirit',
-    description: 'Faction hostility starts 1 tier lower. Community bonds transcend the apocalypse.',
+    description:
+      'Start Known with the IDTF and the PP Co-op — their counters are open to you from day one. Community bonds transcend the apocalypse.',
     category: 'positive',
     cost: 2,
-    conflicts: [],
-    factionHostilityMod: -1,
+    conflicts: ['ah_long_debt'],
+    factionStandingMod: { idtf: 1, pasir_panjang: 1 },
+  },
+  {
+    id: 'ah_long_debt',
+    name: 'Owe a Favour',
+    description:
+      'Somebody in the 88 Syndicate remembers you. They won\'t shoot on sight and their court is open — but the IDTF has read the same file.',
+    category: 'positive',
+    cost: 2,
+    // You cannot be everybody's friend. Being welcome in the void decks is
+    // exactly why the checkpoints don't want you.
+    conflicts: ['kampong_spirit'],
+    factionStandingMod: { syndicate_88: 1, idtf: -1 },
   },
   {
     id: 'water_baby',
@@ -302,6 +316,26 @@ export function sumTraitMod<K extends keyof Trait>(ids: string[], key: K): numbe
     if (typeof v === 'number') total += v;
   }
   return total;
+}
+
+/**
+ * Where a build starts on each faction's ladder.
+ *
+ * Almost always all zeroes — a survivor is nobody to everybody. The traits that
+ * move it are the ones that buy a starting relationship, and because hostility
+ * lifts at STANDING_KNOWN, a single point here is the difference between the 88
+ * Syndicate shooting at you and selling to you.
+ */
+export function startingStanding(traitIds: string[]): FactionStanding {
+  const out = emptyStanding();
+  for (const t of getTraits(traitIds)) {
+    if (!t.factionStandingMod) continue;
+    for (const [id, delta] of Object.entries(t.factionStandingMod)) {
+      const key = id as keyof FactionStanding;
+      out[key] = clampStanding(out[key] + (delta ?? 0));
+    }
+  }
+  return out;
 }
 
 /** Check if any selected trait has a boolean flag set. */

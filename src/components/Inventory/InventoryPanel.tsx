@@ -5,6 +5,7 @@ import {
   BACKPACK,
   canEquip,
   canPlace,
+  canTearForRags,
   conditionOf,
   conditionPct,
   containerWeight,
@@ -19,6 +20,9 @@ import {
   maxCarry,
   tierLabel,
   tierOf,
+  TEAR_CONDITION_COST,
+  TEAR_HOURS,
+  TEAR_RAGS_YIELD,
   totalLootValue,
 } from '../../game/inventory';
 import type { Container, EquipSlot, ItemInstance } from '../../game/types';
@@ -81,6 +85,9 @@ export function InventoryPanel({ onClose }: { onClose?: () => void }) {
   const dropItem = useGame((s) => s.dropItem);
   const craftItem = useGame((s) => s.craftItem);
   const repairItem = useGame((s) => s.repairItem);
+  const tearForRags = useGame((s) => s.tearForRags);
+  const tearOwnClothes = useGame((s) => s.tearOwnClothes);
+  const clothingTears = useGame((s) => s.clothingTears);
   const rounds = useGame((s) => s.rounds);
 
   const [selectedUid, setSelectedUid] = useState<string | null>(null);
@@ -184,6 +191,10 @@ export function InventoryPanel({ onClose }: { onClose?: () => void }) {
         )
       : undefined;
   const repairable = selected != null && hasCondition(selected) && conditionOf(selected) < 100;
+  // Cloth is the last line against a bleed, so cutting a garment up is offered
+  // right here rather than buried in crafting — you reach for it mid-crisis.
+  const tearable =
+    selected != null && def != null && canTearForRags(def) && conditionOf(selected) >= TEAR_CONDITION_COST;
 
   // Ammunition only matters once you're carrying something that eats it.
   const hasFirearm =
@@ -237,13 +248,13 @@ export function InventoryPanel({ onClose }: { onClose?: () => void }) {
                   : 'border-white/10 bg-black/40'
               }`}
             >
-              <span className="text-[10px] uppercase tracking-wide text-white/40">{label}</span>
+              <span className="text-2xs uppercase tracking-wide text-white/40">{label}</span>
               {eDef ? (
                 <>
                   <Icon name={itemIcon(eDef)} size={18} title={eDef.name} />
                   <button
                     onClick={() => unequipItem(slot)}
-                    className="mt-0.5 rounded bg-white/10 px-1 text-[10px] hover:bg-white/20"
+                    className="mt-0.5 rounded bg-white/10 px-1 text-2xs hover:bg-white/20"
                   >
                     ✕
                   </button>
@@ -269,7 +280,7 @@ export function InventoryPanel({ onClose }: { onClose?: () => void }) {
 
       {/* Carry gauge — sits directly under the backpack it measures */}
       <div className="rounded-lg border border-white/10 bg-black/40 px-3 py-2">
-        <div className="flex items-baseline justify-between text-[11px]">
+        <div className="flex items-baseline justify-between text-xs">
           <span className="uppercase tracking-widest text-white/40">Carry weight</span>
           <span className={encumbered ? 'font-semibold text-hiss' : 'text-white/60'}>
             {load.toFixed(1)} / {carry} kg{encumbered ? ' · Encumbered' : ''}
@@ -283,7 +294,7 @@ export function InventoryPanel({ onClose }: { onClose?: () => void }) {
             style={{ width: `${Math.min(100, loadPct)}%` }}
           />
         </div>
-        <div className="mt-1.5 flex items-baseline justify-between text-[11px] text-white/40">
+        <div className="mt-1.5 flex items-baseline justify-between text-xs text-white/40">
           <span>
             {items.filter((i) => i.container === BACKPACK).length} items carried
           </span>
@@ -308,7 +319,7 @@ export function InventoryPanel({ onClose }: { onClose?: () => void }) {
                 <div className="flex items-baseline gap-2">
                   <span className="font-bold">{def.name}</span>
                   {def.exotic && (
-                    <span className="rounded bg-amber-300/15 px-1.5 text-[10px] uppercase tracking-wide text-amber-300">
+                    <span className="rounded bg-amber-300/15 px-1.5 text-2xs uppercase tracking-wide text-amber-300">
                       Exotic
                     </span>
                   )}
@@ -318,13 +329,13 @@ export function InventoryPanel({ onClose }: { onClose?: () => void }) {
                 </div>
               </div>
             </div>
-            <p className="mt-2 text-[12px] text-white/60">{describeItem(def, selected)}</p>
+            <p className="mt-2 text-xs text-white/60">{describeItem(def, selected)}</p>
 
             {/* Wear is the item's headline stat once things start breaking, so
                 it gets its own row rather than a footnote among the sizes. */}
             {hasCondition(selected) && (
               <div className="mt-2">
-                <div className="flex items-baseline justify-between text-[11px]">
+                <div className="flex items-baseline justify-between text-xs">
                   <span
                     className={
                       isBroken(selected)
@@ -400,6 +411,15 @@ export function InventoryPanel({ onClose }: { onClose?: () => void }) {
                   Repair
                 </button>
               )}
+              {tearable && (
+                <button
+                  onClick={() => tearForRags(selected.uid)}
+                  className="rounded bg-white/10 px-3 py-1.5 text-sm hover:bg-white/20"
+                  title={`Costs ${TEAR_CONDITION_COST}% condition — yields ${TEAR_RAGS_YIELD}× Cloth Rags for dressings`}
+                >
+                  ✂ Cut for Rags
+                </button>
+              )}
               {stashContainer && (
                 <button
                   onClick={() =>
@@ -423,7 +443,7 @@ export function InventoryPanel({ onClose }: { onClose?: () => void }) {
             </div>
           </>
         ) : (
-          <p className="py-3 text-center text-[12px] text-white/30">
+          <p className="py-3 text-center text-xs text-white/30">
             Select an item to inspect it. Drag onto an equipment slot to equip.
           </p>
         )}
@@ -431,17 +451,35 @@ export function InventoryPanel({ onClose }: { onClose?: () => void }) {
 
       {/* Workbench. Only the recipes you could plausibly run are worth showing,
           so anything you hold no inputs at all for stays hidden. */}
-      {craftable.length > 0 && (
+      {(craftable.length > 0 || clothingTears > 0) && (
         <div className="rounded-lg border border-white/10 bg-black/40 p-3">
           <div className="mb-2 text-xs uppercase tracking-widest text-white/40">Make</div>
           <div className="flex flex-col gap-1.5">
+            {/* Always here, needing nothing. However badly the loot has gone,
+                there is still a way to get cloth — it just costs the shirt off
+                your back, and there are only so many of those. */}
+            {clothingTears > 0 && (
+              <button
+                onClick={tearOwnClothes}
+                title="Cut strips from what you're wearing. Costs nothing but the clothes."
+                className="flex items-baseline justify-between gap-3 rounded bg-white/5 px-2 py-1.5 text-left text-xs hover:bg-white/15"
+              >
+                <span className="min-w-0">
+                  <span className="font-semibold">Cut Up Your Clothes</span>
+                  <span className="block truncate text-white/35">
+                    Nothing — {clothingTears} left in them
+                  </span>
+                </span>
+                <span className="shrink-0 text-right text-white/35">{TEAR_HOURS}h</span>
+              </button>
+            )}
             {craftable.map(({ recipe, check }) => (
               <button
                 key={recipe.id}
                 disabled={!check.ok}
                 onClick={() => craftItem(recipe.id)}
                 title={recipe.blurb}
-                className={`flex items-baseline justify-between gap-3 rounded px-2 py-1.5 text-left text-[12px] ${
+                className={`flex items-baseline justify-between gap-3 rounded px-2 py-1.5 text-left text-xs ${
                   check.ok
                     ? 'bg-white/5 hover:bg-white/15'
                     : 'cursor-not-allowed bg-transparent text-white/25'

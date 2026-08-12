@@ -47,8 +47,13 @@ export function applyPulse(
   locations: Record<string, LocationState>,
   pulse: NoisePulse,
 ): Record<string, LocationState> {
+  const heard = locationsInPulse(locations, pulse);
+  // Nothing heard it — hand the same record back. A fresh identity here would
+  // make every consumer of `locations` treat the map as changed, and combat
+  // emits a pulse per swing.
+  if (heard.length === 0) return locations;
   const next = { ...locations };
-  for (const id of locationsInPulse(locations, pulse)) {
+  for (const id of heard) {
     const loc = next[id];
     next[id] = { ...loc, tempDangerBoost: (loc.tempDangerBoost ?? 0) + pulse.intensity };
   }
@@ -81,7 +86,11 @@ export function effectiveDanger(loc: LocationState): number {
   return loc.currentDanger + (loc.tempDangerBoost ?? 0);
 }
 
-/** Drop rings that have finished animating. */
+/** How long a ring takes to travel out to its full radius and fade. */
+export const PULSE_MS = 1600;
+
+/** Drop rings that have finished animating, reusing the array when none did. */
 export function prunePulses(pulses: NoisePulse[], now = Date.now()): NoisePulse[] {
-  return pulses.filter((p) => now - p.startedAt < 1600);
+  const live = pulses.filter((p) => now - p.startedAt < PULSE_MS);
+  return live.length === pulses.length ? pulses : live;
 }

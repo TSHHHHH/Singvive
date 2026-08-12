@@ -1,6 +1,27 @@
 import { useState } from 'react';
 import { BODY_PART_LABEL } from '../game/survival';
-import type { BodyPartId, BodyParts } from '../game/types';
+import type { BleedLevel, BodyPartId, BodyParts } from '../game/types';
+
+/**
+ * Severity has to be readable at a glance, because the two levels want
+ * completely different reactions: amber and still means "deal with it when you
+ * can", red and throbbing means "deal with it now".
+ */
+const BLEED_LABEL: Record<BleedLevel, string> = {
+  none: '',
+  minor: 'bleeding',
+  major: 'bleeding badly',
+};
+
+// The palette reserves red for danger, so red here means *major* and nothing
+// else. A minor bleed is marked in signage grey: visible, not alarming.
+const BLEED_COLOR: Record<BleedLevel, string> = {
+  none: 'transparent',
+  minor: '#b7b3a9',
+  major: '#d92d2d',
+};
+
+const BLEED_RANK: Record<BleedLevel, number> = { none: 0, minor: 1, major: 2 };
 
 /**
  * The survivor, drawn as a figure rather than a list of numbers — the Zomboid /
@@ -68,13 +89,15 @@ export function BodyDoll({ bodyParts, height = 150 }: Props) {
   const worst = ORDER.reduce((acc, id) => {
     const a = bodyParts[acc];
     const b = bodyParts[id];
-    if (b.bleeding !== a.bleeding) return b.bleeding ? id : acc;
+    if (BLEED_RANK[b.bleed] !== BLEED_RANK[a.bleed]) {
+      return BLEED_RANK[b.bleed] > BLEED_RANK[a.bleed] ? id : acc;
+    }
     return b.condition < a.condition ? id : acc;
   }, ORDER[0]);
 
   const focus = hovered ?? worst;
   const focused = bodyParts[focus];
-  const healthy = !focused.bleeding && focused.condition >= 99;
+  const healthy = focused.bleed === 'none' && focused.condition >= 99;
 
   return (
     <div className="flex flex-col items-center gap-1">
@@ -101,7 +124,7 @@ export function BodyDoll({ bodyParts, height = 150 }: Props) {
                 stroke={active ? '#e8e5dd' : partStroke(p.condition)}
                 strokeWidth={active ? 2.5 : 1.5}
                 className={`cursor-pointer transition-[fill,stroke] duration-200 ${
-                  p.bleeding ? 'pulse-danger' : ''
+                  p.bleed === 'major' ? 'pulse-danger' : ''
                 }`}
                 onMouseEnter={() => setHovered(id)}
                 onMouseLeave={() => setHovered((h) => (h === id ? null : h))}
@@ -109,13 +132,16 @@ export function BodyDoll({ bodyParts, height = 150 }: Props) {
               >
                 <title>
                   {BODY_PART_LABEL[id]}: {Math.round(p.condition)}%
-                  {p.bleeding ? ' · bleeding' : ''}
+                  {p.bleed !== 'none' ? ` · ${BLEED_LABEL[p.bleed]}` : ''}
                 </title>
               </rect>
               {/* Bleeding used to throb the whole map frame red; it lives here
                   now — a pip plus a halo on the limb that's actually open. */}
-              {p.bleeding && (
-                <g className="pulse-danger" pointerEvents="none">
+              {p.bleed !== 'none' && (
+                <g
+                  className={p.bleed === 'major' ? 'pulse-danger' : ''}
+                  pointerEvents="none"
+                >
                   <rect
                     x={s.x - 2.5}
                     y={s.y - 2.5}
@@ -123,10 +149,15 @@ export function BodyDoll({ bodyParts, height = 150 }: Props) {
                     height={s.h + 5}
                     rx={s.rx + 2.5}
                     fill="none"
-                    stroke="#d92d2d"
-                    strokeWidth={2}
+                    stroke={BLEED_COLOR[p.bleed]}
+                    strokeWidth={p.bleed === 'major' ? 2 : 1.25}
                   />
-                  <circle cx={PIP[id][0]} cy={PIP[id][1]} r={4} fill="#d92d2d" />
+                  <circle
+                    cx={PIP[id][0]}
+                    cy={PIP[id][1]}
+                    r={p.bleed === 'major' ? 4 : 2.75}
+                    fill={BLEED_COLOR[p.bleed]}
+                  />
                 </g>
               )}
             </g>
@@ -136,15 +167,20 @@ export function BodyDoll({ bodyParts, height = 150 }: Props) {
 
       {/* One-line readout for whatever the figure is pointing at. */}
       <div className="text-center leading-tight">
-        <div className="text-[10px] uppercase tracking-wider text-white/40">
+        <div className="text-2xs uppercase tracking-wider text-white/40">
           {BODY_PART_LABEL[focus]}
         </div>
         <div
-          className={`text-[11px] tabular-nums ${
-            focused.bleeding ? 'text-hiss' : healthy ? 'text-white/50' : 'text-concrete-200'
+          className={`text-xs tabular-nums ${
+            focused.bleed === 'major'
+              ? 'text-hiss'
+              : healthy
+                ? 'text-white/50'
+                : 'text-concrete-200'
           }`}
         >
-          {Math.round(focused.condition)}%{focused.bleeding && ' · bleeding'}
+          {Math.round(focused.condition)}%
+          {focused.bleed !== 'none' && ` · ${BLEED_LABEL[focused.bleed]}`}
         </div>
       </div>
     </div>

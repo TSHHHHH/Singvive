@@ -3,6 +3,7 @@ import { useGame } from '../game/store';
 import { itemDef } from '../game/loot';
 import { Icon } from '../icons/Icon';
 import { formatClock } from '../game/survival';
+import { useClockFormat } from '../game/settings';
 import type { GameLogEntry } from '../game/types';
 
 const toneClass: Record<string, string> = {
@@ -35,6 +36,7 @@ function groupByDay(log: GameLogEntry[]): { day: number; entries: GameLogEntry[]
 export function DayLogsModal({ onClose }: { onClose: () => void }) {
   const log = useGame((s) => s.log);
   const currentDay = useGame((s) => s.day);
+  const clock = useClockFormat();
 
   const days = useMemo(() => groupByDay(log), [log]);
   const [openDay, setOpenDay] = useState<number | null>(days[0]?.day ?? null);
@@ -80,12 +82,12 @@ export function DayLogsModal({ onClose }: { onClose: () => void }) {
                       <span className="text-sm font-semibold">
                         Day {day}
                         {day === currentDay && (
-                          <span className="ml-2 rounded bg-signal/20 px-1 text-[9px] font-semibold uppercase tracking-wide text-signal">
+                          <span className="ml-2 rounded bg-signal/20 px-1 text-2xs font-semibold uppercase tracking-wide text-signal">
                             today
                           </span>
                         )}
                       </span>
-                      <span className="flex items-center gap-2 text-[11px] text-white/35">
+                      <span className="flex items-center gap-2 text-xs text-white/35">
                         <span>
                           {entries.length} {entries.length === 1 ? 'entry' : 'entries'}
                         </span>
@@ -99,19 +101,19 @@ export function DayLogsModal({ onClose }: { onClose: () => void }) {
                       <ol className="flex flex-col gap-1.5 border-t border-white/10 px-3 py-2">
                         {entries.map((e) => (
                           <li key={e.id} className="flex gap-2">
-                            <span className="shrink-0 pt-px text-[10px] tabular-nums text-white/25">
-                              {formatClock(e.hour)}
+                            <span className="shrink-0 pt-px text-2xs tabular-nums text-white/25">
+                              {formatClock(e.hour, clock)}
                             </span>
                             <div className="min-w-0 flex-1">
                               <div
-                                className={`break-words text-[12px] leading-snug ${
+                                className={`break-words text-xs leading-snug ${
                                   toneClass[e.tone] ?? 'text-white/60'
                                 }`}
                               >
                                 {e.text}
                               </div>
                               {e.loot && e.loot.length > 0 && (
-                                <div className="mt-0.5 flex flex-wrap gap-x-2 text-[11px] text-white/40">
+                                <div className="mt-0.5 flex flex-wrap gap-x-2 text-xs text-white/40">
                                   {e.loot.map((s, i) => (
                                     <span key={i}>
                                       {itemDef(s.defId).name} ×{s.count}

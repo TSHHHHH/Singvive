@@ -60,7 +60,17 @@ export interface Trait {
   gridWidthBonus?: number; // extra columns on backpack
 
   // --- faction ---
-  factionHostilityMod?: number; // −1 = one tier friendlier start
+  /**
+   * Standing each faction starts the run at. This replaces the old
+   * `factionHostilityMod`, which was declared, typed, and read by absolutely
+   * nothing.
+   *
+   * It is the *only* lever a trait needs over factions, because hostility now
+   * lifts at STANDING_KNOWN: handing a build one point of standing with the 88
+   * Syndicate is exactly what "you know someone" means, with no special case
+   * anywhere in the faction code.
+   */
+  factionStandingMod?: Partial<Record<Exclude<FactionId, null>, number>>;
 
   // --- food effectiveness ---
   foodEffectMod?: number; // multiplier delta: −0.25 = food 25% less effective
@@ -78,13 +88,49 @@ export interface Character {
   name: string;
   attributes: Attributes;
   traitIds: string[];
+  /**
+   * The preset this build started from, kept for flavour and for showing the
+   * player what they picked. Absent on hand-rolled builds — and on any build
+   * whose traits were edited away from the preset.
+   */
+  occupationId?: string;
+}
+
+/**
+ * A one-click starting build: a curated, budget-legal trait bundle with a
+ * job title attached. See `src/game/occupations.ts`.
+ */
+export interface Occupation {
+  id: string;
+  /** The job, as it read on the pass hanging round your neck. */
+  name: string;
+  /** One line, shown on the card. */
+  tagline: string;
+  /** The longer pitch, shown once the card is selected. */
+  blurb: string;
+  /** Positive and negative traits together, in pick order. */
+  traitIds: string[];
+  /** Plain-English strengths — no numbers, for players who don't want them. */
+  goodAt: string[];
+  strugglesWith: string[];
 }
 
 // ---------- Items / Inventory ----------
 export type ItemEffect =
   | { kind: 'food'; hunger: number }
   | { kind: 'water'; thirst: number }
-  | { kind: 'heal'; health: number; partHeal?: number; stopsBleeding?: 'one' | 'all' }
+  | {
+      kind: 'heal';
+      health: number;
+      partHeal?: number;
+      stopsBleeding?: 'one' | 'all';
+      /**
+       * Infection points this adds when used. What you pay for dressing a wound
+       * with a torn shirt instead of a sterile bandage — the cheap way out of a
+       * bleed is always available, and always costs you something later.
+       */
+      infectionRisk?: number;
+    }
   | { kind: 'cure'; infection: number }
   | { kind: 'energy'; energy: number }
   | {
@@ -138,6 +184,15 @@ export interface ItemDef {
    * should set this — see the stacking invariant in inventory.ts.
    */
   maxCondition?: number;
+  /**
+   * Multiplier on the wear a weapon takes per swing; default 1.
+   *
+   * A kitchen knife and a fireman's axe used to blunt at exactly the same rate,
+   * which made every weapon equally disposable and the good ones not worth
+   * carrying. Below 1 is built to last (a crowbar is a steel bar), above 1 is
+   * improvised (a taped stick, a paring knife).
+   */
+  wearRate?: number;
   /** Condition decays with elapsed time rather than with use. */
   perishable?: boolean;
   /**
@@ -260,9 +315,23 @@ export type BodyPartId =
   | 'leftLeg'
   | 'rightLeg';
 
+/**
+ * How badly a part is bleeding.
+ *
+ * `minor` is pressure, not a death sentence: it clots on its own, barely drains,
+ * and does not stop the body recovering. `major` is the emergency — it never
+ * clots, and it has to be dressed with something.
+ */
+export type BleedLevel = 'none' | 'minor' | 'major';
+
 export interface BodyPart {
   condition: number; // 0..100, 100 = healthy
-  bleeding: boolean;
+  bleed: BleedLevel;
+  /**
+   * In-game hours left before a `minor` bleed clots on its own. Meaningless for
+   * `none` and `major` — a major never clots, and that is the whole point of it.
+   */
+  bleedHours: number;
 }
 
 export type BodyParts = Record<BodyPartId, BodyPart>;
@@ -295,6 +364,12 @@ export interface Enemy {
   damage: number; // per hit
   infectious: number; // 0..1 chance to infect on hit (0 for humans)
   armor: number; // flat damage soak — bypassed by the precision stance
+  /**
+   * Gauge units earned per second on the initiative track. A Runner at 13 acts
+   * roughly twice for every one swing a Shambler at 5 gets in — this is the
+   * number the race track on screen is actually drawing.
+   */
+  speed: number;
 }
 
 /** Back-compat alias for the spec's naming. */
@@ -317,6 +392,8 @@ export interface StanceDef {
   ignoresArmor: boolean;
   /** Extra in-game hours burned per round. */
   timeCostHours: number;
+  /** Gauge units/second added to the player's initiative rate. */
+  speedMod: number;
   fleeDcMod: number;
   /** Enemy gets a parting swing before you disengage. */
   opportunityAttack: boolean;
@@ -351,6 +428,12 @@ export interface CombatLogEntry {
   round: number;
   text: string;
   tone: 'player' | 'enemy' | 'roll' | 'info' | 'good' | 'bad';
+  /**
+   * Whose action produced this line. Consecutive entries sharing a side are
+   * drawn as one bubble, tucked to that side of the log. Omitted for scene
+   * notes (terrain, weather, gear breaking) which belong to neither.
+   */
+  side?: 'player' | 'enemy';
 }
 
 /** What to do once a fight ends (win/flee). */
@@ -394,6 +477,17 @@ export interface CombatState {
   quickBeltItems: (string | null)[];
   /** Rounds resolve only while the player has committed a stance. */
   awaitingStance: boolean;
+
+  // ---- initiative track ----
+  /** 0..GAUGE_FULL. Whoever reaches the end first takes the next action. */
+  playerGauge: number;
+  enemyGauge: number;
+  /** Who just acted — drives the flash on the track and the log bubble. */
+  acting: 'player' | 'enemy' | null;
+  /** Fight is frozen mid-track; the gauges stop moving. */
+  paused: boolean;
+  /** Index into COMBAT_SPEEDS — how fast the track runs in real time. */
+  speedIndex: number;
 }
 
 // ---------- Run statistics ----------

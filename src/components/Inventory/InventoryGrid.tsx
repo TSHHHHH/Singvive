@@ -115,7 +115,7 @@ export function InventoryGrid({
                 className="drop-shadow"
               />
               {def.stackable && inst.stack > 1 && (
-                <span className="absolute bottom-0 right-0 rounded-tl bg-black/60 px-1 text-[10px] font-black leading-tight text-white">
+                <span className="absolute bottom-0 right-0 rounded-tl bg-black/60 px-1 text-2xs font-black leading-tight text-white">
                   ×{inst.stack}
                 </span>
               )}

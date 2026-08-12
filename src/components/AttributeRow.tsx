@@ -20,7 +20,7 @@ export function AttributeRow() {
 
   return (
     <section className="rounded-lg border border-white/10 bg-black/30 p-2.5">
-      <h4 className="mb-1.5 text-[11px] uppercase tracking-widest text-white/30">Attributes</h4>
+      <h4 className="mb-1.5 text-xs uppercase tracking-widest text-white/30">Attributes</h4>
       <div className="grid grid-cols-5 gap-1 text-center">
         {ATTRIBUTE_KEYS.map((k, i) => {
           const value = character.attributes[k];
@@ -38,7 +38,7 @@ export function AttributeRow() {
                 >
                   {value}
                 </div>
-                <div className="text-[10px] uppercase text-white/40">
+                <div className="text-2xs uppercase text-white/40">
                   {ATTRIBUTE_LABELS[k].slice(0, 3)}
                 </div>
               </div>
@@ -69,14 +69,14 @@ function AttributeTip({
   return (
     <>
       <div className="mb-1 flex items-baseline justify-between gap-2">
-        <span className="text-[11px] font-semibold uppercase tracking-widest text-white/40">
+        <span className="text-xs font-semibold uppercase tracking-widest text-white/40">
           {ATTRIBUTE_LABELS[attr]}
         </span>
-        <span className="shrink-0 text-[10px] tabular-nums text-white/40">
+        <span className="shrink-0 text-2xs tabular-nums text-white/40">
           base {BASE_ATTRIBUTE} → {value}
         </span>
       </div>
-      <p className="text-[11px] leading-snug text-white/60">{ATTRIBUTE_BLURB[attr]}</p>
+      <p className="text-xs leading-snug text-white/60">{ATTRIBUTE_BLURB[attr]}</p>
 
       {effects.length > 0 ? (
         <ul className="mt-1.5 flex flex-col gap-0.5">
@@ -93,7 +93,7 @@ function AttributeTip({
       {sources.length > 0 && (
         <ul className="mt-1.5 flex flex-col gap-px border-t border-white/10 pt-1.5">
           {sources.map((s) => (
-            <li key={s.name} className="flex justify-between gap-2 text-[10px]">
+            <li key={s.name} className="flex justify-between gap-2 text-2xs">
               <span className="truncate text-white/45">{s.name}</span>
               <span className={`shrink-0 tabular-nums ${s.mod > 0 ? 'text-signal' : 'text-hiss'}`}>
                 {s.mod > 0 ? '+' : ''}

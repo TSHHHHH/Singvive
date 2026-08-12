@@ -79,6 +79,8 @@ export function ghostBoss(rng: Rng, legacy: LegacyRun): Enemy {
     damage: 10 + Math.floor(grit * 1.5) + rng.int(0, 4),
     infectious: 0.45,
     armor: legacy.armorDefId ? 4 : 1,
+    // Still moving the way they did in life, and they got as far as they got.
+    speed: 8 + Math.floor(grit / 4),
   };
 }
 

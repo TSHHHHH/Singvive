@@ -11,7 +11,7 @@ export function WeatherBadge({ weather }: { weather: WeatherKind }) {
         <Icon name={WEATHER_ICON[weather]} /> {WEATHER_LABEL[weather]}
       </span>
       <div className="pointer-events-none absolute left-0 top-full z-[50] mt-1 hidden w-max min-w-[9rem] rounded-lg border border-white/15 bg-concrete-900 p-2 shadow-xl group-hover:block">
-        <div className="mb-1 text-[11px] font-semibold uppercase tracking-widest text-white/40">
+        <div className="mb-1 text-xs font-semibold uppercase tracking-widest text-white/40">
           {WEATHER_LABEL[weather]} — effects
         </div>
         <ul className="flex flex-col gap-0.5">

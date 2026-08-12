@@ -3,7 +3,12 @@ import { useGame } from '../game/store';
 import { itemDef } from '../game/loot';
 import { Icon } from '../icons/Icon';
 import { formatClock } from '../game/survival';
-import { LOG_VIEW_MODES, logViewMode, useSetting, useSettings } from '../game/settings';
+import { LOG_VIEW_MODES, logViewMode, useClockFormat, useSetting, useSettings } from '../game/settings';
+import { itemIcon } from './Inventory/itemIcon';
+import { ATTRIBUTE_LABELS } from '../game/character';
+import type { ChoiceKind } from '../game/events';
+import type { IconName } from '../icons/keys';
+import { EncounterPrompt } from './EncounterPrompt';
 
 const toneClass: Record<string, string> = {
   good: 'text-signal',
@@ -13,7 +18,15 @@ const toneClass: Record<string, string> = {
 
 /** Every control in the timeline header shares one box, so the row reads even. */
 const CTRL =
-  'flex h-6 w-8 shrink-0 items-center justify-center rounded border border-white/10 text-[10px] leading-none transition';
+  'flex h-6 w-8 shrink-0 items-center justify-center rounded border border-white/10 text-2xs leading-none transition';
+
+/** One glyph per kind of choice, so a decision reads before it's read. */
+const CHOICE_ICON: Record<ChoiceKind, IconName> = {
+  check: 'choice.check',
+  pay: 'choice.pay',
+  fight: 'choice.fight',
+  leave: 'choice.leave',
+};
 
 const dotClass: Record<string, string> = {
   good: 'bg-signal',
@@ -41,8 +54,20 @@ export function LogPanel({
   const pending = useGame((s) => s.pendingEvent);
   const items = useGame((s) => s.items);
   const resolveEvent = useGame((s) => s.resolveEvent);
+  // A fight waiting on a stance is a live node at the foot of the timeline,
+  // exactly like a pending event — see EncounterPrompt.
+  const awaitingStance = useGame((s) => !!s.combat?.awaitingStance);
+
+  const hour = useGame((s) => s.hour);
 
   const viewId = useSetting('logView');
+  const clock = useClockFormat();
+
+  // Every row hangs its wrapped lines under the text rather than under the
+  // timestamp, so the prose keeps one left edge all the way down the column.
+  // The gutter is just wide enough for the longest time the format can print.
+  const timeW = clock === '12' ? '3.4rem' : '2.5rem';
+  const hang = { paddingLeft: timeW, textIndent: `-${timeW}` };
   const setSetting = useSettings((s) => s.setSetting);
   const mode = logViewMode(viewId);
 
@@ -57,14 +82,15 @@ export function LogPanel({
   const hiddenCount = total - shown.length;
 
   const ev = pending?.event;
-  // The newest log entry is "latest" only when there's no live event above it.
-  const latestId = !ev && shown.length > 0 ? shown[shown.length - 1].id : null;
+  // The newest log entry is "latest" only when there's no live node below it.
+  const latestId =
+    !ev && !awaitingStance && shown.length > 0 ? shown[shown.length - 1].id : null;
 
-  // keep the newest entry (and any live event) in view
+  // keep the newest entry (and any live node) in view
   useEffect(() => {
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [log.length, pending, viewId, day]);
+  }, [log.length, pending, awaitingStance, viewId, day]);
 
   const hasItem = (defId?: string) =>
     !defId || items.some((i) => i.container === 'backpack' && i.defId === defId);
@@ -114,7 +140,7 @@ export function LogPanel({
       </div>
 
       <div ref={scrollRef} className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden pl-1.5 pr-2">
-        {shown.length === 0 && !ev ? (
+        {shown.length === 0 && !ev && !awaitingStance ? (
           <p className="text-white/30">
             {earlierDays ? 'A fresh day. Nothing has happened yet.' : 'Your story starts here…'}
           </p>
@@ -124,7 +150,7 @@ export function LogPanel({
             <div className="absolute bottom-2 left-[5px] top-1 w-px bg-white/10" />
 
             {(hiddenCount > 0 || earlierDays) && (
-              <li className="relative mb-1 pl-4 text-[10px] italic text-white/25">
+              <li className="relative mb-1 pl-6 text-2xs italic text-white/25">
                 {hiddenCount > 0 &&
                   `…${hiddenCount} earlier ${hiddenCount === 1 ? 'entry' : 'entries'} today hidden`}
                 {hiddenCount > 0 && earlierDays && ' · '}
@@ -139,49 +165,66 @@ export function LogPanel({
             {shown.map((e) => {
               const isLatest = e.id === latestId;
               return (
+                // The newest entry is called out by its background alone — a
+                // "latest" badge said the same thing a second time, and the
+                // timeline is read top-down anyway.
                 <li
                   key={e.id}
-                  className={`relative flex gap-2 pb-2.5 pl-4 ${
-                    isLatest ? 'rounded bg-white/[0.04]' : ''
+                  className={`relative flex gap-2 py-1 pl-6 ${
+                    isLatest ? 'rounded bg-white/[0.07]' : ''
                   }`}
                 >
                   <span
-                    className={`absolute left-0 top-[5px] h-[11px] w-[11px] rounded-full border-2 border-concrete-900 ${
+                    className={`absolute left-0 top-[7px] h-[11px] w-[11px] rounded-full border-2 border-concrete-900 ${
                       dotClass[e.tone] ?? 'bg-white/30'
                     } ${isLatest ? 'ring-2 ring-signal/60' : ''}`}
                   />
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] uppercase tracking-wide text-white/25">
-                        {formatClock(e.hour)}
+                    {/* Time and entry share a line: the log is long and the
+                        column is narrow, so a whole row per timestamp was the
+                        most expensive whitespace on screen. */}
+                    <p
+                      style={hang}
+                      className={`whitespace-normal break-words text-xs leading-snug ${
+                        toneClass[e.tone] ?? 'text-white/60'
+                      }`}
+                    >
+                      <span
+                        className="inline-block font-mono text-2xs tabular-nums text-white/25"
+                        // text-indent inherits, and an inline-block is a block
+                        // container — without this reset the hanging indent
+                        // above drags the time out of its own box and the
+                        // column clips it.
+                        style={{ width: timeW, textIndent: 0 }}
+                      >
+                        {formatClock(e.hour, clock)}
                       </span>
-                      {isLatest && (
-                        <span className="rounded bg-signal/20 px-1 text-[9px] font-semibold uppercase tracking-wide text-signal">
-                          Latest
-                        </span>
-                      )}
-                    </div>
-                    <div className={`whitespace-normal break-words text-[12px] leading-snug ${toneClass[e.tone] ?? 'text-white/60'}`}>
                       {e.text}
-                    </div>
-                    {/* a haul reads inline, in the timeline — no popup to dismiss */}
+                    </p>
+                    {/* a haul reads inline, in the timeline — no popup to
+                        dismiss. Indented to the text, not the timestamp, so the
+                        haul lines up with the sentence that earned it. */}
                     {e.loot && e.loot.length > 0 && (
-                      <ul className="mt-1 flex flex-col gap-px">
-                        {e.loot.map((s, i) => (
-                          <li
-                            key={i}
-                            className="flex justify-between gap-2 border-l border-white/15 bg-white/[0.04] px-2 py-0.5 text-[11px]"
-                          >
-                            <span className="truncate text-concrete-200">
-                              {itemDef(s.defId).name}
-                            </span>
-                            <span className="shrink-0 tabular-nums text-signal">×{s.count}</span>
-                          </li>
-                        ))}
+                      <ul className="mt-1 flex flex-col gap-px" style={{ paddingLeft: timeW }}>
+                        {e.loot.map((s, i) => {
+                          const def = itemDef(s.defId);
+                          return (
+                            <li
+                              key={i}
+                              className="flex items-center gap-1.5 border-l border-white/15 bg-white/[0.04] px-2 py-0.5 text-xs"
+                            >
+                              <Icon name={itemIcon(def)} size={13} className="shrink-0" />
+                              <span className="min-w-0 flex-1 truncate text-concrete-200">
+                                {def.name}
+                              </span>
+                              <span className="shrink-0 tabular-nums text-signal">×{s.count}</span>
+                            </li>
+                          );
+                        })}
                       </ul>
                     )}
                     {e.leftover && e.leftover.length > 0 && (
-                      <div className="mt-1 text-[10px] text-hiss">
+                      <div className="mt-1 text-2xs text-hiss" style={{ paddingLeft: timeW }}>
                         Pack full — left behind{' '}
                         {e.leftover.map((s) => `${itemDef(s.defId).name} ×${s.count}`).join(', ')}
                       </div>
@@ -193,17 +236,31 @@ export function LogPanel({
 
             {/* live event node — always the most recent item when present */}
             {ev && (
-              <li className="relative flex gap-2 pl-4">
-                <span className="absolute left-0 top-[5px] h-[11px] w-[11px] animate-pulse rounded-full border-2 border-concrete-900 bg-signal" />
-                <div className="min-w-0 flex-1 rounded-lg border border-signal/40 bg-white/[0.05] p-2.5">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold text-concrete-50">{ev.title}</span>
-                    <span className="rounded bg-white/15 px-1 text-[9px] font-semibold uppercase tracking-wide text-concrete-50">
-                      Now
+              // The live event is a timeline row like any other — same
+              // timestamp, same hanging indent, same "this is the newest thing"
+              // background. It used to be a bordered card at a larger type
+              // size, which made the whole column lurch every time one landed.
+              // The pulsing dot and the choices are enough to say it's live.
+              <li className="relative flex gap-2 rounded bg-white/[0.07] py-1 pl-6">
+                <span className="absolute left-0 top-[7px] h-[11px] w-[11px] animate-pulse rounded-full border-2 border-concrete-900 bg-signal" />
+                <div className="min-w-0 flex-1">
+                  <p
+                    style={hang}
+                    className="whitespace-normal break-words text-xs leading-snug text-white/70"
+                  >
+                    <span
+                      className="inline-block font-mono text-2xs tabular-nums text-white/25"
+                      style={{ width: timeW, textIndent: 0 }}
+                    >
+                      {formatClock(hour, clock)}
                     </span>
-                  </div>
-                  <p className="mt-1 break-words text-[12px] leading-snug text-white/70">{ev.text}</p>
-                  <div className="mt-2.5 flex flex-col gap-1.5">
+                    <span className="font-semibold text-concrete-50">{ev.title}</span>
+                    {' — '}
+                    {ev.text}
+                  </p>
+                  {/* Lined up under the text, so the choices read as belonging
+                      to it rather than as a panel of their own. */}
+                  <div className="mt-1.5 flex flex-col gap-1" style={{ paddingLeft: timeW }}>
                     {ev.choices.map((c) => {
                       // A pay choice lists everything they'd take; holding any
                       // one of them is enough.
@@ -215,16 +272,30 @@ export function LogPanel({
                           : c.kind === 'leave'
                             ? 'border-white/15 text-white/60 hover:bg-white/5'
                             : 'border-signal/40 text-signal hover:bg-signal/10';
+                      // The roll used to be spelled out inside the label. It's
+                      // the price of the choice, not part of the sentence, so
+                      // it sits at the far end where prices go — the same place
+                      // a haul puts its count.
+                      const check =
+                        c.kind === 'check' && c.attr && c.dc != null
+                          ? `${ATTRIBUTE_LABELS[c.attr].slice(0, 3)} DC ${c.dc}`
+                          : null;
                       return (
                         <button
                           key={c.id}
                           disabled={!affordable}
                           onClick={() => resolveEvent(c.id)}
-                          className={`whitespace-normal break-words rounded border px-2.5 py-1.5 text-left text-[13px] transition disabled:opacity-30 ${tone}`}
+                          className={`flex w-full items-center gap-1.5 rounded border px-2 py-1 text-left text-xs leading-snug transition disabled:opacity-30 ${tone}`}
                         >
-                          {c.label}
-                          {c.kind === 'pay' && !affordable && (
-                            <span className="ml-1 text-[11px] text-hiss">(you have none)</span>
+                          <Icon name={CHOICE_ICON[c.kind]} size={13} className="shrink-0" />
+                          <span className="min-w-0 flex-1 whitespace-normal break-words">
+                            {c.label}
+                            {c.kind === 'pay' && !affordable && (
+                              <span className="ml-1 text-hiss">(you have none)</span>
+                            )}
+                          </span>
+                          {check && (
+                            <span className="shrink-0 tabular-nums opacity-60">{check}</span>
                           )}
                         </button>
                       );
@@ -233,6 +304,10 @@ export function LogPanel({
                 </div>
               </li>
             )}
+
+            {/* Contact node — the fight's opening decision, sharing the spine
+                and the gutter with everything else that happened today. */}
+            <EncounterPrompt timeW={timeW} hang={hang} />
           </ol>
         )}
       </div>

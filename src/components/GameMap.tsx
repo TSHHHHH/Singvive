@@ -1,5 +1,6 @@
 import { MapContainer, TileLayer, Marker, Circle, Polygon, useMap, useMapEvents } from 'react-leaflet';
-import { Fragment, memo, useEffect, useRef, useState } from 'react';
+import { Fragment, memo, useCallback, useEffect, useRef, useState } from 'react';
+import type L from 'leaflet';
 import type { Poi, TimeOfDay, WeatherKind } from '../game/types';
 import { WeatherFx } from './WeatherFx';
 import { poiIcon, playerIcon, unknownIcon, evacIcon, dangerColor } from './mapIcons';
@@ -17,6 +18,7 @@ import type { ExploredCircle } from '../game/fog';
 import type { TravelAnim } from '../game/store';
 import type { NoisePulse } from '../game/noise';
 import { HAZARD_CONFIG, type HazardZone } from '../game/wilds';
+import { NoiseWaves } from './NoiseWaves';
 import { trekTargetIcon } from './mapIcons';
 import { MrtOverlay, legendLines, useMrtNetwork } from './MrtOverlay';
 import { Icon } from '../icons/Icon';
@@ -105,6 +107,9 @@ function PlayerMarker({
   const map = useMap();
   const [pos, setPos] = useState(home);
   const rafRef = useRef<number | undefined>(undefined);
+  const markerRef = useRef<L.Marker | null>(null);
+  const posRef = useRef(pos);
+  posRef.current = pos;
 
   useEffect(() => {
     if (!travelAnim) {
@@ -145,7 +150,97 @@ function PlayerMarker({
     };
   }, [travelAnim, home, map]);
 
-  return <Marker position={[pos.lat, pos.lng]} icon={playerIcon()} zIndexOffset={1000} />;
+  // The pin hangs above the point it marks, so in a dense block it can cover a
+  // POI just north of the player. It is non-interactive, so it never steals a
+  // click — but it still hides things, so fade it out whenever the cursor is
+  // inside its footprint. The listener goes on the container natively rather
+  // than through Leaflet's mousemove: markers sitting under the cursor would
+  // otherwise swallow the event and the pin would stay opaque exactly when it
+  // is in the way.
+  useEffect(() => {
+    const container = map.getContainer();
+    const onMove = (e: MouseEvent) => {
+      const el = markerRef.current?.getElement();
+      if (!el) return;
+      const rect = container.getBoundingClientRect();
+      const p = map.latLngToContainerPoint([posRef.current.lat, posRef.current.lng]);
+      const dx = e.clientX - rect.left - p.x;
+      const dy = e.clientY - rect.top - p.y;
+      // Footprint relative to the anchor (the tip): 30px wide, 36px tall above it.
+      const over = dx > -16 && dx < 16 && dy > -38 && dy < 4;
+      el.classList.toggle('is-faded', over);
+    };
+    const onLeave = () => markerRef.current?.getElement()?.classList.remove('is-faded');
+    container.addEventListener('mousemove', onMove);
+    container.addEventListener('mouseleave', onLeave);
+    return () => {
+      container.removeEventListener('mousemove', onMove);
+      container.removeEventListener('mouseleave', onLeave);
+      onLeave();
+    };
+  }, [map]);
+
+  // Mid-walk the cursor isn't moving but the pin is, so a stale fade would
+  // stick. Clear it whenever a travel leg starts or ends.
+  useEffect(() => {
+    markerRef.current?.getElement()?.classList.remove('is-faded');
+  }, [travelAnim]);
+
+  return (
+    <Marker
+      ref={markerRef}
+      position={[pos.lat, pos.lng]}
+      icon={playerIcon()}
+      interactive={false}
+      zIndexOffset={1000}
+    />
+  );
+}
+
+/** Where a lat/lng currently sits in map-container pixels, plus the size of the
+ *  container it sits in — enough for the caller to float something over it and
+ *  keep that thing on screen. */
+export interface MapPoint {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * Reports where `anchor` currently is in container pixels, and keeps reporting
+ * while the map moves. The card that points at it is rendered by the caller,
+ * outside the Leaflet panes — Leaflet owns everything inside them, and a card
+ * with buttons in it has no business being dragged around by the map.
+ */
+function AnchorTracker({
+  anchor,
+  onPoint,
+}: {
+  anchor: { lat: number; lng: number } | null;
+  onPoint: (pt: MapPoint | null) => void;
+}) {
+  const map = useMap();
+  const report = useCallback(() => {
+    if (!anchor) {
+      onPoint(null);
+      return;
+    }
+    const p = map.latLngToContainerPoint([anchor.lat, anchor.lng]);
+    const s = map.getSize();
+    onPoint({ x: p.x, y: p.y, width: s.x, height: s.y });
+  }, [anchor, map, onPoint]);
+
+  // `move`/`zoom` (not just their -end twins) so the card tracks the marker
+  // through a pan instead of snapping to it afterwards.
+  useMapEvents({ move: report, zoom: report, resize: report });
+
+  useEffect(() => {
+    report();
+    return () => onPoint(null);
+  }, [report, onPoint]);
+
+  return null;
 }
 
 interface Props {
@@ -175,50 +270,211 @@ interface Props {
   time: TimeOfDay;
   /** open-ground spot the player is considering crossing to */
   trekTarget: { lat: number; lng: number } | null;
+  /** the spot the caller's floating target card points at, if any */
+  bubbleAnchor: { lat: number; lng: number } | null;
+  /** where that spot currently is, in map-container pixels */
+  onBubblePoint: (pt: MapPoint | null) => void;
   onSelect: (poi: Poi) => void;
   onPickGround: (lat: number, lng: number) => void;
 }
 
-/** Rings fade themselves out; this just drops them once they're done. */
-function NoiseRings({ pulses }: { pulses: NoisePulse[] }) {
-  const [, force] = useState(0);
+/**
+ * Keeps Leaflet's idea of the viewport honest. On mobile the map column is a
+ * tab: an event or a fight yanks the player to the Timeline, which sets
+ * `display:none` on this whole column and leaves Leaflet believing the map is
+ * still the size it was. Coming back, it has to be told otherwise or the tiles
+ * and the fog re-lay-out visibly.
+ */
+function SizeWatcher() {
+  const map = useMap();
   useEffect(() => {
-    if (pulses.length === 0) return;
-    const t = setInterval(() => force((n) => n + 1), 300);
-    return () => clearInterval(t);
-  }, [pulses.length]);
+    const el = map.getContainer();
+    const obs = new ResizeObserver(() => {
+      if (el.clientWidth > 0 && el.clientHeight > 0) map.invalidateSize({ animate: false });
+    });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [map]);
+  return null;
+}
 
-  const now = Date.now();
+/** The planning ring. Split out so a parent re-render can't restyle it. */
+const RangeRing = memo(function RangeRing({
+  home,
+  travelRange,
+}: {
+  home: { lat: number; lng: number };
+  travelRange: number;
+}) {
+  return (
+    <Circle
+      center={[home.lat, home.lng]}
+      radius={travelRange}
+      interactive={false}
+      pathOptions={{ color: '#e8e5dd', weight: 1.5, fillOpacity: 0.03, dashArray: '4 6' }}
+    />
+  );
+});
+
+/** Hazard pockets you can sense. Ground, not a destination — never clickable. */
+const HazardRings = memo(function HazardRings({ hazards }: { hazards: HazardZone[] }) {
   return (
     <>
-      {pulses.map((p) => {
-        const t = Math.min(1, (now - p.startedAt) / 1500);
-        if (t >= 1) return null;
+      {hazards.map((z) => {
+        const cfg = HAZARD_CONFIG[z.kind];
         return (
           <Circle
-            key={p.id}
-            center={[p.lat, p.lng]}
-            radius={p.radiusMeters * (0.2 + 0.8 * t)}
-            className="noise-ring"
+            key={z.id}
+            center={[z.lat, z.lng]}
+            radius={z.radiusM}
             interactive={false}
             pathOptions={{
-              color: '#d92d2d',
-              weight: 3,
-              opacity: 0.6 * (1 - t),
-              fillOpacity: 0.05 * (1 - t),
-              fillColor: '#d92d2d',
+              color: cfg.color,
+              weight: 1,
+              opacity: 0.35 + z.severity * 0.12,
+              dashArray: '3 5',
+              fillColor: cfg.color,
+              fillOpacity: 0.05 + z.severity * 0.035,
             }}
           />
         );
       })}
     </>
   );
+});
+
+interface PoiLayerProps {
+  pois: Poi[];
+  home: { lat: number; lng: number };
+  blipRange: number;
+  selectedId: string | null;
+  hereId: string | null;
+  onSelect: (poi: Poi) => void;
 }
+
+/** The danger ring the player actually sees on a location: its standing level
+ *  plus whatever noise it has heard lately. The colour steps in whole points,
+ *  so that's the resolution anything comparing on it needs. */
+function ringDanger(poi: Poi, here: boolean): number {
+  const base = here ? poi.currentDanger : poi.lastSeen?.currentDanger ?? poi.currentDanger;
+  // The boost is live, not remembered, and deliberately so: the noise is
+  // *yours*, and you can reason about what it stirred up whether or not you
+  // are standing there to watch it happen.
+  return base + (poi.tempDangerBoost ?? 0);
+}
+
+/** Only the fields that reach the screen. Everything else about a location can
+ *  churn — and does, on every noise pulse — without the map looking different. */
+function poiLooksSame(a: Poi, b: Poi): boolean {
+  return (
+    a === b ||
+    (a.id === b.id &&
+      a.lat === b.lat &&
+      a.lng === b.lng &&
+      a.category === b.category &&
+      a.outline === b.outline &&
+      a.discovered === b.discovered &&
+      a.exhausted === b.exhausted &&
+      // Compared at both `here` settings so the memo holds regardless of which
+      // one this location is rendered at.
+      Math.round(ringDanger(a, true)) === Math.round(ringDanger(b, true)) &&
+      Math.round(ringDanger(a, false)) === Math.round(ringDanger(b, false)) &&
+      a.lastSeen === b.lastSeen)
+  );
+}
+
+const PoiLayer = memo(
+  function PoiLayer({ pois, home, blipRange, selectedId, hereId, onSelect }: PoiLayerProps) {
+    return (
+      <>
+        {pois.map((poi) => {
+          const d = haversine(home.lat, home.lng, poi.lat, poi.lng);
+          const vis = visibilityOf(poi, d, blipRange);
+          if (vis === 'hidden') return null;
+
+          const selected = selectedId === poi.id;
+
+          // Sensed but unidentified: the building outline still shows (in
+          // neutral), capped with a "?" badge. Locations without an outline are
+          // just the badge.
+          if (vis === 'detected') {
+            return (
+              <Fragment key={poi.id}>
+                {poi.outline && (
+                  <Polygon
+                    positions={poi.outline}
+                    eventHandlers={{ click: () => onSelect(poi) }}
+                    pathOptions={{
+                      color: UNKNOWN_STROKE,
+                      weight: selected ? 2.5 : 1.5,
+                      dashArray: '4 3',
+                      fillColor: UNKNOWN_STROKE,
+                      fillOpacity: selected ? 0.22 : 0.14,
+                      opacity: 0.95,
+                    }}
+                  />
+                )}
+                <Marker
+                  position={[poi.lat, poi.lng]}
+                  icon={unknownIcon()}
+                  eventHandlers={{ click: () => onSelect(poi) }}
+                  opacity={selected ? 1 : 0.85}
+                />
+              </Fragment>
+            );
+          }
+
+          // Visited: live data only while standing here, otherwise last-known memory.
+          const here = poi.id === hereId;
+          const mem = poi.lastSeen;
+          const danger = ringDanger(poi, here);
+          const exhausted = here ? poi.exhausted : mem?.exhausted ?? poi.exhausted;
+          const display: Poi = { ...poi, currentDanger: danger, exhausted };
+          const ring = exhausted ? '#555' : dangerColor(Math.round(danger));
+
+          return (
+            <Fragment key={poi.id}>
+              {poi.outline && (
+                <Polygon
+                  positions={poi.outline}
+                  eventHandlers={{ click: () => onSelect(poi) }}
+                  pathOptions={{
+                    color: ring,
+                    weight: selected ? 2.5 : 1,
+                    fillColor: POI_CONFIG[poi.category].color,
+                    fillOpacity: exhausted ? 0.1 : selected ? 0.5 : here ? 0.35 : 0.18,
+                    opacity: here ? 1 : 0.65,
+                  }}
+                />
+              )}
+              <Marker
+                position={[poi.lat, poi.lng]}
+                icon={poiIcon(display)}
+                eventHandlers={{ click: () => onSelect(poi) }}
+                opacity={here ? 1 : 0.55}
+              />
+            </Fragment>
+          );
+        })}
+      </>
+    );
+  },
+  (prev, next) =>
+    prev.home === next.home &&
+    prev.blipRange === next.blipRange &&
+    prev.selectedId === next.selectedId &&
+    prev.hereId === next.hereId &&
+    prev.onSelect === next.onSelect &&
+    prev.pois.length === next.pois.length &&
+    prev.pois.every((p, i) => poiLooksSame(p, next.pois[i])),
+);
 
 /**
  * Rendering the map means handing react-leaflet a Marker and a Polygon for
  * every visible POI, so a re-render is never cheap — it is memoised, and every
- * prop it takes is kept identity-stable by the caller.
+ * prop it takes is kept identity-stable by the caller where it can be. Where it
+ * can't (`pois` is rebuilt whenever any location's bookkeeping changes, which
+ * combat does constantly), the layers below compare on what they actually draw.
  */
 function GameMapInner({
   home,
@@ -236,6 +492,8 @@ function GameMapInner({
   weather,
   time,
   trekTarget,
+  bubbleAnchor,
+  onBubblePoint,
   onSelect,
   onPickGround,
 }: Props) {
@@ -264,7 +522,9 @@ function GameMapInner({
       zoomControl={false}
     >
       <ZoomMemory />
+      <SizeWatcher />
       <GroundPicker onPick={onPickGround} />
+      <AnchorTracker anchor={bubbleAnchor} onPoint={onBubblePoint} />
       <TileLayer
         attribution={TILE_ATTRIBUTION}
         url={TILE_URL}
@@ -282,34 +542,10 @@ function GameMapInner({
           non-interactive: its fill covers everywhere you can actually walk, so
           a hit-testable ring would swallow every ground-pick inside your own
           range and leave only out-of-range taps working. */}
-      <Circle
-        center={[home.lat, home.lng]}
-        radius={travelRange}
-        interactive={false}
-        pathOptions={{ color: '#e8e5dd', weight: 1.5, fillOpacity: 0.03, dashArray: '4 6' }}
-      />
+      <RangeRing home={home} travelRange={travelRange} />
 
-      {/* Hazard pockets you can sense. Drawn under the pins — this is ground,
-          not a destination, and it's never clickable. */}
-      {hazards.map((z) => {
-        const cfg = HAZARD_CONFIG[z.kind];
-        return (
-          <Circle
-            key={z.id}
-            center={[z.lat, z.lng]}
-            radius={z.radiusM}
-            interactive={false}
-            pathOptions={{
-              color: cfg.color,
-              weight: 1,
-              opacity: 0.35 + z.severity * 0.12,
-              dashArray: '3 5',
-              fillColor: cfg.color,
-              fillOpacity: 0.05 + z.severity * 0.035,
-            }}
-          />
-        );
-      })}
+      {/* Drawn under the pins — ground, not a destination. */}
+      <HazardRings hazards={hazards} />
 
       {trekTarget && (
         <Marker
@@ -320,74 +556,14 @@ function GameMapInner({
         />
       )}
 
-      {pois.map((poi) => {
-        const d = haversine(home.lat, home.lng, poi.lat, poi.lng);
-        const vis = visibilityOf(poi, d, blipRange);
-        if (vis === 'hidden') return null;
-
-        const selected = selectedId === poi.id;
-
-        // Sensed but unidentified: the building outline still shows (in neutral),
-        // capped with a "?" badge. Locations without an outline are just the badge.
-        if (vis === 'detected') {
-          return (
-            <Fragment key={poi.id}>
-              {poi.outline && (
-                <Polygon
-                  positions={poi.outline}
-                  eventHandlers={{ click: () => onSelect(poi) }}
-                  pathOptions={{
-                    color: UNKNOWN_STROKE,
-                    weight: selected ? 2.5 : 1.5,
-                    dashArray: '4 3',
-                    fillColor: UNKNOWN_STROKE,
-                    fillOpacity: selected ? 0.22 : 0.14,
-                    opacity: 0.95,
-                  }}
-                />
-              )}
-              <Marker
-                position={[poi.lat, poi.lng]}
-                icon={unknownIcon()}
-                eventHandlers={{ click: () => onSelect(poi) }}
-                opacity={selected ? 1 : 0.85}
-              />
-            </Fragment>
-          );
-        }
-
-        // Visited: live data only while standing here, otherwise last-known memory.
-        const here = poi.id === hereId;
-        const mem = poi.lastSeen;
-        const danger = here ? poi.currentDanger : mem?.currentDanger ?? poi.currentDanger;
-        const exhausted = here ? poi.exhausted : mem?.exhausted ?? poi.exhausted;
-        const display: Poi = { ...poi, currentDanger: danger, exhausted };
-        const ring = exhausted ? '#555' : dangerColor(Math.round(danger));
-
-        return (
-          <Fragment key={poi.id}>
-            {poi.outline && (
-              <Polygon
-                positions={poi.outline}
-                eventHandlers={{ click: () => onSelect(poi) }}
-                pathOptions={{
-                  color: ring,
-                  weight: selected ? 2.5 : 1,
-                  fillColor: POI_CONFIG[poi.category].color,
-                  fillOpacity: exhausted ? 0.1 : selected ? 0.5 : here ? 0.35 : 0.18,
-                  opacity: here ? 1 : 0.65,
-                }}
-              />
-            )}
-            <Marker
-              position={[poi.lat, poi.lng]}
-              icon={poiIcon(display)}
-              eventHandlers={{ click: () => onSelect(poi) }}
-              opacity={here ? 1 : 0.55}
-            />
-          </Fragment>
-        );
-      })}
+      <PoiLayer
+        pois={pois}
+        home={home}
+        blipRange={blipRange}
+        selectedId={selectedId}
+        hereId={hereId}
+        onSelect={onSelect}
+      />
 
       {/* extraction beacon — always visible so the goal is never lost */}
       {evacPoi && (
@@ -399,7 +575,7 @@ function GameMapInner({
         />
       )}
 
-      <NoiseRings pulses={noisePulses} />
+      <NoiseWaves pulses={noisePulses} />
       <PlayerMarker home={home} travelAnim={travelAnim} />
       {showMrt && net && <MrtOverlay net={net} />}
     </MapContainer>
@@ -409,7 +585,7 @@ function GameMapInner({
         onClick={toggleMrt}
         aria-pressed={showMrt}
         title="Show the MRT & LRT network"
-        className={`absolute right-2 top-2 z-[500] flex items-center gap-1.5 rounded border px-2 py-1.5 text-[11px] font-semibold shadow-lg backdrop-blur transition-colors ${
+        className={`absolute right-2 top-2 z-[500] flex items-center gap-1.5 rounded border px-2 py-1.5 text-xs font-semibold shadow-lg backdrop-blur transition-colors ${
           showMrt
             ? 'border-astral/50 bg-astral/20 text-astral'
             : 'border-white/15 bg-black/70 text-white/60 hover:text-white/90'
@@ -419,7 +595,7 @@ function GameMapInner({
       </button>
 
       {showMrt && net && (
-        <div className="absolute right-2 top-11 z-[500] max-w-[45vw] rounded border border-white/10 bg-black/80 p-2 text-[10px] leading-tight text-white/70 shadow-lg backdrop-blur">
+        <div className="absolute right-2 top-11 z-[500] max-w-[45vw] rounded border border-white/10 bg-black/80 p-2 text-2xs leading-tight text-white/70 shadow-lg backdrop-blur">
           {legendLines(net).map((line) => (
             <div key={line.code} className="flex items-center gap-1.5">
               <span
@@ -449,4 +625,22 @@ function GameMapInner({
   );
 }
 
-export const GameMap = memo(GameMapInner);
+/**
+ * `pois` and `noisePulses` are fresh arrays on every store write that touches a
+ * location, so a plain shallow compare would let a fight repaint the map on
+ * every swing. Compare them on content instead; everything else is stable by
+ * construction in the caller.
+ */
+function propsEqual(a: Props, b: Props): boolean {
+  for (const k of Object.keys(a) as (keyof Props)[]) {
+    if (k === 'pois' || k === 'noisePulses') continue;
+    if (a[k] !== b[k]) return false;
+  }
+  if (a.pois.length !== b.pois.length) return false;
+  if (!a.pois.every((p, i) => poiLooksSame(p, b.pois[i]))) return false;
+  // Pulses are append-and-prune: same count and same newest id means same set.
+  if (a.noisePulses.length !== b.noisePulses.length) return false;
+  return a.noisePulses.every((p, i) => p.id === b.noisePulses[i].id);
+}
+
+export const GameMap = memo(GameMapInner, propsEqual);

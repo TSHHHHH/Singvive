@@ -3,6 +3,12 @@ export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
     extend: {
+      // One type scale for the whole HUD. Everything picks a step here;
+      // no ad-hoc text-[Npx] anywhere. 2xs is the smallest legible step —
+      // meter readouts, stat chips, timestamps.
+      fontSize: {
+        '2xs': ['10px', '14px'],
+      },
       fontFamily: {
         mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
       },

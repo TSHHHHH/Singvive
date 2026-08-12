@@ -1,4 +1,4 @@
-import type { FactionId, PoiCategory } from './types';
+import type { FactionId, LocationState, PoiCategory } from './types';
 import type { Rng } from './rng';
 import type { IconName } from '../icons/keys';
 
@@ -23,6 +23,36 @@ export interface FactionData {
   tribute: string[];
   /** Where they set up shop — drives seeded territory assignment. */
   preferredPoiCategories: PoiCategory[];
+
+  // ---- the outpost -------------------------------------------------------
+  /**
+   * What the place is called once you're inside the wire. A faction's outpost
+   * is the one site of theirs you go to *on purpose* — safe ground, and the
+   * only counter they'll trade over.
+   */
+  outpostName: string;
+  /**
+   * Categories their headquarters can sit on, narrower than the territory they
+   * claim. Empty ⇒ this faction has no outpost (see the STA, whose counter is
+   * the tunnel camps they already run).
+   */
+  outpostCategories: PoiCategory[];
+
+  // ---- the counter -------------------------------------------------------
+  /**
+   * What they'll hand over, in rough order of how gladly. Each faction's list
+   * is the reason to walk to their gate rather than anyone else's — the IDTF
+   * are the only reliable ammunition on the island, the Co-op the only
+   * reliable calories.
+   */
+  stock: string[];
+  /** Reserved for the ones they count as their own — standing STANDING_KIN. */
+  exclusiveStock: string[];
+  /**
+   * What they're short of and will pay over the odds for. Selling into a want
+   * is how a stranger becomes a regular.
+   */
+  wants: string[];
 }
 
 export const FACTION_CONFIG: Record<Exclude<FactionId, null>, FactionData> = {
@@ -38,6 +68,16 @@ export const FACTION_CONFIG: Record<Exclude<FactionId, null>, FactionData> = {
     // Schools were the designated shelters when it fell — so they were theirs
     // to hold, and mostly still are.
     preferredPoiCategories: ['police', 'hospital', 'school'],
+    outpostName: 'Forward Aid Post',
+    // A hospital they can defend beats a police post they can't.
+    outpostCategories: ['hospital', 'police'],
+    // The armoury and the aid station: nobody else on the island can resupply
+    // a firearm or close a wound properly.
+    stock: ['bandage', 'medkit', 'antiseptic', 'antibiotics', 'n95_mask', 'splint', 'army_ration'],
+    exclusiveStock: ['ammo_box', 'ammo_shell', 'kevlar_vest', 'riot_helmet'],
+    // Standing army, no supply chain: they are permanently short of calories
+    // and of anything that runs on cells.
+    wants: ['canned_food', 'rice_pack', 'batteries', 'fuel_can', 'purification_tabs'],
   },
   pasir_panjang: {
     id: 'pasir_panjang',
@@ -49,6 +89,18 @@ export const FACTION_CONFIG: Record<Exclude<FactionId, null>, FactionData> = {
     blurb: 'The old wholesale traders run the food chain now. Pay in supplies and they let you dig in.',
     tribute: ['canned_food', 'hawker_meal', 'water_bottle'],
     preferredPoiCategories: ['foodcourt', 'supermarket', 'convenience'],
+    outpostName: 'Wet Market',
+    outpostCategories: ['foodcourt', 'supermarket'],
+    // Hot food and clean water, which is a shorter list than it sounds and the
+    // only such list on the island.
+    stock: [
+      'hawker_meal', 'canned_food', 'rice_pack', 'water_bottle',
+      'newater', 'purification_tabs', 'milo_tin', 'kaya_toast',
+    ],
+    exclusiveStock: ['nasi_lemak', 'bak_kwa', 'durian', 'coffee'],
+    // They cook, so they need fire, blades and things to cook. Junk metal buys
+    // lunch here and nowhere else.
+    wants: ['fuel_can', 'scrap_metal', 'glass_bottle', 'wild_boar_meat', 'river_fish', 'cloth_rags'],
   },
   syndicate_88: {
     id: 'syndicate_88',
@@ -62,6 +114,17 @@ export const FACTION_CONFIG: Record<Exclude<FactionId, null>, FactionData> = {
     // Estates first, but the Jurong yards are where the materials are — and
     // muscle follows materials.
     preferredPoiCategories: ['residential', 'hardware', 'industrial'],
+    outpostName: 'Void Deck Court',
+    outpostCategories: ['residential', 'industrial'],
+    // The black market: the things the other two won't sell you, and the
+    // things the other two would arrest you for.
+    stock: [
+      'painkillers', 'tiger_beer', 'parang', 'meat_cleaver',
+      'duct_tape', 'spare_parts', 'powerbank', 'energy_drink',
+    ],
+    exclusiveStock: ['pistol', 'ammo_box', 'katana', 'sbo_vest'],
+    // A fence pays for what a fence can move.
+    wants: ['jewellery', 'red_packet', 'four_d_ticket', 'tiger_beer', 'toolbox', 'gun_oil'],
   },
   sta: {
     id: 'sta',
@@ -77,8 +140,94 @@ export const FACTION_CONFIG: Record<Exclude<FactionId, null>, FactionData> = {
     // meant the tunnels were shut to anyone who hadn't found that item yet.
     tribute: ['ez_link_card', 'batteries', 'torch', 'canned_food'],
     preferredPoiCategories: ['mrt'],
+    // The STA already has a counter — the barricade camps down in the bores.
+    // Giving them a surface outpost as well would just be a fourth wet market.
+    outpostName: 'Barricade Camp',
+    outpostCategories: [],
+    stock: ['torch', 'batteries', 'ez_link_card', 'rain_tarp', 'powerbank', 'glass_bottle'],
+    exclusiveStock: ['toolbox', 'hard_hat'],
+    wants: ['batteries', 'canned_food', 'duct_tape', 'scrap_metal'],
   },
 };
+
+// ---------------------------------------------------------------------------
+// Standing
+//
+// One number per faction, -3..+3, and every service in the game hangs off it.
+// It lives here rather than in events.ts because standing stopped being an
+// event concern the moment it started gating a shop counter and a bed.
+//
+// The ladder, and what each rung actually buys:
+//
+//   -3..-2  HATED     they shoot. Even the orderly ones.
+//   -1       WARY      turned away at the door; no counter, no bed.
+//    0       STRANGER  checkpoints; a hostile faction is still hostile.
+//   +1       KNOWN     the counter opens. A hostile faction stops shooting.
+//   +2       TRUSTED   waved through their territory; the outpost bed is yours.
+//   +3       KIN       they break out the stock they keep for their own.
+// ---------------------------------------------------------------------------
+
+export const STANDING_MIN = -3;
+export const STANDING_MAX = 3;
+/** At or below this, even the orderly factions open fire. */
+export const STANDING_HATED = -2;
+/** The rung where a faction will trade with you — and stop shooting at you. */
+export const STANDING_KNOWN = 1;
+/** Waved through the territory, and welcome to sleep at the outpost. */
+export const STANDING_TRUSTED = 2;
+/** Counted as one of their own; the reserved stock comes out. */
+export const STANDING_KIN = 3;
+
+export type FactionStanding = Record<Exclude<FactionId, null>, number>;
+
+export const emptyStanding = (): FactionStanding => ({
+  idtf: 0,
+  pasir_panjang: 0,
+  syndicate_88: 0,
+  sta: 0,
+});
+
+export const clampStanding = (n: number) =>
+  Math.max(STANDING_MIN, Math.min(STANDING_MAX, n));
+
+/**
+ * Would this faction shoot rather than haggle?
+ *
+ * `hostileByDefault` is no longer a permanent sentence — it means "hostile
+ * until you are KNOWN here". That single change is what makes the 88 Syndicate
+ * approachable at all, and it's the same rule a starting trait exploits by
+ * simply handing you the first point of standing up front.
+ */
+export function factionIsHostile(id: FactionId, standing: FactionStanding): boolean {
+  if (!id) return false;
+  if (standing[id] <= STANDING_HATED) return true;
+  return FACTION_CONFIG[id].hostileByDefault && standing[id] < STANDING_KNOWN;
+}
+
+/** True once a faction knows your face well enough to stop charging you. */
+export function factionWavesYouThrough(id: FactionId, standing: FactionStanding): boolean {
+  return !!id && standing[id] >= STANDING_TRUSTED;
+}
+
+/** Will they sell to you at all? */
+export function factionTrades(id: FactionId, standing: FactionStanding): boolean {
+  return !!id && standing[id] >= STANDING_KNOWN;
+}
+
+/** Is their ground safe enough to sleep on? */
+export function factionShelters(id: FactionId, standing: FactionStanding): boolean {
+  return !!id && standing[id] >= STANDING_TRUSTED;
+}
+
+/** Short label for the standing badge. */
+export function standingLabel(n: number): string {
+  if (n <= STANDING_HATED) return 'Hated';
+  if (n < 0) return 'Wary';
+  if (n < STANDING_KNOWN) return 'Stranger';
+  if (n < STANDING_TRUSTED) return 'Known';
+  if (n < STANDING_KIN) return 'Trusted';
+  return 'Kin';
+}
 
 /**
  * Odds a preferred site is actually claimed, per faction.
@@ -108,6 +257,38 @@ export function assignFaction(rng: Rng, category: PoiCategory): FactionId {
     return r < CLAIM_CHANCE[id] ? id : null;
   }
   return null;
+}
+
+export type OutpostIds = Partial<Record<Exclude<FactionId, null>, string>>;
+
+/**
+ * Promote one site per faction to its outpost.
+ *
+ * The map used to be uniform: every faction site was another door with another
+ * toll behind it, so a faction was a tax and never a destination. An outpost is
+ * the fix — a single named place per faction that is worth *walking to*, with
+ * the counter and the beds behind it.
+ *
+ * Picked from the faction's own territory (so it never lands somewhere they
+ * don't hold), preferring a mid-distance site: parked on the spawn it's a
+ * freebie, parked at the far edge it may as well not exist.
+ */
+export function pickOutposts(locations: LocationState[]): OutpostIds {
+  const out: OutpostIds = {};
+  for (const id of CLAIM_ORDER) {
+    const cats = FACTION_CONFIG[id].outpostCategories;
+    if (!cats.length) continue;
+    const cands = locations.filter(
+      (l) => l.factionId === id && cats.includes(l.category),
+    );
+    if (!cands.length) continue;
+    // Deterministic without an rng: the world seed already decided who holds
+    // what, so ordering by distance and taking the middle is reproducible and
+    // puts the outpost a walk away rather than next door or off the edge.
+    cands.sort((a, b) => a.distanceFromSpawn - b.distanceFromSpawn);
+    out[id] = cands[Math.floor(cands.length / 2)].id;
+  }
+  return out;
 }
 
 /** Legacy save-file faction ids → current ids. */

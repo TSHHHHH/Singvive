@@ -49,7 +49,7 @@ export function TrekCard({
         </div>
         <button
           onClick={onCancel}
-          className="rounded px-2 py-0.5 text-[11px] text-white/40 hover:bg-white/10 hover:text-white/70"
+          className="rounded px-2 py-0.5 text-xs text-white/40 hover:bg-white/10 hover:text-white/70"
         >
           clear
         </button>

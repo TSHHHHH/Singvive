@@ -1,6 +1,13 @@
+import type { ReactNode } from 'react';
 import { POI_CONFIG } from '../game/poi';
 import { Icon } from '../icons/Icon';
-import { FACTION_CONFIG } from '../game/factions';
+import {
+  FACTION_CONFIG,
+  factionShelters,
+  factionTrades,
+  standingLabel,
+} from '../game/factions';
+import { useGame } from '../game/store';
 import { dangerColor } from './mapIcons';
 import { formatDuration, type estimateExpedition } from '../game/travel';
 import { displayLine, getMrtNetwork, linesAt, type MrtSegment } from '../game/mrt';
@@ -51,6 +58,20 @@ interface Props {
 /** The pinned "what am I looking at" card — drives the core travel/search action. */
 export function LocationCard(props: Props) {
   return props.sel.discovered ? <KnownCard {...props} /> : <UnknownCard {...props} />;
+}
+
+/**
+ * The card's shape: actions pinned to a narrow left rail, everything you're
+ * reading about the place on the right. Keeps the button in the same spot no
+ * matter how much intel the site happens to carry.
+ */
+function CardSplit({ actions, info }: { actions: ReactNode; info: ReactNode }) {
+  return (
+    <div className="flex gap-3">
+      <div className="flex w-[38%] shrink-0 flex-col gap-2">{actions}</div>
+      <div className="min-w-0 flex-1">{info}</div>
+    </div>
+  );
 }
 
 function UnknownCard({ est, energyLow, outOfRange, onTravel }: Props) {
@@ -106,7 +127,7 @@ function StationCodes({ sel }: { sel: LocationState }) {
   if (!net || !station) return null;
 
   return (
-    <div className="mt-2 flex flex-wrap items-center gap-1 text-[11px]">
+    <div className="mt-2 flex flex-wrap items-center gap-1 text-xs">
       {station.codes.map((code) => (
         <span
           key={code}
@@ -140,7 +161,7 @@ function Departures({
   const net = getMrtNetwork();
   return (
     <div className="rounded border border-white/10 bg-black/30 p-2">
-      <div className="mb-1.5 text-[10px] uppercase tracking-widest text-white/40">
+      <div className="mb-1.5 text-2xs uppercase tracking-widest text-white/40">
         Tunnels from this platform
       </div>
       <div className="flex flex-col gap-1.5">
@@ -159,13 +180,13 @@ function Departures({
               />
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-semibold">{seg.station.name}</span>
-                <span className="block truncate text-[10px] text-white/40">
+                <span className="block truncate text-2xs text-white/40">
                   {seg.station.codes.join(' · ')} · {seg.meters} m
                 </span>
               </span>
               {/* Past the edge of the map you've built — worth saying, because
                   it's the one direction that takes you somewhere new. */}
-              <span className={`shrink-0 text-[10px] ${known ? 'text-white/40' : 'text-astral'}`}>
+              <span className={`shrink-0 text-2xs ${known ? 'text-white/40' : 'text-astral'}`}>
                 {known ? '→' : 'unmapped →'}
               </span>
             </button>
@@ -194,11 +215,84 @@ function TunnelButton({ seg, onTunnel }: { seg: MrtSegment | null; onTunnel: () 
       }}
     >
       <Icon name="action.mrt" /> Walk the tunnel
-      <span className="block text-[11px] font-normal opacity-75">
+      <span className="block text-xs font-normal opacity-75">
         {line ? `${line.name} · ` : ''}
         {seg ? `${seg.meters} m` : 'one segment'} · no weather, no range
       </span>
     </button>
+  );
+}
+
+/**
+ * Whose ground this is — and, at an outpost, where you stand with them.
+ *
+ * Standing used to be an invisible number that only ever showed itself by
+ * changing what happened at a doorway. Putting the rung on the territory badge
+ * is what turns it from a hidden modifier into a thing worth working on.
+ */
+function FactionBadge({
+  sel,
+  faction,
+}: {
+  sel: LocationState;
+  faction: (typeof FACTION_CONFIG)[Exclude<LocationState['factionId'], null>];
+}) {
+  const standing = useGame((s) => s.factionStanding[faction.id]);
+  const isOutpost = useGame((s) => s.outposts[faction.id] === sel.id);
+  return (
+    <div
+      className="mt-2 rounded border bg-black/30 px-2 py-1 text-xs"
+      style={{ color: faction.color, borderColor: `${faction.color}66` }}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="truncate">
+          <Icon name={faction.icon} /> {faction.shortName}
+          {isOutpost ? ` ${faction.outpostName}` : ' territory'}
+        </span>
+        <span className="shrink-0 opacity-80">
+          {standingLabel(standing)} {standing > 0 ? `+${standing}` : standing}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/** The counter and the beds, shown only where they actually exist. */
+function OutpostActions({ sel }: { sel: LocationState }) {
+  const standing = useGame((s) => s.factionStanding);
+  const isOutpost = useGame((s) => !!sel.factionId && s.outposts[sel.factionId] === sel.id);
+  const openTrader = useGame((s) => s.openTrader);
+  const outpostRest = useGame((s) => s.outpostRest);
+  if (!isOutpost || !sel.factionId) return null;
+
+  const cfg = FACTION_CONFIG[sel.factionId];
+  const trades = factionTrades(sel.factionId, standing);
+  const shelters = factionShelters(sel.factionId, standing);
+
+  return (
+    <>
+      <button
+        disabled={!trades}
+        onClick={() => openTrader(sel.id)}
+        className="w-full rounded border px-2 py-2 text-sm leading-tight hover:brightness-125 disabled:opacity-30"
+        style={{ borderColor: `${cfg.color}66`, background: `${cfg.color}1a`, color: cfg.color }}
+      >
+        <Icon name={cfg.icon} /> Trade at the counter
+        <span className="block text-xs font-normal opacity-75">
+          {trades ? 'Today\'s swaps' : 'They don\'t deal with strangers'}
+        </span>
+      </button>
+      <button
+        disabled={!shelters}
+        onClick={outpostRest}
+        className="w-full rounded border border-white/15 px-2 py-2 text-sm leading-tight hover:bg-white/5 disabled:opacity-30"
+      >
+        <Icon name="action.sleep" /> Sleep inside the wire
+        <span className="block text-xs font-normal opacity-60">
+          {shelters ? 'Safe until morning — nothing gets a roll' : 'Beds are for people they trust'}
+        </span>
+      </button>
+    </>
   );
 }
 
@@ -231,7 +325,39 @@ function KnownCard({
   const faction = factionRevealed && sel.factionId ? FACTION_CONFIG[sel.factionId] : null;
   const dngr = Math.max(1, Math.round(danger));
 
-  return (
+  const actions = (
+    <>
+      {isBlock ? (
+        <button
+          onClick={onEnterBlock ?? onEnter}
+          className="w-full rounded bg-signal/90 px-2 py-2 text-sm font-bold leading-tight text-black hover:bg-signal"
+        >
+          <Icon name="hdb.enterBlock" /> Enter the block
+        </button>
+      ) : (
+        <button
+          disabled={sel.exhausted}
+          onClick={onEnter}
+          className="w-full rounded bg-signal/80 px-2 py-2 text-sm font-bold leading-tight text-black hover:bg-signal disabled:opacity-30"
+        >
+          {sel.exhausted
+            ? 'Nothing left to search'
+            : sel.cleared
+              ? 'Go back in and search'
+              : 'Go inside and search'}
+        </button>
+      )}
+      <button
+        onClick={onOpenStash}
+        className="w-full rounded border border-white/15 px-2 py-2 text-sm leading-tight hover:bg-white/5"
+      >
+        <Icon name="action.stash" /> Open stash here
+      </button>
+      {here && <OutpostActions sel={sel} />}
+    </>
+  );
+
+  const header = (
     <>
       <div className="flex items-center gap-2">
         <Icon name={cfg.icon} size={22} />
@@ -242,22 +368,15 @@ function KnownCard({
           </div>
         </div>
         {here ? (
-          <span className="rounded bg-signal/20 px-2 py-0.5 text-[11px] text-signal">HERE</span>
+          <span className="rounded bg-signal/20 px-2 py-0.5 text-xs text-signal">HERE</span>
         ) : (
-          <span className="rounded bg-white/10 px-2 py-0.5 text-[11px] text-white/50">last seen</span>
+          <span className="rounded bg-white/10 px-2 py-0.5 text-xs text-white/50">last seen</span>
         )}
       </div>
 
       <StationCodes sel={sel} />
 
-      {faction && (
-        <div
-          className="mt-2 rounded border bg-black/30 px-2 py-1 text-xs"
-          style={{ color: faction.color, borderColor: `${faction.color}66` }}
-        >
-          <Icon name={faction.icon} /> {faction.shortName} territory
-        </div>
-      )}
+      {faction && <FactionBadge sel={sel} faction={faction} />}
 
       <div className="mt-2 flex items-center justify-between text-xs">
         {/* distance-from-spawn is noise once you're standing here */}
@@ -278,82 +397,84 @@ function KnownCard({
         {useMem && <span className="text-concrete-400"> · intel may be stale</span>}
       </div>
 
-      {est && !here && (
-        <div className="mt-2 rounded bg-black/30 p-2 text-xs text-white/55">
-          <div className="flex justify-between">
-            <span><Icon name="action.travel" /> Travel here</span>
-            <span className="text-white/80">
-              {formatDuration(est.travelMin)}
-              {est.weatherSlowed && <span className="text-astral"> · rain</span>}
-              {est.encumbered && <span className="text-hiss"> · heavy</span>}
-            </span>
-          </div>
-          <div className="flex justify-between">
-            <span><Icon name="action.search" /> Search, once inside</span>
-            <span className="text-white/80">{formatDuration(est.searchMin)}</span>
-          </div>
-          {(est.arrivalAtNight || est.doneAtNight) && (
-            <div className="mt-1 text-hiss">🌙 You'll be out after dark — far more dangerous.</div>
-          )}
-        </div>
-      )}
+    </>
+  );
 
-      <div className="mt-3 flex flex-col gap-2">
-        {here ? (
-          <>
-            {isBlock ? (
-              <button
-                onClick={onEnterBlock ?? onEnter}
-                className="w-full rounded bg-signal/90 py-2 text-sm font-bold text-black hover:bg-signal"
-              >
-                <Icon name="hdb.enterBlock" /> Enter the block
-              </button>
-            ) : (
-              <button
-                disabled={sel.exhausted}
-                onClick={onEnter}
-                className="w-full rounded bg-signal/80 py-2 text-sm font-bold text-black hover:bg-signal disabled:opacity-30"
-              >
-                {sel.exhausted
-                  ? 'Nothing left to search'
-                  : sel.cleared
-                    ? 'Go back in and search'
-                    : 'Go inside and search'}
-              </button>
-            )}
-            {departures && departures.length > 0 && (
-              <Departures list={departures} onDepart={onDepart} />
-            )}
-            <button
-              onClick={onOpenStash}
-              className="w-full rounded border border-white/15 py-2 text-sm hover:bg-white/5"
-            >
-              <Icon name="action.stash" /> Open stash here
-            </button>
-          </>
-        ) : (
-          <>
-            {outOfRange && !canTunnel && (
-              <div className="text-xs text-hiss">
-                ⛔ Beyond your range — hop closer, rest, or walk the tunnels.
+  // The target card keeps its original single column — you're reading a
+  // decision there, and the travel estimate is the bulk of it.
+  if (!here) {
+    return (
+      <>
+        {header}
+        {est && (
+          <div className="mt-2 rounded bg-black/30 p-2 text-xs text-white/55">
+            <div className="flex justify-between">
+              <span><Icon name="action.travel" /> Travel here</span>
+              <span className="text-white/80">
+                {formatDuration(est.travelMin)}
+                {est.weatherSlowed && <span className="text-astral"> · rain</span>}
+                {est.encumbered && <span className="text-hiss"> · heavy</span>}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span><Icon name="action.search" /> Search, once inside</span>
+              <span className="text-white/80">{formatDuration(est.searchMin)}</span>
+            </div>
+            {(est.arrivalAtNight || est.doneAtNight) && (
+              <div className="mt-1 text-hiss">
+                🌙 You'll be out after dark — far more dangerous.
               </div>
             )}
-            <button
-              disabled={energyLow || outOfRange}
-              onClick={onTravel}
-              className="w-full rounded bg-signal/80 py-2 text-sm font-bold text-black hover:bg-signal disabled:opacity-30"
-            >
-              {energyLow
-                ? 'Too exhausted — sleep first'
-                : outOfRange
-                  ? 'Too far to reach'
-                  : `Travel here · ${est ? formatDuration(est.travelMin) : ''}`}
-            </button>
-            {canTunnel && <TunnelButton seg={tunnelSeg ?? null} onTunnel={onTunnel} />}
-            {tunnelHint && <div className="text-xs text-white/45">{tunnelHint}</div>}
-          </>
+          </div>
         )}
-      </div>
+        <div className="mt-3 flex flex-col gap-2">
+          {outOfRange && !canTunnel && (
+            <div className="text-xs text-hiss">
+              ⛔ Beyond your range — hop closer, rest, or walk the tunnels.
+            </div>
+          )}
+          <button
+            disabled={energyLow || outOfRange}
+            onClick={onTravel}
+            className="w-full rounded bg-signal/80 py-2 text-sm font-bold text-black hover:bg-signal disabled:opacity-30"
+          >
+            {energyLow
+              ? 'Too exhausted — sleep first'
+              : outOfRange
+                ? 'Too far to reach'
+                : `Travel here · ${est ? formatDuration(est.travelMin) : ''}`}
+          </button>
+          {canTunnel && <TunnelButton seg={tunnelSeg ?? null} onTunnel={onTunnel} />}
+          {tunnelHint && <div className="text-xs text-white/45">{tunnelHint}</div>}
+        </div>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <CardSplit
+        actions={actions}
+        info={
+          <>
+            {header}
+            {/* What the category is good for — the reason to spend a search
+                here rather than at the next door down the street. */}
+            <div className="mt-2 text-xs leading-snug text-white/45">{cfg.blurb}</div>
+            <div className="mt-2 text-xs text-white/50">
+              Loot {'●'.repeat(cfg.richness)}
+              <span className="text-white/15">{'●'.repeat(5 - cfg.richness)}</span>
+            </div>
+          </>
+        }
+      />
+      {/* The line map is a list, not a button — it needs the full width to stay
+          readable, so it sits under the split rather than in the action rail. */}
+      {departures && departures.length > 0 && (
+        <div className="mt-3">
+          <Departures list={departures} onDepart={onDepart} />
+        </div>
+      )}
     </>
   );
 }

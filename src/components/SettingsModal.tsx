@@ -38,7 +38,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
         <div className="flex flex-col gap-5">
           {groups.map((group) => (
             <section key={group.name}>
-              <h4 className="mb-2 text-[10px] uppercase tracking-widest text-white/30">
+              <h4 className="mb-2 text-2xs uppercase tracking-widest text-white/30">
                 {group.name}
               </h4>
               <div className="flex flex-col gap-3">
@@ -48,7 +48,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
                     <div key={def.key}>
                       <div className="text-sm font-semibold">{def.label}</div>
                       {def.description && (
-                        <div className="mb-1.5 text-[11px] text-white/40">{def.description}</div>
+                        <div className="mb-1.5 text-xs text-white/40">{def.description}</div>
                       )}
                       <div className="flex flex-wrap gap-1.5">
                         {def.options.map((opt) => {

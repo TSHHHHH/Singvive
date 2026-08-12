@@ -53,7 +53,7 @@ export function Menu() {
           </div>
         )}
 
-        <p className="mt-10 text-[11px] leading-relaxed text-white/30">
+        <p className="mt-10 text-xs leading-relaxed text-white/30">
           A roguelike survival game on the real map of Singapore. Scavenge real
           places, manage your body, and last as long as you can.
         </p>

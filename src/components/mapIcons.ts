@@ -60,17 +60,21 @@ const UNKNOWN_ICON = L.divIcon({
 export const unknownIcon = (): L.DivIcon => UNKNOWN_ICON;
 
 /** The player's marker — used both for the spawn preview and their live
- *  position on the game map. A person, not a house. */
+ *  position on the game map. A person, not a house.
+ *
+ *  A teardrop rather than a disc: it hangs *above* the point it marks, so in a
+ *  POI-dense block it no longer sits on top of the pin for the place the player
+ *  is standing in. The trade is that it now covers whatever is a few pixels
+ *  north of them instead, which is what `.player-pin` fading in index.css and
+ *  the marker's `interactive={false}` are for — the pin never eats a click, and
+ *  it gets out of the way visually when the cursor enters its footprint. */
 const PLAYER_ICON = L.divIcon({
-  className: '',
-  html: `<div style="
-    width:34px;height:34px;border-radius:50%;
-    display:flex;align-items:center;justify-content:center;
-    font-size:18px;background:#1c1c1e;border:2px solid #e8e5dd;
-    box-shadow:0 0 10px rgba(232,229,221,.6);
-  ">${iconMarkup('combat.player', { size: 18, color: '#e8e5dd' })}</div>`,
-  iconSize: [34, 34],
-  iconAnchor: [17, 17],
+  className: 'player-pin',
+  html: `<div class="player-pin__body">
+    <div class="player-pin__glyph">${iconMarkup('combat.player', { size: 16, color: '#e8e5dd' })}</div>
+  </div><div class="player-pin__ground"></div>`,
+  iconSize: [30, 38],
+  iconAnchor: [15, 36],
 });
 export const playerIcon = (): L.DivIcon => PLAYER_ICON;
 

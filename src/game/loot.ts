@@ -41,6 +41,11 @@ export const ITEMS: Record<string, ItemDef> = {
   yakult: { id: 'yakult', name: 'Yakult', w: 1, h: 1, weight: 0.2, effect: { kind: 'cure', infection: 8 }, value: 6, stackable: true, maxStack: 5, color: '#e3d5b8' },
   // --- Medicine ---
   bandage: { id: 'bandage', name: 'Bandage', w: 1, h: 1, weight: 0.1, effect: { kind: 'heal', health: 8, partHeal: 25, stopsBleeding: 'one' }, value: 8, stackable: true, maxStack: 5, color: '#d7d2c4' },
+  // The floor of the bleeding economy. Torn cloth always stops the bleed, so a
+  // bad loot streak can never leave you with no answer at all — but it dresses
+  // a wound with a dirty shirt, and the infection is the bill for that. Clean
+  // bandages stay strictly better; they are just no longer mandatory.
+  improvised_bandage: { id: 'improvised_bandage', name: 'Improvised Dressing', w: 1, h: 1, weight: 0.1, effect: { kind: 'heal', health: 3, partHeal: 10, stopsBleeding: 'one', infectionRisk: 10 }, value: 3, stackable: true, maxStack: 5, color: '#9a8f7d' },
   painkillers: { id: 'painkillers', name: 'Painkillers', w: 1, h: 1, weight: 0.1, effect: { kind: 'heal', health: 15 }, value: 7, stackable: true, maxStack: 4, color: '#cfc9de' },
   // Evac requires carrying one of these out, so it must not be double-gated: a
   // tight scarcity roll on top of a thin table presence made it a 3%-of-runs item.
@@ -58,22 +63,22 @@ export const ITEMS: Record<string, ItemDef> = {
   coffee: { id: 'coffee', name: 'Kopi Packet', w: 1, h: 1, weight: 0.1, effect: { kind: 'energy', energy: 25 }, value: 4, stackable: true, maxStack: 4, color: '#6b4423' },
   energy_drink: { id: 'energy_drink', name: 'Energy Drink', w: 1, h: 2, weight: 0.4, effect: { kind: 'energy', energy: 40 }, value: 9, stackable: true, maxStack: 3, color: '#c0392b' },
   // --- Weapons (melee, mainHand) ---
-  kitchen_knife: { id: 'kitchen_knife', name: 'Kitchen Knife', w: 1, h: 2, weight: 0.3, effect: { kind: 'weapon', damage: 10, accuracy: 1, ranged: false }, value: 10, stackable: false, maxStack: 1, color: '#9aa0a6', slot: 'mainHand' },
-  hammer: { id: 'hammer', name: 'Claw Hammer', w: 1, h: 2, weight: 0.7, effect: { kind: 'weapon', damage: 14, accuracy: 0, ranged: false }, value: 12, stackable: false, maxStack: 1, color: '#8a8f94', slot: 'mainHand' },
-  crowbar: { id: 'crowbar', name: 'Crowbar', w: 1, h: 3, weight: 1.5, effect: { kind: 'weapon', damage: 18, accuracy: 1, ranged: false }, value: 18, stackable: false, maxStack: 1, color: '#b5451d', slot: 'mainHand' },
-  fire_axe: { id: 'fire_axe', name: 'Fire Axe', w: 1, h: 3, weight: 2.5, effect: { kind: 'weapon', damage: 24, accuracy: 0, ranged: false }, value: 26, stackable: false, maxStack: 1, color: '#a63a2a', slot: 'mainHand' },
-  parang: { id: 'parang', name: 'Parang', w: 1, h: 3, weight: 0.8, effect: { kind: 'weapon', damage: 20, accuracy: 2, ranged: false }, value: 22, stackable: false, maxStack: 1, color: '#7f8c8d', slot: 'mainHand' },
+  kitchen_knife: { id: 'kitchen_knife', name: 'Kitchen Knife', w: 1, h: 2, weight: 0.3, effect: { kind: 'weapon', damage: 10, accuracy: 1, ranged: false }, value: 10, stackable: false, maxStack: 1, color: '#9aa0a6', slot: 'mainHand', wearRate: 1.25 },
+  hammer: { id: 'hammer', name: 'Claw Hammer', w: 1, h: 2, weight: 0.7, effect: { kind: 'weapon', damage: 14, accuracy: 0, ranged: false }, value: 12, stackable: false, maxStack: 1, color: '#8a8f94', slot: 'mainHand', wearRate: 0.8 },
+  crowbar: { id: 'crowbar', name: 'Crowbar', w: 1, h: 3, weight: 1.5, effect: { kind: 'weapon', damage: 18, accuracy: 1, ranged: false }, value: 18, stackable: false, maxStack: 1, color: '#b5451d', slot: 'mainHand', wearRate: 0.45 },
+  fire_axe: { id: 'fire_axe', name: 'Fire Axe', w: 1, h: 3, weight: 2.5, effect: { kind: 'weapon', damage: 24, accuracy: 0, ranged: false }, value: 26, stackable: false, maxStack: 1, color: '#a63a2a', slot: 'mainHand', wearRate: 0.65 },
+  parang: { id: 'parang', name: 'Parang', w: 1, h: 3, weight: 0.8, effect: { kind: 'weapon', damage: 20, accuracy: 2, ranged: false }, value: 22, stackable: false, maxStack: 1, color: '#7f8c8d', slot: 'mainHand', wearRate: 0.85 },
   // A length of timber. Barely a weapon on its own — it's here to be lashed to
   // a blade, which is the only reason to pick one up.
-  wooden_stick: { id: 'wooden_stick', name: 'Wooden Stick', w: 1, h: 3, weight: 0.5, effect: { kind: 'weapon', damage: 6, accuracy: 0, ranged: false }, value: 2, stackable: false, maxStack: 1, color: '#8a6f4a', slot: 'mainHand', maxCondition: 60 },
-  meat_cleaver: { id: 'meat_cleaver', name: 'Meat Cleaver', w: 1, h: 2, weight: 0.6, effect: { kind: 'weapon', damage: 16, accuracy: 1, ranged: false }, value: 14, stackable: false, maxStack: 1, color: '#a8adb2', slot: 'mainHand' },
-  golf_club: { id: 'golf_club', name: 'Golf Club', w: 1, h: 3, weight: 0.9, effect: { kind: 'weapon', damage: 15, accuracy: 2, ranged: false }, value: 11, stackable: false, maxStack: 1, color: '#c0c4c8', slot: 'mainHand' },
-  baseball_bat: { id: 'baseball_bat', name: 'Baseball Bat', w: 1, h: 3, weight: 1.1, effect: { kind: 'weapon', damage: 18, accuracy: 1, ranged: false }, value: 13, stackable: false, maxStack: 1, color: '#a8804a', slot: 'mainHand' },
-  changkol: { id: 'changkol', name: 'Changkol', w: 1, h: 3, weight: 2.8, effect: { kind: 'weapon', damage: 22, accuracy: -1, ranged: false }, value: 15, stackable: false, maxStack: 1, color: '#7a6b4a', slot: 'mainHand' },
+  wooden_stick: { id: 'wooden_stick', name: 'Wooden Stick', w: 1, h: 3, weight: 0.5, effect: { kind: 'weapon', damage: 6, accuracy: 0, ranged: false }, value: 2, stackable: false, maxStack: 1, color: '#8a6f4a', slot: 'mainHand', wearRate: 1.6, maxCondition: 60 },
+  meat_cleaver: { id: 'meat_cleaver', name: 'Meat Cleaver', w: 1, h: 2, weight: 0.6, effect: { kind: 'weapon', damage: 16, accuracy: 1, ranged: false }, value: 14, stackable: false, maxStack: 1, color: '#a8adb2', slot: 'mainHand', wearRate: 1.2 },
+  golf_club: { id: 'golf_club', name: 'Golf Club', w: 1, h: 3, weight: 0.9, effect: { kind: 'weapon', damage: 15, accuracy: 2, ranged: false }, value: 11, stackable: false, maxStack: 1, color: '#c0c4c8', slot: 'mainHand', wearRate: 1.3 },
+  baseball_bat: { id: 'baseball_bat', name: 'Baseball Bat', w: 1, h: 3, weight: 1.1, effect: { kind: 'weapon', damage: 18, accuracy: 1, ranged: false }, value: 13, stackable: false, maxStack: 1, color: '#a8804a', slot: 'mainHand', wearRate: 1 },
+  changkol: { id: 'changkol', name: 'Changkol', w: 1, h: 3, weight: 2.8, effect: { kind: 'weapon', damage: 22, accuracy: -1, ranged: false }, value: 15, stackable: false, maxStack: 1, color: '#7a6b4a', slot: 'mainHand', wearRate: 0.7 },
   // Somebody's display piece off a living-room wall. It cuts beautifully and
   // it was never made to be used — hence a ceiling well below pristine, so a
   // katana is always a little further gone than you'd like.
-  katana: { id: 'katana', name: 'Katana', w: 1, h: 4, weight: 1.2, effect: { kind: 'weapon', damage: 30, accuracy: 2, ranged: false }, value: 48, stackable: false, maxStack: 1, color: '#8f9498', slot: 'mainHand', exotic: true, scarcity: 0.18, maxCondition: 75 },
+  katana: { id: 'katana', name: 'Katana', w: 1, h: 4, weight: 1.2, effect: { kind: 'weapon', damage: 30, accuracy: 2, ranged: false }, value: 48, stackable: false, maxStack: 1, color: '#8f9498', slot: 'mainHand', wearRate: 0.7, exotic: true, scarcity: 0.18, maxCondition: 75 },
   // --- Weapons (lashed spears, craft-only) ---
   // Reach: a spear out-ranges the blade it was built from, at the cost of a
   // fourth cell, a stick and the blade itself.
@@ -81,12 +86,12 @@ export const ITEMS: Record<string, ItemDef> = {
   // No `maxCondition` cap on these. A spear you lashed together this morning is
   // sound — capping it would mean a freshly built one could never reach its own
   // printed damage, which made the parang spear barely worth the parang.
-  spear_knife: { id: 'spear_knife', name: 'Knife Spear', w: 1, h: 4, weight: 0.8, effect: { kind: 'weapon', damage: 16, accuracy: 2, ranged: false }, value: 12, stackable: false, maxStack: 1, color: '#9aa0a6', slot: 'mainHand' },
-  spear_cleaver: { id: 'spear_cleaver', name: 'Cleaver Spear', w: 1, h: 4, weight: 1.1, effect: { kind: 'weapon', damage: 21, accuracy: 2, ranged: false }, value: 18, stackable: false, maxStack: 1, color: '#a8adb2', slot: 'mainHand' },
-  spear_parang: { id: 'spear_parang', name: 'Parang Spear', w: 1, h: 4, weight: 1.3, effect: { kind: 'weapon', damage: 26, accuracy: 3, ranged: false }, value: 28, stackable: false, maxStack: 1, color: '#7f8c8d', slot: 'mainHand' },
+  spear_knife: { id: 'spear_knife', name: 'Knife Spear', w: 1, h: 4, weight: 0.8, effect: { kind: 'weapon', damage: 16, accuracy: 2, ranged: false }, value: 12, stackable: false, maxStack: 1, color: '#9aa0a6', slot: 'mainHand', wearRate: 1.4 },
+  spear_cleaver: { id: 'spear_cleaver', name: 'Cleaver Spear', w: 1, h: 4, weight: 1.1, effect: { kind: 'weapon', damage: 21, accuracy: 2, ranged: false }, value: 18, stackable: false, maxStack: 1, color: '#a8adb2', slot: 'mainHand', wearRate: 1.2 },
+  spear_parang: { id: 'spear_parang', name: 'Parang Spear', w: 1, h: 4, weight: 1.3, effect: { kind: 'weapon', damage: 26, accuracy: 3, ranged: false }, value: 28, stackable: false, maxStack: 1, color: '#7f8c8d', slot: 'mainHand', wearRate: 1 },
   // --- Weapons (ranged, mainHand) ---
-  pistol: { id: 'pistol', name: 'Service Pistol', w: 2, h: 1, weight: 1.0, effect: { kind: 'weapon', damage: 28, accuracy: 3, ranged: true }, value: 45, stackable: false, maxStack: 1, color: '#4a4f55', slot: 'mainHand', exotic: true, scarcity: 0.6 },
-  shotgun: { id: 'shotgun', name: 'Shotgun', w: 4, h: 1, weight: 3.5, effect: { kind: 'weapon', damage: 40, accuracy: 2, ranged: true, roundsPerShot: 2 }, value: 60, stackable: false, maxStack: 1, color: '#5a3a1d', slot: 'mainHand', exotic: true, scarcity: 0.3 },
+  pistol: { id: 'pistol', name: 'Service Pistol', w: 2, h: 1, weight: 1.0, effect: { kind: 'weapon', damage: 28, accuracy: 3, ranged: true }, value: 45, stackable: false, maxStack: 1, color: '#4a4f55', slot: 'mainHand', wearRate: 0.5, exotic: true, scarcity: 0.6 },
+  shotgun: { id: 'shotgun', name: 'Shotgun', w: 4, h: 1, weight: 3.5, effect: { kind: 'weapon', damage: 40, accuracy: 2, ranged: true, roundsPerShot: 2 }, value: 60, stackable: false, maxStack: 1, color: '#5a3a1d', slot: 'mainHand', wearRate: 0.5, exotic: true, scarcity: 0.3 },
   // A sealed box is the good find — loose shells are what you actually keep
   // turning up. Both feed the same magazine; the box just goes further.
   //

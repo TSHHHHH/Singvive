@@ -76,7 +76,7 @@ function Stat({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-lg border border-white/10 bg-black/40 py-3">
       <div className="text-2xl font-black text-signal tabular-nums">{value}</div>
-      <div className="text-[11px] uppercase tracking-widest text-white/40">{label}</div>
+      <div className="text-xs uppercase tracking-widest text-white/40">{label}</div>
     </div>
   );
 }

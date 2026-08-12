@@ -47,22 +47,22 @@ export function ObjectivesPanel({
           <span className="text-sm font-bold text-signal">
             <Icon name="action.evac" /> Escape Singapore
           </span>
-          <span className="shrink-0 text-[11px] text-white/40">
+          <span className="shrink-0 text-xs text-white/40">
             {atEvac ? 'you are here' : evacZoneName ? `${evacDist} m away` : '—'}
           </span>
         </div>
         {evacZoneName ? (
-          <p className="mt-1 text-[13px] text-white/70">
+          <p className="mt-1 text-sm text-white/70">
             Reach <span className="font-semibold text-signal">{evacZoneName}</span> with the full
             evac kit and signal for a lift out.
           </p>
         ) : (
-          <p className="mt-1 text-[13px] text-white/50">No active evac window.</p>
+          <p className="mt-1 text-sm text-white/50">No active evac window.</p>
         )}
 
         {windowText && (
           <div
-            className={`mt-2 text-[11px] font-semibold ${
+            className={`mt-2 text-xs font-semibold ${
               urgent ? 'animate-pulse text-hiss' : 'text-concrete-200'
             }`}
           >
@@ -74,7 +74,7 @@ export function ObjectivesPanel({
           {checklist.map((r) => (
             <span
               key={r.id}
-              className={`rounded px-1.5 py-0.5 text-[11px] ${
+              className={`rounded px-1.5 py-0.5 text-xs ${
                 r.have ? 'bg-signal/15 text-signal' : 'bg-white/5 text-white/40'
               }`}
             >
@@ -96,7 +96,7 @@ export function ObjectivesPanel({
 
       {/* ---- Doom clock ---- */}
       <section className="rounded-lg border border-white/10 bg-black/30 p-3">
-        <div className="flex items-center justify-between text-[10px] uppercase tracking-wide text-white/40">
+        <div className="flex items-center justify-between text-2xs uppercase tracking-wide text-white/40">
           <span>Horde · {doomLabel}</span>
           <span className="tabular-nums">{Math.round(doom)}%</span>
         </div>
@@ -106,15 +106,15 @@ export function ObjectivesPanel({
             style={{ width: `${Math.min(100, doom)}%`, background: doomColor }}
           />
         </div>
-        <p className="mt-1.5 text-[10px] text-white/30">
+        <p className="mt-1.5 text-2xs text-white/30">
           The city is lost when the horde hits 100%. Escape before then.
         </p>
       </section>
 
       {/* ---- Quests (future) ---- */}
       <section>
-        <h4 className="mb-1 text-[10px] uppercase tracking-widest text-white/30">Quests</h4>
-        <div className="rounded-lg border border-dashed border-white/10 p-3 text-center text-[12px] text-white/30">
+        <h4 className="mb-1 text-2xs uppercase tracking-widest text-white/30">Quests</h4>
+        <div className="rounded-lg border border-dashed border-white/10 p-3 text-center text-xs text-white/30">
           No side quests yet — coming soon.
         </div>
       </section>

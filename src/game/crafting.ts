@@ -48,13 +48,14 @@ export const RECIPES: Recipe[] = [
   },
   {
     id: 'bandages',
-    name: 'Tear Bandages',
+    name: 'Tear Dressings',
     inputs: { cloth_rags: 2 },
-    outputDefId: 'bandage',
+    outputDefId: 'improvised_bandage',
     outputCount: 2,
     hours: 0.5,
     needsShelter: false,
-    blurb: 'Clean cloth, torn into strips. The oldest trick there is.',
+    blurb:
+      'Rags torn into strips. It will stop the bleeding — it will not stop what gets in afterwards.',
   },
   /*
    * Lashed spears. One recipe per blade rather than one generic spear, because

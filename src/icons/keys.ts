@@ -83,6 +83,11 @@ export type IconName =
   | 'action.stats'
   | 'action.dayLogs'
   | 'action.close'
+  // --- event choices, one per ChoiceKind ---
+  | 'choice.check'
+  | 'choice.pay'
+  | 'choice.fight'
+  | 'choice.leave'
   // --- run statistics ---
   | 'stat.value'
   // --- weather / time ---
@@ -279,6 +284,11 @@ export const EMOJI_FALLBACK: Record<IconName, string> = {
   'action.stats': '📊',
   'action.dayLogs': '🗓️',
   'action.close': '✕',
+
+  'choice.check': '🎲',
+  'choice.pay': '🤝',
+  'choice.fight': '⚔️',
+  'choice.leave': '🚶',
 
   'stat.value': '💰',
 

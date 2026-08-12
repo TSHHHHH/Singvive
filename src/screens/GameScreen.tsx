@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useGame } from '../game/store';
-import { GameMap } from '../components/GameMap';
+import { GameMap, type MapPoint } from '../components/GameMap';
+import { MapBubble } from '../components/MapBubble';
 import { useMrtNetwork } from '../components/MrtOverlay';
 import {
   displayLine,
@@ -27,10 +28,11 @@ import { ObjectivesPanel } from '../components/ObjectivesPanel';
 import { AttributeRow } from '../components/AttributeRow';
 import { DayLogsModal } from '../components/DayLogsModal';
 import { HdbDungeonModal } from '../components/HdbDungeonModal';
+import { TraderModal } from '../components/TraderModal';
 import { TunnelRunView } from '../components/TunnelRunView';
 import { itemDef } from '../game/loot';
 import { estimateExpedition } from '../game/travel';
-import { legTravelFactor } from '../game/survival';
+import { bleedEncounterMod, legTravelFactor } from '../game/survival';
 import { isEncumbered } from '../game/inventory';
 import { haversine } from '../game/overpass';
 import { rollWeather, timeOfDay, weatherEncounterMod } from '../game/weather';
@@ -106,6 +108,7 @@ export function GameScreen() {
     hordeLevel,
     evacZoneId,
     evacDeadline,
+    evacCooldownUntil,
     callEvac,
     travel,
     enter,
@@ -142,6 +145,7 @@ export function GameScreen() {
       hordeLevel: s.hordeLevel,
       evacZoneId: s.evacZoneId,
       evacDeadline: s.evacDeadline,
+      evacCooldownUntil: s.evacCooldownUntil,
       callEvac: s.callEvac,
       travel: s.travel,
       enter: s.enter,
@@ -167,6 +171,10 @@ export function GameScreen() {
   const [trekTarget, setTrekTarget] = useState<{ lat: number; lng: number } | null>(null);
   const [mobileView, setMobileView] = useState<MobileView>('map');
   const [sidePanel, setSidePanel] = useState<SidePanel | null>(null);
+  // Where the target card's tail should point, in map-container pixels. The map
+  // owns this — it's the only thing that can project a lat/lng — and hands it
+  // back so the card can be rendered here, over the map but outside Leaflet.
+  const [bubblePoint, setBubblePoint] = useState<MapPoint | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [dayLogsOpen, setDayLogsOpen] = useState(false);
 
@@ -201,6 +209,19 @@ export function GameScreen() {
   // switching mobile tabs — doesn't re-derive the weather, the walkable range
   // and the whole hazard field for nothing.
   const sel = selectedId ? locations[selectedId] ?? null : null;
+
+  // Whatever the target card is about — a POI you're considering, or a patch of
+  // open ground. Standing somewhere doesn't count: that's the "here" card, and
+  // it has its own home at the foot of the timeline. Split into plain numbers so
+  // the memo below keeps its identity across the store churn `locations` sees,
+  // which the memoised map depends on.
+  const anchorLat = trekTarget ? trekTarget.lat : sel && sel.id !== currentPositionId ? sel.lat : null;
+  const anchorLng = trekTarget ? trekTarget.lng : sel && sel.id !== currentPositionId ? sel.lng : null;
+  const bubbleAnchor = useMemo(
+    () => (anchorLat === null || anchorLng === null ? null : { lat: anchorLat, lng: anchorLng }),
+    [anchorLat, anchorLng],
+  );
+
   const weather = useMemo(() => rollWeather(new Rng(seed), day), [seed, day]);
   const time = timeOfDay(hour);
   const encumbered = useMemo(
@@ -289,7 +310,10 @@ export function GameScreen() {
           band: time,
           hordeIntensity: hordeIntensity(hordeLevel),
           weatherEncounterMod: weatherEncounterMod(weather),
-          traitEncounterMod: sumTraitMod(character.traitIds, 'encounterChanceMod'),
+          // Bleeding shows up in the quoted risk too, so the player can weigh
+          // "patch up first" against "chance it" before committing to a route.
+          traitEncounterMod:
+            sumTraitMod(character.traitIds, 'encounterChanceMod') + bleedEncounterMod(bodyParts),
           safe: spawn ?? undefined,
         },
         known,
@@ -409,6 +433,8 @@ export function GameScreen() {
   };
   const evacUrgent = evacHoursLeft != null && evacHoursLeft <= 8;
   const windowText = evacHoursLeft != null ? fmtWindow(evacHoursLeft) : null;
+  const evacCooldownHours =
+    evacCooldownUntil != null ? Math.max(0, Math.ceil(evacCooldownUntil - nowHours)) : null;
 
   // ---- the two location slots, shared between the desktop rail and the
   // mobile floating dock so the markup only exists once -------------------
@@ -483,7 +509,28 @@ export function GameScreen() {
     <><Icon name="action.here" /> In the open</>
   );
 
-  const show = (mobile: boolean) => (mobile ? 'flex flex-1 min-h-0' : 'hidden');
+  // The active mobile tab fills the screen — but only on mobile. Left
+  // unprefixed, its `flex-1` also landed on desktop and let whichever column
+  // held the active tab grow past its fixed width, which an event did silently
+  // by pulling the player to the Timeline. `max-md:` scopes it to the one
+  // breakpoint that wants it, so desktop and mobile can't fight over it at all;
+  // countering it at `md` instead would just be a bet on CSS source order.
+  const show = (mobile: boolean) => (mobile ? 'flex max-md:flex-1 min-h-0' : 'hidden');
+
+  /**
+   * Something is standing in front of you and you have not decided what to do
+   * about it yet. The store already refuses travel, searching and the rest
+   * while a fight is open, but silently — the map still looked live, so the
+   * demand read as "a panel appeared" instead of "deal with this now".
+   *
+   * Everything except the timeline column drops back and stops taking clicks
+   * until a stance is committed. The moment it is, the world comes back up and
+   * the fight resolves itself.
+   */
+  const stanceGate = !!combat?.awaitingStance;
+  const backgrounded = `transition-all duration-300 ${
+    stanceGate ? 'pointer-events-none select-none opacity-25 saturate-50' : ''
+  }`;
 
   return (
     <div className="relative flex h-full flex-col md:flex-row">
@@ -497,7 +544,7 @@ export function GameScreen() {
       <aside
         className={`relative flex-col border-white/10 bg-concrete-900/70 md:z-[750] md:flex md:h-full md:w-[340px] md:shrink-0 md:border-r md:bg-concrete-900 ${
           mobileView === 'hub' ? show(true) : 'hidden'
-        } md:flex`}
+        } md:flex ${backgrounded}`}
       >
         {/* --- time, day, weather, rest --- */}
         <div className="shrink-0 space-y-2 border-b border-white/10 p-2.5">
@@ -521,6 +568,7 @@ export function GameScreen() {
               evacDist={evacDist}
               atEvac={atEvac}
               windowText={windowText}
+              evacCooldownHours={evacCooldownHours}
               urgent={evacUrgent}
               doom={doom}
               doomColor={doomColor}
@@ -539,7 +587,7 @@ export function GameScreen() {
                   <button
                     key={id}
                     onClick={() => setSidePanel(active ? null : id)}
-                    className={`rounded border py-1.5 text-[11px] transition ${
+                    className={`rounded border py-1.5 text-xs transition ${
                       active
                         ? 'border-signal bg-signal/15 text-signal'
                         : 'border-white/15 text-white/70 hover:bg-white/5'
@@ -553,27 +601,9 @@ export function GameScreen() {
           </div>
         </div>
 
-        {/* --- where you are: pinned to the bottom-left corner, outside the
-             scroller above, so the two location panels are always in the same
-             place no matter how tall the block above them gets. Capped at half
-             the rail with its own scroll — a fat location card can't eat it. --- */}
-        <div className="hidden max-h-[52%] shrink-0 flex-col gap-2.5 overflow-y-auto border-t border-white/10 p-2.5 md:flex">
-          <RailSection
-            title={targetSlot?.title ?? <><Icon name="action.target" /> Target</>}
-            onClose={targetSlot?.onClose}
-            accent={false}
-          >
-            {targetSlot?.body ?? (
-              <p className="text-xs text-white/30">
-                Nothing selected. Tap a building or a patch of open ground on the map.
-              </p>
-            )}
-          </RailSection>
-
-          <RailSection title={hereTitle} accent={!!hereProps}>
-            {hereSlot}
-          </RailSection>
-        </div>
+        {/* The two location slots used to be pinned here. They've moved to where
+            they're actually about: the target floats over the marker it
+            describes, and "here" sits at the foot of the timeline. */}
       </aside>
 
       {/* ================= COLUMN 2: the slide-out =================
@@ -588,7 +618,7 @@ export function GameScreen() {
           sidePanel
             ? 'translate-x-0'
             : 'pointer-events-none -translate-x-full md:-translate-x-[700px]'
-        }`}
+        } ${backgrounded}`}
       >
         <div className="flex h-full flex-col border-r border-white/10 bg-concrete-900 shadow-2xl">
           <div className="flex shrink-0 items-center justify-between border-b border-white/10 p-3">
@@ -634,7 +664,7 @@ export function GameScreen() {
       <div
         className={`relative md:flex md:flex-1 ${
           mobileView === 'map' || hdb || tunnel ? show(true) : 'hidden'
-        } md:flex`}
+        } md:flex ${backgrounded}`}
       >
         {tunnel ? (
           <>
@@ -643,7 +673,7 @@ export function GameScreen() {
                 which on mobile is a different tab entirely. */}
             {(combat || pendingEvent) && (
               <div className="pointer-events-none absolute inset-x-0 top-0 z-[600] p-2 md:hidden">
-                <div className="rounded border border-hiss/50 bg-hiss/15 px-2 py-1 text-center text-[11px] text-hiss backdrop-blur">
+                <div className="rounded border border-hiss/50 bg-hiss/15 px-2 py-1 text-center text-xs text-hiss backdrop-blur">
                   {combat ? 'Contact — open Timeline' : 'Someone wants a word — open Timeline'}
                 </div>
               </div>
@@ -669,16 +699,29 @@ export function GameScreen() {
               weather={weather}
               time={time}
               trekTarget={trekTarget}
+              bubbleAnchor={bubbleAnchor}
+              onBubblePoint={setBubblePoint}
               onSelect={selectPoi}
               onPickGround={pickGround}
             />
+            {/* The target card, floated over the thing it describes. A fight
+                owns the moment, so it stands down for the duration. */}
+            {targetSlot && bubblePoint && (
+              <MapBubble
+                point={bubblePoint}
+                title={targetSlot.title}
+                onClose={targetSlot.onClose}
+              >
+                {targetSlot.body}
+              </MapBubble>
+            )}
             {worldLoading && (
               <div className="absolute inset-0 z-[500] flex items-center justify-center bg-black/70">
                 <p className="animate-pulse text-white/70">Loading the neighbourhood…</p>
               </div>
             )}
             {worldError && (
-              <div className="absolute bottom-2 left-2 z-[500] max-w-xs rounded bg-black/85 px-3 py-1.5 text-[11px] text-concrete-50">
+              <div className="absolute bottom-2 left-2 z-[500] max-w-xs rounded bg-black/85 px-3 py-1.5 text-xs text-concrete-50">
                 {worldError}
               </div>
             )}
@@ -689,44 +732,54 @@ export function GameScreen() {
       {/* ================= COLUMN 4: timeline — or the encounter panel, which
            takes the column over for the duration of a fight ================= */}
       <aside
-        className={`min-w-0 overflow-hidden border-white/10 bg-concrete-900/70 p-3 md:flex md:w-[30vw] md:min-w-[280px] md:max-w-[520px] md:shrink-0 md:border-l md:p-2.5 ${
+        className={`min-w-0 overflow-hidden border-white/10 bg-concrete-900/70 p-3 md:flex md:w-[35vw] md:min-w-[320px] md:shrink-0 md:border-l md:p-2.5 ${
           mobileView === 'log' ? show(true) : 'hidden'
-        } md:flex md:flex-col ${combat ? 'ring-1 ring-inset ring-hiss/50' : ''}`}
+        } md:flex md:flex-col transition-all duration-300 ${
+          stanceGate
+            ? // The one lit thing on the screen while the decision is open.
+              'relative z-[760] ring-2 ring-inset ring-hiss shadow-[0_0_60px_-5px_rgba(217,45,45,0.55)]'
+            : combat
+              ? 'ring-1 ring-inset ring-hiss/50'
+              : ''
+        }`}
       >
-        {combat ? (
-          <CombatPanel />
-        ) : (
-          <LogPanel
-            onOpenSettings={() => setSettingsOpen(true)}
-            onOpenDayLogs={() => setDayLogsOpen(true)}
-          />
-        )}
-      </aside>
-
-      {/* ================= MOBILE location dock =================
-           The rail's two location slots live in the "Status" tab on mobile,
-           which would mean tapping a POI on the map shows you nothing. So the
-           target (and only the target) also floats over the map here. */}
-      {targetSlot && !hdb && !tunnel && mobileView === 'map' && (
-        <div className="pointer-events-none absolute bottom-0 left-0 z-[650] max-w-full p-3 pb-16 md:hidden">
-          <div className="pointer-events-auto flex max-h-[55vh] w-80 max-w-[88vw] flex-col overflow-y-auto rounded-lg border border-white/15 bg-concrete-900/95 p-3 shadow-2xl">
-            <div className="mb-1 flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-widest text-white/40">
-                {targetSlot.title}
-              </span>
-              {targetSlot.onClose && (
-                <button
-                  onClick={targetSlot.onClose}
-                  className="text-xs text-white/40 hover:text-white/70"
-                >
-                  ✕
-                </button>
-              )}
+        {/* The timeline takes what's left after the location block below it.
+             A pending encounter does *not* take the column over — it lands as
+             the newest node *inside* the still-visible log (see
+             EncounterPrompt), and the fight proper only replaces the timeline
+             once a stance is committed. The log therefore stays fully live
+             during the gate: it now holds the only decision on the screen. */}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
+          {combat && !stanceGate ? (
+            <CombatPanel />
+          ) : (
+            <div className="flex min-h-0 flex-1 flex-col">
+              <LogPanel
+                onOpenSettings={() => setSettingsOpen(true)}
+                onOpenDayLogs={() => setDayLogsOpen(true)}
+              />
             </div>
-            {targetSlot.body}
-          </div>
+          )}
         </div>
-      )}
+
+        {/* --- the ground under your feet: pinned to the bottom of the column,
+             always in the same place however long the timeline gets. Capped at
+             two fifths with its own scroll — a fat location card can't eat the
+             timeline. --- */}
+        {/* This sits in the same column as the encounter card, so the dimming
+             applied to the other columns never reached it — leaving searching,
+             stashing and departing live with something standing in front of
+             you. It is the one surface the lockout has to cover by hand. */}
+        <div
+          className={`mt-2.5 max-h-[40%] shrink-0 overflow-y-auto border-t border-white/10 pt-2.5 transition-opacity duration-300 ${
+            stanceGate ? 'pointer-events-none select-none opacity-25' : ''
+          }`}
+        >
+          <RailSection title={hereTitle} accent={!!hereProps}>
+            {hereSlot}
+          </RailSection>
+        </div>
+      </aside>
 
       {/* Slim "you are here" bar on the map tab — enough to search or stash
           without leaving the map. */}
@@ -742,7 +795,9 @@ export function GameScreen() {
       )}
 
       {/* ================= MOBILE bottom nav ================= */}
-      <nav className="flex shrink-0 border-t border-white/10 bg-concrete-900 text-xs md:hidden">
+      <nav
+        className={`flex shrink-0 border-t border-white/10 bg-concrete-900 text-xs md:hidden ${backgrounded}`}
+      >
         <NavBtn label={<><Icon name="action.map" /> Map</>} active={mobileView === 'map'} onClick={() => setMobileView('map')} />
         <NavBtn
           label={<><Icon name="action.status" /> Status</>}
@@ -794,6 +849,9 @@ export function GameScreen() {
       )}
       {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
       {dayLogsOpen && <DayLogsModal onClose={() => setDayLogsOpen(false)} />}
+      {/* Gated on store state rather than local state: the counter belongs to
+          the place you're standing in, not to a button in this screen. */}
+      <TraderModal />
     </div>
   );
 }
@@ -820,7 +878,7 @@ function RailSection({
     >
       <div className="mb-1 flex items-center justify-between">
         <span
-          className={`text-[10px] font-semibold uppercase tracking-widest ${
+          className={`text-2xs font-semibold uppercase tracking-widest ${
             accent ? 'text-signal/70' : 'text-white/40'
           }`}
         >

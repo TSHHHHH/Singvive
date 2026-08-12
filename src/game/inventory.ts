@@ -196,11 +196,17 @@ export function hasCondition(inst: ItemInstance): boolean {
 
 /**
  * How much of its printed performance a worn item still delivers. A wreck is
- * ~45% effective, never zero — a blunt parang is a bad weapon, not a stick.
+ * ~75% effective, never zero — a blunt parang is a bad weapon, not a stick.
+ *
+ * The floor used to be 45%, and that number drove a spiral rather than a
+ * trade-off: a half-worn weapon needed noticeably more swings for the same kill,
+ * and every extra swing wore it further. Wear accelerated exactly when the
+ * player could least afford it. A shallower curve keeps the incentive to repair
+ * without letting a tired weapon feed on itself.
  */
 export function conditionScale(inst: ItemInstance): number {
   if (!hasCondition(inst)) return 1;
-  return 0.45 + 0.55 * (conditionOf(inst) / 100);
+  return 0.75 + 0.25 * (conditionOf(inst) / 100);
 }
 
 /** Damage of an equipped weapon after wear. */
@@ -234,6 +240,27 @@ export function degrade(inst: ItemInstance, amount: number): ItemInstance {
   if (!hasCondition(inst) || amount <= 0) return inst;
   const next = Math.max(0, conditionOf(inst) - amount);
   return next === conditionOf(inst) ? inst : { ...inst, condition: next };
+}
+
+// ---------- Cutting cloth ----------
+// The bottom of the bleeding economy. A bad loot streak must never leave a
+// player with no way at all to stop a bleed, so cloth is always obtainable:
+// from a garment you are carrying, and failing that from what you have on.
+
+export const TEAR_HOURS = 0.25;
+export const TEAR_CONDITION_COST = 30;
+export const TEAR_RAGS_YIELD = 2;
+
+/** How many times the clothes on your back can be cut down over one run. */
+export const OWN_CLOTHES_TEARS = 4;
+
+/**
+ * Whether a garment yields cloth. Body armour is all fabric or leather; of the
+ * headgear only the mask is, because a hard hat cut into strips is just a
+ * broken hard hat.
+ */
+export function canTearForRags(def: ItemDef): boolean {
+  return def.slot === 'body' || def.id === 'n95_mask';
 }
 
 /** Condition as a whole number, for anything the player reads. */

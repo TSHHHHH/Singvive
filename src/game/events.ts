@@ -8,12 +8,38 @@ import type {
 } from './types';
 import type { Rng } from './rng';
 import { itemDef } from './loot';
-import { FACTION_CONFIG } from './factions';
+import {
+  FACTION_CONFIG,
+  factionIsHostile,
+  factionWavesYouThrough,
+  STANDING_KNOWN,
+  type FactionStanding,
+} from './factions';
+
+// Standing moved to factions.ts once it started gating shop counters and beds
+// as well as doorways. Re-exported so the UI and the store keep one import.
+export {
+  clampStanding,
+  emptyStanding,
+  factionIsHostile,
+  factionShelters,
+  factionTrades,
+  factionWavesYouThrough,
+  standingLabel,
+  STANDING_HATED,
+  STANDING_KIN,
+  STANDING_KNOWN,
+  STANDING_MAX,
+  STANDING_MIN,
+  STANDING_TRUSTED,
+  type FactionStanding,
+} from './factions';
 
 export type EventKind =
   | 'locked_door'
   | 'desperate_survivor'
   | 'faction_shakedown'
+  | 'faction_checkpoint'
   | 'mrt_toll'
   | 'rival_scavenger'
   | 'rigged_door'
@@ -49,22 +75,6 @@ export const EVENT_COOLDOWN_HOURS = 7;
 export const EVENT_MAX_PER_DAY = 3;
 /** Days before a survivor you've already dealt with will approach again. */
 export const SURVIVOR_MEMORY_DAYS = 3;
-
-/** Standing at or above this and a faction stops charging you at the door. */
-export const STANDING_TRUSTED = 2;
-/** Standing at or below this and even the orderly factions open fire. */
-export const STANDING_HATED = -2;
-export const STANDING_MIN = -3;
-export const STANDING_MAX = 3;
-
-export type FactionStanding = Record<Exclude<FactionId, null>, number>;
-
-export const emptyStanding = (): FactionStanding => ({
-  idtf: 0,
-  pasir_panjang: 0,
-  syndicate_88: 0,
-  sta: 0,
-});
 
 // ---------------------------------------------------------------------------
 // Effects — what a choice actually costs or buys
@@ -140,21 +150,6 @@ function dcFor(currentDanger: number): number {
   return 8 + Math.round(currentDanger * 2);
 }
 
-/** Would this faction shoot rather than haggle? */
-export function factionIsHostile(id: FactionId, standing: FactionStanding): boolean {
-  if (!id) return false;
-  if (standing[id] <= STANDING_HATED) return true;
-  return FACTION_CONFIG[id].hostileByDefault;
-}
-
-/** True once a faction knows your face well enough to stop charging you. */
-export function factionWavesYouThrough(id: FactionId, standing: FactionStanding): boolean {
-  return !!id && standing[id] >= STANDING_TRUSTED;
-}
-
-export const clampStanding = (n: number) =>
-  Math.max(STANDING_MIN, Math.min(STANDING_MAX, n));
-
 // ---------------------------------------------------------------------------
 // Prose pools
 // ---------------------------------------------------------------------------
@@ -184,6 +179,26 @@ const PROSE: Record<Exclude<EventKind, 'mrt_toll'>, Pools> = {
     ],
     wet: [
       '{faction} has the entrance to {name} tarped over and manned. "Dry inside. One {tribute}."',
+    ],
+  },
+  faction_checkpoint: {
+    tell: [
+      'There\'s a table across the entrance, and someone sitting at it.',
+      'Someone raises a hand as you approach — not a weapon. A hand.',
+      'A hand-painted board by the door lists what they\'ll take.',
+      'Two of them look up. Neither of them stands.',
+    ],
+    text: [
+      'A {short} volunteer looks you over from behind a folding table. "Don\'t know your face. One {tribute} for the register and you can go in."',
+      '{faction} keeps a book at the door of {name}, and you\'re not in it. "Put something in the pot, we write you down. That\'s how it works."',
+      'The woman on the gate at {name} isn\'t armed, which somehow makes it worse. "We share here. You want a share, you bring a share. One {tribute}."',
+      '"{short}," the man says, like it explains everything, and it mostly does. "New faces pay in. One {tribute}, then you\'re one of us and you don\'t pay again."',
+    ],
+    night: [
+      'A lamp at the door of {name}, and someone awake behind it. "Late. Fine. One {tribute} and keep it quiet inside."',
+    ],
+    wet: [
+      'They\'ve rigged a tarp over the gate at {name} and are brewing something under it. "One {tribute}. Then come out of the rain."',
     ],
   },
   locked_door: {
@@ -335,6 +350,93 @@ function doorwayChance(loc: LocationState, ctx: EventCtx): number {
 // Builders
 // ---------------------------------------------------------------------------
 
+/**
+ * The neutral factions' door scene.
+ *
+ * A shakedown is a tax: you pay, nothing changes, and tomorrow you pay again.
+ * That is exactly what made faction ground feel like friction rather than
+ * content. A checkpoint is the same doorway read the other way round — the
+ * price is an *introduction fee*, it is paid once, and what it buys is the
+ * standing that eventually opens their counter. Nobody draws a weapon here;
+ * the worst case is being turned around.
+ */
+function buildCheckpoint(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
+  const dc = dcFor(loc.currentDanger);
+  const faction = loc.factionId as Exclude<FactionId, null>;
+  const cfg = FACTION_CONFIG[faction];
+  const tribute = itemDef(cfg.tribute[0]);
+  const { tell, text } = prose(rng, 'faction_checkpoint', ctx, {
+    name: loc.name,
+    faction: cfg.name,
+    short: cfg.shortName,
+    tribute: tribute.name,
+  });
+  return {
+    kind: 'faction_checkpoint',
+    factionId: faction,
+    title: `${cfg.shortName} Checkpoint`,
+    tell,
+    text,
+    choices: [
+      {
+        id: 'pay',
+        kind: 'pay',
+        itemIds: cfg.tribute,
+        label: `Sign in — ${priceList(cfg.tribute)}`,
+        // The whole point: paying is an investment, not a toll. A week of free
+        // passage *and* a rung up the ladder toward their counter.
+        onSuccess: [
+          { t: 'standing', delta: 1 },
+          { t: 'mark', mark: { tollDays: 7 } },
+          { t: 'access' },
+        ],
+        onFailure: [
+          { t: 'deny', line: 'Empty hands. They shrug, not unkindly, and point you back the way you came.' },
+        ],
+      },
+      {
+        id: 'work',
+        kind: 'check',
+        attr: 'strength',
+        dc: dc - 2,
+        label: 'Offer to work the hour instead',
+        // No tribute? Then labour. There is always a way in that doesn't cost
+        // an item, because a gate you can only pass by spending is a wall to
+        // anyone who spent already.
+        onSuccess: [
+          { t: 'time', hours: 1, line: 'You shift crates until someone waves you off.' },
+          { t: 'standing', delta: 1 },
+          { t: 'mark', mark: { tollDays: 7 } },
+          { t: 'access' },
+        ],
+        onFailure: [
+          { t: 'time', hours: 1, line: 'You last about an hour before they can see you\'re no use to them.' },
+          { t: 'deny', line: '"Come back when you\'ve eaten something."' },
+        ],
+      },
+      {
+        id: 'talk',
+        kind: 'check',
+        attr: 'wits',
+        dc,
+        label: 'Talk your way in',
+        // Words get you in today and buy you nothing beyond today.
+        onSuccess: [{ t: 'mark', mark: { tollDays: 0 } }, { t: 'access' }],
+        onFailure: [
+          { t: 'standing', delta: -1 },
+          { t: 'deny', line: 'The book stays shut. So does the door.' },
+        ],
+      },
+      {
+        id: 'leave',
+        kind: 'leave',
+        label: 'Back off (skip search)',
+        onSuccess: [{ t: 'deny', line: 'You back off. No hard feelings either way.' }],
+      },
+    ],
+  };
+}
+
 function buildShakedown(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
   const dc = dcFor(loc.currentDanger);
   const faction = loc.factionId as Exclude<FactionId, null>;
@@ -374,7 +476,7 @@ function buildShakedown(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent 
         kind: 'check',
         attr: 'wits',
         dc,
-        label: `Talk your way past (Wits DC ${dc})`,
+        label: `Talk your way past`,
         // Words get you in today and buy you nothing beyond today.
         onSuccess: [{ t: 'mark', mark: { tollDays: 0 } }, { t: 'access' }],
         onFailure: hostile
@@ -415,16 +517,16 @@ function buildLockedDoor(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent
     tell,
     text,
     choices: [
-      { id: 'pry', kind: 'check', attr: 'strength', dc, label: `Pry it open (Strength DC ${dc})`,
+      { id: 'pry', kind: 'check', attr: 'strength', dc, label: `Pry it open`,
         onSuccess: opened, onFailure: racket },
-      { id: 'pick', kind: 'check', attr: 'wits', dc, label: `Pick the lock (Wits DC ${dc})`,
+      { id: 'pick', kind: 'check', attr: 'wits', dc, label: `Pick the lock`,
         onSuccess: opened,
         // Picking quietly fails quietly — you just lose the time.
         onFailure: [
           { t: 'time', hours: 0.5, line: 'You work the lock until your hands cramp. It doesn\'t give.' },
           { t: 'deny', line: 'The door wins.' },
         ] },
-      { id: 'find', kind: 'check', attr: 'perception', dc, label: `Find a side way (Perception DC ${dc})`,
+      { id: 'find', kind: 'check', attr: 'perception', dc, label: `Find a side way`,
         onSuccess: [
           { t: 'time', hours: 0.4, line: 'You circle the building and find a service door nobody thought about.' },
           ...opened,
@@ -466,10 +568,10 @@ function buildSurvivor(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
         ],
         onFailure: [settled, { t: 'fight', foe: 'survivor' }],
       },
-      { id: 'reason', kind: 'check', attr: 'wits', dc, label: `Reason with them (Wits DC ${dc})`,
+      { id: 'reason', kind: 'check', attr: 'wits', dc, label: `Reason with them`,
         onSuccess: [settled, { t: 'access' }],
         onFailure: [settled, { t: 'fight', foe: 'survivor' }] },
-      { id: 'scare', kind: 'check', attr: 'perception', dc, label: `Scare them off (Perception DC ${dc})`,
+      { id: 'scare', kind: 'check', attr: 'perception', dc, label: `Scare them off`,
         onSuccess: [settled, { t: 'noise', radius: 90, intensity: 1 }, { t: 'access' }],
         onFailure: [settled, { t: 'fight', foe: 'survivor' }] },
       { id: 'refuse', kind: 'fight', label: 'Refuse them',
@@ -494,7 +596,7 @@ function buildRival(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
         kind: 'check',
         attr: 'dexterity',
         dc,
-        label: `Race them for the back rooms (Dexterity DC ${dc})`,
+        label: `Race them for the back rooms`,
         // Both outcomes let you in. What's at stake is who got the good stuff.
         onSuccess: [
           { t: 'gain', defId: prize },
@@ -522,7 +624,7 @@ function buildRival(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
         kind: 'check',
         attr: 'perception',
         dc,
-        label: `Hang back and read the place (Perception DC ${dc})`,
+        label: `Hang back and read the place`,
         onSuccess: [
           { t: 'time', hours: 0.6, line: 'You wait them out from the stairwell and learn the building for free.' },
           { t: 'intel' },
@@ -554,7 +656,7 @@ function buildRigged(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
         kind: 'check',
         attr: 'perception',
         dc: dc + 1,
-        label: `Trace the wire and disarm it (Perception DC ${dc + 1})`,
+        label: `Trace the wire and disarm it`,
         onSuccess: [
           { t: 'gain', defId: 'scrap_metal' },
           { t: 'mark', mark: { door: true } },
@@ -571,7 +673,7 @@ function buildRigged(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
         kind: 'check',
         attr: 'wits',
         dc,
-        label: `Work out what it's tied to (Wits DC ${dc})`,
+        label: `Work out what it's tied to`,
         onSuccess: [
           { t: 'time', hours: 0.5, line: 'You follow the line back, find the anchor, and pull it slack.' },
           { t: 'mark', mark: { door: true } },
@@ -670,7 +772,7 @@ function buildBody(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
         kind: 'check',
         attr: 'dexterity',
         dc,
-        label: `Go through their pack (Dexterity DC ${dc})`,
+        label: `Go through their pack`,
         // You get the kit either way. Failure is about what hears you get it.
         onSuccess: [{ t: 'gain', defId: carried }, { t: 'access' }],
         onFailure: [
@@ -684,7 +786,7 @@ function buildBody(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
         kind: 'check',
         attr: 'wits',
         dc,
-        label: `Work out what killed them (Wits DC ${dc})`,
+        label: `Work out what killed them`,
         onSuccess: [
           { t: 'time', hours: 0.3, line: 'Bite on the forearm, defensive. Whatever did it went back inside.' },
           { t: 'intel' },
@@ -713,6 +815,7 @@ type Builder = (rng: Rng, loc: LocationState, ctx: EventCtx) => GameEvent;
 
 const BUILDERS: Record<Exclude<EventKind, 'mrt_toll'>, Builder> = {
   faction_shakedown: buildShakedown,
+  faction_checkpoint: buildCheckpoint,
   locked_door: buildLockedDoor,
   desperate_survivor: buildSurvivor,
   rival_scavenger: buildRival,
@@ -747,7 +850,18 @@ export function rollPreScavengeEvent(
     !tollGood &&
     !factionWavesYouThrough(faction, ctx.standing)
   ) {
-    cands.push(['faction_shakedown', 30]);
+    // Who's on the gate depends on who they are and how they feel about you.
+    // The muscle only comes out for a faction that would rather take than
+    // register you — which, now that hostility lifts at KNOWN, means the 88
+    // Syndicate right up until you've bought your way in with them.
+    if (factionIsHostile(faction, ctx.standing)) {
+      cands.push(['faction_shakedown', 30]);
+    } else if (ctx.standing[faction] < STANDING_KNOWN) {
+      // Lighter than the old shakedown weight: once you're in the book this
+      // stops firing entirely, so it should read as an introduction, not a
+      // recurring toll.
+      cands.push(['faction_checkpoint', 16]);
+    }
   }
 
   if (!loc.doorForced) {
@@ -784,7 +898,13 @@ export function mrtTollEvent(): GameEvent {
         kind: 'pay',
         itemIds: accepted,
         label: `Pay ${priceList(accepted)}`,
-        onSuccess: [{ t: 'standing', delta: 1 }, { t: 'access' }],
+        // A fare is a fare, but it used to be charged per descent — so a
+        // there-and-back cost two. It's a day pass now, stamped at the gate.
+        onSuccess: [
+          { t: 'standing', delta: 1 },
+          { t: 'mark', mark: { tollDays: 1 } },
+          { t: 'access' },
+        ],
         onFailure: [{ t: 'deny', line: 'No fare, no tunnel. You take the stairs back up.' }],
       },
       {

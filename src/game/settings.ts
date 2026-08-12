@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { ClockFormat } from './survival';
 
 // ---------------------------------------------------------------------------
 // Player settings.
@@ -55,6 +56,17 @@ export const SETTINGS_SCHEMA: SettingDef[] = [
     group: 'Timeline',
     options: LOG_VIEW_MODES.map((m) => ({ value: m.id, label: m.label })),
     default: 'recent10',
+  },
+  {
+    key: 'clockFormat',
+    label: 'Clock',
+    description: 'How the time reads on the clock, the timeline and the day logs.',
+    group: 'Display',
+    options: [
+      { value: '24', label: '24-hour' },
+      { value: '12', label: '12-hour' },
+    ],
+    default: '24',
   },
   {
     key: 'weatherFx',
@@ -128,6 +140,14 @@ export function useSetting(key: string): string {
   return useSettings(
     (s) => s.values[key] ?? SETTINGS_SCHEMA.find((d) => d.key === key)?.default ?? '',
   );
+}
+
+/**
+ * The clock the player reads time on. Everything that prints an in-game time
+ * goes through this, so the two clocks never disagree.
+ */
+export function useClockFormat(): ClockFormat {
+  return useSetting('clockFormat') === '12' ? '12' : '24';
 }
 
 /** True once the player has picked this setting themselves. */

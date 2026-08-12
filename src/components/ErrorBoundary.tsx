@@ -38,7 +38,7 @@ export class ErrorBoundary extends Component<Props, State> {
             Something broke. Your run is saved — reloading should pick up where you left off.
           </p>
 
-          <pre className="mt-6 overflow-x-auto rounded-lg border border-white/10 bg-black/40 p-3 text-left text-[11px] text-white/40">
+          <pre className="mt-6 overflow-x-auto rounded-lg border border-white/10 bg-black/40 p-3 text-left text-xs text-white/40">
             {error.message || String(error)}
           </pre>
 

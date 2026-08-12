@@ -54,16 +54,16 @@ export function TunnelRunView() {
       {/* ---- signage header ---- */}
       <div className="flex shrink-0 items-center justify-between gap-3 border-b border-concrete-600 bg-concrete-800 px-4 py-2.5">
         <div className="min-w-0">
-          <div className="signage truncate text-[11px] text-signal">
+          <div className="signage truncate text-xs text-signal">
             {run.fromName} → {run.toName}
           </div>
-          <div className="truncate text-[11px] text-concrete-400">
+          <div className="truncate text-xs text-concrete-400">
             {run.lineName} · {run.meters} m of bore · no weather down here
           </div>
         </div>
         <div className="shrink-0 text-right">
           <div className="h-1 w-16 rounded-full" style={{ background: run.lineColor }} />
-          <div className="mt-1 text-[10px] tabular-nums text-concrete-400">
+          <div className="mt-1 text-2xs tabular-nums text-concrete-400">
             {here.col} / {run.cols - 1}
           </div>
         </div>
@@ -108,7 +108,7 @@ function PressureGauge({ pressure }: { pressure: number }) {
   return (
     <div className="shrink-0 border-b border-concrete-600 bg-concrete-900/60 px-4 py-2">
       <div className="mb-1 flex items-baseline justify-between gap-3">
-        <span className="signage text-[9px] text-concrete-400">
+        <span className="signage text-2xs text-concrete-400">
           Tunnel pressure ·{' '}
           <span className={idx >= 3 ? 'text-hiss' : idx >= 2 ? 'text-signal' : 'text-concrete-200'}>
             {band.label}
@@ -117,7 +117,7 @@ function PressureGauge({ pressure }: { pressure: number }) {
             {pressure}/{PRESSURE_MAX}
           </span>
         </span>
-        <span className="text-[10px] tabular-nums text-concrete-400">
+        <span className="text-2xs tabular-nums text-concrete-400">
           {band.threatBonus > 0 ? `+${band.threatBonus} threat` : 'no bonus threat'}
         </span>
       </div>
@@ -138,7 +138,7 @@ function PressureGauge({ pressure }: { pressure: number }) {
         ))}
       </div>
 
-      <div className="mt-1 text-[10px] leading-snug text-concrete-400">
+      <div className="mt-1 text-2xs leading-snug text-concrete-400">
         {band.note}
         {next && (
           <span className="text-concrete-400/70"> · {next.at - pressure} more noise to {next.label}</span>
@@ -320,11 +320,11 @@ function NodePip({
       >
         <Icon name={revealed ? meta.icon : 'tunnel.unknown'} size={18} />
       </button>
-      <span className="max-w-full truncate text-center text-[9px] leading-tight text-concrete-400">
+      <span className="max-w-full truncate text-center text-2xs leading-tight text-concrete-400">
         {isHere ? 'you' : revealed ? node.name : '???'}
       </span>
       {revealed && isNext && node.kind !== 'platform' && (
-        <span className="text-[9px] tabular-nums text-hiss">▲{nodeThreat(run, node)}</span>
+        <span className="text-2xs tabular-nums text-hiss">▲{nodeThreat(run, node)}</span>
       )}
     </div>
   );
@@ -352,27 +352,27 @@ function CampPanel({
 }) {
   return (
     <div className="shrink-0 border-t border-astral/30 bg-astral/5 px-3 py-2">
-      <div className="signage mb-1.5 text-[10px] text-astral">{name} · they let you in</div>
+      <div className="signage mb-1.5 text-2xs text-astral">{name} · they let you in</div>
       <div className="flex flex-wrap gap-2">
         <button
           onClick={onRest}
-          className="flex-1 rounded border border-astral/40 px-2 py-1.5 text-[11px] text-astral hover:bg-astral/10"
+          className="flex-1 rounded border border-astral/40 px-2 py-1.5 text-xs text-astral hover:bg-astral/10"
         >
           <Icon name="action.sleep" size={12} /> Sleep 5h
-          <span className="block text-[9px] opacity-70">quiets the tunnel</span>
+          <span className="block text-2xs opacity-70">quiets the tunnel</span>
         </button>
         <button
           onClick={onTreat}
-          className="flex-1 rounded border border-astral/40 px-2 py-1.5 text-[11px] text-astral hover:bg-astral/10"
+          className="flex-1 rounded border border-astral/40 px-2 py-1.5 text-xs text-astral hover:bg-astral/10"
         >
           <Icon name="hdb.doctor" size={12} /> Patch up
-          <span className="block text-[9px] opacity-70">1× canned food</span>
+          <span className="block text-2xs opacity-70">1× canned food</span>
         </button>
       </div>
 
       {offer && (
         <div className="mt-2 rounded border border-concrete-600 bg-concrete-950/60 px-2 py-1.5">
-          <div className="flex items-center justify-between gap-2 text-[11px]">
+          <div className="flex items-center justify-between gap-2 text-xs">
             <span>
               <span className="text-hiss">− {itemDef(offer.wantDefId).name}</span>
               <span className="text-concrete-400"> for </span>
@@ -381,13 +381,13 @@ function CampPanel({
             <span className="flex shrink-0 gap-1">
               <button
                 onClick={onAccept}
-                className="rounded bg-signal/90 px-2 py-1 text-[11px] font-bold text-black hover:bg-signal"
+                className="rounded bg-signal/90 px-2 py-1 text-xs font-bold text-black hover:bg-signal"
               >
                 Trade
               </button>
               <button
                 onClick={onDecline}
-                className="rounded border border-concrete-600 px-2 py-1 text-[11px] hover:bg-white/5"
+                className="rounded border border-concrete-600 px-2 py-1 text-xs hover:bg-white/5"
               >
                 Pass
               </button>
@@ -420,10 +420,10 @@ function NodeDetail({
     <div className="shrink-0 border-t border-concrete-600 bg-concrete-900/60 p-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="signage text-[11px] text-concrete-50">
+          <div className="signage text-xs text-concrete-50">
             {revealed ? `${node.name} · ${meta.label}` : 'Further down the bore'}
           </div>
-          <p className="mt-1 text-[11px] leading-snug text-concrete-400">
+          <p className="mt-1 text-xs leading-snug text-concrete-400">
             {!revealed
               ? 'Too far ahead to make out. You will find out by walking into it.'
               : hazard
@@ -431,7 +431,7 @@ function NodeDetail({
                 : meta.blurb}
           </p>
         </div>
-        <div className="shrink-0 text-right text-[10px] tabular-nums text-concrete-400">
+        <div className="shrink-0 text-right text-2xs tabular-nums text-concrete-400">
           <div>~{run.minutesPerHop + meta.minutes} min</div>
           {revealed && hazard && (
             <div className="text-hiss">
@@ -455,7 +455,7 @@ function NodeDetail({
             : `${meta.verb} · ${node.name}`
           : 'Pick a way forward'}
       </button>
-      <p className="mt-1 text-center text-[10px] text-concrete-400/70">
+      <p className="mt-1 text-center text-2xs text-concrete-400/70">
         There is no way back up until the far end — the tunnel only runs one way now.
       </p>
     </div>

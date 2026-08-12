@@ -1,4 +1,5 @@
 import type {
+  BodyPart,
   BodyParts,
   Character,
   Equipment,
@@ -14,7 +15,7 @@ import type { HdbDungeon } from './hdbDungeon';
 import type { TunnelRun } from './tunnelRun';
 import type { EventClock } from './store';
 import type { FactionStanding } from './events';
-import { migrateFactionId } from './factions';
+import { migrateFactionId, type OutpostIds } from './factions';
 import { normalizeRunStats } from './stats';
 
 const RUN_KEY = 'singvive.run.v6'; // v6: extraction goal + horde clock
@@ -37,11 +38,15 @@ export interface SavedRun {
   kills: number;
   /** Loaded rounds. Absent on saves from before firearms needed feeding. */
   rounds?: number;
+  /** Tears left in your own clothes. Absent on saves from before cloth mattered. */
+  clothingTears?: number;
   usedFallback: boolean;
   exploredArea: ExploredCircle[];
   hordeLevel: number;
   evacZoneId: string | null;
   evacDeadline: number | null;
+  /** Set only while the channel is dark between windows. Absent on old saves. */
+  evacCooldownUntil?: number | null;
   /** Explored HDB blocks, so a cleared unit stays cleared between visits. */
   hdbBlocks?: Record<string, HdbDungeon>;
   /**
@@ -56,6 +61,10 @@ export interface SavedRun {
   eventClock?: EventClock;
   /** How each faction feels about you. Absent on saves from before standing. */
   factionStanding?: FactionStanding;
+  /** Which site is each faction's outpost. Re-derivable, so safely absent. */
+  outposts?: OutpostIds;
+  /** Swaps already taken today, keyed `factionId:day`. */
+  traderTaken?: Record<string, string[]>;
   /** Display-only run counters. Absent on saves written before they existed. */
   stats?: RunStats;
   /**
@@ -88,6 +97,17 @@ export function loadRun(): SavedRun | null {
       delete char.traitId;
     } else if (!char.traitIds) {
       char.traitIds = [];
+    }
+    // Migration: bleeding went from a boolean to a severity. An old save's
+    // `true` was a bleed that never clotted and blocked all healing, so it maps
+    // to `major` — resuming a run should not silently downgrade a wound.
+    for (const part of Object.values(parsed.bodyParts ?? {})) {
+      const legacy = part as BodyPart & { bleeding?: boolean };
+      if (legacy.bleed === undefined) {
+        legacy.bleed = legacy.bleeding ? 'major' : 'none';
+        legacy.bleedHours = 0;
+        delete legacy.bleeding;
+      }
     }
     // Migration: factions were renamed to their Singaporean institutional ids
     for (const loc of Object.values(parsed.locations ?? {})) {

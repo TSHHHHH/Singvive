@@ -95,6 +95,60 @@ body {
   }
 }
 
+/* The player's teardrop pin. Same reason as the beacon above: kept out of the
+   marker HTML so the icon stays one cached L.DivIcon.
+
+   `pointer-events: none` is the whole trick behind the hover fade. Doing it the
+   obvious way — `.player-pin:hover { opacity: .2 }` plus click-through — flickers,
+   because the moment the pin stops taking pointer events it stops being hovered,
+   goes opaque, and is hovered again. So the pin is *never* interactive (nothing
+   underneath is ever blocked) and the fade is driven from the map's own
+   mousemove in GameMap, which toggles `.is-faded`. */
+/* Doubled class to outrank Leaflet's own `.leaflet-interactive { pointer-events:
+   auto }`, which the marker element also carries. */
+.player-pin.player-pin {
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+.player-pin.is-faded {
+  opacity: 0.22;
+}
+.player-pin__body {
+  position: absolute;
+  left: 1px;
+  top: 0;
+  width: 28px;
+  height: 28px;
+  background: #1c1c1e;
+  border: 2px solid #e8e5dd;
+  /* Round three corners and leave the fourth square; rotating -45deg swings
+     that square corner down into the tip. */
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  box-shadow: 0 0 10px rgba(232, 229, 221, 0.6);
+}
+.player-pin__glyph {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: rotate(45deg);
+}
+/* A scrap of contact shadow at the tip, so the pin reads as standing on the
+   point rather than floating near it. */
+.player-pin__ground {
+  position: absolute;
+  left: 50%;
+  top: 34px;
+  width: 8px;
+  height: 4px;
+  margin-left: -4px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  box-shadow: 0 0 4px 1px rgba(0, 0, 0, 0.5);
+}
+
 /* ---------- diegetic map feedback (Module 4) ---------- */
 
 /* The vitals vignettes sit full-screen over the Leaflet map, each one a
@@ -358,17 +412,6 @@ body {
   background: linear-gradient(to bottom, rgba(120, 148, 168, 0.16), rgba(70, 92, 112, 0.2));
 }
 
-/* An expanding ring of noise leaving the player. */
-@keyframes noise-ring {
-  from {
-    opacity: 0.6;
-    stroke-width: 3;
-  }
-  to {
-    opacity: 0;
-    stroke-width: 1;
-  }
-}
-.noise-ring path {
-  animation: noise-ring 1.5s ease-out forwards;
-}
+/* Noise rings used to animate here, but the map runs `preferCanvas` — there is
+   no SVG path for these rules to bite on. The wave is driven per-frame on its
+   own canvas renderer instead; see components/NoiseWaves.tsx. */

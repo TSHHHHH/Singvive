@@ -49,7 +49,7 @@ export function MeterBar({ label, value, max, color, danger, icon, dynamic, modi
       </span>
 
       {hasTip && (
-        <div className="pointer-events-none absolute bottom-full left-5 z-20 mb-1 hidden w-max max-w-[200px] rounded border border-white/15 bg-black/90 px-2 py-1.5 text-[10px] leading-relaxed shadow-lg group-hover:block">
+        <div className="pointer-events-none absolute bottom-full left-5 z-20 mb-1 hidden w-max max-w-[200px] rounded border border-white/15 bg-black/90 px-2 py-1.5 text-2xs leading-relaxed shadow-lg group-hover:block">
           <div className="mb-0.5 uppercase tracking-widest text-white/40">{label}</div>
           {modifiers!.map((m) => (
             <div key={m.text} className={m.good ? 'text-emerald-300' : 'text-hiss'}>
