@@ -31,27 +31,13 @@ export function haversine(aLat: number, aLng: number, bLat: number, bLng: number
 }
 
 function buildQuery(lat: number, lng: number, radius: number): string {
-  // Grab the POI types we classify. `nwr` = nodes, ways, relations.
+  // Keep this tag set aligned with scripts/bake-pois.mjs so live fallback
+  // worlds don't quietly drop kiosks, hawkers, trade shops, or rail stations.
   const filters = [
-    'nwr["shop"="supermarket"]',
-    'nwr["shop"="convenience"]',
-    'nwr["shop"="chemist"]',
-    'nwr["amenity"="pharmacy"]',
-    'nwr["amenity"="hospital"]',
-    'nwr["amenity"="clinic"]',
-    'nwr["amenity"="doctors"]',
-    'nwr["shop"="hardware"]',
-    'nwr["shop"="doityourself"]',
-    'nwr["amenity"="fuel"]',
-    'nwr["amenity"="police"]',
-    'nwr["amenity"="food_court"]',
-    'nwr["amenity"="marketplace"]',
-    'nwr["amenity"="community_centre"]',
-    'nwr["station"="subway"]',
-    'nwr["station"="light_rail"]',
-    'nwr["amenity"="school"]',
-    'nwr["amenity"="college"]',
-    'nwr["amenity"="university"]',
+    'nwr["shop"~"^(supermarket|convenience|kiosk|chemist|hardware|doityourself|trade)$"]',
+    'nwr["amenity"~"^(pharmacy|hospital|clinic|doctors|fuel|police|food_court|marketplace|community_centre|hawker_centre|school|college|university)$"]',
+    'nwr["station"~"^(subway|light_rail)$"]',
+    'nwr["railway"="station"]',
   ]
     .map((f) => `  ${f}(around:${radius},${lat},${lng});`)
     .join('\n');
@@ -121,7 +107,8 @@ const NAME_BY_CATEGORY: Record<PoiCategory, string> = {
   supermarket: 'Supermarket',
   convenience: 'Convenience Store',
   pharmacy: 'Pharmacy',
-  hospital: 'Clinic',
+  hospital: 'Hospital',
+  clinic: 'Clinic',
   hardware: 'Hardware Store',
   fuel: 'Petrol Station',
   police: 'Police Post',
@@ -155,11 +142,13 @@ function parseElements(elements: OsmElement[]): RawPoi[] {
     if (lat == null || lng == null) continue;
 
     // Void decks: HDB blocks rarely have a name, so use the block number.
-    let name = tags.name || tags['name:en'];
+    let name: string | undefined = tags.name || tags['name:en'];
+    if (name && name.trim().length < 3) name = undefined;
     if (!name && category === 'residential') {
       const blk = tags['addr:housenumber'] || tags['addr:block_number'] || tags.ref;
       name = blk ? `Blk ${blk} Void Deck` : 'HDB Void Deck';
     }
+    if (!name && category === 'foodcourt' && tags.amenity === 'marketplace') name = 'Market';
     if (!name) name = NAME_BY_CATEGORY[category];
 
     out.push({

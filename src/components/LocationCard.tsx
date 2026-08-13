@@ -3,15 +3,21 @@ import { POI_CONFIG } from '../game/poi';
 import { Icon } from '../icons/Icon';
 import {
   FACTION_CONFIG,
+  factionOffersAid,
+  factionSharesIntel,
   factionShelters,
   factionTrades,
+  hasFactionClearance,
+  isOutpostSite,
+  locationServices,
   standingLabel,
 } from '../game/factions';
 import { useGame } from '../game/store';
 import { dangerColor } from './mapIcons';
 import { formatDuration, type estimateExpedition } from '../game/travel';
 import { displayLine, getMrtNetwork, linesAt, type MrtSegment } from '../game/mrt';
-import type { LocationState } from '../game/types';
+import type { FactionService, LocationState } from '../game/types';
+import type { IconName } from '../icons/keys';
 
 type Estimate = ReturnType<typeof estimateExpedition> | null;
 
@@ -53,6 +59,8 @@ interface Props {
   onOpenStash: () => void;
   /** HDB blocks are entered floor by floor instead of searched. */
   onEnterBlock?: () => void;
+  /** Stack actions above info — used in the narrow map bubble. */
+  compact?: boolean;
 }
 
 /** The pinned "what am I looking at" card — drives the core travel/search action. */
@@ -65,10 +73,24 @@ export function LocationCard(props: Props) {
  * reading about the place on the right. Keeps the button in the same spot no
  * matter how much intel the site happens to carry.
  */
-function CardSplit({ actions, info }: { actions: ReactNode; info: ReactNode }) {
+function CardSplit({
+  actions,
+  info,
+  compact,
+}: {
+  actions: ReactNode;
+  info: ReactNode;
+  compact?: boolean;
+}) {
   return (
-    <div className="flex gap-3">
-      <div className="flex w-[38%] shrink-0 flex-col gap-2">{actions}</div>
+    <div className={`flex gap-3 ${compact ? 'flex-col' : 'flex-col lg:flex-row'}`}>
+      <div
+        className={`flex flex-col gap-2 ${
+          compact ? 'w-full' : 'w-full shrink-0 lg:w-[38%]'
+        }`}
+      >
+        {actions}
+      </div>
       <div className="min-w-0 flex-1">{info}</div>
     </div>
   );
@@ -82,7 +104,7 @@ function UnknownCard({ est, energyLow, outOfRange, onTravel }: Props) {
         <div className="min-w-0 flex-1">
           <div className="font-bold text-white/70">Unknown location</div>
           <div className="text-xs text-white/40">
-            Something's out there. You won't know what until you go.
+            Commit blind — no danger intel until you arrive.
           </div>
         </div>
       </div>
@@ -238,7 +260,9 @@ function FactionBadge({
   faction: (typeof FACTION_CONFIG)[Exclude<LocationState['factionId'], null>];
 }) {
   const standing = useGame((s) => s.factionStanding[faction.id]);
-  const isOutpost = useGame((s) => s.outposts[faction.id] === sel.id);
+  const isOutpost = useGame(
+    (s) => sel.isFactionOutpost || isOutpostSite(s.outposts, faction.id, sel.id),
+  );
   return (
     <div
       className="mt-2 rounded border bg-black/30 px-2 py-1 text-xs"
@@ -257,41 +281,113 @@ function FactionBadge({
   );
 }
 
-/** The counter and the beds, shown only where they actually exist. */
-function OutpostActions({ sel }: { sel: LocationState }) {
+const SERVICE_META: Record<
+  FactionService,
+  { icon: IconName; label: string; hint: string }
+> = {
+  trade: { icon: 'faction.idtf', label: 'Trade at the counter', hint: "Today's swaps" },
+  rest: { icon: 'action.sleep', label: 'Sleep inside the wire', hint: 'Safe until morning' },
+  aid: { icon: 'action.search', label: 'Field aid', hint: 'Once per day' },
+  intel: { icon: 'action.map', label: 'Ask for intel', hint: 'Once per day — map tip' },
+};
+
+/** NPC services on occupied ground — never scavenging. */
+function FactionHubActions({ sel }: { sel: LocationState }) {
   const standing = useGame((s) => s.factionStanding);
-  const isOutpost = useGame((s) => !!sel.factionId && s.outposts[sel.factionId] === sel.id);
+  const outposts = useGame((s) => s.outposts);
+  const day = useGame((s) => s.day);
   const openTrader = useGame((s) => s.openTrader);
   const outpostRest = useGame((s) => s.outpostRest);
-  if (!isOutpost || !sel.factionId) return null;
+  const factionAid = useGame((s) => s.factionAid);
+  const factionIntel = useGame((s) => s.factionIntel);
+  if (!sel.factionId) return null;
 
   const cfg = FACTION_CONFIG[sel.factionId];
-  const trades = factionTrades(sel.factionId, standing);
-  const shelters = factionShelters(sel.factionId, standing);
+  const services = locationServices(sel, outposts);
+  if (!services.length) return null;
+  const cleared = hasFactionClearance(sel, standing, day);
+
+  const canTrade = factionTrades(sel.factionId, standing);
+  const canRest = factionShelters(sel.factionId, standing);
+  const canAid = factionOffersAid(sel.factionId, standing);
+  const canIntel = factionSharesIntel(sel.factionId, standing);
 
   return (
     <>
-      <button
-        disabled={!trades}
-        onClick={() => openTrader(sel.id)}
-        className="w-full rounded border px-2 py-2 text-sm leading-tight hover:brightness-125 disabled:opacity-30"
-        style={{ borderColor: `${cfg.color}66`, background: `${cfg.color}1a`, color: cfg.color }}
-      >
-        <Icon name={cfg.icon} /> Trade at the counter
-        <span className="block text-xs font-normal opacity-75">
-          {trades ? 'Today\'s swaps' : 'They don\'t deal with strangers'}
-        </span>
-      </button>
-      <button
-        disabled={!shelters}
-        onClick={outpostRest}
-        className="w-full rounded border border-white/15 px-2 py-2 text-sm leading-tight hover:bg-white/5 disabled:opacity-30"
-      >
-        <Icon name="action.sleep" /> Sleep inside the wire
-        <span className="block text-xs font-normal opacity-60">
-          {shelters ? 'Safe until morning — nothing gets a roll' : 'Beds are for people they trust'}
-        </span>
-      </button>
+      {!cleared && (
+        <p className="text-xs text-white/50">
+          Approach the gate first — they will not deal with you from the curb.
+        </p>
+      )}
+      {services.includes('trade') && (
+        <button
+          disabled={!cleared || !canTrade}
+          onClick={() => openTrader(sel.id)}
+          className="w-full rounded border px-2 py-2 text-sm leading-tight hover:brightness-125 disabled:opacity-30"
+          style={{ borderColor: `${cfg.color}66`, background: `${cfg.color}1a`, color: cfg.color }}
+        >
+          <Icon name={cfg.icon} /> {SERVICE_META.trade.label}
+          <span className="block text-xs font-normal opacity-75">
+            {!cleared
+              ? 'Gate first'
+              : canTrade
+                ? SERVICE_META.trade.hint
+                : "They don't deal with strangers"}
+          </span>
+        </button>
+      )}
+      {services.includes('rest') && (
+        <button
+          disabled={!cleared || !canRest}
+          onClick={outpostRest}
+          className="w-full rounded border border-white/15 px-2 py-2 text-sm leading-tight hover:bg-white/5 disabled:opacity-30"
+        >
+          <Icon name={SERVICE_META.rest.icon} /> {SERVICE_META.rest.label}
+          <span className="block text-xs font-normal opacity-60">
+            {!cleared
+              ? 'Gate first'
+              : canRest
+                ? SERVICE_META.rest.hint
+                : 'Beds are for people they trust'}
+          </span>
+        </button>
+      )}
+      {services.includes('aid') && (
+        <button
+          disabled={!cleared || !canAid || (sel.aidUsedDay ?? -1) >= day}
+          onClick={factionAid}
+          className="w-full rounded border border-white/15 px-2 py-2 text-sm leading-tight hover:bg-white/5 disabled:opacity-30"
+        >
+          <Icon name={SERVICE_META.aid.icon} /> {SERVICE_META.aid.label}
+          <span className="block text-xs font-normal opacity-60">
+            {!cleared
+              ? 'Gate first'
+              : (sel.aidUsedDay ?? -1) >= day
+                ? 'Already used today'
+                : canAid
+                  ? SERVICE_META.aid.hint
+                  : 'Medics are for people they trust'}
+          </span>
+        </button>
+      )}
+      {services.includes('intel') && (
+        <button
+          disabled={!cleared || !canIntel || (sel.intelUsedDay ?? -1) >= day}
+          onClick={factionIntel}
+          className="w-full rounded border border-white/15 px-2 py-2 text-sm leading-tight hover:bg-white/5 disabled:opacity-30"
+        >
+          <Icon name={SERVICE_META.intel.icon} /> {SERVICE_META.intel.label}
+          <span className="block text-xs font-normal opacity-60">
+            {!cleared
+              ? 'Gate first'
+              : (sel.intelUsedDay ?? -1) >= day
+                ? 'Already used today'
+                : canIntel
+                  ? SERVICE_META.intel.hint
+                  : "They don't brief strangers"}
+          </span>
+        </button>
+      )}
     </>
   );
 }
@@ -312,6 +408,7 @@ function KnownCard({
   onTunnel,
   onOpenStash,
   onEnterBlock,
+  compact,
 }: Props) {
   const cfg = POI_CONFIG[sel.category];
   const isBlock = sel.category === 'residential';
@@ -324,10 +421,18 @@ function KnownCard({
   const searches = useMem ? mem!.remainingSearches : sel.remainingSearches;
   const faction = factionRevealed && sel.factionId ? FACTION_CONFIG[sel.factionId] : null;
   const dngr = Math.max(1, Math.round(danger));
+  const occupied = !!sel.factionId;
 
   const actions = (
     <>
-      {isBlock ? (
+      {occupied ? (
+        <button
+          onClick={onEnter}
+          className="w-full rounded bg-signal/90 px-2 py-2 text-sm font-bold leading-tight text-black hover:bg-signal"
+        >
+          <Icon name="action.search" /> Approach the gate
+        </button>
+      ) : isBlock ? (
         <button
           onClick={onEnterBlock ?? onEnter}
           className="w-full rounded bg-signal/90 px-2 py-2 text-sm font-bold leading-tight text-black hover:bg-signal"
@@ -343,7 +448,7 @@ function KnownCard({
           {sel.exhausted
             ? 'Nothing left to search'
             : sel.cleared
-              ? 'Go back in and search'
+              ? 'Keep searching'
               : 'Go inside and search'}
         </button>
       )}
@@ -353,7 +458,7 @@ function KnownCard({
       >
         <Icon name="action.stash" /> Open stash here
       </button>
-      {here && <OutpostActions sel={sel} />}
+      {here && occupied && <FactionHubActions sel={sel} />}
     </>
   );
 
@@ -383,18 +488,28 @@ function KnownCard({
         <span className="text-white/50">
           {here ? '' : `${Math.round(sel.distanceFromSpawn)} m from spawn`}
         </span>
-        <span style={{ color: dangerColor(dngr) }}>
+        <span style={{ color: dangerColor(dngr) }} title={`Danger ${dngr} of 5`}>
           Danger {'●'.repeat(dngr)}
           <span className="text-white/15">{'●'.repeat(5 - dngr)}</span>
         </span>
       </div>
       <div className="mt-1 text-xs text-white/40">
-        {isBlock
-          ? '12 floors — cleared unit by unit, not searched.'
-          : exhausted
-            ? 'Picked clean — exhausted.'
-            : `${searches} search${searches === 1 ? '' : 'es'} left`}
-        {useMem && <span className="text-concrete-400"> · intel may be stale</span>}
+        {occupied
+          ? sel.isFactionOutpost
+            ? 'Faction outpost — full services, no scavenging.'
+            : 'Faction territory — NPC hub, no scavenging.'
+          : isBlock
+            ? '12 floors — cleared unit by unit, not searched.'
+            : exhausted
+              ? 'Picked clean — exhausted.'
+              : `${searches} search${searches === 1 ? '' : 'es'} left`}
+        {useMem && (
+          <span className="text-concrete-400">
+            {' '}
+            · last seen danger {dngr}
+            {mem && mem.currentDanger !== sel.currentDanger ? ' (may be stale)' : ' (intel)'}
+          </span>
+        )}
       </div>
 
     </>
@@ -454,6 +569,7 @@ function KnownCard({
   return (
     <>
       <CardSplit
+        compact={compact}
         actions={actions}
         info={
           <>

@@ -75,8 +75,13 @@ export const HAZARD_CONFIG: Record<HazardKind, HazardKindDef> = {
 
 /** Cell edge, metres. Roughly a city block — big enough to route around. */
 const CELL_M = 350;
-/** Share of cells that hold a hazard. Tuned so open ground is tense, not lethal. */
+/** Share of cells that hold a hazard at day-1 / horde-0. Tuned so open ground is tense, not lethal. */
 const CELL_HAZARD_RATE = 0.24;
+
+function hazardSpawnRate(pressure: number): number {
+  // Late city: up to ~52% of cells can host a pocket.
+  return Math.min(0.52, CELL_HAZARD_RATE + Math.max(0, pressure) * 0.28);
+}
 
 // Singapore spans ~50 km; pinning the longitude scale to one reference latitude
 // keeps the grid rigid instead of shearing as you move north.
@@ -92,31 +97,40 @@ function cellY(lat: number): number {
   return Math.floor((lat * M_PER_DEG_LAT) / CELL_M);
 }
 
-/** The hazard occupying a grid cell, if that cell drew one. Pure in (seed,x,y). */
-function zoneForCell(seed: string, cx: number, cy: number): HazardZone | null {
+/** The hazard occupying a grid cell, if that cell drew one. Pure in (seed,x,y,pressure). */
+function zoneForCell(
+  seed: string,
+  cx: number,
+  cy: number,
+  pressure = 0,
+): HazardZone | null {
   const rng = new Rng(seed).fork(`wilds:${cx}:${cy}`);
-  if (!rng.chance(CELL_HAZARD_RATE)) return null;
+  if (!rng.chance(hazardSpawnRate(pressure))) return null;
 
   const kind = rng.weighted([
-    ['horde_pocket', 34],
+    ['horde_pocket', 34 + Math.round(pressure * 20)],
     ['gang_patrol', 26],
     ['collapse', 22],
     ['floodwater', 18],
   ] as const);
-  const severity = rng.weighted([
+  let severity = rng.weighted([
     [1, 50],
     [2, 33],
     [3, 17],
   ] as const);
+  // Late pressure nudges mild pockets upward so the map feels meaner, not just denser.
+  if (pressure > 0.45 && severity < 3 && rng.chance(pressure * 0.4)) {
+    severity = (severity + 1) as 1 | 2 | 3;
+  }
 
-  // Sit the zone somewhere inside its cell so the field doesn't read as a grid.
   const jitterX = 0.25 + rng.next() * 0.5;
   const jitterY = 0.25 + rng.next() * 0.5;
+  const radiusScale = 1 + pressure * 0.4;
   return {
     id: `hz:${cx}:${cy}`,
     lat: ((cy + jitterY) * CELL_M) / M_PER_DEG_LAT,
     lng: ((cx + jitterX) * CELL_M) / M_PER_DEG_LNG,
-    radiusM: 100 + severity * 45,
+    radiusM: Math.round((100 + severity * 45) * radiusScale),
     kind,
     severity,
   };
@@ -149,6 +163,9 @@ function suppressed(z: HazardZone, safe?: SafeAnchor): boolean {
  * Pass the run's spawn as `safe` — every caller should, and consistently, since
  * a zone suppressed for the map but not for the encounter roll would be an
  * invisible ambush.
+ *
+ * `pressure` (0..1, typically horde intensity) densifies and enlarges pockets
+ * as the city falls — early maps stay sparse; late maps look contested.
  */
 export function hazardZonesNear(
   seed: string,
@@ -156,8 +173,9 @@ export function hazardZonesNear(
   lng: number,
   radiusM: number,
   safe?: SafeAnchor,
+  pressure = 0,
 ): HazardZone[] {
-  const reach = radiusM + 250; // widest zone radius, so edge cells aren't missed
+  const reach = radiusM + 250 + pressure * 80; // widest zone radius, so edge cells aren't missed
   const spanX = Math.ceil(reach / CELL_M);
   const spanY = Math.ceil(reach / CELL_M);
   const cx0 = cellX(lng);
@@ -165,7 +183,7 @@ export function hazardZonesNear(
   const out: HazardZone[] = [];
   for (let dy = -spanY; dy <= spanY; dy++) {
     for (let dx = -spanX; dx <= spanX; dx++) {
-      const z = zoneForCell(seed, cx0 + dx, cy0 + dy);
+      const z = zoneForCell(seed, cx0 + dx, cy0 + dy, pressure);
       if (!z || suppressed(z, safe)) continue;
       if (haversine(lat, lng, z.lat, z.lng) <= radiusM + z.radiusM) out.push(z);
     }
@@ -186,6 +204,7 @@ export function hazardsOnPath(
   from: { lat: number; lng: number },
   to: { lat: number; lng: number },
   safe?: SafeAnchor,
+  pressure = 0,
 ): HazardZone[] {
   const dist = haversine(from.lat, from.lng, to.lat, to.lng);
   const steps = Math.max(1, Math.ceil(dist / PATH_STEP_M));
@@ -194,7 +213,7 @@ export function hazardsOnPath(
     const t = i / steps;
     const lat = from.lat + (to.lat - from.lat) * t;
     const lng = from.lng + (to.lng - from.lng) * t;
-    for (const z of hazardZonesNear(seed, lat, lng, 0, safe)) seen.set(z.id, z);
+    for (const z of hazardZonesNear(seed, lat, lng, 0, safe, pressure)) seen.set(z.id, z);
   }
   return [...seen.values()];
 }
@@ -249,7 +268,7 @@ export function trekRisk(
   hazardsOverride?: HazardZone[],
 ): TrekRisk {
   const dist = haversine(from.lat, from.lng, to.lat, to.lng);
-  const hazards = hazardsOverride ?? hazardsOnPath(seed, from, to, opts.safe);
+  const hazards = hazardsOverride ?? hazardsOnPath(seed, from, to, opts.safe, opts.hordeIntensity);
 
   let p = (dist / 100) * 0.018 * OPEN_GROUND_ENCOUNTER_MULT;
   if (opts.band === 'night') p += 0.14;

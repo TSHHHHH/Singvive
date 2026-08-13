@@ -46,8 +46,9 @@ export const NEIGHBOURHOODS: Neighbourhood[] = [
  * A bounding box cannot do this job. Johor's coast dips *south* of Singapore's
  * northern tip — Pasir Gudang sits at 1.4481 while Sembawang reaches 1.4707 —
  * so any latitude cutoff either swallows Johor Bahru or amputates Sembawang.
- * The baked POI set carries ~1,000 Malaysian sites within the island sweep, and
- * without this they turn up as spawn points and evac zones.
+ * The baked POI set used to carry ~1,000 Malaysian sites within the island sweep;
+ * the bake now drops anything outside this outline, and runtime still uses the
+ * same test for spawns and evac zones.
  *
  * The northern edge follows the middle of the strait, which is roughly a
  * kilometre wide — precise enough to separate two countries, and deliberately

@@ -19,26 +19,42 @@ import { Icon } from '../icons/Icon';
 import { LocationCard, type Departure } from '../components/LocationCard';
 import { TrekCard } from '../components/TrekCard';
 import { InventoryPanel } from '../components/Inventory/InventoryPanel';
+import { CraftingPanel } from '../components/CraftingPanel';
 import { StashLogbook } from '../components/StashLogbook';
 import { SettingsModal } from '../components/SettingsModal';
 import { DigitalClock } from '../components/DigitalClock';
 import { WeatherBadge } from '../components/WeatherBadge';
 import { ObjectiveBar } from '../components/ObjectiveBar';
 import { ObjectivesPanel } from '../components/ObjectivesPanel';
-import { AttributeRow } from '../components/AttributeRow';
 import { DayLogsModal } from '../components/DayLogsModal';
 import { HdbDungeonModal } from '../components/HdbDungeonModal';
 import { TraderModal } from '../components/TraderModal';
 import { TunnelRunView } from '../components/TunnelRunView';
 import { itemDef } from '../game/loot';
 import { estimateExpedition } from '../game/travel';
-import { bleedEncounterMod, legTravelFactor } from '../game/survival';
-import { isEncumbered } from '../game/inventory';
+import {
+  bleedEncounterMod,
+  computeEvacBonus,
+  computeScore,
+  legTravelFactor,
+  scoreDayMult,
+} from '../game/survival';
+import {
+  equipEncounterChanceMod,
+  equipTravelSpeedFactor,
+  isEncumbered,
+  totalLootValue,
+} from '../game/inventory';
 import { haversine } from '../game/overpass';
 import { rollWeather, timeOfDay, weatherEncounterMod } from '../game/weather';
 import { awareness, blipMargin, travelableRange } from '../game/fog';
 import { equipAwarenessMod, sumTraitMod, traitAwarenessMod } from '../game/character';
-import { evacChecklist, hasEvacKit, hordeIntensity, hordeLabel } from '../game/goal';
+import {
+  EVAC_SCORE_BONUS,
+  evacReadiness,
+  hordeIntensity,
+  hordeLabel,
+} from '../game/goal';
 import { Rng } from '../game/rng';
 import { POI_CONFIG } from '../game/poi';
 import {
@@ -57,17 +73,18 @@ type MobileView = 'map' | 'hub' | 'log';
  * wants more room than the rail can give lands here, objectives included —
  * there is exactly one place detail opens.
  */
-type SidePanel = 'inventory' | 'logbook' | 'stats' | 'objective';
+type SidePanel = 'inventory' | 'craft' | 'logbook' | 'stats' | 'objective';
 
 const SIDE_PANELS: Record<SidePanel, { label: string; icon: IconName }> = {
   inventory: { label: 'Inventory', icon: 'action.inventory' },
+  craft: { label: 'Craft', icon: 'action.craft' },
   logbook: { label: 'Logbook', icon: 'action.logbook' },
   stats: { label: 'Stats', icon: 'action.stats' },
   objective: { label: 'Objectives', icon: 'action.objectives' },
 };
 
-/** The three the rail exposes as buttons — objectives opens from its own bar. */
-const PANEL_BUTTONS: SidePanel[] = ['inventory', 'logbook', 'stats'];
+/** Rail switchers — objectives opens from its own bar. */
+const PANEL_BUTTONS: SidePanel[] = ['inventory', 'craft', 'logbook', 'stats'];
 
 const listOf = (names: string[]): string =>
   names.length <= 1 ? names[0] ?? 'nowhere' : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
@@ -125,6 +142,7 @@ export function GameScreen() {
     equipment,
     bodyParts,
     exploredArea,
+    kills,
   } = useGame(
     useShallow((s) => ({
       spawn: s.spawn,
@@ -162,6 +180,7 @@ export function GameScreen() {
       equipment: s.equipment,
       bodyParts: s.bodyParts,
       exploredArea: s.exploredArea,
+      kills: s.kills,
     })),
   );
 
@@ -177,6 +196,15 @@ export function GameScreen() {
   const [bubblePoint, setBubblePoint] = useState<MapPoint | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [dayLogsOpen, setDayLogsOpen] = useState(false);
+  const [mapFocus, setMapFocus] = useState<{ lat: number; lng: number; token: number } | null>(
+    null,
+  );
+
+  const focusStashOnMap = useCallback((lat: number, lng: number) => {
+    setMapFocus((prev) => ({ lat, lng, token: (prev?.token ?? 0) + 1 }));
+    setMobileView('map');
+    setSidePanel(null);
+  }, []);
 
   // An event now lives in the timeline (right column) rather than a blocking
   // modal. On mobile the log is a separate tab, so pull the player to it.
@@ -229,7 +257,10 @@ export function GameScreen() {
     [character, items, equipment],
   );
 
-  const legFactor = legTravelFactor(bodyParts);
+  const legFactor =
+    legTravelFactor(bodyParts) *
+    equipTravelSpeedFactor(equipment) *
+    (1 + sumTraitMod(character?.traitIds ?? [], 'travelSpeedMod'));
   const travelRange = useMemo(
     () =>
       character
@@ -248,14 +279,19 @@ export function GameScreen() {
     return travelRange + blipMargin(awarenessValue);
   }, [character, equipment, travelRange]);
 
-  // Hazards are sensed the same way blips are: out to the awareness ring, never
-  // beyond. Everything drawn and everything quoted on the trek card comes from
-  // this set — the store rolls against the real field, which may be worse. The
-  // scan costs real time and hands the memoised map a fresh array, so it is only
-  // redone when the player or their reach actually moves.
+  // Hazards densify as the horde climbs — early map is sparse, late map contested.
+  const hazardPressure = hordeIntensity(hordeLevel);
   const sensedHazards = useMemo(
-    () => hazardZonesNear(seed, currentPos.lat, currentPos.lng, blipRange, spawn ?? undefined),
-    [seed, currentPos.lat, currentPos.lng, blipRange, spawn],
+    () =>
+      hazardZonesNear(
+        seed,
+        currentPos.lat,
+        currentPos.lng,
+        blipRange,
+        spawn ?? undefined,
+        hazardPressure,
+      ),
+    [seed, currentPos.lat, currentPos.lng, blipRange, spawn, hazardPressure],
   );
 
   const trekDist = trekTarget
@@ -299,7 +335,13 @@ export function GameScreen() {
   const trekInfo = useMemo(() => {
     if (!trekTarget || !character) return null;
     const sensedIds = new Set(sensedHazards.map((z) => z.id));
-    const onPath = hazardsOnPath(seed, currentPos, trekTarget, spawn ?? undefined);
+    const onPath = hazardsOnPath(
+      seed,
+      currentPos,
+      trekTarget,
+      spawn ?? undefined,
+      hazardPressure,
+    );
     const known = onPath.filter((z) => sensedIds.has(z.id));
     return {
       risk: trekRisk(
@@ -313,7 +355,9 @@ export function GameScreen() {
           // Bleeding shows up in the quoted risk too, so the player can weigh
           // "patch up first" against "chance it" before committing to a route.
           traitEncounterMod:
-            sumTraitMod(character.traitIds, 'encounterChanceMod') + bleedEncounterMod(bodyParts),
+            sumTraitMod(character.traitIds, 'encounterChanceMod') +
+            equipEncounterChanceMod(equipment) +
+            bleedEncounterMod(bodyParts),
           safe: spawn ?? undefined,
         },
         known,
@@ -333,6 +377,9 @@ export function GameScreen() {
     weather,
     trekDist,
     blipRange,
+    bodyParts,
+    equipment,
+    hazardPressure,
   ]);
 
   // Held only so the ride card re-renders once the network arrives; the routing
@@ -411,11 +458,14 @@ export function GameScreen() {
     onEnterBlock: hdbEnter,
   };
 
-  // extraction goal + doom clock
+  // extraction goal + doom clock + dual-path score
   const evacZone = evacZoneId ? locations[evacZoneId] : null;
   const atEvac = !!evacZoneId && currentPositionId === evacZoneId;
-  const evacReady = hasEvacKit(items);
-  const checklist = evacChecklist(items);
+  const readiness = evacReadiness(items, day);
+  const evacReady = readiness.ready;
+  const dayMult = scoreDayMult(day);
+  const projectedScore = computeScore(day, kills, Math.round(totalLootValue(items)));
+  const projectedEvacBonus = computeEvacBonus(day, EVAC_SCORE_BONUS);
   const evacDist = evacZone
     ? Math.round(haversine(currentPos.lat, currentPos.lng, evacZone.lat, evacZone.lng))
     : 0;
@@ -473,7 +523,7 @@ export function GameScreen() {
             ) : (
               <><Icon name="action.target" /> Target</>
             ),
-            body: <LocationCard {...cardProps} />,
+            body: <LocationCard {...cardProps} compact />,
             onClose: () => setSelectedId(null),
           }
         : null;
@@ -487,7 +537,7 @@ export function GameScreen() {
           disabled={!evacReady}
           className="mt-2 w-full rounded-lg bg-signal/80 py-2 text-sm font-bold text-black transition hover:bg-signal disabled:opacity-30"
         >
-          {evacReady ? <><Icon name="action.evac" /> Call for evac — escape!</> : 'Evac kit incomplete'}
+          {evacReady ? <><Icon name="action.evac" /> Call for evac — escape!</> : 'Not ready to extract'}
         </button>
       )}
     </>
@@ -512,10 +562,11 @@ export function GameScreen() {
   // The active mobile tab fills the screen — but only on mobile. Left
   // unprefixed, its `flex-1` also landed on desktop and let whichever column
   // held the active tab grow past its fixed width, which an event did silently
-  // by pulling the player to the Timeline. `max-md:` scopes it to the one
+  // by pulling the player to the Timeline. `max-lg:` scopes it to the one
   // breakpoint that wants it, so desktop and mobile can't fight over it at all;
-  // countering it at `md` instead would just be a bet on CSS source order.
-  const show = (mobile: boolean) => (mobile ? 'flex max-md:flex-1 min-h-0' : 'hidden');
+  // countering it at `lg` instead would just be a bet on CSS source order.
+  // Desktop three-column layout starts at lg (1024) so tablets keep the tab shell.
+  const show = (mobile: boolean) => (mobile ? 'flex max-lg:flex-1 min-h-0' : 'hidden');
 
   /**
    * Something is standing in front of you and you have not decided what to do
@@ -533,7 +584,7 @@ export function GameScreen() {
   }`;
 
   return (
-    <div className="relative flex h-full flex-col md:flex-row">
+    <div className="relative flex h-full flex-col lg:flex-row">
       {/* ================= COLUMN 1: the survivor rail =================
            Everything about *you* and the two places that matter right now,
            read top to bottom: the clock, the goal, your body, then the ground
@@ -542,9 +593,9 @@ export function GameScreen() {
            behind it — opaque, so nothing shows through mid-slide. On mobile the
            slide-out covers the whole screen, so the rail stays below it. */}
       <aside
-        className={`relative flex-col border-white/10 bg-concrete-900/70 md:z-[750] md:flex md:h-full md:w-[340px] md:shrink-0 md:border-r md:bg-concrete-900 ${
+        className={`relative flex-col border-white/10 bg-concrete-900/70 lg:z-[750] lg:flex lg:h-full lg:w-[340px] lg:shrink-0 lg:border-r lg:bg-concrete-900 ${
           mobileView === 'hub' ? show(true) : 'hidden'
-        } md:flex ${backgrounded}`}
+        } lg:flex ${backgrounded}`}
       >
         {/* --- time, day, weather, rest --- */}
         <div className="shrink-0 space-y-2 border-b border-white/10 p-2.5">
@@ -573,14 +624,15 @@ export function GameScreen() {
               doom={doom}
               doomColor={doomColor}
               doomLabel={hordeLabel(doom)}
+              dayMult={dayMult}
+              readinessRatio={readiness.ratio}
               onOpen={() => setSidePanel((p) => (p === 'objective' ? null : 'objective'))}
             />
 
             <ConditionPanel />
-            <AttributeRow />
 
             {/* --- the panel switchers --- */}
-            <div className="grid grid-cols-3 gap-1.5">
+            <div className="grid grid-cols-2 gap-1.5">
               {PANEL_BUTTONS.map((id) => {
                 const active = sidePanel === id;
                 return (
@@ -607,17 +659,17 @@ export function GameScreen() {
       </aside>
 
       {/* ================= COLUMN 2: the slide-out =================
-           Toggled from the rail's three buttons, closable from its own header.
+           Toggled from the rail's panel buttons, closable from its own header.
            It overlays the map rather than squeezing it, so the map never
            reflows when you check your pack. */}
-      {/* Closed, it parks fully off the left edge — on md that means clearing its
+      {/* Closed, it parks fully off the left edge — on lg that means clearing its
           own 360px plus the 340px rail it is offset by, so it slides out from
           behind the rail instead of fading in on top of it. */}
       <div
-        className={`absolute inset-y-0 left-0 z-[700] w-full transition-transform duration-200 ease-out md:left-[340px] md:w-[360px] ${
+        className={`absolute inset-y-0 left-0 z-[700] w-full transition-transform duration-200 ease-out lg:left-[340px] lg:w-[360px] ${
           sidePanel
             ? 'translate-x-0'
-            : 'pointer-events-none -translate-x-full md:-translate-x-[700px]'
+            : 'pointer-events-none -translate-x-full lg:-translate-x-[700px]'
         } ${backgrounded}`}
       >
         <div className="flex h-full flex-col border-r border-white/10 bg-concrete-900 shadow-2xl">
@@ -638,14 +690,20 @@ export function GameScreen() {
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto p-3">
             {sidePanel === 'inventory' && <InventoryPanel />}
-            {sidePanel === 'logbook' && <StashLogbook />}
+            {sidePanel === 'craft' && <CraftingPanel />}
+            {sidePanel === 'logbook' && <StashLogbook onFocusLocation={focusStashOnMap} />}
             {sidePanel === 'stats' && <StatsPanel />}
             {sidePanel === 'objective' && (
               <ObjectivesPanel
                 evacZoneName={evacZone?.name ?? null}
                 evacDist={evacDist}
                 atEvac={atEvac}
-                checklist={checklist}
+                readinessCurrent={readiness.current}
+                readinessRequired={readiness.required}
+                readinessRatio={readiness.ratio}
+                dayMult={dayMult}
+                projectedScore={projectedScore}
+                projectedEvacBonus={projectedEvacBonus}
                 windowText={windowText}
                 urgent={evacUrgent}
                 doom={doom}
@@ -662,23 +720,12 @@ export function GameScreen() {
       {/* ================= COLUMN 3: map — or the HDB block / the tunnel, each
            of which takes the whole view for the duration ================= */}
       <div
-        className={`relative md:flex md:flex-1 ${
+        className={`relative lg:flex lg:flex-1 ${
           mobileView === 'map' || hdb || tunnel ? show(true) : 'hidden'
-        } md:flex ${backgrounded}`}
+        } lg:flex ${backgrounded}`}
       >
         {tunnel ? (
-          <>
-            <TunnelRunView />
-            {/* The fight and the turnstile both live in the Timeline column,
-                which on mobile is a different tab entirely. */}
-            {(combat || pendingEvent) && (
-              <div className="pointer-events-none absolute inset-x-0 top-0 z-[600] p-2 md:hidden">
-                <div className="rounded border border-hiss/50 bg-hiss/15 px-2 py-1 text-center text-xs text-hiss backdrop-blur">
-                  {combat ? 'Contact — open Timeline' : 'Someone wants a word — open Timeline'}
-                </div>
-              </div>
-            )}
-          </>
+          <TunnelRunView />
         ) : hdb ? (
           <HdbDungeonModal />
         ) : (
@@ -701,6 +748,7 @@ export function GameScreen() {
               trekTarget={trekTarget}
               bubbleAnchor={bubbleAnchor}
               onBubblePoint={setBubblePoint}
+              focusTarget={mapFocus}
               onSelect={selectPoi}
               onPickGround={pickGround}
             />
@@ -729,12 +777,29 @@ export function GameScreen() {
         )}
       </div>
 
+      {/* Fight / event live in the Timeline tab on phones — keep a way back
+          from Map, HDB, or Tunnel without hunting for the nav pulse. Sits
+          outside the stance-gated columns so it stays tappable. */}
+      {(combat || pendingEvent) &&
+        mobileView !== 'log' &&
+        (mobileView === 'map' || !!hdb || !!tunnel) && (
+          <button
+            type="button"
+            onClick={() => setMobileView('log')}
+            className="absolute inset-x-0 top-0 z-[760] p-2 lg:hidden"
+          >
+            <div className="rounded border border-hiss/50 bg-hiss/20 px-2 py-1.5 text-center text-xs font-semibold text-hiss shadow-lg backdrop-blur">
+              {combat ? 'Contact — tap for Fight' : 'Someone wants a word — tap for Log'}
+            </div>
+          </button>
+        )}
+
       {/* ================= COLUMN 4: timeline — or the encounter panel, which
            takes the column over for the duration of a fight ================= */}
       <aside
-        className={`min-w-0 overflow-hidden border-white/10 bg-concrete-900/70 p-3 md:flex md:w-[35vw] md:min-w-[320px] md:shrink-0 md:border-l md:p-2.5 ${
+        className={`min-w-0 overflow-hidden border-white/10 bg-concrete-900/70 p-3 lg:flex lg:w-[35vw] lg:min-w-[320px] lg:shrink-0 lg:border-l lg:p-2.5 ${
           mobileView === 'log' ? show(true) : 'hidden'
-        } md:flex md:flex-col transition-all duration-300 ${
+        } lg:flex lg:flex-col transition-all duration-300 ${
           stanceGate
             ? // The one lit thing on the screen while the decision is open.
               'relative z-[760] ring-2 ring-inset ring-hiss shadow-[0_0_60px_-5px_rgba(217,45,45,0.55)]'
@@ -796,7 +861,8 @@ export function GameScreen() {
 
       {/* ================= MOBILE bottom nav ================= */}
       <nav
-        className={`flex shrink-0 border-t border-white/10 bg-concrete-900 text-xs md:hidden ${backgrounded}`}
+        className={`flex shrink-0 border-t border-white/10 bg-concrete-900 pb-[env(safe-area-inset-bottom,0px)] text-xs lg:hidden ${backgrounded}`}
+        style={{ minHeight: 'calc(var(--mobile-nav-h) + env(safe-area-inset-bottom, 0px))' }}
       >
         <NavBtn label={<><Icon name="action.map" /> Map</>} active={mobileView === 'map'} onClick={() => setMobileView('map')} />
         <NavBtn
@@ -909,7 +975,7 @@ function NavBtn({
   return (
     <button
       onClick={onClick}
-      className={`relative flex-1 py-2.5 font-semibold transition ${
+      className={`relative flex min-h-[44px] flex-1 items-center justify-center py-2.5 font-semibold transition ${
         active ? 'bg-white/5 text-signal' : pulse ? 'text-concrete-50' : 'text-white/50'
       }`}
     >
@@ -938,8 +1004,15 @@ function HereCompactBar({
   onEvac: () => void;
 }) {
   const cfg = POI_CONFIG[sel.category];
+  const occupied = !!sel.factionId;
   return (
-    <div className="pointer-events-auto absolute bottom-11 left-3 right-3 z-[640] flex items-center gap-2 rounded-lg border border-signal/40 bg-concrete-900/95 px-3 py-2 shadow-2xl md:hidden">
+    <div
+      className="pointer-events-auto absolute left-3 right-3 z-[640] flex items-center gap-2 rounded-lg border border-signal/40 bg-concrete-900/95 px-3 py-2 shadow-2xl lg:hidden"
+      style={{
+        bottom:
+          'calc(var(--mobile-nav-h) + env(safe-area-inset-bottom, 0px) + 0.5rem)',
+      }}
+    >
       <Icon name={cfg.icon} size={18} />
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-bold">{sel.name}</div>
@@ -957,10 +1030,10 @@ function HereCompactBar({
         <>
           <button
             onClick={onSearch}
-            disabled={sel.exhausted}
+            disabled={!occupied && sel.exhausted}
             className="shrink-0 rounded bg-signal/80 px-2.5 py-1.5 text-xs font-bold text-black disabled:opacity-30"
           >
-            {sel.exhausted ? 'Empty' : 'Go in'}
+            {occupied ? 'Gate' : sel.exhausted ? 'Empty' : 'Go in'}
           </button>
           <button
             onClick={onOpenStash}

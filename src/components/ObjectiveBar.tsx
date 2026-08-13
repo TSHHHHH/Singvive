@@ -15,14 +15,15 @@ interface Props {
   doom: number;
   doomColor: string;
   doomLabel: string;
+  dayMult: number;
+  readinessRatio: number;
   /** Opens the full objectives sheet (checklist, quests, the long version). */
   onOpen: () => void;
 }
 
 /**
- * The always-on objective readout for the left rail: what you're supposed to be
- * doing, how far off it is, and how long the city has left. Detail lives one
- * click away in the side panel (ObjectivesPanel) — this is the glanceable version.
+ * The always-on objective readout for the left rail: dual-path glance
+ * (survival mult + readiness) plus doom. Detail lives one click away.
  */
 export function ObjectiveBar({
   evacZoneName,
@@ -34,8 +35,12 @@ export function ObjectiveBar({
   doom,
   doomColor,
   doomLabel,
+  dayMult,
+  readinessRatio,
   onOpen,
 }: Props) {
+  const readyPct = Math.round(readinessRatio * 100);
+
   return (
     <button
       onClick={onOpen}
@@ -53,7 +58,7 @@ export function ObjectiveBar({
           {atEvac
             ? 'at evac'
             : windowText
-              ? `⏳ ${windowText}`
+              ? `${windowText}`
               : evacZoneName
                 ? `${evacDist} m`
                 : evacCooldownHours != null
@@ -72,22 +77,47 @@ export function ObjectiveBar({
           <span className="text-white/40">
             {evacCooldownHours != null
               ? 'Channel dark. Command is staging another lift — sit tight or stock up.'
-              : 'No active evac window.'}
+              : 'No active evac window — survive for score, or wait for a bird.'}
           </span>
         )}
       </div>
 
-      {/* doom clock — the one thing that gets worse whether you act or not */}
       <div className="mt-1.5 flex items-center gap-2">
-        <div className="h-1 flex-1 overflow-hidden rounded bg-black/50">
-          <div
-            className="h-full transition-all"
-            style={{ width: `${Math.min(100, doom)}%`, background: doomColor }}
-          />
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <div className="flex items-center gap-1.5">
+            <span className="w-8 shrink-0 text-2xs text-white/35">×{dayMult.toFixed(1)}</span>
+            <div className="h-1 flex-1 overflow-hidden rounded bg-black/50">
+              <div
+                className="h-full transition-all"
+                style={{
+                  width: `${Math.min(100, ((dayMult - 1) / 1.2) * 100)}%`,
+                  background: '#e8e5dd',
+                }}
+              />
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-8 shrink-0 text-2xs text-white/35">{readyPct}%</span>
+            <div className="h-1 flex-1 overflow-hidden rounded bg-black/50">
+              <div
+                className="h-full transition-all"
+                style={{
+                  width: `${readyPct}%`,
+                  background: readyPct >= 100 ? '#7ec8a0' : '#e8a54b',
+                }}
+              />
+            </div>
+          </div>
         </div>
-        <span className="shrink-0 text-2xs uppercase tracking-wide text-white/35">
-          {doomLabel}
-        </span>
+        <div className="flex w-14 shrink-0 flex-col items-end gap-0.5">
+          <div className="h-1 w-full overflow-hidden rounded bg-black/50">
+            <div
+              className="h-full transition-all"
+              style={{ width: `${Math.min(100, doom)}%`, background: doomColor }}
+            />
+          </div>
+          <span className="text-2xs uppercase tracking-wide text-white/35">{doomLabel}</span>
+        </div>
       </div>
     </button>
   );

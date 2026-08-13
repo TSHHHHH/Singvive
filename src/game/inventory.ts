@@ -1,5 +1,6 @@
 import type {
   Attributes,
+  BodyPartId,
   ConditionTier,
   Container,
   Equipment,
@@ -8,6 +9,17 @@ import type {
   ItemInstance,
 } from './types';
 import { itemDef } from './loot';
+
+/** Every wearable / weapon slot, in UI order. */
+export const ALL_EQUIP_SLOTS: EquipSlot[] = [
+  'head',
+  'body',
+  'hands',
+  'legs',
+  'feet',
+  'mainHand',
+  'offHand',
+];
 
 export const BACKPACK = 'backpack';
 export const BACKPACK_DIMS = { w: 8, h: 5 };
@@ -226,6 +238,100 @@ export function equipDefenseBonus(inst: ItemInstance): number {
   return base === 0 ? 0 : Math.round(base * conditionScale(inst));
 }
 
+/** Map a combat hit zone to the wearable slot that covers it (feet never soak). */
+export function slotForZone(zone: BodyPartId): EquipSlot | null {
+  switch (zone) {
+    case 'head':
+      return 'head';
+    case 'torso':
+      return 'body';
+    case 'leftArm':
+    case 'rightArm':
+      return 'hands';
+    case 'leftLeg':
+    case 'rightLeg':
+      return 'legs';
+  }
+}
+
+function scaledMod(inst: ItemInstance, key: 'limbArmor' | 'statusResist' | 'accuracyBonus' | 'speedBonus' | 'travelSpeedBonus' | 'dodgeBonus' | 'attackBonus' | 'encounterChanceMod'): number {
+  if (isBroken(inst)) return 0;
+  const base = itemDef(inst.defId).modifiers?.[key] ?? 0;
+  if (base === 0) return 0;
+  return base * conditionScale(inst);
+}
+
+/** Flat soak from the piece covering `zone` (0 if bare / feet / broken). */
+export function limbArmorForZone(equipment: Equipment, zone: BodyPartId): number {
+  const slot = slotForZone(zone);
+  if (!slot) return 0;
+  const inst = equipment[slot];
+  if (!inst) return 0;
+  return Math.round(scaledMod(inst, 'limbArmor'));
+}
+
+/** Status resist from the piece covering `zone`, clamped 0..1. */
+export function statusResistForZone(equipment: Equipment, zone: BodyPartId): number {
+  const slot = slotForZone(zone);
+  if (!slot) return 0;
+  const inst = equipment[slot];
+  if (!inst) return 0;
+  return Math.max(0, Math.min(1, scaledMod(inst, 'statusResist')));
+}
+
+/** Sum condition-scaled accuracy from all worn gear (gloves). */
+export function equipAccuracyBonus(equipment: Equipment): number {
+  let sum = 0;
+  for (const slot of ALL_EQUIP_SLOTS) {
+    const inst = equipment[slot];
+    if (inst) sum += scaledMod(inst, 'accuracyBonus');
+  }
+  return Math.round(sum);
+}
+
+/** Sum condition-scaled combat speed from gear. */
+export function equipSpeedBonus(equipment: Equipment): number {
+  let sum = 0;
+  for (const slot of ALL_EQUIP_SLOTS) {
+    const inst = equipment[slot];
+    if (inst) sum += scaledMod(inst, 'speedBonus');
+  }
+  return sum;
+}
+
+/**
+ * Multiplier on walk pace from footwear / light gear.
+ * `travelSpeedBonus` of 0.1 ⇒ ×1.1. Floored so bad slippers still move.
+ */
+export function equipTravelSpeedFactor(equipment: Equipment): number {
+  let bonus = 0;
+  for (const slot of ALL_EQUIP_SLOTS) {
+    const inst = equipment[slot];
+    if (inst) bonus += scaledMod(inst, 'travelSpeedBonus');
+  }
+  return Math.max(0.55, 1 + bonus);
+}
+
+/** Additive encounter risk from camo / noisy boots (already condition-scaled). */
+export function equipEncounterChanceMod(equipment: Equipment): number {
+  let sum = 0;
+  for (const slot of ALL_EQUIP_SLOTS) {
+    const inst = equipment[slot];
+    if (inst) sum += scaledMod(inst, 'encounterChanceMod');
+  }
+  return sum;
+}
+
+/** Fill missing slot keys on older saves (pre–body-zone equipment). */
+export function coerceEquipment(raw: Partial<Equipment> | null | undefined): Equipment {
+  const base = emptyEquipment();
+  if (!raw) return base;
+  for (const slot of ALL_EQUIP_SLOTS) {
+    if (slot in raw) base[slot] = raw[slot] ?? null;
+  }
+  return base;
+}
+
 /**
  * Pure: wear an instance down by `amount`, clamped to 0.
  *
@@ -355,7 +461,15 @@ export function canEquip(def: ItemDef, slot: EquipSlot): boolean {
 }
 
 export function emptyEquipment(): Equipment {
-  return { head: null, body: null, mainHand: null, offHand: null };
+  return {
+    head: null,
+    body: null,
+    hands: null,
+    legs: null,
+    feet: null,
+    mainHand: null,
+    offHand: null,
+  };
 }
 
 /**

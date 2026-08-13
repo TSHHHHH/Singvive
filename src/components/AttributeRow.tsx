@@ -8,50 +8,48 @@ import {
   BASE_ATTRIBUTE,
 } from '../game/character';
 import type { AttributeKey } from '../game/types';
+import { TipHint } from './TipHint';
 
 /**
- * The five attributes, always on the rail so the sheet isn't a panel away.
- * Hovering one floats the same style of tooltip the weather badge and meters
- * use: what the stat buys you right now, and which traits moved it off 5.
+ * The five attributes, inline on the Condition rail so the sheet isn't a panel
+ * away. Hovering (or tapping on touch) floats the same style of tooltip the
+ * weather badge and meters use: what the stat buys you right now, and which
+ * traits moved it off 5.
  */
 export function AttributeRow() {
   const character = useGame((s) => s.character);
   if (!character) return null;
 
   return (
-    <section className="rounded-lg border border-white/10 bg-black/30 p-2.5">
-      <h4 className="mb-1.5 text-xs uppercase tracking-widest text-white/30">Attributes</h4>
-      <div className="grid grid-cols-5 gap-1 text-center">
-        {ATTRIBUTE_KEYS.map((k, i) => {
-          const value = character.attributes[k];
-          const delta = value - BASE_ATTRIBUTE;
-          // Keep the tooltip inside the rail: edge cells anchor to their side.
-          const anchor =
-            i < 2 ? 'left-0' : i > 2 ? 'right-0' : 'left-1/2 -translate-x-1/2';
-          return (
-            <div key={k} className="group relative">
-              <div className="cursor-help rounded bg-black/30 py-1 transition group-hover:bg-white/5">
-                <div
-                  className={`text-sm font-bold tabular-nums ${
-                    delta > 0 ? 'text-signal' : delta < 0 ? 'text-hiss' : 'text-concrete-200'
-                  }`}
-                >
-                  {value}
-                </div>
-                <div className="text-2xs uppercase text-white/40">
-                  {ATTRIBUTE_LABELS[k].slice(0, 3)}
-                </div>
-              </div>
+    <div className="grid grid-cols-5 gap-1 text-center">
+      {ATTRIBUTE_KEYS.map((k, i) => {
+        const value = character.attributes[k];
+        const delta = value - BASE_ATTRIBUTE;
+        // Keep the tooltip inside the rail: edge cells anchor to their side.
+        const anchor =
+          i < 2 ? 'left-0' : i > 2 ? 'right-0' : 'left-1/2 -translate-x-1/2';
+        return (
+          <TipHint
+            key={k}
+            tipClassName={`absolute top-full mt-1 w-max min-w-[11rem] max-w-[15rem] rounded-lg border border-white/15 bg-concrete-900 p-2 text-left shadow-xl ${anchor}`}
+            tip={<AttributeTip attr={k} traitIds={character.traitIds} value={value} />}
+          >
+            <div className="cursor-help rounded bg-black/30 py-1 transition group-hover:bg-white/5">
               <div
-                className={`pointer-events-none absolute top-full z-[50] mt-1 hidden w-max min-w-[11rem] max-w-[15rem] rounded-lg border border-white/15 bg-concrete-900 p-2 text-left shadow-xl group-hover:block ${anchor}`}
+                className={`text-sm font-bold tabular-nums ${
+                  delta > 0 ? 'text-signal' : delta < 0 ? 'text-hiss' : 'text-concrete-200'
+                }`}
               >
-                <AttributeTip attr={k} traitIds={character.traitIds} value={value} />
+                {value}
+              </div>
+              <div className="text-2xs uppercase text-white/40">
+                {ATTRIBUTE_LABELS[k].slice(0, 3)}
               </div>
             </div>
-          );
-        })}
-      </div>
-    </section>
+          </TipHint>
+        );
+      })}
+    </div>
   );
 }
 

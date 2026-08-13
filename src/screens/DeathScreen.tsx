@@ -1,9 +1,10 @@
 import { useGame } from '../game/store';
-import { DEATH_TEXT } from '../game/survival';
+import { DEATH_TEXT, scoreDayMult } from '../game/survival';
 
 export function DeathScreen() {
   const { deathCause, finalScore, day, kills, highScores, character, escaped, resetToMenu } =
     useGame();
+  const mult = scoreDayMult(day);
 
   return (
     <div className="flex min-h-full items-center justify-center p-6">
@@ -30,12 +31,26 @@ export function DeathScreen() {
           {escaped ? (
             <>
               {character?.name} escaped Singapore on day{' '}
-              <span className="text-signal">{day}</span>.
+              <span className="text-signal">{day}</span>
+              {day > 1 ? (
+                <>
+                  {' '}
+                  (×{mult.toFixed(1)} score mult)
+                </>
+              ) : null}
+              .
             </>
           ) : (
             <>
               {character?.name} lasted <span className="text-signal">{day}</span>{' '}
-              {day === 1 ? 'day' : 'days'} in the ruins of Singapore.
+              {day === 1 ? 'day' : 'days'} in the ruins of Singapore
+              {day > 1 ? (
+                <>
+                  {' '}
+                  (×{mult.toFixed(1)} score mult)
+                </>
+              ) : null}
+              .
             </>
           )}
         </p>

@@ -1,6 +1,7 @@
 import { useGame } from '../game/store';
 import { Icon } from '../icons/Icon';
 import { armCombatPenalty, formatClock, legTravelFactor } from '../game/survival';
+import { equipSpeedBonus } from '../game/inventory';
 import { useClockFormat } from '../game/settings';
 import {
   STANCES,
@@ -61,7 +62,13 @@ export function EncounterPrompt({
   );
 
   const speedFor = (id: StanceId) =>
-    playerSpeed(character.attributes, STANCES[id], meters.energy, legTravelFactor(bodyParts));
+    playerSpeed(
+      character.attributes,
+      STANCES[id],
+      meters.energy,
+      legTravelFactor(bodyParts),
+      equipSpeedBonus(equipment),
+    );
 
   return (
     <li className="relative flex gap-2 rounded bg-white/[0.07] py-1 pl-6">

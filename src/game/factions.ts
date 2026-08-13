@@ -1,6 +1,7 @@
-import type { FactionId, LocationState, PoiCategory } from './types';
-import type { Rng } from './rng';
+import type { FactionId, FactionService, LocationState, PoiCategory } from './types';
+import { Rng } from './rng';
 import type { IconName } from '../icons/keys';
+import { haversine } from './overpass';
 
 export interface FactionData {
   id: Exclude<FactionId, null>;
@@ -27,14 +28,13 @@ export interface FactionData {
   // ---- the outpost -------------------------------------------------------
   /**
    * What the place is called once you're inside the wire. A faction's outpost
-   * is the one site of theirs you go to *on purpose* — safe ground, and the
-   * only counter they'll trade over.
+   * is a site of theirs you go to *on purpose* — full services, marked on the
+   * map, worth the walk.
    */
   outpostName: string;
   /**
-   * Categories their headquarters can sit on, narrower than the territory they
-   * claim. Empty ⇒ this faction has no outpost (see the STA, whose counter is
-   * the tunnel camps they already run).
+   * Preferred categories for outpost placement (still must be claimed by them).
+   * Picker falls back to preferred territory, then any claimed site.
    */
   outpostCategories: PoiCategory[];
 
@@ -67,7 +67,7 @@ export const FACTION_CONFIG: Record<Exclude<FactionId, null>, FactionData> = {
     tribute: ['ammo_box', 'medkit', 'batteries'],
     // Schools were the designated shelters when it fell — so they were theirs
     // to hold, and mostly still are.
-    preferredPoiCategories: ['police', 'hospital', 'school'],
+    preferredPoiCategories: ['police', 'hospital', 'clinic', 'school'],
     outpostName: 'Forward Aid Post',
     // A hospital they can defend beats a police post they can't.
     outpostCategories: ['hospital', 'police'],
@@ -140,10 +140,9 @@ export const FACTION_CONFIG: Record<Exclude<FactionId, null>, FactionData> = {
     // meant the tunnels were shut to anyone who hadn't found that item yet.
     tribute: ['ez_link_card', 'batteries', 'torch', 'canned_food'],
     preferredPoiCategories: ['mrt'],
-    // The STA already has a counter — the barricade camps down in the bores.
-    // Giving them a surface outpost as well would just be a fourth wet market.
     outpostName: 'Barricade Camp',
-    outpostCategories: [],
+    // Surface STA outposts sit on manned platforms; abandoned MRTs stay null.
+    outpostCategories: ['mrt'],
     stock: ['torch', 'batteries', 'ez_link_card', 'rain_tarp', 'powerbank', 'glass_bottle'],
     exclusiveStock: ['toolbox', 'hard_hat'],
     wants: ['batteries', 'canned_food', 'duct_tape', 'scrap_metal'],
@@ -219,6 +218,16 @@ export function factionShelters(id: FactionId, standing: FactionStanding): boole
   return !!id && standing[id] >= STANDING_TRUSTED;
 }
 
+/** Intel / rumors open with the counter. */
+export function factionSharesIntel(id: FactionId, standing: FactionStanding): boolean {
+  return factionTrades(id, standing);
+}
+
+/** Field aid is for people they trust with their medics. */
+export function factionOffersAid(id: FactionId, standing: FactionStanding): boolean {
+  return factionShelters(id, standing);
+}
+
 /** Short label for the standing badge. */
 export function standingLabel(n: number): string {
   if (n <= STANDING_HATED) return 'Hated';
@@ -259,34 +268,170 @@ export function assignFaction(rng: Rng, category: PoiCategory): FactionId {
   return null;
 }
 
-export type OutpostIds = Partial<Record<Exclude<FactionId, null>, string>>;
+export const ALL_FACTION_SERVICES: FactionService[] = ['trade', 'rest', 'aid', 'intel'];
+
+export const OUTPOSTS_PER_FACTION = 4;
+/** Same-faction outposts stay a walk apart so four pins aren't a cluster. */
+export const OUTPOST_MIN_SPACING_M = 1100;
+
+export type OutpostIds = Partial<Record<Exclude<FactionId, null>, string[]>>;
+
+export function isOutpostSite(
+  outposts: OutpostIds,
+  factionId: Exclude<FactionId, null>,
+  locationId: string,
+): boolean {
+  return (outposts[factionId] ?? []).includes(locationId);
+}
+
+/** Services this site actually offers (outposts always full set). */
+export function locationServices(loc: LocationState, outposts: OutpostIds): FactionService[] {
+  if (!loc.factionId) return [];
+  if (loc.isFactionOutpost || isOutpostSite(outposts, loc.factionId, loc.id)) {
+    return [...ALL_FACTION_SERVICES];
+  }
+  return loc.factionServices ?? [];
+}
 
 /**
- * Promote one site per faction to its outpost.
+ * Whether the player may use NPC services here without a fresh gate scene.
+ * Trusted / day-pass / Known-and-not-hostile all count.
+ */
+export function hasFactionClearance(
+  loc: LocationState,
+  standing: FactionStanding,
+  day: number,
+): boolean {
+  const id = loc.factionId;
+  if (!id) return true;
+  if (factionWavesYouThrough(id, standing)) return true;
+  if ((loc.tollPaidThroughDay ?? -1) >= day) return true;
+  if (!factionIsHostile(id, standing) && standing[id] >= STANDING_KNOWN) return true;
+  return false;
+}
+
+function sampleServices(rng: Rng, n: number): FactionService[] {
+  const pool = [...ALL_FACTION_SERVICES];
+  const out: FactionService[] = [];
+  while (out.length < n && pool.length) {
+    out.push(pool.splice(rng.int(0, pool.length - 1), 1)[0]);
+  }
+  return out;
+}
+
+/**
+ * Stamp outpost flags and seed ordinary-territory service subsets.
+ * Outposts always get all four; other claimed sites get 1–3.
+ */
+export function applyFactionServices(
+  locations: Record<string, LocationState>,
+  outposts: OutpostIds,
+  seed: string,
+): Record<string, LocationState> {
+  const base = new Rng(seed).fork('factionServices');
+  const next: Record<string, LocationState> = { ...locations };
+  const outpostSet = new Set<string>();
+  for (const ids of Object.values(outposts)) {
+    for (const id of ids ?? []) outpostSet.add(id);
+  }
+
+  for (const id of Object.keys(next)) {
+    const loc = next[id];
+    if (!loc.factionId) {
+      if (loc.factionServices || loc.isFactionOutpost) {
+        next[id] = { ...loc, factionServices: undefined, isFactionOutpost: false };
+      }
+      continue;
+    }
+    const isOp = outpostSet.has(id);
+    const siteRng = base.fork(id);
+    const patched: LocationState = {
+      ...loc,
+      isFactionOutpost: isOp,
+      isFactionRevealed: isOp ? true : loc.isFactionRevealed,
+      // Outposts are map destinations from day one — you can see the pin even
+      // before you've walked there.
+      discovered: isOp ? true : loc.discovered,
+      factionServices: isOp
+        ? [...ALL_FACTION_SERVICES]
+        : loc.factionServices?.length
+          ? loc.factionServices
+          : sampleServices(siteRng, siteRng.int(1, 3)),
+    };
+    if (isOp && !patched.lastSeen) {
+      patched.lastSeen = {
+        currentDanger: patched.currentDanger,
+        isFactionRevealed: true,
+        looted: patched.looted,
+        exhausted: patched.exhausted,
+        remainingSearches: patched.remainingSearches,
+        cleared: patched.cleared,
+      };
+    }
+    next[id] = patched;
+  }
+  return next;
+}
+
+/**
+ * Promote up to four sites per faction to outposts, spaced apart.
  *
- * The map used to be uniform: every faction site was another door with another
- * toll behind it, so a faction was a tax and never a destination. An outpost is
- * the fix — a single named place per faction that is worth *walking to*, with
- * the counter and the beds behind it.
- *
- * Picked from the faction's own territory (so it never lands somewhere they
- * don't hold), preferring a mid-distance site: parked on the spawn it's a
- * freebie, parked at the far edge it may as well not exist.
+ * Prefer `outpostCategories`, then preferred territory, then any claim. Quota
+ * may undershoot on a thin local map — that is fine.
  */
 export function pickOutposts(locations: LocationState[]): OutpostIds {
   const out: OutpostIds = {};
   for (const id of CLAIM_ORDER) {
-    const cats = FACTION_CONFIG[id].outpostCategories;
-    if (!cats.length) continue;
-    const cands = locations.filter(
-      (l) => l.factionId === id && cats.includes(l.category),
-    );
-    if (!cands.length) continue;
-    // Deterministic without an rng: the world seed already decided who holds
-    // what, so ordering by distance and taking the middle is reproducible and
-    // puts the outpost a walk away rather than next door or off the edge.
-    cands.sort((a, b) => a.distanceFromSpawn - b.distanceFromSpawn);
-    out[id] = cands[Math.floor(cands.length / 2)].id;
+    const cfg = FACTION_CONFIG[id];
+    const claimed = locations.filter((l) => l.factionId === id);
+    if (!claimed.length) continue;
+
+    const rank = (l: LocationState) => {
+      if (cfg.outpostCategories.includes(l.category)) return 0;
+      if (cfg.preferredPoiCategories.includes(l.category)) return 1;
+      return 2;
+    };
+    const cands = [...claimed].sort((a, b) => {
+      const rd = rank(a) - rank(b);
+      if (rd !== 0) return rd;
+      // Mid-distance sites beat spawn-adjacent freebies and map-edge ghosts.
+      const mid = (xs: LocationState[]) => {
+        const sorted = [...xs].sort((x, y) => x.distanceFromSpawn - y.distanceFromSpawn);
+        return sorted[Math.floor(sorted.length / 2)]?.distanceFromSpawn ?? 0;
+      };
+      const m = mid(claimed);
+      return Math.abs(a.distanceFromSpawn - m) - Math.abs(b.distanceFromSpawn - m);
+    });
+
+    const picked: LocationState[] = [];
+    for (const c of cands) {
+      if (picked.length >= OUTPOSTS_PER_FACTION) break;
+      if (
+        picked.some(
+          (p) => haversine(p.lat, p.lng, c.lat, c.lng) < OUTPOST_MIN_SPACING_M,
+        )
+      ) {
+        continue;
+      }
+      picked.push(c);
+    }
+    if (picked.length) out[id] = picked.map((p) => p.id);
+  }
+  return out;
+}
+
+/** Coerce save-file outposts (legacy single id → array). */
+export function migrateOutposts(raw: unknown): OutpostIds {
+  if (!raw || typeof raw !== 'object') return {};
+  const out: OutpostIds = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    const fid = migrateFactionId(k);
+    if (!fid) continue;
+    if (typeof v === 'string') out[fid] = [v];
+    else if (Array.isArray(v)) {
+      const ids = v.filter((x): x is string => typeof x === 'string');
+      if (ids.length) out[fid] = ids;
+    }
   }
   return out;
 }

@@ -461,6 +461,7 @@ export function attributeEffects(key: AttributeKey, value: number): AttributeEff
       rows = [
         num(d, 'attack accuracy'),
         num(half, 'defense'),
+        pct(d * 0.02, 'dodge chance'),
         pct(d * 0.03, 'travel speed'),
         num(sense, 'scout read chance', '%'),
         num(d, 'flee & stairwell checks'),

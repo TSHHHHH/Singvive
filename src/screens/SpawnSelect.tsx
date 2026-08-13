@@ -91,17 +91,19 @@ export function SpawnSelect() {
   };
 
   return (
-    <div className="flex h-full flex-col p-4">
-      <div className="mb-3 flex items-center justify-between">
+    <div className="flex h-full flex-col p-3 sm:p-4">
+      <div className="mb-3 flex flex-wrap items-center gap-2 sm:justify-between">
         <button onClick={resetToMenu} className="text-xs text-white/40 hover:text-white/70">
           ← Back
         </button>
-        <h2 className="text-lg font-bold text-signal">Choose where you wake up</h2>
+        <h2 className="order-first w-full text-center text-base font-bold text-signal sm:order-none sm:w-auto sm:text-lg">
+          Choose where you wake up
+        </h2>
         <button
           onClick={randomSpawn}
-          className="rounded bg-white/10 px-3 py-1.5 text-sm hover:bg-white/20"
+          className="ml-auto rounded bg-white/10 px-3 py-1.5 text-sm hover:bg-white/20 sm:ml-0"
         >
-          🎲 Random
+          Random
         </button>
       </div>
 
@@ -111,7 +113,7 @@ export function SpawnSelect() {
         </div>
       )}
 
-      <div className="relative flex-1 overflow-hidden rounded-lg border border-white/10">
+      <div className="relative min-h-0 flex-1 overflow-hidden rounded-lg border border-white/10">
         <MapContainer
           center={SG_CENTER}
           zoom={12}
@@ -148,20 +150,20 @@ export function SpawnSelect() {
         )}
       </div>
 
-      <div className="mt-3 flex items-center justify-between gap-3">
+      <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
         <p className="text-sm text-white/50">
           {picked ? (
             <>
               Spawn: <span className="text-signal">{picked.name}</span>
             </>
           ) : (
-            'Click anywhere in Singapore, or roll a random spawn.'
+            'Tap anywhere in Singapore, or roll a random spawn.'
           )}
         </p>
         <button
           onClick={confirm}
           disabled={!picked || loading}
-          className="rounded-lg bg-signal/80 px-6 py-2.5 font-bold text-black transition hover:bg-signal disabled:opacity-30"
+          className="w-full rounded-lg bg-signal/80 px-6 py-2.5 font-bold text-black transition hover:bg-signal disabled:opacity-30 sm:w-auto"
         >
           Wake up here →
         </button>

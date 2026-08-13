@@ -44,7 +44,7 @@ export const RECIPES: Recipe[] = [
     outputCount: 2,
     hours: 1.5,
     needsShelter: true,
-    blurb: 'Slower than tablets and it costs you fuel, but it needs no chemist.',
+    blurb: 'Slower than tablets and it costs you fuel — fuel also counts hard toward evac readiness.',
   },
   {
     id: 'bandages',

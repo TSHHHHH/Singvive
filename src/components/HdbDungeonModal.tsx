@@ -97,9 +97,9 @@ export function HdbDungeonModal() {
 
         <HeatGauge heat={heat} band={band} dc={dc} hunting={hunting} />
 
-        <div className="flex min-h-0 flex-1">
-          {/* ================= LEFT: the block, as a section ================= */}
-          <div className="w-52 shrink-0 overflow-y-auto border-r border-concrete-600 bg-concrete-950/60 p-2 md:w-64">
+        <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+          {/* ================= LEFT / TOP: the block, as a section ================= */}
+          <div className="max-h-[38%] shrink-0 overflow-y-auto border-b border-concrete-600 bg-concrete-950/60 p-2 lg:max-h-none lg:w-64 lg:shrink-0 lg:border-b-0 lg:border-r">
             {band.dcStep > 0 && (
               <div className="mb-2 rounded border border-hiss/40 bg-hiss/10 px-1.5 py-1 text-2xs leading-snug text-hiss">
                 Going down is a check now — Dex+End vs DC {dc}.
@@ -109,9 +109,9 @@ export function HdbDungeonModal() {
             <BlockSection hdb={hdb} reachable={reachable} onMove={hdbMove} onForce={hdbForceSeal} />
           </div>
 
-          {/* ================= RIGHT: corridor map ================= */}
-          <div className="flex min-w-0 flex-1 flex-col overflow-y-auto p-3">
-            <div className="mb-2 flex items-baseline justify-between">
+          {/* ================= RIGHT / BOTTOM: corridor map ================= */}
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto p-2 lg:p-3">
+            <div className="mb-2 flex flex-wrap items-baseline justify-between gap-1">
               <h3 className="signage text-xs text-concrete-50">
                 Level {String(hdb.currentLevel).padStart(2, '0')}
               </h3>
@@ -127,7 +127,7 @@ export function HdbDungeonModal() {
               </span>
             </div>
 
-            <div className="grid grid-cols-[1fr_auto_1fr] gap-2">
+            <div className="grid grid-cols-[1fr_auto_1fr] gap-1.5 lg:gap-2">
               <Wing title="Left wing" units={wing('left')} selected={selected} onSelect={setSelected} />
               <Wing title="Core" units={wing('core')} selected={selected} onSelect={setSelected} narrow />
               <Wing title="Right wing" units={wing('right')} selected={selected} onSelect={setSelected} />
@@ -249,14 +249,14 @@ function Wing({
   narrow?: boolean;
 }) {
   return (
-    <div className={narrow ? 'w-24' : ''}>
+    <div className={narrow ? 'w-16 sm:w-20 lg:w-24' : ''}>
       <div className="signage mb-1 text-center text-2xs text-concrete-400">{title}</div>
       <div className="flex flex-col gap-1">
         {units.map((u) => (
           <button
             key={u.id}
             onClick={() => onSelect(u.id)}
-            className={`rounded border px-2 py-2 text-left text-xs transition ${
+            className={`min-h-[44px] rounded border px-1.5 py-2 text-left text-xs transition lg:px-2 ${
               STATE_CLASS[u.state]
             } ${selected === u.id ? 'ring-1 ring-signal' : ''}`}
           >

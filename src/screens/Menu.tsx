@@ -30,11 +30,28 @@ export function Menu() {
           )}
         </div>
 
+        <div className="mt-8 rounded-lg border border-white/10 bg-black/40 p-4 text-left">
+          <h2 className="mb-2 text-xs uppercase tracking-widest text-signal/80">How score works</h2>
+          <ul className="flex flex-col gap-2 text-xs leading-relaxed text-white/55">
+            <li>
+              <span className="font-semibold text-white/75">Survive</span> — kills and loot scale
+              with a day multiplier. The longer you last, the higher every point counts.
+            </li>
+            <li>
+              <span className="font-semibold text-white/75">Extract</span> — pack weighted gear
+              (fuel, meds, and ammo count most), reach the staging zone, and call for a lift. The
+              escape bonus also scales with the day.
+            </li>
+            <li>
+              <span className="font-semibold text-white/75">Best run</span> — linger for the
+              multiplier, then extract late. Death still posts a score; overrun ends the city.
+            </li>
+          </ul>
+        </div>
+
         {highScores.length > 0 && (
-          <div className="mt-10 text-left">
-            <h2 className="mb-2 text-xs uppercase tracking-widest text-white/40">
-              Longest survivors
-            </h2>
+          <div className="mt-8 text-left">
+            <h2 className="mb-2 text-xs uppercase tracking-widest text-white/40">Top scores</h2>
             <ul className="flex flex-col gap-1 text-sm">
               {highScores.slice(0, 5).map((h, i) => (
                 <li
@@ -54,8 +71,8 @@ export function Menu() {
         )}
 
         <p className="mt-10 text-xs leading-relaxed text-white/30">
-          A roguelike survival game on the real map of Singapore. Scavenge real
-          places, manage your body, and last as long as you can.
+          A roguelike survival game on the real map of Singapore. Scavenge real places, manage your
+          body, climb the score — or get out with a lift before the horde peaks.
         </p>
       </div>
     </div>

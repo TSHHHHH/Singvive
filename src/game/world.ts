@@ -59,7 +59,13 @@ function sizeFor(category: PoiCategory, outline?: [number, number][]): LocationS
     category === 'school'
   )
     return 'large';
-  if (category === 'residential' || category === 'foodcourt' || category === 'hardware') return 'medium';
+  if (
+    category === 'residential' ||
+    category === 'foodcourt' ||
+    category === 'hardware' ||
+    category === 'clinic'
+  )
+    return 'medium';
   return 'small';
 }
 
@@ -67,29 +73,68 @@ function sizeFor(category: PoiCategory, outline?: [number, number][]): LocationS
  * Build the run's clickable world from raw OSM POIs as full LocationStates:
  * dedupe, assign seeded size/danger/searches/faction, compute distance from the
  * original spawn, sort by distance and cap the count.
+ *
+ * `opts.localOrigin` is the centre used for density caps and waypoint bridging.
+ * For the initial spawn bubble it is spawn itself. For on-demand chunks it is
+ * the expansion point — so a neighbourhood 15 km away bridges *within itself*
+ * instead of laying a Prim chain of waypoints all the way back to spawn.
  */
 export function buildLocations(
   rng: Rng,
   spawn: { lat: number; lng: number },
   raw: RawPoi[],
   net?: MrtNetwork | null,
+  opts?: { localOrigin?: { lat: number; lng: number } },
 ): LocationState[] {
+  const origin = opts?.localOrigin ?? spawn;
   const dangerRng = rng.fork('danger');
   const factionRng = rng.fork('faction');
-  const seen = new Set<string>();
+  const seenIds = new Set<string>();
+  // Soft spatial collapse (~11 m) for same-category near-duplicates that OSM
+  // often emits as both a node and a way. Different shops a few metres apart
+  // stay distinct — the old toFixed(4) key mashed those together.
+  const spatial = new Map<string, number>(); // cell → index in out
   const out: LocationState[] = [];
 
+  const cellOf = (lat: number, lng: number) => ({
+    i: Math.round(lat * 1e4),
+    j: Math.round(lng * 1e4),
+  });
+  const cellKey = (i: number, j: number) => `${i},${j}`;
+  const quality = (outline: [number, number][] | undefined, name: string) =>
+    (outline ? 2 : 0) + Math.min(name.length, 24) / 24;
+  const distFromOrigin = (lat: number, lng: number) =>
+    haversine(origin.lat, origin.lng, lat, lng);
+
   for (const r of raw) {
-    const key = `${r.lat.toFixed(4)},${r.lng.toFixed(4)}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
+    if (seenIds.has(r.osmId)) continue;
+    seenIds.add(r.osmId);
+
+    let replaceAt: number | null = null;
+    const { i, j } = cellOf(r.lat, r.lng);
+    outer: for (let di = -1; di <= 1; di++) {
+      for (let dj = -1; dj <= 1; dj++) {
+        const hit = spatial.get(cellKey(i + di, j + dj));
+        if (hit == null) continue;
+        const other = out[hit];
+        if (other.category !== r.category) continue;
+        if (haversine(other.lat, other.lng, r.lat, r.lng) > 12) continue;
+        if (quality(r.outline, r.name) <= quality(other.outline, other.name)) {
+          replaceAt = -1; // keep existing
+        } else {
+          replaceAt = hit;
+        }
+        break outer;
+      }
+    }
+    if (replaceAt === -1) continue;
 
     const cfg = POI_CONFIG[r.category];
     const baseDanger = Math.max(1, Math.min(5, cfg.baseDanger + dangerRng.int(-1, 1)));
     const size = sizeFor(r.category, r.outline);
     const factionId = assignFaction(factionRng.fork(r.osmId), r.category);
 
-    out.push({
+    const loc: LocationState = {
       id: r.osmId,
       name: r.name,
       category: r.category,
@@ -109,10 +154,21 @@ export function buildLocations(
       discovered: false,
       lastSeen: null,
       distanceFromSpawn: Math.round(haversine(spawn.lat, spawn.lng, r.lat, r.lng)),
-    });
+    };
+
+    if (replaceAt != null) {
+      const old = out[replaceAt];
+      const oldCell = cellOf(old.lat, old.lng);
+      spatial.delete(cellKey(oldCell.i, oldCell.j));
+      out[replaceAt] = loc;
+      spatial.set(cellKey(i, j), replaceAt);
+    } else {
+      spatial.set(cellKey(i, j), out.length);
+      out.push(loc);
+    }
   }
 
-  out.sort((a, b) => a.distanceFromSpawn - b.distanceFromSpawn);
+  out.sort((a, b) => distFromOrigin(a.lat, a.lng) - distFromOrigin(b.lat, b.lng));
 
   // Keep all non-residential; cap void decks to the nearest MAX_RESIDENTIAL so
   // the estates are populated without crowding out shops. Re-sort by distance.
@@ -126,14 +182,16 @@ export function buildLocations(
     kept.push(loc);
   }
   const capped = kept
-    .sort((a, b) => a.distanceFromSpawn - b.distanceFromSpawn)
+    .sort((a, b) => distFromOrigin(a.lat, a.lng) - distFromOrigin(b.lat, b.lng))
     .slice(0, MAX_LOCATIONS);
 
   if (net) attachStations(capped, net);
 
   // Bridging runs *after* the cap, and its output is exempt from it: the whole
   // point is the far, sparse edges, which are exactly what the cap trims.
-  return bridgeWorld(rng, spawn, capped);
+  // Seed Prim from the local origin so far chunks don't grow a waypoint spine
+  // back to the original spawn.
+  return bridgeWorld(rng, spawn, capped, origin);
 }
 
 /**
@@ -218,7 +276,7 @@ export function makeStationLocation(
     exhausted: false,
     cleared: false,
     looted: false,
-    // Every platform is STA ground; assignFaction says so at 100% for `mrt`.
+    // STA claims platforms probabilistically — some stations stay abandoned.
     factionId: assignFaction(r.fork('faction'), 'mrt'),
     isFactionRevealed: false,
     isMrtStation: true,
@@ -299,15 +357,20 @@ function makeWaypoint(
 }
 
 /**
- * Grow a spanning tree outward from spawn, laying waypoints across any hop
+ * Grow a spanning tree outward from `origin`, laying waypoints across any hop
  * longer than GUARANTEED_HOP. Prim's algorithm, so it always bridges the
  * *cheapest* remaining gap — fillers land on the shortest crossing rather than
  * wherever the iteration order happened to look.
+ *
+ * `spawn` is only used for `distanceFromSpawn` on synthetic waypoints (the
+ * run's original start). `origin` is where the survivor is standing for this
+ * build — spawn for the opening bubble, the expansion centre for later chunks.
  */
 function bridgeWorld(
   rng: Rng,
   spawn: { lat: number; lng: number },
   nodes: LocationState[],
+  origin: { lat: number; lng: number } = spawn,
 ): LocationState[] {
   if (nodes.length === 0) return nodes;
   const bridgeRng = rng.fork('bridge');
@@ -315,9 +378,9 @@ function bridgeWorld(
 
   const inTree = new Array<boolean>(nodes.length).fill(false);
   // Cheapest known link from the reached set to each outstanding node. The
-  // survivor starts standing at spawn, so spawn itself seeds the tree.
-  const best = nodes.map((n) => haversine(spawn.lat, spawn.lng, n.lat, n.lng));
-  const bestFrom = nodes.map(() => ({ lat: spawn.lat, lng: spawn.lng }));
+  // survivor starts standing at origin, so origin itself seeds the tree.
+  const best = nodes.map((n) => haversine(origin.lat, origin.lng, n.lat, n.lng));
+  const bestFrom = nodes.map(() => ({ lat: origin.lat, lng: origin.lng }));
 
   /** Fold a newly reached point into the frontier. */
   const relax = (from: { lat: number; lng: number }) => {
@@ -375,8 +438,11 @@ const FALLBACK_MIX: [PoiCategory, number][] = [
   ['foodcourt', 4],
   ['supermarket', 3],
   ['pharmacy', 3],
+  ['clinic', 2],
   ['fuel', 2],
   ['hardware', 2],
+  ['school', 2],
+  ['industrial', 2],
   ['mrt', 2],
   ['hospital', 1],
   ['police', 1],

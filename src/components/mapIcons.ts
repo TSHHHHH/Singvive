@@ -1,5 +1,6 @@
 import L from 'leaflet';
 import { POI_CONFIG } from '../game/poi';
+import { FACTION_CONFIG } from '../game/factions';
 import { iconMarkup } from '../icons/markup';
 import type { Poi } from '../game/types';
 
@@ -7,8 +8,8 @@ import type { Poi } from '../game/types';
  * Icons are handed to Leaflet as props, and a fresh object identity makes it
  * tear the marker's DOM down and rebuild it. Every icon below is therefore
  * built once per distinct *appearance* and reused: a POI pin only looks
- * different when its category, danger ring, or exhausted state differs, and the
- * fixed icons never differ at all.
+ * different when its category, danger ring, exhausted state, or outpost mark
+ * differs, and the fixed icons never differ at all.
  */
 const poiIconCache = new Map<string, L.DivIcon>();
 
@@ -16,28 +17,35 @@ const poiIconCache = new Map<string, L.DivIcon>();
  *  broken default-marker image imports under bundlers. */
 export function poiIcon(poi: Poi): L.DivIcon {
   const cfg = POI_CONFIG[poi.category];
-  const dim = poi.exhausted;
+  const dim = poi.exhausted && !poi.factionId;
   const danger = Math.round(poi.currentDanger);
   const ring = dangerColor(danger);
+  const outpost = !!poi.isFactionOutpost && !!poi.factionId;
+  const factionColor =
+    outpost && poi.factionId ? FACTION_CONFIG[poi.factionId].color : null;
+  const glyph =
+    outpost && poi.factionId
+      ? iconMarkup(FACTION_CONFIG[poi.factionId].icon, { size: 15, color: '#08080a' })
+      : iconMarkup(cfg.icon, { size: 15, color: '#08080a' });
 
-  const key = `${poi.category}|${danger}|${dim ? 1 : 0}`;
+  const key = `${poi.category}|${danger}|${dim ? 1 : 0}|${outpost ? poi.factionId : 0}`;
   const cached = poiIconCache.get(key);
   if (cached) return cached;
 
   const icon = L.divIcon({
     className: '',
     html: `<div style="
-      width:30px;height:30px;border-radius:50%;
+      width:${outpost ? 34 : 30}px;height:${outpost ? 34 : 30}px;border-radius:50%;
       display:flex;align-items:center;justify-content:center;
       font-size:15px;line-height:1;
-      background:${cfg.color};
-      border:2px solid ${ring};
-      box-shadow:0 0 6px rgba(0,0,0,.6);
+      background:${factionColor ?? cfg.color};
+      border:${outpost ? 3 : 2}px solid ${outpost ? '#f0ead8' : ring};
+      box-shadow:${outpost ? `0 0 0 2px ${factionColor}, 0 0 8px rgba(0,0,0,.7)` : '0 0 6px rgba(0,0,0,.6)'};
       opacity:${dim ? 0.4 : 1};
       filter:${dim ? 'grayscale(1)' : 'none'};
-    ">${iconMarkup(cfg.icon, { size: 15, color: '#08080a' })}</div>`,
-    iconSize: [30, 30],
-    iconAnchor: [15, 15],
+    ">${glyph}</div>`,
+    iconSize: outpost ? [34, 34] : [30, 30],
+    iconAnchor: outpost ? [17, 17] : [15, 15],
   });
   poiIconCache.set(key, icon);
   return icon;

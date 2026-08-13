@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import type { MapPoint } from './GameMap';
 
 /** How wide the bubble wants to be, and how much breathing room it keeps from
@@ -9,6 +9,22 @@ const WIDTH = 268;
 const MARGIN = 12;
 /** Vertical gap between the marker and the tip of the tail. */
 const GAP = 14;
+
+/** Reads the CSS chrome inset used on the tab shell (< lg). */
+function readBottomChrome(): number {
+  if (typeof window === 'undefined') return 0;
+  if (window.matchMedia('(min-width: 1024px)').matches) return 0;
+  const raw = getComputedStyle(document.documentElement)
+    .getPropertyValue('--mobile-chrome-bottom')
+    .trim();
+  if (!raw) return 96;
+  const probe = document.createElement('div');
+  probe.style.cssText = `position:absolute;visibility:hidden;height:${raw}`;
+  document.body.appendChild(probe);
+  const px = probe.getBoundingClientRect().height;
+  probe.remove();
+  return px || 96;
+}
 
 /**
  * The target card, floated over the map and pointing at the thing it describes.
@@ -32,19 +48,31 @@ export function MapBubble({
   onClose?: () => void;
   children: ReactNode;
 }) {
+  const [bottomChrome, setBottomChrome] = useState(0);
+
+  useEffect(() => {
+    const update = () => setBottomChrome(readBottomChrome());
+    update();
+    const mq = window.matchMedia('(min-width: 1024px)');
+    mq.addEventListener('change', update);
+    window.addEventListener('resize', update);
+    return () => {
+      mq.removeEventListener('change', update);
+      window.removeEventListener('resize', update);
+    };
+  }, []);
+
   const width = Math.min(WIDTH, point.width - MARGIN * 2);
   const half = width / 2;
   // Clamped so a marker near the edge doesn't push the card off the map.
   const left = Math.max(MARGIN + half, Math.min(point.width - MARGIN - half, point.x));
 
-  // Above the marker by default — that's where a speech bubble belongs and it
-  // leaves the marker itself visible. Near the top of the map there's no room,
-  // so it hangs below instead.
-  const above = point.y > point.height * 0.42;
-  const maxHeight = Math.max(
-    140,
-    (above ? point.y - GAP : point.height - point.y - GAP) - MARGIN,
-  );
+  const spaceAbove = point.y - GAP - MARGIN;
+  const spaceBelow = point.height - point.y - GAP - MARGIN - bottomChrome;
+  // Prefer above (speech-bubble default). Flip below only when above is tight
+  // and below still has usable room after mobile chrome.
+  const above = spaceAbove >= 160 || spaceAbove >= spaceBelow || spaceBelow < 120;
+  const maxHeight = Math.max(140, above ? spaceAbove : Math.max(spaceBelow, 120));
 
   const tailY = above ? point.y - GAP : point.y + GAP;
 

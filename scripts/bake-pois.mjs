@@ -24,28 +24,31 @@ import { gzipSync } from 'node:zlib';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { classifyOsm, POI_CONFIG } from '../src/game/poi.ts';
+import { inSingapore } from '../src/game/singapore.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT_FILE = resolve(HERE, '../public/pois.json');
 
-// Matches SG_BOUNDS in src/game/singapore.ts, padded so POIs just past the edge
-// still appear for a spawn placed near the boundary.
+// Matches SG_BOUNDS in src/game/singapore.ts, padded so edge queries don't
+// clip. Johor spill is stripped after fetch with inSingapore() — a bbox alone
+// cannot separate Pasir Gudang from Sembawang.
 const BOUNDS = { minLat: 1.19, maxLat: 1.49, minLng: 103.59, maxLng: 104.06 };
 const BBOX = `(${BOUNDS.minLat},${BOUNDS.minLng},${BOUNDS.maxLat},${BOUNDS.maxLng})`;
 
 // Pass 4's `around` set-query is the most expensive thing here — island-wide it
 // took 81s on a good day and 504'd on a bad one. Splitting it into a grid keeps
-// each query cheap, and with `optional` a single bad chunk costs only its own
-// POIs' outlines.
+// each query cheap; failed chunks are retried before we give up on their
+// outlines.
 const PASS4_GRID = 3; // 3x3 = 9 chunks
+const PASS4_CHUNK_RETRIES = 2;
 
 const ENDPOINTS = [
   'https://overpass-api.de/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
 ];
 
-const DELAY_MS = 5000; // between queries — the free API allows 2 slots per IP
-const MAX_RETRIES = 4;
+const DELAY_MS = 6000; // between queries — the free API allows 2 slots per IP
+const MAX_RETRIES = 5;
 const COORD_DP = 5; // ~1m precision; more is wasted bytes
 // Douglas-Peucker tolerance in metres. OSM building rings carry many nearly
 // collinear nodes; ~1.5m drops those without touching corners.
@@ -67,10 +70,22 @@ const RESIDENTIAL_GRID_DEG = 0.0018; // ~200m
 //           the kept ones by way id to get their real footprint.
 //   Pass 4: shop nodes sit INSIDE a building — pull buildings near them and
 //           match by point-in-polygon.
-// Smaller batches cost the server less and 504 far less often. 250 answers in
-// ~3s; 500 was tipping dense batches into repeated gateway timeouts.
-const ID_BATCH_SIZE = 250;
+// Smaller batches cost the server less and 504 far less often. 100 is slower
+// wall-clock but finishes; 250 was tipping dense batches into repeated gateway
+// timeouts on the public mirrors.
+const ID_BATCH_SIZE = 100;
 const AROUND_RADIUS_M = 15; // how far from a node to look for its building
+
+// Small shop / amenity nodes must not inherit a mall or campus shell. If the
+// only containing polygon is bigger than this, leave them as badges.
+const SMALL_OUTLINE_CATS = new Set([
+  'convenience',
+  'pharmacy',
+  'clinic',
+  'hardware',
+  'fuel',
+]);
+const MAX_SMALL_OUTLINE_M2 = 8_000;
 
 const QUERIES = [
   {
@@ -113,7 +128,8 @@ const NAME_BY_CATEGORY = {
   supermarket: 'Supermarket',
   convenience: 'Convenience Store',
   pharmacy: 'Pharmacy',
-  hospital: 'Clinic',
+  hospital: 'Hospital',
+  clinic: 'Clinic',
   hardware: 'Hardware Store',
   fuel: 'Petrol Station',
   police: 'Police Post',
@@ -193,6 +209,22 @@ function simplifyRing(ring) {
   return simplified.map(([lat, lng]) => [round(lat), round(lng)]);
 }
 
+/**
+ * Prefer a way's own geometry; for multipolygon relations, take the longest
+ * outer member ring (campus / hospital shells are often relations).
+ */
+function extractOsmRing(el) {
+  if (el.geometry && el.geometry.length >= 4) return el.geometry;
+  if (el.type !== 'relation' || !el.members) return null;
+  let best = null;
+  for (const m of el.members) {
+    if (m.role && m.role !== 'outer') continue;
+    if (!m.geometry || m.geometry.length < 4) continue;
+    if (!best || m.geometry.length > best.length) best = m.geometry;
+  }
+  return best;
+}
+
 // Mirrors parseElements() in src/game/overpass.ts.
 function parseElements(elements) {
   const out = [];
@@ -205,7 +237,7 @@ function parseElements(elements) {
     let lng = el.lon ?? el.center?.lon;
     let outline;
 
-    const ring = el.geometry;
+    const ring = extractOsmRing(el);
     if (ring && ring.length >= 4) {
       const c = ringCentroid(ring);
       lat = c.lat;
@@ -215,10 +247,12 @@ function parseElements(elements) {
     if (lat == null || lng == null) continue;
 
     let name = tags.name || tags['name:en'];
+    if (name && name.trim().length < 3) name = undefined;
     if (!name && category === 'residential') {
       const blk = tags['addr:housenumber'] || tags['addr:block_number'] || tags.ref;
       name = blk ? `Blk ${blk} Void Deck` : 'HDB Void Deck';
     }
+    if (!name && category === 'foodcourt' && tags.amenity === 'marketplace') name = 'Market';
     if (!name) name = NAME_BY_CATEGORY[category];
 
     const poi = { osmId: `${el.type}/${el.id}`, name, category, lat: round(lat), lng: round(lng) };
@@ -288,12 +322,37 @@ function ringAreaM2(ring) {
   return Math.abs(area) / 2;
 }
 
+/** If the pin fell outside its footprint (rounding / bad node), snap to centroid. */
+function snapPinIntoOutline(poi) {
+  if (!poi.outline || poi.outline.length < 3) return;
+  if (pointInRing(poi.lat, poi.lng, poi.outline)) return;
+  let lat = 0;
+  let lng = 0;
+  for (const [a, b] of poi.outline) {
+    lat += a;
+    lng += b;
+  }
+  poi.lat = round(lat / poi.outline.length);
+  poi.lng = round(lng / poi.outline.length);
+}
+
+/**
+ * Rank a containing building for a point POI. Lower is better:
+ * tagged amenity/shop match → building:part → plain building, then smaller area.
+ */
+function buildingRank(cand, poiCategory) {
+  const tagCat = cand.tags ? classifyOsm(cand.tags) : null;
+  const tagMatch = tagCat === poiCategory ? 0 : 1;
+  const partBias = cand.isPart ? 0 : 1;
+  return tagMatch * 1e12 + partBias * 1e11 + cand.area;
+}
+
 /**
  * Run one Overpass query.
  *
  * `q.optional` marks a query whose failure should NOT abort the bake — the
  * footprint passes are enrichment, so a dead batch costs those POIs their
- * outline and nothing more. Only the two base passes are fatal, since without
+ * outline and nothing more. Only the base passes are fatal, since without
  * them there is no file worth writing.
  */
 async function runQuery(q) {
@@ -333,6 +392,52 @@ async function runQuery(q) {
   }
 }
 
+function pass4ChunkQuery(box, label) {
+  return {
+    label,
+    // Ways + multipolygon relations + building:part (mall units).
+    body: `[out:json][timeout:600];
+(
+  node["shop"~"^(supermarket|convenience|kiosk|chemist|hardware|doityourself|trade)$"]${box};
+  node["amenity"~"^(pharmacy|hospital|clinic|doctors|fuel|police|food_court|marketplace|community_centre|hawker_centre)$"]${box};
+  node["station"~"^(subway|light_rail)$"]${box};
+  node["railway"="station"]${box};
+)->.p;
+(
+  way["building"](around.p:${AROUND_RADIUS_M});
+  relation["building"](around.p:${AROUND_RADIUS_M});
+  way["building:part"](around.p:${AROUND_RADIUS_M});
+);
+out geom tags;`,
+    optional: true,
+  };
+}
+
+function ingestBuildingElements(elements, grid, GRID, seenBuildings) {
+  let added = 0;
+  for (const el of elements) {
+    const ringGeom = extractOsmRing(el);
+    if (!ringGeom || ringGeom.length < 4) continue;
+    const uid = `${el.type}/${el.id}`;
+    if (seenBuildings.has(uid)) continue;
+    seenBuildings.add(uid);
+    const ring = ringGeom.map((g) => [g.lat, g.lon]);
+    const c = ringCentroid(ringGeom);
+    const key = `${Math.floor(c.lat / GRID)},${Math.floor(c.lng / GRID)}`;
+    if (!grid.has(key)) grid.set(key, []);
+    grid.get(key).push({
+      id: uid,
+      ring,
+      geometry: ringGeom,
+      area: ringAreaM2(ring),
+      tags: el.tags ?? {},
+      isPart: Boolean(el.tags && Object.prototype.hasOwnProperty.call(el.tags, 'building:part')),
+    });
+    added++;
+  }
+  return added;
+}
+
 async function main() {
   console.log('Baking Singapore POIs...');
   const byId = new Map();
@@ -348,9 +453,15 @@ async function main() {
     process.exit(1);
   }
 
-  const { kept, dropped } = thinDenseCategories([...byId.values()]);
+  const { kept: thinned, dropped } = thinDenseCategories([...byId.values()]);
 
-  // --- Pass 3: real footprints for the void decks we kept -------------------
+  // Drop Johor / open-water spill from the padded bbox.
+  const beforeSg = thinned.length;
+  const kept = thinned.filter((p) => inSingapore(p.lat, p.lng));
+  const johorDropped = beforeSg - kept.length;
+  console.log(`\nSingapore outline filter: dropped ${johorDropped} outside SG_OUTLINE`);
+
+  // --- Pass 3: real footprints for the void decks / industrial we kept --------
   // They're building ways; we only asked for centroids. Re-fetch by id.
   const needGeom = kept.filter((p) => !p.outline && p.osmId.startsWith('way/'));
   if (needGeom.length) {
@@ -367,12 +478,12 @@ async function main() {
         optional: true,
       });
       for (const el of elements ?? []) {
-        if (!el.geometry || el.geometry.length < 4) continue;
+        const ring = extractOsmRing(el);
+        if (!ring || ring.length < 4) continue;
         const poi = byOsmId.get(`way/${el.id}`);
         if (!poi) continue;
-        poi.outline = simplifyRing(el.geometry);
-        // Use the footprint centroid now that we have the real shape.
-        const c = ringCentroid(el.geometry);
+        poi.outline = simplifyRing(ring);
+        const c = ringCentroid(ring);
         poi.lat = round(c.lat);
         poi.lng = round(c.lng);
         filled++;
@@ -383,79 +494,77 @@ async function main() {
   }
 
   // --- Pass 4: buildings containing point-node POIs -------------------------
-  // A shop mapped as a node sits inside a building way. Pull buildings near
-  // those nodes and match by containment.
   const nodePois = kept.filter((p) => !p.outline && p.osmId.startsWith('node/'));
   if (nodePois.length) {
     console.log(`\nMatching ${nodePois.length} point POIs to their buildings...`);
-    // Index candidate buildings into a coarse grid so matching isn't O(n*m).
     const GRID = 0.002; // ~220m
     const grid = new Map();
     const seenBuildings = new Set();
-    let chunksFailed = 0;
 
     const latStep = (BOUNDS.maxLat - BOUNDS.minLat) / PASS4_GRID;
     const lngStep = (BOUNDS.maxLng - BOUNDS.minLng) / PASS4_GRID;
 
+    const chunks = [];
     for (let a = 0; a < PASS4_GRID; a++) {
       for (let b = 0; b < PASS4_GRID; b++) {
         const s = BOUNDS.minLat + a * latStep;
         const w = BOUNDS.minLng + b * lngStep;
-        // Pad the chunk so a building straddling the seam is still found for a
-        // node just inside the neighbouring chunk.
         const pad = 0.001;
         const box = `(${s - pad},${w - pad},${s + latStep + pad},${w + lngStep + pad})`;
         const n = a * PASS4_GRID + b + 1;
-
-        const elements = await runQuery({
+        chunks.push({
+          n,
+          box,
           label: `buildings chunk ${n}/${PASS4_GRID * PASS4_GRID}`,
-          body: `[out:json][timeout:600];
-(
-  node["shop"~"^(supermarket|convenience|kiosk|chemist|hardware|doityourself|trade)$"]${box};
-  node["amenity"~"^(pharmacy|hospital|clinic|doctors|fuel|police|food_court|marketplace|community_centre|hawker_centre)$"]${box};
-  node["station"~"^(subway|light_rail)$"]${box};
-  node["railway"="station"]${box};
-)->.p;
-way["building"](around.p:${AROUND_RADIUS_M});
-out geom tags;`,
-          optional: true,
         });
+      }
+    }
 
+    let pending = [...chunks];
+    let chunksFailed = 0;
+    for (let round = 0; round <= PASS4_CHUNK_RETRIES && pending.length; round++) {
+      if (round > 0) {
+        console.log(`  retrying ${pending.length} failed chunk(s) (attempt ${round + 1})...`);
+        await sleep(DELAY_MS);
+      }
+      const next = [];
+      for (const chunk of pending) {
+        const elements = await runQuery(pass4ChunkQuery(chunk.box, chunk.label));
         if (elements === null) {
-          chunksFailed++;
-          continue;
-        }
-        for (const el of elements) {
-          if (!el.geometry || el.geometry.length < 4) continue;
-          if (seenBuildings.has(el.id)) continue; // chunks overlap at the seams
-          seenBuildings.add(el.id);
-          const ring = el.geometry.map((g) => [g.lat, g.lon]);
-          const c = ringCentroid(el.geometry);
-          const key = `${Math.floor(c.lat / GRID)},${Math.floor(c.lng / GRID)}`;
-          if (!grid.has(key)) grid.set(key, []);
-          grid.get(key).push({ id: el.id, ring, geometry: el.geometry, area: ringAreaM2(ring) });
+          next.push(chunk);
+        } else {
+          ingestBuildingElements(elements, grid, GRID, seenBuildings);
         }
         await sleep(DELAY_MS);
       }
+      pending = next;
     }
+    chunksFailed = pending.length;
     console.log(
       `  ${seenBuildings.size} candidate buildings` +
-        (chunksFailed ? ` (${chunksFailed} chunk(s) failed)` : ''),
+        (chunksFailed ? ` (${chunksFailed} chunk(s) still failed after retries)` : ''),
     );
 
     let matched = 0;
+    let rejectedOversized = 0;
     for (const poi of nodePois) {
       const gLat = Math.floor(poi.lat / GRID);
       const gLng = Math.floor(poi.lng / GRID);
       let best = null;
-      // Check the POI's cell and its neighbours — a building can straddle cells.
+      let bestRank = Infinity;
       for (let dLat = -1; dLat <= 1; dLat++) {
         for (let dLng = -1; dLng <= 1; dLng++) {
           for (const cand of grid.get(`${gLat + dLat},${gLng + dLng}`) ?? []) {
             if (!pointInRing(poi.lat, poi.lng, cand.ring)) continue;
-            // Smallest containing building wins: a unit inside a mall should
-            // get the unit, not the whole mall.
-            if (!best || cand.area < best.area) best = cand;
+            if (SMALL_OUTLINE_CATS.has(poi.category) && cand.area > MAX_SMALL_OUTLINE_M2) {
+              rejectedOversized++;
+              continue;
+            }
+            const rank = buildingRank(cand, poi.category);
+            if (rank < bestRank) {
+              bestRank = rank;
+              best = cand;
+            }
           }
         }
       }
@@ -480,15 +589,23 @@ out geom tags;`,
         byBuilding.set(poi._building.id, poi);
       }
     }
-    for (const poi of byBuilding.values()) poi.outline = simplifyRing(poi._building.geometry);
+    for (const poi of byBuilding.values()) {
+      poi.outline = simplifyRing(poi._building.geometry);
+      snapPinIntoOutline(poi);
+    }
     for (const poi of nodePois) delete poi._building;
 
     const shared = matched - byBuilding.size;
     console.log(
       `  matched ${matched} of ${nodePois.length}; ${byBuilding.size} buildings drawn ` +
-        `(${shared} co-tenants left as badges)`,
+        `(${shared} co-tenants left as badges` +
+        (rejectedOversized ? `; skipped ${rejectedOversized} oversized shells for small shops` : '') +
+        `)`,
     );
   }
+
+  // Snap any remaining outlined pins that drifted outside their ring.
+  for (const p of kept) snapPinIntoOutline(p);
 
   // Sort north-to-south so the file compresses better (nearby coords cluster).
   kept.sort((a, b) => a.lat - b.lat || a.lng - b.lng);

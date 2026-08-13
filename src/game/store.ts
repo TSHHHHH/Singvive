@@ -4,6 +4,7 @@ import type {
   Character,
   CombatState,
   Equipment,
+  EquipSlot,
   FactionId,
   GameLogEntry,
   GamePhase,
@@ -50,20 +51,27 @@ import {
   canPlace,
   canEquip,
   canTearForRags,
+  coerceEquipment,
   conditionOf,
   degrade,
   emptyEquipment,
+  equipEncounterChanceMod,
+  equipSpeedBonus,
+  equipTravelSpeedFactor,
   findSlot,
   footprint,
   isBroken,
   isEncumbered,
+  limbArmorForZone,
   OWN_CLOTHES_TEARS,
   TEAR_CONDITION_COST,
   TEAR_HOURS,
   TEAR_RAGS_YIELD,
   repair as repairInstance,
   setBackpackWidthBonus,
+  slotForZone,
   spoil,
+  statusResistForZone,
   tierLabel,
   tierOf,
   totalLootValue,
@@ -79,13 +87,14 @@ import {
   REPAIR_TOOL,
 } from './crafting';
 import {
+  applyPartDamage,
   applyWound,
   armCombatPenalty,
   checkDeath,
   clampMeter,
   computeScore,
+  computeEvacBonus,
   DEATH_TEXT,
-  effectiveMaxHp,
   HOURS_PER_DAY,
   initialBodyParts,
   initialMeters,
@@ -96,6 +105,11 @@ import {
   bleedEncounterMod,
   tickInjuries,
   tickMeters,
+  migrateBodyParts,
+  rollHitZone,
+  migrateMeters,
+  tickSystemicDamage,
+  totalHp,
   treatInjuries,
   type DeathCause,
 } from './survival';
@@ -136,6 +150,7 @@ import {
   mrtTollEvent,
   rollCheck,
   STANDING_TRUSTED,
+  rollFactionGateEvent,
   rollPreScavengeEvent,
   type DoorwayMark,
   type EventEffect,
@@ -153,8 +168,15 @@ import {
 import { POI_CONFIG } from './poi';
 import {
   FACTION_CONFIG,
+  applyFactionServices,
+  factionOffersAid,
+  factionSharesIntel,
   factionShelters,
   factionTrades,
+  hasFactionClearance,
+  isOutpostSite,
+  locationServices,
+  migrateOutposts,
   pickOutposts,
   standingLabel,
   STANDING_KNOWN,
@@ -211,22 +233,33 @@ import {
 } from './ghostSurvivor';
 import {
   EVAC_SCORE_BONUS,
-  FIRST_EVAC_WINDOW_HOURS,
-  NEXT_EVAC_WINDOW_HOURS,
   HORDE_MAX,
   HORDE_PER_DAY,
-  hasEvacKit,
+  hasEvacReadiness,
   hordeIntensity,
   EVAC_ISLAND_RADIUS,
   pickDistantEvacPoi,
   pickEvacZone,
   rollEvacCooldown,
   pickNextEvacZone,
+  evacWindowHours,
 } from './goal';
 
 const SCAVENGE_RADIUS = 1500;
 const DANGER_DEPLETE = 0.7;
 const REGEN_PER_DAY = { small: 0.6, medium: 1.2, large: 2.4 };
+
+/**
+ * ~1 km cells for on-demand world expansion. Smaller than SCAVENGE_RADIUS so
+ * neighbouring expands overlap; walking ~1 km into fresh ground pulls a new
+ * 1.5 km neighbourhood from the bake without redoing the same centre twice.
+ */
+const EXPAND_CELL_DEG = 0.009;
+
+/** Stable grid key for `expandedCells` / RNG fork tags. */
+function expandCellKey(lat: number, lng: number): string {
+  return `${Math.round(lat / EXPAND_CELL_DEG)},${Math.round(lng / EXPAND_CELL_DEG)}`;
+}
 
 
 /** Re-exported so existing call sites keep importing it from the store. */
@@ -296,6 +329,12 @@ interface State {
   worldError: string | null;
   usedFallback: boolean;
   travelAnim: TravelAnim | null;
+  /**
+   * Which ~1 km bake cells have already been materialised into `locations`.
+   * Stops trek/travel from re-running buildLocations on ground you've already
+   * pulled in; persisted so a reload doesn't redo the same work.
+   */
+  expandedCells: string[];
 
   // extraction goal + doom clock
   hordeLevel: number; // 0..HORDE_MAX; rises each day
@@ -413,13 +452,17 @@ interface State {
   tunnelTreat: () => void;
   tunnelAcceptOffer: () => void;
   tunnelDeclineOffer: () => void;
-  /** Step up to a faction outpost's counter. No-op unless they'll deal. */
+  /** Step up to a faction counter. No-op unless the site offers trade. */
   openTrader: (locationId: string) => void;
   closeTrader: () => void;
   /** Take one of the swaps chalked up on the board. */
   acceptTrade: (offerId: string) => void;
-  /** Sleep behind an outpost's wire — safe, and it costs nothing but time. */
+  /** Sleep behind faction wire — safe, and it costs nothing but time. */
   outpostRest: () => void;
+  /** Field aid at a site that offers it (Trusted+). Once per day. */
+  factionAid: () => void;
+  /** Intel / rumor at a site that offers it (Known+). Once per day. */
+  factionIntel: () => void;
   resolveEvent: (choiceId: string) => void;
   callEvac: () => void;
   rest: () => void;
@@ -458,13 +501,10 @@ interface State {
   /** Pick a playback rate from COMBAT_SPEEDS. */
   combatSetSpeedIndex: (i: number) => void;
   combatFlee: () => void;
-  combatUseItem: (uid: string) => void;
   combatContinue: () => void;
   /** Commit a stance once — the fight then resolves itself. */
   combatSetStance: (stance: StanceId) => void;
   combatBreakOff: () => void;
-  /** Assign (or clear) a quick-belt slot. */
-  combatSetBeltSlot: (slot: number, uid: string | null) => void;
 
   // --- HDB vertical dungeon ---
   hdbEnter: () => void;
@@ -557,20 +597,27 @@ export const useGame = create<State>((set, get) => {
    * "Brand New" to "Old & Torn" over thirty rounds is the sort of thing a
    * player should be told about before it fails on them.
    */
+  /**
+   * Wear gear down after a swing or a connecting hit.
+   *
+   * Weapon wear always hits mainHand. Armor wear prefers the piece covering
+   * the hit zone; other wearables take a light scrape so the rest of the kit
+   * still ages in a long fight.
+   */
   const applyWear = (
     equipment: Equipment,
     weaponWear: number,
     armorWear: number,
+    wearSlot: EquipSlot | null = null,
   ): { equipment: Equipment; notes: string[] } => {
     if (weaponWear <= 0 && armorWear <= 0) return { equipment, notes: [] };
     const next: Equipment = { ...equipment };
     const notes: string[] = [];
-    for (const slot of Object.keys(next) as (keyof Equipment)[]) {
+    const wearOne = (slot: EquipSlot, amount: number) => {
       const inst = next[slot];
-      if (!inst) continue;
-      const amount = slot === 'mainHand' ? weaponWear : armorWear;
+      if (!inst || amount <= 0) return;
       const worn = degrade(inst, amount);
-      if (worn === inst) continue;
+      if (worn === inst) return;
       next[slot] = worn;
       const name = itemDef(inst.defId).name;
       if (isBroken(worn) && !isBroken(inst)) {
@@ -578,9 +625,36 @@ export const useGame = create<State>((set, get) => {
       } else if (tierOf(worn) !== tierOf(inst)) {
         notes.push(`Your ${name} is ${tierLabel(tierOf(worn)).toLowerCase()}.`);
       }
+    };
+
+    if (weaponWear > 0) wearOne('mainHand', weaponWear);
+
+    if (armorWear > 0) {
+      if (wearSlot && wearSlot !== 'mainHand') {
+        wearOne(wearSlot, armorWear);
+        // Light secondary wear on other armour pieces (not weapons / feet focus).
+        for (const slot of ['head', 'body', 'hands', 'legs', 'offHand'] as EquipSlot[]) {
+          if (slot === wearSlot) continue;
+          wearOne(slot, armorWear * 0.15);
+        }
+      } else {
+        for (const slot of ['head', 'body', 'hands', 'legs', 'offHand'] as EquipSlot[]) {
+          wearOne(slot, armorWear);
+        }
+      }
     }
     return { equipment: next, notes };
   };
+
+  /** Combined mobility factor: injuries × footwear × traits. */
+  const moveFactor = (s: {
+    bodyParts: BodyParts;
+    equipment: Equipment;
+    character: Character | null;
+  }) =>
+    legTravelFactor(s.bodyParts) *
+    equipTravelSpeedFactor(s.equipment) *
+    (1 + sumTraitMod(s.character?.traitIds ?? [], 'travelSpeedMod'));
 
   // Set by an en-route roll in travel(); consumed on arrival to spring a road
   // ambush before the site can be searched.
@@ -610,6 +684,7 @@ export const useGame = create<State>((set, get) => {
       log: s.log,
       usedFallback: s.usedFallback,
       exploredArea: s.exploredArea,
+      expandedCells: s.expandedCells,
       hordeLevel: s.hordeLevel,
       evacZoneId: s.evacZoneId,
       evacDeadline: s.evacDeadline,
@@ -682,7 +757,8 @@ export const useGame = create<State>((set, get) => {
   // Successful extraction — the one and only victory ending.
   const winRun = () => {
     const s = get();
-    const score = computeScore(s.day, s.kills, totalLootValue(s.items)) + EVAC_SCORE_BONUS;
+    const loot = Math.round(totalLootValue(s.items) * (1 + lootValueMod()));
+    const score = computeScore(s.day, s.kills, loot) + computeEvacBonus(s.day, EVAC_SCORE_BONUS);
     const highScores = addHighScore({
       name: s.character?.name ?? 'Survivor',
       days: s.day,
@@ -735,12 +811,13 @@ export const useGame = create<State>((set, get) => {
       s.currentPos.lng,
       s.evacZoneId,
     );
-    const deadline = totalGameHour(s.day, s.hour) + NEXT_EVAC_WINDOW_HOURS;
+    const windowH = evacWindowHours(false, s.day);
+    const deadline = totalGameHour(s.day, s.hour) + windowH;
     set({ evacZoneId: nextId, evacDeadline: deadline, evacCooldownUntil: null });
     const loc = nextId ? s.locations[nextId] : null;
     pushLog(
       loc
-        ? `The channel wakes up: "New evac staging at ${loc.name}. ${NEXT_EVAC_WINDOW_HOURS} hours. Move."`
+        ? `The channel wakes up: "New evac staging at ${loc.name}. ${windowH} hours. Bring weighted gear — fuel, meds, ammo count most. Move."`
         : 'The channel wakes up, but there is nowhere left to stage a lift.',
       loc ? 'good' : 'bad',
     );
@@ -755,24 +832,18 @@ export const useGame = create<State>((set, get) => {
 
     // Injuries slowly recover. Minor bleeds clot on their own and let the body
     // keep knitting; only a major stops recovery dead.
-    const {
-      parts: bodyParts,
-      bleedDrain,
-      blocksRegen,
-    } = tickInjuries(
+    const { parts: bodyParts } = tickInjuries(
       s.bodyParts,
       hours,
       hasTraitFlag(s.character?.traitIds ?? [], 'bleedingSelfStopDisabled'),
+      s.meters.hunger,
     );
-    const effMax = effectiveMaxHp(s.maxHp, bodyParts);
-    // The sky taxes the body: a heat wave drains water and stamina faster for
-    // every hour that passes, travelling or not.
+    const partsAfterSystemic = tickSystemicDamage(bodyParts, s.meters, hours);
     const skyNow = weatherKindFor(s.seed, s.day);
-    let meters = tickMeters(s.meters, effMax, hours, bleedDrain, {
+    let meters = tickMeters(s.meters, hours, {
       sleeping,
       thirstMult: weatherThirstMult(skyNow),
       energyMult: weatherEnergyMult(skyNow),
-      bleedBlocksRegen: blocksRegen,
     });
     if (restedEnergy != null) meters = { ...meters, energy: restedEnergy };
 
@@ -804,7 +875,7 @@ export const useGame = create<State>((set, get) => {
     const items = spoil(s.items, hours);
 
     // Time in a block is free — only the noise you make raises its heat.
-    set({ hour, day, meters, bodyParts, locations, hordeLevel, items });
+    set({ hour, day, meters, bodyParts: partsAfterSystemic, locations, hordeLevel, items });
 
     // warn once, on the way down, so the HP bleed isn't a silent surprise
     if (s.meters.thirst >= STARVING_THRESHOLD && meters.thirst < STARVING_THRESHOLD) {
@@ -814,7 +885,7 @@ export const useGame = create<State>((set, get) => {
       pushLog('Hunger cramps set in. Your body is eating itself.', 'bad');
     }
 
-    const cause = checkDeath(meters, bodyParts);
+    const cause = checkDeath(meters, partsAfterSystemic);
     if (cause) {
       endRun(cause);
       return true;
@@ -1010,28 +1081,6 @@ export const useGame = create<State>((set, get) => {
     persist();
   };
 
-  /** Auto-slot the three most useful carried consumables into the quick belt. */
-  const initialQuickBelt = (): (string | null)[] => {
-    const PRIORITY = ['heal', 'cure', 'water', 'food', 'energy'];
-    const carried = get()
-      .items.filter((i) => i.container === 'backpack')
-      .filter((i) => PRIORITY.includes(itemDef(i.defId).effect.kind))
-      .sort(
-        (a, b) =>
-          PRIORITY.indexOf(itemDef(a.defId).effect.kind) -
-          PRIORITY.indexOf(itemDef(b.defId).effect.kind),
-      );
-    const slots: (string | null)[] = [null, null, null];
-    const seen = new Set<string>();
-    let n = 0;
-    for (const inst of carried) {
-      if (n >= 3 || seen.has(inst.defId)) continue;
-      seen.add(inst.defId);
-      slots[n++] = inst.uid;
-    }
-    return slots;
-  };
-
   interface ZombieCombatOpts {
     /** Fight indoors on a specific kind of ground. */
     terrainOverride?: TerrainId;
@@ -1078,7 +1127,7 @@ export const useGame = create<State>((set, get) => {
       ],
       over: false,
       outcome: null,
-      playerHpSnapshot: s.meters.health,
+      playerHpSnapshot: totalHp(s.bodyParts),
       context: {
         locationId,
         grantOnFlee,
@@ -1089,7 +1138,6 @@ export const useGame = create<State>((set, get) => {
       },
       selectedStance: 'guarded',
       terrain: opts.terrainOverride ? TERRAIN[opts.terrainOverride] : terrainForCategory(loc.category),
-      quickBeltItems: initialQuickBelt(),
       awaitingStance: true,
       playerGauge: 0,
       enemyGauge: 0,
@@ -1125,11 +1173,10 @@ export const useGame = create<State>((set, get) => {
       log: [{ round: 0, tone: 'bad', text: `The ${enemy.name} draws on you!` }],
       over: false,
       outcome: null,
-      playerHpSnapshot: s.meters.health,
+      playerHpSnapshot: totalHp(s.bodyParts),
       context: { locationId, grantOnFlee, drops },
       selectedStance: 'guarded',
       terrain: terrainForCategory(loc.category),
-      quickBeltItems: initialQuickBelt(),
       awaitingStance: true,
       playerGauge: 0,
       enemyGauge: 0,
@@ -1164,11 +1211,10 @@ export const useGame = create<State>((set, get) => {
       log: [{ round: 0, tone: 'bad', text: `The ${enemy.name} comes at you!` }],
       over: false,
       outcome: null,
-      playerHpSnapshot: s.meters.health,
+      playerHpSnapshot: totalHp(s.bodyParts),
       context: { locationId, grantOnFlee: false, drops },
       selectedStance: 'guarded',
       terrain: terrainForCategory(loc.category),
-      quickBeltItems: initialQuickBelt(),
       awaitingStance: true,
       playerGauge: 0,
       enemyGauge: 0,
@@ -1180,18 +1226,51 @@ export const useGame = create<State>((set, get) => {
   };
 
   /**
-   * The doorway. This is the moment a survivor commits to going *inside* — not
-   * the moment they walk up to the building — so it is the only place a
-   * doorway event may fire. Arriving somewhere never freezes the screen.
-   *
-   * A roll is suppressed entirely when the site is spent, when another event
-   * fired too recently, or when the day's budget is used up; anything the
-   * doorway itself remembers is handled inside rollPreScavengeEvent.
+   * The doorway. On occupied ground this is the faction gate (or a silent
+   * wave-through into services). On unclaimed ground it is scavenger theatre
+   * and then a search / HDB crawl.
    */
   const enterLocation = (locationId: string) => {
     const s = get();
     const loc = s.locations[locationId];
     if (!loc) return;
+
+    // ---- faction hub: no scavenging ------------------------------------
+    if (loc.factionId) {
+      const ctx = {
+        day: s.day,
+        time: timeOfDay(s.hour),
+        weather: weatherKindFor(s.seed, s.day),
+        standing: s.factionStanding,
+      };
+      if (hasFactionClearance(loc, s.factionStanding, s.day)) {
+        pushLog(
+          `${FACTION_CONFIG[loc.factionId].shortName} let you on the grounds. No scavenging here — talk to them.`,
+          'info',
+        );
+        return;
+      }
+      // Gates are not optional: cooldown must not skip into free access.
+      const eventRng = new Rng(s.seed).fork(`fgate:${loc.id}:${s.day}:${Math.round(s.hour)}`);
+      const event = rollFactionGateEvent(eventRng, loc, ctx);
+      if (event) {
+        pushLog(event.tell, 'info');
+        const now = totalGameHour(s.day, s.hour);
+        const clock =
+          s._eventClock.day === s.day ? s._eventClock : { ...s._eventClock, day: s.day, count: 0 };
+        set({
+          pendingEvent: { locationId, event },
+          _eventRng: eventRng,
+          _eventClock: { ...clock, lastAt: now, count: clock.count + 1 },
+        });
+        return;
+      }
+      pushLog(
+        `${FACTION_CONFIG[loc.factionId].shortName} let you on the grounds. No scavenging here — talk to them.`,
+        'info',
+      );
+      return;
+    }
 
     // Nothing to guard and nothing to take — don't stage a confrontation over
     // an empty room. (HDB blocks are never "exhausted"; they run unit by unit.)
@@ -1236,6 +1315,14 @@ export const useGame = create<State>((set, get) => {
   const attemptSearch = (locationId: string) => {
     const s = get();
     const loc = s.locations[locationId];
+    // Occupied ground is an NPC hub — never scavenger rolls or HDB crawls.
+    if (loc.factionId) {
+      pushLog(
+        `${FACTION_CONFIG[loc.factionId].shortName} hold this place. You deal with them, you don't ransack the shelves.`,
+        'info',
+      );
+      return;
+    }
     // An HDB block isn't something you "search" — you go in, floor by floor.
     if (loc.category === 'residential') {
       get().hdbEnter();
@@ -1343,18 +1430,18 @@ export const useGame = create<State>((set, get) => {
 
     // The two rungs that change what you can *do* announce themselves. Every
     // other step is just a number moving.
-    const outpostId = get().outposts[id];
-    const outpost = outpostId ? get().locations[outpostId] : null;
+    const outpostIds = get().outposts[id] ?? [];
+    const firstOutpost = outpostIds.map((oid) => get().locations[oid]).find(Boolean);
     if (next === STANDING_KNOWN && (cur[id] ?? 0) < STANDING_KNOWN) {
       pushLog(
-        outpost
-          ? `${cfg.shortName} will deal with you now. Their ${cfg.outpostName.toLowerCase()} is at ${outpost.name}.`
+        firstOutpost
+          ? `${cfg.shortName} will deal with you now. Look for their ${cfg.outpostName.toLowerCase()} marks — one is at ${firstOutpost.name}.`
           : `${cfg.shortName} will deal with you now.`,
         'good',
       );
     } else if (next === STANDING_TRUSTED && (cur[id] ?? 0) < STANDING_TRUSTED) {
       pushLog(
-        `${cfg.shortName} wave you through their ground now — and there's a bed for you at the ${cfg.outpostName.toLowerCase()}.`,
+        `${cfg.shortName} wave you through their ground now — and there's a bed for you at their ${cfg.outpostName.toLowerCase()}.`,
         'good',
       );
     }
@@ -1376,11 +1463,13 @@ export const useGame = create<State>((set, get) => {
   /**
    * Pull the neighbourhood around a point into the world.
    *
-   * The world is built once around the spawn, within a 1.5 km radius — but the
-   * tunnels run off the edge of it, and surfacing into a station with nothing
-   * around it is not a place, it's a dead end. So the far end of a tunnel
-   * brings its own neighbourhood with it. Everything arrives undiscovered, so
-   * fog still makes you walk it.
+   * The opening bubble is built once around spawn (~1.5 km). Everything past
+   * that edge — walking out, trekking open ground, or surfacing from a tunnel —
+   * brings its own neighbourhood with it from the island bake. New sites arrive
+   * undiscovered, so fog still makes you walk them.
+   *
+   * Bridging is seeded at the expansion centre (not spawn), so a far chunk
+   * doesn't grow a Prim spine of waypoints all the way back to day one.
    */
   const expandWorldAround = async (lat: number, lng: number, tag: string) => {
     const s = get();
@@ -1393,7 +1482,9 @@ export const useGame = create<State>((set, get) => {
     }
     if (!raw?.length) return;
 
-    const built = buildLocations(new Rng(s.seed).fork(tag), s.spawn, raw, getMrtNetwork());
+    const built = buildLocations(new Rng(s.seed).fork(tag), s.spawn, raw, getMrtNetwork(), {
+      localOrigin: { lat, lng },
+    });
     const merged = { ...get().locations };
     let added = 0;
     for (const loc of built) {
@@ -1406,8 +1497,36 @@ export const useGame = create<State>((set, get) => {
       added += 1;
     }
     if (added > 0) {
-      set({ locations: merged });
+      const outposts = get().outposts;
+      set({
+        locations: applyFactionServices(merged, outposts, get().seed),
+      });
       persist();
+    }
+  };
+
+  /** In-flight expand keys — prevents double-fetch when trek + arrive overlap. */
+  const expandingCells = new Set<string>();
+
+  /**
+   * Materialise the bake cell under a point if we haven't yet. Fire-and-forget
+   * from travel/trek/arrive; deterministic tag so the same seed + cell always
+   * yields the same danger/faction for newly added sites.
+   */
+  const ensureWorldAround = async (lat: number, lng: number) => {
+    if (!get().spawn) return;
+    const key = expandCellKey(lat, lng);
+    if (get().expandedCells.includes(key) || expandingCells.has(key)) return;
+    expandingCells.add(key);
+    try {
+      await expandWorldAround(lat, lng, `expand:${key}`);
+      const cells = get().expandedCells;
+      if (!cells.includes(key)) {
+        set({ expandedCells: [...cells, key] });
+        persist();
+      }
+    } finally {
+      expandingCells.delete(key);
     }
   };
 
@@ -1422,7 +1541,7 @@ export const useGame = create<State>((set, get) => {
     const station = getMrtNetwork()?.byId.get(stationId);
     if (!station) return null;
 
-    await expandWorldAround(station.lat, station.lng, `expand:${stationId}`);
+    await ensureWorldAround(station.lat, station.lng);
     const found = Object.values(get().locations).find((l) => l.mrtStationId === stationId);
     if (found) return found;
 
@@ -1450,7 +1569,7 @@ export const useGame = create<State>((set, get) => {
       s.character!.attributes,
       s.meters.energy,
       s.hour,
-      legTravelFactor(s.bodyParts),
+      moveFactor(s),
     );
     const run = generateTunnelRun(new Rng(s.seed).fork(`tunnel:${from.id}:${to.id}:${seq}`), {
       from,
@@ -1727,6 +1846,10 @@ export const useGame = create<State>((set, get) => {
     );
     discoverLocation(loc.id);
 
+    // Pull in the bake cell under this site so the frontier past it fills with
+    // undiscovered "?" as you push toward distant objectives.
+    void ensureWorldAround(loc.lat, loc.lng);
+
     const s2 = get();
     const loc2 = s2.locations[loc.id];
 
@@ -1743,11 +1866,10 @@ export const useGame = create<State>((set, get) => {
         log: [{ round: 0, tone: 'bad', text: `${zombie.name} blocks the way!` }],
         over: false,
         outcome: null,
-        playerHpSnapshot: s2.meters.health,
+        playerHpSnapshot: totalHp(s2.bodyParts),
         context: { locationId: loc.id, grantOnFlee: false, roadAmbush: true },
         selectedStance: 'guarded',
         terrain: terrainForCategory(loc2.category, true),
-        quickBeltItems: initialQuickBelt(),
         awaitingStance: true,
         playerGauge: 0,
         enemyGauge: 0,
@@ -1788,6 +1910,10 @@ export const useGame = create<State>((set, get) => {
     }));
     pushLog(flavor('trekArrive'), 'info');
 
+    // Open ground is how you leave the starting bubble — materialise whatever
+    // the bake has under this landing so the walk toward evac stays a city.
+    void ensureWorldAround(lat, lng);
+
     const pending = trekAmbush;
     trekAmbush = null;
     if (!pending) {
@@ -1814,13 +1940,12 @@ export const useGame = create<State>((set, get) => {
       log: [{ round: 0, tone: 'bad', text: `${enemy.name} closes in across the open!` }],
       over: false,
       outcome: null,
-      playerHpSnapshot: s.meters.health,
+      playerHpSnapshot: totalHp(s.bodyParts),
       // No site to search and none to flee into — win or run, you're still
       // standing in the same empty street afterwards.
       context: { locationId: null, grantOnFlee: false, wilds: true, drops },
       selectedStance: 'guarded',
       terrain: TERRAIN.open_ground,
-      quickBeltItems: initialQuickBelt(),
       awaitingStance: true,
       playerGauge: 0,
       enemyGauge: 0,
@@ -1843,14 +1968,15 @@ export const useGame = create<State>((set, get) => {
     worldError: null,
     usedFallback: false,
     travelAnim: null,
+    expandedCells: [],
     hordeLevel: 0,
     evacZoneId: null,
     evacDeadline: null,
     evacCooldownUntil: null,
     escaped: false,
     maxHp: 100,
-    meters: initialMeters(100),
-    bodyParts: initialBodyParts(),
+    meters: initialMeters(),
+    bodyParts: initialBodyParts(100),
     day: 1,
     hour: START_HOUR,
     items: [],
@@ -1890,8 +2016,8 @@ export const useGame = create<State>((set, get) => {
       set({
         character: c,
         maxHp,
-        meters: initialMeters(maxHp),
-        bodyParts: initialBodyParts(),
+        meters: initialMeters(),
+        bodyParts: initialBodyParts(maxHp),
         phase: 'spawn',
         day: 1,
         hour: START_HOUR,
@@ -1952,6 +2078,9 @@ export const useGame = create<State>((set, get) => {
         locations: {},
         currentPositionId: null,
         currentPos: { lat: spawn.lat, lng: spawn.lng },
+        // Opening bubble is already materialised — mark its cell so the first
+        // trek doesn't rebuild the same 1.5 km from the bake.
+        expandedCells: [expandCellKey(spawn.lat, spawn.lng)],
       });
       pushLog(
         flavor(usedFallback ? 'wakeOffline' : 'wake', { name: spawn.name }),
@@ -1973,7 +2102,8 @@ export const useGame = create<State>((set, get) => {
       // from `list` can never produce anything more than 1.5 km away — that is
       // what made the first evac a stroll. Sweep the island-wide baked set
       // instead and drop the chosen site straight into the world as a distant,
-      // known objective; the ground around it fills in when the player nears it.
+      // known objective; trek/travel calls ensureWorldAround so the ground
+      // around it (and the corridor toward it) fills in as the player nears.
       let evacZoneId: string | null = null;
       try {
         const island = await bakedPoisNear(spawn.lat, spawn.lng, EVAC_ISLAND_RADIUS);
@@ -1998,17 +2128,18 @@ export const useGame = create<State>((set, get) => {
       }
       if (!evacZoneId) evacZoneId = pickEvacZone(list);
 
-      const evacDeadline = totalGameHour(1, START_HOUR) + FIRST_EVAC_WINDOW_HOURS;
+      const firstWindow = evacWindowHours(true, 1);
+      const evacDeadline = totalGameHour(1, START_HOUR) + firstWindow;
       set({ hordeLevel: 0, evacZoneId, evacDeadline, evacCooldownUntil: null, escaped: false });
       const evacLoc = evacZoneId ? locations[evacZoneId] : null;
       if (evacLoc) {
         pushLog(
-          `Radio static, then a voice: "Evac staging at ${evacLoc.name}. Bring fuel, a medkit, ammo — and hurry. We hold the window ${FIRST_EVAC_WINDOW_HOURS} hours, no more."`,
+          `Radio static, then a voice: "Evac staging at ${evacLoc.name}. Pack fuel, meds, and ammo — the heavier that kit, the better. We hold the window ${firstWindow} hours, no more. Stay longer and the score climbs — but so does the city."`,
           'good',
         );
       }
 
-      // starting gear: a knife equipped, plus water & snacks in the pack
+      // starting gear: knife, leather jacket, sneakers; water & snacks in the pack
       let items: ItemInstance[] = [];
       items = addToGrid(items, 'backpack', 'water_bottle', 1).items;
       items = addToGrid(items, 'backpack', 'snacks', 2).items;
@@ -2023,18 +2154,34 @@ export const useGame = create<State>((set, get) => {
         stack: 1,
         condition: 100,
       };
+      equipment.body = {
+        uid: `equip_jacket`,
+        defId: 'leather_jacket',
+        container: 'equip:body',
+        x: 0,
+        y: 0,
+        rotated: false,
+        stack: 1,
+        condition: 100,
+      };
+      equipment.feet = {
+        uid: `equip_sneakers`,
+        defId: 'sneakers',
+        container: 'equip:feet',
+        x: 0,
+        y: 0,
+        rotated: false,
+        stack: 1,
+        condition: 100,
+      };
 
-      // Promote one site per faction to an outpost. Their colours are already
-      // up over the door, so unlike ordinary territory these are revealed the
-      // moment you lay eyes on them — an outpost you can't recognise until you
-      // walk into it isn't a destination, it's another anonymous building.
+      // Promote up to four sites per faction to outposts, seed services, and
+      // reveal outpost pins so they read as destinations from day one.
       const outposts = pickOutposts(Object.values(locations));
-      for (const id of Object.values(outposts)) {
-        if (id && locations[id]) locations[id] = { ...locations[id], isFactionRevealed: true };
-      }
+      const withServices = applyFactionServices(locations, outposts, get().seed);
 
       set({
-        locations,
+        locations: withServices,
         items,
         equipment,
         outposts,
@@ -2043,14 +2190,16 @@ export const useGame = create<State>((set, get) => {
         // neighbour.
         factionStanding: startingStanding(get().character!.traitIds),
       });
-      for (const [fid, id] of Object.entries(outposts)) {
-        const loc = locations[id];
+      for (const [fid, ids] of Object.entries(outposts)) {
         const cfg = FACTION_CONFIG[fid as Exclude<FactionId, null>];
-        if (!loc) continue;
-        pushLog(
-          `Word is ${cfg.shortName} run a ${cfg.outpostName.toLowerCase()} out of ${loc.name}, ${loc.distanceFromSpawn} m off. They trade, if they know you.`,
-          'info',
-        );
+        for (const id of ids ?? []) {
+          const loc = withServices[id];
+          if (!loc) continue;
+          pushLog(
+            `Word is ${cfg.shortName} run a ${cfg.outpostName.toLowerCase()} out of ${loc.name}, ${loc.distanceFromSpawn} m off — full services if they know you.`,
+            'info',
+          );
+        }
       }
       persist();
       return 'ok';
@@ -2075,7 +2224,7 @@ export const useGame = create<State>((set, get) => {
       const range = travelableRange(
         s.character!.attributes,
         s.meters.energy,
-        legTravelFactor(s.bodyParts),
+        moveFactor(s),
         weather,
         encumbered,
       );
@@ -2095,13 +2244,17 @@ export const useGame = create<State>((set, get) => {
         s.hour,
         weather,
         encumbered,
-        legTravelFactor(s.bodyParts),
+        moveFactor(s),
       );
 
       // Advance the in-game clock for the trip up front (search time is spent
       // later, on searching). Bail if the survivor dies en route.
       if (advanceTime(est.travelMin / 60)) return;
       bumpStats({ distanceM: dist });
+
+      // Start pulling the destination cell while the glide runs so "?" beyond
+      // the current bubble can appear by the time you land.
+      void ensureWorldAround(loc.lat, loc.lng);
 
       // --- en-route risk: the open road is no longer free ---
       // Longer treks, darkness, foul weather, a swelling horde and a noisy
@@ -2115,6 +2268,7 @@ export const useGame = create<State>((set, get) => {
         else if (band === 'dusk') p += 0.06;
         p += hordeIntensity(now.hordeLevel) * 0.15;
         p += sumTraitMod(now.character!.traitIds, 'encounterChanceMod');
+        p += equipEncounterChanceMod(now.equipment);
         p += weatherEncounterMod(weather);
         // An open wound carries further than footsteps do.
         p += bleedEncounterMod(now.bodyParts);
@@ -2204,7 +2358,7 @@ export const useGame = create<State>((set, get) => {
       const range = travelableRange(
         s.character!.attributes,
         s.meters.energy,
-        legTravelFactor(s.bodyParts),
+        moveFactor(s),
         weather,
         encumbered,
       );
@@ -2224,10 +2378,13 @@ export const useGame = create<State>((set, get) => {
         s.hour,
         weather,
         encumbered,
-        legTravelFactor(s.bodyParts),
+        moveFactor(s),
       );
       if (advanceTime(est.travelMin / 60)) return;
       bumpStats({ distanceM: dist });
+
+      // Prefetch the landing cell — open ground is how you leave the bubble.
+      void ensureWorldAround(lat, lng);
 
       const now = get();
       const risk = trekRisk(now.seed, from, { lat, lng }, {
@@ -2236,6 +2393,7 @@ export const useGame = create<State>((set, get) => {
         weatherEncounterMod: weatherEncounterMod(weather),
         traitEncounterMod:
           sumTraitMod(now.character!.traitIds, 'encounterChanceMod') +
+          equipEncounterChanceMod(now.equipment) +
           bleedEncounterMod(now.bodyParts),
         safe: now.spawn ?? undefined,
       });
@@ -2375,13 +2533,7 @@ export const useGame = create<State>((set, get) => {
       if (advanceTime(1)) return;
       const g = get();
       const bodyParts = treatInjuries(g.bodyParts, 30, 'all');
-      set({
-        bodyParts,
-        meters: {
-          ...g.meters,
-          health: Math.min(effectiveMaxHp(g.maxHp, bodyParts), g.meters.health + 20),
-        },
-      });
+      set({ bodyParts });
       shiftStanding('sta', 1);
       pushLog('Someone with steady hands and boiled water puts you back together.', 'good');
       persist();
@@ -2410,9 +2562,9 @@ export const useGame = create<State>((set, get) => {
       set({ tunnelOffer: null });
     },
 
-    // ---- faction outposts ------------------------------------------------
-    // The counter and the beds. Both hang off standing alone: nothing here
-    // checks a quest flag or an unlock, so the only way in is the ladder.
+    // ---- faction hubs ----------------------------------------------------
+    // Trade / rest / aid / intel. Gated by standing and by what the site was
+    // seeded to offer — outposts have all four; ordinary territory fewer.
 
     openTrader: (locationId) => {
       const s = get();
@@ -2420,7 +2572,14 @@ export const useGame = create<State>((set, get) => {
       const loc = s.locations[locationId];
       if (!loc?.factionId) return;
       if (s.currentPositionId !== locationId) return;
-      if (s.outposts[loc.factionId] !== locationId) return;
+      if (!locationServices(loc, s.outposts).includes('trade')) {
+        pushLog('Nobody is running a counter here.', 'info');
+        return;
+      }
+      if (!hasFactionClearance(loc, s.factionStanding, s.day)) {
+        pushLog('You are not on their grounds yet. Approach the gate first.', 'bad');
+        return;
+      }
 
       const fid = loc.factionId;
       if (!factionTrades(fid, s.factionStanding)) {
@@ -2431,12 +2590,13 @@ export const useGame = create<State>((set, get) => {
         return;
       }
       const rep = s.factionStanding[fid];
+      const outpost = isOutpostSite(s.outposts, fid, locationId);
       set({
         trader: {
           factionId: fid,
           locationId,
           greeting: traderGreeting(fid, rep),
-          offers: traderBoard(s.seed, fid, s.day, s.factionStanding),
+          offers: traderBoard(s.seed, fid, s.day, s.factionStanding, { outpost }),
           taken: s.traderTaken[`${fid}:${s.day}`] ?? [],
         },
       });
@@ -2487,7 +2647,7 @@ export const useGame = create<State>((set, get) => {
       // deal straight with — but slowly, or the ladder would be a treadmill.
       if (taken.length % 3 === 0) shiftStanding(t.factionId, 1);
       pushLog(
-        `Traded ${offer.wantCount}× ${want.name} for ${offer.giveCount}× ${give.name} at the ${FACTION_CONFIG[t.factionId].outpostName}.`,
+        `Traded ${offer.wantCount}× ${want.name} for ${offer.giveCount}× ${give.name} with ${FACTION_CONFIG[t.factionId].shortName}.`,
         'good',
       );
       persist();
@@ -2498,7 +2658,15 @@ export const useGame = create<State>((set, get) => {
       if (s.combat || s.pendingEvent || s.travelAnim) return;
       const posId = s.currentPositionId;
       const loc = posId ? s.locations[posId] : null;
-      if (!loc?.factionId || s.outposts[loc.factionId] !== posId) return;
+      if (!loc?.factionId) return;
+      if (!locationServices(loc, s.outposts).includes('rest')) {
+        pushLog('No beds on offer here.', 'info');
+        return;
+      }
+      if (!hasFactionClearance(loc, s.factionStanding, s.day)) {
+        pushLog('You are not on their grounds yet. Approach the gate first.', 'bad');
+        return;
+      }
       if (!factionShelters(loc.factionId, s.factionStanding)) {
         pushLog(
           `${FACTION_CONFIG[loc.factionId].shortName} will trade with you, but a bed behind the wire is for people they trust.`,
@@ -2509,7 +2677,7 @@ export const useGame = create<State>((set, get) => {
 
       const hoursToMorning =
         ((START_HOUR - s.hour + HOURS_PER_DAY) % HOURS_PER_DAY) || HOURS_PER_DAY;
-      // The whole value of an outpost bed: no encounter roll. Somebody else is
+      // The whole value of a faction bed: no encounter roll. Somebody else is
       // on the wire tonight.
       if (advanceTime(hoursToMorning, sleepRestore(s.meters.energy, hoursToMorning, s.meters), true))
         return;
@@ -2517,9 +2685,129 @@ export const useGame = create<State>((set, get) => {
       set({ trader: null });
       discoverLocation(loc.id);
       pushLog(
-        `You sleep inside the wire at ${loc.name}. Someone else takes the watch, and nothing comes.`,
+        `You sleep behind ${FACTION_CONFIG[loc.factionId].shortName} wire. Morning comes without a roll.`,
         'good',
       );
+      persist();
+    },
+
+    factionAid: () => {
+      const s = get();
+      if (s.combat || s.pendingEvent || s.travelAnim) return;
+      const posId = s.currentPositionId;
+      const loc = posId ? s.locations[posId] : null;
+      if (!loc?.factionId) return;
+      if (!locationServices(loc, s.outposts).includes('aid')) {
+        pushLog('No medic on this site.', 'info');
+        return;
+      }
+      if (!hasFactionClearance(loc, s.factionStanding, s.day)) {
+        pushLog('You are not on their grounds yet. Approach the gate first.', 'bad');
+        return;
+      }
+      if (!factionOffersAid(loc.factionId, s.factionStanding)) {
+        pushLog(
+          `${FACTION_CONFIG[loc.factionId].shortName} keep their medics for people they trust.`,
+          'bad',
+        );
+        return;
+      }
+      if ((loc.aidUsedDay ?? -1) >= s.day) {
+        pushLog('They already patched you up today. Come back tomorrow.', 'info');
+        return;
+      }
+      if (advanceTime(0.5)) return;
+      const treated = treatInjuries(get().bodyParts, 8, 'one', false);
+      set({
+        bodyParts: treated,
+        locations: {
+          ...get().locations,
+          [loc.id]: { ...get().locations[loc.id], aidUsedDay: s.day },
+        },
+      });
+      pushLog(
+        `${FACTION_CONFIG[loc.factionId].shortName} field aid: pressure, a wrap, and a shove back on your feet.`,
+        'good',
+      );
+      persist();
+    },
+
+    factionIntel: () => {
+      const s = get();
+      if (s.combat || s.pendingEvent || s.travelAnim) return;
+      const posId = s.currentPositionId;
+      const loc = posId ? s.locations[posId] : null;
+      if (!loc?.factionId) return;
+      if (!locationServices(loc, s.outposts).includes('intel')) {
+        pushLog('Nobody here is sharing maps.', 'info');
+        return;
+      }
+      if (!hasFactionClearance(loc, s.factionStanding, s.day)) {
+        pushLog('You are not on their grounds yet. Approach the gate first.', 'bad');
+        return;
+      }
+      if (!factionSharesIntel(loc.factionId, s.factionStanding)) {
+        pushLog(
+          `${FACTION_CONFIG[loc.factionId].shortName} don't brief strangers.`,
+          'bad',
+        );
+        return;
+      }
+      if ((loc.intelUsedDay ?? -1) >= s.day) {
+        pushLog('They already told you what they know today.', 'info');
+        return;
+      }
+      if (advanceTime(0.25)) return;
+
+      const rng = new Rng(s.seed).fork(`intel:${loc.id}:${s.day}`);
+      const locs = { ...get().locations };
+      locs[loc.id] = { ...locs[loc.id], intelUsedDay: s.day };
+
+      // Prefer revealing a nearby undiscovered POI; else tip an outpost.
+      const nearby = Object.values(locs)
+        .filter((l) => l.id !== loc.id && !l.discovered)
+        .map((l) => ({
+          l,
+          d: haversine(loc.lat, loc.lng, l.lat, l.lng),
+        }))
+        .filter((x) => x.d <= 1200)
+        .sort((a, b) => a.d - b.d);
+
+      if (nearby.length) {
+        const pick = nearby[rng.int(0, Math.min(4, nearby.length) - 1)].l;
+        const revealed: LocationState = {
+          ...pick,
+          discovered: true,
+          isFactionRevealed: pick.factionId ? true : pick.isFactionRevealed,
+        };
+        revealed.lastSeen = snapshot(revealed);
+        locs[pick.id] = revealed;
+        set({ locations: locs });
+        const tip = pick.isFactionOutpost
+          ? `${FACTION_CONFIG[pick.factionId!].shortName} ${FACTION_CONFIG[pick.factionId!].outpostName}`
+          : POI_CONFIG[pick.category].label;
+        pushLog(
+          `${FACTION_CONFIG[loc.factionId].shortName} tip you off: ${pick.name} (${tip}) about ${Math.round(haversine(loc.lat, loc.lng, pick.lat, pick.lng))} m out. Marked on your map.`,
+          'good',
+        );
+      } else {
+        const ops = (s.outposts[loc.factionId] ?? [])
+          .map((id) => locs[id])
+          .filter(Boolean);
+        const other = ops.find((o) => o.id !== loc.id) ?? ops[0];
+        set({ locations: locs });
+        if (other) {
+          pushLog(
+            `${FACTION_CONFIG[loc.factionId].shortName}: "Our ${FACTION_CONFIG[loc.factionId].outpostName.toLowerCase()} at ${other.name} has the full counter — ${other.distanceFromSpawn} m from where you woke up."`,
+            'good',
+          );
+        } else {
+          pushLog(
+            `${FACTION_CONFIG[loc.factionId].shortName} shrug. Nothing fresh on the board today.`,
+            'info',
+          );
+        }
+      }
       persist();
     },
 
@@ -2530,8 +2818,11 @@ export const useGame = create<State>((set, get) => {
         pushLog('You need to be at the evac zone to signal for a lift.', 'bad');
         return;
       }
-      if (!hasEvacKit(s.items)) {
-        pushLog('The evac crew won\'t launch without the full kit: fuel, a medkit, and ammo.', 'bad');
+      if (!hasEvacReadiness(s.items, s.day)) {
+        pushLog(
+          'The crew wants a heavier pack — fuel, meds, and ammo count most toward the lift.',
+          'bad',
+        );
         return;
       }
       pushLog('You pop the flare. Rotors thunder over the rooftops — they came.', 'good');
@@ -2551,25 +2842,56 @@ export const useGame = create<State>((set, get) => {
       const grantAccess = () => {
         // Paying at the turnstile buys the stairs down, not a ride — the walk
         // itself is still ahead of you.
-        if (pe.tunnelTo) beginTunnel(pe.tunnelTo);
-        else attemptSearch(pe.locationId);
+        if (pe.tunnelTo) {
+          beginTunnel(pe.tunnelTo);
+          return;
+        }
+        const site = get().locations[pe.locationId];
+        if (site?.factionId) {
+          // Occupied ground: clearance only — never search / HDB.
+          pushLog(
+            `${FACTION_CONFIG[site.factionId].shortName} let you on the grounds. No scavenging here — talk to them.`,
+            'info',
+          );
+          persist();
+          return;
+        }
+        attemptSearch(pe.locationId);
       };
 
       const fightOut = (foe?: LonerKind) => {
         if (foe) {
           startLonerCombat(pe.locationId, foe);
-        } else if (ev.factionId && ev.factionId !== 'sta') {
+        } else if (ev.factionId) {
           startHumanCombat(pe.locationId, ev.factionId, false);
         } else {
           startHumanCombat(pe.locationId, 'syndicate_88', false);
         }
       };
 
+      const applyTrespass = () => {
+        const locs = get().locations;
+        const cur = locs[pe.locationId];
+        if (cur?.factionId && !cur.trespassStandingHit) {
+          set({
+            locations: {
+              ...locs,
+              [pe.locationId]: { ...cur, trespassStandingHit: true },
+            },
+          });
+          shiftStanding(cur.factionId, -1);
+          pushLog('Trespassing here costs you with them — once.', 'bad');
+        } else if (cur?.factionId) {
+          pushLog('They already marked you for trespass here. Blades come out anyway.', 'bad');
+        }
+        fightOut();
+      };
+
       // --- effect interpreter --------------------------------------------
       // What a choice does is data on the choice, not a branch in here. Costs
       // and rewards land first; the one terminal effect (access / deny /
-      // fight / zombies) is applied last, because it may hand control to
-      // combat or to the search and never come back.
+      // fight / zombies / trespass) is applied last, because it may hand
+      // control to combat or to the search and never come back.
       const mark = (m: DoorwayMark) => {
         const locs = get().locations;
         const cur = locs[pe.locationId];
@@ -2647,6 +2969,9 @@ export const useGame = create<State>((set, get) => {
             return true;
           case 'fight':
             fightOut(e.foe);
+            return true;
+          case 'trespass':
+            applyTrespass();
             return true;
           case 'zombies':
             pushLog(e.line, 'bad');
@@ -2734,6 +3059,7 @@ export const useGame = create<State>((set, get) => {
           weatherEncounterMod: 0,
           traitEncounterMod:
             sumTraitMod(g.character!.traitIds, 'encounterChanceMod') +
+            equipEncounterChanceMod(g.equipment) +
             bleedEncounterMod(g.bodyParts),
           safe: g.spawn ?? undefined,
         });
@@ -2748,11 +3074,10 @@ export const useGame = create<State>((set, get) => {
               log: [{ round: 0, tone: 'bad', text: `You wake to ${enemy.name} standing over you.` }],
               over: false,
               outcome: null,
-              playerHpSnapshot: g.meters.health,
+              playerHpSnapshot: totalHp(g.bodyParts),
               context: { locationId: null, grantOnFlee: false, wilds: true },
               selectedStance: 'guarded',
               terrain: TERRAIN.open_ground,
-              quickBeltItems: initialQuickBelt(),
               awaitingStance: true,
               playerGauge: 0,
               enemyGauge: 0,
@@ -2770,6 +3095,11 @@ export const useGame = create<State>((set, get) => {
 
     useItem: (uid) => {
       const s = get();
+      // Fights are committed — no mid-swing bandages from the pack.
+      if (s.combat && !s.combat.over) {
+        pushLog('No time to dig through the pack mid-fight.', 'bad');
+        return;
+      }
       const inst = s.items.find((i) => i.uid === uid);
       if (!inst) return;
       const def = itemDef(inst.defId);
@@ -2793,13 +3123,13 @@ export const useGame = create<State>((set, get) => {
           pushLog(`Drank ${def.name}. Thirst quenched.`, 'good');
           break;
         case 'heal': {
+          const healAmt = (def.effect.partHeal ?? 0) + (def.effect.health ?? 0) + healBonus;
           newBodyParts = treatInjuries(
             s.bodyParts,
-            def.effect.partHeal ?? 0,
+            healAmt,
             def.effect.stopsBleeding,
+            def.id === 'splint',
           );
-          const effMax = effectiveMaxHp(s.maxHp, newBodyParts);
-          m.health = Math.min(effMax, m.health + def.effect.health + healBonus);
           // A dirty dressing buys you the bleed and charges you the infection.
           // The Polyclinic Nurse's training takes most of that sting out.
           const risk = def.effect.infectionRisk ?? 0;
@@ -3174,6 +3504,13 @@ export const useGame = create<State>((set, get) => {
       const s = get();
       const loc = s.currentPositionId ? s.locations[s.currentPositionId] : null;
       if (!loc || s.combat || s.pendingEvent || s.hdb) return;
+      if (loc.factionId) {
+        pushLog(
+          `${FACTION_CONFIG[loc.factionId].shortName} hold this block. You deal with them at the void deck — you don't crawl the stairs.`,
+          'info',
+        );
+        return;
+      }
       // A block you've already worked keeps its state — cleared units stay cleared.
       // Blocks saved before the stairwells existed have no topology to restore,
       // so they get rebuilt rather than loaded into a UI that would crash on them.
@@ -3231,12 +3568,11 @@ export const useGame = create<State>((set, get) => {
 
       if (outcome.hazard && rng.chance(0.35)) {
         const dmg = rng.int(4, 12);
-        const meters = { ...get().meters, health: Math.max(0, get().meters.health - dmg) };
-        // A hazard going off is its own kind of noise.
+        const bodyParts = applyWound(get().bodyParts, dmg, rng);
         const hot = get().hdb;
-        set({ meters, ...(hot ? { hdb: addHeat(hot, HAZARD_HEAT, level) } : {}) });
+        set({ bodyParts, ...(hot ? { hdb: addHeat(hot, HAZARD_HEAT, level) } : {}) });
         pushLog(`${outcome.hazard} — it costs you ${dmg} health.`, 'bad');
-        const cause = checkDeath(meters, get().bodyParts);
+        const cause = checkDeath(get().meters, bodyParts);
         if (cause) {
           endRun(cause);
           return;
@@ -3417,8 +3753,7 @@ export const useGame = create<State>((set, get) => {
         if (advanceTime(1)) return;
         const g = get();
         const bodyParts = treatInjuries(g.bodyParts, 35, 'all');
-        const meters = { ...g.meters, health: Math.min(effectiveMaxHp(g.maxHp, bodyParts), g.meters.health + 25) };
-        set({ bodyParts, meters });
+        set({ bodyParts });
         pushLog('The field doctor patches you up for a tin of food.', 'good');
       } else {
         if (!hasBackpackItem('jewellery')) {
@@ -3481,15 +3816,6 @@ export const useGame = create<State>((set, get) => {
       pushLog('You leave them to their corner.', 'info');
     },
 
-    combatSetBeltSlot: (slot, uid) => {
-      const s = get();
-      if (!s.combat || slot < 0 || slot > 2) return;
-      const quickBeltItems = s.combat.quickBeltItems.map((v, i) =>
-        i === slot ? uid : v === uid ? null : v,
-      );
-      set({ combat: { ...s.combat, quickBeltItems } });
-    },
-
     combatTogglePause: () => {
       const s = get();
       if (!s.combat || s.combat.over) return;
@@ -3526,6 +3852,7 @@ export const useGame = create<State>((set, get) => {
         stance,
         s.meters.energy,
         legTravelFactor(s.bodyParts),
+        equipSpeedBonus(s.equipment),
       );
       const playerGauge = c.playerGauge + pSpeed * dtSeconds;
       const enemyGauge = c.enemyGauge + c.zombie.speed * dtSeconds;
@@ -3620,24 +3947,31 @@ export const useGame = create<State>((set, get) => {
         stance,
         c.terrain,
         s.meters.energy,
+        s.character!.attributes,
+        s.character!.traitIds,
+        s.equipment,
+        s.bodyParts,
       );
       const bodyParts =
-        res.playerDamage > 0
-          ? applyWound(
+        res.playerDamage > 0 && !res.dodged && res.hitZone
+          ? applyPartDamage(
               s.bodyParts,
+              res.hitZone,
               res.playerDamage,
               s._combatRng.fork(`wound:${round}`),
-              res.limbDamageMult,
+              {
+                critical: res.critical,
+                limbDamageMult: res.limbDamageMult,
+                headCritReduction: res.headCritReduction,
+                statusResist: res.statusResist,
+              },
             )
           : s.bodyParts;
-      const effMax = effectiveMaxHp(s.maxHp, bodyParts);
-      const newHealth = Math.min(effMax, Math.max(0, s.meters.health - res.playerDamage));
       const meters: Meters = {
         ...s.meters,
-        health: newHealth,
         infection: clampMeter(s.meters.infection + res.infectionGain),
       };
-      const { equipment, notes } = applyWear(s.equipment, 0, res.armorWear);
+      const { equipment, notes } = applyWear(s.equipment, 0, res.armorWear, res.wearSlot);
       const dead = checkDeath(meters, bodyParts) !== null;
       const log = [...c.log, ...res.log, ...notes.map((text) => ({ round, tone: 'bad' as const, text }))];
       const next = {
@@ -3678,24 +4012,35 @@ export const useGame = create<State>((set, get) => {
         s.combat.terrain,
         s.meters.energy,
       );
+      let fleeWearSlot: EquipSlot | null = null;
       const bodyParts =
         res.playerDamage > 0
-          ? applyWound(
-              s.bodyParts,
-              res.playerDamage,
-              s._combatRng.fork(`flee:${round}`),
-              res.limbDamageMult,
-            )
+          ? (() => {
+              const zone = rollHitZone(s._combatRng!.fork(`flee-zone:${round}`));
+              fleeWearSlot = slotForZone(zone) ?? 'body';
+              const soak = limbArmorForZone(s.equipment, zone);
+              const dmg = Math.max(1, res.playerDamage - soak);
+              return applyPartDamage(
+                s.bodyParts,
+                zone,
+                dmg,
+                s._combatRng!.fork(`flee:${round}`),
+                {
+                  critical: zone === 'head',
+                  limbDamageMult: res.limbDamageMult,
+                  statusResist: statusResistForZone(s.equipment, zone),
+                },
+              );
+            })()
           : s.bodyParts;
-      const effMax = effectiveMaxHp(s.maxHp, bodyParts);
-      const newHealth = Math.min(effMax, Math.max(0, s.meters.health - res.playerDamage));
-      const meters: Meters = { ...s.meters, health: newHealth };
+      const meters: Meters = { ...s.meters };
       // Running costs the weapon nothing, but a parting blow still lands on
-      // your armour.
+      // the piece covering wherever it caught you.
       const { equipment, notes } = applyWear(
         s.equipment,
         0,
         res.playerDamage > 0 ? 0.5 + res.playerDamage * 0.15 : 0,
+        fleeWearSlot,
       );
       const log = [
         ...s.combat.log,
@@ -3711,28 +4056,6 @@ export const useGame = create<State>((set, get) => {
       } else {
         set({ meters, bodyParts, equipment, combat: { ...s.combat, round, log } });
       }
-    },
-
-    combatUseItem: (uid) => {
-      const before = get().items.find((i) => i.uid === uid);
-      const name = before ? itemDef(before.defId).name : 'something';
-      get().useItem(uid);
-      const s = get();
-      if (!s.combat || s.combat.over) return;
-      // A spent stack vacates its belt slot.
-      const gone = !s.items.some((i) => i.uid === uid);
-      set({
-        combat: {
-          ...s.combat,
-          quickBeltItems: gone
-            ? s.combat.quickBeltItems.map((v) => (v === uid ? null : v))
-            : s.combat.quickBeltItems,
-          log: [
-            ...s.combat.log,
-            { round: s.combat.round, tone: 'player', text: `You use ${name} mid-fight.` },
-          ],
-        },
-      });
     },
 
     combatContinue: () => {
@@ -3834,6 +4157,7 @@ export const useGame = create<State>((set, get) => {
         locations: {},
         currentPositionId: null,
         travelAnim: null,
+        expandedCells: [],
         hordeLevel: 0,
         evacZoneId: null,
         evacDeadline: null,
@@ -3874,9 +4198,9 @@ export const useGame = create<State>((set, get) => {
         locations: run.locations,
         currentPositionId: run.currentPositionId,
         currentPos: run.currentPos,
-        equipment: run.equipment,
-        bodyParts: run.bodyParts ?? initialBodyParts(),
-        meters: run.meters,
+        equipment: coerceEquipment(run.equipment),
+        bodyParts: migrateBodyParts(run.bodyParts, run.maxHp),
+        meters: migrateMeters(run.meters as Meters & { health?: number }),
         maxHp: run.maxHp,
         day: run.day,
         hour: run.hour,
@@ -3887,10 +4211,11 @@ export const useGame = create<State>((set, get) => {
         stats: normalizeRunStats(run.stats),
         usedFallback: run.usedFallback,
         exploredArea: run.exploredArea ?? [],
+        expandedCells: run.expandedCells ?? [],
         hordeLevel: run.hordeLevel ?? 0,
         evacZoneId: run.evacZoneId ?? pickEvacZone(Object.values(run.locations)),
         evacDeadline:
-          run.evacDeadline ?? totalGameHour(run.day, run.hour) + FIRST_EVAC_WINDOW_HOURS,
+          run.evacDeadline ?? totalGameHour(run.day, run.hour) + evacWindowHours(true, run.day),
         evacCooldownUntil: run.evacCooldownUntil ?? null,
         escaped: false,
         travelAnim: null,
@@ -3915,16 +4240,33 @@ export const useGame = create<State>((set, get) => {
         // A save written before outposts existed has none. Rather than leave
         // that run permanently without markets, re-derive them from the world
         // it already has — the pick is deterministic, so a save written after
-        // outposts existed lands on exactly the same sites.
-        outposts: run.outposts ?? pickOutposts(Object.values(run.locations ?? {})),
+        // outposts existed lands on exactly the same sites (legacy single-id
+        // shape is coerced to an array).
+        outposts: (() => {
+          const migrated = migrateOutposts(run.outposts);
+          return Object.keys(migrated).length
+            ? migrated
+            : pickOutposts(Object.values(run.locations ?? {}));
+        })(),
         trader: null,
         traderTaken: run.traderTaken ?? {},
         // The timeline is the run's memory — a resumed run keeps every day of it.
         log: run.log ?? [],
       });
+      // Stamp services / outpost flags on any location that still lacks them.
+      {
+        const s = get();
+        set({
+          locations: applyFactionServices(s.locations, s.outposts, s.seed),
+        });
+      }
       // Keep new entries above anything restored, or React keys collide.
       logCounter = (run.log ?? []).reduce((m, e) => Math.max(m, e.id), logCounter);
       pushLog('You pick up where you left off.', 'info');
+
+      // Old saves lack expandedCells; a resume far from spawn may also sit in a
+      // thin bubble. Pull the cell underfoot so the neighbourhood fills in.
+      void ensureWorldAround(run.currentPos.lat, run.currentPos.lng);
 
       // A fight is never part of a save. In the tunnel that would otherwise be
       // a free pass: reload while something has you cornered and walk off the

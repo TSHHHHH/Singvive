@@ -1,16 +1,15 @@
 import { Icon } from '../icons/Icon';
 
-interface ChecklistItem {
-  id: string;
-  name: string;
-  have: boolean;
-}
-
 interface Props {
   evacZoneName: string | null;
   evacDist: number;
   atEvac: boolean;
-  checklist: ChecklistItem[];
+  readinessCurrent: number;
+  readinessRequired: number;
+  readinessRatio: number;
+  dayMult: number;
+  projectedScore: number;
+  projectedEvacBonus: number;
   windowText: string | null;
   urgent: boolean;
   doom: number;
@@ -21,16 +20,19 @@ interface Props {
 }
 
 /**
- * The run's objectives in full: the evac contract, its kit checklist, the doom
- * clock, and room for quests to come. Rendered as the body of the side panel —
- * the same slot Inventory / Logbook / Stats use, so every "more detail" request
- * from the rail lands in the same place.
+ * The run's objectives in full: dual-path score (survive mult + extract),
+ * weighted readiness gauge, doom clock. Rendered as the body of the side panel.
  */
 export function ObjectivesPanel({
   evacZoneName,
   evacDist,
   atEvac,
-  checklist,
+  readinessCurrent,
+  readinessRequired,
+  readinessRatio,
+  dayMult,
+  projectedScore,
+  projectedEvacBonus,
   windowText,
   urgent,
   doom,
@@ -39,8 +41,38 @@ export function ObjectivesPanel({
   evacReady,
   onEvac,
 }: Props) {
+  const pct = Math.round(readinessRatio * 100);
+
   return (
     <div className="flex flex-col gap-3">
+      {/* ---- Score ladder ---- */}
+      <section className="rounded-lg border border-white/10 bg-black/30 p-3">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-sm font-bold text-concrete-50">Score ladder</span>
+          <span className="shrink-0 text-xs tabular-nums text-signal">
+            ×{dayMult.toFixed(1)} day
+          </span>
+        </div>
+        <p className="mt-1 text-xs leading-snug text-white/50">
+          Linger to climb the multiplier. Extract seals a bonus that also scales
+          with the day — best run is long survival, then a successful lift out.
+        </p>
+        <div className="mt-2 grid grid-cols-2 gap-2 text-center">
+          <div className="rounded bg-white/5 px-2 py-1.5">
+            <div className="text-lg font-black tabular-nums text-concrete-50">
+              {projectedScore}
+            </div>
+            <div className="text-2xs uppercase tracking-wide text-white/35">If you die now</div>
+          </div>
+          <div className="rounded bg-signal/10 px-2 py-1.5">
+            <div className="text-lg font-black tabular-nums text-signal">
+              +{projectedEvacBonus}
+            </div>
+            <div className="text-2xs uppercase tracking-wide text-white/35">Evac bonus</div>
+          </div>
+        </div>
+      </section>
+
       {/* ---- Extraction ---- */}
       <section className="rounded-lg border border-signal/30 bg-signal/[0.06] p-3">
         <div className="flex items-center justify-between gap-2">
@@ -53,8 +85,8 @@ export function ObjectivesPanel({
         </div>
         {evacZoneName ? (
           <p className="mt-1 text-sm text-white/70">
-            Reach <span className="font-semibold text-signal">{evacZoneName}</span> with the full
-            evac kit and signal for a lift out.
+            Reach <span className="font-semibold text-signal">{evacZoneName}</span> with enough
+            weighted gear and signal for a lift out.
           </p>
         ) : (
           <p className="mt-1 text-sm text-white/50">No active evac window.</p>
@@ -66,21 +98,30 @@ export function ObjectivesPanel({
               urgent ? 'animate-pulse text-hiss' : 'text-concrete-200'
             }`}
           >
-            ⏳ Window closes in {windowText}
+            Window closes in {windowText}
           </div>
         )}
 
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {checklist.map((r) => (
-            <span
-              key={r.id}
-              className={`rounded px-1.5 py-0.5 text-xs ${
-                r.have ? 'bg-signal/15 text-signal' : 'bg-white/5 text-white/40'
-              }`}
-            >
-              {r.have ? '✓' : '○'} {r.name}
+        <div className="mt-3">
+          <div className="flex items-center justify-between text-2xs uppercase tracking-wide text-white/40">
+            <span>Evac readiness</span>
+            <span className="tabular-nums">
+              {readinessCurrent} / {readinessRequired}
             </span>
-          ))}
+          </div>
+          <div className="mt-1 h-1.5 overflow-hidden rounded bg-black/50">
+            <div
+              className="h-full transition-all"
+              style={{
+                width: `${pct}%`,
+                background: evacReady ? '#7ec8a0' : '#e8a54b',
+              }}
+            />
+          </div>
+          <p className="mt-1.5 text-2xs text-white/35">
+            Fuel, meds, and ammo count most. Food and water count less. Burning fuel
+            to boil water lowers this gauge.
+          </p>
         </div>
 
         {atEvac && (
@@ -89,7 +130,7 @@ export function ObjectivesPanel({
             disabled={!evacReady}
             className="mt-3 w-full rounded-lg bg-signal/80 py-2 text-sm font-bold text-black transition hover:bg-signal disabled:opacity-30"
           >
-            {evacReady ? '🚁 Call for evac — escape!' : 'Evac kit incomplete'}
+            {evacReady ? 'Call for evac — escape!' : 'Not ready to extract'}
           </button>
         )}
       </section>
@@ -107,16 +148,9 @@ export function ObjectivesPanel({
           />
         </div>
         <p className="mt-1.5 text-2xs text-white/30">
-          The city is lost when the horde hits 100%. Escape before then.
+          The city is lost when the horde hits 100%. Death still posts a score —
+          extract posts more.
         </p>
-      </section>
-
-      {/* ---- Quests (future) ---- */}
-      <section>
-        <h4 className="mb-1 text-2xs uppercase tracking-widest text-white/30">Quests</h4>
-        <div className="rounded-lg border border-dashed border-white/10 p-3 text-center text-xs text-white/30">
-          No side quests yet — coming soon.
-        </div>
       </section>
     </div>
   );

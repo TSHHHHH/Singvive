@@ -1,103 +1,132 @@
-import type { ItemInstance, LocationState } from './types';
+import type { ItemEffect, ItemInstance, LocationState } from './types';
 import type { Rng } from './rng';
 import { itemDef } from './loot';
+import { conditionScale } from './inventory';
 import { haversine } from './overpass';
 import { inSingapore } from './singapore';
 
 // ---------- Extraction goal ----------
-// The run now has a spine: gather an evac kit, trek to the extraction zone, and
-// call for a lift out — before the horde overruns the city.
+// Dual-path spine: linger for a rising score multiplier, or gather weighted
+// evac readiness and call for a lift. Best board score = long survival + late
+// successful extract. No hard item IDs — fuel / meds / ammo count more.
 
-/** Items that must be in the backpack to call for evac. */
-export const EVAC_REQUIREMENTS = ['fuel_can', 'medkit', 'ammo_box'] as const;
-
-/** Score awarded on a successful extraction, on top of the usual run score. */
+/** Base extract bonus before the day multiplier. */
 export const EVAC_SCORE_BONUS = 2000;
+
+/** Day-1 weighted readiness needed to call for a lift. */
+export const EVAC_BASE_VALUE = 80;
+/** Extra weighted value required per day after day 1. */
+export const EVAC_VALUE_PER_DAY = 12;
 
 // Each evac is a limited-time window (in-game hours). Miss it and a fresh one is
 // staged elsewhere — another chance, but the horde keeps rising in the meantime.
-// The first window has to be long enough to actually cross the island *and*
-// gather the kit; 48 hours was sized for an evac 1.5 km away.
 export const FIRST_EVAC_WINDOW_HOURS = 96;
 export const NEXT_EVAC_WINDOW_HOURS = 48;
 
 /**
  * The first evac must be at least this far from spawn: the run's spine is a
  * journey across most of the island, not a walk to the next block.
- *
- * This deliberately exceeds the radius the world is built at (`SCAVENGE_RADIUS`,
- * 1.5 km), so the zone cannot be chosen from the starting neighbourhood — it is
- * pulled from the island-wide baked POI set and dropped in as a distant, known
- * objective. Picking "the farthest of what happens to exist nearby" was the old
- * behaviour, and it is why the first evac was always a short stroll.
  */
 export const MIN_FIRST_EVAC_DIST = 8000; // metres
 
 /** How wide to sweep the baked set looking for a far-off staging point. */
 export const EVAC_ISLAND_RADIUS = 30000; // metres — comfortably the whole island
 
-/**
- * A missed window doesn't hand you the next one instantly. Command needs time
- * to stage another bird, and that dead air is the run's real punishment for
- * missing: the horde keeps climbing while you have nowhere to be.
- */
 export const EVAC_COOLDOWN_MIN_HOURS = 10;
 export const EVAC_COOLDOWN_MAX_HOURS = 30;
 
-export interface EvacItemStatus {
-  id: string;
-  name: string;
-  have: boolean;
+/** How much a backpack item counts toward extraction readiness. */
+export function evacWeightMult(effect: ItemEffect): number {
+  switch (effect.kind) {
+    case 'fuel':
+      return 3;
+    case 'heal':
+    case 'cure':
+      return 2.5;
+    case 'ammo':
+      return 2.5;
+    case 'weapon':
+      return effect.ranged ? 1.6 : 1;
+    case 'energy':
+      return 0.75;
+    case 'food':
+    case 'water':
+      return 0.5;
+    case 'misc':
+      return 1;
+  }
 }
 
-/** The evac checklist with each requirement's carried/not-carried status. */
-export function evacChecklist(items: ItemInstance[]): EvacItemStatus[] {
-  return EVAC_REQUIREMENTS.map((id) => ({
-    id,
-    name: itemDef(id).name,
-    have: items.some((i) => i.container === 'backpack' && i.defId === id),
-  }));
+/** Weighted readiness of items currently in the backpack. */
+export function backpackEvacValue(items: ItemInstance[]): number {
+  let total = 0;
+  for (const inst of items) {
+    if (inst.container !== 'backpack') continue;
+    const def = itemDef(inst.defId);
+    total += def.value * conditionScale(inst) * inst.stack * evacWeightMult(def.effect);
+  }
+  return Math.round(total);
 }
 
-export function hasEvacKit(items: ItemInstance[]): boolean {
-  return evacChecklist(items).every((r) => r.have);
+/** Rising threshold — the city gets harder to leave as days climb. */
+export function requiredEvacValue(day: number): number {
+  return Math.round(EVAC_BASE_VALUE + Math.max(0, day - 1) * EVAC_VALUE_PER_DAY);
+}
+
+export function hasEvacReadiness(items: ItemInstance[], day: number): boolean {
+  return backpackEvacValue(items) >= requiredEvacValue(day);
+}
+
+/** @deprecated alias — prefer hasEvacReadiness */
+export function hasEvacKit(items: ItemInstance[], day = 1): boolean {
+  return hasEvacReadiness(items, day);
+}
+
+export interface EvacReadiness {
+  current: number;
+  required: number;
+  ready: boolean;
+  /** 0..1 fill for UI gauges. */
+  ratio: number;
+}
+
+export function evacReadiness(items: ItemInstance[], day: number): EvacReadiness {
+  const current = backpackEvacValue(items);
+  const required = requiredEvacValue(day);
+  return {
+    current,
+    required,
+    ready: current >= required,
+    ratio: required > 0 ? Math.min(1, current / required) : 1,
+  };
+}
+
+/**
+ * Window length shrinks as the city frays — first lift stays generous, later
+ * birds give you less time on station.
+ */
+export function evacWindowHours(isFirst: boolean, day: number): number {
+  const base = isFirst ? FIRST_EVAC_WINDOW_HOURS : NEXT_EVAC_WINDOW_HOURS;
+  const shrink = Math.max(0, day - 3) * 4;
+  const floor = isFirst ? 36 : 18;
+  return Math.max(floor, base - shrink);
 }
 
 /**
  * Choose the first extraction zone out of an island-wide POI set.
- *
- * Not simply "the farthest point", which would put every run's evac on the same
- * corner of the island relative to spawn and make the objective predictable.
- * Instead: everything past `MIN_FIRST_EVAC_DIST` is a candidate, and one is
- * drawn from the far half of that pool — always a long haul, never the same
- * haul twice.
- *
- * Returns null when nothing is far enough — a spawn near the edge of the baked
- * data, or no bake at all — and the caller falls back to `pickEvacZone`.
  */
 export function pickDistantEvacPoi<
   T extends { name?: string; lat: number; lng: number; category?: string },
 >(pois: T[], spawn: { lat: number; lng: number }, rng: Rng): T | null {
   const scored = pois
-    // A chopper does not stage at a drain culvert or a bus stop.
     .filter((p) => p.category !== 'waypoint')
-    // The bake carries a few stub entries whose name is a single letter. As the
-    // run's headline objective, "Reach A Station" reads as a bug.
     .filter((p) => (p.name ?? '').trim().length >= 3)
-    // The island sweep is wide enough to reach Johor. A lift out of Singapore
-    // does not stage in another country.
     .filter((p) => inSingapore(p.lat, p.lng))
     .map((p) => ({ poi: p, d: haversine(spawn.lat, spawn.lng, p.lat, p.lng) }))
     .filter((s) => s.d >= MIN_FIRST_EVAC_DIST)
     .sort((a, b) => b.d - a.d);
   if (scored.length === 0) return null;
 
-  // Tiers, best first. A station is ideal: the tunnels are the island's
-  // cross-country transit, so an evac on the network is a place the player can
-  // actually plan a route to. Schools and police posts were the designated
-  // shelters when it fell, which is why anyone would stage a lift there. Only
-  // if the map offers neither does it fall back to whatever is out there —
-  // "muster at the void deck" is a last resort, not the usual case.
   for (const tier of [['mrt'], ['school', 'police']]) {
     const pool = scored.filter((s) => s.poi.category && tier.includes(s.poi.category));
     if (pool.length > 0) return drawFromFarHalf(pool, rng);
@@ -105,26 +134,16 @@ export function pickDistantEvacPoi<
   return drawFromFarHalf(scored, rng);
 }
 
-/** Draw from the farther half of a distance-sorted pool — always a long haul,
- *  never the same haul twice. */
 function drawFromFarHalf<T>(sorted: { poi: T; d: number }[], rng: Rng): T {
   const farHalf = sorted.slice(0, Math.max(1, Math.ceil(sorted.length / 2)));
   return farHalf[rng.int(0, farHalf.length - 1)].poi;
 }
 
-/** A randomised gap before command can stage the next bird. */
 export function rollEvacCooldown(rng: Rng): number {
   return rng.int(EVAC_COOLDOWN_MIN_HOURS, EVAC_COOLDOWN_MAX_HOURS);
 }
 
-/**
- * Fallback extraction zone, used only when no island-wide candidate exists: the
- * farthest location from spawn, and never closer than MIN_FIRST_EVAC_DIST. If
- * nothing is that far, the farthest available is used anyway.
- */
 export function pickEvacZone(locations: LocationState[]): string | null {
-  // Synthetic waypoints are connective tissue, not places — a chopper doesn't
-  // stage at a drain culvert.
   const real = locations.filter((l) => l.category !== 'waypoint');
   const faraway = real.filter((l) => l.distanceFromSpawn >= MIN_FIRST_EVAC_DIST);
   const pool = faraway.length > 0 ? faraway : real;
@@ -135,10 +154,6 @@ export function pickEvacZone(locations: LocationState[]): string | null {
   return best?.id ?? null;
 }
 
-/**
- * A refreshed extraction zone after a missed window: the location farthest from
- * where the player is *now* (excluding the old zone), forcing a fresh journey.
- */
 export function pickNextEvacZone(
   locations: LocationState[],
   fromLat: number,
@@ -159,13 +174,10 @@ export function pickNextEvacZone(
 }
 
 // ---------- Doom clock (horde) ----------
-// A city-wide horde level that climbs every day, globally raising danger. Hit
-// 100 and the streets are overrun — the run ends whether you escaped or not.
 
 export const HORDE_MAX = 100;
 export const HORDE_PER_DAY = 8; // ~12–13 days before the city is lost
 
-/** 0..1 intensity, used to scale encounter danger. */
 export function hordeIntensity(hordeLevel: number): number {
   return Math.min(1, hordeLevel / HORDE_MAX);
 }

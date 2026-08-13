@@ -29,6 +29,8 @@ export interface Trait {
   // --- combat ---
   attackMod?: number;
   defenseMod?: number;
+  /** Additive dodge chance on a connecting hit, e.g. 0.03 = +3%. */
+  dodgeMod?: number;
   infectionResist?: number; // 0..1
 
   // --- loot/search ---
@@ -145,7 +147,14 @@ export type ItemEffect =
   | { kind: 'fuel' }
   | { kind: 'misc' };
 
-export type EquipSlot = 'head' | 'body' | 'mainHand' | 'offHand';
+export type EquipSlot =
+  | 'head'
+  | 'body'
+  | 'hands'
+  | 'legs'
+  | 'feet'
+  | 'mainHand'
+  | 'offHand';
 
 /**
  * How beaten-up an instance is. Derived from its `condition`, never stored —
@@ -157,8 +166,29 @@ export type ConditionTier = 'torn' | 'used' | 'worn' | 'pristine';
 export interface ItemModifiers {
   attackBonus?: number;
   defenseBonus?: number;
+  /** Additive dodge chance when equipped, e.g. 0.08 = +8%. Can be negative. */
+  dodgeBonus?: number;
+  /** Reduces head hit-zone weight (harder to headshot). 0..1 */
+  headTargetReduction?: number;
+  /** Shrinks head-crit damage multiplier. 0..1 */
+  headCritReduction?: number;
   weightCapacityBonus?: number;
   awarenessMod?: number;
+  /**
+   * Flat damage subtracted when a hit lands on the body zone this piece covers.
+   * Condition-scaled. Feet omit this — they do not soak combat hits.
+   */
+  limbArmor?: number;
+  /** 0..1 reduction to bleed/fracture chance on covered zones. Condition-scaled. */
+  statusResist?: number;
+  /** Attack-roll accuracy (gloves). Condition-scaled. */
+  accuracyBonus?: number;
+  /** Combat initiative speed (gloves / light footwear). Condition-scaled. */
+  speedBonus?: number;
+  /** Multiplicative travel pace delta, e.g. 0.1 = +10% walk speed (feet). */
+  travelSpeedBonus?: number;
+  /** Additive encounter risk while travelling (camo negative, noisy boots positive). */
+  encounterChanceMod?: number;
 }
 
 export interface ItemDef {
@@ -232,6 +262,7 @@ export type PoiCategory =
   | 'convenience'
   | 'pharmacy'
   | 'hospital'
+  | 'clinic'
   | 'hardware'
   | 'fuel'
   | 'police'
@@ -245,6 +276,9 @@ export type PoiCategory =
 
 export type FactionId = 'idtf' | 'pasir_panjang' | 'syndicate_88' | 'sta' | null;
 export type LocationSize = 'small' | 'medium' | 'large';
+
+/** NPC services available on faction-held ground (never scavenging). */
+export type FactionService = 'trade' | 'rest' | 'aid' | 'intel';
 
 /** Last-known snapshot of a discovered location (fog-of-war memory). */
 export interface LocationMemory {
@@ -277,6 +311,19 @@ export interface LocationState {
 
   factionId: FactionId;
   isFactionRevealed: boolean;
+  /**
+   * Services this occupied site offers. Outposts always have all four; ordinary
+   * territory seeds a random 1–3. Absent / empty on unclaimed ground.
+   */
+  factionServices?: FactionService[];
+  /** True when this site is one of the faction's marked outposts. */
+  isFactionOutpost?: boolean;
+  /** One-time standing penalty for trespass already applied at this doorway. */
+  trespassStandingHit?: boolean;
+  /** Day field aid was last taken here (once per day). */
+  aidUsedDay?: number;
+  /** Day intel was last taken here (once per day). */
+  intelUsedDay?: number;
   isMrtStation: boolean;
   /**
    * Canonical station id in the baked rail network (see game/mrt.ts) when this
@@ -325,20 +372,29 @@ export type BodyPartId =
 export type BleedLevel = 'none' | 'minor' | 'major';
 
 export interface BodyPart {
-  condition: number; // 0..100, 100 = healthy
+  hp: number;
+  maxHp: number;
   bleed: BleedLevel;
   /**
    * In-game hours left before a `minor` bleed clots on its own. Meaningless for
    * `none` and `major` — a major never clots, and that is the whole point of it.
    */
   bleedHours: number;
+  /** Heavy blow on an arm/leg — cleared by a splint, slows recovery until then. */
+  fractured?: boolean;
+  /** Limb hit 0 HP without proper treatment — passive heal caps at 70% max. */
+  crippled?: boolean;
+  /**
+   * Torso was already Critical (0 HP) and took another solid hit / head spill.
+   * That follow-up ends the run — emptying the body once alone does not.
+   */
+  mortalWound?: boolean;
 }
 
 export type BodyParts = Record<BodyPartId, BodyPart>;
 
 // ---------- Survival ----------
 export interface Meters {
-  health: number;
   hunger: number; // 100 = full, 0 = starving
   thirst: number; // 100 = hydrated
   energy: number; // 100 = rested
@@ -388,6 +444,8 @@ export interface StanceDef {
   defenseMod: number;
   /** Multiplier on limb damage taken. */
   limbDamageMult: number;
+  /** Additive dodge chance on a connecting hit. */
+  dodgeMod: number;
   critChanceBonus: number; // 0..1
   ignoresArmor: boolean;
   /** Extra in-game hours burned per round. */
@@ -473,8 +531,6 @@ export interface CombatState {
   /** Stance chosen before the next round resolves. */
   selectedStance: StanceId;
   terrain: TerrainModifier;
-  /** Quick-belt slots: 3 backpack item uids (null = empty slot). */
-  quickBeltItems: (string | null)[];
   /** Rounds resolve only while the player has committed a stance. */
   awaitingStance: boolean;
 

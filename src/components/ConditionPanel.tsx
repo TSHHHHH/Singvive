@@ -1,22 +1,25 @@
+import { useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useGame } from '../game/store';
 import { MeterBar } from './MeterBar';
 import { BodyDoll } from './BodyDoll';
-import { countBleeding, effectiveMaxHp, meterModifiers, totalInjuryPenalty } from '../game/survival';
+import { LimbDetailPanel } from './LimbDetailPanel';
+import { AttributeRow } from './AttributeRow';
+import { SurvivorStatsGrid } from './SurvivorStatsGrid';
+import { countBleeding, meterModifiers, totalHp, totalMaxHp } from '../game/survival';
+import type { BodyPartId } from '../game/types';
 
 /**
- * Condition at a glance: the figure on the left carries limb damage, the bars on
- * the right carry the survival meters. Nothing here is interactive beyond
- * inspecting a limb — acting on any of it happens through the inventory.
+ * Condition at a glance: body doll + all-limb overview up top, survival meters
+ * and attributes in the middle, live derived stats along the bottom.
  */
-export function ConditionPanel({ dollHeight = 132 }: { dollHeight?: number }) {
-  const { meters, maxHp, bodyParts } = useGame(
-    useShallow((s) => ({ meters: s.meters, maxHp: s.maxHp, bodyParts: s.bodyParts })),
+export function ConditionPanel({ dollHeight = 120 }: { dollHeight?: number }) {
+  const { meters, bodyParts } = useGame(
+    useShallow((s) => ({ meters: s.meters, bodyParts: s.bodyParts })),
   );
-  const effMax = effectiveMaxHp(maxHp, bodyParts);
-  const injuryPenalty = Math.round(totalInjuryPenalty(maxHp, bodyParts));
-  // Two badges, not one count: a scratch and an open artery need different
-  // reactions, and merging them into "Bleeding ×3" hides which one you have.
+  const [hovered, setHovered] = useState<BodyPartId | null>(null);
+  const hp = totalHp(bodyParts);
+  const hpMax = totalMaxHp(bodyParts);
   const minorCount = countBleeding(bodyParts, 'minor');
   const majorCount = countBleeding(bodyParts, 'major');
 
@@ -37,52 +40,63 @@ export function ConditionPanel({ dollHeight = 132 }: { dollHeight?: number }) {
           )}
         </div>
       </div>
-      <div className="flex items-center gap-3">
-        <div className="shrink-0">
-          <BodyDoll bodyParts={bodyParts} height={dollHeight} />
+
+      <div className="mb-2.5 grid grid-cols-2 gap-2">
+        <div className="flex items-center justify-center rounded border border-white/10 bg-black/20 py-1">
+          <BodyDoll
+            bodyParts={bodyParts}
+            height={dollHeight}
+            selectedPart={hovered}
+            onHover={setHovered}
+          />
         </div>
-        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-          <MeterBar label="Health" icon="meter.health" value={meters.health} max={effMax} color="#d92d2d" />
-          <MeterBar
-            label="Hunger"
-            icon="meter.hunger"
-            value={meters.hunger}
-            max={100}
-            color="#b7b3a9"
-            dynamic
-            modifiers={meterModifiers('hunger', meters)}
-          />
-          <MeterBar
-            label="Thirst"
-            icon="meter.thirst"
-            value={meters.thirst}
-            max={100}
-            color="#2bc4d9"
-            dynamic
-            modifiers={meterModifiers('thirst', meters)}
-          />
-          <MeterBar
-            label="Energy"
-            icon="meter.energy"
-            value={meters.energy}
-            max={100}
-            color="#e8e5dd"
-            dynamic
-            modifiers={meterModifiers('energy', meters)}
-          />
-          <MeterBar
-            label="Infection"
-            icon="meter.infection"
-            value={meters.infection}
-            max={100}
-            color="#2bc4d9"
-            danger
-          />
-          {injuryPenalty > 0 && (
-            <div className="text-2xs text-hiss/80">−{injuryPenalty} max HP from injuries</div>
-          )}
-        </div>
+        <LimbDetailPanel bodyParts={bodyParts} highlighted={hovered} onHover={setHovered} />
       </div>
+
+      <div className="mb-2.5 flex flex-col gap-1.5">
+        <MeterBar label="Health" icon="meter.health" value={hp} max={hpMax} color="#d92d2d" />
+        <MeterBar
+          label="Hunger"
+          icon="meter.hunger"
+          value={meters.hunger}
+          max={100}
+          color="#b7b3a9"
+          dynamic
+          modifiers={meterModifiers('hunger', meters)}
+        />
+        <MeterBar
+          label="Thirst"
+          icon="meter.thirst"
+          value={meters.thirst}
+          max={100}
+          color="#2bc4d9"
+          dynamic
+          modifiers={meterModifiers('thirst', meters)}
+        />
+        <MeterBar
+          label="Energy"
+          icon="meter.energy"
+          value={meters.energy}
+          max={100}
+          color="#e8e5dd"
+          dynamic
+          modifiers={meterModifiers('energy', meters)}
+        />
+        <MeterBar
+          label="Infection"
+          icon="meter.infection"
+          value={meters.infection}
+          max={100}
+          color="#2bc4d9"
+          danger
+        />
+      </div>
+
+      <div className="mb-2.5">
+        <AttributeRow />
+      </div>
+
+      <SurvivorStatsGrid />
     </section>
   );
 }

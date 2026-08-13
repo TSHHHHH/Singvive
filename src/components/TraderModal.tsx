@@ -5,7 +5,7 @@ import { FACTION_CONFIG, standingLabel, STANDING_KIN } from '../game/factions';
 import type { TradeOffer } from '../game/trade';
 
 /**
- * The counter at a faction outpost.
+ * The counter at a faction hub (outpost or territory site that offers trade).
  *
  * Deliberately not a shop. There is no currency, no running total and no
  * haggling — just the handful of swaps this faction chalked up today, each one

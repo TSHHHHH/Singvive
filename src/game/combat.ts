@@ -5,6 +5,8 @@ import type {
   Equipment,
   EquipSlot,
   FactionId,
+  BodyPartId,
+  BodyParts,
   PoiCategory,
   StanceDef,
   StanceId,
@@ -17,10 +19,25 @@ import type { Rng } from './rng';
 import { environmentCombatMods } from './weather';
 import { itemDef } from './loot';
 import { sumTraitMod } from './character';
-import { effectiveDamage, equipDefenseBonus, isBroken } from './inventory';
-import { energyAttackBonus, energyDodgeBonus, energyFleeDcModifier } from './survival';
+import { effectiveDamage, equipAccuracyBonus, equipDefenseBonus, isBroken, limbArmorForZone, slotForZone, statusResistForZone, ALL_EQUIP_SLOTS } from './inventory';
+import {
+  BODY_PART_LABEL,
+  energyAttackBonus,
+  energyDodgeBonus,
+  energyFleeDcModifier,
+  headCritReductionFromGear,
+  headTargetReductionFromGear,
+  legTravelFactor,
+  rollHitZone,
+} from './survival';
+import {
+  combatLine,
+  enemyKeys,
+  playerOutcomeKey,
+  soakNote,
+} from './combatFlavor';
 
-const EQUIP_SLOTS: EquipSlot[] = ['head', 'body', 'mainHand', 'offHand'];
+const EQUIP_SLOTS = ALL_EQUIP_SLOTS;
 
 export interface PlayerCombatStats {
   attack: number; // added to d20 attack roll
@@ -60,11 +77,12 @@ export const STANCES: Record<StanceId, StanceDef> = {
     id: 'aggressive',
     name: 'Aggressive',
     icon: 'stance.aggressive',
-    description: 'All forward pressure. +2 to hit, +2 damage, −3 defence.',
+    description: 'All forward pressure. +2 to hit, +2 damage, −3 defence, −3% dodge.',
     attackMod: 2,
     damageMod: 2,
     defenseMod: -3,
     limbDamageMult: 1,
+    dodgeMod: -0.03,
     critChanceBonus: 0,
     ignoresArmor: false,
     timeCostHours: 0,
@@ -77,11 +95,12 @@ export const STANCES: Record<StanceId, StanceDef> = {
     id: 'guarded',
     name: 'Guarded',
     icon: 'stance.guarded',
-    description: 'Cover up. +3 defence, −2 to hit, limb damage taken ×0.75.',
+    description: 'Cover up. +3 defence, +5% dodge, −2 to hit, limb damage taken ×0.75.',
     attackMod: -2,
     damageMod: 0,
     defenseMod: 3,
     limbDamageMult: 0.75,
+    dodgeMod: 0.05,
     critChanceBonus: 0,
     ignoresArmor: false,
     timeCostHours: 0,
@@ -99,6 +118,7 @@ export const STANCES: Record<StanceId, StanceDef> = {
     damageMod: 0,
     defenseMod: 0,
     limbDamageMult: 1,
+    dodgeMod: 0,
     critChanceBonus: 0.15,
     ignoresArmor: true,
     timeCostHours: 1,
@@ -116,6 +136,7 @@ export const STANCES: Record<StanceId, StanceDef> = {
     damageMod: 0,
     defenseMod: 0,
     limbDamageMult: 1,
+    dodgeMod: 0,
     critChanceBonus: 0,
     ignoresArmor: false,
     timeCostHours: 0,
@@ -216,6 +237,7 @@ export function terrainForCategory(category: PoiCategory, roadAmbush = false): T
     case 'supermarket':
     case 'convenience':
     case 'pharmacy':
+    case 'clinic':
     case 'hardware':
       return TERRAIN.supermarket_aisle;
     case 'mrt':
@@ -428,6 +450,7 @@ export function playerCombatStats(
     atkBonus += mods?.attackBonus ?? 0;
     defBonus += equipDefenseBonus(inst);
   }
+  atkBonus += equipAccuracyBonus(equipment);
 
   const attack = attrs.dexterity + (w?.accuracy ?? 0) + atkBonus - armPenalty;
   const defense = 10 + Math.floor(attrs.dexterity / 2) + defBonus;
@@ -477,9 +500,10 @@ export function playerSpeed(
   stance: StanceDef,
   energy = 50,
   legFactor = 1,
+  equipSpeed = 0,
 ): number {
   const energyMod = energy < 20 ? -2 : energy < 45 ? -1 : 0;
-  const base = 6 + attrs.dexterity * 0.8 + stance.speedMod + energyMod;
+  const base = 6 + attrs.dexterity * 0.8 + stance.speedMod + energyMod + equipSpeed;
   return Math.max(2, base * Math.max(0.4, legFactor));
 }
 
@@ -503,13 +527,49 @@ export interface PlayerActionResult {
 }
 
 export interface EnemyActionResult {
-  playerDamage: number; // HP the player loses
-  infectionGain: number; // infection points gained
+  playerDamage: number;
+  infectionGain: number;
   log: CombatLogEntry[];
-  /** Multiplier the store applies to limb (body-part) damage. */
   limbDamageMult: number;
-  /** Condition each worn armour piece lost. */
   armorWear: number;
+  /** Slot that should take the brunt of armor wear for this hit. */
+  wearSlot: EquipSlot | null;
+  dodged: boolean;
+  hitZone: BodyPartId | null;
+  critical: boolean;
+  headCritReduction: number;
+  statusResist: number;
+}
+
+/** Dodge chance when an attack roll already beat defence — 0..0.45 cap. */
+export function playerDodgeChance(
+  attrs: Attributes,
+  traitIds: string[],
+  equipment: Equipment,
+  energy: number,
+  parts: BodyParts,
+  stance: StanceDef,
+  terrain: TerrainModifier,
+): number {
+  const dexBase = (attrs.dexterity - 5) * 0.02;
+  let gearDodge = 0;
+  for (const slot of EQUIP_SLOTS) {
+    const inst = equipment[slot];
+    if (!inst) continue;
+    gearDodge += itemDef(inst.defId).modifiers?.dodgeBonus ?? 0;
+  }
+  const traitDodge = sumTraitMod(traitIds, 'dodgeMod');
+  const legFactor = legTravelFactor(parts);
+  const legPenalty = (legFactor - 1) * 0.1;
+  const raw =
+    dexBase +
+    traitDodge +
+    gearDodge +
+    stance.dodgeMod +
+    terrain.dodgeMod +
+    energyDodgeBonus(energy) +
+    legPenalty;
+  return Math.max(0, Math.min(0.45, raw));
 }
 
 /** Player's effective defence for a round, including stance and terrain. */
@@ -577,18 +637,24 @@ export function resolvePlayerAction(
     dmg = Math.max(1, dmg - soak);
     zombieHp -= dmg;
     weaponWear = (WEAR_ON_HIT + (zombie.armor > 0 ? WEAR_ARMOR_EXTRA : 0)) * player.wearRate;
+    const hitCtx = {
+      weapon: player.weaponName,
+      dmg,
+      soakNote: soakNote(soak, 'armour'),
+    };
     log.push({
       round,
       side: 'player',
       tone: 'good',
-      text: crit
-        ? `CRITICAL! ${player.weaponName} tears in for ${dmg} damage.`
-        : `Hit! ${player.weaponName} deals ${dmg} damage.${
-            soak > 0 ? ` (${soak} soaked by armour)` : ''
-          }`,
+      text: combatLine(playerOutcomeKey(crit ? 'crit' : 'hit', player.ranged), hitCtx),
     });
     if (stance.ignoresArmor && zombie.armor > 0) {
-      log.push({ round, side: 'player', tone: 'player', text: `You slip the blow past its armour.` });
+      log.push({
+        round,
+        side: 'player',
+        tone: 'player',
+        text: combatLine('playerPierce'),
+      });
     }
   } else {
     weaponWear = WEAR_ON_MISS * player.wearRate;
@@ -596,7 +662,9 @@ export function resolvePlayerAction(
       round,
       side: 'player',
       tone: 'info',
-      text: `Miss — your ${player.weaponName} swings wide.`,
+      text: combatLine(playerOutcomeKey('miss', player.ranged), {
+        weapon: player.weaponName,
+      }),
     });
   }
 
@@ -604,7 +672,7 @@ export function resolvePlayerAction(
     log.push({
       round,
       tone: 'bad',
-      text: `The gunshot rings down the ${terrain.name.toLowerCase()}.`,
+      text: combatLine('gunshotEcho', { place: terrain.name.toLowerCase() }),
     });
   }
 
@@ -613,7 +681,7 @@ export function resolvePlayerAction(
       round,
       side: 'player',
       tone: 'good',
-      text: `The ${zombie.name} drops. You survive the encounter.`,
+      text: combatLine('playerKill', { enemy: zombie.name }),
     });
   }
 
@@ -642,40 +710,65 @@ export function resolveEnemyAction(
   stance: StanceDef,
   terrain: TerrainModifier,
   energy = 50,
+  attrs: Attributes,
+  traitIds: string[],
+  equipment: Equipment,
+  bodyParts: BodyParts,
 ): EnemyActionResult {
   const env = environmentCombatMods(weather);
   const log: CombatLogEntry[] = [];
   let playerDamage = 0;
   let infectionGain = 0;
   let armorWear = 0;
+  let dodged = false;
+  let hitZone: BodyPartId | null = null;
+  let critical = false;
   const defense = effectiveDefense(player, stance, terrain);
+
+  const headMods = [equipment.head ? itemDef(equipment.head.defId).modifiers : undefined];
+  const headWeightScale = 1 - headTargetReductionFromGear(headMods);
+  const headCritReduce = headCritReductionFromGear(headMods);
 
   const zRoll = rng.d20();
   const zTotal = zRoll + zombie.attack + env.zombieAttack;
+  const ek = enemyKeys(zombie.kind);
+  const rollVerb = combatLine(ek.roll, { enemy: zombie.name });
   log.push({
     round,
     side: 'enemy',
     tone: 'roll',
-    text: `${zombie.name} lunges (d20 ${zRoll}${fmt(zombie.attack + env.zombieAttack)} = ${zTotal} vs ${defense})`,
+    text: `${rollVerb} (d20 ${zRoll}${fmt(zombie.attack + env.zombieAttack)} = ${zTotal} vs ${defense})`,
   });
   if (zRoll === 20 || zTotal >= defense) {
-    // Terrain footing — plus whatever reflexes you have left — gives a last
-    // chance to slip the blow.
-    const dodgeChance = Math.max(0, Math.min(0.9, terrain.dodgeMod + energyDodgeBonus(energy)));
+    const dodgeChance = playerDodgeChance(attrs, traitIds, equipment, energy, bodyParts, stance, terrain);
     if (dodgeChance > 0 && rng.chance(dodgeChance)) {
+      dodged = true;
       log.push({
         round,
         side: 'enemy',
         tone: 'player',
-        text: `You twist clear — the ${terrain.name} gives you room.`,
+        text: combatLine('enemyDodge'),
       });
     } else {
-      const dmg = zombie.damage + rng.int(0, 3);
+      let dmg = zombie.damage + rng.int(0, 3);
+      const forceHead = zRoll === 20;
+      hitZone = forceHead ? 'head' : rollHitZone(rng.fork('zone'), headWeightScale);
+      critical = hitZone === 'head';
+      const soak = limbArmorForZone(equipment, hitZone);
+      if (soak > 0) dmg = Math.max(1, dmg - soak);
       playerDamage += dmg;
-      // What your armour turned aside, it paid for.
       armorWear = 0.5 + dmg * 0.15;
-      log.push({ round, side: 'enemy', tone: 'bad', text: `It rakes you for ${dmg} damage.` });
-      // infection check on a connecting hit
+      const zoneLabel = BODY_PART_LABEL[hitZone].toLowerCase();
+      log.push({
+        round,
+        side: 'enemy',
+        tone: 'bad',
+        text: combatLine(critical ? ek.crit : ek.hit, {
+          zone: zoneLabel,
+          dmg: playerDamage,
+          soakNote: soakNote(soak, 'gear'),
+        }),
+      });
       const infChance = zombie.infectious * (1 - player.infectionResist);
       if (rng.chance(infChance)) {
         const inf = rng.int(8, 18);
@@ -684,15 +777,35 @@ export function resolveEnemyAction(
           round,
           side: 'enemy',
           tone: 'bad',
-          text: `A bite breaks skin — infection +${inf}.`,
+          text: combatLine('enemyBite', { inf }),
         });
       }
     }
   } else {
-    log.push({ round, side: 'enemy', tone: 'player', text: `You dodge its grasp.` });
+    log.push({
+      round,
+      side: 'enemy',
+      tone: 'player',
+      text: combatLine(ek.miss),
+    });
   }
 
-  return { playerDamage, infectionGain, log, limbDamageMult: stance.limbDamageMult, armorWear };
+  const wearSlot = hitZone ? (slotForZone(hitZone) ?? 'body') : null;
+  const statusResist = hitZone ? statusResistForZone(equipment, hitZone) : 0;
+
+  return {
+    playerDamage,
+    infectionGain,
+    log,
+    limbDamageMult: stance.limbDamageMult,
+    armorWear,
+    wearSlot,
+    dodged,
+    hitZone,
+    critical,
+    headCritReduction: headCritReduce,
+    statusResist,
+  };
 }
 
 /** Scene-setting lines pushed once, when the first marker starts moving. */
@@ -742,10 +855,15 @@ export function attemptFlee(
         round,
         side: 'enemy',
         tone: 'bad',
-        text: `It catches you on the way out for ${dmg}.`,
+        text: combatLine('oppHit', { dmg }),
       });
     } else {
-      log.push({ round, side: 'enemy', tone: 'player', text: `Its parting swing goes wide.` });
+      log.push({
+        round,
+        side: 'enemy',
+        tone: 'player',
+        text: combatLine('oppMiss'),
+      });
     }
   }
 
@@ -764,7 +882,7 @@ export function attemptFlee(
       round,
       side: 'player',
       tone: 'good',
-      text: `You break away and escape into the streets.`,
+      text: combatLine('fleeOk'),
     });
     return { success: true, playerDamage, log, limbDamageMult: stance.limbDamageMult };
   }
@@ -774,7 +892,7 @@ export function attemptFlee(
     round,
     side: 'player',
     tone: 'bad',
-    text: `You stumble — the ${zombie.name} catches you for ${dmg}.`,
+    text: combatLine('fleeFail', { enemy: zombie.name, dmg }),
   });
   return { success: false, playerDamage, log, limbDamageMult: stance.limbDamageMult };
 }

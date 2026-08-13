@@ -290,9 +290,18 @@ npm run lint      # oxlint
 npm run bake:pois
 ```
 
-Rewrites `public/pois.json` — ~8.6k POIs, **1.0 MB raw / 0.20 MB gzipped**, in about 30 seconds. It
-is **not** part of `npm run build` — a flaky Overpass should never break a deploy. Run it manually for
+Rewrites `public/pois.json` from a fresh Overpass pull. It is **not** part of
+`npm run build` — a flaky Overpass should never break a deploy. Run it manually for
 fresher OSM data, then commit the result.
+
+The bake:
+
+- Classifies via `src/game/poi.ts` (hospitals vs clinics are separate)
+- Drops anything outside `SG_OUTLINE` (no Johor spill)
+- Re-fetches building footprints, matches shop nodes to containing buildings
+  (ways, multipolygon relations, and `building:part`), retries failed outline
+  chunks, and rejects oversized mall/campus shells for small shops
+- Prints category counts and outline coverage when it finishes
 
 ### Refreshing the rail network
 
@@ -339,9 +348,11 @@ building rather than as the building — straight from Overpass only ~10% of loc
 1. Shops & amenities (`out geom`).
 2. HDB blocks (`out center` — polygon geometry for 45k blocks is a 100MB+ response).
 3. Re-fetch the kept void decks **by way id** to get their real footprints (they were always
-   buildings; pass 2 only asked for centroids). Batches of 500.
-4. Buildings within 15m of the remaining point POIs, matched by **point-in-polygon**; smallest
-   containing building wins, so a unit inside a mall gets the unit, not the mall.
+   buildings; pass 2 only asked for centroids). Batches of 100.
+4. Buildings within 15m of the remaining point POIs (ways, building multipolygons, and
+   `building:part`), matched by **point-in-polygon**. Prefer tagged amenity matches and unit-sized
+   parts; smallest rank wins. Failed grid chunks are retried. Small shops skip shells larger than
+   ~8,000 m² so a 7‑Eleven does not inherit the whole mall.
 
 Two rules in pass 4 are load-bearing:
 
@@ -352,6 +363,9 @@ Two rules in pass 4 are load-bearing:
 - **Simplify with Douglas-Peucker, never by sampling every Nth vertex.** Sampling discards the corners
   that define a footprint and turns complex buildings (MRT concourses run 65-74 points) into spiky
   arrows.
+
+Pins that fall outside their assigned ring are snapped to the footprint centroid so fog/hover stay
+attached to the building.
 
 Void decks keep their category-default `size` even though they now have outlines — see the comment in
 `world.ts`, it's a deliberate balance decision, not an oversight.

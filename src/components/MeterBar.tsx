@@ -1,6 +1,7 @@
 import { Icon } from '../icons/Icon';
 import type { IconName } from '../icons/keys';
 import type { MeterModifier } from '../game/survival';
+import { TipHint } from './TipHint';
 
 interface Props {
   label: string;
@@ -33,8 +34,8 @@ export function MeterBar({ label, value, max, color, danger, icon, dynamic, modi
   const fill = dynamic ? dynamicMeterColor(pct) : color;
   const hasTip = !!modifiers?.length;
 
-  return (
-    <div className="group relative flex items-center gap-2">
+  const bar = (
+    <>
       <span className="w-5 text-center text-sm" title={label}>
         <Icon name={icon} title={label} />
       </span>
@@ -47,17 +48,29 @@ export function MeterBar({ label, value, max, color, danger, icon, dynamic, modi
       <span className="w-9 text-right text-sm tabular-nums text-white/70">
         {Math.round(value)}
       </span>
+    </>
+  );
 
-      {hasTip && (
-        <div className="pointer-events-none absolute bottom-full left-5 z-20 mb-1 hidden w-max max-w-[200px] rounded border border-white/15 bg-black/90 px-2 py-1.5 text-2xs leading-relaxed shadow-lg group-hover:block">
+  if (!hasTip) {
+    return <div className="flex items-center gap-2">{bar}</div>;
+  }
+
+  return (
+    <TipHint
+      className="flex items-center gap-2"
+      tipClassName="absolute bottom-full left-5 mb-1 w-max max-w-[200px] rounded border border-white/15 bg-black/90 px-2 py-1.5 text-2xs leading-relaxed shadow-lg"
+      tip={
+        <>
           <div className="mb-0.5 uppercase tracking-widest text-white/40">{label}</div>
           {modifiers!.map((m) => (
             <div key={m.text} className={m.good ? 'text-emerald-300' : 'text-hiss'}>
               {m.text}
             </div>
           ))}
-        </div>
-      )}
-    </div>
+        </>
+      }
+    >
+      {bar}
+    </TipHint>
   );
 }

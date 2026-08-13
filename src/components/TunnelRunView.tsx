@@ -52,7 +52,7 @@ export function TunnelRunView() {
   return (
     <div className="flex h-full w-full min-h-0 flex-col overflow-hidden bg-concrete-950">
       {/* ---- signage header ---- */}
-      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-concrete-600 bg-concrete-800 px-4 py-2.5">
+      <div className="sticky top-0 z-10 flex shrink-0 items-center justify-between gap-3 border-b border-concrete-600 bg-concrete-800 px-3 py-2.5 lg:px-4">
         <div className="min-w-0">
           <div className="signage truncate text-xs text-signal">
             {run.fromName} → {run.toName}
@@ -72,7 +72,7 @@ export function TunnelRunView() {
       <PressureGauge pressure={run.pressure} />
 
       {/* ---- the map ---- */}
-      <div className="min-h-0 flex-1 overflow-auto p-4">
+      <div className="min-h-0 flex-1 overflow-auto p-3 lg:p-4">
         <TunnelMap run={run} selectedId={selected.id} onSelect={setSelectedId} />
       </div>
 
@@ -251,14 +251,14 @@ function TunnelMap({
       </svg>
 
       <div
-        className="relative grid grid-flow-col items-center gap-x-12 gap-y-5"
+        className="relative grid grid-flow-col items-center gap-x-6 gap-y-4 lg:gap-x-12 lg:gap-y-5"
         style={{ gridTemplateRows: `repeat(${LANES}, minmax(0, 1fr))` }}
       >
         {run.columns.map((ids, col) => {
           const byLane = new Map(ids.map((id) => [run.nodes[id].lane, run.nodes[id]]));
           return Array.from({ length: LANES }, (_, lane) => {
             const node = byLane.get(lane);
-            if (!node) return <div key={`${col}-${lane}`} className="h-11 w-24" />;
+            if (!node) return <div key={`${col}-${lane}`} className="h-11 w-16 lg:w-24" />;
             return (
               <NodePip
                 key={node.id}
@@ -308,13 +308,13 @@ function NodePip({
         : 'border-concrete-600 bg-concrete-800 text-concrete-400 opacity-60';
 
   return (
-    <div className="flex w-24 flex-col items-center gap-1">
+    <div className="flex w-16 flex-col items-center gap-1 lg:w-24">
       <button
         ref={register}
         onClick={() => onSelect(node.id)}
         disabled={!revealed && !isNext}
         title={revealed ? `${meta.label} — ${node.name}` : 'You cannot see that far ahead'}
-        className={`flex h-11 w-11 items-center justify-center border text-base transition ${shape} ${tone} ${
+        className={`flex h-11 w-11 min-h-[44px] min-w-[44px] items-center justify-center border text-base transition ${shape} ${tone} ${
           selected ? 'outline outline-1 outline-offset-2 outline-concrete-200/50' : ''
         }`}
       >

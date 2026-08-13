@@ -11,8 +11,7 @@ import { itemDef } from './loot';
 import {
   FACTION_CONFIG,
   factionIsHostile,
-  factionWavesYouThrough,
-  STANDING_KNOWN,
+  hasFactionClearance,
   type FactionStanding,
 } from './factions';
 
@@ -22,9 +21,12 @@ export {
   clampStanding,
   emptyStanding,
   factionIsHostile,
+  factionOffersAid,
+  factionSharesIntel,
   factionShelters,
   factionTrades,
   factionWavesYouThrough,
+  hasFactionClearance,
   standingLabel,
   STANDING_HATED,
   STANDING_KIN,
@@ -89,7 +91,7 @@ export interface DoorwayMark {
 }
 
 export type EventEffect =
-  /** The search proceeds. Terminal. */
+  /** Cleared the gate — services (occupied) or search (unclaimed). Terminal. */
   | { t: 'access' }
   /** Turned away — no search, no fight. Terminal. */
   | { t: 'deny'; line: string }
@@ -99,6 +101,11 @@ export type EventEffect =
    * mean an unaffiliated loner who answers to nobody.
    */
   | { t: 'fight'; foe?: 'scavenger' | 'survivor' }
+  /**
+   * Forced entry / refused the gate: one-time standing hit at this site, then
+   * human combat. Terminal.
+   */
+  | { t: 'trespass' }
   /** The dead, right now. Terminal. */
   | { t: 'zombies'; line: string }
   /** Read the place: reveals the holder and what the shelves are worth. */
@@ -111,7 +118,7 @@ export type EventEffect =
   | { t: 'standing'; delta: number }
   | { t: 'mark'; mark: DoorwayMark };
 
-const TERMINAL = new Set(['access', 'deny', 'fight', 'zombies']);
+const TERMINAL = new Set(['access', 'deny', 'fight', 'zombies', 'trespass']);
 export const isTerminal = (e: EventEffect) => TERMINAL.has(e.t);
 
 export interface EventChoice {
@@ -330,14 +337,14 @@ function prose(
 // Which doorways can host which scene. Every non-waypoint category wants at
 // least two entries here, or its doorway only ever tells one story.
 const RIGGED_AT: PoiCategory[] = ['police', 'hardware', 'industrial', 'fuel'];
-const LOCKED_AT: PoiCategory[] = ['police', 'hospital', 'hardware'];
+const LOCKED_AT: PoiCategory[] = ['police', 'hospital', 'clinic', 'hardware'];
 const RIVAL_AT: PoiCategory[] = [
-  'supermarket', 'convenience', 'pharmacy', 'hardware', 'foodcourt', 'fuel', 'industrial',
+  'supermarket', 'convenience', 'pharmacy', 'clinic', 'hardware', 'foodcourt', 'fuel', 'industrial',
 ];
 // Water points cluster where people already queued for food — and the schools
 // were the designated shelters when it fell.
 const TAP_AT: PoiCategory[] = ['supermarket', 'foodcourt', 'convenience', 'school'];
-const BODY_AT: PoiCategory[] = ['hospital', 'police', 'mrt', 'school'];
+const BODY_AT: PoiCategory[] = ['hospital', 'clinic', 'police', 'mrt', 'school'];
 
 /** Odds that *something* is waiting, given anything is eligible at all. */
 function doorwayChance(loc: LocationState, ctx: EventCtx): number {
@@ -430,8 +437,14 @@ function buildCheckpoint(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent
       {
         id: 'leave',
         kind: 'leave',
-        label: 'Back off (skip search)',
+        label: 'Back off',
         onSuccess: [{ t: 'deny', line: 'You back off. No hard feelings either way.' }],
+      },
+      {
+        id: 'force',
+        kind: 'fight',
+        label: 'Force your way in',
+        onSuccess: [{ t: 'trespass' }],
       },
     ],
   };
@@ -468,7 +481,7 @@ function buildShakedown(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent 
           { t: 'access' },
         ],
         onFailure: hostile
-          ? [{ t: 'standing', delta: -1 }, { t: 'fight' }]
+          ? [{ t: 'trespass' }]
           : [{ t: 'standing', delta: -1 }, { t: 'deny', line: 'Empty hands buy nothing. They turn you around.' }],
       },
       {
@@ -480,7 +493,7 @@ function buildShakedown(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent 
         // Words get you in today and buy you nothing beyond today.
         onSuccess: [{ t: 'mark', mark: { tollDays: 0 } }, { t: 'access' }],
         onFailure: hostile
-          ? [{ t: 'fight' }]
+          ? [{ t: 'trespass' }]
           : [{ t: 'standing', delta: -1 }, { t: 'deny', line: 'They\'ve heard better. Out you go.' }],
       },
       hostile
@@ -488,12 +501,12 @@ function buildShakedown(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent 
             id: 'fight',
             kind: 'fight',
             label: 'Refuse — draw down',
-            onSuccess: [{ t: 'standing', delta: -2 }, { t: 'fight' }],
+            onSuccess: [{ t: 'trespass' }],
           }
         : {
             id: 'leave',
             kind: 'leave',
-            label: 'Back off (skip search)',
+            label: 'Back off',
             onSuccess: [{ t: 'deny', line: 'You back off. No hard feelings either way.' }],
           },
     ],
@@ -825,44 +838,41 @@ const BUILDERS: Record<Exclude<EventKind, 'mrt_toll'>, Builder> = {
 };
 
 /**
- * Roll a single doorway event for entering a location (or null for a clear way
- * in). Deterministic given the passed (already-forked) rng.
+ * Mandatory gate on occupied ground: shakedown if hostile (Syndicate until
+ * Known, or Hated anywhere), otherwise a checkpoint. Clearance already checked
+ * by the caller — this always returns an event when called for a claimed site.
+ */
+export function rollFactionGateEvent(
+  rng: Rng,
+  loc: LocationState,
+  ctx: EventCtx,
+): GameEvent | null {
+  const faction = loc.factionId;
+  if (!faction) return null;
+  if (hasFactionClearance(loc, ctx.standing, ctx.day)) return null;
+  if (factionIsHostile(faction, ctx.standing)) {
+    return buildShakedown(rng, loc, ctx);
+  }
+  return buildCheckpoint(rng, loc, ctx);
+}
+
+/**
+ * Roll a single doorway event for entering an *unclaimed* location (or null
+ * for a clear way in). Deterministic given the passed (already-forked) rng.
  *
- * Every eligible kind goes into a weighted pool rather than a priority list,
- * so a faction site is a shakedown *often* rather than *always*. Anything the
- * site already remembers about you — a forced door, a toll paid, a survivor
- * dealt with, a faction that likes you — drops that kind out of the pool.
+ * Occupied sites use {@link rollFactionGateEvent} instead — they are NPC hubs,
+ * not scavenger doorways.
  */
 export function rollPreScavengeEvent(
   rng: Rng,
   loc: LocationState,
   ctx: EventCtx,
 ): GameEvent | null {
+  // Faction ground never scavenges; don't mix locked-door theatre with gates.
+  if (loc.factionId) return null;
+
   const cat = loc.category;
   const cands: [Exclude<EventKind, 'mrt_toll'>, number][] = [];
-
-  const faction = loc.factionId;
-  const tollGood = (loc.tollPaidThroughDay ?? -1) >= ctx.day;
-  if (
-    faction &&
-    faction !== 'sta' &&
-    loc.isFactionRevealed &&
-    !tollGood &&
-    !factionWavesYouThrough(faction, ctx.standing)
-  ) {
-    // Who's on the gate depends on who they are and how they feel about you.
-    // The muscle only comes out for a faction that would rather take than
-    // register you — which, now that hostility lifts at KNOWN, means the 88
-    // Syndicate right up until you've bought your way in with them.
-    if (factionIsHostile(faction, ctx.standing)) {
-      cands.push(['faction_shakedown', 30]);
-    } else if (ctx.standing[faction] < STANDING_KNOWN) {
-      // Lighter than the old shakedown weight: once you're in the book this
-      // stops firing entirely, so it should read as an introduction, not a
-      // recurring toll.
-      cands.push(['faction_checkpoint', 16]);
-    }
-  }
 
   if (!loc.doorForced) {
     if (LOCKED_AT.includes(cat)) cands.push(['locked_door', 20]);

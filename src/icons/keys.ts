@@ -81,6 +81,7 @@ export type IconName =
   | 'action.target'
   | 'action.kills'
   | 'action.stats'
+  | 'action.craft'
   | 'action.dayLogs'
   | 'action.close'
   // --- event choices, one per ChoiceKind ---
@@ -102,12 +103,17 @@ export type IconName =
   | 'time.night'
   // --- status flags ---
   | 'status.bleeding'
+  | 'status.fractured'
+  | 'status.crippled'
   | 'status.night'
   | 'status.blocked'
   | 'status.terrain'
   // --- equipment slots (shown when a slot is empty) ---
   | 'slot.head'
   | 'slot.body'
+  | 'slot.hands'
+  | 'slot.legs'
+  | 'slot.feet'
   | 'slot.mainHand'
   | 'slot.offHand'
   // --- item fallbacks, one per ItemEffect kind ---
@@ -193,9 +199,23 @@ export type IconName =
   | 'item.ammo_shell'
   | 'item.hard_hat'
   | 'item.riot_helmet'
+  | 'item.motorcycle_helmet'
   | 'item.leather_jacket'
   | 'item.work_vest'
   | 'item.kevlar_vest'
+  | 'item.army_uniform'
+  | 'item.work_gloves'
+  | 'item.cut_gloves'
+  | 'item.grip_gloves'
+  | 'item.tactical_gloves'
+  | 'item.jeans'
+  | 'item.work_trousers'
+  | 'item.camo_pants'
+  | 'item.riot_pads'
+  | 'item.flip_flops'
+  | 'item.sneakers'
+  | 'item.hiking_boots'
+  | 'item.combat_boots'
   | 'item.riot_shield'
   | 'item.torch'
   | 'item.fuel_can'
@@ -282,6 +302,7 @@ export const EMOJI_FALLBACK: Record<IconName, string> = {
   'action.target': '🎯',
   'action.kills': '💀',
   'action.stats': '📊',
+  'action.craft': '🔧',
   'action.dayLogs': '🗓️',
   'action.close': '✕',
 
@@ -303,12 +324,17 @@ export const EMOJI_FALLBACK: Record<IconName, string> = {
   'time.night': '🌙',
 
   'status.bleeding': '🩸',
+  'status.fractured': '🦴',
+  'status.crippled': '✕',
   'status.night': '🌙',
   'status.blocked': '⛔',
   'status.terrain': '🏙️',
 
   'slot.head': '🪖',
   'slot.body': '🦺',
+  'slot.hands': '🧤',
+  'slot.legs': '👖',
+  'slot.feet': '👟',
   'slot.mainHand': '🗡️',
   'slot.offHand': '🛡️',
 
@@ -392,9 +418,23 @@ export const EMOJI_FALLBACK: Record<IconName, string> = {
   'item.ammo_shell': '🔴',
   'item.hard_hat': '⛑️',
   'item.riot_helmet': '🪖',
+  'item.motorcycle_helmet': '🏍️',
   'item.leather_jacket': '🧥',
   'item.work_vest': '🦺',
   'item.kevlar_vest': '🛡️',
+  'item.army_uniform': '🎖️',
+  'item.work_gloves': '🧤',
+  'item.cut_gloves': '🧤',
+  'item.grip_gloves': '🥊',
+  'item.tactical_gloves': '🧤',
+  'item.jeans': '👖',
+  'item.work_trousers': '👖',
+  'item.camo_pants': '🌲',
+  'item.riot_pads': '🦵',
+  'item.flip_flops': '🩴',
+  'item.sneakers': '👟',
+  'item.hiking_boots': '🥾',
+  'item.combat_boots': '🥾',
   'item.riot_shield': '🛡️',
   'item.torch': '🔦',
   'item.fuel_can': '⛽',

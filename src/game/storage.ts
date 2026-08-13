@@ -15,7 +15,15 @@ import type { HdbDungeon } from './hdbDungeon';
 import type { TunnelRun } from './tunnelRun';
 import type { EventClock } from './store';
 import type { FactionStanding } from './events';
-import { migrateFactionId, type OutpostIds } from './factions';
+import {
+  applyFactionServices,
+  migrateFactionId,
+  migrateOutposts,
+  pickOutposts,
+  type OutpostIds,
+} from './factions';
+import { coerceEquipment } from './inventory';
+import { migrateBodyParts, migrateMeters } from './survival';
 import { normalizeRunStats } from './stats';
 
 const RUN_KEY = 'singvive.run.v6'; // v6: extraction goal + horde clock
@@ -42,6 +50,12 @@ export interface SavedRun {
   clothingTears?: number;
   usedFallback: boolean;
   exploredArea: ExploredCircle[];
+  /**
+   * Grid cells already materialised from the island bake via on-demand expand.
+   * Absent on older saves — resume treats them as empty and re-expands safely
+   * (merge skips existing location ids).
+   */
+  expandedCells?: string[];
   hordeLevel: number;
   evacZoneId: string | null;
   evacDeadline: number | null;
@@ -61,8 +75,8 @@ export interface SavedRun {
   eventClock?: EventClock;
   /** How each faction feels about you. Absent on saves from before standing. */
   factionStanding?: FactionStanding;
-  /** Which site is each faction's outpost. Re-derivable, so safely absent. */
-  outposts?: OutpostIds;
+  /** Which sites are each faction's outposts (array; legacy saves may store one id). */
+  outposts?: OutpostIds | Partial<Record<string, string | string[]>>;
   /** Swaps already taken today, keyed `factionId:day`. */
   traderTaken?: Record<string, string[]>;
   /** Display-only run counters. Absent on saves written before they existed. */
@@ -113,6 +127,19 @@ export function loadRun(): SavedRun | null {
     for (const loc of Object.values(parsed.locations ?? {})) {
       loc.factionId = migrateFactionId(loc.factionId);
     }
+    // Migration: outposts went from one id per faction to an array (up to 4).
+    parsed.outposts = migrateOutposts(parsed.outposts);
+    if (!Object.keys(parsed.outposts).length && parsed.locations) {
+      parsed.outposts = pickOutposts(Object.values(parsed.locations));
+    }
+    // Stamp services / outpost flags on claimed sites that predate the hub model.
+    if (parsed.locations && parsed.seed) {
+      parsed.locations = applyFactionServices(
+        parsed.locations,
+        parsed.outposts ?? {},
+        parsed.seed,
+      );
+    }
     // Migration: run counters and the persisted timeline are newer than v6 saves.
     // A resumed old run starts its stats from zero rather than back-filling
     // guesses — `kills` is the only number that survived, so seed with it.
@@ -120,6 +147,10 @@ export function loadRun(): SavedRun | null {
       parsed.stats ?? { zombieKills: parsed.kills ?? 0 },
     );
     if (!parsed.log) parsed.log = [];
+    parsed.meters = migrateMeters(parsed.meters as Meters & { health?: number });
+    parsed.bodyParts = migrateBodyParts(parsed.bodyParts, parsed.maxHp ?? 84);
+    // Migration: body-zone slots (hands/legs/feet) added after v6; old saves omit them.
+    parsed.equipment = coerceEquipment(parsed.equipment);
     return parsed;
   } catch {
     return null;

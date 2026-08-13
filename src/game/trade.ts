@@ -41,7 +41,7 @@ export interface TradeOffer {
 /** An open counter: who, where, and what's chalked up. */
 export interface TraderState {
   factionId: Exclude<FactionId, null>;
-  /** The site you're standing in — always that faction's outpost. */
+  /** The site you're standing in — a faction hub that offers trade. */
   locationId: string;
   greeting: string;
   offers: TradeOffer[];
@@ -127,33 +127,36 @@ function chooseWant(
 /**
  * The swaps a faction has chalked up today.
  *
- * Deterministic in (world seed, faction, day, standing tier) — the standing is
- * in the key on purpose, so earning a rung visibly changes the board rather
- * than only unlocking a line at the bottom of it.
+ * Deterministic in (world seed, faction, day, standing tier, outpost flag) —
+ * ordinary territory boards are smaller so they never beat a real outpost.
  */
 export function traderBoard(
   seed: string,
   factionId: Exclude<FactionId, null>,
   day: number,
   standing: FactionStanding,
+  opts?: { outpost?: boolean },
 ): TradeOffer[] {
   const rep = standing[factionId] ?? 0;
   if (rep < STANDING_KNOWN) return [];
 
   const cfg = FACTION_CONFIG[factionId];
-  const rng = new Rng(seed).fork(`trade:${factionId}:${day}:${rep}`);
+  const isOutpost = opts?.outpost !== false;
+  const rng = new Rng(seed).fork(`trade:${factionId}:${day}:${rep}:${isOutpost ? 'op' : 't'}`);
   const mult = markup(rep);
 
-  const size = boardSize(rep);
+  const full = boardSize(rep);
+  // Territory counters: at most half the outpost board, capped at 3.
+  const size = isOutpost ? full : Math.max(1, Math.min(3, Math.floor(full / 2)));
   // Their reserved stock only comes out for their own — and when it does, at
   // least one line of it is *guaranteed*. Merging the two lists and sampling
   // meant reaching KIN could produce a board with no reserved stock on it at
   // all, which makes the top of the ladder feel like it did nothing.
   const catalogue: string[] =
-    rep >= STANDING_KIN
+    isOutpost && rep >= STANDING_KIN
       ? [
-          ...sample(rng, cfg.exclusiveStock, 2),
-          ...sample(rng, cfg.stock, size - 2),
+          ...sample(rng, cfg.exclusiveStock, Math.min(2, size)),
+          ...sample(rng, cfg.stock, Math.max(0, size - Math.min(2, size))),
         ]
       : sample(rng, cfg.stock, size);
 

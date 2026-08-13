@@ -274,8 +274,24 @@ interface Props {
   bubbleAnchor: { lat: number; lng: number } | null;
   /** where that spot currently is, in map-container pixels */
   onBubblePoint: (pt: MapPoint | null) => void;
+  /** External camera nudge (e.g. stash logbook "Show on map"). Token forces re-pan. */
+  focusTarget?: { lat: number; lng: number; token: number } | null;
   onSelect: (poi: Poi) => void;
   onPickGround: (lat: number, lng: number) => void;
+}
+
+/** External request to look at a lat/lng (stash logbook, etc.). */
+function FocusCamera({
+  target,
+}: {
+  target: { lat: number; lng: number; token: number } | null | undefined;
+}) {
+  const map = useMap();
+  useEffect(() => {
+    if (!target) return;
+    map.panTo([target.lat, target.lng], { animate: true, duration: 0.75 });
+  }, [map, target?.token, target?.lat, target?.lng]);
+  return null;
 }
 
 /**
@@ -375,6 +391,8 @@ function poiLooksSame(a: Poi, b: Poi): boolean {
       a.outline === b.outline &&
       a.discovered === b.discovered &&
       a.exhausted === b.exhausted &&
+      a.isFactionOutpost === b.isFactionOutpost &&
+      a.factionId === b.factionId &&
       // Compared at both `here` settings so the memo holds regardless of which
       // one this location is rendered at.
       Math.round(ringDanger(a, true)) === Math.round(ringDanger(b, true)) &&
@@ -494,6 +512,7 @@ function GameMapInner({
   trekTarget,
   bubbleAnchor,
   onBubblePoint,
+  focusTarget,
   onSelect,
   onPickGround,
 }: Props) {
@@ -523,6 +542,7 @@ function GameMapInner({
     >
       <ZoomMemory />
       <SizeWatcher />
+      <FocusCamera target={focusTarget} />
       <GroundPicker onPick={onPickGround} />
       <AnchorTracker anchor={bubbleAnchor} onPoint={onBubblePoint} />
       <TileLayer

@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { useGame } from '../game/store';
 import { Icon } from '../icons/Icon';
-import { itemDef } from '../game/loot';
-import { armCombatPenalty, effectiveMaxHp, legTravelFactor } from '../game/survival';
+import { armCombatPenalty, legTravelFactor, totalHp, totalMaxHp } from '../game/survival';
+import { equipSpeedBonus } from '../game/inventory';
 import {
   COMBAT_SPEEDS,
   GAUGE_FULL,
@@ -23,8 +23,6 @@ const TONE_CLASS: Record<CombatLogEntry['tone'], string> = {
   bad: 'text-hiss',
 };
 
-const CONSUMABLE_KINDS = ['heal', 'cure', 'food', 'water', 'energy'];
-
 /** Wall-clock tick. Small enough that the markers read as sliding, not jumping. */
 const TICK_MS = 50;
 
@@ -39,27 +37,22 @@ const TICK_MS = 50;
  * each side's Speed, and whoever touches the far end swings. Nothing alternates
  * — a Runner gets two hits in between your swings and you watch it happen.
  *
- * You commit a stance once; the fight then plays itself out. The only calls
- * left mid-fight are the ones that are actually decisions: burn a belt item,
- * break off, or slow the whole thing down so you can read it.
+ * You commit a stance once; the fight then plays itself out. Mid-fight the
+ * only real decisions left are break off, or slow the track so you can read it.
+ * Items stay in the pack until the fight is over.
  */
 export function CombatPanel() {
   const combat = useGame((s) => s.combat);
   const meters = useGame((s) => s.meters);
-  const baseMaxHp = useGame((s) => s.maxHp);
   const bodyParts = useGame((s) => s.bodyParts);
-  const items = useGame((s) => s.items);
   const equipment = useGame((s) => s.equipment);
   const character = useGame((s) => s.character);
-  const combatSetBeltSlot = useGame((s) => s.combatSetBeltSlot);
-  const combatUseItem = useGame((s) => s.combatUseItem);
   const combatBreakOff = useGame((s) => s.combatBreakOff);
   const combatContinue = useGame((s) => s.combatContinue);
   const combatTick = useGame((s) => s.combatTick);
   const combatTogglePause = useGame((s) => s.combatTogglePause);
   const combatSetSpeedIndex = useGame((s) => s.combatSetSpeedIndex);
 
-  const [pickingSlot, setPickingSlot] = useState<number | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
 
   const running = !!combat && !combat.over && !combat.awaitingStance && !combat.paused;
@@ -79,10 +72,11 @@ export function CombatPanel() {
 
   if (!combat || !character) return null;
 
-  const maxHp = effectiveMaxHp(baseMaxHp, bodyParts);
+  const maxHp = totalMaxHp(bodyParts);
+  const currentHp = totalHp(bodyParts);
   const z = combat.zombie;
   const zPct = Math.max(0, (z.hp / z.maxHp) * 100);
-  const hpPct = Math.max(0, (meters.health / maxHp) * 100);
+  const hpPct = maxHp > 0 ? Math.max(0, (currentHp / maxHp) * 100) : 0;
   const stats = playerCombatStats(
     character.attributes,
     character.traitIds,
@@ -91,10 +85,12 @@ export function CombatPanel() {
   );
   const stance = STANCES[combat.selectedStance];
   const terrain = combat.terrain;
-  const pSpeed = playerSpeed(character.attributes, stance, meters.energy, legTravelFactor(bodyParts));
-
-  const carried = items.filter(
-    (i) => i.container === 'backpack' && CONSUMABLE_KINDS.includes(itemDef(i.defId).effect.kind),
+  const pSpeed = playerSpeed(
+    character.attributes,
+    stance,
+    meters.energy,
+    legTravelFactor(bodyParts),
+    equipSpeedBonus(equipment),
   );
 
   const groups = groupLog(combat.log);
@@ -109,7 +105,7 @@ export function CombatPanel() {
         <Corner
           name={character.name}
           icon="combat.player"
-          hp={Math.max(0, Math.round(meters.health))}
+          hp={Math.max(0, Math.round(currentHp))}
           maxHp={Math.round(maxHp)}
           pct={hpPct}
           color="#d92d2d"
@@ -249,73 +245,13 @@ export function CombatPanel() {
           {combat.outcome === 'dead' ? 'See results' : 'Continue'}
         </button>
       ) : (
-        /* ---- mid-fight: belt + bail, no per-round clicking ---- */
-        <div className="flex shrink-0 items-stretch gap-1">
-          {combat.quickBeltItems.map((uid, idx) => {
-            const inst = uid ? items.find((i) => i.uid === uid) : null;
-            const def = inst ? itemDef(inst.defId) : null;
-            return (
-              <div key={idx} className="relative flex-1">
-                <button
-                  onClick={() =>
-                    def && inst
-                      ? combatUseItem(inst.uid)
-                      : setPickingSlot(pickingSlot === idx ? null : idx)
-                  }
-                  onContextMenu={(ev) => {
-                    ev.preventDefault();
-                    setPickingSlot(pickingSlot === idx ? null : idx);
-                  }}
-                  title={def ? `Use ${def.name}` : 'Slot an item'}
-                  className={`h-7 w-full truncate rounded border px-1 text-xs leading-tight transition ${
-                    def
-                      ? 'border-white/25 bg-white/10 hover:bg-white/20'
-                      : 'border-dashed border-white/15 text-white/25 hover:bg-white/5'
-                  }`}
-                >
-                  {def ? `${def.name}${inst!.stack > 1 ? ` ×${inst!.stack}` : ''}` : '+'}
-                </button>
-                {pickingSlot === idx && (
-                  <div className="absolute bottom-full left-0 z-10 mb-1 max-h-36 w-36 overflow-y-auto rounded border border-white/15 bg-concrete-900 p-1 shadow-2xl">
-                    {carried.length === 0 && (
-                      <div className="px-2 py-1 text-xs text-white/40">Nothing to slot.</div>
-                    )}
-                    {carried.map((i) => (
-                      <button
-                        key={i.uid}
-                        onClick={() => {
-                          combatSetBeltSlot(idx, i.uid);
-                          setPickingSlot(null);
-                        }}
-                        className="block w-full truncate rounded px-2 py-1 text-left text-xs hover:bg-white/10"
-                      >
-                        {itemDef(i.defId).name}
-                      </button>
-                    ))}
-                    {uid && (
-                      <button
-                        onClick={() => {
-                          combatSetBeltSlot(idx, null);
-                          setPickingSlot(null);
-                        }}
-                        className="block w-full rounded px-2 py-1 text-left text-xs text-hiss hover:bg-white/10"
-                      >
-                        Clear
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-          <button
-            onClick={combatBreakOff}
-            title="Break contact — flee DC −4, they get one parting swing"
-            className="h-7 shrink-0 rounded border border-hiss/50 px-2 text-xs font-bold uppercase tracking-wide text-hiss hover:bg-hiss/10"
-          >
-            Break off
-          </button>
-        </div>
+        <button
+          onClick={combatBreakOff}
+          title="Break contact — flee DC −4, they get one parting swing"
+          className="h-7 shrink-0 self-end rounded border border-hiss/50 px-2 text-xs font-bold uppercase tracking-wide text-hiss hover:bg-hiss/10"
+        >
+          Break off
+        </button>
       )}
     </div>
   );
