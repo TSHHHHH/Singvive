@@ -3,6 +3,10 @@ import { POI_CONFIG } from '../game/poi';
 import { Icon } from '../icons/Icon';
 import {
   FACTION_CONFIG,
+  STANDING_HATED,
+  STANDING_KIN,
+  STANDING_KNOWN,
+  STANDING_TRUSTED,
   factionOffersAid,
   factionSharesIntel,
   factionShelters,
@@ -245,37 +249,118 @@ function TunnelButton({ seg, onTunnel }: { seg: MrtSegment | null; onTunnel: () 
   );
 }
 
+/** Named rungs on the −3…+3 standing ladder, low → high. */
+const STANDING_RUNGS: { min: number; label: string }[] = [
+  { min: STANDING_HATED, label: 'Hated' },
+  { min: -1, label: 'Wary' },
+  { min: 0, label: 'Stranger' },
+  { min: STANDING_KNOWN, label: 'Known' },
+  { min: STANDING_TRUSTED, label: 'Trusted' },
+  { min: STANDING_KIN, label: 'Kin' },
+];
+
+function rungIndex(standing: number): number {
+  let idx = 0;
+  for (let i = 0; i < STANDING_RUNGS.length; i++) {
+    if (standing >= STANDING_RUNGS[i].min) idx = i;
+  }
+  return idx;
+}
+
+/** Horizontal rung meter — same language as danger / loot dots. */
+function ReputationLadder({ standing, color }: { standing: number; color: string }) {
+  const current = rungIndex(standing);
+  const score = standing > 0 ? `+${standing}` : `${standing}`;
+  return (
+    <div
+      className="flex items-center justify-center gap-0.5"
+      title={`${standingLabel(standing)} (${score})`}
+      aria-label={`Standing: ${standingLabel(standing)}`}
+    >
+      {STANDING_RUNGS.map((rung, idx) => {
+        const filled = idx <= current;
+        return (
+          <span
+            key={rung.label}
+            className="text-[0.65rem] leading-none"
+            style={{
+              color: filled ? color : `${color}44`,
+              opacity: filled ? 1 : 0.45,
+            }}
+          >
+            ●
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 /**
- * Whose ground this is — and, at an outpost, where you stand with them.
- *
- * Standing used to be an invisible number that only ever showed itself by
- * changing what happened at a doorway. Putting the rung on the territory badge
- * is what turns it from a hidden modifier into a thing worth working on.
+ * Whose ground this is — logo + standing ladder. The here-card identity row
+ * gives this a full column so territory reads as a claim, not a footnote.
  */
-function FactionBadge({
+function FactionClaim({
   sel,
   faction,
+  compact,
 }: {
   sel: LocationState;
   faction: (typeof FACTION_CONFIG)[Exclude<LocationState['factionId'], null>];
+  /** Narrow inline chip for the target / last-seen card. */
+  compact?: boolean;
 }) {
   const standing = useGame((s) => s.factionStanding[faction.id]);
   const isOutpost = useGame(
     (s) => sel.isFactionOutpost || isOutpostSite(s.outposts, faction.id, sel.id),
   );
+  const place = isOutpost ? faction.outpostName : 'territory';
+  const score = standing > 0 ? `+${standing}` : `${standing}`;
+
+  if (compact) {
+    return (
+      <div
+        className="mt-2 rounded border px-2 py-1 text-xs"
+        style={{
+          color: faction.color,
+          borderColor: `${faction.color}66`,
+          background: `${faction.color}14`,
+        }}
+      >
+        <div className="flex items-center justify-between gap-2">
+          <span className="truncate">
+            <Icon name={faction.icon} /> {faction.shortName} {place}
+          </span>
+          <span className="shrink-0 opacity-80">
+            {standingLabel(standing)} {score}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
-      className="mt-2 rounded border bg-black/30 px-2 py-1 text-xs"
-      style={{ color: faction.color, borderColor: `${faction.color}66` }}
+      className="flex w-[6.5rem] shrink-0 flex-col items-center gap-1 rounded border px-2 py-1.5"
+      style={{
+        color: faction.color,
+        borderColor: `${faction.color}88`,
+        background: `linear-gradient(180deg, ${faction.color}28 0%, ${faction.color}0d 100%)`,
+      }}
     >
-      <div className="flex items-center justify-between gap-2">
-        <span className="truncate">
-          <Icon name={faction.icon} /> {faction.shortName}
-          {isOutpost ? ` ${faction.outpostName}` : ' territory'}
-        </span>
-        <span className="shrink-0 opacity-80">
-          {standingLabel(standing)} {standing > 0 ? `+${standing}` : standing}
-        </span>
+      <Icon name={faction.icon} size={26} />
+      <div className="w-full text-center leading-tight">
+        <div className="truncate text-xs font-bold tracking-wide">{faction.shortName}</div>
+        <div className="truncate text-2xs opacity-75">{place}</div>
+      </div>
+      <div
+        className="mt-0.5 w-full rounded border px-1.5 py-1"
+        style={{ borderColor: `${faction.color}44`, background: `${faction.color}12` }}
+      >
+        <ReputationLadder standing={standing} color={faction.color} />
+        <div className="mt-0.5 text-center text-2xs font-semibold tabular-nums opacity-90">
+          {standingLabel(standing)} {score}
+        </div>
       </div>
     </div>
   );
@@ -314,80 +399,87 @@ function FactionHubActions({ sel }: { sel: LocationState }) {
 
   return (
     <>
-      {!cleared && (
-        <p className="text-xs text-white/50">
-          Approach the gate first — they will not deal with you from the curb.
-        </p>
-      )}
-      {services.includes('trade') && (
-        <button
-          disabled={!cleared || !canTrade}
-          onClick={() => openTrader(sel.id)}
-          className="w-full rounded border px-2 py-2 text-sm leading-tight hover:brightness-125 disabled:opacity-30"
-          style={{ borderColor: `${cfg.color}66`, background: `${cfg.color}1a`, color: cfg.color }}
-        >
-          <Icon name={cfg.icon} /> {SERVICE_META.trade.label}
-          <span className="block text-xs font-normal opacity-75">
-            {!cleared
-              ? 'Gate first'
-              : canTrade
-                ? SERVICE_META.trade.hint
-                : "They don't deal with strangers"}
-          </span>
-        </button>
-      )}
-      {services.includes('rest') && (
-        <button
-          disabled={!cleared || !canRest}
-          onClick={outpostRest}
-          className="w-full rounded border border-white/15 px-2 py-2 text-sm leading-tight hover:bg-white/5 disabled:opacity-30"
-        >
-          <Icon name={SERVICE_META.rest.icon} /> {SERVICE_META.rest.label}
-          <span className="block text-xs font-normal opacity-60">
-            {!cleared
-              ? 'Gate first'
-              : canRest
-                ? SERVICE_META.rest.hint
-                : 'Beds are for people they trust'}
-          </span>
-        </button>
-      )}
-      {services.includes('aid') && (
-        <button
-          disabled={!cleared || !canAid || (sel.aidUsedDay ?? -1) >= day}
-          onClick={factionAid}
-          className="w-full rounded border border-white/15 px-2 py-2 text-sm leading-tight hover:bg-white/5 disabled:opacity-30"
-        >
-          <Icon name={SERVICE_META.aid.icon} /> {SERVICE_META.aid.label}
-          <span className="block text-xs font-normal opacity-60">
-            {!cleared
-              ? 'Gate first'
-              : (sel.aidUsedDay ?? -1) >= day
-                ? 'Already used today'
-                : canAid
-                  ? SERVICE_META.aid.hint
-                  : 'Medics are for people they trust'}
-          </span>
-        </button>
-      )}
-      {services.includes('intel') && (
-        <button
-          disabled={!cleared || !canIntel || (sel.intelUsedDay ?? -1) >= day}
-          onClick={factionIntel}
-          className="w-full rounded border border-white/15 px-2 py-2 text-sm leading-tight hover:bg-white/5 disabled:opacity-30"
-        >
-          <Icon name={SERVICE_META.intel.icon} /> {SERVICE_META.intel.label}
-          <span className="block text-xs font-normal opacity-60">
-            {!cleared
-              ? 'Gate first'
-              : (sel.intelUsedDay ?? -1) >= day
-                ? 'Already used today'
-                : canIntel
-                  ? SERVICE_META.intel.hint
-                  : "They don't brief strangers"}
-          </span>
-        </button>
-      )}
+      <div className="mt-1 border-t border-white/10 pt-2">
+        <div className="mb-1.5 text-2xs font-semibold uppercase tracking-widest text-white/35">
+          Services
+        </div>
+        <div className="flex flex-col gap-2">
+          {!cleared && (
+            <p className="text-xs text-white/50">
+              Approach the gate first — they will not deal with you from the curb.
+            </p>
+          )}
+          {services.includes('trade') && (
+            <button
+              disabled={!cleared || !canTrade}
+              onClick={() => openTrader(sel.id)}
+              className="w-full rounded border px-2 py-2 text-sm leading-tight hover:brightness-125 disabled:opacity-30"
+              style={{ borderColor: `${cfg.color}66`, background: `${cfg.color}1a`, color: cfg.color }}
+            >
+              <Icon name={cfg.icon} /> {SERVICE_META.trade.label}
+              <span className="block text-xs font-normal opacity-75">
+                {!cleared
+                  ? 'Gate first'
+                  : canTrade
+                    ? SERVICE_META.trade.hint
+                    : "They don't deal with strangers"}
+              </span>
+            </button>
+          )}
+          {services.includes('rest') && (
+            <button
+              disabled={!cleared || !canRest}
+              onClick={outpostRest}
+              className="w-full rounded border border-white/15 px-2 py-2 text-sm leading-tight hover:bg-white/5 disabled:opacity-30"
+            >
+              <Icon name={SERVICE_META.rest.icon} /> {SERVICE_META.rest.label}
+              <span className="block text-xs font-normal opacity-60">
+                {!cleared
+                  ? 'Gate first'
+                  : canRest
+                    ? SERVICE_META.rest.hint
+                    : 'Beds are for people they trust'}
+              </span>
+            </button>
+          )}
+          {services.includes('aid') && (
+            <button
+              disabled={!cleared || !canAid || (sel.aidUsedDay ?? -1) >= day}
+              onClick={factionAid}
+              className="w-full rounded border border-white/15 px-2 py-2 text-sm leading-tight hover:bg-white/5 disabled:opacity-30"
+            >
+              <Icon name={SERVICE_META.aid.icon} /> {SERVICE_META.aid.label}
+              <span className="block text-xs font-normal opacity-60">
+                {!cleared
+                  ? 'Gate first'
+                  : (sel.aidUsedDay ?? -1) >= day
+                    ? 'Already used today'
+                    : canAid
+                      ? SERVICE_META.aid.hint
+                      : 'Medics are for people they trust'}
+              </span>
+            </button>
+          )}
+          {services.includes('intel') && (
+            <button
+              disabled={!cleared || !canIntel || (sel.intelUsedDay ?? -1) >= day}
+              onClick={factionIntel}
+              className="w-full rounded border border-white/15 px-2 py-2 text-sm leading-tight hover:bg-white/5 disabled:opacity-30"
+            >
+              <Icon name={SERVICE_META.intel.icon} /> {SERVICE_META.intel.label}
+              <span className="block text-xs font-normal opacity-60">
+                {!cleared
+                  ? 'Gate first'
+                  : (sel.intelUsedDay ?? -1) >= day
+                    ? 'Already used today'
+                    : canIntel
+                      ? SERVICE_META.intel.hint
+                      : "They don't brief strangers"}
+              </span>
+            </button>
+          )}
+        </div>
+      </div>
     </>
   );
 }
@@ -422,6 +514,32 @@ function KnownCard({
   const faction = factionRevealed && sel.factionId ? FACTION_CONFIG[sel.factionId] : null;
   const dngr = Math.max(1, Math.round(danger));
   const occupied = !!sel.factionId;
+
+  const siteStatus = occupied
+    ? null
+    : isBlock
+      ? '12 floors — cleared unit by unit, not searched.'
+      : exhausted
+        ? 'Picked clean — exhausted.'
+        : `${searches} search${searches === 1 ? '' : 'es'} left`;
+
+  const metaLine = (
+    <div className="mt-1 text-xs text-white/45">
+      <div>
+        {cfg.label} · {sel.size}
+      </div>
+      <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+        <span style={{ color: dangerColor(dngr) }} title={`Danger ${dngr} of 5`}>
+          Danger {'●'.repeat(dngr)}
+          <span className="text-white/15">{'●'.repeat(5 - dngr)}</span>
+        </span>
+        <span title={`Loot ${cfg.richness} of 5`}>
+          Loot {'●'.repeat(cfg.richness)}
+          <span className="text-white/15">{'●'.repeat(5 - cfg.richness)}</span>
+        </span>
+      </div>
+    </div>
+  );
 
   const actions = (
     <>
@@ -462,65 +580,48 @@ function KnownCard({
     </>
   );
 
-  const header = (
-    <>
-      <div className="flex items-center gap-2">
-        <Icon name={cfg.icon} size={22} />
-        <div className="min-w-0 flex-1">
-          <div className="truncate font-bold">{sel.name}</div>
-          <div className="text-xs text-white/40">
-            {cfg.label} · {sel.size}
-          </div>
-        </div>
-        {here ? (
-          <span className="rounded bg-signal/20 px-2 py-0.5 text-xs text-signal">HERE</span>
-        ) : (
-          <span className="rounded bg-white/10 px-2 py-0.5 text-xs text-white/50">last seen</span>
-        )}
-      </div>
-
-      <StationCodes sel={sel} />
-
-      {faction && <FactionBadge sel={sel} faction={faction} />}
-
-      <div className="mt-2 flex items-center justify-between text-xs">
-        {/* distance-from-spawn is noise once you're standing here */}
-        <span className="text-white/50">
-          {here ? '' : `${Math.round(sel.distanceFromSpawn)} m from spawn`}
-        </span>
-        <span style={{ color: dangerColor(dngr) }} title={`Danger ${dngr} of 5`}>
-          Danger {'●'.repeat(dngr)}
-          <span className="text-white/15">{'●'.repeat(5 - dngr)}</span>
-        </span>
-      </div>
-      <div className="mt-1 text-xs text-white/40">
-        {occupied
-          ? sel.isFactionOutpost
-            ? 'Faction outpost — full services, no scavenging.'
-            : 'Faction territory — NPC hub, no scavenging.'
-          : isBlock
-            ? '12 floors — cleared unit by unit, not searched.'
-            : exhausted
-              ? 'Picked clean — exhausted.'
-              : `${searches} search${searches === 1 ? '' : 'es'} left`}
-        {useMem && (
-          <span className="text-concrete-400">
-            {' '}
-            · last seen danger {dngr}
-            {mem && mem.currentDanger !== sel.currentDanger ? ' (may be stale)' : ' (intel)'}
-          </span>
-        )}
-      </div>
-
-    </>
-  );
-
-  // The target card keeps its original single column — you're reading a
-  // decision there, and the travel estimate is the bulk of it.
+  // Target / last-seen card keeps a compact single column — travel estimate
+  // is the decision, not territory hierarchy.
   if (!here) {
     return (
       <>
-        {header}
+        <div className="flex items-center gap-2">
+          <Icon name={cfg.icon} size={22} />
+          <div className="min-w-0 flex-1">
+            <div className="truncate font-bold">{sel.name}</div>
+            <div className="text-xs text-white/40">
+              {cfg.label} · {sel.size}
+            </div>
+          </div>
+          <span className="rounded bg-white/10 px-2 py-0.5 text-xs text-white/50">last seen</span>
+        </div>
+
+        <StationCodes sel={sel} />
+
+        {faction && <FactionClaim sel={sel} faction={faction} compact />}
+
+        <div className="mt-2 flex items-center justify-between text-xs">
+          <span className="text-white/50">{`${Math.round(sel.distanceFromSpawn)} m from spawn`}</span>
+          <span style={{ color: dangerColor(dngr) }} title={`Danger ${dngr} of 5`}>
+            Danger {'●'.repeat(dngr)}
+            <span className="text-white/15">{'●'.repeat(5 - dngr)}</span>
+          </span>
+        </div>
+        <div className="mt-1 text-xs text-white/40">
+          {occupied
+            ? sel.isFactionOutpost
+              ? 'Faction outpost — full services, no scavenging.'
+              : 'Faction territory — NPC hub, no scavenging.'
+            : siteStatus}
+          {useMem && (
+            <span className="text-concrete-400">
+              {' '}
+              · last seen danger {dngr}
+              {mem && mem.currentDanger !== sel.currentDanger ? ' (may be stale)' : ' (intel)'}
+            </span>
+          )}
+        </div>
+
         {est && (
           <div className="mt-2 rounded bg-black/30 p-2 text-xs text-white/55">
             <div className="flex justify-between">
@@ -573,14 +674,26 @@ function KnownCard({
         actions={actions}
         info={
           <>
-            {header}
-            {/* What the category is good for — the reason to spend a search
-                here rather than at the next door down the street. */}
-            <div className="mt-2 text-xs leading-snug text-white/45">{cfg.blurb}</div>
-            <div className="mt-2 text-xs text-white/50">
-              Loot {'●'.repeat(cfg.richness)}
-              <span className="text-white/15">{'●'.repeat(5 - cfg.richness)}</span>
+            <div className={`flex gap-2 ${compact ? 'flex-col' : 'items-stretch'}`}>
+              <div className="flex min-w-0 flex-1 gap-2">
+                <div
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded border border-white/10 bg-black/30"
+                  aria-hidden
+                >
+                  <Icon name={cfg.icon} size={24} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-bold leading-tight">{sel.name}</div>
+                  {metaLine}
+                  <StationCodes sel={sel} />
+                  {siteStatus && (
+                    <div className="mt-1 text-xs text-white/40">{siteStatus}</div>
+                  )}
+                </div>
+              </div>
+              {faction && <FactionClaim sel={sel} faction={faction} />}
             </div>
+            <div className="mt-2 text-xs leading-snug text-white/45">{cfg.blurb}</div>
           </>
         }
       />
