@@ -16,7 +16,7 @@
 // relations are used for two things only: the polylines we draw, and deciding
 // which lines are actually in service (see IN_SERVICE below).
 
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -149,9 +149,19 @@ function perpDistance(p, a, b) {
 // metres out of Tanah Merah and then leaves. Rejecting any way with a point
 // near an accepted one would eat every branch at its junction.
 
-const MERGE_TOLERANCE_M = 30; // twins measure ~15m apart; genuine alignments, 60m+
-const COVER_FRACTION = 0.9;
+// Twins measure ~15m apart; after Douglas–Peucker they often sit 20–40m.
+// Genuine parallel alignments (different corridors) are 60m+.
+const MERGE_TOLERANCE_M = 40;
+// 0.9 left partial twins (Circle Line north arc was ~82% covered and survived).
+const COVER_FRACTION = 0.75;
+// Short leftover stubs from a twin that was only partly covered by the trunk.
+const STUB_MAX_VERTICES = 3;
+const STUB_COVER_FRACTION = 0.5;
 const SAMPLE_STEP_M = 20;
+// Endpoint snap distance when chaining OSM ways into continuous polylines.
+// After twin stubs are dropped, neighbouring kept ways can sit 100–180 m apart;
+// 200 m still stays well below station spacing (~1 km).
+const STITCH_JOIN_M = 200;
 
 // One equirectangular projection for the whole island — everything below is
 // plane geometry in metres.
@@ -201,6 +211,9 @@ function pathLength(pts) {
  * Linear scan over accepted segments with a bbox reject. The worst line is 76
  * ways over ~400 segments, a few million cheap tests — a spatial index would be
  * faster and not worth the code.
+ *
+ * Short stubs (≤3 vertices) use a lower cover threshold: after the long twin is
+ * kept, OSM often leaves 2-point scraps of the other rail that never reach 75%.
  */
 function dedupeWays(ways) {
   const projected = ways.map((w) => w.map(project));
@@ -228,13 +241,82 @@ function dedupeWays(ways) {
     const samples = samplePath(pts);
     let covered = 0;
     for (const s of samples) if (covers(s)) covered++;
-    if (accepted.length && covered / samples.length >= COVER_FRACTION) continue;
+    if (accepted.length) {
+      const fraction = covered / samples.length;
+      const stub = pts.length <= STUB_MAX_VERTICES;
+      if (fraction >= COVER_FRACTION || (stub && fraction >= STUB_COVER_FRACTION)) continue;
+    }
 
     keep.push(i);
     for (let k = 1; k < pts.length; k++) accepted.push([pts[k - 1], pts[k]]);
   }
   // Back into input order, so the file stays diff-friendly across re-bakes.
   return keep.sort((a, b) => a - b).map((i) => ways[i]);
+}
+
+/**
+ * Chain OSM ways into continuous polylines. Route relations arrive as dozens of
+ * short ways that break at stations and junctions; without this the overlay
+ * draws each as its own stroke and small endpoint gaps read as dashed track.
+ *
+ * Greedy nearest-endpoint merge within STITCH_JOIN_M. The shared vertex is
+ * snapped to the midpoint so SVG line joins are seamless.
+ */
+function stitchWays(ways, joinM = STITCH_JOIN_M) {
+  if (ways.length <= 1) return ways.map((w) => w.slice());
+
+  const paths = ways.map((w) => w.slice());
+  const endDist = (a, b) => {
+    const [alat, alng] = a;
+    const [blat, blng] = b;
+    const dx = (blng - alng) * M_PER_DEG_LNG;
+    const dy = (blat - alat) * M_PER_DEG_LAT;
+    return Math.hypot(dx, dy);
+  };
+  const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+
+  let changed = true;
+  while (changed) {
+    changed = false;
+    outer: for (let i = 0; i < paths.length; i++) {
+      for (let j = i + 1; j < paths.length; j++) {
+        const A = paths[i];
+        const B = paths[j];
+        const a0 = A[0];
+        const a1 = A[A.length - 1];
+        const b0 = B[0];
+        const b1 = B[B.length - 1];
+        const candidates = [
+          { d: endDist(a1, b0), merge: () => {
+            const m = mid(a1, b0);
+            paths[i] = A.slice(0, -1).concat([m], B.slice(1));
+          } },
+          { d: endDist(a1, b1), merge: () => {
+            const m = mid(a1, b1);
+            const rev = B.slice().reverse();
+            paths[i] = A.slice(0, -1).concat([m], rev.slice(1));
+          } },
+          { d: endDist(a0, b1), merge: () => {
+            const m = mid(a0, b1);
+            paths[i] = B.slice(0, -1).concat([m], A.slice(1));
+          } },
+          { d: endDist(a0, b0), merge: () => {
+            const m = mid(a0, b0);
+            const rev = B.slice().reverse();
+            paths[i] = rev.slice(0, -1).concat([m], A.slice(1));
+          } },
+        ];
+        candidates.sort((x, y) => x.d - y.d);
+        if (candidates[0].d <= joinM) {
+          candidates[0].merge();
+          paths.splice(j, 1);
+          changed = true;
+          break outer;
+        }
+      }
+    }
+  }
+  return paths;
 }
 
 /** Douglas-Peucker: keeps the points that define the shape, drops the rest. */
@@ -497,15 +579,16 @@ function buildShapes(relations) {
     }
   }
 
-  // Simplify first, dedupe second: by here every way is 4-6 points, so the
-  // cover test is cheap and measures exactly the geometry that ships.
+  // Simplify → twin-dedupe → stitch. Cover test runs on the simplified geometry
+  // that ships; stitch then chains leftover fragments into continuous strokes.
   for (const [prefix, ways] of byPrefix) {
-    const kept = dedupeWays(ways);
+    const deduped = dedupeWays(ways);
+    const kept = stitchWays(deduped);
     const ptsBefore = ways.reduce((n, w) => n + w.length, 0);
     const ptsAfter = kept.reduce((n, w) => n + w.length, 0);
     console.log(
-      `  ${prefix.padEnd(3)} twin tracks: ${ways.length} -> ${kept.length} ways, ` +
-        `${ptsBefore} -> ${ptsAfter} pts`,
+      `  ${prefix.padEnd(3)} twin tracks: ${ways.length} -> ${deduped.length} ways, ` +
+        `stitch -> ${kept.length} paths, ${ptsBefore} -> ${ptsAfter} pts`,
     );
     // Losing nearly everything means the tolerance swallowed a real alignment.
     if (ways.length > 20 && ptsAfter < ptsBefore * 0.2) {
@@ -516,7 +599,42 @@ function buildShapes(relations) {
   return byPrefix;
 }
 
-async function main() {
+/**
+ * Re-run twin-dedupe + stitch on an existing mrt.json without hitting Overpass.
+ * Useful when only the geometry cleanup changed: `node scripts/bake-mrt.mjs --from-file`
+ */
+function refineShapesFromFile() {
+  console.log(`Refining track shapes in ${OUT_FILE}...`);
+  const file = JSON.parse(readFileSync(OUT_FILE, 'utf8'));
+  if (!file.lines?.length) {
+    console.error('mrt.json has no lines — refusing to write.');
+    process.exit(1);
+  }
+
+  const lines = file.lines.map((line) => {
+    if (!line.shape?.length) return line;
+    const before = line.shape.length;
+    const deduped = dedupeWays(line.shape);
+    const shape = stitchWays(deduped);
+    const pts = shape.reduce((n, s) => n + s.length, 0);
+    console.log(
+      `  ${line.code.padEnd(3)} ${String(before).padStart(3)} -> ${String(deduped.length).padStart(3)} ways, ` +
+        `stitch -> ${String(shape.length).padStart(3)} paths / ${pts} pts`,
+    );
+    return { ...line, shape };
+  });
+
+  const payload = {
+    ...file,
+    generatedAt: new Date().toISOString().slice(0, 10),
+    lines,
+  };
+  const json = JSON.stringify(payload);
+  writeFileSync(OUT_FILE, json);
+  console.log(`\nWrote ${OUT_FILE} — ${(json.length / 1024).toFixed(0)} KB`);
+}
+
+async function bakeFromOverpass() {
   console.log('Baking Singapore rail network...');
   const routeEls = await runQuery('route relations', ROUTES_QUERY);
   await sleep(DELAY_MS);
@@ -573,6 +691,14 @@ async function main() {
   const json = JSON.stringify(payload);
   writeFileSync(OUT_FILE, json);
   console.log(`\nWrote ${OUT_FILE} — ${(json.length / 1024).toFixed(0)} KB`);
+}
+
+async function main() {
+  if (process.argv.includes('--from-file')) {
+    refineShapesFromFile();
+    return;
+  }
+  await bakeFromOverpass();
 }
 
 main().catch((err) => {
