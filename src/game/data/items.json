@@ -660,6 +660,7 @@
     "maxStack": 1,
     "color": "#a63a2a",
     "slot": "mainHand",
+    "twoHanded": true,
     "wearRate": 0.65
   },
   "parang": {
@@ -737,6 +738,7 @@
     "maxStack": 1,
     "color": "#c0c4c8",
     "slot": "mainHand",
+    "twoHanded": true,
     "wearRate": 1.3
   },
   "baseball_bat": {
@@ -756,6 +758,7 @@
     "maxStack": 1,
     "color": "#a8804a",
     "slot": "mainHand",
+    "twoHanded": true,
     "wearRate": 1,
     "icon": "item.baseball_bat"
   },
@@ -776,6 +779,7 @@
     "maxStack": 1,
     "color": "#7a6b4a",
     "slot": "mainHand",
+    "twoHanded": true,
     "wearRate": 0.7
   },
   "katana": {
@@ -795,6 +799,7 @@
     "maxStack": 1,
     "color": "#8f9498",
     "slot": "mainHand",
+    "twoHanded": true,
     "wearRate": 0.7,
     "exotic": true,
     "scarcity": 0.18,
@@ -817,6 +822,7 @@
     "maxStack": 1,
     "color": "#9aa0a6",
     "slot": "mainHand",
+    "twoHanded": true,
     "wearRate": 1.4
   },
   "spear_cleaver": {
@@ -836,6 +842,7 @@
     "maxStack": 1,
     "color": "#a8adb2",
     "slot": "mainHand",
+    "twoHanded": true,
     "wearRate": 1.2
   },
   "spear_parang": {
@@ -855,6 +862,7 @@
     "maxStack": 1,
     "color": "#7f8c8d",
     "slot": "mainHand",
+    "twoHanded": true,
     "wearRate": 1
   },
   "pistol": {
@@ -896,6 +904,7 @@
     "maxStack": 1,
     "color": "#5a3a1d",
     "slot": "mainHand",
+    "twoHanded": true,
     "wearRate": 0.5,
     "exotic": true,
     "scarcity": 0.3
@@ -1662,5 +1671,68 @@
     "stackable": true,
     "maxStack": 3,
     "color": "#4d5a3a"
+  },
+  "daypack": {
+    "id": "daypack",
+    "name": "Daypack",
+    "w": 2,
+    "h": 2,
+    "weight": 0.6,
+    "effect": { "kind": "misc" },
+    "value": 12,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#5a6b4a",
+    "slot": "bag",
+    "modifiers": { "bagWidthBonus": 1 },
+    "startingItem": true,
+    "maxCondition": 80
+  },
+  "school_bag": {
+    "id": "school_bag",
+    "name": "School Bag",
+    "w": 2,
+    "h": 2,
+    "weight": 0.8,
+    "effect": { "kind": "misc" },
+    "value": 16,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#3a5a7a",
+    "slot": "bag",
+    "modifiers": { "bagWidthBonus": 2 },
+    "maxCondition": 70
+  },
+  "hiking_pack": {
+    "id": "hiking_pack",
+    "name": "Hiking Pack",
+    "w": 2,
+    "h": 3,
+    "weight": 1.4,
+    "effect": { "kind": "misc" },
+    "value": 28,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#6a5a3a",
+    "slot": "bag",
+    "modifiers": { "bagWidthBonus": 3, "bagHeightBonus": 1 },
+    "maxCondition": 90
+  },
+  "military_rucksack": {
+    "id": "military_rucksack",
+    "name": "Military Rucksack",
+    "w": 3,
+    "h": 3,
+    "weight": 2.2,
+    "effect": { "kind": "misc" },
+    "value": 45,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#4a5a3a",
+    "slot": "bag",
+    "modifiers": { "bagWidthBonus": 4, "bagHeightBonus": 1, "weightCapacityBonus": 3 },
+    "exotic": true,
+    "scarcity": 0.35,
+    "maxCondition": 100
   }
 }

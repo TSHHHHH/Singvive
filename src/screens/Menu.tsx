@@ -9,8 +9,11 @@ export function Menu() {
         <h1 className="mb-1 text-5xl font-black tracking-tight text-signal drop-shadow">
           SINGVIVE
         </h1>
-        <p className="mb-8 text-sm uppercase tracking-[0.3em] text-white/40">
+        <p className="mb-2 text-sm uppercase tracking-[0.3em] text-white/40">
           Singapore has fallen
+        </p>
+        <p className="mb-8 text-xs text-white/45">
+          9400+ real locations · permadeath · extract or die
         </p>
 
         <div className="flex flex-col gap-3">
@@ -71,8 +74,8 @@ export function Menu() {
         )}
 
         <p className="mt-10 text-xs leading-relaxed text-white/30">
-          A roguelike survival game on the real map of Singapore. Scavenge real places, manage your
-          body, climb the score — or get out with a lift before the horde peaks.
+          A roguelike survival game on the real map of Singapore — 9400+ OSM places to scavenge,
+          manage your body, climb the score, or get out with a lift before the horde peaks.
         </p>
       </div>
     </div>

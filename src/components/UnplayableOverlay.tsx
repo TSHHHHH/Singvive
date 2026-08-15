@@ -21,6 +21,10 @@ const RESTRICTED_STYLE = {
   interactive: false as const,
 };
 
+/** Opaque fill; ImageOverlay opacity applies once (no stacked polygons). */
+const VEGETATION_OPAQUE = '#2f5a38';
+const VEGETATION_OPACITY = 0.38;
+
 const SEA_CANVAS_W = 1536;
 
 function ensureClosed(ring: ZoneRing): ZoneRing {
@@ -112,16 +116,97 @@ function SeaMaskImage({ land }: { land: ZoneRing[] }) {
 }
 
 /**
- * Spawn-only wash: open sea (canvas mask) + inland water + restricted.
+ * Paint all vegetation rings into one raster so overlapping OSM polygons do
+ * not stack opacity (source-over on opaque fill, then one ImageOverlay alpha).
+ */
+function VegetationMaskImage({ rings }: { rings: ZoneRing[] }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (rings.length === 0) return;
+
+    let minLat = Infinity;
+    let maxLat = -Infinity;
+    let minLng = Infinity;
+    let maxLng = -Infinity;
+    for (const ring of rings) {
+      for (const [lat, lng] of ring) {
+        if (lat < minLat) minLat = lat;
+        if (lat > maxLat) maxLat = lat;
+        if (lng < minLng) minLng = lng;
+        if (lng > maxLng) maxLng = lng;
+      }
+    }
+    const pad = 0.005;
+    minLat -= pad;
+    maxLat += pad;
+    minLng -= pad;
+    maxLng += pad;
+
+    const bounds = L.latLngBounds([minLat, minLng], [maxLat, maxLng]);
+    const latSpan = maxLat - minLat;
+    const lngSpan = maxLng - minLng;
+    const midLat = (minLat + maxLat) / 2;
+    const aspect = (latSpan / lngSpan) * (1 / Math.cos((midLat * Math.PI) / 180));
+    const w = SEA_CANVAS_W;
+    const h = Math.max(256, Math.round(w * aspect));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const project = (lat: number, lng: number): [number, number] => [
+      ((lng - minLng) / lngSpan) * w,
+      ((maxLat - lat) / latSpan) * h,
+    ];
+
+    ctx.fillStyle = VEGETATION_OPAQUE;
+    for (const ring of rings) {
+      const closed = ensureClosed(ring);
+      if (closed.length < 4) continue;
+      ctx.beginPath();
+      for (let i = 0; i < closed.length; i++) {
+        const [x, y] = project(closed[i][0], closed[i][1]);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    const url = canvas.toDataURL('image/png');
+    const overlay = L.imageOverlay(url, bounds, {
+      opacity: VEGETATION_OPACITY,
+      interactive: false,
+      className: 'pointer-events-none',
+    });
+    overlay.addTo(map);
+
+    return () => {
+      overlay.remove();
+      canvas.width = 0;
+      canvas.height = 0;
+    };
+  }, [map, rings]);
+
+  return null;
+}
+
+/**
+ * Spawn-only wash: open sea (canvas mask) + inland water + restricted + vegetation.
  * Non-interactive so ClickCatcher keeps the picks.
  */
 export function UnplayableOverlay({ zones }: { zones: ZonesData }) {
   // Stable ref for the effect when zone object identity changes but land doesn't.
   const land = useMemo(() => zones.land, [zones]);
+  const vegetation = useMemo(() => zones.vegetation ?? [], [zones]);
 
   return (
     <>
       <SeaMaskImage land={land} />
+      <VegetationMaskImage rings={vegetation} />
       {zones.water.map((ring, i) => (
         <Polygon key={`w-${i}`} positions={toLatLngs(ring)} pathOptions={WATER_STYLE} />
       ))}
@@ -136,14 +221,18 @@ export function UnplayableOverlay({ zones }: { zones: ZonesData }) {
 export function UnplayableLegend() {
   return (
     <div className="pointer-events-none absolute bottom-3 left-3 z-[400] rounded border border-white/15 bg-black/70 px-2.5 py-2 text-[11px] leading-relaxed text-white/75 backdrop-blur-sm">
-      <div className="mb-1 font-medium text-white/90">Unplayable</div>
+      <div className="mb-1 font-medium text-white/90">Terrain</div>
       <div className="flex items-center gap-2">
         <span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#4d7a8c]" />
-        Water
+        Water — sealed
       </div>
       <div className="mt-0.5 flex items-center gap-2">
         <span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#6b4a32]" />
         Restricted — sealed off
+      </div>
+      <div className="mt-0.5 flex items-center gap-2">
+        <span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#2f5a38]" />
+        Vegetation — slows travel
       </div>
     </div>
   );

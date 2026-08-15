@@ -81,6 +81,7 @@ export function TunnelRunView() {
         <CampPanel
           name={here.name}
           offer={offer}
+          servicesUsed={!!here.servicesUsed}
           onRest={rest}
           onTreat={treat}
           onAccept={accept}
@@ -338,6 +339,7 @@ function NodePip({
 function CampPanel({
   name,
   offer,
+  servicesUsed,
   onRest,
   onTreat,
   onAccept,
@@ -345,6 +347,7 @@ function CampPanel({
 }: {
   name: string;
   offer: { wantDefId: string; giveDefId: string } | null;
+  servicesUsed: boolean;
   onRest: () => void;
   onTreat: () => void;
   onAccept: () => void;
@@ -353,22 +356,28 @@ function CampPanel({
   return (
     <div className="shrink-0 border-t border-astral/30 bg-astral/5 px-3 py-2">
       <div className="signage mb-1.5 text-2xs text-astral">{name} · they let you in</div>
-      <div className="flex flex-wrap gap-2">
-        <button
-          onClick={onRest}
-          className="flex-1 rounded border border-astral/40 px-2 py-1.5 text-xs text-astral hover:bg-astral/10"
-        >
-          <Icon name="action.sleep" size={12} /> Sleep 5h
-          <span className="block text-2xs opacity-70">quiets the tunnel</span>
-        </button>
-        <button
-          onClick={onTreat}
-          className="flex-1 rounded border border-astral/40 px-2 py-1.5 text-xs text-astral hover:bg-astral/10"
-        >
-          <Icon name="hdb.doctor" size={12} /> Patch up
-          <span className="block text-2xs opacity-70">1× canned food</span>
-        </button>
-      </div>
+      {servicesUsed ? (
+        <p className="mb-2 text-xs text-concrete-400">
+          Camp services already used — one favour is all they&apos;ll spare.
+        </p>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={onRest}
+            className="flex-1 rounded border border-astral/40 px-2 py-1.5 text-xs text-astral hover:bg-astral/10"
+          >
+            <Icon name="action.sleep" size={12} /> Sleep 5h
+            <span className="block text-2xs opacity-70">quiets the tunnel · once</span>
+          </button>
+          <button
+            onClick={onTreat}
+            className="flex-1 rounded border border-astral/40 px-2 py-1.5 text-xs text-astral hover:bg-astral/10"
+          >
+            <Icon name="hdb.doctor" size={12} /> Patch up
+            <span className="block text-2xs opacity-70">1× canned food · once</span>
+          </button>
+        </div>
+      )}
 
       {offer && (
         <div className="mt-2 rounded border border-concrete-600 bg-concrete-950/60 px-2 py-1.5">

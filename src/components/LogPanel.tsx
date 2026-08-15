@@ -10,6 +10,7 @@ import type { ChoiceKind } from '../game/events';
 import type { IconName } from '../icons/keys';
 import { EncounterPrompt } from './EncounterPrompt';
 import { SearchSessionNode } from './SearchSessionNode';
+import { highlightLogText } from './logHighlight';
 
 const toneClass: Record<string, string> = {
   good: 'text-signal',
@@ -46,9 +47,12 @@ const dotClass: Record<string, string> = {
 export function LogPanel({
   onOpenSettings,
   onOpenDayLogs,
+  onFocusMap,
 }: {
   onOpenSettings?: () => void;
   onOpenDayLogs?: () => void;
+  /** Pan the map camera to a timeline focus target (e.g. intel tip). */
+  onFocusMap?: (lat: number, lng: number) => void;
 }) {
   const log = useGame((s) => s.log);
   const day = useGame((s) => s.day);
@@ -205,8 +209,19 @@ export function LogPanel({
                       >
                         {formatClock(e.hour, clock)}
                       </span>
-                      {e.text}
+                      {highlightLogText(e.text)}
                     </p>
+                    {e.focus && onFocusMap && (
+                      <div style={{ paddingLeft: timeW }} className="mt-1">
+                        <button
+                          type="button"
+                          onClick={() => onFocusMap(e.focus!.lat, e.focus!.lng)}
+                          className="rounded border border-signal/40 bg-signal/10 px-2 py-0.5 text-2xs text-signal hover:bg-signal/20"
+                        >
+                          Show on map{e.focus.label ? ` · ${e.focus.label}` : ''}
+                        </button>
+                      </div>
+                    )}
                     {/* a haul reads inline, in the timeline — no popup to
                         dismiss. Indented to the text, not the timestamp, so the
                         haul lines up with the sentence that earned it. */}

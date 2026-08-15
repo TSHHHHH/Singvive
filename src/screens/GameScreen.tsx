@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useGame } from '../game/store';
+import { useAnimatedNumber } from '../hooks/useAnimatedNumber';
 import { GameMap } from '../components/GameMap';
 import { TargetDock } from '../components/TargetDock';
 import { useMrtNetwork } from '../components/MrtOverlay';
@@ -122,6 +123,7 @@ export function GameScreen() {
     combat,
     hdb,
     hdbEnter,
+    hdbLeave,
     ghostOffer,
     acceptGhostTrade,
     declineGhostTrade,
@@ -161,6 +163,7 @@ export function GameScreen() {
       combat: s.combat,
       hdb: s.hdb,
       hdbEnter: s.hdbEnter,
+      hdbLeave: s.hdbLeave,
       ghostOffer: s.ghostOffer,
       acceptGhostTrade: s.acceptGhostTrade,
       declineGhostTrade: s.declineGhostTrade,
@@ -202,11 +205,17 @@ export function GameScreen() {
     null,
   );
 
+  const inventoryOpenToken = useGame((s) => s.inventoryOpenToken);
+
   const focusStashOnMap = useCallback((lat: number, lng: number) => {
     setMapFocus((prev) => ({ lat, lng, token: (prev?.token ?? 0) + 1 }));
     setMobileView('map');
     setSidePanel(null);
   }, []);
+
+  useEffect(() => {
+    if (inventoryOpenToken > 0) setSidePanel('inventory');
+  }, [inventoryOpenToken]);
 
   // An event now lives in the timeline (right column) rather than a blocking
   // modal. On mobile the log is a separate tab, so pull the player to it.
@@ -315,16 +324,20 @@ export function GameScreen() {
         : 400,
     [character, meters.energy, legFactor, weather, encumbered],
   );
-  const blipRange = useMemo(() => {
-    const awarenessValue = character
-      ? awareness(
-          character.attributes.perception,
-          equipAwarenessMod(equipment),
-          traitAwarenessMod(character.traitIds),
-        )
-      : 0;
-    return travelRange + blipMargin(awarenessValue);
-  }, [character, equipment, travelRange]);
+  // Fog + planning ring: hold setout range for the whole glide, then ease to
+  // the post-trip range on arrival (energy already spent at departure).
+  const mapRangeTarget = travelAnim ? travelAnim.departRange : travelRange;
+  const mapTravelRange = useAnimatedNumber(mapRangeTarget, 600);
+
+  const awarenessValue = character
+    ? awareness(
+        character.attributes.perception,
+        equipAwarenessMod(equipment),
+        traitAwarenessMod(character.traitIds),
+      )
+    : 0;
+  const blipRange = travelRange + blipMargin(awarenessValue);
+  const mapBlipRange = mapTravelRange + blipMargin(awarenessValue);
 
   // Hazards densify as the horde climbs — early map is sparse, late map contested.
   const hazardPressure = hordeIntensity(hordeLevel);
@@ -604,7 +617,21 @@ export function GameScreen() {
           }
         : null;
 
-  const hereSlot: ReactNode = hereProps ? (
+  const hereSlot: ReactNode = hdb ? (
+    <div className="space-y-2 text-sm">
+      <p className="text-white/70">
+        Inside the block — cutaway on the map. Clear units floor by floor, then leave when you&apos;re
+        done.
+      </p>
+      <button
+        type="button"
+        onClick={() => hdbLeave()}
+        className="w-full rounded border border-white/20 px-2 py-2 text-sm hover:bg-white/5"
+      >
+        Leave the block
+      </button>
+    </div>
+  ) : hereProps ? (
     <>
       <LocationCard {...hereProps} />
       {atEvac && (
@@ -618,8 +645,6 @@ export function GameScreen() {
       )}
     </>
   ) : !worldLoading ? (
-    // Standing on bare ground — no site card to show, so say so plainly and
-    // point at the only two things you can do from here.
     <>
       <div className="text-sm text-white/70">Nowhere in particular.</div>
       <div className="mt-1 text-xs text-white/40">
@@ -629,7 +654,9 @@ export function GameScreen() {
     </>
   ) : null;
 
-  const hereTitle: ReactNode = hereProps ? (
+  const hereTitle: ReactNode = hdb ? (
+    <><Icon name="hdb.enterBlock" /> Inside the block</>
+  ) : hereProps ? (
     <><Icon name="action.here" /> You are here</>
   ) : (
     <><Icon name="action.here" /> In the open</>
@@ -813,8 +840,8 @@ export function GameScreen() {
               pois={locationList}
               selectedId={sel?.id ?? null}
               hereId={currentPositionId}
-              travelRange={travelRange}
-              blipRange={blipRange}
+              travelRange={mapTravelRange}
+              blipRange={mapBlipRange}
               exploredArea={exploredArea}
               travelAnim={travelAnim}
               evacZoneId={evacZoneId}
@@ -897,6 +924,7 @@ export function GameScreen() {
               <LogPanel
                 onOpenSettings={() => setSettingsOpen(true)}
                 onOpenDayLogs={() => setDayLogsOpen(true)}
+                onFocusMap={focusStashOnMap}
               />
             </div>
           )}

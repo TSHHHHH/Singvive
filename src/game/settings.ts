@@ -81,7 +81,28 @@ export const SETTINGS_SCHEMA: SettingDef[] = [
     ],
     default: 'off',
   },
+  {
+    key: 'fontSize',
+    label: 'Font size',
+    description: 'UI text scale. Affects the whole interface, including the timeline.',
+    group: 'Display',
+    options: [
+      { value: 'sm', label: 'Small' },
+      { value: 'md', label: 'Medium' },
+      { value: 'lg', label: 'Large' },
+      { value: 'xl', label: 'Extra large' },
+    ],
+    default: 'md',
+  },
 ];
+
+/** Root font-size multipliers applied via `document.documentElement`. */
+export const FONT_SIZE_PX: Record<string, string> = {
+  sm: '14px',
+  md: '16px',
+  lg: '18px',
+  xl: '20px',
+};
 
 const STORAGE_KEY = 'singvive.settings.v1';
 

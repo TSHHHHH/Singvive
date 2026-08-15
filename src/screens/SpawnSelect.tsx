@@ -13,17 +13,34 @@ import {
 } from '../game/playable';
 import { playerIcon } from '../components/mapIcons';
 import { UnplayableLegend, UnplayableOverlay } from '../components/UnplayableOverlay';
+import { MrtOverlay, legendLines, useMrtNetwork } from '../components/MrtOverlay';
 import {
   TILE_ATTRIBUTION,
   TILE_MAX_NATIVE_ZOOM,
   TILE_SUBDOMAINS,
   TILE_URL,
 } from '../components/tileConfig';
+import { Icon } from '../icons/Icon';
 
 const bounds = L.latLngBounds(
   [SG_BOUNDS.minLat, SG_BOUNDS.minLng],
   [SG_BOUNDS.maxLat, SG_BOUNDS.maxLng],
 );
+
+/** Shared with GameMap — survives reloads and stays in sync across screens. */
+const MRT_KEY = 'singvive.mrtOverlay';
+
+function loadMrtPref(): boolean {
+  return localStorage.getItem(MRT_KEY) === '1';
+}
+
+function saveMrtPref(on: boolean): void {
+  try {
+    localStorage.setItem(MRT_KEY, on ? '1' : '0');
+  } catch {
+    /* storage unavailable — non-fatal */
+  }
+}
 
 interface Picked {
   lat: number;
@@ -61,14 +78,37 @@ function ClickCatcher({
   return null;
 }
 
+/** Pan only — flyTo re-zooms every frame and desyncs ImageOverlay terrain washes. */
+function FocusSpawn({ lat, lng }: { lat: number; lng: number }) {
+  const map = useMap();
+  useEffect(() => {
+    const targetZoom = 15;
+    if (map.getZoom() < targetZoom) {
+      map.setZoom(targetZoom, { animate: false });
+    }
+    map.panTo([lat, lng], { animate: true, duration: 0.8 });
+  }, [map, lat, lng]);
+  return null;
+}
+
 const RANDOM_TRIES = 24;
 
 export function SpawnSelect() {
   const { setSpawn, resetToMenu } = useGame();
   const [picked, setPicked] = useState<Picked | null>(null);
   const [loading, setLoading] = useState(false);
+  const [geoBusy, setGeoBusy] = useState(false);
   const [rejected, setRejected] = useState<string | null>(null);
   const [zones, setZones] = useState<ZonesData | null>(null);
+  const [showMrt, setShowMrt] = useState(loadMrtPref);
+  const mrtNet = useMrtNetwork(showMrt);
+
+  const toggleMrt = () => {
+    setShowMrt((on) => {
+      saveMrtPref(!on);
+      return !on;
+    });
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -77,7 +117,6 @@ export function SpawnSelect() {
         if (!cancelled) setZones(z);
       })
       .catch(() => {
-        // Overlay absent; walkability degrades to country clip until bake exists.
         if (!cancelled) setZones(getZones());
       });
     return () => {
@@ -98,6 +137,52 @@ export function SpawnSelect() {
     return best.name;
   };
 
+  const tryPick = (lat: number, lng: number): boolean => {
+    const reason = walkabilityOf(lat, lng);
+    if (reason !== 'ok') {
+      setPicked(null);
+      setRejected(unplayableMessage(reason, 'spawn'));
+      return false;
+    }
+    setRejected(null);
+    setPicked({ lat, lng, name: nearestName(lat, lng) });
+    return true;
+  };
+
+  const useMyLocation = () => {
+    if (!navigator.geolocation) {
+      setRejected('This browser cannot share your location.');
+      return;
+    }
+    setGeoBusy(true);
+    setRejected(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setGeoBusy(false);
+        const { latitude: lat, longitude: lng } = pos.coords;
+        if (
+          lat < SG_BOUNDS.minLat ||
+          lat > SG_BOUNDS.maxLat ||
+          lng < SG_BOUNDS.minLng ||
+          lng > SG_BOUNDS.maxLng
+        ) {
+          setRejected('You are outside Singapore — tap the map or pick Random.');
+          return;
+        }
+        tryPick(lat, lng);
+      },
+      (err) => {
+        setGeoBusy(false);
+        if (err.code === err.PERMISSION_DENIED) {
+          setRejected('Location permission denied — tap the map instead.');
+        } else {
+          setRejected('Could not read your location — tap the map instead.');
+        }
+      },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 60_000 },
+    );
+  };
+
   const randomSpawn = () => {
     setRejected(null);
     for (let i = 0; i < RANDOM_TRIES; i++) {
@@ -109,7 +194,6 @@ export function SpawnSelect() {
         return;
       }
     }
-    // Jitter kept landing badly — wake on a known neighbourhood centroid.
     const n = NEIGHBOURHOODS[Math.floor(Math.random() * NEIGHBOURHOODS.length)];
     if (isWalkable(n.lat, n.lng)) {
       setPicked({ lat: n.lat, lng: n.lng, name: n.name });
@@ -148,12 +232,22 @@ export function SpawnSelect() {
         <h2 className="order-first w-full text-center text-base font-bold text-signal sm:order-none sm:w-auto sm:text-lg">
           Choose where you wake up
         </h2>
-        <button
-          onClick={randomSpawn}
-          className="ml-auto rounded bg-white/10 px-3 py-1.5 text-sm hover:bg-white/20 sm:ml-0"
-        >
-          Random
-        </button>
+        <div className="ml-auto flex gap-2 sm:ml-0">
+          <button
+            onClick={useMyLocation}
+            disabled={geoBusy || loading}
+            className="rounded bg-white/10 px-3 py-1.5 text-sm hover:bg-white/20 disabled:opacity-40"
+            title="Ask the browser for your real-world position"
+          >
+            {geoBusy ? 'Locating…' : 'My location'}
+          </button>
+          <button
+            onClick={randomSpawn}
+            className="rounded bg-white/10 px-3 py-1.5 text-sm hover:bg-white/20"
+          >
+            Random
+          </button>
+        </div>
       </div>
 
       {rejected && (
@@ -181,18 +275,53 @@ export function SpawnSelect() {
           />
           <SizeFix />
           {zones && <UnplayableOverlay zones={zones} />}
+          {showMrt && mrtNet && <MrtOverlay net={mrtNet} />}
           <ClickCatcher
             onPick={(lat, lng) => {
-              setRejected(null);
-              setPicked({ lat, lng, name: nearestName(lat, lng) });
+              tryPick(lat, lng);
             }}
             onReject={(msg) => {
               setPicked(null);
               setRejected(msg);
             }}
           />
-          {picked && <Marker position={[picked.lat, picked.lng]} icon={playerIcon()} />}
+          {picked && (
+            <>
+              <Marker position={[picked.lat, picked.lng]} icon={playerIcon()} />
+              <FocusSpawn lat={picked.lat} lng={picked.lng} />
+            </>
+          )}
         </MapContainer>
+
+        <button
+          onClick={toggleMrt}
+          aria-pressed={showMrt}
+          title="Show the MRT & LRT network"
+          className={`absolute right-2 top-2 z-[500] flex items-center gap-1.5 rounded border px-2 py-1.5 text-xs font-semibold shadow-lg backdrop-blur transition-colors ${
+            showMrt
+              ? 'border-astral/50 bg-astral/20 text-astral'
+              : 'border-white/15 bg-black/70 text-white/60 hover:text-white/90'
+          }`}
+        >
+          <Icon name="action.mrt" size={14} /> Rail map
+        </button>
+
+        {showMrt && mrtNet && (
+          <div className="absolute right-2 top-11 z-[500] max-w-[45vw] rounded border border-white/10 bg-black/80 p-2 text-2xs leading-tight text-white/70 shadow-lg backdrop-blur">
+            {legendLines(mrtNet).map((line) => (
+              <div key={line.code} className="flex items-center gap-1.5">
+                <span
+                  className="inline-block h-0.5 w-4 shrink-0 rounded"
+                  style={{ background: line.color }}
+                />
+                <span className="truncate">{line.name}</span>
+              </div>
+            ))}
+            <div className="mt-1 border-t border-white/10 pt-1 text-white/35">
+              OSM · baked {mrtNet.generatedAt}
+            </div>
+          </div>
+        )}
 
         {zones && <UnplayableLegend />}
 
@@ -213,7 +342,7 @@ export function SpawnSelect() {
               Spawn: <span className="text-signal">{picked.name}</span>
             </>
           ) : (
-            'Tap dry ground in Singapore, or roll a random spawn.'
+            'Tap dry ground, use your location, or roll a random spawn.'
           )}
         </p>
         <button

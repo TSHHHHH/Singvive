@@ -46,6 +46,21 @@ const UNIT_ICON: Record<HdbUnitNode['type'], IconName> = {
   hazard: 'hdb.hazard',
 };
 
+/** Vertical corridor blockade — thicker than a hairline so intent reads. */
+function BlockadeStripe({ block }: { block: HdbBlock }) {
+  const meta = BLOCK_META[block.kind];
+  return (
+    <span
+      className="pointer-events-none absolute left-0 top-[10%] bottom-[5%] z-10 flex w-1.5 flex-col items-center justify-center gap-0.5 bg-hiss shadow-[0_0_8px_rgba(217,45,45,0.55)]"
+      title={`${meta.label} — clear to pass`}
+    >
+      <span className="rotate-180 text-[7px] font-black leading-none text-black [writing-mode:vertical-rl]">
+        BLOCK
+      </span>
+    </span>
+  );
+}
+
 /**
  * Side-elevation HDB crawl: maze movement with auto-path, fog of war on
  * unvisited storeys, doors only when you're on the cell.
@@ -59,10 +74,13 @@ export function HdbDungeonModal() {
   const hdbForceSeal = useGame((s) => s.hdbForceSeal);
   const hdbForceBlock = useGame((s) => s.hdbForceBlock);
   const hdbLeave = useGame((s) => s.hdbLeave);
+  const pendingSearch = useGame((s) => s.pendingSearch);
   const [selectedCol, setSelectedCol] = useState<number | null>(null);
   const isPhone = useIsPhoneLayout();
 
   if (!hdb || !character) return null;
+
+  const searchingUnit = pendingSearch?.hdbUnit ?? null;
 
   const floor = currentFloor(hdb);
   const threat = floorThreat(hdb, hdb.currentLevel);
@@ -91,6 +109,7 @@ export function HdbDungeonModal() {
   ];
 
   const go = (target: HdbPos) => {
+    if (pendingSearch) return;
     if (samePos(hdb.pos, target)) {
       setSelectedCol(target.column);
       return;
@@ -130,11 +149,19 @@ export function HdbDungeonModal() {
         </div>
         <button
           onClick={hdbLeave}
-          className="shrink-0 rounded border border-concrete-600 px-3 py-1.5 text-xs hover:bg-white/5"
+          disabled={!!pendingSearch}
+          title={pendingSearch ? 'Finish the unit search in the timeline first' : undefined}
+          className="shrink-0 rounded border border-concrete-600 px-3 py-1.5 text-xs hover:bg-white/5 disabled:opacity-40"
         >
           ✕ Leave
         </button>
       </div>
+
+      {searchingUnit && (
+        <div className="shrink-0 border-b border-signal/40 bg-signal/10 px-3 py-1.5 text-2xs leading-snug text-signal lg:px-4">
+          Searching {searchingUnit.label} — watch the timeline. Movement is locked until you finish or leave the search.
+        </div>
+      )}
 
       {band.dcStep > 0 && (
         <div className="shrink-0 border-b border-hiss/40 bg-hiss/10 px-3 py-1.5 text-2xs leading-snug text-hiss lg:px-4">
@@ -157,9 +184,9 @@ export function HdbDungeonModal() {
         className={`flex shrink-0 flex-col border-t border-concrete-600 bg-concrete-900/80 ${
           isPhone
             ? dockExpanded
-              ? 'max-h-[42%] overflow-hidden'
+              ? 'max-h-[46%] overflow-hidden'
               : 'overflow-hidden'
-            : 'h-[13.5rem] overflow-hidden'
+            : 'h-[14.85rem] overflow-hidden'
         }`}
       >
         <HeatGauge heat={heat} band={band} dc={dc} hunting={hunting} compact={isPhone} />
@@ -263,7 +290,8 @@ export function HdbDungeonModal() {
                     ) : (
                       <button
                         onClick={() => hdbBreach(sel.id)}
-                        className="min-h-[44px] rounded bg-signal/80 px-3 py-2 text-xs font-bold text-black hover:bg-signal lg:min-h-0 lg:py-1.5"
+                        disabled={!!pendingSearch}
+                        className="min-h-[44px] rounded bg-signal/80 px-3 py-2 text-xs font-bold text-black hover:bg-signal disabled:opacity-30 lg:min-h-0 lg:py-1.5"
                       >
                         <Icon name={ENTRY_META[sel.entry].heat > 0 ? 'hdb.breach' : 'hdb.unit'} />{' '}
                         {ENTRY_META[sel.entry].verb} · {ENTRY_META[sel.entry].minutes} min ·{' '}
@@ -497,9 +525,11 @@ function BuildingCutaway({
                       )}
                       {gate && (
                         <span
-                          className="pointer-events-none absolute inset-x-0 top-0 h-0.5 bg-hiss/70"
+                          className="pointer-events-none absolute inset-x-0 top-0 z-10 flex h-2 items-center justify-center bg-hiss/90 text-[8px] font-bold uppercase tracking-wider text-black shadow-[0_0_6px_rgba(217,45,45,0.7)]"
                           title={BLOCK_META[gate.kind].label}
-                        />
+                        >
+                          ✕ {BLOCK_META[gate.kind].label.slice(0, 6)}
+                        </span>
                       )}
                       {atPlayer && <HdbPlayerMarker />}
                     </button>
@@ -526,9 +556,7 @@ function BuildingCutaway({
                           : ''
                       }`}
                     >
-                      {blockLeft && (
-                        <span className="absolute left-0 top-[15%] bottom-0 w-0.5 bg-hiss/80" />
-                      )}
+                      {blockLeft && <BlockadeStripe block={blockLeft} />}
                       <span className="h-[65%] w-1.5 rounded-sm bg-concrete-400/40" />
                       {atPlayer && <HdbPlayerMarker />}
                     </button>
@@ -548,9 +576,7 @@ function BuildingCutaway({
                           : ''
                       }`}
                     >
-                      {blockLeft && (
-                        <span className="absolute left-0 top-[15%] bottom-0 w-0.5 bg-hiss/80" />
-                      )}
+                      {blockLeft && <BlockadeStripe block={blockLeft} />}
                       {atPlayer && <HdbPlayerMarker />}
                     </button>
                   );
@@ -565,9 +591,7 @@ function BuildingCutaway({
                         : ''
                     }`}
                   >
-                    {blockLeft && (
-                      <span className="absolute left-0 top-[15%] bottom-0 z-10 w-0.5 bg-hiss/80" />
-                    )}
+                    {blockLeft && <BlockadeStripe block={blockLeft} />}
                     <CorridorDoor
                       unit={unit}
                       selected={selectedCol === unit.column && atPlayer}
@@ -598,7 +622,8 @@ function BuildingCutaway({
         <span>✕ boarded</span>
         <span>fog = unvisited floor</span>
         <span className="inline-flex items-center gap-1">
-          <span className="inline-block h-3 w-0.5 bg-hiss/80" /> block
+          <span className="inline-block h-3 w-1.5 bg-hiss shadow-[0_0_4px_rgba(217,45,45,0.5)]" />{' '}
+          BLOCK = corridor sealed
         </span>
       </div>
     </div>

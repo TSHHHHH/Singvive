@@ -122,6 +122,7 @@ export type IconName =
   | 'slot.feet'
   | 'slot.mainHand'
   | 'slot.offHand'
+  | 'slot.bag'
   // --- item fallbacks, one per ItemEffect kind ---
   // Every item resolves to one of these unless its def names a specific key,
   // so a new item is never blank even before anyone draws it.
@@ -349,6 +350,7 @@ export const EMOJI_FALLBACK: Record<IconName, string> = {
   'slot.feet': '👟',
   'slot.mainHand': '🗡️',
   'slot.offHand': '🛡️',
+  'slot.bag': '🎒',
 
   'item.food': '🥫',
   'item.water': '💧',

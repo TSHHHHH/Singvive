@@ -51,6 +51,8 @@ export interface SearchSession {
   lastWhisper: string | null;
   /** Charge + danger already applied. */
   settled: boolean;
+  /** When set, this session is looting an HDB unit (no site search charge). */
+  hdbUnit?: { level: number; unitId: string; label: string };
 }
 
 export function qualityMult(def: ItemDef, condition?: number): number {
@@ -157,6 +159,7 @@ export function buildSearchSession(opts: {
   speedFactor: number;
   spendCharges?: boolean;
   chargeBudget?: number;
+  hdbUnit?: { level: number; unitId: string; label: string };
 }): SearchSession {
   const dims = SEARCH_DIMS;
   const occupied = new Set<string>();
@@ -189,7 +192,8 @@ export function buildSearchSession(opts: {
   const speed = Math.max(0.35, opts.speedFactor);
   const slots: SearchSlot[] = placed.map((p, i) => {
     const w = weights[i] ?? 1;
-    const searchMs = Math.round(clamp(450 + w * 350, 400, 3500) * speed);
+    // Real-time reveal pace (UI only) — kept deliberately slower than a single click.
+    const searchMs = Math.round(clamp(450 + w * 350, 400, 3500) * speed * 2);
     const searchMinutes = opts.totalMinutes * (w / weightSum);
     return {
       ...p,
@@ -214,6 +218,7 @@ export function buildSearchSession(opts: {
     spendCharges: opts.spendCharges ?? true,
     lastWhisper: null,
     settled: false,
+    ...(opts.hdbUnit ? { hdbUnit: opts.hdbUnit } : {}),
   };
 }
 

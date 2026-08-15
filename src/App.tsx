@@ -1,4 +1,6 @@
+import { useEffect } from 'react';
 import { useGame } from './game/store';
+import { FONT_SIZE_PX, useSetting } from './game/settings';
 import { Menu } from './screens/Menu';
 import { CharacterCreate } from './screens/CharacterCreate';
 import { SpawnSelect } from './screens/SpawnSelect';
@@ -7,11 +9,20 @@ import { DeathScreen } from './screens/DeathScreen';
 import { DevLootBrowser } from './dev/LootBrowser';
 import { DevEnemyBrowser } from './dev/EnemyBrowser';
 
+function FontSizeSync() {
+  const fontSize = useSetting('fontSize');
+  useEffect(() => {
+    document.documentElement.style.fontSize = FONT_SIZE_PX[fontSize] ?? FONT_SIZE_PX.md;
+  }, [fontSize]);
+  return null;
+}
+
 export default function App() {
   const phase = useGame((s) => s.phase);
 
   return (
     <div className="h-full w-full overflow-hidden">
+      <FontSizeSync />
       {phase === 'menu' && <Menu />}
       {phase === 'character' && (
         <div className="h-full overflow-y-auto">

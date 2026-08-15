@@ -44,6 +44,8 @@ export interface TunnelNode {
   /** Scavenge nodes: extra loot rolls for a place nobody has reached yet. */
   lootMod?: number;
   offer?: TunnelTrade;
+  /** Settlement: rest/treat already taken — one-time camp services. */
+  servicesUsed?: boolean;
 }
 
 export interface TunnelRun {

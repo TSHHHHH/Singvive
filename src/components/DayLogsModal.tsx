@@ -4,6 +4,7 @@ import { itemDef } from '../game/loot';
 import { Icon } from '../icons/Icon';
 import { formatClock } from '../game/survival';
 import { useClockFormat } from '../game/settings';
+import { highlightLogText } from './logHighlight';
 import type { GameLogEntry } from '../game/types';
 
 const toneClass: Record<string, string> = {
@@ -110,7 +111,7 @@ export function DayLogsModal({ onClose }: { onClose: () => void }) {
                                   toneClass[e.tone] ?? 'text-white/60'
                                 }`}
                               >
-                                {e.text}
+                                {highlightLogText(e.text)}
                               </div>
                               {e.loot && e.loot.length > 0 && (
                                 <div className="mt-0.5 flex flex-wrap gap-x-2 text-xs text-white/40">

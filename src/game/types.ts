@@ -173,6 +173,7 @@ export type EquipSlot =
   | 'hands'
   | 'legs'
   | 'feet'
+  | 'bag'
   | 'mainHand'
   | 'offHand';
 
@@ -211,6 +212,10 @@ export interface ItemModifiers {
   encounterChanceMod?: number;
   /** Additive sequential-search speed, e.g. 0.15 = +15% faster reveals. */
   searchSpeedBonus?: number;
+  /** Extra backpack columns when this bag is equipped. */
+  bagWidthBonus?: number;
+  /** Extra backpack rows when this bag is equipped. */
+  bagHeightBonus?: number;
 }
 
 export interface ItemDef {
@@ -227,6 +232,11 @@ export interface ItemDef {
   icon?: IconName; // specific art; falls back to the item's effect kind
   slot?: EquipSlot; // equippable slot, if any
   modifiers?: ItemModifiers; // combat/capacity bonuses when equipped
+  /**
+   * Two-handed weapon: occupies mainHand and blocks offHand while equipped.
+   * Equipping one stows whatever was in the off hand.
+   */
+  twoHanded?: boolean;
 
   /** Firearms and military kit: gated hard on drop, called out in the UI. */
   exotic?: boolean;
@@ -620,6 +630,8 @@ export interface GameLogEntry {
   loot?: LootStackRef[];
   /** What wouldn't fit in the pack. */
   leftover?: LootStackRef[];
+  /** Optional map focus — e.g. outpost intel tip. */
+  focus?: { lat: number; lng: number; label?: string };
 }
 
 // ---------- Scores ----------

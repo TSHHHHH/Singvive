@@ -378,11 +378,13 @@ The bake:
 npm run bake:zones
 ```
 
-Rewrites `public/zones.json` — land mask, inland water, and coarse restricted
-(military) perimeters used to block spawn/trek into the sea and sealed ground.
-Same rules as the other bakes: manual, committed, never part of `npm run build`.
-Pass `--local` to skip Overpass and write committed fallbacks only (useful when
-the public Overpass mirrors are rate-limiting).
+Rewrites `public/zones.json` — land mask, inland water, coarse restricted
+(military) perimeters, and known forest / nature-reserve polygons. Water and
+restricted hard-block spawn/trek; vegetation stays walkable but adds a soft
+stamina/time cost when a route cuts through it. Same rules as the other bakes:
+manual, committed, never part of `npm run build`. Pass `--local` to skip
+Overpass and write committed fallbacks only (useful when the public Overpass
+mirrors are rate-limiting).
 
 ### Refreshing the rail network
 

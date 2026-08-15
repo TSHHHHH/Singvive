@@ -4,6 +4,9 @@ import { inPolygon, inSingapore, SG_BOUNDS } from './singapore';
  * Walkability against the baked land / water / restricted mask
  * (`public/zones.json`, from `npm run bake:zones`).
  *
+ * Vegetation rings live in the same bake but are soft travel cost only —
+ * they never change walkability.
+ *
  * Pure geometry — no React, no Math.random. Callers that need a sync answer
  * after boot should `await ensureZonesLoaded()` once (spawn / setSpawn do).
  */
@@ -17,6 +20,8 @@ export interface ZonesData {
   land: ZoneRing[];
   water: ZoneRing[];
   restricted: ZoneRing[];
+  /** Known forest / nature-reserve polygons (soft cost, still walkable). */
+  vegetation: ZoneRing[];
 }
 
 interface RingIndex {
@@ -31,6 +36,7 @@ let zones: ZonesData | null = null;
 let landIdx: RingIndex[] = [];
 let waterIdx: RingIndex[] = [];
 let restrictedIdx: RingIndex[] = [];
+let vegetationIdx: RingIndex[] = [];
 let pending: Promise<ZonesData> | null = null;
 
 function indexRings(rings: ZoneRing[]): RingIndex[] {
@@ -62,6 +68,7 @@ function applyZones(data: ZonesData): ZonesData {
   landIdx = indexRings(data.land);
   waterIdx = indexRings(data.water);
   restrictedIdx = indexRings(data.restricted);
+  vegetationIdx = indexRings(data.vegetation);
   return data;
 }
 
@@ -74,6 +81,7 @@ async function loadZones(): Promise<ZonesData> {
   }
   if (!Array.isArray(data.water)) data.water = [];
   if (!Array.isArray(data.restricted)) data.restricted = [];
+  if (!Array.isArray(data.vegetation)) data.vegetation = [];
   return applyZones(data);
 }
 
@@ -133,6 +141,17 @@ export function walkabilityOf(lat: number, lng: number): Walkability {
 
 export function isWalkable(lat: number, lng: number): boolean {
   return walkabilityOf(lat, lng) === 'ok';
+}
+
+/** True when the point sits inside a baked forest / nature-reserve polygon. */
+export function inVegetation(lat: number, lng: number): boolean {
+  if (!zones || vegetationIdx.length === 0) return false;
+  return inAny(lat, lng, vegetationIdx);
+}
+
+/** Indexed vegetation rings for path sampling (empty until zones load). */
+export function vegetationRings(): ZoneRing[] {
+  return zones?.vegetation ?? [];
 }
 
 /** Short player-facing copy shared by spawn banner and trek log. */

@@ -388,8 +388,9 @@ export function playerSpeed(
   equipSpeed = 0,
 ): number {
   const energyMod = energy < 20 ? -2 : energy < 45 ? -1 : 0;
-  const base = 6 + attrs.dexterity * 0.8 + stance.speedMod + energyMod + equipSpeed;
-  return Math.max(2, base * Math.max(0.4, legFactor));
+  // Doubled vs the original 6+dex*0.8 curve — combat initiative felt sluggish.
+  const base = 12 + attrs.dexterity * 1.6 + stance.speedMod * 2 + energyMod * 2 + equipSpeed * 2;
+  return Math.max(4, base * Math.max(0.4, legFactor));
 }
 
 /** Seconds of track time one action costs at the given speed. */

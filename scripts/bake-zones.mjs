@@ -1,7 +1,8 @@
-// Build-time walkability bake.
+// Build-time walkability + soft vegetation bake.
 //
 // Land: Nominatim Pulau Ujong coast + OSM islands.
-// Water + restricted: Overpass OSM polygons.
+// Water + restricted: Overpass OSM polygons (hard blocks).
+// Vegetation: known forest / nature-reserve polygons (soft travel cost only).
 // Fallbacks exist only when a remote source fails — never merged on top of good data.
 //
 //   npm run bake:zones
@@ -41,6 +42,9 @@ const ZONE_SIMPLIFY_M = 20;
 const MIN_AREA_M2 = 2_500;
 const MIN_WATER_AREA_M2 = 1_000;
 const MIN_LAND_AREA_M2 = 20_000;
+// Nature parks / reserves only — skip pocket woods and roadside greenery.
+const MIN_VEGETATION_AREA_M2 = 80_000; // ~8 ha
+const VEGETATION_SIMPLIFY_M = 25;
 // OSM sometimes ships huge bogus water outers that swallow HDB towns — drop those.
 const MAX_WATER_AREA_M2 = 8_000_000; // 8 km² — bigger than any SG reservoir
 const STITCH_EPS = 1e-5; // ~1 m — match multipolygon outer endpoints
@@ -59,6 +63,26 @@ const MAJOR_RESERVOIR_IDS = [
   15343630, // Pandan
   20250182, // Bedok (way)
   33301506, // Island Service Reservoir (covered, way)
+];
+
+/**
+ * Known forest / nature reserves by OSM id — fetched first so the soft-cost
+ * layer stays accurate even when the island-wide vegetation sweep 504s.
+ */
+const MAJOR_VEGETATION_IDS = [
+  11105973, // Bukit Timah Nature Reserve
+  13463678, // Central Catchment Nature Reserve
+  7497140, // Sungei Buloh Wetland Reserve
+  15727863, // Labrador Nature Reserve
+  13480855, // Windsor Nature Park
+  11124482, // Dairy Farm Nature Park
+  11109652, // Rifle Range Nature Park
+  10732246, // Thomson Nature Park
+  410983411, // Chestnut Nature Park (way)
+  3536087, // Chek Jawa Wetlands
+  11118234, // Hindhede Nature Park
+  11133072, // Zhenghua Nature Park
+  310724464, // Springleaf Nature Park (way)
 ];
 
 const WATER_GRID = 2; // 2×2 tiles for the general water sweep
@@ -101,6 +125,42 @@ const FALLBACK_RESTRICTED = [
   [[1.45, 103.815], [1.47, 103.82], [1.472, 103.845], [1.455, 103.85], [1.445, 103.835], [1.45, 103.815]],
   [[1.42, 103.69], [1.44, 103.7], [1.445, 103.73], [1.425, 103.735], [1.415, 103.715], [1.42, 103.69]],
   [[1.4, 104.02], [1.42, 104.03], [1.425, 104.05], [1.41, 104.06], [1.39, 104.05], [1.385, 104.03], [1.4, 104.02]],
+];
+
+/** Coarse nature-reserve blobs when Overpass is unavailable. */
+const FALLBACK_VEGETATION = [
+  // Bukit Timah Nature Reserve
+  [
+    [1.346, 103.771],
+    [1.362, 103.771],
+    [1.362, 103.787],
+    [1.346, 103.787],
+    [1.346, 103.771],
+  ],
+  // Central Catchment (MacRitchie / Peirce belt)
+  [
+    [1.34, 103.79],
+    [1.41, 103.79],
+    [1.41, 103.845],
+    [1.34, 103.845],
+    [1.34, 103.79],
+  ],
+  // Sungei Buloh Wetland Reserve
+  [
+    [1.442, 103.72],
+    [1.455, 103.72],
+    [1.455, 103.74],
+    [1.442, 103.74],
+    [1.442, 103.72],
+  ],
+  // Labrador Nature Reserve
+  [
+    [1.264, 103.798],
+    [1.272, 103.798],
+    [1.272, 103.806],
+    [1.264, 103.806],
+    [1.264, 103.798],
+  ],
 ];
 
 /** Extra islands if Overpass place=island misses them. */
@@ -312,6 +372,37 @@ function finalizeWaterRing(geom) {
   return ring;
 }
 
+function finalizeVegetationRing(geom) {
+  return finalizeOsmRing(geom, VEGETATION_SIMPLIFY_M, MIN_VEGETATION_AREA_M2);
+}
+
+/**
+ * Drop rings nested inside a larger kept ring (nature_reserve + landuse=forest
+ * duplicates). Keeps largest first so major reserves win over pocket woods.
+ */
+function dedupeVegetationRings(rings) {
+  const scored = rings
+    .map((ring) => ({ ring, area: ringAreaM2(ring) }))
+    .sort((a, b) => b.area - a.area);
+  const kept = [];
+  for (const { ring } of scored) {
+    const c = ringCentroid(ring);
+    if (kept.some((k) => inPolygon(c.lat, c.lng, k))) continue;
+    // Nearly contained: sample vertices; drop if most sit inside a keeper.
+    let insideHits = 0;
+    let samples = 0;
+    const step = Math.max(1, Math.floor(ring.length / 12));
+    for (let i = 0; i < ring.length; i += step) {
+      samples++;
+      const [lat, lng] = ring[i];
+      if (kept.some((k) => inPolygon(lat, lng, k))) insideHits++;
+    }
+    if (samples > 0 && insideHits / samples >= 0.7) continue;
+    kept.push(ring);
+  }
+  return kept;
+}
+
 function finalizeLandRing(latLngRing) {
   const simplified = simplifyRing(latLngRing, LAND_SIMPLIFY_M);
   if (!simplified) return null;
@@ -454,7 +545,7 @@ async function main() {
   console.log(
     localOnly
       ? 'bake:zones — local fallbacks only'
-      : 'bake:zones — Nominatim mainland + OSM islands/water/restricted',
+      : 'bake:zones — Nominatim mainland + OSM islands/water/restricted/vegetation',
   );
 
   const waterBody = `[out:json][timeout:600];
@@ -499,14 +590,37 @@ out geom;`;
 );
 out geom;`;
 
+  const majorVegetationBody = `[out:json][timeout:180];
+(
+  ${MAJOR_VEGETATION_IDS.map((id) => `relation(${id});`).join('\n  ')}
+  ${MAJOR_VEGETATION_IDS.map((id) => `way(${id});`).join('\n  ')}
+);
+out geom;`;
+
+  // Known forest / nature reserves only — not every leisure=park.
+  const vegetationBody = `[out:json][timeout:300];
+(
+  way["leisure"="nature_reserve"]${BBOX};
+  relation["leisure"="nature_reserve"]${BBOX};
+  way["boundary"="protected_area"]["protect_class"~"^(1|1a|1b|2|3|4)$"]${BBOX};
+  relation["boundary"="protected_area"]["protect_class"~"^(1|1a|1b|2|3|4)$"]${BBOX};
+  way["landuse"="forest"]${BBOX};
+  relation["landuse"="forest"]${BBOX};
+  way["natural"="wood"]${BBOX};
+  relation["natural"="wood"]${BBOX};
+);
+out geom;`;
+
   let land = [];
   let water = [];
   let restricted = [];
+  let vegetation = [];
 
   if (localOnly) {
     land = committedRings([FALLBACK_MAINLAND]);
     water = committedRings(FALLBACK_WATER);
     restricted = committedRings(FALLBACK_RESTRICTED);
+    vegetation = committedRings(FALLBACK_VEGETATION);
   } else {
     try {
       land = await fetchMainlandLand();
@@ -598,6 +712,44 @@ out geom;`;
       console.warn(`  restricted query failed — coarse fallback (${err.message ?? err})`);
       restricted = committedRings(FALLBACK_RESTRICTED);
     }
+
+    await sleep(DELAY_MS);
+
+    // Curated nature reserves / parks first.
+    try {
+      const els = await runQuery('major vegetation', majorVegetationBody);
+      vegetation = collectOsmRings(els, finalizeVegetationRing);
+      console.log(`  major vegetation rings: ${vegetation.length}`);
+    } catch (err) {
+      console.warn(`  major vegetation failed (${err.message ?? err})`);
+    }
+
+    await sleep(DELAY_MS);
+
+    try {
+      const els = await runQuery('vegetation', vegetationBody);
+      const seen = new Set(vegetation.map((r) => `${r[0][0]},${r[0][1]},${r.length}`));
+      for (const ring of collectOsmRings(els, finalizeVegetationRing)) {
+        const key = `${ring[0][0]},${ring[0][1]},${ring.length}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        vegetation.push(ring);
+      }
+      console.log(`  vegetation rings total: ${vegetation.length}`);
+    } catch (err) {
+      console.warn(`  vegetation sweep failed (${err.message ?? err})`);
+    }
+
+    if (vegetation.length === 0) {
+      console.warn('  no vegetation from OSM — using coarse fallback');
+      vegetation = committedRings(FALLBACK_VEGETATION);
+    }
+  }
+
+  const beforeVeg = vegetation.length;
+  vegetation = dedupeVegetationRings(vegetation);
+  if (vegetation.length !== beforeVeg) {
+    console.log(`  vegetation deduped: ${beforeVeg} → ${vegetation.length}`);
   }
 
   if (land.length === 0) {
@@ -610,13 +762,14 @@ out geom;`;
     land,
     water,
     restricted,
+    vegetation,
   };
 
   mkdirSync(dirname(OUT_FILE), { recursive: true });
   writeFileSync(OUT_FILE, JSON.stringify(payload));
   const kb = (Buffer.byteLength(JSON.stringify(payload)) / 1024).toFixed(1);
   console.log(
-    `wrote ${OUT_FILE} (${kb} KB) — land=${land.length} water=${water.length} restricted=${restricted.length}`,
+    `wrote ${OUT_FILE} (${kb} KB) — land=${land.length} water=${water.length} restricted=${restricted.length} vegetation=${vegetation.length}`,
   );
 }
 

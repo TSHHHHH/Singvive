@@ -25,9 +25,89 @@ function metresToPixels(radius: number, lat: number, zoom: number): number {
   return radius / metersPerPixel;
 }
 
-interface FogLayer extends L.GridLayer {
+type FogTileRecord = {
+  el: HTMLElement;
+  coords: L.Coords;
+  current: boolean;
+};
+
+/** Runtime GridLayer shape — Leaflet keeps these fields protected in .d.ts. */
+type FogLayer = L.GridLayer & {
   _fogProps: FogOverlayProps;
+  _tiles: Record<string, FogTileRecord>;
+  _map: (L.Map & { _fadeAnimated?: boolean }) | null;
+  _wrapCoords(coords: L.Coords): L.Coords;
   setFogProps(props: FogOverlayProps): void;
+  _refreshTiles(): void;
+};
+
+/**
+ * Paint (or repaint) a single fog canvas. Keeps the DOM tile in place so
+ * Leaflet never removes/fades tiles when energy/travel-range ticks — that
+ * redraw path was the fog flicker on every action.
+ */
+function paintFogTile(this: FogLayer, canvas: HTMLCanvasElement, coords: L.Coords): void {
+  const tileSize = this.getTileSize();
+  const dpr = window.devicePixelRatio || 1;
+  const cssW = tileSize.x;
+  const cssH = tileSize.y;
+
+  const needW = Math.round(cssW * dpr);
+  const needH = Math.round(cssH * dpr);
+  if (canvas.width !== needW || canvas.height !== needH) {
+    canvas.width = needW;
+    canvas.height = needH;
+    canvas.style.width = `${cssW}px`;
+    canvas.style.height = `${cssH}px`;
+  }
+
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  // Reset every paint so in-place refreshes don't stack transforms.
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.clearRect(0, 0, cssW, cssH);
+
+  ctx.fillStyle = FOG_COLOUR;
+  ctx.fillRect(0, 0, cssW, cssH);
+
+  ctx.globalCompositeOperation = 'destination-out';
+  ctx.fillStyle = 'white';
+
+  const { exploredArea, currentRevealCenter, currentRevealRadius } = this._fogProps;
+  const tileOrigin = coords.scaleBy(tileSize);
+  const allCircles: ExploredCircle[] = [
+    ...exploredArea,
+    {
+      lat: currentRevealCenter.lat,
+      lng: currentRevealCenter.lng,
+      radius: currentRevealRadius,
+    },
+  ];
+
+  const map = this._map;
+  if (!map) return;
+
+  for (const circle of allCircles) {
+    const pixelCoords = map.project(L.latLng(circle.lat, circle.lng), coords.z);
+    const px = pixelCoords.x - tileOrigin.x;
+    const py = pixelCoords.y - tileOrigin.y;
+    const pixelRadius = metresToPixels(circle.radius, circle.lat, coords.z);
+
+    if (
+      px + pixelRadius < 0 ||
+      px - pixelRadius > cssW ||
+      py + pixelRadius < 0 ||
+      py - pixelRadius > cssH
+    ) {
+      continue;
+    }
+
+    ctx.beginPath();
+    ctx.arc(px, py, pixelRadius, 0, Math.PI * 2);
+    ctx.fill();
+  }
 }
 
 /**
@@ -43,92 +123,63 @@ const FogGridLayer = L.GridLayer.extend({
   },
 
   initialize(this: FogLayer, options: FogOverlayProps) {
-    (L.GridLayer.prototype as unknown as { initialize: (opts: L.GridLayerOptions) => void }).initialize.call(this, options);
+    (L.GridLayer.prototype as unknown as { initialize: (opts: L.GridLayerOptions) => void }).initialize.call(
+      this,
+      options,
+    );
     this._fogProps = options;
   },
 
   createTile(this: FogLayer, coords: L.Coords): HTMLElement {
-    const tileSize = this.getTileSize();
     const canvas = document.createElement('canvas');
-
-    // Back the canvas at device resolution, not CSS resolution. Without this
-    // the fog is a half-res bitmap stretched over the whole map on any
-    // high-DPI screen, which reads as the *basemap* being blurry — it isn't.
-    // Leaflet sizes the tile element in CSS px itself; scaling the context by
-    // the same factor lets all the drawing below stay in CSS px.
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.round(tileSize.x * dpr);
-    canvas.height = Math.round(tileSize.y * dpr);
-    canvas.style.width = `${tileSize.x}px`;
-    canvas.style.height = `${tileSize.y}px`;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return canvas;
-
-    ctx.scale(dpr, dpr);
-
-    // Fill with fog colour
-    ctx.fillStyle = FOG_COLOUR;
-    ctx.fillRect(0, 0, tileSize.x, tileSize.y);
-
-    // Punch out explored circles
-    ctx.globalCompositeOperation = 'destination-out';
-    ctx.fillStyle = 'white';
-
-    const { exploredArea, currentRevealCenter, currentRevealRadius } = this._fogProps;
-
-    // Origin of this tile in pixel space at this zoom level
-    const tileOrigin = coords.scaleBy(tileSize);
-
-    // Combine explored area with the live reveal circle
-    const allCircles: ExploredCircle[] = [
-      ...exploredArea,
-      {
-        lat: currentRevealCenter.lat,
-        lng: currentRevealCenter.lng,
-        radius: currentRevealRadius,
-      },
-    ];
-
-    // Access the map instance (protected in TS but available at runtime)
-    const map = (this as unknown as { _map: L.Map })._map;
-
-    for (const circle of allCircles) {
-      const pixelCoords = map.project(
-        L.latLng(circle.lat, circle.lng),
-        coords.z,
-      );
-      const px = pixelCoords.x - tileOrigin.x;
-      const py = pixelCoords.y - tileOrigin.y;
-      const pixelRadius = metresToPixels(circle.radius, circle.lat, coords.z);
-
-      // Skip circles that don't intersect this tile
-      if (
-        px + pixelRadius < 0 ||
-        px - pixelRadius > tileSize.x ||
-        py + pixelRadius < 0 ||
-        py - pixelRadius > tileSize.y
-      ) {
-        continue;
-      }
-
-      ctx.beginPath();
-      ctx.arc(px, py, pixelRadius, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
+    paintFogTile.call(this, canvas, coords);
     return canvas;
+  },
+
+  /**
+   * Fog must never fade from transparent — a 200ms opacity ramp after
+   * createTile reads as the whole map flashing undarkened. Temporarily
+   * disable the map's tile fade for this layer's ready callback only.
+   */
+  _tileReady(this: FogLayer, coords: L.Coords, err: Error | undefined, tile: HTMLElement) {
+    const map = this._map;
+    const prev = map?._fadeAnimated;
+    if (map) map._fadeAnimated = false;
+    (
+      L.GridLayer.prototype as unknown as {
+        _tileReady: (this: FogLayer, c: L.Coords, e: Error | undefined, t: HTMLElement) => void;
+      }
+    )._tileReady.call(this, coords, err, tile);
+    if (map) map._fadeAnimated = prev;
   },
 
   setFogProps(this: FogLayer, props: FogOverlayProps) {
     this._fogProps = props;
-    this.redraw();
+    this._refreshTiles();
+  },
+
+  /** Repaint loaded canvases without GridLayer.redraw() (no remove + fade-in). */
+  _refreshTiles(this: FogLayer) {
+    const tiles = this._tiles;
+    if (!tiles) return;
+    for (const key of Object.keys(tiles)) {
+      const tile = tiles[key];
+      if (!(tile.el instanceof HTMLCanvasElement)) continue;
+      paintFogTile.call(this, tile.el, this._wrapCoords(tile.coords));
+    }
   },
 });
 
 function createFogLayer(props: FogOverlayProps, context: LeafletContextInterface) {
   const layer = new (FogGridLayer as unknown as new (options: FogOverlayProps) => FogLayer)(props);
   return createElementObject(layer, context);
+}
+
+function sameCenter(
+  a: FogOverlayProps['currentRevealCenter'],
+  b: FogOverlayProps['currentRevealCenter'],
+): boolean {
+  return a.lat === b.lat && a.lng === b.lng;
 }
 
 function updateFogLayer(
@@ -138,8 +189,8 @@ function updateFogLayer(
 ) {
   if (
     props.exploredArea !== prevProps.exploredArea ||
-    props.currentRevealCenter !== prevProps.currentRevealCenter ||
-    props.currentRevealRadius !== prevProps.currentRevealRadius
+    props.currentRevealRadius !== prevProps.currentRevealRadius ||
+    !sameCenter(props.currentRevealCenter, prevProps.currentRevealCenter)
   ) {
     instance.setFogProps(props);
   }

@@ -17,13 +17,14 @@ import {
   instanceValue,
   isBroken,
   isEncumbered,
+  isTwoHandedEquipped,
   maxCarry,
   tierLabel,
   tierOf,
   TEAR_CONDITION_COST,
   TEAR_RAGS_YIELD,
 } from '../../game/inventory';
-import type { Container, EquipSlot, ItemInstance } from '../../game/types';
+import type { Container, Equipment, EquipSlot, ItemInstance } from '../../game/types';
 import { sumTraitMod } from '../../game/character';
 import {
   countOf,
@@ -43,8 +44,9 @@ const EQUIP_SLOTS: { slot: EquipSlot; label: string; icon: IconName }[] = [
   { slot: 'hands', label: 'Hands', icon: 'slot.hands' },
   { slot: 'legs', label: 'Legs', icon: 'slot.legs' },
   { slot: 'feet', label: 'Feet', icon: 'slot.feet' },
-  { slot: 'mainHand', label: 'Main Hand', icon: 'slot.mainHand' },
-  { slot: 'offHand', label: 'Off Hand', icon: 'slot.offHand' },
+  { slot: 'bag', label: 'Bag', icon: 'slot.bag' },
+  { slot: 'mainHand', label: 'Main', icon: 'slot.mainHand' },
+  { slot: 'offHand', label: 'Off', icon: 'slot.offHand' },
 ];
 
 interface GridDrop {
@@ -114,12 +116,17 @@ export function InventoryPanel({ onClose }: { onClose?: () => void }) {
     hands: null,
     legs: null,
     feet: null,
+    bag: null,
     mainHand: null,
     offHand: null,
   });
 
   const hereLoc = currentPositionId ? locations[currentPositionId] : null;
-  const stashContainer = hereLoc ? hereLoc.id : null;
+  const tunnel = useGame((s) => s.tunnel);
+  const confirmTempStash = useGame((s) => s.confirmTempStash);
+  const hasTempStash = items.some((i) => i.container === 'temp:crawl');
+  // Mid-tunnel: location stash is unreachable — only pack + temp overflow.
+  const stashContainer = tunnel || !hereLoc ? null : hereLoc.id;
 
   const hitTest = (clientX: number, clientY: number, inst: ItemInstance): DropTarget => {
     const def = itemDef(inst.defId);
@@ -129,12 +136,22 @@ export function InventoryPanel({ onClose }: { onClose?: () => void }) {
       if (!el) continue;
       const r = el.getBoundingClientRect();
       if (clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom) {
-        return { type: 'slot', slot, valid: canEquip(def, slot) };
+        let valid = canEquip(def, slot);
+        if (valid && slot === 'offHand' && isTwoHandedEquipped(equipment)) valid = false;
+        if (valid && slot === 'mainHand' && def.twoHanded && equipment.offHand) {
+          // Still valid — equip will stow offHand; preview as ok
+        }
+        return { type: 'slot', slot, valid };
       }
     }
     // grids
     const { w, h } = footprint(def, inst.rotated);
-    for (const container of [BACKPACK, ...(stashContainer ? [stashContainer] : [])]) {
+    const grids = [
+      BACKPACK,
+      ...(stashContainer ? [stashContainer] : []),
+      ...(hasTempStash || tunnel ? ['temp:crawl'] : []),
+    ];
+    for (const container of grids) {
       const el = gridRefs.current[container];
       if (!el) continue;
       const r = el.getBoundingClientRect();
@@ -332,7 +349,34 @@ export function InventoryPanel({ onClose }: { onClose?: () => void }) {
                   </div>
                 </div>
               </div>
-              <p className="mt-2 text-xs text-white/60">{describeItem(def, inspected)}</p>
+              <div className="mt-2 space-y-1">
+                {statLines(def, inspected, equipment).map((line) => (
+                  <div
+                    key={line.key}
+                    className="flex items-center justify-between gap-2 text-xs text-white/70"
+                  >
+                    <span>{line.label}</span>
+                    <span className="flex items-center gap-1 tabular-nums">
+                      <span>{line.value}</span>
+                      {line.delta === 'up' && (
+                        <span className="font-bold text-signal" title="Better than equipped">
+                          ▲
+                        </span>
+                      )}
+                      {line.delta === 'new' && (
+                        <span className="font-bold text-signal" title="New bonus vs equipped">
+                          ＋
+                        </span>
+                      )}
+                      {line.delta === 'down' && (
+                        <span className="text-hiss/80" title="Worse than equipped">
+                          ▼
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                ))}
+              </div>
 
               {/* Wear is the item's headline stat once things start breaking, so
                   it gets its own row rather than a footnote among the sizes. */}
@@ -495,6 +539,8 @@ export function InventoryPanel({ onClose }: { onClose?: () => void }) {
           const eDef = inst ? itemDef(inst.defId) : null;
           const highlighted = drag?.target?.type === 'slot' && drag.target.slot === slot;
           const selectedHere = inst != null && selectedUid === inst.uid;
+          const twoHandBlocked =
+            slot === 'offHand' && isTwoHandedEquipped(equipment) && !inst;
           return (
             <div
               key={slot}
@@ -508,21 +554,40 @@ export function InventoryPanel({ onClose }: { onClose?: () => void }) {
               onClick={() => {
                 if (inst) setSelectedUid(inst.uid);
               }}
-              className={`flex min-h-[64px] flex-col items-center justify-center gap-0.5 rounded border p-1.5 text-center ${
+              className={`relative flex min-h-[64px] flex-col items-center justify-center gap-0.5 overflow-hidden rounded border p-1.5 text-center ${
                 highlighted
                   ? drag?.target && 'valid' in drag.target && drag.target.valid
                     ? 'border-signal bg-signal/20'
                     : 'border-hiss bg-hiss/10'
                   : selectedHere
                     ? 'border-signal bg-signal/10'
-                    : 'border-white/10 bg-black/40'
+                    : twoHandBlocked
+                      ? 'border-white/5 bg-black/20 opacity-50'
+                      : 'border-white/10 bg-black/40'
               } ${inst ? 'cursor-pointer' : ''}`}
+              title={twoHandBlocked ? 'Blocked by two-handed weapon' : undefined}
             >
               <span className="text-2xs uppercase tracking-wide text-white/40">{label}</span>
               {eDef && inst ? (
                 <Icon name={itemIcon(eDef)} size={18} />
+              ) : twoHandBlocked ? (
+                <span className="text-2xs text-white/25">2H</span>
               ) : (
                 <Icon name={icon} size={24} className="opacity-20" />
+              )}
+              {inst && hasCondition(inst) && (
+                <div className="absolute inset-x-1 bottom-1 h-1 overflow-hidden rounded-full bg-white/10">
+                  <div
+                    className={`h-full rounded-full ${
+                      conditionOf(inst) < 25
+                        ? 'bg-hiss'
+                        : conditionOf(inst) < 50
+                          ? 'bg-amber-400'
+                          : 'bg-signal'
+                    }`}
+                    style={{ width: `${conditionPct(inst)}%` }}
+                  />
+                </div>
               )}
             </div>
           );
@@ -539,6 +604,34 @@ export function InventoryPanel({ onClose }: { onClose?: () => void }) {
         gridRef={(el) => (gridRefs.current[BACKPACK] = el)}
         onItemPointerDown={onItemPointerDown}
       />
+
+      {hasTempStash && (
+        <div className="rounded-lg border border-amber-300/30 bg-amber-300/5 p-2">
+          <InventoryGrid
+            grid="temp:crawl"
+            title="Temp stash (tunnel)"
+            items={items}
+            selectedUid={selectedUid}
+            draggingUid={drag?.uid ?? null}
+            preview={gridPreview('temp:crawl')}
+            gridRef={(el) => {
+              gridRefs.current['temp:crawl'] = el;
+            }}
+            onItemPointerDown={onItemPointerDown}
+          />
+          <button
+            type="button"
+            onClick={() => confirmTempStash()}
+            className="mt-2 w-full rounded bg-signal/80 py-1.5 text-xs font-bold text-black hover:bg-signal"
+          >
+            Confirm — abandon leftover & continue
+          </button>
+        </div>
+      )}
+
+      {tunnel && !hasTempStash && (
+        <p className="text-2xs text-white/35">Location stash locked while in the tunnels.</p>
+      )}
 
       {/* Carry gauge — compact under the backpack it measures */}
       <div className="rounded-lg border border-white/10 bg-black/40 px-3 py-2">
@@ -602,61 +695,163 @@ function itemKind(def: ReturnType<typeof itemDef>): string {
 }
 
 /**
- * Gear is described by what it does *now*, with the printed value alongside
- * whenever wear has taken a bite out of it — the gap is the whole argument for
- * carrying repair materials.
+ * Inspect rows with optional compare vs the piece currently in the same slot.
+ * ▲ better · ＋ new affix · ▼ worse.
  */
-function describeItem(def: ReturnType<typeof itemDef>, inst: ItemInstance): string {
+function statLines(
+  def: ReturnType<typeof itemDef>,
+  inst: ItemInstance,
+  equipment: Equipment,
+): { key: string; label: string; value: string; delta?: 'up' | 'down' | 'new' }[] {
+  const lines: { key: string; label: string; value: string; delta?: 'up' | 'down' | 'new' }[] = [];
   const e = def.effect;
-  if (def.slot) {
-    const m = def.modifiers ?? {};
-    const parts: string[] = [`${def.slot}`];
-    if (e.kind === 'weapon') {
-      const dmg = effectiveDamage(inst);
-      parts.push(dmg === e.damage ? `${e.damage} dmg` : `${dmg} dmg (of ${e.damage})`);
-    }
-    if (m.defenseBonus) {
-      const def_ = equipDefenseBonus(inst);
-      parts.push(
-        def_ === m.defenseBonus ? `+${m.defenseBonus} def` : `+${def_} def (of ${m.defenseBonus})`,
-      );
-    }
-    if (m.limbArmor) parts.push(`${m.limbArmor} soak`);
-    if (m.statusResist) parts.push(`${Math.round(m.statusResist * 100)}% status resist`);
-    if (m.attackBonus) parts.push(`${m.attackBonus > 0 ? '+' : ''}${m.attackBonus} atk`);
-    if (m.accuracyBonus) parts.push(`+${m.accuracyBonus} acc`);
-    if (m.speedBonus) parts.push(`+${m.speedBonus.toFixed(1)} speed`);
-    if (m.dodgeBonus) {
-      parts.push(`${m.dodgeBonus > 0 ? '+' : ''}${Math.round(m.dodgeBonus * 100)}% dodge`);
-    }
-    if (m.travelSpeedBonus) {
-      parts.push(
-        `${m.travelSpeedBonus > 0 ? '+' : ''}${Math.round(m.travelSpeedBonus * 100)}% travel`,
-      );
-    }
-    if (m.encounterChanceMod) {
-      parts.push(
-        `${m.encounterChanceMod > 0 ? '+' : ''}${Math.round(m.encounterChanceMod * 100)}% encounters`,
-      );
-    }
-    if (m.weightCapacityBonus) parts.push(`+${m.weightCapacityBonus}kg carry`);
-    if (m.awarenessMod) parts.push(`+${m.awarenessMod} awareness`);
-    return parts.join(' · ');
+  const compare =
+    def.slot && equipment[def.slot]?.uid !== inst.uid ? equipment[def.slot] : null;
+  const cmpDef = compare ? itemDef(compare.defId) : null;
+  const cmpM = cmpDef?.modifiers ?? {};
+  const m = def.modifiers ?? {};
+
+  const numDelta = (mine: number, theirs: number | undefined): 'up' | 'down' | 'new' | undefined => {
+    if (theirs === undefined || theirs === 0) return mine !== 0 ? 'new' : undefined;
+    if (mine > theirs) return 'up';
+    if (mine < theirs) return 'down';
+    return undefined;
+  };
+
+  if (e.kind === 'weapon') {
+    const dmg = effectiveDamage(inst);
+    const theirs = compare ? effectiveDamage(compare) : undefined;
+    lines.push({
+      key: 'dmg',
+      label: 'Damage',
+      value: dmg === e.damage ? `${dmg}` : `${dmg} (of ${e.damage})`,
+      delta: theirs !== undefined ? numDelta(dmg, theirs) : undefined,
+    });
   }
-  switch (e.kind) {
-    case 'food':
-      return `Food +${e.hunger} hunger`;
-    case 'water':
-      return `Drink +${e.thirst} thirst`;
-    case 'heal':
-      return `Heal +${e.health} HP`;
-    case 'cure':
-      return `Cure −${e.infection} infection`;
-    case 'energy':
-      return `Stimulant +${e.energy} energy`;
-    case 'fuel':
-      return 'Fuel';
-    default:
-      return `Value ${def.value}`;
+  if (m.defenseBonus) {
+    const v = equipDefenseBonus(inst);
+    lines.push({
+      key: 'def',
+      label: 'Defence',
+      value: `+${v}`,
+      delta: numDelta(v, compare ? equipDefenseBonus(compare) : undefined),
+    });
   }
+  if (m.limbArmor) {
+    lines.push({
+      key: 'soak',
+      label: 'Soak',
+      value: `${m.limbArmor}`,
+      delta: numDelta(m.limbArmor, cmpM.limbArmor),
+    });
+  }
+  if (m.statusResist) {
+    lines.push({
+      key: 'status',
+      label: 'Status resist',
+      value: `${Math.round(m.statusResist * 100)}%`,
+      delta: numDelta(m.statusResist, cmpM.statusResist),
+    });
+  }
+  if (m.attackBonus) {
+    lines.push({
+      key: 'atk',
+      label: 'Attack',
+      value: `${m.attackBonus > 0 ? '+' : ''}${m.attackBonus}`,
+      delta: numDelta(m.attackBonus, cmpM.attackBonus),
+    });
+  }
+  if (m.accuracyBonus) {
+    lines.push({
+      key: 'acc',
+      label: 'Accuracy',
+      value: `+${m.accuracyBonus}`,
+      delta: numDelta(m.accuracyBonus, cmpM.accuracyBonus),
+    });
+  }
+  if (m.speedBonus) {
+    lines.push({
+      key: 'spd',
+      label: 'Speed',
+      value: `+${m.speedBonus.toFixed(1)}`,
+      delta: numDelta(m.speedBonus, cmpM.speedBonus),
+    });
+  }
+  if (m.dodgeBonus) {
+    lines.push({
+      key: 'dodge',
+      label: 'Dodge',
+      value: `${m.dodgeBonus > 0 ? '+' : ''}${Math.round(m.dodgeBonus * 100)}%`,
+      delta: numDelta(m.dodgeBonus, cmpM.dodgeBonus),
+    });
+  }
+  if (m.travelSpeedBonus) {
+    lines.push({
+      key: 'travel',
+      label: 'Travel',
+      value: `${m.travelSpeedBonus > 0 ? '+' : ''}${Math.round(m.travelSpeedBonus * 100)}%`,
+      delta: numDelta(m.travelSpeedBonus, cmpM.travelSpeedBonus),
+    });
+  }
+  if (m.encounterChanceMod) {
+    lines.push({
+      key: 'enc',
+      label: 'Encounters',
+      value: `${m.encounterChanceMod > 0 ? '+' : ''}${Math.round(m.encounterChanceMod * 100)}%`,
+      delta: numDelta(-m.encounterChanceMod, cmpM.encounterChanceMod ? -cmpM.encounterChanceMod : undefined),
+    });
+  }
+  if (m.weightCapacityBonus) {
+    lines.push({
+      key: 'carry',
+      label: 'Carry',
+      value: `+${m.weightCapacityBonus} kg`,
+      delta: numDelta(m.weightCapacityBonus, cmpM.weightCapacityBonus),
+    });
+  }
+  if (m.bagWidthBonus || m.bagHeightBonus) {
+    lines.push({
+      key: 'bag',
+      label: 'Pack size',
+      value: `+${m.bagWidthBonus ?? 0} col${m.bagHeightBonus ? ` +${m.bagHeightBonus} row` : ''}`,
+      delta: numDelta(
+        (m.bagWidthBonus ?? 0) + (m.bagHeightBonus ?? 0) * 10,
+        (cmpM.bagWidthBonus ?? 0) + (cmpM.bagHeightBonus ?? 0) * 10,
+      ),
+    });
+  }
+  if (m.awarenessMod) {
+    lines.push({
+      key: 'aw',
+      label: 'Awareness',
+      value: `+${m.awarenessMod}`,
+      delta: numDelta(m.awarenessMod, cmpM.awarenessMod),
+    });
+  }
+
+  if (lines.length === 0) {
+    switch (e.kind) {
+      case 'food':
+        lines.push({ key: 'food', label: 'Hunger', value: `+${e.hunger}` });
+        break;
+      case 'water':
+        lines.push({ key: 'thirst', label: 'Thirst', value: `+${e.thirst}` });
+        break;
+      case 'heal':
+        lines.push({ key: 'hp', label: 'Heal', value: `+${e.health} HP` });
+        break;
+      case 'cure':
+        lines.push({ key: 'inf', label: 'Cure', value: `−${e.infection}` });
+        break;
+      case 'energy':
+        lines.push({ key: 'en', label: 'Energy', value: `+${e.energy}` });
+        break;
+      case 'fuel':
+        lines.push({ key: 'fuel', label: 'Fuel', value: 'Evac weight' });
+        break;
+      default:
+        lines.push({ key: 'val', label: 'Value', value: `${def.value}` });
+    }
+  }
+  return lines;
 }

@@ -17,36 +17,67 @@ export const ALL_EQUIP_SLOTS: EquipSlot[] = [
   'hands',
   'legs',
   'feet',
+  'bag',
   'mainHand',
   'offHand',
 ];
 
 export const BACKPACK = 'backpack';
-export const BACKPACK_DIMS = { w: 8, h: 5 };
+/** Base pack without an equipped bag — pockets only. Traits / bag gear grow this. */
+export const BACKPACK_DIMS = { w: 5, h: 4 };
 export const STASH_DIMS = { w: 10, h: 8 };
 /** Compact grid for an in-progress sequential search (timeline stash). */
 export const SEARCH_DIMS = { w: 8, h: 5 };
+/** Transient overflow while crawling a tunnel — not a location stash. */
+export const TEMP_STASH = 'temp:crawl';
+export const TEMP_STASH_DIMS = { w: 8, h: 5 };
 
 /**
- * Extra backpack columns from the character's traits.
+ * Extra backpack columns / rows from traits and the equipped bag.
  *
  * Module state rather than a parameter because `dimsFor` is reached through
  * `canPlace` and `findSlot` from a dozen call sites that have no business
  * knowing about the character — and a run only ever has one. The store sets it
- * when a character is committed or a save is resumed.
+ * when a character is committed, a bag is equipped, or a save is resumed.
  */
 let backpackWidthBonus = 0;
+let backpackHeightBonus = 0;
 
 export function setBackpackWidthBonus(columns: number): void {
-  backpackWidthBonus = Math.max(0, Math.round(columns));
+  backpackWidthBonus = Math.round(columns);
 }
 
-/** Grid dimensions for a container: the backpack is 8×5, every stash is 10×8. */
+export function setBackpackHeightBonus(rows: number): void {
+  backpackHeightBonus = Math.max(0, Math.round(rows));
+}
+
+/** Recompute pack bonuses from traits + equipped bag. */
+export function syncBackpackBonuses(
+  traitWidthBonus: number,
+  equipment: Equipment,
+): void {
+  const bag = equipment.bag;
+  let bagW = 0;
+  let bagH = 0;
+  if (bag) {
+    const def = itemDef(bag.defId);
+    bagW = def.modifiers?.bagWidthBonus ?? 0;
+    bagH = def.modifiers?.bagHeightBonus ?? 0;
+  }
+  setBackpackWidthBonus(traitWidthBonus + bagW);
+  setBackpackHeightBonus(bagH);
+}
+
+/** Grid dimensions for a container: the backpack grows with traits / bag gear. */
 export function dimsFor(container: Container): { w: number; h: number } {
   if (container === BACKPACK) {
-    return { w: BACKPACK_DIMS.w + backpackWidthBonus, h: BACKPACK_DIMS.h };
+    return {
+      w: Math.max(3, BACKPACK_DIMS.w + backpackWidthBonus),
+      h: Math.max(3, BACKPACK_DIMS.h + backpackHeightBonus),
+    };
   }
   if (container.startsWith('search:')) return SEARCH_DIMS;
+  if (container === TEMP_STASH) return TEMP_STASH_DIMS;
   return STASH_DIMS;
 }
 
@@ -490,6 +521,13 @@ export function canEquip(def: ItemDef, slot: EquipSlot): boolean {
   return def.slot === slot;
 }
 
+/** True when a two-handed weapon is occupying the main hand. */
+export function isTwoHandedEquipped(equipment: Equipment): boolean {
+  const main = equipment.mainHand;
+  if (!main) return false;
+  return !!itemDef(main.defId).twoHanded;
+}
+
 export function emptyEquipment(): Equipment {
   return {
     head: null,
@@ -497,6 +535,7 @@ export function emptyEquipment(): Equipment {
     hands: null,
     legs: null,
     feet: null,
+    bag: null,
     mainHand: null,
     offHand: null,
   };
