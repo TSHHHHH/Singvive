@@ -4,6 +4,7 @@ import {
   useRef,
   useState,
   type ReactNode,
+  type RefObject,
 } from 'react';
 import {
   TransformComponent,
@@ -15,11 +16,53 @@ const PLAYER_SEL = '[data-hdb-player]';
 const MIN_SCALE = 0.5;
 const MAX_SCALE = 2.5;
 const DEFAULT_SCALE = 1;
+/** Same cutoff as Tailwind `lg` / GameScreen phone shell. */
+const PHONE_MQ = '(max-width: 1023px)';
 
 function focusPlayer(api: ReactZoomPanPinchContentRef, scale?: number, ms = 280) {
   const el = document.querySelector(PLAYER_SEL);
   if (!el) return;
   api.zoomToElement(el as HTMLElement, scale ?? api.state.scale, ms);
+}
+
+const PHONE_VIEWPORT =
+  'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover';
+
+/**
+ * While the cutaway owns pinch, stop iOS Safari from page-zooming instead.
+ * Restores the previous viewport meta on unmount.
+ */
+function useLockPageZoom(surface: RefObject<HTMLElement | null>) {
+  useEffect(() => {
+    const meta = document.querySelector('meta[name="viewport"]');
+    const prev = meta?.getAttribute('content');
+    meta?.setAttribute('content', PHONE_VIEWPORT);
+
+    const blockGesture = (e: Event) => {
+      e.preventDefault();
+    };
+    // Safari still fires these for page pinch even with touch-action: none.
+    document.addEventListener('gesturestart', blockGesture, { passive: false });
+    document.addEventListener('gesturechange', blockGesture, { passive: false });
+    document.addEventListener('gestureend', blockGesture, { passive: false });
+
+    const blockMultiTouch = (e: TouchEvent) => {
+      if (e.touches.length < 2) return;
+      const root = surface.current;
+      if (!root) return;
+      const t = e.target;
+      if (t instanceof Node && root.contains(t)) e.preventDefault();
+    };
+    document.addEventListener('touchmove', blockMultiTouch, { passive: false });
+
+    return () => {
+      if (meta && prev != null) meta.setAttribute('content', prev);
+      document.removeEventListener('gesturestart', blockGesture);
+      document.removeEventListener('gesturechange', blockGesture);
+      document.removeEventListener('gestureend', blockGesture);
+      document.removeEventListener('touchmove', blockMultiTouch);
+    };
+  }, [surface]);
 }
 
 /**
@@ -35,7 +78,10 @@ export function HdbZoomViewport({
   followKey: string;
 }) {
   const apiRef = useRef<ReactZoomPanPinchContentRef | null>(null);
+  const surfaceRef = useRef<HTMLDivElement | null>(null);
   const ready = useRef(false);
+
+  useLockPageZoom(surfaceRef);
 
   const recenter = useCallback((scale = DEFAULT_SCALE) => {
     const api = apiRef.current;
@@ -74,7 +120,10 @@ export function HdbZoomViewport({
       }}
     >
       {(controls) => (
-        <div className="relative h-full min-h-0 w-full">
+        <div
+          ref={surfaceRef}
+          className="relative h-full min-h-0 w-full touch-none overscroll-none"
+        >
           <div className="pointer-events-none absolute right-2 top-2 z-20 flex flex-col gap-1">
             <ZoomBtn
               label="+"
@@ -89,9 +138,10 @@ export function HdbZoomViewport({
             <ZoomBtn label="⊙" title="Recenter on you" onClick={() => recenter()} />
           </div>
           <TransformComponent
-            wrapperClass="!h-full !w-full"
+            wrapperClass="!h-full !w-full !touch-none"
             contentClass="!inline-block"
-            wrapperStyle={{ overflow: 'hidden' }}
+            wrapperStyle={{ overflow: 'hidden', touchAction: 'none' }}
+            contentStyle={{ touchAction: 'none' }}
           >
             {children}
           </TransformComponent>
@@ -123,20 +173,26 @@ function ZoomBtn({
   );
 }
 
+function readIsPhone(): boolean {
+  if (typeof window === 'undefined') return false;
+  // innerWidth catches cases where matchMedia lags behind a rotation.
+  return window.matchMedia(PHONE_MQ).matches || window.innerWidth < 1024;
+}
+
 /** Tailwind `lg` breakpoint — matches GameScreen phone shell. */
 export function useIsPhoneLayout(): boolean {
-  const [phone, setPhone] = useState(
-    () =>
-      typeof window !== 'undefined' &&
-      window.matchMedia('(max-width: 1023px)').matches,
-  );
+  const [phone, setPhone] = useState(readIsPhone);
 
   useEffect(() => {
-    const mq = window.matchMedia('(max-width: 1023px)');
-    const sync = () => setPhone(mq.matches);
+    const mq = window.matchMedia(PHONE_MQ);
+    const sync = () => setPhone(readIsPhone());
     sync();
     mq.addEventListener('change', sync);
-    return () => mq.removeEventListener('change', sync);
+    window.addEventListener('resize', sync);
+    return () => {
+      mq.removeEventListener('change', sync);
+      window.removeEventListener('resize', sync);
+    };
   }, []);
 
   return phone;

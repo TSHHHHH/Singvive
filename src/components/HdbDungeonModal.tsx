@@ -617,10 +617,6 @@ function HdbPlayerMarker() {
   );
 }
 
-function unitPlate(label: string): string {
-  return label.replace(/^#/, '');
-}
-
 function stairGateTouching(
   dungeon: HdbDungeon,
   col: number,
@@ -654,7 +650,6 @@ function CorridorDoor({
   pathHint: number;
   onClick: () => void;
 }) {
-  const plate = unitPlate(unit.label);
   const meta = unit.available
     ? unit.state === 'cleared'
       ? 'cleared'
@@ -678,6 +673,7 @@ function CorridorDoor({
    * - unread   → ? (enterable, type unknown until scouted)
    * - known    → type cue (skip plain residential — the door is enough)
    * Player position is the border/glow, not a replacement icon.
+   * Unit numbers stay out of the cutaway — label lives in the dock / title.
    */
   let face: ReactElement | null = null;
   if (!unit.available) {
@@ -697,38 +693,25 @@ function CorridorDoor({
   }
 
   const shell = (
-    <span className="flex h-full min-h-0 items-stretch gap-0.5">
-      <span
-        className={`relative flex h-full w-5 shrink-0 flex-col items-center rounded-t-[1px] border border-b-0 pt-0.5 sm:w-6 ${panel}`}
-      >
-        <span className="mt-0.5 flex min-h-[1rem] items-center justify-center leading-none">
-          {face}
-        </span>
-        <span
-          className={`absolute right-[2px] top-1/2 h-2.5 w-1 -translate-y-1/2 rounded-sm ${
-            unit.available ? 'bg-concrete-200/80' : 'bg-concrete-600'
-          }`}
-        />
+    <span
+      className={`relative flex h-full w-5 shrink-0 flex-col items-center rounded-t-[1px] border border-b-0 pt-0.5 sm:w-6 ${panel} ${
+        selected || atPlayer ? 'ring-1 ring-signal/50' : ''
+      }`}
+    >
+      <span className="mt-0.5 flex min-h-[1rem] items-center justify-center leading-none">
+        {face}
       </span>
-
-      {/* Unit number — top-right of the door */}
       <span
-        className={`min-w-0 flex-1 self-start truncate pt-0.5 text-left text-[10px] font-bold leading-tight tracking-tight sm:text-[11px] ${
-          !unit.available
-            ? 'text-concrete-500'
-            : selected || atPlayer
-              ? 'text-signal'
-              : 'text-concrete-100'
+        className={`absolute right-[2px] top-1/2 h-2.5 w-1 -translate-y-1/2 rounded-sm ${
+          unit.available ? 'bg-concrete-200/80' : 'bg-concrete-600'
         }`}
-      >
-        {plate}
-      </span>
+      />
     </span>
   );
 
   const sizeCls = phone
-    ? 'flex h-full min-h-[40px] w-full max-w-[4.5rem] items-end'
-    : 'flex h-full max-h-12 w-full max-w-[4.5rem] items-end';
+    ? 'flex h-full min-h-[40px] w-full items-end justify-center'
+    : 'flex h-full max-h-12 w-full items-end justify-center';
 
   if (!unit.available) {
     return (
