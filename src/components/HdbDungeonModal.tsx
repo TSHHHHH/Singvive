@@ -4,6 +4,7 @@ import type { IconName } from '../icons/keys';
 import { ATTRIBUTE_ICONS, ATTRIBUTE_LABELS } from '../game/character';
 import { useGame } from '../game/store';
 import { PlayerPin } from './PlayerPin';
+import { HdbZoomViewport, useIsPhoneLayout } from './HdbZoomViewport';
 import {
   adjacentBreakableBlocks,
   BLOCK_META,
@@ -59,6 +60,7 @@ export function HdbDungeonModal() {
   const hdbForceBlock = useGame((s) => s.hdbForceBlock);
   const hdbLeave = useGame((s) => s.hdbLeave);
   const [selectedCol, setSelectedCol] = useState<number | null>(null);
+  const isPhone = useIsPhoneLayout();
 
   if (!hdb || !character) return null;
 
@@ -101,12 +103,26 @@ export function HdbDungeonModal() {
     hdbGoTo(target);
   };
 
+  const dockExpanded = !isPhone || !!sel || clearable.length > 0;
+
+  const cutaway = (
+    <BuildingCutaway
+      hdb={hdb}
+      reach={reach}
+      forceable={forceable}
+      selectedCol={selectedCol}
+      phone={isPhone}
+      onGo={go}
+      onForce={hdbForceSeal}
+    />
+  );
+
   return (
     <div className="flex h-full w-full flex-col bg-concrete-950">
-      <div className="flex shrink-0 items-center justify-between border-b border-concrete-600 bg-concrete-800 px-4 py-2.5">
+      <div className="flex shrink-0 items-center justify-between border-b border-concrete-600 bg-concrete-800 px-3 py-2 lg:px-4 lg:py-2.5">
         <div className="min-w-0">
           <div className="signage truncate text-xs text-signal">{hdb.name}</div>
-          <div className="text-xs text-concrete-400">
+          <div className="truncate text-xs text-concrete-400">
             {hdb.archetype === 'shelter' ? 'Barricaded shelter' : 'Residential block'} ·{' '}
             {floor.layoutType === 'slab' ? 'slab' : 'point'} · {GROUND_LABEL[hdb.groundKind]} ·{' '}
             {hdb.height} storeys
@@ -116,157 +132,174 @@ export function HdbDungeonModal() {
           onClick={hdbLeave}
           className="shrink-0 rounded border border-concrete-600 px-3 py-1.5 text-xs hover:bg-white/5"
         >
-          ✕ Leave block
+          ✕ Leave
         </button>
       </div>
 
       {band.dcStep > 0 && (
-        <div className="shrink-0 border-b border-hiss/40 bg-hiss/10 px-4 py-1.5 text-2xs leading-snug text-hiss">
+        <div className="shrink-0 border-b border-hiss/40 bg-hiss/10 px-3 py-1.5 text-2xs leading-snug text-hiss lg:px-4">
           Going down is a check now — Dex+End vs DC {dc}.
           {hunting ? ' The stairs are hunted in both directions.' : ' Climbing is still free.'}
         </div>
       )}
 
-      <div className="min-h-0 flex-1 overflow-hidden p-1.5 sm:p-2">
-        <BuildingCutaway
-          hdb={hdb}
-          reach={reach}
-          forceable={forceable}
-          selectedCol={selectedCol}
-          onGo={go}
-          onForce={hdbForceSeal}
-        />
+      <div className="min-h-0 flex-1 overflow-hidden">
+        {isPhone ? (
+          <HdbZoomViewport followKey={posKey(hdb.pos)}>
+            <div className="p-1.5">{cutaway}</div>
+          </HdbZoomViewport>
+        ) : (
+          <div className="h-full p-1.5 sm:p-2">{cutaway}</div>
+        )}
       </div>
 
-      <div className="flex h-[13.5rem] shrink-0 flex-col overflow-hidden border-t border-concrete-600 bg-concrete-900/80">
-        <HeatGauge heat={heat} band={band} dc={dc} hunting={hunting} />
+      <div
+        className={`flex shrink-0 flex-col border-t border-concrete-600 bg-concrete-900/80 ${
+          isPhone
+            ? dockExpanded
+              ? 'max-h-[42%] overflow-hidden'
+              : 'overflow-hidden'
+            : 'h-[13.5rem] overflow-hidden'
+        }`}
+      >
+        <HeatGauge heat={heat} band={band} dc={dc} hunting={hunting} compact={isPhone} />
 
-        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-          <div className="flex flex-wrap items-baseline justify-between gap-1 px-3 pt-1.5">
-            <h3 className="signage text-xs text-concrete-50">
-              Level {String(hdb.currentLevel).padStart(2, '0')} · col {hdb.pos.column}
-            </h3>
-            <span className="text-xs text-concrete-400">
-              Floor threat{' '}
-              <span className={threat >= 5 ? 'text-hiss' : 'text-signal'}>{threat}</span>{' '}
-              <span className="text-2xs text-concrete-400/70">
-                ({parts.base} block
-                {parts.heat > 0 && <span className="text-hiss"> +{parts.heat} heat</span>}
-                {parts.height < 0 && ` ${parts.height} height`})
-              </span>
+        <div className="flex flex-wrap items-baseline justify-between gap-1 px-3 py-1">
+          <h3 className="signage text-xs text-concrete-50">
+            Level {String(hdb.currentLevel).padStart(2, '0')} · col {hdb.pos.column}
+          </h3>
+          <span className="text-xs text-concrete-400">
+            Floor threat{' '}
+            <span className={threat >= 5 ? 'text-hiss' : 'text-signal'}>{threat}</span>{' '}
+            <span className="text-2xs text-concrete-400/70">
+              ({parts.base} block
+              {parts.heat > 0 && <span className="text-hiss"> +{parts.heat} heat</span>}
+              {parts.height < 0 && ` ${parts.height} height`})
             </span>
-          </div>
+          </span>
+        </div>
 
-          <div className="px-3 py-1.5">
-            {clearable.length > 0 && (
-              <div className="mb-2 flex flex-wrap gap-2">
-                {clearable.map((c) => (
-                  <button
-                    key={c.key}
-                    type="button"
-                    onClick={() => hdbForceBlock(c.key)}
-                    className="rounded border border-hiss/60 bg-hiss/15 px-2 py-1 text-xs text-hiss hover:bg-hiss/25"
-                  >
-                    Clear {BLOCK_META[c.block.kind].label} · {c.block.minutes} min · +
-                    {c.block.heat} heat
-                  </button>
-                ))}
-              </div>
-            )}
-            {!sel ? (
-              <p className="text-xs text-concrete-400">
-                {isVoidDeckFloor(floor) && floor.units.length === 0
-                  ? 'Void deck — walk the pillars to a stair, then climb into the fog.'
-                  : 'Click a reachable cell or door to auto-path. Unvisited floors stay fogged. Breach only when you stand at the door.'}
-              </p>
-            ) : (
-              <>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-bold">
-                    <Icon name={UNIT_ICON[sel.type]} /> {sel.label}
-                  </span>
-                  <span className="text-xs uppercase tracking-widest text-concrete-400">
-                    {sel.state === 'cleared' ? 'cleared' : ENTRY_META[sel.entry].label}
-                  </span>
+        {dockExpanded && (
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+            <div className="px-3 pb-1.5">
+              {clearable.length > 0 && (
+                <div className="mb-2 flex flex-wrap gap-2">
+                  {clearable.map((c) => (
+                    <button
+                      key={c.key}
+                      type="button"
+                      onClick={() => hdbForceBlock(c.key)}
+                      className="min-h-[44px] rounded border border-hiss/60 bg-hiss/15 px-3 py-2 text-xs text-hiss hover:bg-hiss/25 lg:min-h-0 lg:px-2 lg:py-1"
+                    >
+                      Clear {BLOCK_META[c.block.kind].label} · {c.block.minutes} min · +
+                      {c.block.heat} heat
+                    </button>
+                  ))}
                 </div>
+              )}
+              {!sel ? (
+                <p className="text-xs text-concrete-400">
+                  {isVoidDeckFloor(floor) && floor.units.length === 0
+                    ? 'Void deck — walk the pillars to a stair, then climb into the fog.'
+                    : isPhone
+                      ? 'Tap a reachable cell or door to auto-path. Pinch to zoom. Breach only when you stand at the door.'
+                      : 'Click a reachable cell or door to auto-path. Unvisited floors stay fogged. Breach only when you stand at the door.'}
+                </p>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-bold">
+                      <Icon name={UNIT_ICON[sel.type]} /> {sel.label}
+                    </span>
+                    <span className="text-xs uppercase tracking-widest text-concrete-400">
+                      {sel.state === 'cleared' ? 'cleared' : ENTRY_META[sel.entry].label}
+                    </span>
+                  </div>
 
-                <ul className="mt-2 space-y-0.5 text-xs text-concrete-200">
-                  <li>
-                    Threats:{' '}
-                    {sel.scoutedInfo && sel.scoutedInfo.threatCount >= 0 ? (
-                      sel.scoutedInfo.threatCount
-                    ) : (
-                      <span className="text-concrete-400">couldn't count</span>
-                    )}
-                  </li>
-                  <li>
-                    Room:{' '}
-                    {sel.scoutedInfo?.hazardType ? (
-                      <span className="text-hiss">{sel.scoutedInfo.hazardType}</span>
-                    ) : sel.scoutedInfo?.readRoom ? (
-                      'reads clean'
-                    ) : (
-                      <span className="text-concrete-400">unread</span>
-                    )}
-                  </li>
-                  <li>
-                    Containers:{' '}
-                    {sel.scoutedInfo?.containerCategory ? (
-                      <span className="text-astral">
-                        {sel.scoutedInfo.containerCategory} · {sel.scoutedInfo.lootQuality}
+                  <ul className="mt-2 space-y-0.5 text-xs text-concrete-200">
+                    <li>
+                      Threats:{' '}
+                      {sel.scoutedInfo && sel.scoutedInfo.threatCount >= 0 ? (
+                        sel.scoutedInfo.threatCount
+                      ) : (
+                        <span className="text-concrete-400">couldn't count</span>
+                      )}
+                    </li>
+                    <li>
+                      Room:{' '}
+                      {sel.scoutedInfo?.hazardType ? (
+                        <span className="text-hiss">{sel.scoutedInfo.hazardType}</span>
+                      ) : sel.scoutedInfo?.readRoom ? (
+                        'reads clean'
+                      ) : (
+                        <span className="text-concrete-400">unread</span>
+                      )}
+                    </li>
+                    <li>
+                      Containers:{' '}
+                      {sel.scoutedInfo?.containerCategory ? (
+                        <span className="text-astral">
+                          {sel.scoutedInfo.containerCategory} · {sel.scoutedInfo.lootQuality}
+                        </span>
+                      ) : (
+                        <span className="text-concrete-400">unread</span>
+                      )}
+                    </li>
+                  </ul>
+
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {sel.type === 'shelter_service' && sel.service ? (
+                      <button
+                        onClick={() => hdbUseService(sel.id)}
+                        disabled={sel.state === 'cleared'}
+                        className="min-h-[44px] rounded bg-signal/80 px-3 py-2 text-xs font-bold text-black hover:bg-signal disabled:opacity-30 lg:min-h-0 lg:py-1.5"
+                      >
+                        <Icon name={SERVICE_ICON[sel.service]} /> {SERVICE_LABEL[sel.service]}
+                      </button>
+                    ) : sel.state === 'cleared' ? (
+                      <span className="text-xs text-concrete-400">
+                        You've already been through this one. Nothing left in it.
                       </span>
                     ) : (
-                      <span className="text-concrete-400">unread</span>
+                      <button
+                        onClick={() => hdbBreach(sel.id)}
+                        className="min-h-[44px] rounded bg-signal/80 px-3 py-2 text-xs font-bold text-black hover:bg-signal lg:min-h-0 lg:py-1.5"
+                      >
+                        <Icon name={ENTRY_META[sel.entry].heat > 0 ? 'hdb.breach' : 'hdb.unit'} />{' '}
+                        {ENTRY_META[sel.entry].verb} · {ENTRY_META[sel.entry].minutes} min ·{' '}
+                        {ENTRY_META[sel.entry].heat > 0
+                          ? `+${ENTRY_META[sel.entry].heat} heat`
+                          : 'quiet'}
+                      </button>
                     )}
-                  </li>
-                </ul>
+                  </div>
+                </>
+              )}
+            </div>
 
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {sel.type === 'shelter_service' && sel.service ? (
-                    <button
-                      onClick={() => hdbUseService(sel.id)}
-                      disabled={sel.state === 'cleared'}
-                      className="rounded bg-signal/80 px-3 py-1.5 text-xs font-bold text-black hover:bg-signal disabled:opacity-30"
-                    >
-                      <Icon name={SERVICE_ICON[sel.service]} /> {SERVICE_LABEL[sel.service]}
-                    </button>
-                  ) : sel.state === 'cleared' ? (
-                    <span className="text-xs text-concrete-400">
-                      You've already been through this one. Nothing left in it.
-                    </span>
-                  ) : (
-                    <button
-                      onClick={() => hdbBreach(sel.id)}
-                      className="rounded bg-signal/80 px-3 py-1.5 text-xs font-bold text-black hover:bg-signal"
-                    >
-                      <Icon name={ENTRY_META[sel.entry].heat > 0 ? 'hdb.breach' : 'hdb.unit'} />{' '}
-                      {ENTRY_META[sel.entry].verb} · {ENTRY_META[sel.entry].minutes} min ·{' '}
-                      {ENTRY_META[sel.entry].heat > 0
-                        ? `+${ENTRY_META[sel.entry].heat} heat`
-                        : 'quiet'}
-                    </button>
-                  )}
-                </div>
-              </>
-            )}
+            <div className="mt-auto flex flex-wrap gap-2 border-t border-concrete-700/60 px-3 py-1.5 text-2xs text-concrete-400">
+              {senses.map((s) => (
+                <span
+                  key={s.key}
+                  className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 ${
+                    senseChance(s.value) >= 0.6
+                      ? 'border-astral/40 text-astral'
+                      : 'border-concrete-600'
+                  }`}
+                >
+                  <Icon name={ATTRIBUTE_ICONS[s.key]} size={11} title={ATTRIBUTE_LABELS[s.key]} />
+                  {s.value} → {s.gives} {Math.round(senseChance(s.value) * 100)}%
+                </span>
+              ))}
+            </div>
           </div>
+        )}
 
-          <div className="mt-auto flex flex-wrap gap-2 border-t border-concrete-700/60 px-3 py-1.5 text-2xs text-concrete-400">
-            {senses.map((s) => (
-              <span
-                key={s.key}
-                className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 ${
-                  senseChance(s.value) >= 0.6
-                    ? 'border-astral/40 text-astral'
-                    : 'border-concrete-600'
-                }`}
-              >
-                <Icon name={ATTRIBUTE_ICONS[s.key]} size={11} title={ATTRIBUTE_LABELS[s.key]} />
-                {s.value} → {s.gives} {Math.round(senseChance(s.value) * 100)}%
-              </span>
-            ))}
-          </div>
-        </div>
+        {isPhone && !dockExpanded && (
+          <p className="px-3 pb-2 text-2xs text-concrete-400">
+            Pinch to zoom · tap a door at your cell to breach
+          </p>
+        )}
       </div>
     </div>
   );
@@ -277,6 +310,7 @@ function BuildingCutaway({
   reach,
   forceable,
   selectedCol,
+  phone,
   onGo,
   onForce,
 }: {
@@ -284,6 +318,7 @@ function BuildingCutaway({
   reach: Set<string>;
   forceable: number[];
   selectedCol: number | null;
+  phone: boolean;
   onGo: (pos: HdbPos) => void;
   onForce: (level: number) => void;
 }) {
@@ -293,20 +328,40 @@ function BuildingCutaway({
     hdb.unitColumns[Math.floor(hdb.unitColumns.length / 2)] ??
     Math.floor(hdb.stripWidth / 2);
 
-  const colTrack = Array.from({ length: hdb.stripWidth }, (_, col) =>
-    stairAt.has(col) ? '1.75rem' : 'minmax(2.5rem, 1fr)',
-  ).join(' ');
+  // Phone: fixed tracks so the elevation has a real width to pan across.
+  // Desktop: flexible unit columns fill the map column.
+  const colTrack = Array.from({ length: hdb.stripWidth }, (_, col) => {
+    if (stairAt.has(col)) return phone ? '2.75rem' : '1.75rem';
+    return phone ? '3.25rem' : 'minmax(2.5rem, 1fr)';
+  }).join(' ');
+
+  const labelCol = phone ? '2.75rem' : '2.75rem';
+  const rowCls = phone
+    ? 'grid h-11 min-h-[44px] shrink-0'
+    : 'grid min-h-0 flex-1';
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-col">
-      <div className="mb-1 flex shrink-0 items-baseline justify-between text-xs text-concrete-400">
+    <div
+      className={
+        phone
+          ? 'flex w-max min-w-full flex-col'
+          : 'flex h-full min-h-0 w-full flex-col'
+      }
+    >
+      <div className="mb-1 flex shrink-0 items-baseline justify-between gap-3 text-xs text-concrete-400">
         <span className="signage">Block elevation</span>
         <span>
           {hdb.revealedLevels.length}/{hdb.height} revealed · maze
         </span>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-sm border border-concrete-600 bg-concrete-950">
+      <div
+        className={
+          phone
+            ? 'flex w-max min-w-full flex-col rounded-sm border border-concrete-600 bg-concrete-950'
+            : 'flex min-h-0 flex-1 flex-col overflow-hidden rounded-sm border border-concrete-600 bg-concrete-950'
+        }
+      >
         {levels.map((level, rowIdx) => {
           const f = hdb.floors[level - 1];
           const hereLevel = level === hdb.pos.level;
@@ -321,14 +376,14 @@ function BuildingCutaway({
           return (
             <div
               key={level}
-              className={`grid min-h-0 flex-1 ${last ? '' : 'border-b border-concrete-700/80'} ${
+              className={`${rowCls} ${last ? '' : 'border-b border-concrete-700/80'} ${
                 hereLevel
                   ? 'bg-signal/10'
                   : revealed
                     ? 'bg-concrete-900/40'
                     : 'bg-concrete-950'
               }`}
-              style={{ gridTemplateColumns: `2.75rem ${colTrack}` }}
+              style={{ gridTemplateColumns: `${labelCol} ${colTrack}` }}
             >
               <button
                 type="button"
@@ -400,8 +455,10 @@ function BuildingCutaway({
                         disabled={!reachable}
                         onClick={() => onGo(cell)}
                         title={`Stair ${stair.id} — climb into the unknown`}
-                        className={`relative flex items-center justify-center border-x border-concrete-700/40 bg-concrete-900/30 disabled:cursor-default ${
-                          reachable ? 'hover:bg-signal/15 text-concrete-400' : 'text-concrete-700'
+                        className={`relative flex min-h-[44px] items-center justify-center border-x border-concrete-700/40 bg-concrete-900/30 disabled:cursor-default lg:min-h-0 ${
+                          reachable
+                            ? 'bg-signal/10 text-concrete-300 ring-1 ring-inset ring-signal/25 hover:bg-signal/15'
+                            : 'text-concrete-700'
                         }`}
                       >
                         <Icon name="hdb.stairwell" size={12} />
@@ -425,11 +482,11 @@ function BuildingCutaway({
                           ? `Side stair ${stair.id}`
                           : `Stairwell ${stair.id}`
                       }
-                      className={`relative flex items-center justify-center border-x disabled:cursor-default ${
+                      className={`relative flex min-h-[44px] items-center justify-center border-x disabled:cursor-default lg:min-h-0 ${
                         atPlayer
                           ? 'border-signal/40 bg-signal/10 text-concrete-300'
                           : reachable
-                            ? 'border-concrete-500/50 bg-concrete-800/60 text-concrete-300 hover:bg-signal/15'
+                            ? 'border-concrete-500/50 bg-signal/10 text-concrete-200 ring-1 ring-inset ring-signal/25 hover:bg-signal/15'
                             : 'border-concrete-700/40 bg-concrete-900/40 text-concrete-600'
                       }`}
                     >
@@ -463,8 +520,10 @@ function BuildingCutaway({
                       disabled={!reachable && !atPlayer}
                       onClick={() => onGo(cell)}
                       title="Void deck"
-                      className={`relative flex items-center justify-center disabled:cursor-default ${
-                        reachable ? 'hover:bg-white/5' : ''
+                      className={`relative flex min-h-[44px] items-center justify-center disabled:cursor-default lg:min-h-0 ${
+                        reachable
+                          ? 'bg-signal/10 ring-1 ring-inset ring-signal/20 hover:bg-white/5'
+                          : ''
                       }`}
                     >
                       {blockLeft && (
@@ -483,8 +542,10 @@ function BuildingCutaway({
                       type="button"
                       disabled={!reachable && !atPlayer}
                       onClick={() => onGo(cell)}
-                      className={`relative disabled:cursor-default ${
-                        reachable ? 'hover:bg-white/5' : ''
+                      className={`relative min-h-[44px] disabled:cursor-default lg:min-h-0 ${
+                        reachable
+                          ? 'bg-signal/10 ring-1 ring-inset ring-signal/20 hover:bg-white/5'
+                          : ''
                       }`}
                     >
                       {blockLeft && (
@@ -496,7 +557,14 @@ function BuildingCutaway({
                 }
 
                 return (
-                  <div key={unit.id} className="relative flex items-end justify-center px-0.5 pb-0">
+                  <div
+                    key={unit.id}
+                    className={`relative flex min-h-[44px] items-end justify-center px-0.5 pb-0 lg:min-h-0 ${
+                      reachable && !atPlayer
+                        ? 'bg-signal/10 ring-1 ring-inset ring-signal/20'
+                        : ''
+                    }`}
+                  >
                     {blockLeft && (
                       <span className="absolute left-0 top-[15%] bottom-0 z-10 w-0.5 bg-hiss/80" />
                     )}
@@ -505,6 +573,7 @@ function BuildingCutaway({
                       selected={selectedCol === unit.column && atPlayer}
                       atPlayer={atPlayer}
                       interactive={reachable || atPlayer}
+                      phone={phone}
                       pathHint={
                         reachable && !atPlayer
                           ? pathMinutes(findPath(hdb, hdb.pos, cell) ?? [])
@@ -539,7 +608,10 @@ function BuildingCutaway({
 /** Map teardrop pin, tip on the cell's floor line. */
 function HdbPlayerMarker() {
   return (
-    <div className="pointer-events-none absolute bottom-0 left-1/2 z-30 -translate-x-1/2">
+    <div
+      data-hdb-player
+      className="pointer-events-none absolute bottom-0 left-1/2 z-30 -translate-x-1/2"
+    >
       <PlayerPin size="sm" />
     </div>
   );
@@ -570,6 +642,7 @@ function CorridorDoor({
   selected,
   atPlayer,
   interactive,
+  phone,
   pathHint,
   onClick,
 }: {
@@ -577,6 +650,7 @@ function CorridorDoor({
   selected: boolean;
   atPlayer: boolean;
   interactive: boolean;
+  phone: boolean;
   pathHint: number;
   onClick: () => void;
 }) {
@@ -652,7 +726,9 @@ function CorridorDoor({
     </span>
   );
 
-  const sizeCls = 'flex h-full max-h-12 w-full max-w-[4.5rem] items-end';
+  const sizeCls = phone
+    ? 'flex h-full min-h-[40px] w-full max-w-[4.5rem] items-end'
+    : 'flex h-full max-h-12 w-full max-w-[4.5rem] items-end';
 
   if (!unit.available) {
     return (
@@ -688,18 +764,24 @@ function HeatGauge({
   band,
   dc,
   hunting,
+  compact = false,
 }: {
   heat: number;
   band: (typeof HEAT_BANDS)[number];
   dc: number;
   hunting: boolean;
+  compact?: boolean;
 }) {
   const pct = Math.min(100, (heat / HEAT_MAX) * 100);
   const idx = HEAT_BANDS.indexOf(band);
   const next = HEAT_BANDS[idx + 1];
 
   return (
-    <div className="shrink-0 border-b border-concrete-600 bg-concrete-900/60 px-3 py-1.5">
+    <div
+      className={`shrink-0 border-b border-concrete-600 bg-concrete-900/60 px-3 ${
+        compact ? 'py-1' : 'py-1.5'
+      }`}
+    >
       <div className="mb-0.5 flex items-baseline justify-between gap-3">
         <span className="signage text-2xs text-concrete-400">
           Block heat ·{' '}
@@ -741,21 +823,23 @@ function HeatGauge({
         ))}
       </div>
 
-      <div className="mt-0.5 text-2xs leading-snug text-concrete-400">
-        {band.note}
-        {hunting && (
-          <span className="text-hiss">
-            {' '}
-            {Math.round(HUNT_ELITE_CHANCE * 100)}% chance of a hunt on every door and stair.
-          </span>
-        )}
-        {!hunting && next && (
-          <span>
-            {' '}
-            Next: {next.label} at {next.at}.
-          </span>
-        )}
-      </div>
+      {!compact && (
+        <div className="mt-0.5 text-2xs leading-snug text-concrete-400">
+          {band.note}
+          {hunting && (
+            <span className="text-hiss">
+              {' '}
+              {Math.round(HUNT_ELITE_CHANCE * 100)}% chance of a hunt on every door and stair.
+            </span>
+          )}
+          {!hunting && next && (
+            <span>
+              {' '}
+              Next: {next.label} at {next.at}.
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }
