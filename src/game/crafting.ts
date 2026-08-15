@@ -153,6 +153,7 @@ export function canCraft(
   recipe: Recipe,
   items: ItemInstance[],
   atShelter: boolean,
+  inputs?: Record<string, number>,
 ): RecipeAvailability {
   if (recipe.needsShelter && !atShelter) {
     return { ok: false, reason: 'Needs somewhere to work' };
@@ -160,7 +161,8 @@ export function canCraft(
   if (recipe.tool && countOf(items, recipe.tool) < 1) {
     return { ok: false, reason: `Needs a ${itemDef(recipe.tool).name}` };
   }
-  for (const [defId, need] of Object.entries(recipe.inputs)) {
+  const needMap = inputs ?? recipe.inputs;
+  for (const [defId, need] of Object.entries(needMap)) {
     const have = countOf(items, defId);
     if (have < need) {
       return { ok: false, reason: `Needs ${need}× ${itemDef(defId).name} (have ${have})` };

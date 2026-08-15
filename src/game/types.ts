@@ -32,6 +32,8 @@ export interface Trait {
   /** Additive dodge chance on a connecting hit, e.g. 0.03 = +3%. */
   dodgeMod?: number;
   infectionResist?: number; // 0..1
+  /** Attack mod applied only vs undead (not human foes). */
+  zombieAttackMod?: number;
 
   // --- loot/search ---
   lootMod?: number;
@@ -45,6 +47,8 @@ export interface Trait {
   hungerDrainMod?: number; // multiplier delta: +0.2 = 20% more drain
   thirstDrainMod?: number;
   energyDrainMod?: number;
+  /** Energy drain delta applied only outdoors or in heat weather. */
+  outdoorEnergyDrainMod?: number;
   sleepRestoreMod?: number; // multiplier delta on sleep energy recovery
 
   // --- mobility ---
@@ -52,14 +56,28 @@ export interface Trait {
 
   // --- encounter / stealth ---
   encounterChanceMod?: number; // additive delta to encounter roll
-  ambushChanceMod?: number; // additive delta to ambush/surprise chance
+  ambushChanceMod?: number; // multiplier delta on ambush weight/chance (e.g. −0.5 = half)
+  /** Extra encounter chance at night / dusk only. */
+  nightEncounterChanceMod?: number;
+  /** Extra player accuracy at night/dusk (negative = worse). */
+  nightAccuracyExtra?: number;
 
   // --- perception / fog ---
   awarenessMod?: number;
-  detectRadiusMod?: number; // multiplier delta to detect radius
+  detectRadiusMod?: number; // multiplier delta to detect radius / blip margin
 
   // --- inventory ---
   gridWidthBonus?: number; // extra columns on backpack
+  /** Flat kg added to carry capacity. */
+  carryCapacityMod?: number;
+
+  // --- crafting ---
+  /** Delta on total craft material count (e.g. −1 = one fewer input). */
+  craftCostMod?: number;
+
+  // --- events ---
+  /** Flat bonus on doorway / dialogue attribute checks. */
+  checkBonusMod?: number;
 
   // --- faction ---
   /**

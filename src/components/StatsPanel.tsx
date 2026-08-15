@@ -24,18 +24,26 @@ export function StatsPanel() {
             <span className="shrink-0 text-xs text-white/40">day {day}</span>
           </div>
           {traits.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-1">
-              {traits.map((t) => (
-                <span
-                  key={t.id}
-                  title={t.description}
-                  className={`rounded px-1.5 py-0.5 text-xs ${
-                    t.category === 'positive' ? 'bg-signal/15 text-signal' : 'bg-hiss/15 text-hiss'
-                  }`}
-                >
-                  {t.name}
-                </span>
-              ))}
+            <div className="mt-2 space-y-1.5">
+              {(['positive', 'negative'] as const).map((cat) => {
+                const list = traits.filter((t) => t.category === cat);
+                if (list.length === 0) return null;
+                return (
+                  <div key={cat} className="flex flex-wrap gap-1">
+                    {list.map((t) => (
+                      <span
+                        key={t.id}
+                        title={t.description}
+                        className={`rounded px-1.5 py-0.5 text-xs ${
+                          cat === 'positive' ? 'bg-signal/15 text-signal' : 'bg-hiss/15 text-hiss'
+                        }`}
+                      >
+                        {t.name}
+                      </span>
+                    ))}
+                  </div>
+                );
+              })}
             </div>
           )}
         </section>

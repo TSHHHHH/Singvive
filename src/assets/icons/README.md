@@ -11,6 +11,11 @@ The file name is the icon key from `src/icons/keys.ts` with dots replaced by das
 | `poi.supermarket`   | `poi-supermarket.png`    |
 | `action.sleep`      | `action-sleep.png`       |
 | `stance.guarded`    | `stance-guarded.png`     |
+| `attr.strength`     | `attr-strength.png`      |
+| `attr.dexterity`    | `attr-dexterity.png`     |
+| `attr.endurance`    | `attr-endurance.png`     |
+| `attr.perception`   | `attr-perception.png`    |
+| `attr.wits`         | `attr-wits.png`          |
 
 `.png`, `.webp` and `.svg` all work. Any key with no file here keeps rendering
 its emoji fallback, so the set can be migrated a few icons at a time.

@@ -10,11 +10,13 @@
   --safe-right: env(safe-area-inset-right, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
-  /* Mobile bottom chrome: nav row (~44px) + HereCompactBar (~52px) + gaps */
+  /* Mobile bottom chrome: nav row (~44px) + HereCompactBar (~52px) + mini-log + gaps */
   --mobile-nav-h: 2.75rem;
   --mobile-here-bar-h: 3.25rem;
+  --mobile-mini-log-h: 2.85rem;
+  --mobile-status-bar-h: 2.25rem;
   --mobile-chrome-bottom: calc(
-    var(--mobile-nav-h) + var(--safe-bottom) + var(--mobile-here-bar-h) + 0.75rem
+    var(--mobile-nav-h) + var(--safe-bottom) + var(--mobile-here-bar-h) + var(--mobile-mini-log-h) + 1.25rem
   );
 }
 
@@ -125,6 +127,14 @@ body {
 }
 .player-pin.is-faded {
   opacity: 0.22;
+}
+/* Compact pin for the HDB cutaway — tip still sits on the floor line. */
+.player-pin--sm {
+  position: relative;
+  width: 30px;
+  height: 38px;
+  transform: scale(0.85);
+  transform-origin: 50% 100%;
 }
 .player-pin__body {
   position: absolute;

@@ -69,7 +69,11 @@ export function SurvivorStatsGrid() {
     legTravelFactor(bodyParts) *
     equipTravelSpeedFactor(equipment) *
     (1 + sumTraitMod(character.traitIds, 'travelSpeedMod'));
-  const carry = maxCarry(character.attributes, equipment);
+  const carry = maxCarry(
+    character.attributes,
+    equipment,
+    sumTraitMod(character.traitIds, 'carryCapacityMod'),
+  );
   const stealth = equipEncounterChanceMod(equipment);
   const stealthLabel =
     stealth === 0 ? '±0%' : `${stealth > 0 ? '+' : ''}${Math.round(stealth * 100)}%`;

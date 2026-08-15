@@ -162,14 +162,37 @@ export function tickMeters(
     sleeping?: boolean;
     thirstMult?: number;
     energyMult?: number;
+    /** Trait hungerDrainMod sum (multiplier delta). */
+    hungerDrainMod?: number;
+    thirstDrainMod?: number;
+    energyDrainMod?: number;
+    /** Applied when outdoors or in heat weather. */
+    outdoorEnergyDrainMod?: number;
+    outdoors?: boolean;
+    heat?: boolean;
   } = {},
 ): Meters {
   const mult = opts.sleeping ? SLEEP_DEPLETION_MULT : 1;
   const envThirst = opts.thirstMult ?? 1;
   const envEnergy = opts.energyMult ?? 1;
-  const hunger = clampMeter(meters.hunger - DEPLETION_PER_HOUR.hunger * hours * mult);
-  const thirst = clampMeter(meters.thirst - DEPLETION_PER_HOUR.thirst * hours * mult * envThirst);
-  const energyMult = (opts.sleeping ? mult : activeEnergyDrainMultiplier(meters.thirst)) * envEnergy;
+  const hungerMult = 1 + (opts.hungerDrainMod ?? 0);
+  const thirstTraitMult = 1 + (opts.thirstDrainMod ?? 0);
+  const outdoor =
+    (opts.outdoors || opts.heat) && (opts.outdoorEnergyDrainMod ?? 0) !== 0
+      ? 1 + (opts.outdoorEnergyDrainMod ?? 0)
+      : 1;
+  const energyTraitMult = (1 + (opts.energyDrainMod ?? 0)) * outdoor;
+  const hunger = clampMeter(
+    meters.hunger - DEPLETION_PER_HOUR.hunger * hours * mult * Math.max(0.1, hungerMult),
+  );
+  const thirst = clampMeter(
+    meters.thirst -
+      DEPLETION_PER_HOUR.thirst * hours * mult * envThirst * Math.max(0.1, thirstTraitMult),
+  );
+  const energyMult =
+    (opts.sleeping ? mult : activeEnergyDrainMultiplier(meters.thirst)) *
+    envEnergy *
+    Math.max(0.1, energyTraitMult);
   const energy = clampMeter(meters.energy - DEPLETION_PER_HOUR.energy * hours * energyMult);
 
   return { hunger, thirst, energy, infection: meters.infection };
@@ -550,14 +573,17 @@ export function tickInjuries(
   hours: number,
   selfStopDisabled = false,
   hunger = 50,
+  legHealMod = 0,
 ): { parts: BodyParts; blocksRegen: boolean } {
   const next = {} as BodyParts;
   let blocksRegen = false;
   const regenMult = hpRegenMultiplier(hunger);
+  const legMult = Math.max(0.1, 1 + legHealMod);
 
   for (const id of BODY_PART_IDS) {
     let p = tickPartBleedDrain(parts[id], hours);
     if (p.bleed === 'major') blocksRegen = true;
+    const partRegenMult = id === 'leftLeg' || id === 'rightLeg' ? legMult : 1;
 
     if (p.bleed === 'major') {
       if (p.hp <= 0) p = { ...p, crippled: true };
@@ -567,7 +593,7 @@ export function tickInjuries(
 
     if (p.bleed === 'minor') {
       const left = selfStopDisabled ? p.bleedHours : Math.max(0, p.bleedHours - hours);
-      const rate = PART_REGEN_PER_HOUR * hours * 0.5 * regenMult;
+      const rate = PART_REGEN_PER_HOUR * hours * 0.5 * regenMult * partRegenMult;
       const cap = regenCap(p);
       p = {
         ...p,
@@ -581,7 +607,7 @@ export function tickInjuries(
     }
 
     if (!blocksRegen) {
-      const rate = PART_REGEN_PER_HOUR * hours * regenMult;
+      const rate = PART_REGEN_PER_HOUR * hours * regenMult * partRegenMult;
       const cap = regenCap(p);
       p = { ...p, hp: Math.min(cap, p.hp + rate) };
     }
@@ -740,8 +766,11 @@ export function sleepRestore(
   energy: number,
   hours: number,
   fuel: { hunger: number; thirst: number } = { hunger: 50, thirst: 50 },
+  sleepRestoreMod = 0,
 ): number {
-  const gain = hours * REST_ENERGY_PER_HOUR * restEnergyMultiplier(fuel.hunger, fuel.thirst);
+  const traitMult = Math.max(0.1, 1 + sleepRestoreMod);
+  const gain =
+    hours * REST_ENERGY_PER_HOUR * restEnergyMultiplier(fuel.hunger, fuel.thirst) * traitMult;
   return clampMeter(energy + Math.max(0, gain));
 }
 

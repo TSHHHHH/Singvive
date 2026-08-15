@@ -26,6 +26,7 @@ export interface IconAsset {
 // name is the icon key with dots swapped for dashes, e.g.
 //   src/assets/icons/poi-supermarket.png  →  'poi.supermarket'
 //   src/assets/icons/action-sleep.png     →  'action.sleep'
+//   src/assets/icons/attr-strength.png    →  'attr.strength'
 // Drop a file in with that name and it appears in game on the next reload; no
 // import statement, no edit to this file.
 const discovered = import.meta.glob('../assets/icons/*.{png,webp,svg}', {

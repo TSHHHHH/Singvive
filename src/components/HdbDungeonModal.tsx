@@ -1,233 +1,270 @@
-import { useState } from 'react';
+import { useState, type ReactElement } from 'react';
 import { Icon } from '../icons/Icon';
 import type { IconName } from '../icons/keys';
+import { ATTRIBUTE_ICONS, ATTRIBUTE_LABELS } from '../game/character';
 import { useGame } from '../game/store';
+import { PlayerPin } from './PlayerPin';
 import {
+  adjacentBreakableBlocks,
+  BLOCK_META,
+  canTargetCell,
   currentFloor,
   ENTRY_META,
+  findPath,
   floorThreat,
   forceableLevels,
+  GROUND_LABEL,
   heatBand,
   HEAT_BANDS,
   HEAT_MAX,
+  horizKey,
   HUNT_ELITE_CHANCE,
   isHunting,
+  isLevelRevealed,
+  isVoidDeckFloor,
+  pathMinutes,
+  posKey,
+  reachableCells,
   retreatDc,
-  risersAt,
   SEAL_META,
-  threatBreakdown,
-  reachableLevels,
   senseChance,
-  SERVICE_LABEL,
   SERVICE_ICON,
+  SERVICE_LABEL,
+  samePos,
+  threatBreakdown,
+  type HdbBlock,
   type HdbDungeon,
+  type HdbPos,
   type HdbUnitNode,
 } from '../game/hdbDungeon';
 
 const UNIT_ICON: Record<HdbUnitNode['type'], IconName> = {
   residential: 'hdb.unit',
   corner_unit: 'hdb.cornerUnit',
-  stairwell: 'hdb.stairwell',
   shelter_service: 'hdb.service',
   hazard: 'hdb.hazard',
 };
 
-const STATE_CLASS: Record<HdbUnitNode['state'], string> = {
-  unexplored: 'border-concrete-600 bg-concrete-800 text-concrete-200',
-  scouted: 'border-astral/50 bg-astral/10 text-astral',
-  breached: 'border-signal/60 bg-signal/10 text-signal',
-  cleared: 'border-concrete-600/50 bg-concrete-900 text-concrete-400 line-through',
-};
-
 /**
- * The block, read as a tower: floors on the left, the corridor you're standing
- * in on the right. Everything costs time, and time is what wakes the block up.
+ * Side-elevation HDB crawl: maze movement with auto-path, fog of war on
+ * unvisited storeys, doors only when you're on the cell.
  */
 export function HdbDungeonModal() {
   const hdb = useGame((s) => s.hdb);
   const character = useGame((s) => s.character);
   const hdbBreach = useGame((s) => s.hdbBreach);
-  const hdbMove = useGame((s) => s.hdbMove);
+  const hdbGoTo = useGame((s) => s.hdbGoTo);
   const hdbUseService = useGame((s) => s.hdbUseService);
   const hdbForceSeal = useGame((s) => s.hdbForceSeal);
+  const hdbForceBlock = useGame((s) => s.hdbForceBlock);
   const hdbLeave = useGame((s) => s.hdbLeave);
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selectedCol, setSelectedCol] = useState<number | null>(null);
 
   if (!hdb || !character) return null;
 
   const floor = currentFloor(hdb);
   const threat = floorThreat(hdb, hdb.currentLevel);
-  const reachable = reachableLevels(hdb);
+  const forceable = forceableLevels(hdb);
   const heat = Math.round(hdb.blockHeat);
   const band = heatBand(hdb.blockHeat);
   const hunting = isHunting(hdb);
   const dc = retreatDc(hdb);
   const parts = threatBreakdown(hdb, hdb.currentLevel);
-  const sel = floor.units.find((u) => u.id === selected) ?? null;
+  const reach = new Set(reachableCells(hdb).map(posKey));
+  const clearable = adjacentBreakableBlocks(hdb);
+  const sel =
+    floor.units.find(
+      (u) =>
+        u.column === selectedCol &&
+        u.available &&
+        u.column === hdb.pos.column &&
+        hdb.pos.level === floor.level,
+    ) ?? null;
 
   const attrs = character.attributes;
-  // Each sense rolls per room on the way in — show the odds, not a pass/fail gate.
   const senses = [
-    { key: 'Perception', value: attrs.perception, gives: 'threat count' },
-    { key: 'Wits', value: attrs.wits, gives: 'room traits' },
-    { key: 'Dexterity', value: attrs.dexterity, gives: 'container type' },
+    { key: 'perception' as const, value: attrs.perception, gives: 'threat count' },
+    { key: 'wits' as const, value: attrs.wits, gives: 'room traits' },
+    { key: 'dexterity' as const, value: attrs.dexterity, gives: 'container type' },
   ];
 
-  const wing = (w: HdbUnitNode['wing']) => floor.units.filter((u) => u.wing === w);
+  const go = (target: HdbPos) => {
+    if (samePos(hdb.pos, target)) {
+      setSelectedCol(target.column);
+      return;
+    }
+    if (!canTargetCell(hdb, target)) return;
+    if (!reach.has(posKey(target))) return;
+    const path = findPath(hdb, hdb.pos, target);
+    if (!path) return;
+    setSelectedCol(target.column);
+    hdbGoTo(target);
+  };
 
   return (
     <div className="flex h-full w-full flex-col bg-concrete-950">
-      <div className="flex h-full min-h-0 w-full flex-col overflow-hidden">
-        {/* ---- signage header ---- */}
-        <div className="flex shrink-0 items-center justify-between border-b border-concrete-600 bg-concrete-800 px-4 py-2.5">
-          <div className="min-w-0">
-            <div className="signage truncate text-xs text-signal">{hdb.name}</div>
-            <div className="text-xs text-concrete-400">
-              {hdb.archetype === 'shelter' ? 'Barricaded shelter' : 'Residential block'} ·{' '}
-              {floor.layoutType === 'slab' ? 'slab layout' : 'point block'}
-            </div>
+      <div className="flex shrink-0 items-center justify-between border-b border-concrete-600 bg-concrete-800 px-4 py-2.5">
+        <div className="min-w-0">
+          <div className="signage truncate text-xs text-signal">{hdb.name}</div>
+          <div className="text-xs text-concrete-400">
+            {hdb.archetype === 'shelter' ? 'Barricaded shelter' : 'Residential block'} ·{' '}
+            {floor.layoutType === 'slab' ? 'slab' : 'point'} · {GROUND_LABEL[hdb.groundKind]} ·{' '}
+            {hdb.height} storeys
           </div>
-          <button
-            onClick={hdbLeave}
-            className="shrink-0 rounded border border-concrete-600 px-3 py-1.5 text-xs hover:bg-white/5"
-          >
-            ✕ Leave block
-          </button>
         </div>
+        <button
+          onClick={hdbLeave}
+          className="shrink-0 rounded border border-concrete-600 px-3 py-1.5 text-xs hover:bg-white/5"
+        >
+          ✕ Leave block
+        </button>
+      </div>
 
+      {band.dcStep > 0 && (
+        <div className="shrink-0 border-b border-hiss/40 bg-hiss/10 px-4 py-1.5 text-2xs leading-snug text-hiss">
+          Going down is a check now — Dex+End vs DC {dc}.
+          {hunting ? ' The stairs are hunted in both directions.' : ' Climbing is still free.'}
+        </div>
+      )}
+
+      <div className="min-h-0 flex-1 overflow-hidden p-1.5 sm:p-2">
+        <BuildingCutaway
+          hdb={hdb}
+          reach={reach}
+          forceable={forceable}
+          selectedCol={selectedCol}
+          onGo={go}
+          onForce={hdbForceSeal}
+        />
+      </div>
+
+      <div className="flex h-[13.5rem] shrink-0 flex-col overflow-hidden border-t border-concrete-600 bg-concrete-900/80">
         <HeatGauge heat={heat} band={band} dc={dc} hunting={hunting} />
 
-        <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-          {/* ================= LEFT / TOP: the block, as a section ================= */}
-          <div className="max-h-[38%] shrink-0 overflow-y-auto border-b border-concrete-600 bg-concrete-950/60 p-2 lg:max-h-none lg:w-64 lg:shrink-0 lg:border-b-0 lg:border-r">
-            {band.dcStep > 0 && (
-              <div className="mb-2 rounded border border-hiss/40 bg-hiss/10 px-1.5 py-1 text-2xs leading-snug text-hiss">
-                Going down is a check now — Dex+End vs DC {dc}.
-                {hunting ? ' The stairs are hunted in both directions.' : ' Climbing is still free.'}
-              </div>
-            )}
-            <BlockSection hdb={hdb} reachable={reachable} onMove={hdbMove} onForce={hdbForceSeal} />
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+          <div className="flex flex-wrap items-baseline justify-between gap-1 px-3 pt-1.5">
+            <h3 className="signage text-xs text-concrete-50">
+              Level {String(hdb.currentLevel).padStart(2, '0')} · col {hdb.pos.column}
+            </h3>
+            <span className="text-xs text-concrete-400">
+              Floor threat{' '}
+              <span className={threat >= 5 ? 'text-hiss' : 'text-signal'}>{threat}</span>{' '}
+              <span className="text-2xs text-concrete-400/70">
+                ({parts.base} block
+                {parts.heat > 0 && <span className="text-hiss"> +{parts.heat} heat</span>}
+                {parts.height < 0 && ` ${parts.height} height`})
+              </span>
+            </span>
           </div>
 
-          {/* ================= RIGHT / BOTTOM: corridor map ================= */}
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto p-2 lg:p-3">
-            <div className="mb-2 flex flex-wrap items-baseline justify-between gap-1">
-              <h3 className="signage text-xs text-concrete-50">
-                Level {String(hdb.currentLevel).padStart(2, '0')}
-              </h3>
-              <span className="text-xs text-concrete-400">
-                Floor threat{' '}
-                <span className={threat >= 5 ? 'text-hiss' : 'text-signal'}>{threat}</span>{' '}
-                <span className="text-2xs text-concrete-400/70">
-                  ({parts.base} block
-                  {parts.heat > 0 && <span className="text-hiss"> +{parts.heat} heat</span>}
-                  {parts.height < 0 && ` ${parts.height} height`})
-                </span>
-                {floor.isSkybridge && <span className="text-astral"> · skybridge</span>}
-              </span>
-            </div>
+          <div className="px-3 py-1.5">
+            {clearable.length > 0 && (
+              <div className="mb-2 flex flex-wrap gap-2">
+                {clearable.map((c) => (
+                  <button
+                    key={c.key}
+                    type="button"
+                    onClick={() => hdbForceBlock(c.key)}
+                    className="rounded border border-hiss/60 bg-hiss/15 px-2 py-1 text-xs text-hiss hover:bg-hiss/25"
+                  >
+                    Clear {BLOCK_META[c.block.kind].label} · {c.block.minutes} min · +
+                    {c.block.heat} heat
+                  </button>
+                ))}
+              </div>
+            )}
+            {!sel ? (
+              <p className="text-xs text-concrete-400">
+                {isVoidDeckFloor(floor) && floor.units.length === 0
+                  ? 'Void deck — walk the pillars to a stair, then climb into the fog.'
+                  : 'Click a reachable cell or door to auto-path. Unvisited floors stay fogged. Breach only when you stand at the door.'}
+              </p>
+            ) : (
+              <>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-bold">
+                    <Icon name={UNIT_ICON[sel.type]} /> {sel.label}
+                  </span>
+                  <span className="text-xs uppercase tracking-widest text-concrete-400">
+                    {sel.state === 'cleared' ? 'cleared' : ENTRY_META[sel.entry].label}
+                  </span>
+                </div>
 
-            <div className="grid grid-cols-[1fr_auto_1fr] gap-1.5 lg:gap-2">
-              <Wing title="Left wing" units={wing('left')} selected={selected} onSelect={setSelected} />
-              <Wing title="Core" units={wing('core')} selected={selected} onSelect={setSelected} narrow />
-              <Wing title="Right wing" units={wing('right')} selected={selected} onSelect={setSelected} />
-            </div>
-
-            {/* ---- selected unit ---- */}
-            <div className="mt-3 rounded border border-concrete-600 bg-concrete-950/60 p-3">
-              {!sel ? (
-                <p className="text-xs text-concrete-400">
-                  You read this corridor on the way in — what you caught depends on your
-                  senses. Pick a door — most hang open and cost you nothing but time.
-                  The ones still shut are worth more, and forcing them wakes the block.
-                </p>
-              ) : (
-                <>
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold">
-                      <Icon name={UNIT_ICON[sel.type]} /> {sel.label}
-                    </span>
-                    <span className="text-xs uppercase tracking-widest text-concrete-400">
-                      {sel.state === 'cleared' ? 'cleared' : ENTRY_META[sel.entry].label}
-                    </span>
-                  </div>
-
-                  <ul className="mt-2 space-y-0.5 text-xs text-concrete-200">
-                    <li>
-                      Threats:{' '}
-                      {sel.scoutedInfo && sel.scoutedInfo.threatCount >= 0 ? (
-                        sel.scoutedInfo.threatCount
-                      ) : (
-                        <span className="text-concrete-400">couldn't count</span>
-                      )}
-                    </li>
-                    <li>
-                      Room:{' '}
-                      {sel.scoutedInfo?.hazardType ? (
-                        <span className="text-hiss">{sel.scoutedInfo.hazardType}</span>
-                      ) : sel.scoutedInfo?.readRoom ? (
-                        'reads clean'
-                      ) : (
-                        <span className="text-concrete-400">unread</span>
-                      )}
-                    </li>
-                    <li>
-                      Containers:{' '}
-                      {sel.scoutedInfo?.containerCategory ? (
-                        <span className="text-astral">
-                          {sel.scoutedInfo.containerCategory} · {sel.scoutedInfo.lootQuality}
-                        </span>
-                      ) : (
-                        <span className="text-concrete-400">unread</span>
-                      )}
-                    </li>
-                  </ul>
-
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {sel.type === 'shelter_service' && sel.service ? (
-                      <button
-                        onClick={() => hdbUseService(sel.id)}
-                        disabled={sel.state === 'cleared'}
-                        className="rounded bg-signal/80 px-3 py-1.5 text-xs font-bold text-black hover:bg-signal disabled:opacity-30"
-                      >
-                        <><Icon name={SERVICE_ICON[sel.service]} /> {SERVICE_LABEL[sel.service]}</>
-                      </button>
-                    ) : sel.state === 'cleared' ? (
-                      <span className="text-xs text-concrete-400">
-                        You've already been through this one. Nothing left in it.
+                <ul className="mt-2 space-y-0.5 text-xs text-concrete-200">
+                  <li>
+                    Threats:{' '}
+                    {sel.scoutedInfo && sel.scoutedInfo.threatCount >= 0 ? (
+                      sel.scoutedInfo.threatCount
+                    ) : (
+                      <span className="text-concrete-400">couldn't count</span>
+                    )}
+                  </li>
+                  <li>
+                    Room:{' '}
+                    {sel.scoutedInfo?.hazardType ? (
+                      <span className="text-hiss">{sel.scoutedInfo.hazardType}</span>
+                    ) : sel.scoutedInfo?.readRoom ? (
+                      'reads clean'
+                    ) : (
+                      <span className="text-concrete-400">unread</span>
+                    )}
+                  </li>
+                  <li>
+                    Containers:{' '}
+                    {sel.scoutedInfo?.containerCategory ? (
+                      <span className="text-astral">
+                        {sel.scoutedInfo.containerCategory} · {sel.scoutedInfo.lootQuality}
                       </span>
                     ) : (
-                      <button
-                        onClick={() => hdbBreach(sel.id)}
-                        className="rounded bg-signal/80 px-3 py-1.5 text-xs font-bold text-black hover:bg-signal"
-                      >
-                        <Icon name={ENTRY_META[sel.entry].heat > 0 ? 'hdb.breach' : 'hdb.unit'} />{' '}
-                        {ENTRY_META[sel.entry].verb} · {ENTRY_META[sel.entry].minutes} min ·{' '}
-                        {ENTRY_META[sel.entry].heat > 0
-                          ? `+${ENTRY_META[sel.entry].heat} heat`
-                          : 'quiet'}
-                      </button>
+                      <span className="text-concrete-400">unread</span>
                     )}
-                  </div>
-                </>
-              )}
-            </div>
+                  </li>
+                </ul>
 
-            {/* ---- what your senses can actually read ---- */}
-            <div className="mt-2 flex flex-wrap gap-2 text-2xs text-concrete-400">
-              {senses.map((s) => (
-                <span
-                  key={s.key}
-                  className={`rounded border px-1.5 py-0.5 ${
-                    senseChance(s.value) >= 0.6
-                      ? 'border-astral/40 text-astral'
-                      : 'border-concrete-600'
-                  }`}
-                >
-                  {s.key} {s.value} → {s.gives} {Math.round(senseChance(s.value) * 100)}%
-                </span>
-              ))}
-            </div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {sel.type === 'shelter_service' && sel.service ? (
+                    <button
+                      onClick={() => hdbUseService(sel.id)}
+                      disabled={sel.state === 'cleared'}
+                      className="rounded bg-signal/80 px-3 py-1.5 text-xs font-bold text-black hover:bg-signal disabled:opacity-30"
+                    >
+                      <Icon name={SERVICE_ICON[sel.service]} /> {SERVICE_LABEL[sel.service]}
+                    </button>
+                  ) : sel.state === 'cleared' ? (
+                    <span className="text-xs text-concrete-400">
+                      You've already been through this one. Nothing left in it.
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => hdbBreach(sel.id)}
+                      className="rounded bg-signal/80 px-3 py-1.5 text-xs font-bold text-black hover:bg-signal"
+                    >
+                      <Icon name={ENTRY_META[sel.entry].heat > 0 ? 'hdb.breach' : 'hdb.unit'} />{' '}
+                      {ENTRY_META[sel.entry].verb} · {ENTRY_META[sel.entry].minutes} min ·{' '}
+                      {ENTRY_META[sel.entry].heat > 0
+                        ? `+${ENTRY_META[sel.entry].heat} heat`
+                        : 'quiet'}
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+
+          <div className="mt-auto flex flex-wrap gap-2 border-t border-concrete-700/60 px-3 py-1.5 text-2xs text-concrete-400">
+            {senses.map((s) => (
+              <span
+                key={s.key}
+                className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 ${
+                  senseChance(s.value) >= 0.6
+                    ? 'border-astral/40 text-astral'
+                    : 'border-concrete-600'
+                }`}
+              >
+                <Icon name={ATTRIBUTE_ICONS[s.key]} size={11} title={ATTRIBUTE_LABELS[s.key]} />
+                {s.value} → {s.gives} {Math.round(senseChance(s.value) * 100)}%
+              </span>
+            ))}
           </div>
         </div>
       </div>
@@ -235,267 +272,417 @@ export function HdbDungeonModal() {
   );
 }
 
-function Wing({
-  title,
-  units,
-  selected,
-  onSelect,
-  narrow,
-}: {
-  title: string;
-  units: HdbUnitNode[];
-  selected: string | null;
-  onSelect: (id: string) => void;
-  narrow?: boolean;
-}) {
-  return (
-    <div className={narrow ? 'w-16 sm:w-20 lg:w-24' : ''}>
-      <div className="signage mb-1 text-center text-2xs text-concrete-400">{title}</div>
-      <div className="flex flex-col gap-1">
-        {units.map((u) => (
-          <button
-            key={u.id}
-            onClick={() => onSelect(u.id)}
-            className={`min-h-[44px] rounded border px-1.5 py-2 text-left text-xs transition lg:px-2 ${
-              STATE_CLASS[u.state]
-            } ${selected === u.id ? 'ring-1 ring-signal' : ''}`}
-          >
-            <div className="truncate font-bold">
-              <Icon name={UNIT_ICON[u.type]} /> {u.label}
-            </div>
-            {u.service ? (
-              <div className="truncate text-2xs opacity-70"><Icon name={SERVICE_ICON[u.service]} /> {SERVICE_LABEL[u.service]}</div>
-            ) : u.type !== 'stairwell' && u.state !== 'cleared' ? (
-              <div className="truncate text-2xs opacity-70">
-                {ENTRY_META[u.entry].label}
-                {ENTRY_META[u.entry].heat > 0 && <span className="text-hiss"> ▲</span>}
-              </div>
-            ) : null}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/**
- * The block drawn as a cutaway: every storey it has, and the runs of stairs
- * beside them. Most floors are shut, and no single stairwell reaches all of the
- * ones that aren't — so the route matters as much as the rooms.
- */
-function BlockSection({
+function BuildingCutaway({
   hdb,
-  reachable,
-  onMove,
+  reach,
+  forceable,
+  selectedCol,
+  onGo,
   onForce,
 }: {
   hdb: HdbDungeon;
-  reachable: number[];
-  onMove: (level: number) => void;
+  reach: Set<string>;
+  forceable: number[];
+  selectedCol: number | null;
+  onGo: (pos: HdbPos) => void;
   onForce: (level: number) => void;
 }) {
-  const levels = Array.from({ length: hdb.height }, (_, i) => hdb.height - i); // top down
-  const forceable = forceableLevels(hdb);
-  const hereRisers = new Set(risersAt(hdb, hdb.currentLevel).map((r) => r.id));
-  for (const b of hdb.skybridges) {
-    if (b.level === hdb.currentLevel) for (const id of b.risers) hereRisers.add(id);
-  }
-  // Geometry: slabs stack at a fixed pitch and the shafts are drawn over them,
-  // so a stairwell reads as one continuous column cutting through the building.
-  const ROW = 22;
-  const GAP = 3;
-  const PITCH = ROW + GAP;
-  const topOf = (level: number) => (hdb.height - level) * PITCH;
-  const n = hdb.risers.length;
-  // Shafts live in the right-hand part of each slab; text keeps the left.
-  const shaftX = (i: number) => 52 + ((i + 0.5) / n) * 44;
+  const stairAt = new Map(hdb.stairs.map((s) => [s.column, s]));
+  const levels = Array.from({ length: hdb.height }, (_, i) => hdb.height - i);
+  const forceLabelCol =
+    hdb.unitColumns[Math.floor(hdb.unitColumns.length / 2)] ??
+    Math.floor(hdb.stripWidth / 2);
+
+  const colTrack = Array.from({ length: hdb.stripWidth }, (_, col) =>
+    stairAt.has(col) ? '1.75rem' : 'minmax(2.5rem, 1fr)',
+  ).join(' ');
 
   return (
-    <>
-      <div className="signage mb-1.5 flex items-baseline justify-between text-2xs text-concrete-400">
-        <span>Block section</span>
+    <div className="flex h-full min-h-0 w-full flex-col">
+      <div className="mb-1 flex shrink-0 items-baseline justify-between text-xs text-concrete-400">
+        <span className="signage">Block elevation</span>
         <span>
-          {hdb.height} storeys · {n} stairs
+          {hdb.revealedLevels.length}/{hdb.height} revealed · maze
         </span>
       </div>
 
-      <div className="relative" style={{ height: hdb.height * PITCH - GAP }}>
-        {/* ---- the slabs ---- */}
-        {levels.map((level) => {
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-sm border border-concrete-600 bg-concrete-950">
+        {levels.map((level, rowIdx) => {
           const f = hdb.floors[level - 1];
-          const here = level === hdb.currentLevel;
-          const canGo = reachable.includes(level);
-          const canForce = forceable.includes(level);
-          const visited = hdb.visited.includes(level);
+          const hereLevel = level === hdb.pos.level;
+          const revealed = isLevelRevealed(hdb, level);
           const seal = f.sealed;
+          const canForce = forceable.includes(level);
           const label = String(level).padStart(2, '0');
-
-          const cls = here
-            ? 'border-signal bg-signal/25 text-signal'
-            : canGo
-              ? 'border-concrete-500 bg-concrete-800 text-concrete-100 hover:bg-white/10'
-              : canForce
-                ? 'border-hiss/60 bg-hiss/10 text-hiss hover:bg-hiss/20'
-                : 'border-concrete-800 bg-concrete-900/40 text-concrete-400/45';
+          const unitByCol = new Map(f.units.map((u) => [u.column, u]));
+          const voidDeck = isVoidDeckFloor(f);
+          const last = rowIdx === levels.length - 1;
 
           return (
-            <button
+            <div
               key={level}
-              disabled={!canGo && !here && !canForce}
-              onClick={() => (canGo ? onMove(level) : canForce ? onForce(level) : undefined)}
-              title={
-                seal
-                  ? `${SEAL_META[seal.kind].label} — ${SEAL_META[seal.kind].blurb}${
-                      canForce ? ` Forcing it costs ${seal.minutes} min and +${seal.heat} heat.` : ''
-                    }`
-                  : here
-                    ? 'You are here'
-                    : canGo
-                      ? `Level ${label} — walk here`
-                      : `Level ${label} — no stairs you can reach serve it`
-              }
-              className={`absolute inset-x-0 flex items-center gap-1.5 overflow-hidden rounded-[2px] border px-1.5 text-2xs transition ${cls}`}
-              style={{ top: topOf(level), height: ROW }}
+              className={`grid min-h-0 flex-1 ${last ? '' : 'border-b border-concrete-700/80'} ${
+                hereLevel
+                  ? 'bg-signal/10'
+                  : revealed
+                    ? 'bg-concrete-900/40'
+                    : 'bg-concrete-950'
+              }`}
+              style={{ gridTemplateColumns: `2.75rem ${colTrack}` }}
             >
-              <span className="w-4 shrink-0 text-left font-bold tabular-nums">{label}</span>
-              {seal ? (
-                // Hatching reads as "filled in" without needing to be legible.
-                <span
-                  className="pointer-events-none absolute inset-0 opacity-40"
-                  style={{
-                    backgroundImage:
-                      'repeating-linear-gradient(135deg, transparent 0 4px, rgba(255,255,255,0.16) 4px 5px)',
-                  }}
-                />
-              ) : null}
-              <span className="relative z-10 truncate">
-                {seal ? (
-                  <>
-                    {SEAL_META[seal.kind].label}
-                    {canForce && <span className="font-bold"> · force</span>}
-                  </>
-                ) : (
-                  <span className="flex items-center gap-1">
-                    {here && <span className="font-bold">you are here</span>}
-                    {f.isSkybridge && <Icon name="hdb.skybridge" title="Skybridge" />}
-                    {f.heatLevel >= 1 && (
-                      <span className="text-hiss" title="You made noise on this floor">
-                        ▲
-                      </span>
+              <button
+                type="button"
+                disabled={!!seal && !canForce}
+                onClick={() => {
+                  if (seal && canForce) onForce(level);
+                }}
+                title={
+                  seal
+                    ? `${SEAL_META[seal.kind].label}${canForce ? ' · force' : ''}`
+                    : revealed
+                      ? `Level ${label}`
+                      : `Level ${label} — unexplored`
+                }
+                className={`flex items-center justify-center border-r border-concrete-700 text-xs font-bold tabular-nums disabled:cursor-default sm:text-sm ${
+                  hereLevel
+                    ? 'bg-signal/20 text-signal'
+                    : seal && canForce
+                      ? 'text-hiss hover:bg-hiss/15'
+                      : revealed
+                        ? 'text-concrete-100'
+                        : 'text-concrete-600'
+                }`}
+              >
+                <span className="flex flex-col items-center leading-none">
+                  {revealed || hereLevel ? label : '·'}
+                </span>
+              </button>
+
+              {Array.from({ length: hdb.stripWidth }, (_, col) => {
+                const cell: HdbPos = { level, column: col };
+                const atPlayer = samePos(hdb.pos, cell);
+                const reachable = reach.has(posKey(cell));
+                const stair = stairAt.get(col);
+
+                if (seal) {
+                  return (
+                    <button
+                      key={`seal-${col}`}
+                      type="button"
+                      disabled={!canForce}
+                      onClick={() => onForce(level)}
+                      className="relative disabled:cursor-default"
+                      title={`${SEAL_META[seal.kind].label}${canForce ? ' · force' : ''}`}
+                    >
+                      <span
+                        className="absolute inset-0 opacity-55"
+                        style={{
+                          backgroundImage:
+                            'repeating-linear-gradient(135deg, transparent 0 5px, rgba(255,255,255,0.16) 5px 6px)',
+                        }}
+                      />
+                      {canForce && col === forceLabelCol && (
+                        <span className="relative z-10 text-[10px] font-bold uppercase tracking-wider text-hiss sm:text-xs">
+                          force
+                        </span>
+                      )}
+                    </button>
+                  );
+                }
+
+                // Fogged storey: blank band, stairs faintly visible / clickable.
+                if (!revealed) {
+                  if (stair) {
+                    return (
+                      <button
+                        key={`fog-s-${col}`}
+                        type="button"
+                        disabled={!reachable}
+                        onClick={() => onGo(cell)}
+                        title={`Stair ${stair.id} — climb into the unknown`}
+                        className={`relative flex items-center justify-center border-x border-concrete-700/40 bg-concrete-900/30 disabled:cursor-default ${
+                          reachable ? 'hover:bg-signal/15 text-concrete-400' : 'text-concrete-700'
+                        }`}
+                      >
+                        <Icon name="hdb.stairwell" size={12} />
+                        {atPlayer && <HdbPlayerMarker />}
+                      </button>
+                    );
+                  }
+                  return <div key={`fog-${col}`} className="bg-concrete-950/80" />;
+                }
+
+                if (stair) {
+                  const gate = stairGateTouching(hdb, col, level);
+                  return (
+                    <button
+                      key={`s-${col}`}
+                      type="button"
+                      disabled={!reachable && !atPlayer}
+                      onClick={() => onGo(cell)}
+                      title={
+                        stair.kind === 'side'
+                          ? `Side stair ${stair.id}`
+                          : `Stairwell ${stair.id}`
+                      }
+                      className={`relative flex items-center justify-center border-x disabled:cursor-default ${
+                        atPlayer
+                          ? 'border-signal/40 bg-signal/10 text-concrete-300'
+                          : reachable
+                            ? 'border-concrete-500/50 bg-concrete-800/60 text-concrete-300 hover:bg-signal/15'
+                            : 'border-concrete-700/40 bg-concrete-900/40 text-concrete-600'
+                      }`}
+                    >
+                      {level === Math.ceil(hdb.height / 2) ? (
+                        <span className="text-[10px] font-bold">{stair.id}</span>
+                      ) : (
+                        <Icon name="hdb.stairwell" size={13} />
+                      )}
+                      {gate && (
+                        <span
+                          className="pointer-events-none absolute inset-x-0 top-0 h-0.5 bg-hiss/70"
+                          title={BLOCK_META[gate.kind].label}
+                        />
+                      )}
+                      {atPlayer && <HdbPlayerMarker />}
+                    </button>
+                  );
+                }
+
+                // Horizontal block marker between this cell and the next
+                const blockLeft =
+                  col > 0 ? hdb.blocks[horizKey(level, col - 1, col)] : null;
+
+                const unit = unitByCol.get(col);
+
+                if (!unit && voidDeck) {
+                  return (
+                    <button
+                      key={`p-${col}`}
+                      type="button"
+                      disabled={!reachable && !atPlayer}
+                      onClick={() => onGo(cell)}
+                      title="Void deck"
+                      className={`relative flex items-center justify-center disabled:cursor-default ${
+                        reachable ? 'hover:bg-white/5' : ''
+                      }`}
+                    >
+                      {blockLeft && (
+                        <span className="absolute left-0 top-[15%] bottom-0 w-0.5 bg-hiss/80" />
+                      )}
+                      <span className="h-[65%] w-1.5 rounded-sm bg-concrete-400/40" />
+                      {atPlayer && <HdbPlayerMarker />}
+                    </button>
+                  );
+                }
+
+                if (!unit) {
+                  return (
+                    <button
+                      key={`e-${col}`}
+                      type="button"
+                      disabled={!reachable && !atPlayer}
+                      onClick={() => onGo(cell)}
+                      className={`relative disabled:cursor-default ${
+                        reachable ? 'hover:bg-white/5' : ''
+                      }`}
+                    >
+                      {blockLeft && (
+                        <span className="absolute left-0 top-[15%] bottom-0 w-0.5 bg-hiss/80" />
+                      )}
+                      {atPlayer && <HdbPlayerMarker />}
+                    </button>
+                  );
+                }
+
+                return (
+                  <div key={unit.id} className="relative flex items-end justify-center px-0.5 pb-0">
+                    {blockLeft && (
+                      <span className="absolute left-0 top-[15%] bottom-0 z-10 w-0.5 bg-hiss/80" />
                     )}
-                    {visited && !here && <span className="text-concrete-400/70">worked</span>}
-                  </span>
-                )}
-              </span>
-            </button>
+                    <CorridorDoor
+                      unit={unit}
+                      selected={selectedCol === unit.column && atPlayer}
+                      atPlayer={atPlayer}
+                      interactive={reachable || atPlayer}
+                      pathHint={
+                        reachable && !atPlayer
+                          ? pathMinutes(findPath(hdb, hdb.pos, cell) ?? [])
+                          : 0
+                      }
+                      onClick={() => onGo(cell)}
+                    />
+                    {atPlayer && <HdbPlayerMarker />}
+                  </div>
+                );
+              })}
+            </div>
           );
         })}
-
-        {/* ---- the shafts, laid over the slabs they cut through ---- */}
-        <div className="pointer-events-none absolute inset-0">
-          {hdb.risers.map((r, i) => {
-            const live = hereRisers.has(r.id);
-            const x = shaftX(i);
-            return (
-              <div key={r.id}>
-                {/* One segment per storey: solid where there's a landing you
-                    can use, faint where the stairs only pass through. */}
-                {Array.from({ length: r.top - r.bottom + 1 }, (_, k) => {
-                  const level = r.bottom + k;
-                  const lands = hdb.floors[level - 1]?.sealed === null;
-                  return (
-                    <div
-                      key={level}
-                      className={`absolute border-x ${
-                        live
-                          ? lands
-                            ? 'border-signal bg-signal/35'
-                            : 'border-signal/40 bg-signal/10'
-                          : lands
-                            ? 'border-concrete-400 bg-concrete-500/40'
-                            : 'border-concrete-600/50 bg-concrete-700/20'
-                      }`}
-                      style={{
-                        top: topOf(level),
-                        height: level === r.bottom ? ROW : PITCH,
-                        left: `${x}%`,
-                        width: 14,
-                        transform: 'translateX(-50%)',
-                      }}
-                    />
-                  );
-                })}
-                {/* Cap the run top and bottom so it reads as a shaft, not a bar. */}
-                <div
-                  className={`absolute border-t-2 ${live ? 'border-signal' : 'border-concrete-400'}`}
-                  style={{ top: topOf(r.top), left: `${x}%`, width: 14, transform: 'translateX(-50%)' }}
-                />
-                <div
-                  className={`absolute border-b-2 ${live ? 'border-signal' : 'border-concrete-400'}`}
-                  style={{
-                    top: topOf(r.bottom) + ROW,
-                    left: `${x}%`,
-                    width: 14,
-                    transform: 'translateX(-50%)',
-                  }}
-                />
-                <span
-                  className={`absolute text-2xs font-bold ${live ? 'text-signal' : 'text-concrete-400'}`}
-                  style={{
-                    top: topOf(r.top) - 9,
-                    left: `${x}%`,
-                    transform: 'translateX(-50%)',
-                  }}
-                >
-                  {r.id}
-                </span>
-              </div>
-            );
-          })}
-
-          {/* ---- skybridges: the only way to change shafts ---- */}
-          {hdb.skybridges.map((b) => {
-            const idx = b.risers.map((id) => hdb.risers.findIndex((r) => r.id === id));
-            const [a, z] = idx.sort((m, o) => m - o);
-            return (
-              <div
-                key={`${b.level}-${b.risers.join('')}`}
-                className="absolute border-t-2 border-dashed border-astral"
-                style={{
-                  top: topOf(b.level) + ROW / 2,
-                  left: `${shaftX(a)}%`,
-                  width: `${shaftX(z) - shaftX(a)}%`,
-                }}
-              />
-            );
-          })}
-        </div>
       </div>
 
-      <div className="mt-2.5 space-y-1 text-2xs leading-snug text-concrete-400">
-        <div className="flex items-center gap-1.5">
-          <span className="inline-block h-3 w-2 border-x border-signal bg-signal/35" />
-          stairs you're in
-          <span className="ml-1 inline-block h-3 w-2 border-x border-concrete-400 bg-concrete-500/40" />
-          stairs elsewhere
-        </div>
-        <div>
-          Solid where the landing opens · faint where the stairs only pass through ·{' '}
-          <span className="text-astral">- -</span> skybridge
-        </div>
+      <div className="mt-1 flex shrink-0 flex-wrap gap-x-3 gap-y-0.5 text-xs text-concrete-400">
+        <span className="inline-flex items-center gap-1">
+          <PlayerPin size="sm" /> you
+        </span>
+        <span>? unread</span>
+        <span>✕ boarded</span>
+        <span>fog = unvisited floor</span>
+        <span className="inline-flex items-center gap-1">
+          <span className="inline-block h-3 w-0.5 bg-hiss/80" /> block
+        </span>
       </div>
-    </>
+    </div>
   );
 }
 
-/** Fill colour per band — the bar should read at a glance, before the words do. */
+/** Map teardrop pin, tip on the cell's floor line. */
+function HdbPlayerMarker() {
+  return (
+    <div className="pointer-events-none absolute bottom-0 left-1/2 z-30 -translate-x-1/2">
+      <PlayerPin size="sm" />
+    </div>
+  );
+}
+
+function unitPlate(label: string): string {
+  return label.replace(/^#/, '');
+}
+
+function stairGateTouching(
+  dungeon: HdbDungeon,
+  col: number,
+  level: number,
+): HdbBlock | null {
+  for (const [k, b] of Object.entries(dungeon.blocks)) {
+    if (!k.startsWith(`v:${col}:`)) continue;
+    const m = /^v:\d+:(\d+)-(\d+)$/.exec(k);
+    if (!m) continue;
+    const lo = Number(m[1]);
+    const hi = Number(m[2]);
+    if (level === lo || level === hi) return b;
+  }
+  return null;
+}
+
+function CorridorDoor({
+  unit,
+  selected,
+  atPlayer,
+  interactive,
+  pathHint,
+  onClick,
+}: {
+  unit: HdbUnitNode;
+  selected: boolean;
+  atPlayer: boolean;
+  interactive: boolean;
+  pathHint: number;
+  onClick: () => void;
+}) {
+  const plate = unitPlate(unit.label);
+  const meta = unit.available
+    ? unit.state === 'cleared'
+      ? 'cleared'
+      : ENTRY_META[unit.entry].label
+    : 'boarded shut';
+
+  const panel =
+    !unit.available
+      ? 'bg-[#2a2a2c] border-concrete-600'
+      : unit.state === 'cleared'
+        ? 'bg-[#1c1c1e] border-concrete-700 opacity-70'
+        : unit.state === 'breached'
+          ? 'bg-[#3a2a1a] border-signal/70'
+          : unit.state === 'scouted'
+            ? 'bg-[#2a3038] border-astral/50'
+            : 'bg-[#323028] border-concrete-500';
+
+  /**
+   * One job per glyph:
+   * - boarded  → ✕ (never enterable)
+   * - unread   → ? (enterable, type unknown until scouted)
+   * - known    → type cue (skip plain residential — the door is enough)
+   * Player position is the border/glow, not a replacement icon.
+   */
+  let face: ReactElement | null = null;
+  if (!unit.available) {
+    face = (
+      <span className="text-sm font-bold leading-none text-concrete-500" title="Boarded">
+        ✕
+      </span>
+    );
+  } else if (unit.state === 'unexplored') {
+    face = (
+      <span className="text-sm font-bold leading-none text-concrete-300" title="Unread">
+        ?
+      </span>
+    );
+  } else if (unit.type !== 'residential') {
+    face = <Icon name={UNIT_ICON[unit.type]} size={14} />;
+  }
+
+  const shell = (
+    <span className="flex h-full min-h-0 items-stretch gap-0.5">
+      <span
+        className={`relative flex h-full w-5 shrink-0 flex-col items-center rounded-t-[1px] border border-b-0 pt-0.5 sm:w-6 ${panel}`}
+      >
+        <span className="mt-0.5 flex min-h-[1rem] items-center justify-center leading-none">
+          {face}
+        </span>
+        <span
+          className={`absolute right-[2px] top-1/2 h-2.5 w-1 -translate-y-1/2 rounded-sm ${
+            unit.available ? 'bg-concrete-200/80' : 'bg-concrete-600'
+          }`}
+        />
+      </span>
+
+      {/* Unit number — top-right of the door */}
+      <span
+        className={`min-w-0 flex-1 self-start truncate pt-0.5 text-left text-[10px] font-bold leading-tight tracking-tight sm:text-[11px] ${
+          !unit.available
+            ? 'text-concrete-500'
+            : selected || atPlayer
+              ? 'text-signal'
+              : 'text-concrete-100'
+        }`}
+      >
+        {plate}
+      </span>
+    </span>
+  );
+
+  const sizeCls = 'flex h-full max-h-12 w-full max-w-[4.5rem] items-end';
+
+  if (!unit.available) {
+    return (
+      <div title={`${unit.label} — ${meta}`} className={sizeCls}>
+        {shell}
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      disabled={!interactive}
+      onClick={onClick}
+      title={
+        pathHint > 0
+          ? `${unit.label} · ${meta} · ~${pathHint} min`
+          : `${unit.label} · ${meta}`
+      }
+      className={`${sizeCls} transition disabled:cursor-default ${
+        selected ? 'z-10 ring-1 ring-signal/60' : ''
+      } ${interactive ? 'hover:brightness-110' : 'opacity-55'}`}
+    >
+      {shell}
+    </button>
+  );
+}
+
 const BAND_FILL = ['bg-concrete-400', 'bg-signal', 'bg-signal', 'bg-hiss', 'bg-hiss'];
 
-/**
- * Block heat, as one long charge bar. Nothing but your own noise moves it, so
- * the gauge states what charged it, what it costs you now, and where the next
- * threshold sits — six anonymous pips said none of that.
- */
 function HeatGauge({
   heat,
   band,
@@ -512,11 +699,21 @@ function HeatGauge({
   const next = HEAT_BANDS[idx + 1];
 
   return (
-    <div className="shrink-0 border-b border-concrete-600 bg-concrete-900/60 px-4 py-2">
-      <div className="mb-1 flex items-baseline justify-between gap-3">
+    <div className="shrink-0 border-b border-concrete-600 bg-concrete-900/60 px-3 py-1.5">
+      <div className="mb-0.5 flex items-baseline justify-between gap-3">
         <span className="signage text-2xs text-concrete-400">
           Block heat ·{' '}
-          <span className={hunting ? 'text-hiss' : idx >= 3 ? 'text-hiss' : idx >= 1 ? 'text-signal' : 'text-concrete-200'}>
+          <span
+            className={
+              hunting
+                ? 'text-hiss'
+                : idx >= 3
+                  ? 'text-hiss'
+                  : idx >= 1
+                    ? 'text-signal'
+                    : 'text-concrete-200'
+            }
+          >
             {band.label}
           </span>{' '}
           <span className="tabular-nums text-concrete-400">
@@ -528,8 +725,7 @@ function HeatGauge({
         </span>
       </div>
 
-      {/* the bar, with a tick at every band threshold above Quiet */}
-      <div className="relative h-2 w-full overflow-hidden rounded-sm bg-concrete-800">
+      <div className="relative h-1.5 w-full overflow-hidden rounded-sm bg-concrete-800">
         <div
           className={`h-full transition-all duration-300 ${BAND_FILL[idx]} ${
             hunting ? 'pulse-danger' : ''
@@ -545,21 +741,18 @@ function HeatGauge({
         ))}
       </div>
 
-      <div className="mt-1 text-2xs leading-snug">
-        {hunting ? (
+      <div className="mt-0.5 text-2xs leading-snug text-concrete-400">
+        {band.note}
+        {hunting && (
           <span className="text-hiss">
-            HUNTING — {Math.round(HUNT_ELITE_CHANCE * 100)}% chance something finds you on every
-            door and every staircase. Get out.
+            {' '}
+            {Math.round(HUNT_ELITE_CHANCE * 100)}% chance of a hunt on every door and stair.
           </span>
-        ) : (
-          <span className="text-concrete-400">
-            {band.note}
-            {next && (
-              <span className="text-concrete-400/70">
-                {' '}
-                · {next.at - heat} more noise to {next.label}
-              </span>
-            )}
+        )}
+        {!hunting && next && (
+          <span>
+            {' '}
+            Next: {next.label} at {next.at}.
           </span>
         )}
       </div>

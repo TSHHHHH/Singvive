@@ -18,7 +18,7 @@ import type {
 import type { Rng } from './rng';
 import { environmentCombatMods } from './weather';
 import { itemDef } from './loot';
-import { sumTraitMod } from './character';
+import { hasTraitFlag, sumTraitMod } from './character';
 import { effectiveDamage, equipAccuracyBonus, equipDefenseBonus, isBroken, limbArmorForZone, slotForZone, statusResistForZone, ALL_EQUIP_SLOTS } from './inventory';
 import {
   BODY_PART_LABEL,
@@ -52,6 +52,12 @@ export interface PlayerCombatStats {
   roundsPerShot: number;
   /** The equipped weapon's `wearRate` — see ItemDef. 1 when unarmed. */
   wearRate: number;
+  /** Ignore night/dusk accuracy penalties from the environment. */
+  nightAccuracyPenaltyRemoved: boolean;
+  /** Extra accuracy at night/dusk (negative = worse). */
+  nightAccuracyExtra: number;
+  /** Attack delta applied only vs undead. */
+  zombieAttackMod: number;
 }
 
 // ---------------------------------------------------------------- wear ------
@@ -470,12 +476,15 @@ export function playerCombatStats(
     attack,
     defense,
     damage,
-    infectionResist: Math.min(1, Math.max(0, infectionResist)),
+    infectionResist: Math.min(1, Math.max(-0.5, infectionResist)),
     weaponName,
     ranged: w?.ranged ?? false,
     dry,
     roundsPerShot: dry ? 0 : perShot,
     wearRate: weaponDef?.wearRate ?? 1,
+    nightAccuracyPenaltyRemoved: hasTraitFlag(traitIds, 'nightAccuracyPenaltyRemoved'),
+    nightAccuracyExtra: sumTraitMod(traitIds, 'nightAccuracyExtra'),
+    zombieAttackMod: sumTraitMod(traitIds, 'zombieAttackMod'),
   };
 }
 
@@ -602,6 +611,13 @@ export function resolvePlayerAction(
   energy = 50,
 ): PlayerActionResult {
   const env = environmentCombatMods(weather);
+  // Night owl ignores the time-of-day accuracy hit; Afraid of the Dark stacks extra.
+  let envAccuracy = env.playerAccuracy;
+  if (weather.time === 'night' || weather.time === 'dusk') {
+    const timePenalty = weather.time === 'night' ? -2 : -1;
+    if (player.nightAccuracyPenaltyRemoved) envAccuracy -= timePenalty;
+    envAccuracy += player.nightAccuracyExtra;
+  }
   const log: CombatLogEntry[] = [];
   let zombieHp = zombie.hp;
   const dangerNoise = player.ranged ? terrain.gunshotDangerMod : 0;
@@ -612,12 +628,14 @@ export function resolvePlayerAction(
   // armour costs it more.
   let weaponWear = 0;
 
+  const vsUndead = zombie.kind !== 'human' ? player.zombieAttackMod : 0;
   const pAtkMod =
     player.attack +
-    env.playerAccuracy +
+    envAccuracy +
     stance.attackMod +
     terrainAccuracy(player, terrain) +
-    energyAttackBonus(energy);
+    energyAttackBonus(energy) +
+    vsUndead;
   const pRoll = rng.d20();
   const pTotal = pRoll + pAtkMod;
   const pTarget = 10 + zombie.defense;

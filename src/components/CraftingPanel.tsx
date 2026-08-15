@@ -9,6 +9,7 @@ import {
   RECIPES,
   type Recipe,
 } from '../game/crafting';
+import { adjustCraftInputs } from '../game/character';
 import type { ItemInstance } from '../game/types';
 import { itemIcon } from './Inventory/itemIcon';
 import { Icon } from '../icons/Icon';
@@ -19,20 +20,23 @@ import { Icon } from '../icons/Icon';
  * where you already have the item in hand.
  */
 export function CraftingPanel() {
-  const { items, clothingTears, currentPositionId, hdb, craftItem, tearOwnClothes } = useGame(
-    useShallow((s) => ({
-      items: s.items,
-      clothingTears: s.clothingTears,
-      currentPositionId: s.currentPositionId,
-      hdb: s.hdb,
-      craftItem: s.craftItem,
-      tearOwnClothes: s.tearOwnClothes,
-    })),
-  );
+  const { items, clothingTears, currentPositionId, hdb, craftItem, tearOwnClothes, character } =
+    useGame(
+      useShallow((s) => ({
+        items: s.items,
+        clothingTears: s.clothingTears,
+        currentPositionId: s.currentPositionId,
+        hdb: s.hdb,
+        craftItem: s.craftItem,
+        tearOwnClothes: s.tearOwnClothes,
+        character: s.character,
+      })),
+    );
 
   // Match store.craftItem: a stash tile or an HDB room is somewhere to work.
   const atShelter = currentPositionId !== null || hdb !== null;
   const hasToolbox = countOf(items, 'toolbox') > 0;
+  const traitIds = character?.traitIds ?? [];
 
   const field = RECIPES.filter((r) => !r.needsShelter);
   const bench = RECIPES.filter((r) => r.needsShelter);
@@ -55,8 +59,22 @@ export function CraftingPanel() {
         </p>
       </section>
 
-      <RecipeGroup title="Field" recipes={field} items={items} atShelter={atShelter} onCraft={craftItem} />
-      <RecipeGroup title="Shelter" recipes={bench} items={items} atShelter={atShelter} onCraft={craftItem} />
+      <RecipeGroup
+        title="Field"
+        recipes={field}
+        items={items}
+        atShelter={atShelter}
+        traitIds={traitIds}
+        onCraft={craftItem}
+      />
+      <RecipeGroup
+        title="Shelter"
+        recipes={bench}
+        items={items}
+        atShelter={atShelter}
+        traitIds={traitIds}
+        onCraft={craftItem}
+      />
 
       <section className="rounded-lg border border-white/10 bg-black/30 p-3">
         <h4 className="mb-2 text-xs uppercase tracking-widest text-white/30">Desperate</h4>
@@ -89,12 +107,14 @@ function RecipeGroup({
   recipes,
   items,
   atShelter,
+  traitIds,
   onCraft,
 }: {
   title: string;
   recipes: Recipe[];
   items: ItemInstance[];
   atShelter: boolean;
+  traitIds: string[];
   onCraft: (recipeId: string) => void;
 }) {
   return (
@@ -102,7 +122,8 @@ function RecipeGroup({
       <h4 className="mb-2 text-xs uppercase tracking-widest text-white/30">{title}</h4>
       <div className="flex flex-col gap-1.5">
         {recipes.map((recipe) => {
-          const check = canCraft(recipe, items, atShelter);
+          const inputs = adjustCraftInputs(recipe.inputs, traitIds);
+          const check = canCraft(recipe, items, atShelter, inputs);
           const out = itemDef(recipe.outputDefId);
           return (
             <button
@@ -127,7 +148,7 @@ function RecipeGroup({
                   {recipe.outputCount > 1 ? ` ×${recipe.outputCount}` : ''}
                 </span>
                 <span className="block truncate text-white/35">
-                  {describeInputs(recipe.inputs)}
+                  {describeInputs(inputs)}
                   {recipe.tool ? ` · ${itemDef(recipe.tool).name}` : ''}
                   {recipe.id === 'boil' ? ' · burns evac fuel' : ''}
                 </span>

@@ -24,6 +24,7 @@ import {
   TEAR_RAGS_YIELD,
 } from '../../game/inventory';
 import type { Container, EquipSlot, ItemInstance } from '../../game/types';
+import { sumTraitMod } from '../../game/character';
 import {
   countOf,
   describeInputs,
@@ -281,9 +282,12 @@ export function InventoryPanel({ onClose }: { onClose?: () => void }) {
     equipment.mainHand && (itemDef(equipment.mainHand.defId).effect as { ranged?: boolean }).ranged
   );
 
-  const carry = character ? maxCarry(character.attributes, equipment) : 0;
+  const carryMod = character ? sumTraitMod(character.traitIds, 'carryCapacityMod') : 0;
+  const carry = character ? maxCarry(character.attributes, equipment, carryMod) : 0;
   const load = containerWeight(items, BACKPACK);
-  const encumbered = character ? isEncumbered(items, character.attributes, equipment) : false;
+  const encumbered = character
+    ? isEncumbered(items, character.attributes, equipment, carryMod)
+    : false;
   const loadPct = carry > 0 ? (load / carry) * 100 : 0;
 
   return (

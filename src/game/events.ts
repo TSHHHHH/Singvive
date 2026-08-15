@@ -942,8 +942,13 @@ export function priceList(defIds: string[]): string {
 }
 
 /** Resolve an attribute check: d20 + attribute vs DC (natural 20 always passes). */
-export function rollCheck(rng: Rng, attrValue: number, dc: number): CheckResult {
+export function rollCheck(
+  rng: Rng,
+  attrValue: number,
+  dc: number,
+  checkBonus = 0,
+): CheckResult {
   const roll = rng.d20();
-  const total = roll + attrValue;
+  const total = roll + attrValue + checkBonus;
   return { roll, total, dc, success: roll === 20 || total >= dc };
 }

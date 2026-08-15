@@ -19,7 +19,7 @@ import type {
 } from './types';
 import { emptyRunStats, normalizeRunStats } from './stats';
 import { Rng, randomSeed } from './rng';
-import { hasTraitFlag, maxHpFor, startingStanding, sumTraitMod } from './character';
+import { adjustCraftInputs, attrEmoji, ATTRIBUTE_LABELS, hasTraitFlag, maxHpFor, startingStanding, sumTraitMod } from './character';
 import { fetchOsmPois, haversine, type RawPoi } from './overpass';
 import { bakedPoisNear } from './bakedPois';
 import { adjacentEdge, displayLine, getMrtNetwork, loadMrtNetwork, tunnelSegmentBetween } from './mrt';
@@ -206,13 +206,26 @@ import {
   floorThreat,
   isHunting,
   retreatCheck,
+  findPath,
+  pathMinutes,
+  pathDescends,
+  pathUsesStairs,
+  moveTo,
+  canTargetCell,
+  samePos,
+  posKey,
+  clearBlock,
+  adjacentBreakableBlocks,
+  BLOCK_META,
   FIGHT_HEAT,
   HAZARD_HEAT,
   HUNT_ELITE_CHANCE,
   STAIR_MINUTES,
   updateUnit,
+  hasStripTopology,
   type HdbArchetype,
   type HdbDungeon,
+  type HdbPos,
 } from './hdbDungeon';
 import {
   applyPulse,
@@ -509,7 +522,10 @@ interface State {
   // --- HDB vertical dungeon ---
   hdbEnter: () => void;
   hdbBreach: (unitId: string) => void;
-  hdbMove: (level: number) => void;
+  /** Auto-path to a cutaway cell (maze + fog rules). */
+  hdbGoTo: (pos: HdbPos) => void;
+  /** Clear a breakable corridor / stair block underfoot. */
+  hdbForceBlock: (key: string) => void;
   /** Dig out a breakable sealed landing so the floor can be entered. */
   hdbForceSeal: (level: number) => void;
   hdbUseService: (unitId: string) => void;
@@ -832,18 +848,27 @@ export const useGame = create<State>((set, get) => {
 
     // Injuries slowly recover. Minor bleeds clot on their own and let the body
     // keep knitting; only a major stops recovery dead.
+    const traitIds = s.character?.traitIds ?? [];
     const { parts: bodyParts } = tickInjuries(
       s.bodyParts,
       hours,
-      hasTraitFlag(s.character?.traitIds ?? [], 'bleedingSelfStopDisabled'),
+      hasTraitFlag(traitIds, 'bleedingSelfStopDisabled'),
       s.meters.hunger,
+      sumTraitMod(traitIds, 'legHealMod'),
     );
     const partsAfterSystemic = tickSystemicDamage(bodyParts, s.meters, hours);
     const skyNow = weatherKindFor(s.seed, s.day);
+    const outdoors = s.hdb === null;
     let meters = tickMeters(s.meters, hours, {
       sleeping,
       thirstMult: weatherThirstMult(skyNow),
       energyMult: weatherEnergyMult(skyNow),
+      hungerDrainMod: sumTraitMod(traitIds, 'hungerDrainMod'),
+      thirstDrainMod: sumTraitMod(traitIds, 'thirstDrainMod'),
+      energyDrainMod: sumTraitMod(traitIds, 'energyDrainMod'),
+      outdoorEnergyDrainMod: sumTraitMod(traitIds, 'outdoorEnergyDrainMod'),
+      outdoors,
+      heat: skyNow === 'heat',
     });
     if (restedEnergy != null) meters = { ...meters, energy: restedEnergy };
 
@@ -1340,7 +1365,13 @@ export const useGame = create<State>((set, get) => {
     encChance += weatherEncounterMod(weatherKindFor(s.seed, s.day));
     // A swelling horde makes every search deadlier as the days drag on.
     encChance += hordeIntensity(s.hordeLevel) * 0.3;
-    encChance = Math.max(0.02, Math.min(0.95, encChance));
+    encChance += sumTraitMod(s.character!.traitIds, 'encounterChanceMod');
+    if (band === 'night' || band === 'dusk') {
+      encChance += sumTraitMod(s.character!.traitIds, 'nightEncounterChanceMod');
+    }
+    // Ambush-prone builds get jumped more often when a search turns into a fight.
+    const ambushMult = Math.max(0.15, 1 + sumTraitMod(s.character!.traitIds, 'ambushChanceMod'));
+    encChance = Math.max(0.02, Math.min(0.95, encChance * (0.7 + 0.3 * ambushMult)));
 
     if (encRng.chance(encChance)) {
       startZombieCombat(locationId, true);
@@ -1705,7 +1736,12 @@ export const useGame = create<State>((set, get) => {
       if (!after) return;
       const hazard = HAZARD_META[node.hazard ?? 'collapse'];
       const cfg = HAZARD_CONFIG[node.hazard ?? 'collapse'];
-      const check = rollCheck(rng, s.character!.attributes[hazard.attr], hazardDc(node));
+      const check = rollCheck(
+        rng,
+        s.character!.attributes[hazard.attr],
+        hazardDc(node),
+        sumTraitMod(s.character!.traitIds, 'checkBonusMod'),
+      );
 
       const cur = get();
       if (check.success) {
@@ -2215,7 +2251,12 @@ export const useGame = create<State>((set, get) => {
       }
 
       const weather = weatherKindFor(s.seed, s.day);
-      const encumbered = isEncumbered(s.items, s.character!.attributes, s.equipment);
+      const encumbered = isEncumbered(
+        s.items,
+        s.character!.attributes,
+        s.equipment,
+        sumTraitMod(s.character!.traitIds, 'carryCapacityMod'),
+      );
 
       const dist = Math.round(haversine(s.currentPos.lat, s.currentPos.lng, loc.lat, loc.lng));
 
@@ -2268,6 +2309,9 @@ export const useGame = create<State>((set, get) => {
         else if (band === 'dusk') p += 0.06;
         p += hordeIntensity(now.hordeLevel) * 0.15;
         p += sumTraitMod(now.character!.traitIds, 'encounterChanceMod');
+        if (band === 'night' || band === 'dusk') {
+          p += sumTraitMod(now.character!.traitIds, 'nightEncounterChanceMod');
+        }
         p += equipEncounterChanceMod(now.equipment);
         p += weatherEncounterMod(weather);
         // An open wound carries further than footsteps do.
@@ -2276,8 +2320,12 @@ export const useGame = create<State>((set, get) => {
 
         const encRng = new Rng(now.seed).fork(`road:${loc.id}:${now.day}:${Math.round(now.hour)}`);
         if (encRng.chance(p)) {
+          const ambushW = Math.max(
+            5,
+            Math.round(55 * Math.max(0.15, 1 + sumTraitMod(now.character!.traitIds, 'ambushChanceMod'))),
+          );
           const kind = encRng.weighted([
-            ['ambush', 55],
+            ['ambush', ambushW],
             ['hazard', 30],
             ['find', 15],
           ] as const);
@@ -2351,7 +2399,12 @@ export const useGame = create<State>((set, get) => {
       }
 
       const weather = weatherKindFor(s.seed, s.day);
-      const encumbered = isEncumbered(s.items, s.character!.attributes, s.equipment);
+      const encumbered = isEncumbered(
+        s.items,
+        s.character!.attributes,
+        s.equipment,
+        sumTraitMod(s.character!.traitIds, 'carryCapacityMod'),
+      );
 
       // Open ground obeys the same one-push limit as everything else — it's an
       // escape hatch from bad geometry, not from the stamina economy.
@@ -2387,12 +2440,16 @@ export const useGame = create<State>((set, get) => {
       void ensureWorldAround(lat, lng);
 
       const now = get();
+      const trekBand = timeOfDay(now.hour);
       const risk = trekRisk(now.seed, from, { lat, lng }, {
-        band: timeOfDay(now.hour),
+        band: trekBand,
         hordeIntensity: hordeIntensity(now.hordeLevel),
         weatherEncounterMod: weatherEncounterMod(weather),
         traitEncounterMod:
           sumTraitMod(now.character!.traitIds, 'encounterChanceMod') +
+          (trekBand === 'night' || trekBand === 'dusk'
+            ? sumTraitMod(now.character!.traitIds, 'nightEncounterChanceMod')
+            : 0) +
           equipEncounterChanceMod(now.equipment) +
           bleedEncounterMod(now.bodyParts),
         safe: now.spawn ?? undefined,
@@ -2505,7 +2562,12 @@ export const useGame = create<State>((set, get) => {
       if (!run || s.combat || s.pendingEvent) return;
       if (currentNode(run).kind !== 'settlement') return;
 
-      const restored = sleepRestore(s.meters.energy, CAMP_REST_HOURS, s.meters);
+      const restored = sleepRestore(
+        s.meters.energy,
+        CAMP_REST_HOURS,
+        s.meters,
+        sumTraitMod(s.character!.traitIds, 'sleepRestoreMod'),
+      );
       if (advanceTime(CAMP_REST_HOURS, restored, true)) return;
       const after = get().tunnel;
       if (!after) return;
@@ -2679,7 +2741,18 @@ export const useGame = create<State>((set, get) => {
         ((START_HOUR - s.hour + HOURS_PER_DAY) % HOURS_PER_DAY) || HOURS_PER_DAY;
       // The whole value of a faction bed: no encounter roll. Somebody else is
       // on the wire tonight.
-      if (advanceTime(hoursToMorning, sleepRestore(s.meters.energy, hoursToMorning, s.meters), true))
+      if (
+        advanceTime(
+          hoursToMorning,
+          sleepRestore(
+            s.meters.energy,
+            hoursToMorning,
+            s.meters,
+            sumTraitMod(s.character!.traitIds, 'sleepRestoreMod'),
+          ),
+          true,
+        )
+      )
         return;
       bumpStats({ nightsSlept: 1 });
       set({ trader: null });
@@ -3013,14 +3086,12 @@ export const useGame = create<State>((set, get) => {
           break;
         }
         case 'check': {
-          const attrVal = s.character!.attributes[choice.attr!];
-          const res = rollCheck(rng, attrVal, choice.dc!);
+          const attrKey = choice.attr!;
+          const attrVal = s.character!.attributes[attrKey];
+          const bonus = sumTraitMod(s.character!.traitIds, 'checkBonusMod');
+          const res = rollCheck(rng, attrVal, choice.dc!, bonus);
           pushLog(
-            // The label used to carry a "(Wits DC 8)" suffix that had to be cut
-            // back off here. The roll is its own field now, so the label is
-            // already the sentence — splitting it would only eat a legitimate
-            // parenthetical.
-            `${choice.label} — d20 ${res.roll}+${attrVal}=${res.total} vs ${res.dc}: ${res.success ? 'success' : 'failure'}`,
+            `${choice.label} — ${attrEmoji(attrKey)} ${ATTRIBUTE_LABELS[attrKey]} d20 ${res.roll}+${attrVal}${bonus ? `+${bonus}` : ''}=${res.total} vs ${res.dc}: ${res.success ? 'success' : 'failure'}`,
             res.success ? 'good' : 'bad',
           );
           run(res.success ? choice.onSuccess : (choice.onFailure ?? [{ t: 'access' }]));
@@ -3038,7 +3109,12 @@ export const useGame = create<State>((set, get) => {
       // what four walls would give you, and the night gets a vote — otherwise
       // trekking out and napping would be a free reset.
       const exposed = s.currentPositionId === null;
-      const fullRest = sleepRestore(s.meters.energy, hoursToMorning, s.meters);
+      const fullRest = sleepRestore(
+        s.meters.energy,
+        hoursToMorning,
+        s.meters,
+        sumTraitMod(s.character!.traitIds, 'sleepRestoreMod'),
+      );
       const restedEnergy = exposed
         ? Math.round(s.meters.energy + (fullRest - s.meters.energy) * EXPOSED_SLEEP_RECOVERY)
         : fullRest;
@@ -3059,6 +3135,8 @@ export const useGame = create<State>((set, get) => {
           weatherEncounterMod: 0,
           traitEncounterMod:
             sumTraitMod(g.character!.traitIds, 'encounterChanceMod') +
+            sumTraitMod(g.character!.traitIds, 'nightEncounterChanceMod') +
+            sumTraitMod(g.character!.traitIds, 'ambushChanceMod') * 0.15 +
             equipEncounterChanceMod(g.equipment) +
             bleedEncounterMod(g.bodyParts),
           safe: g.spawn ?? undefined,
@@ -3263,7 +3341,8 @@ export const useGame = create<State>((set, get) => {
       if (!recipe) return;
       // A stash is a workbench: somewhere to put things down and take your time.
       const atShelter = s.currentPositionId !== null || s.hdb !== null;
-      const check = canCraft(recipe, s.items, atShelter);
+      const inputs = adjustCraftInputs(recipe.inputs, s.character!.traitIds);
+      const check = canCraft(recipe, s.items, atShelter, inputs);
       if (!check.ok) {
         pushLog(`Can't make that — ${check.reason.toLowerCase()}.`, 'bad');
         return;
@@ -3271,7 +3350,7 @@ export const useGame = create<State>((set, get) => {
       if (advanceTime(recipe.hours)) return;
 
       let items = get().items;
-      for (const [defId, need] of Object.entries(recipe.inputs)) {
+      for (const [defId, need] of Object.entries(inputs)) {
         for (let n = 0; n < need; n++) items = consumeOneOf(items, defId);
       }
       const made = addToGrid(items, 'backpack', recipe.outputDefId, recipe.outputCount);
@@ -3512,19 +3591,25 @@ export const useGame = create<State>((set, get) => {
         return;
       }
       // A block you've already worked keeps its state — cleared units stay cleared.
-      // Blocks saved before the stairwells existed have no topology to restore,
+      // Blocks saved before the cutaway strip topology have nothing safe to restore,
       // so they get rebuilt rather than loaded into a UI that would crash on them.
       const stored = s.hdbBlocks[loc.id];
-      const saved = stored?.risers?.length ? stored : null;
+      const saved = hasStripTopology(stored) ? stored : null;
       if (saved) {
         // The block settles while you're gone, but it doesn't forget entirely.
+        // Re-enter at the void deck / lobby — fog memory stays in revealedLevels.
+        const pos = { level: 1, column: saved.pos?.column ?? 0 };
         set({
           hdb: {
             ...saved,
+            pos,
             currentLevel: 1,
             moveSeq: saved.moveSeq ?? 0,
             blockHeat: saved.blockHeat / 2,
             floors: saved.floors.map((f) => ({ ...f, heatLevel: f.heatLevel / 2 })),
+            revealedLevels: saved.revealedLevels.includes(1)
+              ? saved.revealedLevels
+              : [1, ...saved.revealedLevels],
           },
         });
         pushLog(`You climb back into ${loc.name}. You remember which doors you've done.`, 'info');
@@ -3537,7 +3622,9 @@ export const useGame = create<State>((set, get) => {
       pushLog(
         archetype === 'shelter'
           ? `You climb into ${loc.name}. Someone has made this block liveable.`
-          : `You slip into the stairwell of ${loc.name}. The shaft goes up into the dark.`,
+          : get().hdb?.groundKind === 'enclosed'
+            ? `You push into the ground lobby of ${loc.name}. The stairs climb into the dark.`
+            : `You slip under ${loc.name}'s void deck. Pillars, stair mouths, and the smell of old rain.`,
         'info',
       );
       sweepFloor(1);
@@ -3548,8 +3635,13 @@ export const useGame = create<State>((set, get) => {
       if (!s.hdb || s.combat) return;
       const level = s.hdb.currentLevel;
       const unit = currentFloor(s.hdb).units.find((u) => u.id === unitId);
-      // A unit you've already finished is done — no second sweep, no second fight.
-      if (!unit || unit.state === 'cleared') return;
+      // Boarded doors and finished rooms never open a second time.
+      // Maze: you have to be standing on that door's cell.
+      if (!unit || !unit.available || unit.state === 'cleared') return;
+      if (s.hdb.pos.column !== unit.column || s.hdb.pos.level !== level) {
+        pushLog('You need to walk to that door first.', 'info');
+        return;
+      }
 
       const outcome = breachOutcome(s.hdb, unit, level);
       if (advanceTime(outcome.minutes / 60)) return;
@@ -3611,24 +3703,28 @@ export const useGame = create<State>((set, get) => {
       persist();
     },
 
-    hdbMove: (level) => {
+    hdbGoTo: (target) => {
       const s = get();
       if (!s.hdb || s.combat) return;
-      const from = s.hdb.currentLevel;
-      if (level === from) return;
-      const descending = level < from;
+      if (samePos(s.hdb.pos, target)) return;
+      if (!canTargetCell(s.hdb, target)) return;
 
-      // Every stairwell attempt gets its own roll. Without this the same seed
-      // came up after the fight a failed roll caused, locking the player on
-      // the floor: fail, fight, win, fail again, forever.
+      const path = findPath(s.hdb, s.hdb.pos, target);
+      if (!path || path.length < 2) {
+        pushLog('No way through from here.', 'info');
+        return;
+      }
+
+      const from = s.hdb.pos;
+      const descending = pathDescends(path);
+      const onStairs = pathUsesStairs(path);
+
       const seq = (s.hdb.moveSeq ?? 0) + 1;
       set({ hdb: { ...s.hdb, moveSeq: seq } });
 
-      // A hunting block owns the stairwell in both directions — this fires
-      // before the descent check, since being caught mid-flight is the point.
-      if (isHunting(s.hdb)) {
+      if (onStairs && isHunting(s.hdb)) {
         const huntRng = new Rng(s.seed).fork(
-          `hunt:${s.hdb.locationId}:${from}:${level}:${s.day}:${seq}`,
+          `hunt:${s.hdb.locationId}:${posKey(from)}:${posKey(target)}:${s.day}:${seq}`,
         );
         if (huntRng.chance(HUNT_ELITE_CHANCE)) {
           if (advanceTime(STAIR_MINUTES / 60)) return;
@@ -3637,7 +3733,7 @@ export const useGame = create<State>((set, get) => {
           pushLog('The stairwell is not empty. It has been waiting.', 'bad');
           startZombieCombat(g.hdb.locationId, false, {
             terrainOverride: 'hdb_corridor',
-            enemy: makeBlockHunter(huntRng, floorThreat(g.hdb, from)),
+            enemy: makeBlockHunter(huntRng, floorThreat(g.hdb, from.level)),
             intro: 'It fills the landing shoulder to shoulder.',
             hdbStairs: true,
           });
@@ -3646,14 +3742,13 @@ export const useGame = create<State>((set, get) => {
         pushLog('You take the stairs in silence. Nothing follows — this time.', 'info');
       }
 
-      // Climbing is just slow. Going back down through a woken block is a check.
       if (descending && descentIsChecked(s.hdb)) {
         const rng = new Rng(s.seed).fork(
-          `retreat:${s.hdb.locationId}:${from}:${s.day}:${seq}`,
+          `retreat:${s.hdb.locationId}:${from.level}:${s.day}:${seq}`,
         );
         const check = retreatCheck(rng, s.character!.attributes, s.hdb);
         pushLog(
-          `Stairwell descent — d20 ${check.roll}+${s.character!.attributes.dexterity + s.character!.attributes.endurance} = ${check.total} vs DC ${check.dc}`,
+          `Stairwell descent — ${attrEmoji('dexterity')} ${attrEmoji('endurance')} d20 ${check.roll}+${s.character!.attributes.dexterity + s.character!.attributes.endurance} = ${check.total} vs DC ${check.dc}`,
           check.success ? 'good' : 'bad',
         );
         if (!check.success) {
@@ -3662,7 +3757,7 @@ export const useGame = create<State>((set, get) => {
           pushLog('Something comes up the stairs to meet you.', 'bad');
           startZombieCombat(g.hdb!.locationId, false, {
             terrainOverride: 'hdb_corridor',
-            danger: floorThreat(g.hdb!, from),
+            danger: floorThreat(g.hdb!, from.level),
             intro: 'Cut off on the landing.',
             hdbStairs: true,
           });
@@ -3670,17 +3765,31 @@ export const useGame = create<State>((set, get) => {
         }
       }
 
-      if (advanceTime((STAIR_MINUTES * Math.abs(level - from)) / 60)) return;
+      const minutes = pathMinutes(path);
+      if (advanceTime(minutes / 60)) return;
       const g = get();
       if (!g.hdb) return;
-      set({
-        hdb: {
-          ...g.hdb,
-          currentLevel: level,
-          visited: g.hdb.visited.includes(level) ? g.hdb.visited : [...g.hdb.visited, level],
-        },
-      });
-      sweepFloor(level);
+      const wasNew = !g.hdb.revealedLevels.includes(target.level);
+      set({ hdb: moveTo(g.hdb, target) });
+      if (wasNew) sweepFloor(target.level);
+    },
+
+    hdbForceBlock: (key) => {
+      const s = get();
+      if (!s.hdb || s.combat) return;
+      const adj = adjacentBreakableBlocks(s.hdb).find((a) => a.key === key);
+      if (!adj) return;
+      if (advanceTime(adj.block.minutes / 60)) return;
+      const g = get();
+      if (!g.hdb) return;
+      const cleared = addHeat(clearBlock(g.hdb, key), adj.block.heat, g.hdb.pos.level);
+      set({ hdb: cleared });
+      get().emitNoise(g.currentPos.lat, g.currentPos.lng, 280, 1);
+      pushLog(
+        `You clear the ${BLOCK_META[adj.block.kind].label.toLowerCase()}. ${adj.block.minutes} min, loud.`,
+        'bad',
+      );
+      persist();
     },
 
     /**
@@ -3738,10 +3847,19 @@ export const useGame = create<State>((set, get) => {
       if (!s.hdb || s.combat) return;
       const level = s.hdb.currentLevel;
       const unit = currentFloor(s.hdb).units.find((u) => u.id === unitId);
-      if (!unit?.service) return;
+      if (!unit?.service || !unit.available || unit.state === 'cleared') return;
+      if (s.hdb.pos.column !== unit.column || s.hdb.pos.level !== level) {
+        pushLog('You need to walk to that door first.', 'info');
+        return;
+      }
 
       if (unit.service === 'safe_bunk') {
-        const restored = sleepRestore(s.meters.energy, 6, s.meters);
+        const restored = sleepRestore(
+          s.meters.energy,
+          6,
+          s.meters,
+          sumTraitMod(s.character!.traitIds, 'sleepRestoreMod'),
+        );
         if (advanceTime(6, restored, true)) return;
         pushLog('You sleep six hours behind a locked gate. Nothing finds you.', 'good');
       } else if (unit.service === 'field_doctor') {

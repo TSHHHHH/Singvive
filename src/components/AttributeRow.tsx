@@ -1,6 +1,7 @@
 import { useGame } from '../game/store';
 import {
   ATTRIBUTE_BLURB,
+  ATTRIBUTE_ICONS,
   ATTRIBUTE_KEYS,
   ATTRIBUTE_LABELS,
   attributeEffects,
@@ -8,6 +9,7 @@ import {
   BASE_ATTRIBUTE,
 } from '../game/character';
 import type { AttributeKey } from '../game/types';
+import { Icon } from '../icons/Icon';
 import { TipHint } from './TipHint';
 
 /**
@@ -35,6 +37,9 @@ export function AttributeRow() {
             tip={<AttributeTip attr={k} traitIds={character.traitIds} value={value} />}
           >
             <div className="cursor-help rounded bg-black/30 py-1 transition group-hover:bg-white/5">
+              <div className="mx-auto mb-0.5 flex justify-center text-white/50">
+                <Icon name={ATTRIBUTE_ICONS[k]} size={12} title={ATTRIBUTE_LABELS[k]} />
+              </div>
               <div
                 className={`text-sm font-bold tabular-nums ${
                   delta > 0 ? 'text-signal' : delta < 0 ? 'text-hiss' : 'text-concrete-200'
@@ -67,7 +72,8 @@ function AttributeTip({
   return (
     <>
       <div className="mb-1 flex items-baseline justify-between gap-2">
-        <span className="text-xs font-semibold uppercase tracking-widest text-white/40">
+        <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-white/40">
+          <Icon name={ATTRIBUTE_ICONS[attr]} size={12} />
           {ATTRIBUTE_LABELS[attr]}
         </span>
         <span className="shrink-0 text-2xs tabular-nums text-white/40">

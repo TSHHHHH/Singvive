@@ -49,7 +49,7 @@ export type IconName =
   | 'hdb.stairwell'
   | 'hdb.service'
   | 'hdb.hazard'
-  | 'hdb.skybridge'
+  | 'hdb.unavailable'
   | 'hdb.enterBlock'
   | 'hdb.scout'
   | 'hdb.breach'
@@ -101,6 +101,12 @@ export type IconName =
   | 'time.day'
   | 'time.dusk'
   | 'time.night'
+  // --- character attributes ---
+  | 'attr.strength'
+  | 'attr.dexterity'
+  | 'attr.endurance'
+  | 'attr.perception'
+  | 'attr.wits'
   // --- status flags ---
   | 'status.bleeding'
   | 'status.fractured'
@@ -271,7 +277,7 @@ export const EMOJI_FALLBACK: Record<IconName, string> = {
   'hdb.stairwell': '🪜',
   'hdb.service': '🤝',
   'hdb.hazard': '☢️',
-  'hdb.skybridge': '🌉',
+  'hdb.unavailable': '✕',
   'hdb.enterBlock': '🏢',
   'hdb.scout': '👁️',
   'hdb.breach': '🔨',
@@ -322,6 +328,12 @@ export const EMOJI_FALLBACK: Record<IconName, string> = {
   'time.day': '☀️',
   'time.dusk': '🌆',
   'time.night': '🌙',
+
+  'attr.strength': '💪',
+  'attr.dexterity': '🤸',
+  'attr.endurance': '🫀',
+  'attr.perception': '👁️',
+  'attr.wits': '🧠',
 
   'status.bleeding': '🩸',
   'status.fractured': '🦴',

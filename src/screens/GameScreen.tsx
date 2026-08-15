@@ -15,6 +15,8 @@ import { ConditionPanel } from '../components/ConditionPanel';
 import { StatsPanel } from '../components/StatsPanel';
 import { LogPanel } from '../components/LogPanel';
 import { CombatPanel } from '../components/CombatPanel';
+import { PhoneStatusBar } from '../components/PhoneStatusBar';
+import { MapMiniLog } from '../components/MapMiniLog';
 import { Icon } from '../icons/Icon';
 import { LocationCard, type Departure } from '../components/LocationCard';
 import { TrekCard } from '../components/TrekCard';
@@ -585,6 +587,8 @@ export function GameScreen() {
 
   return (
     <div className="relative flex h-full flex-col lg:flex-row">
+      <PhoneStatusBar onOpenStatus={() => setMobileView('hub')} />
+
       {/* ================= COLUMN 1: the survivor rail =================
            Everything about *you* and the two places that matter right now,
            read top to bottom: the clock, the goal, your body, then the ground
@@ -779,14 +783,16 @@ export function GameScreen() {
 
       {/* Fight / event live in the Timeline tab on phones — keep a way back
           from Map, HDB, or Tunnel without hunting for the nav pulse. Sits
-          outside the stance-gated columns so it stays tappable. */}
+          outside the stance-gated columns so it stays tappable. Below the
+          phone status bar so both stay readable. */}
       {(combat || pendingEvent) &&
         mobileView !== 'log' &&
         (mobileView === 'map' || !!hdb || !!tunnel) && (
           <button
             type="button"
             onClick={() => setMobileView('log')}
-            className="absolute inset-x-0 top-0 z-[760] p-2 lg:hidden"
+            className="absolute inset-x-0 z-[760] p-2 lg:hidden"
+            style={{ top: 'var(--mobile-status-bar-h)' }}
           >
             <div className="rounded border border-hiss/50 bg-hiss/20 px-2 py-1.5 text-center text-xs font-semibold text-hiss shadow-lg backdrop-blur">
               {combat ? 'Contact — tap for Fight' : 'Someone wants a word — tap for Log'}
@@ -797,7 +803,7 @@ export function GameScreen() {
       {/* ================= COLUMN 4: timeline — or the encounter panel, which
            takes the column over for the duration of a fight ================= */}
       <aside
-        className={`min-w-0 overflow-hidden border-white/10 bg-concrete-900/70 p-3 lg:flex lg:w-[35vw] lg:min-w-[320px] lg:shrink-0 lg:border-l lg:p-2.5 ${
+        className={`min-w-0 overflow-hidden border-white/10 bg-concrete-900/70 p-3 max-lg:flex-col lg:flex lg:w-[35vw] lg:min-w-[320px] lg:shrink-0 lg:border-l lg:p-2.5 ${
           mobileView === 'log' ? show(true) : 'hidden'
         } lg:flex lg:flex-col transition-all duration-300 ${
           stanceGate
@@ -856,6 +862,14 @@ export function GameScreen() {
           onSearch={enter}
           onOpenStash={openStash}
           onEvac={callEvac}
+        />
+      )}
+
+      {/* Two newest log lines on the phone map — above the here bar / nav. */}
+      {!hdb && !tunnel && mobileView === 'map' && (
+        <MapMiniLog
+          onOpenLog={() => setMobileView('log')}
+          aboveHereBar={!!hereProps}
         />
       )}
 

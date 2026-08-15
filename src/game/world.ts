@@ -12,9 +12,9 @@ const MAX_LOCATIONS = 220;
 const MAX_RESIDENTIAL = 100; // keep void decks from burying shops/amenities
 
 const SEARCHES_BY_SIZE: Record<LocationSize, number> = {
-  small: 2,
-  medium: 3,
-  large: 5,
+  small: 1,
+  medium: 2,
+  large: 3,
 };
 
 /** Rough m² area of a lat/lng polygon ring (shoelace on a local plane). */
@@ -39,7 +39,7 @@ function ringArea(ring: [number, number][]): number {
 function sizeFor(category: PoiCategory, outline?: [number, number][]): LocationSize {
   // Void decks now ship with real footprints (bake pass 3), and an HDB slab is
   // 1000-3000m² — deriving size from area would promote nearly every block to
-  // `large` (5 searches instead of 3) and quietly rebalance the loot economy.
+  // `large` (3 searches instead of 2) and quietly rebalance the loot economy.
   // They stay on the category default; the outline is for display only.
   if (outline && category !== 'residential') {
     const a = ringArea(outline);

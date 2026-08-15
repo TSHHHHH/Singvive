@@ -432,8 +432,8 @@ export function containerWeight(items: ItemInstance[], container: Container = BA
 }
 
 /** Max carrying capacity from build + any equipped weightCapacityBonus. */
-export function maxCarry(attrs: Attributes, equipment: Equipment): number {
-  let base = attrs.strength * 3 + attrs.endurance * 2;
+export function maxCarry(attrs: Attributes, equipment: Equipment, carryCapacityMod = 0): number {
+  let base = attrs.strength * 3 + attrs.endurance * 2 + carryCapacityMod;
   for (const slot of Object.keys(equipment) as EquipSlot[]) {
     const inst = equipment[slot];
     if (!inst) continue;
@@ -450,8 +450,9 @@ export function isEncumbered(
   items: ItemInstance[],
   attrs: Attributes,
   equipment: Equipment,
+  carryCapacityMod = 0,
 ): boolean {
-  return containerWeight(items, BACKPACK) > maxCarry(attrs, equipment) * ENCUMBER_FRACTION;
+  return containerWeight(items, BACKPACK) > maxCarry(attrs, equipment, carryCapacityMod) * ENCUMBER_FRACTION;
 }
 
 // ---------- Equipment ----------

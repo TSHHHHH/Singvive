@@ -5,7 +5,7 @@ import { Icon } from '../icons/Icon';
 import { formatClock } from '../game/survival';
 import { LOG_VIEW_MODES, logViewMode, useClockFormat, useSetting, useSettings } from '../game/settings';
 import { itemIcon } from './Inventory/itemIcon';
-import { ATTRIBUTE_LABELS } from '../game/character';
+import { ATTRIBUTE_ICONS, ATTRIBUTE_LABELS } from '../game/character';
 import type { ChoiceKind } from '../game/events';
 import type { IconName } from '../icons/keys';
 import { EncounterPrompt } from './EncounterPrompt';
@@ -278,7 +278,7 @@ export function LogPanel({
                       // a haul puts its count.
                       const check =
                         c.kind === 'check' && c.attr && c.dc != null
-                          ? `${ATTRIBUTE_LABELS[c.attr].slice(0, 3)} DC ${c.dc}`
+                          ? { attr: c.attr, dc: c.dc }
                           : null;
                       return (
                         <button
@@ -295,7 +295,14 @@ export function LogPanel({
                             )}
                           </span>
                           {check && (
-                            <span className="shrink-0 tabular-nums opacity-60">{check}</span>
+                            <span className="inline-flex shrink-0 items-center gap-1 tabular-nums opacity-60">
+                              <Icon
+                                name={ATTRIBUTE_ICONS[check.attr]}
+                                size={12}
+                                title={ATTRIBUTE_LABELS[check.attr]}
+                              />
+                              DC {check.dc}
+                            </span>
                           )}
                         </button>
                       );
