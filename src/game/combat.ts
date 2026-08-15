@@ -36,6 +36,16 @@ import {
   playerOutcomeKey,
   soakNote,
 } from './combatFlavor';
+import {
+  ENEMIES,
+  rollElite,
+  rollHuman,
+  rollLoner,
+  rollZombie,
+  type LonerKind,
+} from './enemies';
+
+export type { LonerKind } from './enemies';
 
 const EQUIP_SLOTS = ALL_EQUIP_SLOTS;
 
@@ -254,174 +264,40 @@ export function terrainForCategory(category: PoiCategory, roadAmbush = false): T
 }
 
 /**
- * `spd` is what the archetype reads as on the initiative track, and it is the
- * lever that makes two enemies with similar numbers feel nothing alike: a Brute
- * hits for 18 but only gets there once in the time a Runner lands two.
+ * Encounter kits live in `src/game/data/enemies.json` (DEV enemy browser).
+ * These wrappers keep call sites stable while rolls go through `enemies.ts`.
  */
-const ZOMBIE_TYPES = [
-  { name: 'Shambler', hp: 26, atk: 0, def: 0, dmg: 7, inf: 0.25, armor: 0, spd: 5 },
-  { name: 'Walker', hp: 34, atk: 1, def: 1, dmg: 9, inf: 0.3, armor: 0, spd: 7 },
-  { name: 'Runner', hp: 30, atk: 3, def: 2, dmg: 10, inf: 0.35, armor: 1, spd: 13 },
-  { name: 'Lurcher', hp: 46, atk: 2, def: 1, dmg: 13, inf: 0.4, armor: 2, spd: 7 },
-  { name: 'Brute', hp: 68, atk: 3, def: 2, dmg: 18, inf: 0.5, armor: 3, spd: 6 },
-];
 
 /** Build a zombie scaled to the location's danger (1..5). */
 export function makeZombie(rng: Rng, danger: number, _category?: PoiCategory): Enemy {
-  const tierRng = rng.fork('zombie');
-  // danger biases which archetype shows up
-  const idx = Math.max(0, Math.min(ZOMBIE_TYPES.length - 1, danger - 1 + tierRng.int(-1, 0)));
-  const t = ZOMBIE_TYPES[idx];
-  const hp = t.hp + tierRng.int(-4, 6);
-  return {
-    name: t.name,
-    kind: 'zombie',
-    hp,
-    maxHp: hp,
-    attack: t.atk,
-    defense: t.def,
-    damage: t.dmg,
-    infectious: t.inf,
-    armor: t.armor,
-    speed: t.spd,
-  };
+  return rollZombie(ENEMIES, rng, danger);
 }
-
-/**
- * Deliberately kept out of ZOMBIE_TYPES: no ordinary danger roll can ever
- * reach it. This is only what a block sends once its heat is pinned.
- */
-const BLOCK_HUNTER = {
-  name: 'Corridor Hulk',
-  hp: 110,
-  atk: 5,
-  def: 3,
-  dmg: 26,
-  inf: 0.6,
-  armor: 5,
-  spd: 7,
-};
 
 /** The thing a maxed-out block sends down the corridor after you. */
 export function makeBlockHunter(rng: Rng, danger: number): Enemy {
-  const r = rng.fork('hunter');
-  const hp = BLOCK_HUNTER.hp + danger * 4 + r.int(-6, 8);
-  return {
-    name: BLOCK_HUNTER.name,
-    kind: 'zombie',
-    hp,
-    maxHp: hp,
-    attack: BLOCK_HUNTER.atk,
-    defense: BLOCK_HUNTER.def,
-    damage: BLOCK_HUNTER.dmg,
-    infectious: BLOCK_HUNTER.inf,
-    armor: BLOCK_HUNTER.armor,
-    speed: BLOCK_HUNTER.spd,
-  };
+  return rollElite(ENEMIES, rng, ENEMIES.spawn.eliteBindings.hdb, danger, 'hunter');
 }
 
-/**
- * The other end of the same idea, for tunnels: unreachable by any danger roll,
- * and only ever what a bore sends once the pressure gauge is pinned. Faster and
- * meaner than the block hulk, and less armoured — it has been running the
- * tunnels a long time.
- */
-const TUNNEL_STALKER = {
-  name: 'Tunnel Stalker',
-  hp: 92,
-  atk: 7,
-  def: 4,
-  dmg: 22,
-  inf: 0.5,
-  armor: 2,
-  spd: 15,
-};
-
+/** Pinned tunnel pressure — only reachable via the elite binding, not danger tiers. */
 export function makeTunnelStalker(rng: Rng, danger: number): Enemy {
-  const r = rng.fork('stalker');
-  const hp = TUNNEL_STALKER.hp + danger * 5 + r.int(-8, 8);
-  return {
-    name: TUNNEL_STALKER.name,
-    kind: 'zombie',
-    hp,
-    maxHp: hp,
-    attack: TUNNEL_STALKER.atk,
-    defense: TUNNEL_STALKER.def,
-    damage: TUNNEL_STALKER.dmg,
-    infectious: TUNNEL_STALKER.inf,
-    armor: TUNNEL_STALKER.armor,
-    speed: TUNNEL_STALKER.spd,
-  };
+  return rollElite(ENEMIES, rng, ENEMIES.spawn.eliteBindings.tunnel, danger, 'stalker');
 }
-
-const HUMAN_NAMES: Record<Exclude<FactionId, null>, string> = {
-  syndicate_88: '88 Syndicate Runner',
-  idtf: 'IDTF Deserter',
-  pasir_panjang: 'Co-op Enforcer',
-  sta: 'STA Tunnel Marshal',
-};
-
-const HUMAN_ARMOR: Record<Exclude<FactionId, null>, number> = {
-  syndicate_88: 1,
-  idtf: 4,
-  pasir_panjang: 1,
-  sta: 2,
-};
 
 /**
  * Build a human enemy scaled to danger. Humans don't infect (infectious: 0)
  * but hit harder and defend better than a comparable zombie.
  */
 export function makeHuman(rng: Rng, faction: Exclude<FactionId, null>, danger: number): Enemy {
-  const r = rng.fork('human');
-  const hp = 30 + danger * 6 + r.int(-4, 8);
-  return {
-    name: HUMAN_NAMES[faction],
-    kind: 'human',
-    hp,
-    maxHp: hp,
-    attack: 1 + Math.floor(danger / 2) + r.int(0, 1),
-    defense: 1 + Math.floor(danger / 2),
-    damage: 8 + danger * 2 + r.int(0, 3),
-    infectious: 0,
-    armor: HUMAN_ARMOR[faction],
-    // People move like people — heavier kit costs them a little of it.
-    speed: 11 - HUMAN_ARMOR[faction],
-  };
+  return rollHuman(ENEMIES, rng, faction, danger);
 }
 
 /**
  * Not everyone who fights you belongs to somebody. A doorway argument with a
  * scavenger or a starving stranger is its own thing — no colours, no armour,
- * and no organisation to answer to afterwards. They hit softer than a faction
- * runner because they are not soldiers; they're just in your way, or you're
- * in theirs.
+ * and no organisation to answer to afterwards.
  */
-const LONER_NAMES = {
-  scavenger: 'Rival Scavenger',
-  survivor: 'Desperate Survivor',
-} as const;
-
-export type LonerKind = keyof typeof LONER_NAMES;
-
 export function makeLoner(rng: Rng, kind: LonerKind, danger: number): Enemy {
-  const r = rng.fork('loner');
-  // The scavenger came equipped and fed; the survivor came because they had to.
-  const tough = kind === 'scavenger';
-  const hp = (tough ? 26 : 18) + danger * 4 + r.int(-3, 6);
-  return {
-    name: LONER_NAMES[kind],
-    kind: 'human',
-    hp,
-    maxHp: hp,
-    attack: 1 + Math.floor(danger / 3) + (tough ? 1 : 0),
-    defense: Math.floor(danger / 3),
-    damage: (tough ? 7 : 5) + danger + r.int(0, 2),
-    infectious: 0,
-    armor: tough ? 1 : 0,
-    // The starving one is quick because it is all they have left.
-    speed: tough ? 10 : 11,
-  };
+  return rollLoner(ENEMIES, rng, kind, danger);
 }
 
 /** Derive the player's combat stats from attributes, traits and equipped gear.

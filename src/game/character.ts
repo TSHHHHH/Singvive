@@ -523,8 +523,8 @@ export function sumTraitMod<K extends keyof Trait>(ids: string[], key: K): numbe
  *
  * Almost always all zeroes — a survivor is nobody to everybody. The traits that
  * move it are the ones that buy a starting relationship, and because hostility
- * lifts at STANDING_KNOWN, a single point here is the difference between the 88
- * Syndicate shooting at you and selling to you.
+ * lifts at STANDING_KNOWN (+1 on the −5…+5 ladder), a single point here is the
+ * difference between the 88 Syndicate shooting at you and selling to you.
  */
 export function startingStanding(traitIds: string[]): FactionStanding {
   const out = emptyStanding();

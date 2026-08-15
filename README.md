@@ -260,6 +260,8 @@ src/
   game/        pure, seed-driven logic — rng, singapore, overpass, world, poi, loot, inventory,
                survival (meters + injuries), travel, weather, fog, combat, factions, events,
                character (attributes + traits), storage, types, and the Zustand store
+               (+ data/ JSON catalogs such as items.json)
+  dev/         DEV-only in-game editors (loot browser, …) — never imported from game/
   components/  GameMap, FogOverlay, mapIcons, tileConfig, MeterBar, StatusPanel, LogPanel,
                LocationCard, StashLogbook, EventModal, Inventory/{InventoryGrid, InventoryPanel,
                itemGlyph}
@@ -272,6 +274,73 @@ the DOM. `window.__game` exposes the live store for dev inspection.
 
 **Note on tiles:** Stadia is keyless on `localhost`; a deployed domain needs a free Stadia API key
 (an Esri dark fallback URL is in `components/tileConfig.ts`).
+
+### DEV tooling stack (reuse this)
+
+In-game editors that must **persist to the repo** (not just mutate a live run) follow the loot
+catalog tool. Use the same shape when adding trait, recipe, faction, or loot-table browsers.
+
+**Reference implementation:** item defs browser/editor — floating **Loot** control in `npm run
+dev` only. Encounter kit editor — floating **Enemies** control (separate overlay).
+
+| Layer | Role | Where |
+|---|---|---|
+| Catalog on disk | Machine-writable source of truth | e.g. `src/game/data/items.json`, `enemies.json` |
+| Game import | Load catalog into pure logic (clone if you mutate at boot) | e.g. `src/game/loot.ts`, `enemies.ts` |
+| Shared validation | Same checks for API + UI | `src/dev/validateItems.ts`, `validateEnemies.ts` |
+| Vite DEV API | `apply: 'serve'` only — never in `vite build` | `vite.loot-dev-api.ts` → wired in `vite.config.ts` |
+| Client API helpers | `fetch` / export / import / upload | `src/dev/lootApi.ts`, `enemyApi.ts` |
+| UI | Full-screen overlay, gated by `import.meta.env.DEV` | `src/dev/LootBrowser.tsx`, `EnemyBrowser.tsx`, mounted from `App.tsx` |
+
+**HTTP surface (localhost, DEV server only):**
+
+- `GET/PUT /__dev/items` — read/write the JSON catalog (PUT validates + pretty-prints; HMR suppressed so the editor stays open)
+- `GET/PUT /__dev/loot-tables` — read/write `src/game/data/lootTables.json` (same; hard-refresh to load into live `loot.ts`)
+- `GET/PUT /__dev/enemies` — read/write `src/game/data/enemies.json` (zombies, elites, humans, loners, spawn rules; hard-refresh for live combat)
+- `GET /__dev/item-icons` — list on-disk `item-*` assets + max upload size
+- `POST /__dev/item-icon` — upload PNG/WebP (64 KB / 256px edge max) → `src/assets/icons/item-<id>.(png|webp)`, and
+  register `item.<id>` in `src/icons/keys.ts` when missing
+
+**Loot browser UX extras worth copying:**
+
+- Tabs: **Items** | **Tables** in the same floating DEV tool
+- Per-item dirty prompts when changing selection; catalog-level **diff review** before Save
+- Keyboard: `Ctrl/Cmd+S` save, `Esc` dismiss/close, `↑/↓` move the list
+- Duplicate item, side-by-side compare, where-used (loot tables / recipes / factions / starting)
+- Filters: exotic, starting, missing art; sort + group-by-kind
+- `ItemDef.startingItem` (+ optional `startingCount`) drives run-start gear in `store.ts`
+- Tables editor: scarcity-aware effective %, sort, badges, weight bars, ± steppers, normalize, duplicate category, drag reorder, craft-only / no-common warnings, only-in-table, diff-before-save, roll simulator + richness, jump-to-item
+
+**Enemies browser:** separate floating **Enemies** chip, bottom-left above **Loot**. Tabs **Overview** |
+**Zombies** | **Humans** | **Spawn** — sortable strength table (HP/atk/threat/TTK), tier reorder,
+shared `humanDefaults` + faction overrides, elite/loner stats, drop pools (click → Loot),
+where-used, compare, derived danger readout, seeded preview.
+
+**Hard rules when cloning the pattern:**
+
+1. **Keep `src/game/` pure** — no React, no `fetch`, no file I/O. Editors live in `src/dev/`; the
+   game only *imports* the committed data.
+2. **Prefer JSON (or generated TS) over rewriting hand-authored modules** — comments in a giant
+   `ITEMS = {…}` block do not survive round-trips; put lore in docs or optional fields if needed.
+3. **Gate the UI with `import.meta.env.DEV`** and the plugin with `apply: 'serve'` so production
+   bundles and `vite build` never expose write endpoints.
+4. **Validate on both sides** — UI disables Save when invalid; the middleware rejects bad PUTs with
+   400 + error list (same invariants as any DEV asserts in game code).
+5. **Export/Import** — download JSON / file-pick into the *draft*; persist only on Save so imports
+   are reviewable.
+6. **Asset uploads** — size + mime + magic-byte checks; canonical filenames; optional keys/registry
+   patch so the rest of the app resolves the new art after HMR.
+7. **Immutable ids after create** when other tables reference them by string (loot tables, recipes,
+   factions). Allow id edits only on unsaved drafts.
+
+**Minimal checklist for a new similar tool**
+
+1. Extract the catalog to `src/game/data/<name>.json` (or add a sibling file).
+2. Point the pure game module at that file.
+3. Add `validate…` + `src/dev/<Name>Browser.tsx` + helpers under `src/dev/`.
+4. Extend or add a Vite `apply: 'serve'` plugin with `GET/PUT /__dev/<name>`.
+5. Mount `{import.meta.env.DEV && <Dev… />}` from `App.tsx`.
+6. Confirm `npm run build` — no `/__dev` strings and no editor chrome in `dist/`.
 
 ---
 

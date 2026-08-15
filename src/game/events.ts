@@ -10,7 +10,7 @@ import type { Rng } from './rng';
 import { itemDef } from './loot';
 import {
   FACTION_CONFIG,
-  factionIsHostile,
+  gateStandingBand,
   hasFactionClearance,
   type FactionStanding,
 } from './factions';
@@ -26,8 +26,10 @@ export {
   factionShelters,
   factionTrades,
   factionWavesYouThrough,
+  gateStandingBand,
   hasFactionClearance,
   standingLabel,
+  STANDING_BAD,
   STANDING_HATED,
   STANDING_KIN,
   STANDING_KNOWN,
@@ -35,6 +37,7 @@ export {
   STANDING_MIN,
   STANDING_TRUSTED,
   type FactionStanding,
+  type GateStandingBand,
 } from './factions';
 
 export type EventKind =
@@ -102,10 +105,15 @@ export type EventEffect =
    */
   | { t: 'fight'; foe?: 'scavenger' | 'survivor' }
   /**
-   * Forced entry / refused the gate: one-time standing hit at this site, then
-   * human combat. Terminal.
+   * Forced entry / refused the gate: standing hit, then human combat. On a win
+   * the survivor enters raid mode (`force`). Terminal.
    */
   | { t: 'trespass' }
+  /**
+   * Enter illicit raid mode at this site (loot by size, no services). Terminal
+   * when used alone; usually paired after a successful sneak check outside events.
+   */
+  | { t: 'raid'; mode: 'sneak' | 'force' }
   /** The dead, right now. Terminal. */
   | { t: 'zombies'; line: string }
   /** Read the place: reveals the holder and what the shelves are worth. */
@@ -118,7 +126,7 @@ export type EventEffect =
   | { t: 'standing'; delta: number }
   | { t: 'mark'; mark: DoorwayMark };
 
-const TERMINAL = new Set(['access', 'deny', 'fight', 'zombies', 'trespass']);
+const TERMINAL = new Set(['access', 'deny', 'fight', 'zombies', 'trespass', 'raid']);
 export const isTerminal = (e: EventEffect) => TERMINAL.has(e.t);
 
 export interface EventChoice {
@@ -153,7 +161,8 @@ export interface EventCtx {
   standing: FactionStanding;
 }
 
-function dcFor(currentDanger: number): number {
+/** Attribute-check DC scaled off the site's current danger. */
+export function dcFor(currentDanger: number): number {
   return 8 + Math.round(currentDanger * 2);
 }
 
@@ -166,6 +175,26 @@ type Pools = { tell: string[]; text: string[]; night?: string[]; wet?: string[] 
 const WET: readonly WeatherKind[] = ['rain', 'thunderstorm'];
 
 const PROSE: Record<Exclude<EventKind, 'mrt_toll'>, Pools> = {
+  faction_checkpoint: {
+    tell: [
+      'There\'s a table across the entrance, and someone sitting at it.',
+      'Someone raises a hand as you approach — not a weapon. A hand.',
+      'A ledger sits open on a crate by the door of {name}.',
+      'They\'ve put a stool in the doorway. That\'s the whole gate.',
+    ],
+    text: [
+      '{faction} keeps a book at {name}. "{tribute} gets you on the grounds — and your name in the right column."',
+      'The one on the gate at {name} taps the open page. "Entrance fee. One {tribute}. Then we know you."',
+      'A {short} volunteer looks you over from behind a folding table. "Don\'t know your face. One {tribute} for the register and you can go in."',
+      '"Sign in," says the gate. "One {tribute}. Or turn around."',
+    ],
+    night: [
+      'A lamp over the ledger at {name}. "{short}. One {tribute} and you\'re on the list."',
+    ],
+    wet: [
+      'They\'ve pulled the table under the awning. "{tribute} and you can come in out of this."',
+    ],
+  },
   faction_shakedown: {
     tell: [
       'Voices inside — not the dead. The dead don\'t chat.',
@@ -174,11 +203,11 @@ const PROSE: Record<Exclude<EventKind, 'mrt_toll'>, Pools> = {
       'A shape peels off the wall ahead of you.',
     ],
     text: [
-      '{faction} runners step out of the doorway and spread wide. "Toll\'s one {tribute}. Pay, or walk."',
-      'Two of {faction}\'s people are already inside {name}, and they saw you first. "One {tribute} and the place is yours for a bit."',
-      'One of {faction}\'s lookouts drops down off the ledge, hand out. "You know how this works. One {tribute}."',
-      '{faction} has {name} sewn up. The one doing the talking taps a crowbar against her boot. "{tribute}. Then we\'re friends."',
-      'Someone in {short} colours blocks the entrance without hurrying about it. "Nothing personal, ah. One {tribute}."',
+      '{faction} blockers fill the doorway of {name}. "Tribute. One {tribute}. Then maybe we talk."',
+      'Two of {faction}\'s people are already inside {name}, and they saw you first. "One {tribute} — for the damage."',
+      'One of {faction}\'s lookouts drops down off the ledge, hand out. "You owe us. One {tribute}."',
+      '{faction} has {name} sewn up. The one doing the talking taps a crowbar against her boot. "{tribute}. Repair what you broke."',
+      'Someone in {short} colours blocks the entrance without hurrying about it. "Nothing personal. One {tribute}."',
     ],
     night: [
       'A torch beam pins you in the doorway of {name}. "{short}. One {tribute}, and lower your hands."',
@@ -186,26 +215,6 @@ const PROSE: Record<Exclude<EventKind, 'mrt_toll'>, Pools> = {
     ],
     wet: [
       '{faction} has the entrance to {name} tarped over and manned. "Dry inside. One {tribute}."',
-    ],
-  },
-  faction_checkpoint: {
-    tell: [
-      'There\'s a table across the entrance, and someone sitting at it.',
-      'Someone raises a hand as you approach — not a weapon. A hand.',
-      'A hand-painted board by the door lists what they\'ll take.',
-      'Two of them look up. Neither of them stands.',
-    ],
-    text: [
-      'A {short} volunteer looks you over from behind a folding table. "Don\'t know your face. One {tribute} for the register and you can go in."',
-      '{faction} keeps a book at the door of {name}, and you\'re not in it. "Put something in the pot, we write you down. That\'s how it works."',
-      'The woman on the gate at {name} isn\'t armed, which somehow makes it worse. "We share here. You want a share, you bring a share. One {tribute}."',
-      '"{short}," the man says, like it explains everything, and it mostly does. "New faces pay in. One {tribute}, then you\'re one of us and you don\'t pay again."',
-    ],
-    night: [
-      'A lamp at the door of {name}, and someone awake behind it. "Late. Fine. One {tribute} and keep it quiet inside."',
-    ],
-    wet: [
-      'They\'ve rigged a tarp over the gate at {name} and are brewing something under it. "One {tribute}. Then come out of the rain."',
     ],
   },
   locked_door: {
@@ -358,17 +367,10 @@ function doorwayChance(loc: LocationState, ctx: EventCtx): number {
 // ---------------------------------------------------------------------------
 
 /**
- * The neutral factions' door scene.
- *
- * A shakedown is a tax: you pay, nothing changes, and tomorrow you pay again.
- * That is exactly what made faction ground feel like friction rather than
- * content. A checkpoint is the same doorway read the other way round — the
- * price is an *introduction fee*, it is paid once, and what it buys is the
- * standing that eventually opens their counter. Nobody draws a weapon here;
- * the worst case is being turned around.
+ * Lawful fee gate (−1…+1). Sneak / force live on the frontage before this
+ * scene — here the only ask is the introduction fee, or walking away.
  */
-function buildCheckpoint(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
-  const dc = dcFor(loc.currentDanger);
+function buildFeeGate(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
   const faction = loc.factionId as Exclude<FactionId, null>;
   const cfg = FACTION_CONFIG[faction];
   const tribute = itemDef(cfg.tribute[0]);
@@ -381,7 +383,7 @@ function buildCheckpoint(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent
   return {
     kind: 'faction_checkpoint',
     factionId: faction,
-    title: `${cfg.shortName} Checkpoint`,
+    title: `${cfg.shortName} Gate`,
     tell,
     text,
     choices: [
@@ -389,9 +391,7 @@ function buildCheckpoint(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent
         id: 'pay',
         kind: 'pay',
         itemIds: cfg.tribute,
-        label: `Sign in — ${priceList(cfg.tribute)}`,
-        // The whole point: paying is an investment, not a toll. A week of free
-        // passage *and* a rung up the ladder toward their counter.
+        label: `Pay entrance — ${priceList(cfg.tribute)}`,
         onSuccess: [
           { t: 'standing', delta: 1 },
           { t: 'mark', mark: { tollDays: 7 } },
@@ -402,114 +402,66 @@ function buildCheckpoint(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent
         ],
       },
       {
-        id: 'work',
-        kind: 'check',
-        attr: 'strength',
-        dc: dc - 2,
-        label: 'Offer to work the hour instead',
-        // No tribute? Then labour. There is always a way in that doesn't cost
-        // an item, because a gate you can only pass by spending is a wall to
-        // anyone who spent already.
-        onSuccess: [
-          { t: 'time', hours: 1, line: 'You shift crates until someone waves you off.' },
-          { t: 'standing', delta: 1 },
-          { t: 'mark', mark: { tollDays: 7 } },
-          { t: 'access' },
-        ],
-        onFailure: [
-          { t: 'time', hours: 1, line: 'You last about an hour before they can see you\'re no use to them.' },
-          { t: 'deny', line: '"Come back when you\'ve eaten something."' },
-        ],
-      },
-      {
-        id: 'talk',
-        kind: 'check',
-        attr: 'wits',
-        dc,
-        label: 'Talk your way in',
-        // Words get you in today and buy you nothing beyond today.
-        onSuccess: [{ t: 'mark', mark: { tollDays: 0 } }, { t: 'access' }],
-        onFailure: [
-          { t: 'standing', delta: -1 },
-          { t: 'deny', line: 'The book stays shut. So does the door.' },
-        ],
-      },
-      {
         id: 'leave',
         kind: 'leave',
         label: 'Back off',
         onSuccess: [{ t: 'deny', line: 'You back off. No hard feelings either way.' }],
       },
-      {
-        id: 'force',
-        kind: 'fight',
-        label: 'Force your way in',
-        onSuccess: [{ t: 'trespass' }],
-      },
     ],
   };
 }
 
-function buildShakedown(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
-  const dc = dcFor(loc.currentDanger);
+/**
+ * Tribute demand on Bad / Terrible ground. Illicit entry is still a frontage
+ * choice; at Terrible, refusing tribute draws steel and opens a force raid.
+ */
+function buildTributeGate(rng: Rng, loc: LocationState, ctx: EventCtx, terrible: boolean): GameEvent {
   const faction = loc.factionId as Exclude<FactionId, null>;
   const cfg = FACTION_CONFIG[faction];
   const tribute = itemDef(cfg.tribute[0]);
-  const hostile = factionIsHostile(faction, ctx.standing);
   const { tell, text } = prose(rng, 'faction_shakedown', ctx, {
     name: loc.name,
     faction: cfg.name,
     short: cfg.shortName,
     tribute: tribute.name,
   });
+  const choices: EventChoice[] = [
+    {
+      id: 'pay',
+      kind: 'pay',
+      itemIds: cfg.tribute,
+      label: `Give tribute — ${priceList(cfg.tribute)}`,
+      onSuccess: [
+        { t: 'standing', delta: 1 },
+        { t: 'mark', mark: { tollDays: 1 } },
+        { t: 'access' },
+      ],
+      onFailure: [
+        { t: 'deny', line: 'Empty hands buy nothing. They turn you around.' },
+      ],
+    },
+  ];
+  if (terrible) {
+    choices.push({
+      id: 'refuse',
+      kind: 'fight',
+      label: 'Refuse — draw down',
+      onSuccess: [{ t: 'trespass' }],
+    });
+  }
+  choices.push({
+    id: 'leave',
+    kind: 'leave',
+    label: 'Back off',
+    onSuccess: [{ t: 'deny', line: 'You back off before it gets worse.' }],
+  });
   return {
     kind: 'faction_shakedown',
     factionId: faction,
-    title: `${cfg.shortName} Shakedown`,
+    title: terrible ? `${cfg.shortName} Demands Tribute` : `${cfg.shortName} Tribute`,
     tell,
     text,
-    choices: [
-      {
-        id: 'pay',
-        kind: 'pay',
-        itemIds: cfg.tribute,
-        label: `Pay ${priceList(cfg.tribute)}`,
-        // Coin buys goodwill, and goodwill is the thing that compounds.
-        onSuccess: [
-          { t: 'standing', delta: 1 },
-          { t: 'mark', mark: { tollDays: 1 } },
-          { t: 'access' },
-        ],
-        onFailure: hostile
-          ? [{ t: 'trespass' }]
-          : [{ t: 'standing', delta: -1 }, { t: 'deny', line: 'Empty hands buy nothing. They turn you around.' }],
-      },
-      {
-        id: 'talk',
-        kind: 'check',
-        attr: 'wits',
-        dc,
-        label: `Talk your way past`,
-        // Words get you in today and buy you nothing beyond today.
-        onSuccess: [{ t: 'mark', mark: { tollDays: 0 } }, { t: 'access' }],
-        onFailure: hostile
-          ? [{ t: 'trespass' }]
-          : [{ t: 'standing', delta: -1 }, { t: 'deny', line: 'They\'ve heard better. Out you go.' }],
-      },
-      hostile
-        ? {
-            id: 'fight',
-            kind: 'fight',
-            label: 'Refuse — draw down',
-            onSuccess: [{ t: 'trespass' }],
-          }
-        : {
-            id: 'leave',
-            kind: 'leave',
-            label: 'Back off',
-            onSuccess: [{ t: 'deny', line: 'You back off. No hard feelings either way.' }],
-          },
-    ],
+    choices,
   };
 }
 
@@ -827,8 +779,8 @@ function buildBody(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
 type Builder = (rng: Rng, loc: LocationState, ctx: EventCtx) => GameEvent;
 
 const BUILDERS: Record<Exclude<EventKind, 'mrt_toll'>, Builder> = {
-  faction_shakedown: buildShakedown,
-  faction_checkpoint: buildCheckpoint,
+  faction_shakedown: (rng, loc, ctx) => buildTributeGate(rng, loc, ctx, true),
+  faction_checkpoint: buildFeeGate,
   locked_door: buildLockedDoor,
   desperate_survivor: buildSurvivor,
   rival_scavenger: buildRival,
@@ -838,9 +790,9 @@ const BUILDERS: Record<Exclude<EventKind, 'mrt_toll'>, Builder> = {
 };
 
 /**
- * Mandatory gate on occupied ground: shakedown if hostile (Syndicate until
- * Known, or Hated anywhere), otherwise a checkpoint. Clearance already checked
- * by the caller — this always returns an event when called for a claimed site.
+ * Mandatory gate on occupied ground: fee (−1…+1) or tribute (Bad / Terrible).
+ * Clearance already checked by the caller. Sneak / force are frontage actions,
+ * not choices inside these events.
  */
 export function rollFactionGateEvent(
   rng: Rng,
@@ -850,10 +802,9 @@ export function rollFactionGateEvent(
   const faction = loc.factionId;
   if (!faction) return null;
   if (hasFactionClearance(loc, ctx.standing, ctx.day)) return null;
-  if (factionIsHostile(faction, ctx.standing)) {
-    return buildShakedown(rng, loc, ctx);
-  }
-  return buildCheckpoint(rng, loc, ctx);
+  const band = gateStandingBand(faction, ctx.standing);
+  if (band === 'fee') return buildFeeGate(rng, loc, ctx);
+  return buildTributeGate(rng, loc, ctx, band === 'terrible');
 }
 
 /**

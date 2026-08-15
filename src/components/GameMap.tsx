@@ -1,5 +1,5 @@
-import { MapContainer, TileLayer, Marker, Circle, Polygon, useMap, useMapEvents } from 'react-leaflet';
-import { Fragment, memo, useCallback, useEffect, useRef, useState } from 'react';
+import { MapContainer, TileLayer, Marker, Circle, Polygon, Polyline, useMap, useMapEvents } from 'react-leaflet';
+import { Fragment, memo, useEffect, useRef, useState } from 'react';
 import type L from 'leaflet';
 import type { Poi, TimeOfDay, WeatherKind } from '../game/types';
 import { WeatherFx } from './WeatherFx';
@@ -22,6 +22,7 @@ import { NoiseWaves } from './NoiseWaves';
 import { trekTargetIcon } from './mapIcons';
 import { MrtOverlay, legendLines, useMrtNetwork } from './MrtOverlay';
 import { Icon } from '../icons/Icon';
+import { pointAlongPath } from '../game/route';
 
 // White outline for buildings you can see but haven't identified — stands out
 // against the dark map like the "?" blips do.
@@ -93,9 +94,9 @@ function GroundPicker({ onPick }: { onPick: (lat: number, lng: number) => void }
 }
 
 /**
- * The player's marker. When a `travelAnim` is active it glides from origin to
- * destination and pans the camera to follow at the current zoom; otherwise it
- * sits at `home` and smoothly pans there on discrete jumps (e.g. MRT).
+ * The player's marker. When a `travelAnim` is active it glides along the
+ * land route (or straight chord) and pans the camera to follow at the current
+ * zoom; otherwise it sits at `home` and smoothly pans there on discrete jumps.
  */
 function PlayerMarker({
   home,
@@ -118,12 +119,18 @@ function PlayerMarker({
       map.panTo([home.lat, home.lng], { animate: true, duration: 0.6 });
       return;
     }
-    const { fromLat, fromLng, toLat, toLng, startedAt, durationMs } = travelAnim;
+    const path =
+      travelAnim.path.length >= 2
+        ? travelAnim.path
+        : [
+            { lat: travelAnim.fromLat, lng: travelAnim.fromLng },
+            { lat: travelAnim.toLat, lng: travelAnim.toLng },
+          ];
+    const { startedAt, durationMs } = travelAnim;
     const tick = () => {
       const t = Math.min(1, (Date.now() - startedAt) / durationMs);
       const e = easeInOut(t);
-      const lat = fromLat + (toLat - fromLat) * e;
-      const lng = fromLng + (toLng - fromLng) * e;
+      const { lat, lng } = pointAlongPath(path, e);
       setPos({ lat, lng });
 
       // Panning repositions every marker, fog tile and vector on the map, so
@@ -197,52 +204,6 @@ function PlayerMarker({
   );
 }
 
-/** Where a lat/lng currently sits in map-container pixels, plus the size of the
- *  container it sits in — enough for the caller to float something over it and
- *  keep that thing on screen. */
-export interface MapPoint {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
-/**
- * Reports where `anchor` currently is in container pixels, and keeps reporting
- * while the map moves. The card that points at it is rendered by the caller,
- * outside the Leaflet panes — Leaflet owns everything inside them, and a card
- * with buttons in it has no business being dragged around by the map.
- */
-function AnchorTracker({
-  anchor,
-  onPoint,
-}: {
-  anchor: { lat: number; lng: number } | null;
-  onPoint: (pt: MapPoint | null) => void;
-}) {
-  const map = useMap();
-  const report = useCallback(() => {
-    if (!anchor) {
-      onPoint(null);
-      return;
-    }
-    const p = map.latLngToContainerPoint([anchor.lat, anchor.lng]);
-    const s = map.getSize();
-    onPoint({ x: p.x, y: p.y, width: s.x, height: s.y });
-  }, [anchor, map, onPoint]);
-
-  // `move`/`zoom` (not just their -end twins) so the card tracks the marker
-  // through a pan instead of snapping to it afterwards.
-  useMapEvents({ move: report, zoom: report, resize: report });
-
-  useEffect(() => {
-    report();
-    return () => onPoint(null);
-  }, [report, onPoint]);
-
-  return null;
-}
-
 interface Props {
   home: { lat: number; lng: number };
   pois: Poi[];
@@ -270,10 +231,10 @@ interface Props {
   time: TimeOfDay;
   /** open-ground spot the player is considering crossing to */
   trekTarget: { lat: number; lng: number } | null;
-  /** the spot the caller's floating target card points at, if any */
-  bubbleAnchor: { lat: number; lng: number } | null;
-  /** where that spot currently is, in map-container pixels */
-  onBubblePoint: (pt: MapPoint | null) => void;
+  /** land-aware preview / en-route polyline (null = nothing to draw) */
+  travelPath: { lat: number; lng: number }[] | null;
+  /** true when the chord has no dry land route — preview still drawn, confirm blocked */
+  travelPathBlocked?: boolean;
   /** External camera nudge (e.g. stash logbook "Show on map"). Token forces re-pan. */
   focusTarget?: { lat: number; lng: number; token: number } | null;
   onSelect: (poi: Poi) => void;
@@ -510,8 +471,8 @@ function GameMapInner({
   weather,
   time,
   trekTarget,
-  bubbleAnchor,
-  onBubblePoint,
+  travelPath,
+  travelPathBlocked,
   focusTarget,
   onSelect,
   onPickGround,
@@ -544,7 +505,6 @@ function GameMapInner({
       <SizeWatcher />
       <FocusCamera target={focusTarget} />
       <GroundPicker onPick={onPickGround} />
-      <AnchorTracker anchor={bubbleAnchor} onPoint={onBubblePoint} />
       <TileLayer
         attribution={TILE_ATTRIBUTION}
         url={TILE_URL}
@@ -566,6 +526,21 @@ function GameMapInner({
 
       {/* Drawn under the pins — ground, not a destination. */}
       <HazardRings hazards={hazards} />
+
+      {travelPath && travelPath.length >= 2 && (
+        <Polyline
+          positions={travelPath.map((p) => [p.lat, p.lng] as [number, number])}
+          interactive={false}
+          pathOptions={{
+            color: travelPathBlocked ? '#d92d2d' : '#7ec8e3',
+            weight: 2.5,
+            opacity: travelPathBlocked ? 0.85 : 0.75,
+            dashArray: travelPathBlocked ? '4 8' : '8 10',
+            lineCap: 'round',
+            lineJoin: 'round',
+          }}
+        />
+      )}
 
       {trekTarget && (
         <Marker

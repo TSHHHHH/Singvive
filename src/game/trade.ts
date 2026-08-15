@@ -4,6 +4,7 @@ import {
   FACTION_CONFIG,
   STANDING_KIN,
   STANDING_KNOWN,
+  STANDING_TRUSTED,
   type FactionStanding,
 } from './factions';
 import type { FactionId } from './types';
@@ -52,7 +53,7 @@ export interface TraderState {
 /** How many swaps a faction chalks up in a day, by standing. */
 function boardSize(standing: number): number {
   if (standing >= STANDING_KIN) return 6;
-  if (standing >= STANDING_KIN - 1) return 5;
+  if (standing >= STANDING_TRUSTED + 1) return 5; // Welcome +3
   return 4;
 }
 
@@ -187,6 +188,6 @@ export function traderBoard(
 export function traderGreeting(factionId: Exclude<FactionId, null>, rep: number): string {
   const cfg = FACTION_CONFIG[factionId];
   if (rep >= STANDING_KIN) return `They pull out the good stuff without being asked. ${cfg.shortName} counts you as theirs.`;
-  if (rep >= STANDING_KIN - 1) return 'The counter is open and nobody watches your hands.';
+  if (rep >= STANDING_TRUSTED) return 'The counter is open and nobody watches your hands.';
   return 'They\'ll deal with you. They\'ll also count everything twice.';
 }

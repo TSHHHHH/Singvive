@@ -12,6 +12,8 @@ interface Props {
   energyLow: boolean;
   outOfRange: boolean;
   tooClose: boolean;
+  /** Straight chord crosses water/restricted with no land detour under budget. */
+  noDryRoute?: boolean;
   arrivalAtNight: boolean;
   onTrek: () => void;
   onCancel: () => void;
@@ -30,12 +32,13 @@ export function TrekCard({
   energyLow,
   outOfRange,
   tooClose,
+  noDryRoute = false,
   arrivalAtNight,
   onTrek,
   onCancel,
 }: Props) {
   const label = riskLabel(risk.encounterChance);
-  const blocked = energyLow || outOfRange || tooClose;
+  const blocked = energyLow || outOfRange || tooClose || noDryRoute;
 
   return (
     <>
@@ -107,6 +110,11 @@ export function TrekCard({
           ⛔ Further than you can push in one go — pick somewhere nearer.
         </div>
       )}
+      {noDryRoute && (
+        <div className="mt-1 text-xs text-hiss">
+          ⛔ No dry route — water or sealed ground blocks the way.
+        </div>
+      )}
 
       <button
         disabled={blocked}
@@ -115,11 +123,13 @@ export function TrekCard({
       >
         {energyLow
           ? 'Too exhausted — sleep first'
-          : tooClose
-            ? 'Too close to bother'
-            : outOfRange
-              ? 'Too far to reach'
-              : `Cross on foot · ${formatDuration(travelMin)}`}
+          : noDryRoute
+            ? 'No dry route'
+            : tooClose
+              ? 'Too close to bother'
+              : outOfRange
+                ? 'Too far to reach'
+                : `Cross on foot · ${formatDuration(travelMin)}`}
       </button>
     </>
   );

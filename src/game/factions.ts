@@ -152,30 +152,32 @@ export const FACTION_CONFIG: Record<Exclude<FactionId, null>, FactionData> = {
 // ---------------------------------------------------------------------------
 // Standing
 //
-// One number per faction, -3..+3, and every service in the game hangs off it.
-// It lives here rather than in events.ts because standing stopped being an
-// event concern the moment it started gating a shop counter and a bed.
+// One number per faction, -5..+5 (EVE-style grace), and every service hangs
+// off it. Lives here rather than in events.ts because standing gates the
+// counter, the bed, and the gate scene.
 //
 // The ladder, and what each rung actually buys:
 //
-//   -3..-2  HATED     they shoot. Even the orderly ones.
-//   -1       WARY      turned away at the door; no counter, no bed.
-//    0       STRANGER  checkpoints; a hostile faction is still hostile.
+//   ≤ -4     TERRIBLE  they shoot; tribute or refuse → fight.
+//   -3..-2   BAD       tribute demanded; refuse is just turned away.
+//   -1..+1   NEUTRAL   entrance fee at the gate; illicit entry from frontage.
 //   +1       KNOWN     the counter opens. A hostile faction stops shooting.
-//   +2       TRUSTED   waved through their territory; the outpost bed is yours.
-//   +3       KIN       they break out the stock they keep for their own.
+//   +2..+3   WELCOME   waved through; outpost bed / aid unlock.
+//   +4..+5   KIN       they break out the stock they keep for their own.
 // ---------------------------------------------------------------------------
 
-export const STANDING_MIN = -3;
-export const STANDING_MAX = 3;
+export const STANDING_MIN = -5;
+export const STANDING_MAX = 5;
 /** At or below this, even the orderly factions open fire. */
-export const STANDING_HATED = -2;
+export const STANDING_HATED = -4;
+/** Bad standing: tribute at the gate, but refuse does not start a fight. */
+export const STANDING_BAD = -2;
 /** The rung where a faction will trade with you — and stop shooting at you. */
 export const STANDING_KNOWN = 1;
 /** Waved through the territory, and welcome to sleep at the outpost. */
 export const STANDING_TRUSTED = 2;
 /** Counted as one of their own; the reserved stock comes out. */
-export const STANDING_KIN = 3;
+export const STANDING_KIN = 4;
 
 export type FactionStanding = Record<Exclude<FactionId, null>, number>;
 
@@ -230,12 +232,26 @@ export function factionOffersAid(id: FactionId, standing: FactionStanding): bool
 
 /** Short label for the standing badge. */
 export function standingLabel(n: number): string {
-  if (n <= STANDING_HATED) return 'Hated';
+  if (n <= STANDING_HATED) return 'Terrible';
+  if (n <= STANDING_BAD) return 'Bad';
   if (n < 0) return 'Wary';
   if (n < STANDING_KNOWN) return 'Stranger';
   if (n < STANDING_TRUSTED) return 'Known';
-  if (n < STANDING_KIN) return 'Trusted';
+  if (n < STANDING_KIN) return 'Welcome';
   return 'Kin';
+}
+
+/** Standing band used to pick the lawful gate scene (fee vs tribute). */
+export type GateStandingBand = 'fee' | 'tribute' | 'terrible';
+
+export function gateStandingBand(
+  id: Exclude<FactionId, null>,
+  standing: FactionStanding,
+): GateStandingBand {
+  const n = standing[id] ?? 0;
+  if (n <= STANDING_HATED) return 'terrible';
+  if (n <= STANDING_BAD) return 'tribute';
+  return 'fee';
 }
 
 /**

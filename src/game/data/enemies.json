@@ -1,0 +1,175 @@
+{
+  "zombies": [
+    {
+      "id": "shambler",
+      "name": "Shambler",
+      "hp": 26,
+      "attack": 0,
+      "defense": 0,
+      "damage": 7,
+      "infectious": 0.25,
+      "armor": 0,
+      "speed": 5,
+      "hpJitter": [-4, 6]
+    },
+    {
+      "id": "walker",
+      "name": "Walker",
+      "hp": 34,
+      "attack": 1,
+      "defense": 1,
+      "damage": 9,
+      "infectious": 0.3,
+      "armor": 0,
+      "speed": 7,
+      "hpJitter": [-4, 6]
+    },
+    {
+      "id": "runner",
+      "name": "Runner",
+      "hp": 30,
+      "attack": 3,
+      "defense": 2,
+      "damage": 10,
+      "infectious": 0.35,
+      "armor": 1,
+      "speed": 13,
+      "hpJitter": [-4, 6]
+    },
+    {
+      "id": "lurcher",
+      "name": "Lurcher",
+      "hp": 46,
+      "attack": 2,
+      "defense": 1,
+      "damage": 13,
+      "infectious": 0.4,
+      "armor": 2,
+      "speed": 7,
+      "hpJitter": [-4, 6]
+    },
+    {
+      "id": "brute",
+      "name": "Brute",
+      "hp": 68,
+      "attack": 3,
+      "defense": 2,
+      "damage": 18,
+      "infectious": 0.5,
+      "armor": 3,
+      "speed": 6,
+      "hpJitter": [-4, 6]
+    }
+  ],
+  "elites": {
+    "block_hunter": {
+      "id": "block_hunter",
+      "name": "Corridor Hulk",
+      "hp": 110,
+      "attack": 5,
+      "defense": 3,
+      "damage": 26,
+      "infectious": 0.6,
+      "armor": 5,
+      "speed": 7,
+      "hpPerDanger": 4,
+      "hpJitter": [-6, 8]
+    },
+    "tunnel_stalker": {
+      "id": "tunnel_stalker",
+      "name": "Tunnel Stalker",
+      "hp": 92,
+      "attack": 7,
+      "defense": 4,
+      "damage": 22,
+      "infectious": 0.5,
+      "armor": 2,
+      "speed": 15,
+      "hpPerDanger": 5,
+      "hpJitter": [-8, 8]
+    }
+  },
+  "humanDefaults": {
+    "baseHp": 30,
+    "hpPerDanger": 6,
+    "hpJitter": [-4, 8],
+    "baseAttack": 1,
+    "attackPerDangerDiv": 2,
+    "attackJitter": [0, 1],
+    "baseDefense": 1,
+    "defensePerDangerDiv": 2,
+    "baseDamage": 8,
+    "damagePerDanger": 2,
+    "damageJitter": [0, 3],
+    "baseSpeed": 11
+  },
+  "humans": {
+    "syndicate_88": {
+      "name": "88 Syndicate Runner",
+      "armor": 1,
+      "drops": ["parang", "jewellery", "painkillers"]
+    },
+    "idtf": {
+      "name": "IDTF Deserter",
+      "armor": 4,
+      "drops": ["ammo_box", "kevlar_vest", "bandage"]
+    },
+    "pasir_panjang": {
+      "name": "Co-op Enforcer",
+      "armor": 1,
+      "drops": ["hawker_meal", "kitchen_knife", "canned_food"]
+    },
+    "sta": {
+      "name": "STA Tunnel Marshal",
+      "armor": 2,
+      "drops": ["torch", "batteries", "soft_drink"]
+    }
+  },
+  "loners": {
+    "scavenger": {
+      "name": "Rival Scavenger",
+      "armor": 1,
+      "speed": 10,
+      "baseHp": 26,
+      "hpPerDanger": 4,
+      "hpJitter": [-3, 6],
+      "baseAttack": 1,
+      "attackPerDangerDiv": 3,
+      "attackBonus": 1,
+      "baseDefense": 0,
+      "defensePerDangerDiv": 3,
+      "baseDamage": 7,
+      "damagePerDanger": 1,
+      "damageJitter": [0, 2],
+      "dropChance": 1,
+      "drops": ["canned_food", "medkit", "batteries", "duct_tape", "ammo_box", "toolbox"]
+    },
+    "survivor": {
+      "name": "Desperate Survivor",
+      "armor": 0,
+      "speed": 11,
+      "baseHp": 18,
+      "hpPerDanger": 4,
+      "hpJitter": [-3, 6],
+      "baseAttack": 1,
+      "attackPerDangerDiv": 3,
+      "attackBonus": 0,
+      "baseDefense": 0,
+      "defensePerDangerDiv": 3,
+      "baseDamage": 5,
+      "damagePerDanger": 1,
+      "damageJitter": [0, 2],
+      "dropChance": 0.3,
+      "drops": ["snacks", "bandage"]
+    }
+  },
+  "spawn": {
+    "zombieTierJitter": [-1, 0],
+    "humanDropChance": 0.7,
+    "wildsGangFaction": "syndicate_88",
+    "eliteBindings": {
+      "hdb": "block_hunter",
+      "tunnel": "tunnel_stalker"
+    }
+  }
+}

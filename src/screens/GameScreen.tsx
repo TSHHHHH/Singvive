@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useGame } from '../game/store';
-import { GameMap, type MapPoint } from '../components/GameMap';
-import { MapBubble } from '../components/MapBubble';
+import { GameMap } from '../components/GameMap';
+import { TargetDock } from '../components/TargetDock';
 import { useMrtNetwork } from '../components/MrtOverlay';
 import {
   displayLine,
@@ -35,6 +35,7 @@ import { TunnelRunView } from '../components/TunnelRunView';
 import { itemDef } from '../game/loot';
 import { estimateExpedition } from '../game/travel';
 import { unplayableMessage, walkabilityOf } from '../game/playable';
+import { routeLandPath } from '../game/route';
 import {
   bleedEncounterMod,
   computeEvacBonus,
@@ -195,10 +196,6 @@ export function GameScreen() {
   const [trekTarget, setTrekTarget] = useState<{ lat: number; lng: number } | null>(null);
   const [mobileView, setMobileView] = useState<MobileView>('map');
   const [sidePanel, setSidePanel] = useState<SidePanel | null>(null);
-  // Where the target card's tail should point, in map-container pixels. The map
-  // owns this — it's the only thing that can project a lat/lng — and hands it
-  // back so the card can be rendered here, over the map but outside Leaflet.
-  const [bubblePoint, setBubblePoint] = useState<MapPoint | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [dayLogsOpen, setDayLogsOpen] = useState(false);
   const [mapFocus, setMapFocus] = useState<{ lat: number; lng: number; token: number } | null>(
@@ -260,6 +257,46 @@ export function GameScreen() {
     [anchorLat, anchorLng],
   );
 
+  // Land-aware walk path for the selected target (or the active glide). Computed
+  // only when endpoints change — never per frame. Null route ⇒ no dry path.
+  const previewRoute = useMemo(() => {
+    if (travelAnim && travelAnim.path.length >= 2) {
+      return {
+        points: travelAnim.path,
+        lengthM: Math.round(
+          travelAnim.path.reduce(
+            (sum, p, i) =>
+              i === 0
+                ? 0
+                : sum +
+                  haversine(
+                    travelAnim.path[i - 1].lat,
+                    travelAnim.path[i - 1].lng,
+                    p.lat,
+                    p.lng,
+                  ),
+            0,
+          ),
+        ),
+        blocked: false,
+      };
+    }
+    if (!bubbleAnchor) return null;
+    const from = { lat: currentPos.lat, lng: currentPos.lng };
+    const routed = routeLandPath(from, bubbleAnchor);
+    if (routed) return { points: routed.points, lengthM: routed.lengthM, blocked: false };
+    return {
+      points: [from, bubbleAnchor],
+      lengthM: Math.round(
+        haversine(from.lat, from.lng, bubbleAnchor.lat, bubbleAnchor.lng),
+      ),
+      blocked: true,
+    };
+  }, [travelAnim, bubbleAnchor, currentPos.lat, currentPos.lng]);
+
+  const travelPath = previewRoute?.points ?? null;
+  const travelPathBlocked = previewRoute?.blocked ?? false;
+
   const weather = useMemo(() => rollWeather(new Rng(seed), day), [seed, day]);
   const time = timeOfDay(hour);
   const encumbered = useMemo(
@@ -305,14 +342,18 @@ export function GameScreen() {
   );
 
   const trekDist = trekTarget
-    ? Math.round(haversine(currentPos.lat, currentPos.lng, trekTarget.lat, trekTarget.lng))
+    ? previewRoute && !previewRoute.blocked
+      ? previewRoute.lengthM
+      : Math.round(haversine(currentPos.lat, currentPos.lng, trekTarget.lat, trekTarget.lng))
     : 0;
 
   const est = useMemo(
     () =>
       sel && character
         ? estimateExpedition(
-            Math.round(haversine(currentPos.lat, currentPos.lng, sel.lat, sel.lng)),
+            previewRoute && !previewRoute.blocked && sel.id !== currentPositionId
+              ? previewRoute.lengthM
+              : Math.round(haversine(currentPos.lat, currentPos.lng, sel.lat, sel.lng)),
             sel.category,
             character.attributes,
             meters.energy,
@@ -322,7 +363,19 @@ export function GameScreen() {
             legFactor,
           )
         : null,
-    [sel, character, currentPos.lat, currentPos.lng, meters.energy, hour, weather, encumbered, legFactor],
+    [
+      sel,
+      character,
+      currentPos.lat,
+      currentPos.lng,
+      currentPositionId,
+      previewRoute,
+      meters.energy,
+      hour,
+      weather,
+      encumbered,
+      legFactor,
+    ],
   );
 
   const trekEst = useMemo(
@@ -344,6 +397,10 @@ export function GameScreen() {
 
   const trekInfo = useMemo(() => {
     if (!trekTarget || !character) return null;
+    const via =
+      previewRoute && !previewRoute.blocked && previewRoute.points.length >= 2
+        ? previewRoute.points
+        : undefined;
     const sensedIds = new Set(sensedHazards.map((z) => z.id));
     const onPath = hazardsOnPath(
       seed,
@@ -351,6 +408,7 @@ export function GameScreen() {
       trekTarget,
       spawn ?? undefined,
       hazardPressure,
+      via,
     );
     const known = onPath.filter((z) => sensedIds.has(z.id));
     return {
@@ -371,6 +429,7 @@ export function GameScreen() {
           safe: spawn ?? undefined,
         },
         known,
+        via,
       ),
       // The route leaves the sensed bubble entirely — the quote is a guess.
       blind: trekDist > blipRange,
@@ -390,6 +449,7 @@ export function GameScreen() {
     bodyParts,
     equipment,
     hazardPressure,
+    previewRoute,
   ]);
 
   // Held only so the ride card re-renders once the network arrives; the routing
@@ -431,10 +491,14 @@ export function GameScreen() {
 
   const openStash = () => setSidePanel('inventory');
 
-  const selDist = sel
-    ? Math.round(haversine(currentPos.lat, currentPos.lng, sel.lat, sel.lng))
-    : 0;
+  const selDist =
+    sel && previewRoute && !previewRoute.blocked && sel.id !== currentPositionId
+      ? previewRoute.lengthM
+      : sel
+        ? Math.round(haversine(currentPos.lat, currentPos.lng, sel.lat, sel.lng))
+        : 0;
   const selOutOfRange = !!sel && !selHere && selDist > travelRange;
+  const selNoDryRoute = !!sel && !selHere && !!previewRoute?.blocked;
 
   const cardProps = sel && {
     sel,
@@ -442,6 +506,7 @@ export function GameScreen() {
     est,
     energyLow: meters.energy < 5,
     outOfRange: selOutOfRange,
+    noDryRoute: selNoDryRoute,
     canTunnel: !!tunnelSeg,
     tunnelSeg,
     tunnelHint,
@@ -516,6 +581,7 @@ export function GameScreen() {
               energyLow={meters.energy < 5}
               outOfRange={trekDist > travelRange}
               tooClose={trekDist < TREK_MIN_DISTANCE_M}
+              noDryRoute={!!previewRoute?.blocked}
               arrivalAtNight={trekEst.arrivalAtNight}
               onTrek={() => {
                 trek(trekTarget.lat, trekTarget.lng);
@@ -758,22 +824,17 @@ export function GameScreen() {
               weather={weather}
               time={time}
               trekTarget={trekTarget}
-              bubbleAnchor={bubbleAnchor}
-              onBubblePoint={setBubblePoint}
+              travelPath={travelPath}
+              travelPathBlocked={travelPathBlocked}
               focusTarget={mapFocus}
               onSelect={selectPoi}
               onPickGround={pickGround}
             />
-            {/* The target card, floated over the thing it describes. A fight
-                owns the moment, so it stands down for the duration. */}
-            {targetSlot && bubblePoint && (
-              <MapBubble
-                point={bubblePoint}
-                title={targetSlot.title}
-                onClose={targetSlot.onClose}
-              >
+            {/* Docked bottom-right so the travel line into the target stays visible. */}
+            {targetSlot && (
+              <TargetDock title={targetSlot.title} onClose={targetSlot.onClose}>
                 {targetSlot.body}
-              </MapBubble>
+              </TargetDock>
             )}
             {worldLoading && (
               <div className="absolute inset-0 z-[500] flex items-center justify-center bg-black/70">

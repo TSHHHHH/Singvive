@@ -86,9 +86,9 @@ export interface Trait {
    * nothing.
    *
    * It is the *only* lever a trait needs over factions, because hostility now
-   * lifts at STANDING_KNOWN: handing a build one point of standing with the 88
+   * lifts at STANDING_KNOWN (+1): handing a build one point of standing with the 88
    * Syndicate is exactly what "you know someone" means, with no special case
-   * anywhere in the faction code.
+   * anywhere in the faction code. Standing runs −5…+5.
    */
   factionStandingMod?: Partial<Record<Exclude<FactionId, null>, number>>;
 
@@ -249,6 +249,14 @@ export interface ItemDef {
    * good things are hard to find.
    */
   scarcity?: number;
+  /**
+   * When true, this def is granted at the start of a run (DEV-tunable via the
+   * loot browser). Equippable defs with a free slot are worn; otherwise they
+   * go into the backpack.
+   */
+  startingItem?: boolean;
+  /** How many to grant when `startingItem` is set and the item is not equipped. Default 1. */
+  startingCount?: number;
 }
 
 /**
@@ -534,6 +542,14 @@ export interface CombatContext {
    * salvage, so the win still pays for it.
    */
   tunnel?: { nodeId: string; lootMod: number };
+  /**
+   * Illicit gate fight: on a win, enter raid mode at the site (no immediate search).
+   */
+  pendingRaid?: 'sneak' | 'force';
+  /**
+   * Mid-raid search fight: on a win, resolve one search while staying in raid.
+   */
+  raidLoot?: boolean;
 }
 
 export interface CombatState {

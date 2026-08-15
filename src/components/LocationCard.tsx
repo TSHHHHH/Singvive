@@ -3,6 +3,7 @@ import { POI_CONFIG } from '../game/poi';
 import { Icon } from '../icons/Icon';
 import {
   FACTION_CONFIG,
+  STANDING_BAD,
   STANDING_HATED,
   STANDING_KIN,
   STANDING_KNOWN,
@@ -42,6 +43,8 @@ interface Props {
   energyLow: boolean;
   /** target is beyond the survivor's current one-push travel range */
   outOfRange?: boolean;
+  /** No land path around water/restricted under the routing budget. */
+  noDryRoute?: boolean;
   /** True when this is the next station down the line from where you stand. */
   canTunnel: boolean;
   /** That segment — the line it runs on and how long the walk is. */
@@ -100,7 +103,7 @@ function CardSplit({
   );
 }
 
-function UnknownCard({ est, energyLow, outOfRange, onTravel }: Props) {
+function UnknownCard({ est, energyLow, outOfRange, noDryRoute, onTravel }: Props) {
   return (
     <>
       <div className="flex items-center gap-2">
@@ -128,16 +131,23 @@ function UnknownCard({ est, energyLow, outOfRange, onTravel }: Props) {
           ⛔ Beyond your range — hop closer, rest, or walk the tunnels.
         </div>
       )}
+      {noDryRoute && (
+        <div className="mt-1 text-xs text-hiss">
+          ⛔ No dry route — water or sealed ground blocks the way.
+        </div>
+      )}
       <button
-        disabled={energyLow || outOfRange}
+        disabled={energyLow || outOfRange || !!noDryRoute}
         onClick={onTravel}
         className="mt-3 w-full rounded bg-signal/80 py-2 text-sm font-bold text-black hover:bg-signal disabled:opacity-30"
       >
         {energyLow
           ? 'Too exhausted — sleep first'
-          : outOfRange
-            ? 'Too far to reach'
-            : 'Head into the unknown'}
+          : noDryRoute
+            ? 'No dry route'
+            : outOfRange
+              ? 'Too far to reach'
+              : 'Head into the unknown'}
       </button>
     </>
   );
@@ -249,13 +259,14 @@ function TunnelButton({ seg, onTunnel }: { seg: MrtSegment | null; onTunnel: () 
   );
 }
 
-/** Named rungs on the −3…+3 standing ladder, low → high. */
+/** Named rungs on the −5…+5 standing ladder, low → high. */
 const STANDING_RUNGS: { min: number; label: string }[] = [
-  { min: STANDING_HATED, label: 'Hated' },
+  { min: STANDING_HATED, label: 'Terrible' },
+  { min: STANDING_BAD, label: 'Bad' },
   { min: -1, label: 'Wary' },
   { min: 0, label: 'Stranger' },
   { min: STANDING_KNOWN, label: 'Known' },
-  { min: STANDING_TRUSTED, label: 'Trusted' },
+  { min: STANDING_TRUSTED, label: 'Welcome' },
   { min: STANDING_KIN, label: 'Kin' },
 ];
 
@@ -376,16 +387,18 @@ const SERVICE_META: Record<
   intel: { icon: 'action.map', label: 'Ask for intel', hint: 'Once per day — map tip' },
 };
 
-/** NPC services on occupied ground — never scavenging. */
+/** NPC services on occupied ground — never scavenging. Hidden while raiding. */
 function FactionHubActions({ sel }: { sel: LocationState }) {
   const standing = useGame((s) => s.factionStanding);
   const outposts = useGame((s) => s.outposts);
   const day = useGame((s) => s.day);
+  const raidMode = useGame((s) => s.raidMode);
   const openTrader = useGame((s) => s.openTrader);
   const outpostRest = useGame((s) => s.outpostRest);
   const factionAid = useGame((s) => s.factionAid);
   const factionIntel = useGame((s) => s.factionIntel);
   if (!sel.factionId) return null;
+  if (raidMode?.locationId === sel.id) return null;
 
   const cfg = FACTION_CONFIG[sel.factionId];
   const services = locationServices(sel, outposts);
@@ -490,6 +503,7 @@ function KnownCard({
   est,
   energyLow,
   outOfRange,
+  noDryRoute,
   canTunnel,
   tunnelSeg,
   tunnelHint,
@@ -515,8 +529,21 @@ function KnownCard({
   const dngr = Math.max(1, Math.round(danger));
   const occupied = !!sel.factionId;
 
+  const standing = useGame((s) => s.factionStanding);
+  const day = useGame((s) => s.day);
+  const raidMode = useGame((s) => s.raidMode);
+  const sneakEnter = useGame((s) => s.sneakEnter);
+  const forceEnter = useGame((s) => s.forceEnter);
+  const raidSearch = useGame((s) => s.raidSearch);
+  const gateCleared = occupied && hasFactionClearance(sel, standing, day);
+  const raidingHere = raidMode?.locationId === sel.id;
+
   const siteStatus = occupied
-    ? null
+    ? raidingHere
+      ? raidMode!.mode === 'sneak'
+        ? 'Inside unseen — their stores, if you stay quiet.'
+        : 'Forced entry — rich stores, every search draws a fight.'
+      : null
     : isBlock
       ? '12 floors — cleared unit by unit, not searched.'
       : exhausted
@@ -544,12 +571,48 @@ function KnownCard({
   const actions = (
     <>
       {occupied ? (
-        <button
-          onClick={onEnter}
-          className="w-full rounded bg-signal/90 px-2 py-2 text-sm font-bold leading-tight text-black hover:bg-signal"
-        >
-          <Icon name="action.search" /> Approach the gate
-        </button>
+        raidingHere ? (
+          <button
+            disabled={sel.exhausted}
+            onClick={raidSearch}
+            className="w-full rounded bg-signal/90 px-2 py-2 text-sm font-bold leading-tight text-black hover:bg-signal disabled:opacity-30"
+          >
+            <Icon name="action.search" />{' '}
+            {sel.exhausted
+              ? 'Nothing left'
+              : raidMode!.mode === 'sneak'
+                ? 'Search while unseen'
+                : 'Tear through the place'}
+            {!sel.exhausted && (
+              <span className="block text-xs font-normal opacity-75">
+                {searches} search{searches === 1 ? '' : 'es'} left
+              </span>
+            )}
+          </button>
+        ) : gateCleared ? null : (
+          <>
+            <button
+              onClick={onEnter}
+              className="w-full rounded bg-signal/90 px-2 py-2 text-sm font-bold leading-tight text-black hover:bg-signal"
+            >
+              <Icon name="action.search" /> Approach the gate
+            </button>
+            <button
+              onClick={sneakEnter}
+              className="w-full rounded border border-white/20 px-2 py-2 text-sm leading-tight hover:bg-white/5"
+            >
+              <Icon name="action.search" /> Sneak in
+              <span className="block text-xs font-normal opacity-60">Dexterity check — rich loot, no services</span>
+            </button>
+            <button
+              onClick={forceEnter}
+              className="w-full rounded border border-hiss/50 px-2 py-2 text-sm leading-tight text-hiss hover:bg-hiss/10"
+            >
+              <Icon name="combat.hostiles" /> Force enter
+              <span className="block text-xs font-normal opacity-60">Fight in — every search draws combat</span>
+            </button>
+          </>
+        )
       ) : isBlock ? (
         <button
           onClick={onEnterBlock ?? onEnter}
@@ -649,16 +712,23 @@ function KnownCard({
               ⛔ Beyond your range — hop closer, rest, or walk the tunnels.
             </div>
           )}
+          {noDryRoute && (
+            <div className="text-xs text-hiss">
+              ⛔ No dry route — water or sealed ground blocks the way.
+            </div>
+          )}
           <button
-            disabled={energyLow || outOfRange}
+            disabled={energyLow || outOfRange || !!noDryRoute}
             onClick={onTravel}
             className="w-full rounded bg-signal/80 py-2 text-sm font-bold text-black hover:bg-signal disabled:opacity-30"
           >
             {energyLow
               ? 'Too exhausted — sleep first'
-              : outOfRange
-                ? 'Too far to reach'
-                : `Travel here · ${est ? formatDuration(est.travelMin) : ''}`}
+              : noDryRoute
+                ? 'No dry route'
+                : outOfRange
+                  ? 'Too far to reach'
+                  : `Travel here · ${est ? formatDuration(est.travelMin) : ''}`}
           </button>
           {canTunnel && <TunnelButton seg={tunnelSeg ?? null} onTunnel={onTunnel} />}
           {tunnelHint && <div className="text-xs text-white/45">{tunnelHint}</div>}

@@ -195,9 +195,10 @@ export function hazardZonesNear(
 const PATH_STEP_M = 70;
 
 /**
- * Hazards the straight-line route actually crosses. Routing *around* a bad
- * pocket is the whole point, so this samples the path rather than testing the
- * endpoints — parking just outside a horde pocket is a real, rewardable choice.
+ * Hazards the walked route actually crosses. Pass `via` (land-aware polyline)
+ * when available so reservoir detours don't falsely sample mid-water; otherwise
+ * the straight chord is used. Routing *around* a bad pocket is still intentional
+ * — this only samples the path you actually take.
  */
 export function hazardsOnPath(
   seed: string,
@@ -205,15 +206,27 @@ export function hazardsOnPath(
   to: { lat: number; lng: number },
   safe?: SafeAnchor,
   pressure = 0,
+  via?: { lat: number; lng: number }[],
 ): HazardZone[] {
-  const dist = haversine(from.lat, from.lng, to.lat, to.lng);
-  const steps = Math.max(1, Math.ceil(dist / PATH_STEP_M));
   const seen = new Map<string, HazardZone>();
-  for (let i = 0; i <= steps; i++) {
-    const t = i / steps;
-    const lat = from.lat + (to.lat - from.lat) * t;
-    const lng = from.lng + (to.lng - from.lng) * t;
+  const sampleAt = (lat: number, lng: number) => {
     for (const z of hazardZonesNear(seed, lat, lng, 0, safe, pressure)) seen.set(z.id, z);
+  };
+
+  const points =
+    via && via.length >= 2
+      ? via
+      : [from, to];
+
+  for (let s = 1; s < points.length; s++) {
+    const a = points[s - 1];
+    const b = points[s];
+    const dist = haversine(a.lat, a.lng, b.lat, b.lng);
+    const steps = Math.max(1, Math.ceil(dist / PATH_STEP_M));
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      sampleAt(a.lat + (b.lat - a.lat) * t, a.lng + (b.lng - a.lng) * t);
+    }
   }
   return [...seen.values()];
 }
@@ -266,9 +279,19 @@ export function trekRisk(
    * route is priced against every hazard on it, seen or not.
    */
   hazardsOverride?: HazardZone[],
+  /** Land-aware polyline; distance and hazard samples follow it when set. */
+  via?: { lat: number; lng: number }[],
 ): TrekRisk {
-  const dist = haversine(from.lat, from.lng, to.lat, to.lng);
-  const hazards = hazardsOverride ?? hazardsOnPath(seed, from, to, opts.safe, opts.hordeIntensity);
+  const dist =
+    via && via.length >= 2
+      ? via.reduce(
+          (sum, p, i) =>
+            i === 0 ? 0 : sum + haversine(via[i - 1].lat, via[i - 1].lng, p.lat, p.lng),
+          0,
+        )
+      : haversine(from.lat, from.lng, to.lat, to.lng);
+  const hazards =
+    hazardsOverride ?? hazardsOnPath(seed, from, to, opts.safe, opts.hordeIntensity, via);
 
   let p = (dist / 100) * 0.018 * OPEN_GROUND_ENCOUNTER_MULT;
   if (opts.band === 'night') p += 0.14;

@@ -28,6 +28,7 @@ import {
   unplayableMessage,
   walkabilityOf,
 } from './playable';
+import { NO_DRY_ROUTE_MSG, routeLandPath } from './route';
 import { adjacentEdge, displayLine, getMrtNetwork, loadMrtNetwork, tunnelSegmentBetween } from './mrt';
 import {
   addPressure,
@@ -51,7 +52,7 @@ import {
   type TunnelRun,
 } from './tunnelRun';
 import { buildLocations, generateFallbackWorld, makeStationLocation } from './world';
-import { conditionRoll, itemDef, rollLoot, type LootStack } from './loot';
+import { conditionRoll, itemDef, ITEMS, rollFactionRaidLoot, rollLoot, type LootStack } from './loot';
 import {
   addToGrid,
   canPlace,
@@ -148,6 +149,11 @@ import {
   STANCES,
 } from './combat';
 import {
+  ENEMIES,
+  rollHumanDrop,
+  rollLonerDrop,
+} from './enemies';
+import {
   EVENT_COOLDOWN_HOURS,
   EVENT_MAX_PER_DAY,
   clampStanding,
@@ -155,6 +161,7 @@ import {
   isTerminal,
   mrtTollEvent,
   rollCheck,
+  dcFor,
   STANDING_TRUSTED,
   rollFactionGateEvent,
   rollPreScavengeEvent,
@@ -321,13 +328,15 @@ function resumableTunnel(saved: TunnelRun | null | undefined): TunnelRun | null 
   return saved;
 }
 
-/** In-flight walking animation between two points. Purely visual — the clock has
+/** In-flight walking animation along a land route. Purely visual — the clock has
  *  already advanced; arrival logic fires when the glide finishes. */
 export interface TravelAnim {
   fromLat: number;
   fromLng: number;
   toLat: number;
   toLng: number;
+  /** Waypoints including endpoints (length ≥ 2). Glide follows this polyline. */
+  path: { lat: number; lng: number }[];
   /** null when striking out into open ground rather than to a known site. */
   toId: string | null;
   startedAt: number; // Date.now() when the glide began
@@ -419,12 +428,16 @@ interface State {
    */
   _eventClock: EventClock;
   /**
-   * How each faction feels about you, -3..+3. Paying tolls and behaving at
-   * their water points buys goodwill; refusing and drawing down spends it.
-   * At +2 they stop charging you at the door; at -2 even the orderly ones
-   * open fire.
+   * How each faction feels about you, −5…+5. Paying at the gate and behaving
+   * at their water points buys goodwill; sneaking, forcing, and refusing tribute
+   * spends it. At +2 they wave you through; at −4 even the orderly ones open fire.
    */
   factionStanding: FactionStanding;
+  /**
+   * Visit-scoped illicit entry: loot by size, no services. Cleared when you
+   * leave the site. Null when not raiding.
+   */
+  raidMode: { locationId: string; mode: 'sneak' | 'force' } | null;
   /**
    * Which site is each faction's outpost — the one place of theirs that is a
    * destination rather than a door. Fixed at world-build and saved with the
@@ -455,6 +468,12 @@ interface State {
   travel: (locationId: string) => void;
   /** Step inside the site you're standing at — the doorway, then the search. */
   enter: () => void;
+  /** Dexterity check to slip past the gate into raid mode. */
+  sneakEnter: () => void;
+  /** Draw steel at the gate — fight into raid mode. */
+  forceEnter: () => void;
+  /** Search while illicitly inside a faction site (sneak check or guaranteed fight). */
+  raidSearch: () => void;
   /** Strike out to bare coordinates — no site, no loot, no shelter. */
   trek: (lat: number, lng: number) => void;
   /**
@@ -770,6 +789,7 @@ export const useGame = create<State>((set, get) => {
       combat: null,
       _combatRng: null,
       pendingEvent: null,
+      raidMode: null,
       // Dying underground still ends on the death screen, not behind a map of
       // the tunnel you didn't finish.
       tunnel: null,
@@ -1051,12 +1071,24 @@ export const useGame = create<State>((set, get) => {
     const lootRng = new Rng(s2.seed).fork(`loot:${loc2.id}:${loc2.remainingSearches}`);
     const lootMod = sumTraitMod(s2.character!.traitIds, 'lootMod');
     const perceptionBonus = Math.floor((s2.character!.attributes.perception - 5) / 2);
-    const loot = rollLoot(
-      lootRng,
-      loc2.category,
-      POI_CONFIG[loc2.category].richness,
-      lootMod + perceptionBonus,
-    );
+    const raiding =
+      !!loc2.factionId &&
+      s2.raidMode?.locationId === locationId &&
+      !!s2.raidMode.mode;
+    const loot = raiding
+      ? rollFactionRaidLoot(
+          lootRng,
+          loc2.category,
+          POI_CONFIG[loc2.category].richness,
+          lootMod + perceptionBonus,
+          loc2.factionId!,
+        )
+      : rollLoot(
+          lootRng,
+          loc2.category,
+          POI_CONFIG[loc2.category].richness,
+          lootMod + perceptionBonus,
+        );
 
     /*
      * How intact the find is. A site is generous with *working* gear in
@@ -1064,12 +1096,17 @@ export const useGame = create<State>((set, get) => {
      * is, and how little of it has already been stripped. The first search of a
      * police station turns up kit that works; the third search of a picked-over
      * minimart turns up a blunt knife.
+     *
+     * Raid hauls are the faction's own stores — bias hard toward gear that
+     * still works, because they weren't leaving junk on their own shelves.
      */
     const searchesUsed = 1 - loc2.remainingSearches / Math.max(1, POI_CONFIG[loc2.category].richness);
-    const bias = Math.max(
-      0,
-      Math.min(1, loc2.currentDanger / 6 - Math.max(0, searchesUsed) * 0.35),
-    );
+    const bias = raiding
+      ? Math.max(0.65, Math.min(1, 0.75 + loc2.currentDanger / 12))
+      : Math.max(
+          0,
+          Math.min(1, loc2.currentDanger / 6 - Math.max(0, searchesUsed) * 0.35),
+        );
 
     // place loot into backpack, piling the overflow at the site
     let items = s2.items;
@@ -1103,7 +1140,11 @@ export const useGame = create<State>((set, get) => {
       pushLog(flavor('searchEmpty', { name: loc2.name }), 'info');
     } else {
       pushLog(
-        fled ? `Grabbed what you could from ${loc2.name}.` : flavor('searchFound', { name: loc2.name }),
+        fled
+          ? `Grabbed what you could from ${loc2.name}.`
+          : raiding
+            ? `Raided their stores at ${loc2.name} — this is why they keep a gate.`
+            : flavor('searchFound', { name: loc2.name }),
         'good',
         { loot, leftover: [...stashed, ...leftover] },
       );
@@ -1181,24 +1222,20 @@ export const useGame = create<State>((set, get) => {
     set({ combat, _combatRng: encRng.fork('fight') });
   };
 
-  const HUMAN_DROPS: Record<Exclude<FactionId, null>, string[]> = {
-    syndicate_88: ['parang', 'jewellery', 'painkillers'],
-    idtf: ['ammo_box', 'kevlar_vest', 'bandage'],
-    pasir_panjang: ['hawker_meal', 'kitchen_knife', 'canned_food'],
-    sta: ['torch', 'batteries', 'soft_drink'],
-  };
-
   const startHumanCombat = (
     locationId: string,
     faction: Exclude<FactionId, null>,
     grantOnFlee: boolean,
+    opts: { pendingRaid?: 'sneak' | 'force'; raidLoot?: boolean } = {},
   ) => {
     const s = get();
     const loc = s.locations[locationId];
-    const humanRng = new Rng(s.seed).fork(`human:${loc.id}:${s.day}`);
+    const humanRng = new Rng(s.seed).fork(
+      `human:${loc.id}:${s.day}:${loc.remainingSearches}:${opts.pendingRaid ?? ''}:${opts.raidLoot ? 'loot' : ''}`,
+    );
     const enemy = makeHuman(humanRng, faction, Math.round(loc.currentDanger));
-    const pool = HUMAN_DROPS[faction];
-    const drops = humanRng.chance(0.7) ? [humanRng.pick(pool)] : [];
+    const drop = rollHumanDrop(ENEMIES, humanRng, faction);
+    const drops = drop ? [drop] : [];
     const combat: CombatState = {
       locationId,
       zombie: enemy,
@@ -1207,7 +1244,13 @@ export const useGame = create<State>((set, get) => {
       over: false,
       outcome: null,
       playerHpSnapshot: totalHp(s.bodyParts),
-      context: { locationId, grantOnFlee, drops },
+      context: {
+        locationId,
+        grantOnFlee,
+        drops,
+        pendingRaid: opts.pendingRaid,
+        raidLoot: opts.raidLoot,
+      },
       selectedStance: 'guarded',
       terrain: terrainForCategory(loc.category),
       awaitingStance: true,
@@ -1218,6 +1261,29 @@ export const useGame = create<State>((set, get) => {
       speedIndex: 1,
     };
     set({ combat, _combatRng: humanRng.fork('fight') });
+  };
+
+  /** Standing hit for illicit combat at a faction site (every fight, −1). */
+  const illicitStandingHit = (locationId: string) => {
+    const loc = get().locations[locationId];
+    if (!loc?.factionId) return;
+    shiftStanding(loc.factionId, -1);
+  };
+
+  const enterRaid = (locationId: string, mode: 'sneak' | 'force') => {
+    const loc = get().locations[locationId];
+    if (!loc?.factionId) return;
+    set({ raidMode: { locationId, mode } });
+    pushLog(
+      mode === 'sneak'
+        ? `You're inside ${loc.name} unseen. Search carefully — or slip out.`
+        : `You've forced your way into ${loc.name}. Every shelf will cost blood.`,
+      mode === 'sneak' ? 'good' : 'info',
+    );
+  };
+
+  const clearRaid = () => {
+    if (get().raidMode) set({ raidMode: null });
   };
 
   /**
@@ -1231,12 +1297,8 @@ export const useGame = create<State>((set, get) => {
     const loc = s.locations[locationId];
     const rng = new Rng(s.seed).fork(`loner:${loc.id}:${s.day}:${Math.round(s.hour)}`);
     const enemy = makeLoner(rng, kind, Math.round(loc.currentDanger));
-    const drops =
-      kind === 'scavenger'
-        ? [rng.pick(['canned_food', 'medkit', 'batteries', 'duct_tape', 'ammo_box', 'toolbox'])]
-        : rng.chance(0.3)
-          ? [rng.pick(['snacks', 'bandage'])]
-          : [];
+    const drop = rollLonerDrop(ENEMIES, rng, kind);
+    const drops = drop ? [drop] : [];
     const combat: CombatState = {
       locationId,
       zombie: enemy,
@@ -1348,8 +1410,16 @@ export const useGame = create<State>((set, get) => {
   const attemptSearch = (locationId: string) => {
     const s = get();
     const loc = s.locations[locationId];
-    // Occupied ground is an NPC hub — never scavenger rolls or HDB crawls.
+    // Occupied ground is an NPC hub — never scavenger rolls or HDB crawls,
+    // unless you're illicitly raiding after sneak / force.
     if (loc.factionId) {
+      const raid = s.raidMode;
+      if (raid && raid.locationId === locationId) {
+        resolveSearch(locationId, false);
+        const after = get().locations[locationId];
+        if (after?.exhausted) clearRaid();
+        return;
+      }
       pushLog(
         `${FACTION_CONFIG[loc.factionId].shortName} hold this place. You deal with them, you don't ransack the shelves.`,
         'info',
@@ -1876,6 +1946,7 @@ export const useGame = create<State>((set, get) => {
       travelAnim: null,
       currentPos: { lat: loc.lat, lng: loc.lng },
       currentPositionId: loc.id,
+      raidMode: null,
       locations: {
         ...st.locations,
         [loc.id]: { ...st.locations[loc.id], isFactionRevealed: true },
@@ -1952,6 +2023,7 @@ export const useGame = create<State>((set, get) => {
       travelAnim: null,
       currentPos: { lat, lng },
       currentPositionId: null,
+      raidMode: null,
       exploredArea: [...st.exploredArea, { lat, lng, radius: TREK_LIGHT_RADIUS }],
     }));
     pushLog(flavor('trekArrive'), 'info');
@@ -1973,11 +2045,12 @@ export const useGame = create<State>((set, get) => {
 
     // Patrolled ground sends people; everything else sends the dead.
     const human = pending.hazard === 'gang_patrol';
+    const gangFaction = ENEMIES.spawn.wildsGangFaction;
     const enemy = human
-      ? makeHuman(fightRng, 'syndicate_88', pending.danger)
+      ? makeHuman(fightRng, gangFaction, pending.danger)
       : makeZombie(fightRng, pending.danger);
-    const drops =
-      human && fightRng.chance(0.7) ? [fightRng.pick(HUMAN_DROPS.syndicate_88)] : undefined;
+    const gangDrop = human ? rollHumanDrop(ENEMIES, fightRng, gangFaction) : null;
+    const drops = gangDrop ? [gangDrop] : undefined;
 
     const combat: CombatState = {
       locationId: null,
@@ -2045,6 +2118,7 @@ export const useGame = create<State>((set, get) => {
     _eventRng: null,
     _eventClock: freshEventClock(),
     factionStanding: emptyStanding(),
+    raidMode: null,
     outposts: {},
     trader: null,
     traderTaken: {},
@@ -2197,41 +2271,27 @@ export const useGame = create<State>((set, get) => {
         );
       }
 
-      // starting gear: knife, leather jacket, sneakers; water & snacks in the pack
+      // Starting kit comes from ItemDef.startingItem flags (editable in the DEV loot browser).
       let items: ItemInstance[] = [];
-      items = addToGrid(items, 'backpack', 'water_bottle', 1).items;
-      items = addToGrid(items, 'backpack', 'snacks', 2).items;
       const equipment = emptyEquipment();
-      equipment.mainHand = {
-        uid: `equip_knife`,
-        defId: 'kitchen_knife',
-        container: 'equip:mainHand',
-        x: 0,
-        y: 0,
-        rotated: false,
-        stack: 1,
-        condition: 100,
-      };
-      equipment.body = {
-        uid: `equip_jacket`,
-        defId: 'leather_jacket',
-        container: 'equip:body',
-        x: 0,
-        y: 0,
-        rotated: false,
-        stack: 1,
-        condition: 100,
-      };
-      equipment.feet = {
-        uid: `equip_sneakers`,
-        defId: 'sneakers',
-        container: 'equip:feet',
-        x: 0,
-        y: 0,
-        rotated: false,
-        stack: 1,
-        condition: 100,
-      };
+      for (const def of Object.values(ITEMS)) {
+        if (!def.startingItem) continue;
+        if (def.slot && !equipment[def.slot]) {
+          equipment[def.slot] = {
+            uid: `equip_start_${def.id}`,
+            defId: def.id,
+            container: `equip:${def.slot}`,
+            x: 0,
+            y: 0,
+            rotated: false,
+            stack: 1,
+            condition: def.maxCondition ?? 100,
+          };
+        } else {
+          const count = Math.max(1, def.startingCount ?? 1);
+          items = addToGrid(items, 'backpack', def.id, count).items;
+        }
+      }
 
       // Promote up to four sites per faction to outposts, seed services, and
       // reveal outpost pins so they read as destinations from day one.
@@ -2280,7 +2340,12 @@ export const useGame = create<State>((set, get) => {
         sumTraitMod(s.character!.traitIds, 'carryCapacityMod'),
       );
 
-      const dist = Math.round(haversine(s.currentPos.lat, s.currentPos.lng, loc.lat, loc.lng));
+      const route = routeLandPath(s.currentPos, { lat: loc.lat, lng: loc.lng });
+      if (!route) {
+        pushLog(NO_DRY_ROUTE_MSG, 'bad');
+        return;
+      }
+      const dist = route.lengthM;
 
       // You can only push so far in one go. Beyond your current range you must
       // hop via a closer waypoint, rest to recover, or walk a tunnel segment.
@@ -2383,6 +2448,7 @@ export const useGame = create<State>((set, get) => {
           fromLng: from.lng,
           toLat: loc.lat,
           toLng: loc.lng,
+          path: route.points,
           toId: loc.id,
           startedAt: Date.now(),
           durationMs,
@@ -2399,6 +2465,100 @@ export const useGame = create<State>((set, get) => {
         return;
       }
       enterLocation(s.currentPositionId);
+    },
+
+    sneakEnter: () => {
+      const s = get();
+      if (s.combat || s.pendingEvent || s.travelAnim || s.hdb || s.raidMode) return;
+      const id = s.currentPositionId;
+      if (!id) return;
+      const loc = s.locations[id];
+      if (!loc?.factionId) return;
+      if (hasFactionClearance(loc, s.factionStanding, s.day)) {
+        pushLog('They already know your face here — no need to sneak.', 'info');
+        return;
+      }
+      const rng = new Rng(s.seed).fork(`sneak:${loc.id}:${s.day}:${Math.round(s.hour)}`);
+      const bonus = sumTraitMod(s.character!.traitIds, 'checkBonusMod');
+      const dc = dcFor(loc.currentDanger);
+      const res = rollCheck(rng, s.character!.attributes.dexterity, dc, bonus);
+      if (res.success) {
+        pushLog(
+          res.roll === 20
+            ? 'You ghost past the gate without a sound.'
+            : `You slip past the gate (dex ${res.total} vs ${dc}).`,
+          'good',
+        );
+        enterRaid(id, 'sneak');
+        persist();
+        return;
+      }
+      pushLog(`Spotted slipping in (dex ${res.total} vs ${dc}). Blades come out.`, 'bad');
+      illicitStandingHit(id);
+      startHumanCombat(id, loc.factionId, false, { pendingRaid: 'sneak' });
+    },
+
+    forceEnter: () => {
+      const s = get();
+      if (s.combat || s.pendingEvent || s.travelAnim || s.hdb || s.raidMode) return;
+      const id = s.currentPositionId;
+      if (!id) return;
+      const loc = s.locations[id];
+      if (!loc?.factionId) return;
+      if (hasFactionClearance(loc, s.factionStanding, s.day)) {
+        pushLog('They wave you through — drawing steel would be madness.', 'info');
+        return;
+      }
+      pushLog('You force the gate. They answer in kind.', 'bad');
+      illicitStandingHit(id);
+      startHumanCombat(id, loc.factionId, false, { pendingRaid: 'force' });
+    },
+
+    raidSearch: () => {
+      const s = get();
+      if (s.combat || s.pendingEvent || s.travelAnim || s.hdb) return;
+      const raid = s.raidMode;
+      if (!raid || raid.locationId !== s.currentPositionId) return;
+      const loc = s.locations[raid.locationId];
+      if (!loc?.factionId) {
+        clearRaid();
+        return;
+      }
+      if (loc.exhausted) {
+        pushLog(flavor('pickedClean', { name: loc.name }), 'info');
+        clearRaid();
+        persist();
+        return;
+      }
+
+      if (raid.mode === 'force') {
+        pushLog('You tear into the shelves — and they hear you.', 'bad');
+        illicitStandingHit(raid.locationId);
+        startHumanCombat(raid.locationId, loc.factionId, false, { raidLoot: true });
+        return;
+      }
+
+      // Sneak: each search is another dexterity check.
+      const rng = new Rng(s.seed).fork(
+        `raidsneak:${loc.id}:${s.day}:${loc.remainingSearches}`,
+      );
+      const bonus = sumTraitMod(s.character!.traitIds, 'checkBonusMod');
+      const dc = dcFor(loc.currentDanger);
+      const res = rollCheck(rng, s.character!.attributes.dexterity, dc, bonus);
+      if (res.success) {
+        pushLog(
+          res.roll === 20
+            ? 'You work the shelves without a whisper.'
+            : `Quiet hands (dex ${res.total} vs ${dc}).`,
+          'good',
+        );
+        attemptSearch(raid.locationId);
+        persist();
+        return;
+      }
+      pushLog(`Caught rifling the place (dex ${res.total} vs ${dc}).`, 'bad');
+      illicitStandingHit(raid.locationId);
+      startHumanCombat(raid.locationId, loc.factionId, false, { raidLoot: true });
     },
 
     // Walk out to bare coordinates. This is the release valve on a sparse map:
@@ -2420,7 +2580,12 @@ export const useGame = create<State>((set, get) => {
       }
 
       const from = s.currentPos;
-      const dist = Math.round(haversine(from.lat, from.lng, lat, lng));
+      const route = routeLandPath(from, { lat, lng });
+      if (!route) {
+        pushLog(NO_DRY_ROUTE_MSG, 'bad');
+        return;
+      }
+      const dist = route.lengthM;
       if (dist < TREK_MIN_DISTANCE_M) {
         pushLog('That\'s a few steps, not a move. Pick somewhere worth the walk.', 'info');
         return;
@@ -2469,19 +2634,26 @@ export const useGame = create<State>((set, get) => {
 
       const now = get();
       const trekBand = timeOfDay(now.hour);
-      const risk = trekRisk(now.seed, from, { lat, lng }, {
-        band: trekBand,
-        hordeIntensity: hordeIntensity(now.hordeLevel),
-        weatherEncounterMod: weatherEncounterMod(weather),
-        traitEncounterMod:
-          sumTraitMod(now.character!.traitIds, 'encounterChanceMod') +
-          (trekBand === 'night' || trekBand === 'dusk'
-            ? sumTraitMod(now.character!.traitIds, 'nightEncounterChanceMod')
-            : 0) +
-          equipEncounterChanceMod(now.equipment) +
-          bleedEncounterMod(now.bodyParts),
-        safe: now.spawn ?? undefined,
-      });
+      const risk = trekRisk(
+        now.seed,
+        from,
+        { lat, lng },
+        {
+          band: trekBand,
+          hordeIntensity: hordeIntensity(now.hordeLevel),
+          weatherEncounterMod: weatherEncounterMod(weather),
+          traitEncounterMod:
+            sumTraitMod(now.character!.traitIds, 'encounterChanceMod') +
+            (trekBand === 'night' || trekBand === 'dusk'
+              ? sumTraitMod(now.character!.traitIds, 'nightEncounterChanceMod')
+              : 0) +
+            equipEncounterChanceMod(now.equipment) +
+            bleedEncounterMod(now.bodyParts),
+          safe: now.spawn ?? undefined,
+        },
+        undefined,
+        route.points,
+      );
 
       // Exposure: crossing open ground costs stamina the clock alone wouldn't.
       set({
@@ -2510,6 +2682,7 @@ export const useGame = create<State>((set, get) => {
           fromLng: from.lng,
           toLat: lat,
           toLng: lng,
+          path: route.points,
           toId: null,
           startedAt,
           durationMs,
@@ -2964,17 +3137,22 @@ export const useGame = create<State>((set, get) => {
         attemptSearch(pe.locationId);
       };
 
-      const fightOut = (foe?: LonerKind) => {
+      const fightOut = (foe?: LonerKind, opts?: { pendingRaid?: 'sneak' | 'force' }) => {
         if (foe) {
           startLonerCombat(pe.locationId, foe);
         } else if (ev.factionId) {
-          startHumanCombat(pe.locationId, ev.factionId, false);
+          startHumanCombat(pe.locationId, ev.factionId, false, {
+            pendingRaid: opts?.pendingRaid,
+          });
         } else {
-          startHumanCombat(pe.locationId, 'syndicate_88', false);
+          startHumanCombat(pe.locationId, 'syndicate_88', false, {
+            pendingRaid: opts?.pendingRaid,
+          });
         }
       };
 
       const applyTrespass = () => {
+        illicitStandingHit(pe.locationId);
         const locs = get().locations;
         const cur = locs[pe.locationId];
         if (cur?.factionId && !cur.trespassStandingHit) {
@@ -2984,12 +3162,11 @@ export const useGame = create<State>((set, get) => {
               [pe.locationId]: { ...cur, trespassStandingHit: true },
             },
           });
-          shiftStanding(cur.factionId, -1);
-          pushLog('Trespassing here costs you with them — once.', 'bad');
+          pushLog('Trespassing here costs you with them.', 'bad');
         } else if (cur?.factionId) {
           pushLog('They already marked you for trespass here. Blades come out anyway.', 'bad');
         }
-        fightOut();
+        fightOut(undefined, { pendingRaid: 'force' });
       };
 
       // --- effect interpreter --------------------------------------------
@@ -3077,6 +3254,10 @@ export const useGame = create<State>((set, get) => {
             return true;
           case 'trespass':
             applyTrespass();
+            return true;
+          case 'raid':
+            enterRaid(pe.locationId, e.mode);
+            persist();
             return true;
           case 'zombies':
             pushLog(e.line, 'bad');
@@ -4288,6 +4469,20 @@ export const useGame = create<State>((set, get) => {
         // A road ambush isn't a search — winning just clears the way in.
         if (outcome === 'win') pushLog('You fight clear and reach the site.', 'good');
         else pushLog('You break away and duck into cover.', 'info');
+      } else if (context.pendingRaid) {
+        if (outcome === 'win') {
+          enterRaid(locationId!, context.pendingRaid);
+        } else {
+          pushLog('You break off before you get inside.', 'info');
+        }
+      } else if (context.raidLoot) {
+        if (outcome === 'win') {
+          resolveSearch(locationId!, false);
+          const after = get().locations[locationId!];
+          if (after?.exhausted) clearRaid();
+        } else {
+          pushLog('You break contact empty-handed — still inside, still hunted.', 'info');
+        }
       } else if (outcome === 'win') {
         resolveSearch(locationId!, false);
       } else if (outcome === 'flee') {
@@ -4326,6 +4521,7 @@ export const useGame = create<State>((set, get) => {
         _eventRng: null,
         _eventClock: freshEventClock(),
         factionStanding: emptyStanding(),
+        raidMode: null,
         log: [],
         stats: emptyRunStats(),
         hasSavedRun: !!loadRun(),
@@ -4390,6 +4586,7 @@ export const useGame = create<State>((set, get) => {
         _eventRng: null,
         _eventClock: run.eventClock ?? { ...freshEventClock(), day: run.day },
         factionStanding: { ...emptyStanding(), ...(run.factionStanding ?? {}) },
+        raidMode: null,
         // A save written before outposts existed has none. Rather than leave
         // that run permanently without markets, re-derive them from the world
         // it already has — the pick is deterministic, so a save written after
