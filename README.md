@@ -324,10 +324,12 @@ Three traps, all already paid for:
   to a tags-only print. It must be `out geom`.
 - **OSM maps each direction of travel as its own way**, so a line arrives as two parallel rails ~15 m
   apart and draws as a double line. `dedupeWays` keeps one centreline by dropping any way whose length
-  is ≥90% covered (within 30 m) by an already-accepted, *longer* way on the same line. It must be a
-  **cover fraction**, not a nearest-point test: the Changi branch shares the East West alignment for a
-  few hundred metres out of Tanah Merah, and a "reject anything that comes close" rule eats every
-  branch at its junction. Longest-first ordering is what stops two twins deleting each other.
+  is ≥75% covered (within 40 m) by an already-accepted, *longer* way on the same line — short ≤3-point
+  stubs drop at ≥50% cover. It must be a **cover fraction**, not a nearest-point test: the Changi
+  branch shares the East West alignment for a few hundred metres out of Tanah Merah, and a "reject
+  anything that comes close" rule eats every branch at its junction. Longest-first ordering is what
+  stops two twins deleting each other. After dedupe, `stitchWays` chains leftover fragments whose
+  endpoints lie within 200 m into continuous polylines so the overlay does not draw dashed track.
 - MRT/LRT interchanges (Choa Chu Kang, Sengkang, Punggol) are two OSM stations sharing a name and a
   building but *no* station code, so code-merging alone leaves the LRT loops unreachable. Same-named
   stations within 400 m are folded together.
