@@ -20,6 +20,7 @@ import {
 import { useGame } from '../game/store';
 import { dangerColor } from './mapIcons';
 import { formatDuration, type estimateExpedition } from '../game/travel';
+import { remainingSearchMinutes } from '../game/searchSession';
 import { displayLine, getMrtNetwork, linesAt, type MrtSegment } from '../game/mrt';
 import type { FactionService, LocationState } from '../game/types';
 import type { IconName } from '../icons/keys';
@@ -525,6 +526,10 @@ function KnownCard({
   const factionRevealed = useMem ? mem!.isFactionRevealed : sel.isFactionRevealed;
   const exhausted = useMem ? mem!.exhausted : sel.exhausted;
   const searches = useMem ? mem!.remainingSearches : sel.remainingSearches;
+  const searchesLabel =
+    Math.abs(searches - Math.round(searches)) < 0.05
+      ? `${Math.round(searches)}`
+      : searches.toFixed(1);
   const faction = factionRevealed && sel.factionId ? FACTION_CONFIG[sel.factionId] : null;
   const dngr = Math.max(1, Math.round(danger));
   const occupied = !!sel.factionId;
@@ -532,13 +537,20 @@ function KnownCard({
   const standing = useGame((s) => s.factionStanding);
   const day = useGame((s) => s.day);
   const raidMode = useGame((s) => s.raidMode);
+  const pendingSearch = useGame((s) => s.pendingSearch);
+  const abortSearch = useGame((s) => s.abortSearch);
   const sneakEnter = useGame((s) => s.sneakEnter);
   const forceEnter = useGame((s) => s.forceEnter);
   const raidSearch = useGame((s) => s.raidSearch);
   const gateCleared = occupied && hasFactionClearance(sel, standing, day);
   const raidingHere = raidMode?.locationId === sel.id;
+  const searchingHere =
+    !!pendingSearch && pendingSearch.locationId === sel.id && here;
+  const searchEtaMin = searchingHere ? remainingSearchMinutes(pendingSearch!) : 0;
 
-  const siteStatus = occupied
+  const siteStatus = searchingHere
+    ? `Searching… ~${formatDuration(searchEtaMin)} left in this haul`
+    : occupied
     ? raidingHere
       ? raidMode!.mode === 'sneak'
         ? 'Inside unseen — their stores, if you stay quiet.'
@@ -548,7 +560,7 @@ function KnownCard({
       ? '12 floors — cleared unit by unit, not searched.'
       : exhausted
         ? 'Picked clean — exhausted.'
-        : `${searches} search${searches === 1 ? '' : 'es'} left`;
+        : `${searchesLabel} search${Math.abs(searches - 1) < 0.05 ? '' : 'es'} left`;
 
   const metaLine = (
     <div className="mt-1 text-xs text-white/45">
@@ -570,7 +582,17 @@ function KnownCard({
 
   const actions = (
     <>
-      {occupied ? (
+      {searchingHere ? (
+        <button
+          onClick={() => abortSearch()}
+          className="w-full rounded border border-white/20 bg-white/5 px-2 py-2 text-sm font-bold leading-tight hover:bg-white/10"
+        >
+          <Icon name="action.search" /> Searching…
+          <span className="block text-xs font-normal opacity-75">
+            ~{formatDuration(searchEtaMin)} left — Leave to stop early
+          </span>
+        </button>
+      ) : occupied ? (
         raidingHere ? (
           <button
             disabled={sel.exhausted}
@@ -585,7 +607,7 @@ function KnownCard({
                 : 'Tear through the place'}
             {!sel.exhausted && (
               <span className="block text-xs font-normal opacity-75">
-                {searches} search{searches === 1 ? '' : 'es'} left
+                {searchesLabel} search{Math.abs(searches - 1) < 0.05 ? '' : 'es'} left
               </span>
             )}
           </button>

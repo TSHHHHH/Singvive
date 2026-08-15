@@ -9,6 +9,7 @@ import { ATTRIBUTE_ICONS, ATTRIBUTE_LABELS } from '../game/character';
 import type { ChoiceKind } from '../game/events';
 import type { IconName } from '../icons/keys';
 import { EncounterPrompt } from './EncounterPrompt';
+import { SearchSessionNode } from './SearchSessionNode';
 
 const toneClass: Record<string, string> = {
   good: 'text-signal',
@@ -52,6 +53,7 @@ export function LogPanel({
   const log = useGame((s) => s.log);
   const day = useGame((s) => s.day);
   const pending = useGame((s) => s.pendingEvent);
+  const pendingSearch = useGame((s) => s.pendingSearch);
   const items = useGame((s) => s.items);
   const resolveEvent = useGame((s) => s.resolveEvent);
   // A fight waiting on a stance is a live node at the foot of the timeline,
@@ -84,16 +86,20 @@ export function LogPanel({
   const ev = pending?.event;
   // The newest log entry is "latest" only when there's no live node below it.
   const latestId =
-    !ev && !awaitingStance && shown.length > 0 ? shown[shown.length - 1].id : null;
+    !ev && !awaitingStance && !pendingSearch && shown.length > 0
+      ? shown[shown.length - 1].id
+      : null;
 
   // keep the newest entry (and any live node) in view
   useEffect(() => {
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [log.length, pending, awaitingStance, viewId, day]);
+  }, [log.length, pending, pendingSearch, awaitingStance, viewId, day]);
 
   const hasItem = (defId?: string) =>
     !defId || items.some((i) => i.container === 'backpack' && i.defId === defId);
+
+  const hasLiveNode = !!ev || awaitingStance || !!pendingSearch;
 
   return (
     <div className="flex h-full min-w-0 flex-col">
@@ -140,7 +146,7 @@ export function LogPanel({
       </div>
 
       <div ref={scrollRef} className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden pl-1.5 pr-2">
-        {shown.length === 0 && !ev && !awaitingStance ? (
+        {shown.length === 0 && !hasLiveNode ? (
           <p className="text-white/30">
             {earlierDays ? 'A fresh day. Nothing has happened yet.' : 'Your story starts here…'}
           </p>
@@ -315,6 +321,9 @@ export function LogPanel({
             {/* Contact node — the fight's opening decision, sharing the spine
                 and the gutter with everything else that happened today. */}
             <EncounterPrompt timeW={timeW} hang={hang} />
+
+            {/* Sequential search — fogged stash grid at the foot of the day. */}
+            {pendingSearch && <SearchSessionNode timeW={timeW} hang={hang} />}
           </ol>
         )}
       </div>

@@ -38,6 +38,8 @@ export interface Trait {
   // --- loot/search ---
   lootMod?: number;
   searchBonusMod?: number; // extra searches per POI
+  /** Additive search-speed bonus, e.g. 0.1 = +10% faster sequential reveals. */
+  searchSpeedMod?: number;
 
   // --- health ---
   healBonus?: number;
@@ -207,6 +209,8 @@ export interface ItemModifiers {
   travelSpeedBonus?: number;
   /** Additive encounter risk while travelling (camo negative, noisy boots positive). */
   encounterChanceMod?: number;
+  /** Additive sequential-search speed, e.g. 0.15 = +15% faster reveals. */
+  searchSpeedBonus?: number;
 }
 
 export interface ItemDef {

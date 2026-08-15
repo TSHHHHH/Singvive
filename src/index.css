@@ -81,10 +81,25 @@ body {
   animation: pulse-danger 1.6s ease-in-out infinite;
 }
 
+@keyframes search-find-pulse {
+  0% {
+    filter: brightness(1.6);
+  }
+  100% {
+    filter: brightness(1);
+  }
+}
+.search-find-pulse {
+  animation: search-find-pulse 0.85s ease-out 1;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .pulse-danger {
     animation: none;
     opacity: 0.9;
+  }
+  .search-find-pulse {
+    animation: none;
   }
 }
 

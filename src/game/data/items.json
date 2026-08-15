@@ -1150,7 +1150,8 @@
     "modifiers": {
       "limbArmor": 1,
       "statusResist": 0.08,
-      "accuracyBonus": 1
+      "accuracyBonus": 1,
+      "searchSpeedBonus": 0.12
     }
   },
   "cut_gloves": {
@@ -1210,7 +1211,8 @@
       "limbArmor": 1,
       "statusResist": 0.1,
       "speedBonus": 1.2,
-      "accuracyBonus": 1
+      "accuracyBonus": 1,
+      "searchSpeedBonus": 0.18
     },
     "scarcity": 0.55
   },
@@ -1415,7 +1417,9 @@
     "color": "#c9a441",
     "slot": "offHand",
     "modifiers": {
-      "attackBonus": 1
+      "attackBonus": 1,
+      "searchSpeedBonus": 0.2,
+      "awarenessMod": 1
     }
   },
   "fuel_can": {

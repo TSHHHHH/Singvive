@@ -24,6 +24,8 @@ export const ALL_EQUIP_SLOTS: EquipSlot[] = [
 export const BACKPACK = 'backpack';
 export const BACKPACK_DIMS = { w: 8, h: 5 };
 export const STASH_DIMS = { w: 10, h: 8 };
+/** Compact grid for an in-progress sequential search (timeline stash). */
+export const SEARCH_DIMS = { w: 8, h: 5 };
 
 /**
  * Extra backpack columns from the character's traits.
@@ -41,9 +43,11 @@ export function setBackpackWidthBonus(columns: number): void {
 
 /** Grid dimensions for a container: the backpack is 8×5, every stash is 10×8. */
 export function dimsFor(container: Container): { w: number; h: number } {
-  return container === BACKPACK
-    ? { w: BACKPACK_DIMS.w + backpackWidthBonus, h: BACKPACK_DIMS.h }
-    : STASH_DIMS;
+  if (container === BACKPACK) {
+    return { w: BACKPACK_DIMS.w + backpackWidthBonus, h: BACKPACK_DIMS.h };
+  }
+  if (container.startsWith('search:')) return SEARCH_DIMS;
+  return STASH_DIMS;
 }
 
 let uidCounter = 0;
@@ -254,7 +258,19 @@ export function slotForZone(zone: BodyPartId): EquipSlot | null {
   }
 }
 
-function scaledMod(inst: ItemInstance, key: 'limbArmor' | 'statusResist' | 'accuracyBonus' | 'speedBonus' | 'travelSpeedBonus' | 'dodgeBonus' | 'attackBonus' | 'encounterChanceMod'): number {
+function scaledMod(
+  inst: ItemInstance,
+  key:
+    | 'limbArmor'
+    | 'statusResist'
+    | 'accuracyBonus'
+    | 'speedBonus'
+    | 'travelSpeedBonus'
+    | 'dodgeBonus'
+    | 'attackBonus'
+    | 'encounterChanceMod'
+    | 'searchSpeedBonus',
+): number {
   if (isBroken(inst)) return 0;
   const base = itemDef(inst.defId).modifiers?.[key] ?? 0;
   if (base === 0) return 0;
@@ -318,6 +334,19 @@ export function equipEncounterChanceMod(equipment: Equipment): number {
   for (const slot of ALL_EQUIP_SLOTS) {
     const inst = equipment[slot];
     if (inst) sum += scaledMod(inst, 'encounterChanceMod');
+  }
+  return sum;
+}
+
+/**
+ * Additive search-speed bonus from gloves / lights / similar kit.
+ * `0.15` ⇒ 15% faster sequential reveals (see `searchSpeedFactor`).
+ */
+export function equipSearchSpeedBonus(equipment: Equipment): number {
+  let sum = 0;
+  for (const slot of ALL_EQUIP_SLOTS) {
+    const inst = equipment[slot];
+    if (inst) sum += scaledMod(inst, 'searchSpeedBonus');
   }
   return sum;
 }

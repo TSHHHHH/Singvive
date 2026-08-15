@@ -65,9 +65,9 @@ export const FACTION_CONFIG: Record<Exclude<FactionId, null>, FactionData> = {
     hostileByDefault: false,
     blurb: 'What is left of the standing order — armouries, clinics, checkpoints. Orderly, but they tax entry.',
     tribute: ['ammo_box', 'medkit', 'batteries'],
-    // Schools were the designated shelters when it fell — so they were theirs
-    // to hold, and mostly still are.
-    preferredPoiCategories: ['police', 'hospital', 'clinic', 'school'],
+    // Hardpoints only — clinics and schools used to flood the map with IDTF
+    // wire; they still hold the places they can actually garrison.
+    preferredPoiCategories: ['police', 'hospital'],
     outpostName: 'Forward Aid Post',
     // A hospital they can defend beats a police post they can't.
     outpostCategories: ['hospital', 'police'],
@@ -88,7 +88,8 @@ export const FACTION_CONFIG: Record<Exclude<FactionId, null>, FactionData> = {
     hostileByDefault: false,
     blurb: 'The old wholesale traders run the food chain now. Pay in supplies and they let you dig in.',
     tribute: ['canned_food', 'hawker_meal', 'water_bottle'],
-    preferredPoiCategories: ['foodcourt', 'supermarket', 'convenience'],
+    // Markets and big stores — corner shops stay scavengable.
+    preferredPoiCategories: ['foodcourt', 'supermarket'],
     outpostName: 'Wet Market',
     outpostCategories: ['foodcourt', 'supermarket'],
     // Hot food and clean water, which is a shorter list than it sounds and the
@@ -111,9 +112,8 @@ export const FACTION_CONFIG: Record<Exclude<FactionId, null>, FactionData> = {
     hostileByDefault: true,
     blurb: 'Void-deck muscle turned estate warlords. They take what they want.',
     tribute: ['jewellery', 'tiger_beer', 'painkillers'],
-    // Estates first, but the Jurong yards are where the materials are — and
-    // muscle follows materials.
-    preferredPoiCategories: ['residential', 'hardware', 'industrial'],
+    // Estates and yards — sparse holds, not every block. Hardware stays free.
+    preferredPoiCategories: ['residential', 'industrial'],
     outpostName: 'Void Deck Court',
     outpostCategories: ['residential', 'industrial'],
     // The black market: the things the other two won't sell you, and the
@@ -257,15 +257,18 @@ export function gateStandingBand(
 /**
  * Odds a preferred site is actually claimed, per faction.
  *
- * The STA used to hold *every* station, which made the toll a fixed tax on
- * every descent rather than a thing that happens sometimes. Roughly half the
- * platforms now stand empty — nobody on the gate, nothing to pay.
+ * Kept deliberately low: occupied ground is an NPC hub (no scavenging), so a
+ * high claim rate eats half the map. Roughly one site in six–seven ends up
+ * claimed on a typical local run; the rest stay free to loot.
+ *
+ * STA: most platforms abandoned. Syndicate: estate muscle is sparse so the
+ * residential pool does not blank the scavengable map.
  */
 const CLAIM_CHANCE: Record<Exclude<FactionId, null>, number> = {
-  sta: 0.55,
-  pasir_panjang: 0.7,
-  idtf: 0.8,
-  syndicate_88: 0.4,
+  sta: 0.35,
+  pasir_panjang: 0.4,
+  idtf: 0.5,
+  syndicate_88: 0.12,
 };
 
 /** Priority order — first faction whose preferred categories match wins. */
@@ -286,9 +289,9 @@ export function assignFaction(rng: Rng, category: PoiCategory): FactionId {
 
 export const ALL_FACTION_SERVICES: FactionService[] = ['trade', 'rest', 'aid', 'intel'];
 
-export const OUTPOSTS_PER_FACTION = 4;
-/** Same-faction outposts stay a walk apart so four pins aren't a cluster. */
-export const OUTPOST_MIN_SPACING_M = 1100;
+export const OUTPOSTS_PER_FACTION = 2;
+/** Same-faction outposts stay a walk apart so twin pins aren't a cluster. */
+export const OUTPOST_MIN_SPACING_M = 1400;
 
 export type OutpostIds = Partial<Record<Exclude<FactionId, null>, string[]>>;
 
@@ -390,7 +393,7 @@ export function applyFactionServices(
 }
 
 /**
- * Promote up to four sites per faction to outposts, spaced apart.
+ * Promote up to two sites per faction to outposts, spaced apart.
  *
  * Prefer `outpostCategories`, then preferred territory, then any claim. Quota
  * may undershoot on a thin local map — that is fine.

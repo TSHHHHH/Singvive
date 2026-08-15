@@ -23,6 +23,7 @@ const MODIFIER_KEYS: (keyof ItemModifiers)[] = [
   'speedBonus',
   'travelSpeedBonus',
   'encounterChanceMod',
+  'searchSpeedBonus',
 ];
 
 function defaultEffect(kind: ItemEffect['kind']): ItemEffect {

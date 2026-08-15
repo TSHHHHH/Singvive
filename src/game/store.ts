@@ -63,6 +63,7 @@ import {
   degrade,
   emptyEquipment,
   equipEncounterChanceMod,
+  equipSearchSpeedBonus,
   equipSpeedBonus,
   equipTravelSpeedFactor,
   findSlot,
@@ -70,6 +71,7 @@ import {
   isBroken,
   isEncumbered,
   limbArmorForZone,
+  newUid,
   OWN_CLOTHES_TEARS,
   TEAR_CONDITION_COST,
   TEAR_HOURS,
@@ -83,6 +85,16 @@ import {
   tierOf,
   totalLootValue,
 } from './inventory';
+import {
+  abortChargeSpent,
+  buildSearchSession,
+  ensureSearching,
+  hasFoggedOrSearching,
+  prioritizeSlot,
+  tryReveal,
+  searchSpeedFactor,
+  type SearchSession,
+} from './searchSession';
 import {
   canCraft,
   countOf,
@@ -422,6 +434,12 @@ interface State {
   pendingEvent: PendingEvent | null;
   _eventRng: Rng | null;
   /**
+   * Live sequential search in the timeline. Runtime-only — not written to the
+   * save; a reload mid-search abandons unrevealed slots (found items stay in
+   * their `search:` container and are cleaned up on resume).
+   */
+  pendingSearch: SearchSession | null;
+  /**
    * Rate limiter for doorway events: when the last one fired (absolute hours
    * since the run began) and how many have fired today. Keeps encounters rare
    * enough to land as events instead of turnstiles.
@@ -502,6 +520,18 @@ interface State {
   /** Intel / rumor at a site that offers it (Known+). Once per day. */
   factionIntel: () => void;
   resolveEvent: (choiceId: string) => void;
+  /** Advance the active sequential search (RAF from the timeline UI). */
+  tickSearch: () => void;
+  /** Click a fogged cell to search it next. */
+  prioritizeSearchSlot: (slotId: string) => void;
+  /** Move one found item from the search grid into the pack (stash overflow). */
+  takeSearchItem: (uid: string) => void;
+  /** Take every found item still in the search grid. */
+  takeAllFound: () => void;
+  /** Abandon unsearched slots; keep finds; spend a partial search charge. */
+  abortSearch: () => void;
+  /** Finish after all slots are searched (or treat as abort if fogged remain). */
+  completeSearch: () => void;
   callEvac: () => void;
   /** Append a short line to the run log (UI soft-rejects, etc.). */
   notify: (text: string, tone?: GameLogEntry['tone']) => void;
@@ -789,6 +819,7 @@ export const useGame = create<State>((set, get) => {
       combat: null,
       _combatRng: null,
       pendingEvent: null,
+      pendingSearch: null,
       raidMode: null,
       // Dying underground still ends on the death screen, not behind a map of
       // the tunnel you didn't finish.
@@ -821,6 +852,7 @@ export const useGame = create<State>((set, get) => {
       combat: null,
       _combatRng: null,
       pendingEvent: null,
+      pendingSearch: null,
       hasSavedRun: false,
     });
   };
@@ -1057,102 +1089,269 @@ export const useGame = create<State>((set, get) => {
     persist();
   };
 
-  // Grant a search's loot into the backpack, deplete danger, spend a search.
-  const resolveSearch = (locationId: string, fled: boolean) => {
+  // Grant a search's loot into a sequential timeline session (not an instant dump).
+  const beginSearchSession = (locationId: string, fled: boolean) => {
     const s = get();
+    if (s.pendingSearch) return;
     const loc = s.locations[locationId];
     if (!loc) return;
+    if (loc.remainingSearches <= 0) {
+      pushLog(flavor('searchEmpty', { name: loc.name }), 'info');
+      return;
+    }
 
-    // searching takes time
-    if (advanceTime(searchMinutes(loc.category) / 60)) return;
-
-    const s2 = get();
-    const loc2 = s2.locations[locationId];
-    const lootRng = new Rng(s2.seed).fork(`loot:${loc2.id}:${loc2.remainingSearches}`);
-    const lootMod = sumTraitMod(s2.character!.traitIds, 'lootMod');
-    const perceptionBonus = Math.floor((s2.character!.attributes.perception - 5) / 2);
+    const lootRng = new Rng(s.seed).fork(
+      `loot:${loc.id}:${loc.remainingSearches}:${s.day}:${Math.round(s.hour * 60)}`,
+    );
+    const lootMod = sumTraitMod(s.character!.traitIds, 'lootMod');
+    const perceptionBonus = Math.floor((s.character!.attributes.perception - 5) / 2);
     const raiding =
-      !!loc2.factionId &&
-      s2.raidMode?.locationId === locationId &&
-      !!s2.raidMode.mode;
+      !!loc.factionId &&
+      s.raidMode?.locationId === locationId &&
+      !!s.raidMode.mode;
     const loot = raiding
       ? rollFactionRaidLoot(
           lootRng,
-          loc2.category,
-          POI_CONFIG[loc2.category].richness,
+          loc.category,
+          POI_CONFIG[loc.category].richness,
           lootMod + perceptionBonus,
-          loc2.factionId!,
+          loc.factionId!,
         )
       : rollLoot(
           lootRng,
-          loc2.category,
-          POI_CONFIG[loc2.category].richness,
+          loc.category,
+          POI_CONFIG[loc.category].richness,
           lootMod + perceptionBonus,
         );
 
-    /*
-     * How intact the find is. A site is generous with *working* gear in
-     * proportion to what it costs to be standing in it: how dangerous it still
-     * is, and how little of it has already been stripped. The first search of a
-     * police station turns up kit that works; the third search of a picked-over
-     * minimart turns up a blunt knife.
-     *
-     * Raid hauls are the faction's own stores — bias hard toward gear that
-     * still works, because they weren't leaving junk on their own shelves.
-     */
-    const searchesUsed = 1 - loc2.remainingSearches / Math.max(1, POI_CONFIG[loc2.category].richness);
+    const searchesUsed = 1 - loc.remainingSearches / Math.max(1, POI_CONFIG[loc.category].richness);
     const bias = raiding
-      ? Math.max(0.65, Math.min(1, 0.75 + loc2.currentDanger / 12))
+      ? Math.max(0.65, Math.min(1, 0.75 + loc.currentDanger / 12))
       : Math.max(
           0,
-          Math.min(1, loc2.currentDanger / 6 - Math.max(0, searchesUsed) * 0.35),
+          Math.min(1, loc.currentDanger / 6 - Math.max(0, searchesUsed) * 0.35),
         );
 
-    // place loot into backpack, piling the overflow at the site
-    let items = s2.items;
-    const leftover: LootStack[] = [];
-    const stashed: LootStack[] = [];
-    for (const stack of loot) {
-      const r = spillover(items, locationId, stack.defId, stack.count, lootRng, bias);
-      items = r.items;
-      if (r.stashed > 0) stashed.push({ defId: stack.defId, count: r.stashed });
-      if (r.lost > 0) leftover.push({ defId: stack.defId, count: r.lost });
+    // Empty haul: spend a full charge immediately, no session UI.
+    if (loot.length === 0) {
+      if (advanceTime(searchMinutes(loc.category) / 60)) return;
+      const s2 = get();
+      const loc2 = s2.locations[locationId];
+      const remaining = loc2.remainingSearches - 1;
+      const exhausted = remaining <= 0;
+      const updated: LocationState = {
+        ...loc2,
+        currentDanger: Math.max(0, loc2.currentDanger - DANGER_DEPLETE),
+        remainingSearches: Math.max(0, remaining),
+        exhausted,
+        cleared: true,
+        looted: exhausted,
+        discovered: true,
+      };
+      updated.lastSeen = snapshot(updated);
+      set({ locations: { ...s2.locations, [locationId]: updated } });
+      bumpStats({ poisSearched: 1 });
+      pushLog(flavor('searchEmpty', { name: loc2.name }), 'info');
+      persist();
+      return;
     }
 
-    const remaining = loc2.remainingSearches - 1;
+    const pieces = loot.map((stack) => ({
+      defId: stack.defId,
+      count: stack.count,
+      condition: conditionRoll(lootRng, stack.defId, bias),
+    }));
+
+    const speed = searchSpeedFactor(
+      equipSearchSpeedBonus(s.equipment),
+      s.character!.attributes.perception,
+      sumTraitMod(s.character!.traitIds, 'searchSpeedMod'),
+    );
+    const nonce = lootRng.int(1, 1_000_000_000).toString(36);
+    const session = ensureSearching(
+      buildSearchSession({
+        locationId,
+        stashLocationId: locationId,
+        raiding,
+        fled,
+        nonce,
+        pieces,
+        totalMinutes: searchMinutes(loc.category),
+        speedFactor: speed,
+        spendCharges: true,
+        chargeBudget: 1,
+      }),
+      Date.now(),
+    );
+
+    set({ pendingSearch: session });
+    pushLog(
+      fled
+        ? `Grabbing what you can from ${loc.name}…`
+        : raiding
+          ? `Ransacking their stores at ${loc.name}…`
+          : `Searching ${loc.name}…`,
+      'info',
+    );
+    persist();
+  };
+
+  /** Apply search-charge spend + danger deplete once per session. */
+  const settleSearchSite = (session: SearchSession, chargeSpent: number) => {
+    if (session.settled || !session.spendCharges) {
+      set({ pendingSearch: { ...session, settled: true } });
+      return;
+    }
+    const s = get();
+    const loc = s.locations[session.locationId];
+    if (!loc) {
+      set({ pendingSearch: { ...session, settled: true } });
+      return;
+    }
+    const remaining = loc.remainingSearches - chargeSpent;
     const exhausted = remaining <= 0;
     const updated: LocationState = {
-      ...loc2,
-      currentDanger: Math.max(0, loc2.currentDanger - DANGER_DEPLETE),
+      ...loc,
+      currentDanger: Math.max(0, loc.currentDanger - DANGER_DEPLETE),
       remainingSearches: Math.max(0, remaining),
       exhausted,
       cleared: true,
       looted: exhausted,
       discovered: true,
     };
-    updated.lastSeen = snapshot(updated); // you're here — memory is current
-    const locations = { ...s2.locations, [locationId]: updated };
-
-    set({ items, locations });
+    updated.lastSeen = snapshot(updated);
+    set({
+      locations: { ...s.locations, [session.locationId]: updated },
+      pendingSearch: { ...session, settled: true },
+    });
     bumpStats({ poisSearched: 1 });
-    bumpHaul(loot, [...stashed, ...leftover]);
-    if (loot.length === 0) {
-      pushLog(flavor('searchEmpty', { name: loc2.name }), 'info');
-    } else {
-      pushLog(
-        fled
-          ? `Grabbed what you could from ${loc2.name}.`
-          : raiding
-            ? `Raided their stores at ${loc2.name} — this is why they keep a gate.`
-            : flavor('searchFound', { name: loc2.name }),
-        'good',
-        { loot, leftover: [...stashed, ...leftover] },
-      );
+  };
+
+  /** Move a found session instance into pack, then site stash. */
+  const relocateFoundItem = (
+    items: ItemInstance[],
+    uid: string,
+    stashLocationId: string,
+  ): { items: ItemInstance[]; stashed: boolean; lost: boolean; defId: string; count: number } | null => {
+    const inst = items.find((i) => i.uid === uid);
+    if (!inst) return null;
+    const without = items.filter((i) => i.uid !== uid);
+    const packed = addToGrid(without, 'backpack', inst.defId, inst.stack, inst.condition);
+    if (packed.leftover === 0) {
+      return {
+        items: packed.items,
+        stashed: false,
+        lost: false,
+        defId: inst.defId,
+        count: inst.stack,
+      };
     }
-    if (stashed.length > 0) {
+    const spilled = addToGrid(
+      packed.items,
+      stashLocationId,
+      inst.defId,
+      packed.leftover,
+      inst.condition,
+    );
+    return {
+      items: spilled.items,
+      stashed: spilled.leftover < packed.leftover,
+      lost: spilled.leftover > 0,
+      defId: inst.defId,
+      count: inst.stack,
+    };
+  };
+
+  const closeSearchSession = (
+    session: SearchSession,
+    mode: 'abort' | 'complete',
+  ) => {
+    let working: SearchSession = { ...session, slots: session.slots.map((sl) => ({ ...sl })) };
+    let items = get().items;
+
+    // Abandon fogged / searching — remove any partial materialization (none yet).
+    working = {
+      ...working,
+      slots: working.slots.map((sl) =>
+        sl.state === 'fogged' || sl.state === 'searching'
+          ? { ...sl, state: 'abandoned' as const, remainingMs: 0 }
+          : sl,
+      ),
+      queue: [],
+      searchingStartedAt: null,
+    };
+
+    // Spill remaining found items into pack / stash.
+    const stashedNote: LootStack[] = [];
+    const lostNote: LootStack[] = [];
+    const takenNow: LootStack[] = [];
+    for (const slot of working.slots) {
+      if (slot.state !== 'found' || !slot.uid) continue;
+      const moved = relocateFoundItem(items, slot.uid, working.stashLocationId);
+      if (!moved) continue;
+      items = moved.items;
+      if (moved.lost) lostNote.push({ defId: moved.defId, count: moved.count });
+      else if (moved.stashed) stashedNote.push({ defId: moved.defId, count: moved.count });
+      else takenNow.push({ defId: moved.defId, count: moved.count });
+      working = {
+        ...working,
+        slots: working.slots.map((sl) =>
+          sl.id === slot.id ? { ...sl, state: 'taken' as const } : sl,
+        ),
+      };
+    }
+
+    // Drop any stray items still in the session container.
+    items = items.filter((i) => i.container !== working.containerId);
+
+    const charge =
+      mode === 'complete' && !hasFoggedOrSearching(session)
+        ? working.chargeBudget
+        : abortChargeSpent(working);
+
+    set({ items, pendingSearch: working });
+    settleSearchSite(working, charge);
+
+    const haulLoot: LootStack[] = [];
+    for (const slot of working.slots) {
+      if (slot.state === 'taken') haulLoot.push({ defId: slot.defId, count: slot.count });
+    }
+    const leftover = [...stashedNote, ...lostNote];
+    bumpHaul(haulLoot, leftover);
+
+    const locName = get().locations[working.locationId]?.name ?? 'the site';
+    if (haulLoot.length === 0 && mode === 'abort') {
+      pushLog(`You stop searching ${locName} empty-handed.`, 'info');
+    } else if (mode === 'abort') {
+      pushLog(`You cut the search short at ${locName}.`, 'info', {
+        loot: haulLoot,
+        leftover,
+      });
+    } else if (working.fled) {
+      pushLog(`Grabbed what you could from ${locName}.`, 'good', { loot: haulLoot, leftover });
+    } else if (working.raiding) {
+      pushLog(`Raided their stores at ${locName} — this is why they keep a gate.`, 'good', {
+        loot: haulLoot,
+        leftover,
+      });
+    } else {
+      pushLog(flavor('searchFound', { name: locName }), 'good', { loot: haulLoot, leftover });
+    }
+    if (stashedNote.length > 0) {
       pushLog(`No room in the pack — the rest is stacked in the stash here.`, 'info');
     }
+
+    set({ pendingSearch: null });
+    if (working.raiding) {
+      const after = get().locations[working.locationId];
+      if (after?.exhausted) set({ raidMode: null });
+    }
     persist();
+  };
+
+  // Back-compat name used by combat / enter paths.
+  const resolveSearch = (locationId: string, fled: boolean) => {
+    beginSearchSession(locationId, fled);
   };
 
   interface ZombieCombatOpts {
@@ -1409,6 +1608,7 @@ export const useGame = create<State>((set, get) => {
   // Roll the encounter chance for searching a location right now.
   const attemptSearch = (locationId: string) => {
     const s = get();
+    if (s.pendingSearch) return;
     const loc = s.locations[locationId];
     // Occupied ground is an NPC hub — never scavenger rolls or HDB crawls,
     // unless you're illicitly raiding after sneak / force.
@@ -1416,8 +1616,6 @@ export const useGame = create<State>((set, get) => {
       const raid = s.raidMode;
       if (raid && raid.locationId === locationId) {
         resolveSearch(locationId, false);
-        const after = get().locations[locationId];
-        if (after?.exhausted) clearRaid();
         return;
       }
       pushLog(
@@ -2115,6 +2313,7 @@ export const useGame = create<State>((set, get) => {
     noisePulses: [],
     ghostOffer: null,
     pendingEvent: null,
+    pendingSearch: null,
     _eventRng: null,
     _eventClock: freshEventClock(),
     factionStanding: emptyStanding(),
@@ -2293,7 +2492,7 @@ export const useGame = create<State>((set, get) => {
         }
       }
 
-      // Promote up to four sites per faction to outposts, seed services, and
+      // Promote up to two sites per faction to outposts, seed services, and
       // reveal outpost pins so they read as destinations from day one.
       const outposts = pickOutposts(Object.values(locations));
       const withServices = applyFactionServices(locations, outposts, get().seed);
@@ -2326,7 +2525,7 @@ export const useGame = create<State>((set, get) => {
     travel: (locationId) => {
       const s = get();
       const loc = s.locations[locationId];
-      if (!loc || s.combat || s.pendingEvent || s.travelAnim) return;
+      if (!loc || s.combat || s.pendingEvent || s.pendingSearch || s.travelAnim) return;
       if (s.meters.energy < 5) {
         pushLog('Too exhausted to move out. Rest first.', 'bad');
         return;
@@ -2459,7 +2658,7 @@ export const useGame = create<State>((set, get) => {
 
     enter: () => {
       const s = get();
-      if (s.combat || s.pendingEvent || s.travelAnim || s.hdb) return;
+      if (s.combat || s.pendingEvent || s.pendingSearch || s.travelAnim || s.hdb) return;
       if (!s.currentPositionId) {
         pushLog('There\'s nothing to go into out here.', 'info');
         return;
@@ -2469,7 +2668,7 @@ export const useGame = create<State>((set, get) => {
 
     sneakEnter: () => {
       const s = get();
-      if (s.combat || s.pendingEvent || s.travelAnim || s.hdb || s.raidMode) return;
+      if (s.combat || s.pendingEvent || s.pendingSearch || s.travelAnim || s.hdb || s.raidMode) return;
       const id = s.currentPositionId;
       if (!id) return;
       const loc = s.locations[id];
@@ -2500,7 +2699,7 @@ export const useGame = create<State>((set, get) => {
 
     forceEnter: () => {
       const s = get();
-      if (s.combat || s.pendingEvent || s.travelAnim || s.hdb || s.raidMode) return;
+      if (s.combat || s.pendingEvent || s.pendingSearch || s.travelAnim || s.hdb || s.raidMode) return;
       const id = s.currentPositionId;
       if (!id) return;
       const loc = s.locations[id];
@@ -2516,7 +2715,7 @@ export const useGame = create<State>((set, get) => {
 
     raidSearch: () => {
       const s = get();
-      if (s.combat || s.pendingEvent || s.travelAnim || s.hdb) return;
+      if (s.combat || s.pendingEvent || s.pendingSearch || s.travelAnim || s.hdb) return;
       const raid = s.raidMode;
       if (!raid || raid.locationId !== s.currentPositionId) return;
       const loc = s.locations[raid.locationId];
@@ -2567,7 +2766,7 @@ export const useGame = create<State>((set, get) => {
     // worse option — no loot, no stash, no roof, and the hazard field bites.
     trek: (lat, lng) => {
       const s = get();
-      if (s.combat || s.pendingEvent || s.travelAnim) return;
+      if (s.combat || s.pendingEvent || s.pendingSearch || s.travelAnim) return;
       if (s.meters.energy < 5) {
         pushLog('Too exhausted to move out. Rest first.', 'bad');
         return;
@@ -3105,6 +3304,119 @@ export const useGame = create<State>((set, get) => {
 
     notify: (text, tone = 'info') => {
       pushLog(text, tone);
+    },
+
+    tickSearch: () => {
+      const s = get();
+      const session = s.pendingSearch;
+      if (!session) return;
+      const now = Date.now();
+      const armed = ensureSearching(session, now);
+      if (armed !== session) set({ pendingSearch: armed });
+
+      const current = get().pendingSearch;
+      if (!current) return;
+
+      if (!hasFoggedOrSearching(current)) {
+        // All slots revealed — leave session open for take / Done.
+        if (current.searchingStartedAt != null) {
+          set({ pendingSearch: { ...current, searchingStartedAt: null } });
+        }
+        return;
+      }
+
+      const head = current.slots.find((sl) => sl.id === current.queue[0]);
+      if (!head) return;
+      const uid = newUid();
+      const result = tryReveal(current, now, uid);
+      if (!result) return;
+
+      const def = itemDef(result.slot.defId);
+      const inst: ItemInstance = {
+        uid,
+        defId: result.slot.defId,
+        container: current.containerId,
+        x: result.slot.x,
+        y: result.slot.y,
+        rotated: result.slot.rotated,
+        stack: result.slot.count,
+        ...(result.slot.condition !== undefined ? { condition: result.slot.condition } : {}),
+      };
+      // Only place if it fits — layout already reserved the cells among slots.
+      void def;
+      set({
+        pendingSearch: result.session,
+        items: [...get().items, inst],
+      });
+      if (result.minutes > 0) {
+        if (advanceTime(result.minutes / 60)) return;
+      }
+    },
+
+    prioritizeSearchSlot: (slotId) => {
+      const s = get();
+      if (!s.pendingSearch) return;
+      set({ pendingSearch: prioritizeSlot(s.pendingSearch, slotId, Date.now()) });
+    },
+
+    takeSearchItem: (uid) => {
+      const s = get();
+      const session = s.pendingSearch;
+      if (!session) return;
+      const slot = session.slots.find((sl) => sl.uid === uid && sl.state === 'found');
+      if (!slot) return;
+      const moved = relocateFoundItem(s.items, uid, session.stashLocationId);
+      if (!moved) return;
+      const nextSlots = session.slots.map((sl) =>
+        sl.uid === uid ? { ...sl, state: 'taken' as const } : sl,
+      );
+      set({
+        items: moved.items,
+        pendingSearch: { ...session, slots: nextSlots, lastWhisper: null },
+      });
+      if (moved.lost) pushLog(`No room for the ${itemDef(moved.defId).name}.`, 'bad');
+      else if (moved.stashed) {
+        pushLog(`${itemDef(moved.defId).name} goes in the stash — pack is full.`, 'info');
+      }
+      persist();
+    },
+
+    takeAllFound: () => {
+      const s = get();
+      const session = s.pendingSearch;
+      if (!session) return;
+      let items = s.items;
+      let working = session;
+      let stashed = false;
+      for (const slot of session.slots) {
+        if (slot.state !== 'found' || !slot.uid) continue;
+        const moved = relocateFoundItem(items, slot.uid, working.stashLocationId);
+        if (!moved) continue;
+        items = moved.items;
+        if (moved.stashed || moved.lost) stashed = true;
+        working = {
+          ...working,
+          slots: working.slots.map((sl) =>
+            sl.id === slot.id ? { ...sl, state: 'taken' as const } : sl,
+          ),
+        };
+      }
+      set({ items, pendingSearch: working });
+      if (stashed) pushLog('Pack full — extras went to the stash.', 'info');
+      persist();
+    },
+
+    abortSearch: () => {
+      const session = get().pendingSearch;
+      if (!session) return;
+      closeSearchSession(session, 'abort');
+    },
+
+    completeSearch: () => {
+      const session = get().pendingSearch;
+      if (!session) return;
+      const mode = hasFoggedOrSearching(session) ? 'abort' : 'complete';
+      closeSearchSession(session, mode);
     },
 
     resolveEvent: (choiceId) => {
@@ -4478,8 +4790,6 @@ export const useGame = create<State>((set, get) => {
       } else if (context.raidLoot) {
         if (outcome === 'win') {
           resolveSearch(locationId!, false);
-          const after = get().locations[locationId!];
-          if (after?.exhausted) clearRaid();
         } else {
           pushLog('You break contact empty-handed — still inside, still hunted.', 'info');
         }
@@ -4518,6 +4828,7 @@ export const useGame = create<State>((set, get) => {
         noisePulses: [],
         ghostOffer: null,
         pendingEvent: null,
+        pendingSearch: null,
         _eventRng: null,
         _eventClock: freshEventClock(),
         factionStanding: emptyStanding(),
@@ -4583,6 +4894,7 @@ export const useGame = create<State>((set, get) => {
         noisePulses: [],
         ghostOffer: null,
         pendingEvent: null,
+        pendingSearch: null,
         _eventRng: null,
         _eventClock: run.eventClock ?? { ...freshEventClock(), day: run.day },
         factionStanding: { ...emptyStanding(), ...(run.factionStanding ?? {}) },
@@ -4609,6 +4921,23 @@ export const useGame = create<State>((set, get) => {
         set({
           locations: applyFactionServices(s.locations, s.outposts, s.seed),
         });
+      }
+      // Mid-search items from a killed tab: fold them into pack / site stash.
+      {
+        const s = get();
+        const orphans = s.items.filter((i) => i.container.startsWith('search:'));
+        if (orphans.length > 0) {
+          let items = s.items.filter((i) => !i.container.startsWith('search:'));
+          const stashId = s.currentPositionId;
+          for (const inst of orphans) {
+            const packed = addToGrid(items, 'backpack', inst.defId, inst.stack, inst.condition);
+            items = packed.items;
+            if (packed.leftover > 0 && stashId) {
+              items = addToGrid(items, stashId, inst.defId, packed.leftover, inst.condition).items;
+            }
+          }
+          set({ items });
+        }
       }
       // Keep new entries above anything restored, or React keys collide.
       logCounter = (run.log ?? []).reduce((m, e) => Math.max(m, e.id), logCounter);

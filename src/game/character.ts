@@ -134,12 +134,13 @@ export const TRAITS: Trait[] = [
     id: 'karang_guni',
     name: 'Scavenger',
     description:
-      '+1 loot, +1 extra search per POI. You already knew which blocks had the good stuff.',
+      '+1 loot, +1 extra search per POI, +10% search speed. You already knew which blocks had the good stuff.',
     category: 'positive',
     cost: 2,
     conflicts: ['hoarder'],
     lootMod: 1,
     searchBonusMod: 1,
+    searchSpeedMod: 0.1,
   },
   {
     id: 'tekong_legs',
@@ -689,6 +690,7 @@ export function attributeEffects(key: AttributeKey, value: number): AttributeEff
     case 'perception':
       rows = [
         num(Math.floor(d / 2), 'loot rolls per search'),
+        pct(d * 0.04, 'search speed'),
         num(d, 'awareness (fog & blip range)'),
         num(sense, 'threat-sense chance', '%'),
         num(Math.floor(d / 2), 'flee checks'),
