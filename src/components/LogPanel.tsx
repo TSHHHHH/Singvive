@@ -57,7 +57,8 @@ export function LogPanel({
   const log = useGame((s) => s.log);
   const day = useGame((s) => s.day);
   const pending = useGame((s) => s.pendingEvent);
-  const pendingSearch = useGame((s) => s.pendingSearch);
+  // Identity of the live search only — slot ticks must not re-pin scroll.
+  const pendingSearchNonce = useGame((s) => s.pendingSearch?.nonce ?? null);
   const items = useGame((s) => s.items);
   const resolveEvent = useGame((s) => s.resolveEvent);
   // A fight waiting on a stance is a live node at the foot of the timeline,
@@ -90,20 +91,21 @@ export function LogPanel({
   const ev = pending?.event;
   // The newest log entry is "latest" only when there's no live node below it.
   const latestId =
-    !ev && !awaitingStance && !pendingSearch && shown.length > 0
+    !ev && !awaitingStance && !pendingSearchNonce && shown.length > 0
       ? shown[shown.length - 1].id
       : null;
 
-  // keep the newest entry (and any live node) in view
+  // Pin to the newest entry when the day/view changes or a live node appears —
+  // not on every in-progress search tick (those rewrite pendingSearch often).
   useEffect(() => {
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [log.length, pending, pendingSearch, awaitingStance, viewId, day]);
+  }, [log.length, pending, pendingSearchNonce, awaitingStance, viewId, day]);
 
   const hasItem = (defId?: string) =>
     !defId || items.some((i) => i.container === 'backpack' && i.defId === defId);
 
-  const hasLiveNode = !!ev || awaitingStance || !!pendingSearch;
+  const hasLiveNode = !!ev || awaitingStance || !!pendingSearchNonce;
 
   return (
     <div className="flex h-full min-w-0 flex-col">
@@ -338,7 +340,7 @@ export function LogPanel({
             <EncounterPrompt timeW={timeW} hang={hang} />
 
             {/* Sequential search — fogged stash grid at the foot of the day. */}
-            {pendingSearch && <SearchSessionNode timeW={timeW} hang={hang} />}
+            {pendingSearchNonce && <SearchSessionNode timeW={timeW} hang={hang} />}
           </ol>
         )}
       </div>

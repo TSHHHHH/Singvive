@@ -54,6 +54,17 @@ body {
   border-top: 1px solid rgba(232, 229, 221, 0.12);
 }
 
+/*
+ * Native <select> popups on Windows often keep light option text while the
+ * system paints a medium-gray list — unreadable. Pin both sides dark.
+ */
+select,
+select option,
+select optgroup {
+  color: #f2efe6;
+  background-color: #141416;
+}
+
 /* thin scrollbars */
 * {
   scrollbar-width: thin;
@@ -83,14 +94,66 @@ body {
 
 @keyframes search-find-pulse {
   0% {
-    filter: brightness(1.6);
+    filter: brightness(2.1);
+    transform: scale(1);
+  }
+  35% {
+    filter: brightness(1.65);
+    transform: scale(1.18);
   }
   100% {
     filter: brightness(1);
+    transform: scale(1);
   }
 }
 .search-find-pulse {
-  animation: search-find-pulse 0.85s ease-out 1;
+  animation: search-find-pulse 1.1s ease-out 1;
+  transform-origin: center center;
+}
+
+/* Arm rotates; shard flies outward along the arm's Y axis (no CSS vars in keyframes). */
+@keyframes search-find-burst-fly {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-28px) scale(0.2);
+  }
+}
+.search-find-burst {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  overflow: visible;
+}
+.search-find-burst-arm {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+  transform: rotate(var(--burst-rot, 0deg));
+}
+.search-find-burst-shard {
+  position: absolute;
+  left: -5px;
+  top: -5px;
+  width: 10px;
+  height: 10px;
+  background: var(--burst-color, #fcd34d);
+  clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--burst-color, #fcd34d) 80%, transparent);
+  animation: search-find-burst-fly 0.9s ease-out 1 forwards;
+  animation-delay: var(--burst-delay, 0ms);
+}
+.search-find-burst--exotic .search-find-burst-shard {
+  width: 12px;
+  height: 12px;
+  left: -6px;
+  top: -6px;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -100,6 +163,22 @@ body {
   }
   .search-find-pulse {
     animation: none;
+    filter: brightness(1.35);
+  }
+  .search-find-burst-shard {
+    animation: none;
+    opacity: 0.9;
+    transform: translateY(-10px) scale(0.7);
+  }
+  /* Editor preview can opt into motion so Replay stays testable. */
+  .search-find-fx--force-motion .search-find-pulse {
+    animation: search-find-pulse 1.1s ease-out 1;
+    filter: none;
+  }
+  .search-find-fx--force-motion .search-find-burst-shard {
+    animation: search-find-burst-fly 0.9s ease-out 1 forwards;
+    opacity: 1;
+    transform: none;
   }
 }
 

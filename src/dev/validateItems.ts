@@ -18,6 +18,7 @@ const EQUIP_SLOTS = new Set([
   'hands',
   'legs',
   'feet',
+  'bag',
   'mainHand',
   'offHand',
 ]);

@@ -5,6 +5,9 @@ import { EMOJI_FALLBACK } from '../icons/keys';
 import { Icon } from '../icons/Icon';
 import { ICON_ASSETS } from '../icons/registry';
 import { itemIcon } from '../components/Inventory/itemIcon';
+import { SearchFindRevealCell } from '../components/SearchFindRevealCell';
+import { footprint } from '../game/inventory';
+import { highlightFor, whisperFor } from '../game/searchSession';
 import { fetchItemIcons, MAX_ICON_BYTES, MAX_ICON_EDGE, uploadItemIcon } from './lootApi';
 import { findItemUsage } from './itemUsage';
 import { EFFECT_KINDS, EQUIP_SLOTS } from './validateItems';
@@ -83,6 +86,8 @@ export function LootItemForm({ item, idLocked, onChange, onStatus }: Props) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [assetKeys, setAssetKeys] = useState<string[]>([]);
   const [dragOver, setDragOver] = useState(false);
+  const [revealCondition, setRevealCondition] = useState(100);
+  const [revealPlayKey, setRevealPlayKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -119,6 +124,20 @@ export function LootItemForm({ item, idLocked, onChange, onStatus }: Props) {
   const resolvedKey = itemIcon(item);
   const ownKey = `item.${item.id}` as IconName;
   const usage = useMemo(() => findItemUsage(item.id, item), [item]);
+  const revealHighlight = useMemo(
+    () => highlightFor(item, revealCondition),
+    [item, revealCondition],
+  );
+  const revealWhisper = useMemo(
+    () => whisperFor(item, revealHighlight),
+    [item, revealHighlight],
+  );
+  const revealFoot = footprint(item, false);
+  const REVEAL_CELL = 26;
+
+  useEffect(() => {
+    setRevealPlayKey((k) => k + 1);
+  }, [item.id, item.exotic, item.scarcity]);
 
   const setIcon = (raw: string) => {
     const v = raw.trim();
@@ -641,6 +660,90 @@ export function LootItemForm({ item, idLocked, onChange, onStatus }: Props) {
               onChange={(e) => setOptionalNumber('scarcity', e.target.value)}
             />
           </Field>
+        </div>
+
+        <div className="mt-4 rounded border border-white/10 bg-black/25 p-3">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <h5 className="text-2xs uppercase tracking-widest text-white/30">Search reveal</h5>
+            <button
+              type="button"
+              disabled={!revealHighlight}
+              title={
+                revealHighlight
+                  ? 'Replay reveal animation'
+                  : 'Ordinary find — nothing to replay'
+              }
+              className="rounded border border-white/15 px-2 py-0.5 text-2xs text-white/70 transition hover:border-signal/40 hover:text-signal disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-white/15 disabled:hover:text-white/70"
+              onClick={() => setRevealPlayKey((k) => k + 1)}
+            >
+              Replay
+            </button>
+          </div>
+          <div className="flex flex-wrap items-start gap-3">
+            <div
+              className="relative shrink-0 overflow-visible rounded border border-white/10 bg-black/40"
+              style={{
+                width: Math.max(revealFoot.w * REVEAL_CELL + 48, 96),
+                height: Math.max(revealFoot.h * REVEAL_CELL + 48, 96),
+                backgroundImage:
+                  'linear-gradient(#ffffff10 1px, transparent 1px), linear-gradient(90deg, #ffffff10 1px, transparent 1px)',
+                backgroundSize: `${REVEAL_CELL}px ${REVEAL_CELL}px`,
+                backgroundPosition: '24px 24px',
+              }}
+            >
+              <SearchFindRevealCell
+                def={item}
+                count={1}
+                condition={revealCondition}
+                highlight={revealHighlight}
+                playKey={revealPlayKey}
+                animate={!!revealHighlight}
+                forceMotion
+                iconSize={Math.min(revealFoot.w, revealFoot.h) > 1 ? 22 : 18}
+                as="div"
+                className="absolute"
+                style={{
+                  left: 24,
+                  top: 24,
+                  width: Math.max(revealFoot.w, 1) * REVEAL_CELL,
+                  height: Math.max(revealFoot.h, 1) * REVEAL_CELL,
+                }}
+              />
+            </div>
+            <div className="min-w-0 flex-1 space-y-2">
+              <p className="text-xs text-white/55">
+                {revealHighlight ? (
+                  <>
+                    <span className="font-semibold uppercase tracking-wide text-concrete-50">
+                      {revealHighlight}
+                    </span>
+                    {revealWhisper ? ` — ${revealWhisper}` : null}
+                  </>
+                ) : (
+                  'Ordinary find — no burst'
+                )}
+              </p>
+              <label className="flex flex-col gap-1 text-xs">
+                <span className="uppercase tracking-wider text-white/35">
+                  preview condition {revealCondition}%
+                </span>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={revealCondition}
+                  onChange={(e) => {
+                    setRevealCondition(Number(e.target.value));
+                    setRevealPlayKey((k) => k + 1);
+                  }}
+                  className="w-full accent-[rgb(143,191,75)]"
+                />
+              </label>
+              <p className="text-2xs text-white/30">
+                Highlight priority: exotic → pristine (cond ≥ 75) → scarce (scarcity ≤ 0.45).
+              </p>
+            </div>
+          </div>
         </div>
       </section>
 

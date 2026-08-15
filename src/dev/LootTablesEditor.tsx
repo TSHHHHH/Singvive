@@ -20,6 +20,7 @@ import {
   type LootTableEntry,
   type LootTablesCatalog,
 } from './validateLootTables';
+import { ValidationErrorBadge } from './ValidationErrorBadge';
 
 type SortMode = 'order' | 'weight' | 'chance' | 'effective' | 'name';
 
@@ -371,11 +372,7 @@ export function LootTablesEditor({ onStatus, onOpenItem }: Props) {
               no common fallback
             </span>
           )}
-          {!valid && (
-            <span className="rounded bg-red-500/20 px-2 py-0.5 text-2xs uppercase tracking-wider text-red-300">
-              {errors.length} error{errors.length === 1 ? '' : 's'}
-            </span>
-          )}
+          {!valid && <ValidationErrorBadge errors={errors} />}
           <button
             type="button"
             disabled={busy || !dirty || !valid}
@@ -441,7 +438,7 @@ export function LootTablesEditor({ onStatus, onOpenItem }: Props) {
             <select
               value={sortMode}
               onChange={(e) => setSortMode(e.target.value as SortMode)}
-              className="rounded border border-white/10 bg-black/40 px-2 py-1.5 text-xs outline-none"
+              className="rounded border border-white/10 bg-black/40 px-2 py-1.5 text-xs text-white outline-none"
             >
               <option value="order">Table order</option>
               <option value="weight">Weight</option>
@@ -480,7 +477,7 @@ export function LootTablesEditor({ onStatus, onOpenItem }: Props) {
             <select
               value={dupFrom}
               onChange={(e) => setDupFrom(e.target.value as PoiCategory)}
-              className="rounded border border-white/10 bg-black/40 px-2 py-1.5 text-xs outline-none"
+              className="rounded border border-white/10 bg-black/40 px-2 py-1.5 text-xs text-white outline-none"
             >
               {POI_CATEGORIES.map((c) => (
                 <option key={c} value={c}>

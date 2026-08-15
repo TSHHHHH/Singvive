@@ -18,6 +18,7 @@ import {
 } from './lootApi';
 import { EFFECT_KINDS, validateItemsCatalog } from './validateItems';
 import { OPEN_LOOT_EVENT, type OpenLootDetail } from './devBridge';
+import { ValidationErrorBadge } from './ValidationErrorBadge';
 
 type KindFilter = 'all' | ItemDef['effect']['kind'];
 type SlotFilter = 'all' | 'equipped' | 'none' | NonNullable<ItemDef['slot']>;
@@ -630,11 +631,7 @@ export function DevLootBrowser() {
             item dirty
           </span>
         )}
-        {tab === 'items' && !valid && (
-          <span className="rounded bg-red-500/20 px-2 py-0.5 text-2xs uppercase tracking-wider text-red-300">
-            {validationErrors.length} error{validationErrors.length === 1 ? '' : 's'}
-          </span>
-        )}
+        {tab === 'items' && !valid && <ValidationErrorBadge errors={validationErrors} />}
         {tab === 'items' && (
           <>
         <button
@@ -778,7 +775,7 @@ export function DevLootBrowser() {
             <select
               value={kindFilter}
               onChange={(e) => setKindFilter(e.target.value as KindFilter)}
-              className="rounded border border-white/10 bg-black/40 px-2 py-1.5 text-xs outline-none"
+              className="rounded border border-white/10 bg-black/40 px-2 py-1.5 text-xs text-white outline-none"
             >
               <option value="all">All kinds</option>
               {[...EFFECT_KINDS].map((k) => (
@@ -790,7 +787,7 @@ export function DevLootBrowser() {
             <select
               value={slotFilter}
               onChange={(e) => setSlotFilter(e.target.value as SlotFilter)}
-              className="rounded border border-white/10 bg-black/40 px-2 py-1.5 text-xs outline-none"
+              className="rounded border border-white/10 bg-black/40 px-2 py-1.5 text-xs text-white outline-none"
             >
               <option value="all">Any slot</option>
               <option value="equipped">Has slot</option>
@@ -800,13 +797,14 @@ export function DevLootBrowser() {
               <option value="hands">hands</option>
               <option value="legs">legs</option>
               <option value="feet">feet</option>
+              <option value="bag">bag</option>
               <option value="mainHand">mainHand</option>
               <option value="offHand">offHand</option>
             </select>
             <select
               value={sortMode}
               onChange={(e) => setSortMode(e.target.value as SortMode)}
-              className="rounded border border-white/10 bg-black/40 px-2 py-1.5 text-xs outline-none"
+              className="rounded border border-white/10 bg-black/40 px-2 py-1.5 text-xs text-white outline-none"
             >
               <option value="id">Sort by id</option>
               <option value="name">Sort by name</option>
