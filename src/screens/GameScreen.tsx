@@ -34,6 +34,7 @@ import { TraderModal } from '../components/TraderModal';
 import { TunnelRunView } from '../components/TunnelRunView';
 import { itemDef } from '../game/loot';
 import { estimateExpedition } from '../game/travel';
+import { unplayableMessage, walkabilityOf } from '../game/playable';
 import {
   bleedEncounterMod,
   computeEvacBonus,
@@ -135,6 +136,7 @@ export function GameScreen() {
     tunnelEnter,
     tunnel,
     rest,
+    notify,
     meters,
     character,
     hour,
@@ -173,6 +175,7 @@ export function GameScreen() {
       tunnelEnter: s.tunnelEnter,
       tunnel: s.tunnel,
       rest: s.rest,
+      notify: s.notify,
       meters: s.meters,
       character: s.character,
       hour: s.hour,
@@ -218,9 +221,14 @@ export function GameScreen() {
   // The map is memoised, so everything handed to it has to hold its identity
   // across renders it doesn't care about — otherwise it rebuilds every marker.
   const pickGround = useCallback((lat: number, lng: number) => {
+    const reason = walkabilityOf(lat, lng);
+    if (reason !== 'ok') {
+      notify(unplayableMessage(reason, 'trek'), 'bad');
+      return;
+    }
     setSelectedId(null);
     setTrekTarget({ lat, lng });
-  }, []);
+  }, [notify]);
 
   const selectPoi = useCallback((loc: LocationState) => {
     setTrekTarget(null);

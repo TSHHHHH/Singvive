@@ -2,13 +2,17 @@ import { useEffect, useState } from 'react';
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { useGame } from '../game/store';
+import { NEIGHBOURHOODS, SG_BOUNDS, SG_CENTER } from '../game/singapore';
 import {
-  NEIGHBOURHOODS,
-  SG_BOUNDS,
-  SG_CENTER,
-  inSingapore,
-} from '../game/singapore';
+  ensureZonesLoaded,
+  getZones,
+  isWalkable,
+  unplayableMessage,
+  walkabilityOf,
+  type ZonesData,
+} from '../game/playable';
 import { playerIcon } from '../components/mapIcons';
+import { UnplayableLegend, UnplayableOverlay } from '../components/UnplayableOverlay';
 import {
   TILE_ATTRIBUTION,
   TILE_MAX_NATIVE_ZOOM,
@@ -36,33 +40,50 @@ function SizeFix() {
   return null;
 }
 
-function ClickCatcher({ onPick }: { onPick: (lat: number, lng: number) => void }) {
+function ClickCatcher({
+  onPick,
+  onReject,
+}: {
+  onPick: (lat: number, lng: number) => void;
+  onReject: (msg: string) => void;
+}) {
   useMapEvents({
     click(e) {
-      if (inSingapore(e.latlng.lat, e.latlng.lng)) {
-        onPick(e.latlng.lat, e.latlng.lng);
+      const { lat, lng } = e.latlng;
+      const reason = walkabilityOf(lat, lng);
+      if (reason !== 'ok') {
+        onReject(unplayableMessage(reason, 'spawn'));
+        return;
       }
+      onPick(lat, lng);
     },
   });
   return null;
 }
+
+const RANDOM_TRIES = 24;
 
 export function SpawnSelect() {
   const { setSpawn, resetToMenu } = useGame();
   const [picked, setPicked] = useState<Picked | null>(null);
   const [loading, setLoading] = useState(false);
   const [rejected, setRejected] = useState<string | null>(null);
+  const [zones, setZones] = useState<ZonesData | null>(null);
 
-  const randomSpawn = () => {
-    const n = NEIGHBOURHOODS[Math.floor(Math.random() * NEIGHBOURHOODS.length)];
-    setRejected(null);
-    // jitter a little so it isn't always the town centroid
-    setPicked({
-      lat: n.lat + (Math.random() - 0.5) * 0.008,
-      lng: n.lng + (Math.random() - 0.5) * 0.008,
-      name: n.name,
-    });
-  };
+  useEffect(() => {
+    let cancelled = false;
+    void ensureZonesLoaded()
+      .then((z) => {
+        if (!cancelled) setZones(z);
+      })
+      .catch(() => {
+        // Overlay absent; walkability degrades to country clip until bake exists.
+        if (!cancelled) setZones(getZones());
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const nearestName = (lat: number, lng: number): string => {
     let best = NEIGHBOURHOODS[0];
@@ -77,16 +98,44 @@ export function SpawnSelect() {
     return best.name;
   };
 
+  const randomSpawn = () => {
+    setRejected(null);
+    for (let i = 0; i < RANDOM_TRIES; i++) {
+      const n = NEIGHBOURHOODS[Math.floor(Math.random() * NEIGHBOURHOODS.length)];
+      const lat = n.lat + (Math.random() - 0.5) * 0.008;
+      const lng = n.lng + (Math.random() - 0.5) * 0.008;
+      if (isWalkable(lat, lng)) {
+        setPicked({ lat, lng, name: n.name });
+        return;
+      }
+    }
+    // Jitter kept landing badly — wake on a known neighbourhood centroid.
+    const n = NEIGHBOURHOODS[Math.floor(Math.random() * NEIGHBOURHOODS.length)];
+    if (isWalkable(n.lat, n.lng)) {
+      setPicked({ lat: n.lat, lng: n.lng, name: n.name });
+      return;
+    }
+    setRejected('Could not find walkable ground — tap the map.');
+  };
+
   const confirm = async () => {
     if (!picked || loading) return;
+    const reason = walkabilityOf(picked.lat, picked.lng);
+    if (reason !== 'ok') {
+      setRejected(unplayableMessage(reason, 'spawn'));
+      setPicked(null);
+      return;
+    }
     setLoading(true);
     setRejected(null);
-    // Single map load. 'remote' = the spot has too little to scavenge → let the
-    // player pick again. 'ok' switches to the game phase.
     const result = await setSpawn(picked);
     if (result === 'remote') {
       setLoading(false);
       setRejected('Area too remote or lacks infrastructure. Please select an urbanized zone.');
+    } else if (result === 'unplayable') {
+      setLoading(false);
+      setRejected(unplayableMessage(walkabilityOf(picked.lat, picked.lng), 'spawn'));
+      setPicked(null);
     }
   };
 
@@ -131,14 +180,21 @@ export function SpawnSelect() {
             maxNativeZoom={TILE_MAX_NATIVE_ZOOM}
           />
           <SizeFix />
+          {zones && <UnplayableOverlay zones={zones} />}
           <ClickCatcher
             onPick={(lat, lng) => {
               setRejected(null);
               setPicked({ lat, lng, name: nearestName(lat, lng) });
             }}
+            onReject={(msg) => {
+              setPicked(null);
+              setRejected(msg);
+            }}
           />
           {picked && <Marker position={[picked.lat, picked.lng]} icon={playerIcon()} />}
         </MapContainer>
+
+        {zones && <UnplayableLegend />}
 
         {loading && (
           <div className="absolute inset-0 z-[500] flex items-center justify-center bg-black/70 text-center">
@@ -157,7 +213,7 @@ export function SpawnSelect() {
               Spawn: <span className="text-signal">{picked.name}</span>
             </>
           ) : (
-            'Tap anywhere in Singapore, or roll a random spawn.'
+            'Tap dry ground in Singapore, or roll a random spawn.'
           )}
         </p>
         <button

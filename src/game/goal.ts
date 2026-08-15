@@ -4,6 +4,7 @@ import { itemDef } from './loot';
 import { conditionScale } from './inventory';
 import { haversine } from './overpass';
 import { inSingapore } from './singapore';
+import { isWalkable } from './playable';
 
 // ---------- Extraction goal ----------
 // Dual-path spine: linger for a rising score multiplier, or gather weighted
@@ -122,6 +123,7 @@ export function pickDistantEvacPoi<
     .filter((p) => p.category !== 'waypoint')
     .filter((p) => (p.name ?? '').trim().length >= 3)
     .filter((p) => inSingapore(p.lat, p.lng))
+    .filter((p) => isWalkable(p.lat, p.lng))
     .map((p) => ({ poi: p, d: haversine(spawn.lat, spawn.lng, p.lat, p.lng) }))
     .filter((s) => s.d >= MIN_FIRST_EVAC_DIST)
     .sort((a, b) => b.d - a.d);

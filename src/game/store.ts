@@ -22,6 +22,12 @@ import { Rng, randomSeed } from './rng';
 import { adjustCraftInputs, attrEmoji, ATTRIBUTE_LABELS, hasTraitFlag, maxHpFor, startingStanding, sumTraitMod } from './character';
 import { fetchOsmPois, haversine, type RawPoi } from './overpass';
 import { bakedPoisNear } from './bakedPois';
+import {
+  ensureZonesLoaded,
+  filterWalkablePois,
+  unplayableMessage,
+  walkabilityOf,
+} from './playable';
 import { adjacentEdge, displayLine, getMrtNetwork, loadMrtNetwork, tunnelSegmentBetween } from './mrt';
 import {
   addPressure,
@@ -445,7 +451,7 @@ interface State {
   // actions
   goToCharacter: () => void;
   commitCharacter: (c: Character) => void;
-  setSpawn: (spawn: { lat: number; lng: number; name: string }) => Promise<'ok' | 'remote'>;
+  setSpawn: (spawn: { lat: number; lng: number; name: string }) => Promise<'ok' | 'remote' | 'unplayable'>;
   travel: (locationId: string) => void;
   /** Step inside the site you're standing at — the doorway, then the search. */
   enter: () => void;
@@ -478,6 +484,8 @@ interface State {
   factionIntel: () => void;
   resolveEvent: (choiceId: string) => void;
   callEvac: () => void;
+  /** Append a short line to the run log (UI soft-rejects, etc.). */
+  notify: (text: string, tone?: GameLogEntry['tone']) => void;
   rest: () => void;
   useItem: (uid: string) => void;
   moveItem: (uid: string, container: string, x: number, y: number, rotated: boolean) => boolean;
@@ -1512,6 +1520,8 @@ export const useGame = create<State>((set, get) => {
       return; // no bake, no expansion — the caller falls back to a bare station
     }
     if (!raw?.length) return;
+    raw = filterWalkablePois(raw);
+    if (!raw.length) return;
 
     const built = buildLocations(new Rng(s.seed).fork(tag), s.spawn, raw, getMrtNetwork(), {
       localOrigin: { lat, lng },
@@ -2070,6 +2080,14 @@ export const useGame = create<State>((set, get) => {
       const seed = randomSeed();
       const rng = new Rng(seed);
 
+      try {
+        await ensureZonesLoaded();
+      } catch {
+        // Degraded: walkability falls back to country clip only.
+      }
+      const spawnWalk = walkabilityOf(spawn.lat, spawn.lng);
+      if (spawnWalk !== 'ok') return 'unplayable';
+
       // Map data, in order of preference:
       //   1. the pre-baked island-wide set (static file, can't rate-limit us)
       //   2. a live Overpass call, if the bake is missing or malformed
@@ -2089,6 +2107,7 @@ export const useGame = create<State>((set, get) => {
           raw = null;
         }
       }
+      if (raw) raw = filterWalkablePois(raw);
 
       let list: LocationState[];
       let usedFallback = false;
@@ -2099,6 +2118,7 @@ export const useGame = create<State>((set, get) => {
         if (raw.length < 5) return 'remote';
         list = buildLocations(rng, spawn, raw, net);
       } else {
+        // Offline fallback only on walkable ground — never invent a sea town.
         list = generateFallbackWorld(rng, spawn, SCAVENGE_RADIUS);
         usedFallback = true;
         worldError = 'Live map data unavailable — using a simulated neighbourhood.';
@@ -2142,7 +2162,9 @@ export const useGame = create<State>((set, get) => {
       // around it (and the corridor toward it) fills in as the player nears.
       let evacZoneId: string | null = null;
       try {
-        const island = await bakedPoisNear(spawn.lat, spawn.lng, EVAC_ISLAND_RADIUS);
+        const island = filterWalkablePois(
+          await bakedPoisNear(spawn.lat, spawn.lng, EVAC_ISLAND_RADIUS),
+        );
         const far = pickDistantEvacPoi(island, spawn, rng.fork('evac'));
         if (far) {
           // Take the site *by id*, never `[0]`. `buildLocations` ends in
@@ -2388,6 +2410,12 @@ export const useGame = create<State>((set, get) => {
       if (s.combat || s.pendingEvent || s.travelAnim) return;
       if (s.meters.energy < 5) {
         pushLog('Too exhausted to move out. Rest first.', 'bad');
+        return;
+      }
+
+      const walk = walkabilityOf(lat, lng);
+      if (walk !== 'ok') {
+        pushLog(unplayableMessage(walk, 'trek'), 'bad');
         return;
       }
 
@@ -2900,6 +2928,10 @@ export const useGame = create<State>((set, get) => {
       }
       pushLog('You pop the flare. Rotors thunder over the rooftops — they came.', 'good');
       winRun();
+    },
+
+    notify: (text, tone = 'info') => {
+      pushLog(text, tone);
     },
 
     resolveEvent: (choiceId) => {
@@ -4307,6 +4339,9 @@ export const useGame = create<State>((set, get) => {
       // Stations were bound to the network when the run was created; get it
       // back in memory so the tunnels still route.
       void loadMrtNetwork();
+      void ensureZonesLoaded().catch(() => {
+        /* trek/spawn degrade to country clip */
+      });
       setBackpackWidthBonus(sumTraitMod(run.character.traitIds, 'gridWidthBonus'));
       set({
         phase: 'game',

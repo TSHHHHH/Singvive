@@ -79,7 +79,7 @@ export const SG_OUTLINE: [number, number][] = [
 ];
 
 /** Standard ray-casting point-in-polygon. */
-function inPolygon(lat: number, lng: number, poly: [number, number][]): boolean {
+export function inPolygon(lat: number, lng: number, poly: [number, number][]): boolean {
   let inside = false;
   for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
     const [latI, lngI] = poly[i];
