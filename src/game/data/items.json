@@ -746,7 +746,8 @@
     "color": "#c0c4c8",
     "slot": "mainHand",
     "twoHanded": true,
-    "wearRate": 1.3
+    "wearRate": 1.3,
+    "icon": "item.golf_club"
   },
   "baseball_bat": {
     "id": "baseball_bat",
@@ -1703,13 +1704,17 @@
     "w": 2,
     "h": 2,
     "weight": 0.6,
-    "effect": { "kind": "misc" },
+    "effect": {
+      "kind": "misc"
+    },
     "value": 12,
     "stackable": false,
     "maxStack": 1,
     "color": "#5a6b4a",
     "slot": "bag",
-    "modifiers": { "bagWidthBonus": 1 },
+    "modifiers": {
+      "bagWidthBonus": 1
+    },
     "startingItem": true,
     "maxCondition": 80
   },
@@ -1719,13 +1724,17 @@
     "w": 2,
     "h": 2,
     "weight": 0.8,
-    "effect": { "kind": "misc" },
+    "effect": {
+      "kind": "misc"
+    },
     "value": 16,
     "stackable": false,
     "maxStack": 1,
     "color": "#3a5a7a",
     "slot": "bag",
-    "modifiers": { "bagWidthBonus": 2 },
+    "modifiers": {
+      "bagWidthBonus": 2
+    },
     "maxCondition": 70
   },
   "hiking_pack": {
@@ -1734,13 +1743,18 @@
     "w": 2,
     "h": 3,
     "weight": 1.4,
-    "effect": { "kind": "misc" },
+    "effect": {
+      "kind": "misc"
+    },
     "value": 28,
     "stackable": false,
     "maxStack": 1,
     "color": "#6a5a3a",
     "slot": "bag",
-    "modifiers": { "bagWidthBonus": 3, "bagHeightBonus": 1 },
+    "modifiers": {
+      "bagWidthBonus": 3,
+      "bagHeightBonus": 1
+    },
     "maxCondition": 90
   },
   "military_rucksack": {
@@ -1749,13 +1763,19 @@
     "w": 3,
     "h": 3,
     "weight": 2.2,
-    "effect": { "kind": "misc" },
+    "effect": {
+      "kind": "misc"
+    },
     "value": 45,
     "stackable": false,
     "maxStack": 1,
     "color": "#4a5a3a",
     "slot": "bag",
-    "modifiers": { "bagWidthBonus": 4, "bagHeightBonus": 1, "weightCapacityBonus": 3 },
+    "modifiers": {
+      "bagWidthBonus": 4,
+      "bagHeightBonus": 1,
+      "weightCapacityBonus": 3
+    },
     "exotic": true,
     "scarcity": 0.35,
     "maxCondition": 100
@@ -2207,8 +2227,8 @@
     "perishable": true,
     "scarcity": 0.35
   },
-  "100_plus": {
-    "id": "100_plus",
+  "plus_100": {
+    "id": "plus_100",
     "name": "100 Plus Can",
     "w": 1,
     "h": 2,

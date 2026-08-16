@@ -28,7 +28,7 @@ function corridorPadM(chordM: number): number {
   return Math.min(2000, Math.max(1000, chordM * 0.4));
 }
 
-export const NO_DRY_ROUTE_MSG = "No dry route — that water's in the way.";
+export const NO_DRY_ROUTE_MSG = "No dry way across — that water's in the way.";
 
 const DEG_LAT_M = 111_320;
 

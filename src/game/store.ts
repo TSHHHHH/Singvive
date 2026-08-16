@@ -153,10 +153,10 @@ import {
 import { snapshot, travelableRange, VISITED_LIGHT_RADIUS, type ExploredCircle } from './fog';
 import { estimateExpedition, estimateTunnelWalk, searchMinutes } from './travel';
 import {
-  makeBlockHunter,
+  makeHulk,
   makeHuman,
   makeLoner,
-  makeTunnelStalker,
+  makeStalker,
   type LonerKind,
   makeZombie,
   playerCombatStats,
@@ -262,6 +262,8 @@ import {
   STAIR_MINUTES,
   updateUnit,
   hasStripTopology,
+  UNIT_META,
+  migrateHdbDungeon,
   type HdbArchetype,
   type HdbDungeon,
   type HdbPos,
@@ -1204,14 +1206,22 @@ export const useGame = create<State>((set, get) => {
           loc.category,
           POI_CONFIG[loc.category].richness,
           lootMod + perceptionBonus,
+          { guaranteeFind: true },
         );
 
-    const searchesUsed = 1 - loc.remainingSearches / Math.max(1, POI_CONFIG[loc.category].richness);
+    // Depletion tracks site size (search charges), not category richness —
+    // richness only decides rolls-per-charge. Small shops used to eat a fake
+    // "already stripped" penalty on their first (and only) search.
+    const maxCharges = loc.size === 'large' ? 3 : loc.size === 'medium' ? 2 : 1;
+    const spent = Math.max(0, maxCharges - loc.remainingSearches);
+    const deplete = spent / Math.max(1, maxCharges);
     const bias = raiding
       ? Math.max(0.65, Math.min(1, 0.75 + loc.currentDanger / 12))
       : Math.max(
-          0,
-          Math.min(1, loc.currentDanger / 6 - Math.max(0, searchesUsed) * 0.35),
+          // First charge can still whisper "pristine" (~6%); later charges
+          // need danger. HDB sealed doors stay the reliable near-new source.
+          spent === 0 ? 0.5 : 0.2,
+          Math.min(1, loc.currentDanger / 5 - deplete * 0.25),
         );
 
     // Empty haul: spend a full charge immediately, no session UI.
@@ -1269,10 +1279,10 @@ export const useGame = create<State>((set, get) => {
     set({ pendingSearch: session });
     pushLog(
       fled
-        ? `Grabbing what you can from ${loc.name}…`
+        ? flavor('searchStartFlee', { name: loc.name })
         : raiding
-          ? `Ransacking their stores at ${loc.name}…`
-          : `Searching ${loc.name}…`,
+          ? flavor('searchStartRaid', { name: loc.name })
+          : flavor('searchStart', { name: loc.name }),
       'info',
     );
     persist();
@@ -1401,38 +1411,41 @@ export const useGame = create<State>((set, get) => {
     const locName = unitLabel ?? get().locations[working.locationId]?.name ?? 'the site';
     if (working.hdbUnit) {
       if (haulLoot.length === 0 && leftover.length === 0 && mode === 'abort') {
-        pushLog(`You stop searching ${locName} empty-handed.`, 'info');
+        pushLog(flavor('searchAbortEmpty', { name: locName }), 'info');
       } else if (mode === 'abort') {
-        pushLog(`You cut the search short in ${locName}.`, 'info', {
+        pushLog(flavor('searchAbort', { name: locName }), 'info', {
           loot: haulLoot,
           leftover: [],
         });
       } else if (haulLoot.length === 0 && leftover.length === 0) {
-        pushLog(`${locName} is bare.`, 'info');
+        pushLog(flavor('searchBare', { name: locName }), 'info');
       } else if (haulLoot.length === 0) {
-        pushLog(`You clear ${locName}.`, 'info');
+        pushLog(flavor('searchClear', { name: locName }), 'info');
       } else {
-        pushLog(`You clear ${locName}.`, 'good', { loot: haulLoot, leftover: [] });
+        pushLog(flavor('searchClear', { name: locName }), 'good', {
+          loot: haulLoot,
+          leftover: [],
+        });
       }
     } else if (haulLoot.length === 0 && leftover.length === 0 && mode === 'abort') {
-      pushLog(`You stop searching ${locName} empty-handed.`, 'info');
+      pushLog(flavor('searchAbortEmpty', { name: locName }), 'info');
     } else if (mode === 'abort') {
-      pushLog(`You cut the search short at ${locName}.`, 'info', {
+      pushLog(flavor('searchAbort', { name: locName }), 'info', {
         loot: haulLoot,
         leftover: [],
       });
     } else if (working.fled) {
-      pushLog(`Grabbed what you could from ${locName}.`, 'good', {
+      pushLog(flavor('searchFledDone', { name: locName }), 'good', {
         loot: haulLoot,
         leftover: [],
       });
     } else if (working.raiding) {
-      pushLog(`Raided their stores at ${locName} — this is why they keep a gate.`, 'good', {
+      pushLog(flavor('searchRaidDone', { name: locName }), 'good', {
         loot: haulLoot,
         leftover: [],
       });
     } else if (haulLoot.length === 0) {
-      pushLog(flavor('searchFound', { name: locName }), 'info');
+      pushLog(flavor('searchEmpty', { name: locName }), 'info');
     } else {
       pushLog(flavor('searchFound', { name: locName }), 'good', {
         loot: haulLoot,
@@ -1790,9 +1803,19 @@ export const useGame = create<State>((set, get) => {
     if (!s.hdb || s.pendingSearch) return;
     const unit = s.hdb.floors[level - 1]?.units.find((u) => u.id === unitId);
     const label = unit?.label ?? 'the unit';
-    // `lootMod` already carries the whole risk ladder — barricaded door, corner
-    // unit, height. Adding it to the base a second time double-counted it.
-    const loot = rollLoot(rng, 'residential', 2 + lootMod, lootMod);
+    const table = unit ? UNIT_META[unit.type].lootTable : 'residential';
+    if (!table) {
+      // Holdouts are cleared via hdbUseService — never search-loot them.
+      bumpStats({ hdbUnitsCleared: 1 });
+      const hdb = updateUnit(s.hdb, level, unitId, { state: 'cleared' });
+      set({ hdb, hdbBlocks: { ...s.hdbBlocks, [hdb.locationId]: hdb } });
+      pushLog(`${label} is spoken for — nothing left to take.`, 'info');
+      persist();
+      return;
+    }
+    // `lootMod` already carries the whole risk ladder — barricaded door, unit
+    // type, height. Adding it to the base a second time double-counted it.
+    const loot = rollLoot(rng, table, 2 + lootMod, lootMod);
     // A door nobody else could get through is the one thing behind which gear
     // is still in working order. This is the payoff for the noise and the time.
     const bias = Math.max(0, Math.min(1, lootMod / 5));
@@ -1802,7 +1825,7 @@ export const useGame = create<State>((set, get) => {
 
     if (loot.length === 0) {
       bumpStats({ hdbUnitsCleared: 1 });
-      pushLog(`${label} is bare.`, 'info');
+      pushLog(flavor('searchBare', { name: label }), 'info');
       persist();
       return;
     }
@@ -1826,7 +1849,7 @@ export const useGame = create<State>((set, get) => {
         fled: false,
         nonce,
         pieces,
-        totalMinutes: searchMinutes('residential'),
+        totalMinutes: searchMinutes(table),
         speedFactor: speed,
         spendCharges: false,
         chargeBudget: 1,
@@ -1836,7 +1859,7 @@ export const useGame = create<State>((set, get) => {
     );
 
     set({ pendingSearch: session });
-    pushLog(`Searching ${label}…`, 'info');
+    pushLog(flavor('searchStart', { name: label }), 'info');
     persist();
   };
 
@@ -2179,13 +2202,10 @@ export const useGame = create<State>((set, get) => {
       loot.length ? { loot, leftover: missed } : undefined,
     );
     if (tempHeld.length > 0) {
-      pushLog(
-        'Pack full — excess is on a temporary stash. Swap what you need, then confirm.',
-        'info',
-      );
+      pushLog(flavor('packSpill'), 'info');
     }
     if (lost.length > 0) {
-      pushLog('No room even in the temp stash — some finds were left behind.', 'bad');
+      pushLog(flavor('packLost'), 'bad');
     }
   };
 
@@ -2203,7 +2223,7 @@ export const useGame = create<State>((set, get) => {
       key: tunnelKey(run, `fight:${node.id}`),
       // A pinned gauge has been drawing something the whole walk. It arrives.
       enemy: pinned
-        ? makeTunnelStalker(new Rng(s.seed).fork(tunnelKey(run, `stalker:${node.id}`)), threat)
+        ? makeStalker(new Rng(s.seed).fork(tunnelKey(run, `stalker:${node.id}`)), threat)
         : undefined,
       intro: pinned
         ? 'Whatever has been pacing you down the tunnel stops pacing.'
@@ -2429,7 +2449,16 @@ export const useGame = create<State>((set, get) => {
     // the survivor has to actually make — which is what gives the doorway its
     // weight, and what stops an encounter from feeling like it ambushed you
     // for the crime of walking down a street.
-    if (!loc2.exhausted) pushLog(flavor('atDoor', { name: loc.name }), 'info');
+    if (!loc2.exhausted) {
+      pushLog(
+        flavor('atDoor', {
+          name: loc.name,
+          time: timeOfDay(arr.hour),
+          weather: weatherKindFor(arr.seed, arr.day),
+        }),
+        'info',
+      );
+    }
     persist();
   };
 
@@ -2725,6 +2754,8 @@ export const useGame = create<State>((set, get) => {
         pushLog(
           `Radio static, then a voice: "Evac staging at ${evacLoc.name}. Pack fuel, meds, and ammo — we won't name a number. We hold the window ${firstWindow} hours, no more. Stay longer and the score climbs — but so does the city."`,
           'good',
+          undefined,
+          { lat: evacLoc.lat, lng: evacLoc.lng, label: evacLoc.name },
         );
       }
 
@@ -2789,7 +2820,7 @@ export const useGame = create<State>((set, get) => {
       const loc = s.locations[locationId];
       if (!loc || s.combat || s.pendingEvent || s.pendingSearch || s.travelAnim) return;
       if (s.meters.energy < 5) {
-        pushLog('Too exhausted to move out. Rest first.', 'bad');
+        pushLog(flavor('tooTired'), 'bad');
         return;
       }
 
@@ -2895,7 +2926,7 @@ export const useGame = create<State>((set, get) => {
           );
         }
         if (veg.patches.length > 0) {
-          pushLog('Dense forest slows the line — nature reserve overgrowth.', 'info');
+          pushLog('Dense forest slows you — nature reserve overgrowth.', 'info');
         }
 
         // Blend hazard encounter chance with the classic road roll.
@@ -2947,7 +2978,10 @@ export const useGame = create<State>((set, get) => {
               set({ items: res.items });
               pushLog(`${flavor('roadFind', { name: loc.name })} (${itemDef(defId).name})`, 'good');
             } else {
-              pushLog(`Something useful on the road to ${loc.name}, but your pack's full.`, 'info');
+              pushLog(
+                `Something useful on the road to ${loc.name}, but you can't carry it.`,
+                'info',
+              );
             }
           }
         }
@@ -2958,7 +2992,11 @@ export const useGame = create<State>((set, get) => {
         2800,
         Math.max(800, Math.round(est.travelMin * 22 * Math.min(1.35, vegOnRoute.travelMult))),
       );
-      pushLog(flavor('setout', { name: loc.name }), 'info');
+      pushLog(flavor('setout', {
+        name: loc.name,
+        time: timeOfDay(s.hour),
+        weather,
+      }), 'info');
       set({
         travelAnim: {
           fromLat: from.lat,
@@ -3004,14 +3042,14 @@ export const useGame = create<State>((set, get) => {
         pushLog(
           res.roll === 20
             ? 'You ghost past the gate without a sound.'
-            : `You slip past the gate (dex ${res.total} vs ${dc}).`,
+            : 'You slip past the gate — quiet feet, held breath.',
           'good',
         );
         enterRaid(id, 'sneak');
         persist();
         return;
       }
-      pushLog(`Spotted slipping in (dex ${res.total} vs ${dc}). Blades come out.`, 'bad');
+      pushLog('Spotted slipping in. Blades come out.', 'bad');
       illicitStandingHit(id);
       startHumanCombat(id, loc.factionId, false, { pendingRaid: 'sneak' });
     },
@@ -3067,14 +3105,14 @@ export const useGame = create<State>((set, get) => {
         pushLog(
           res.roll === 20
             ? 'You work the shelves without a whisper.'
-            : `Quiet hands (dex ${res.total} vs ${dc}).`,
+            : 'Quiet hands. The shelves give without a sound.',
           'good',
         );
         attemptSearch(raid.locationId);
         persist();
         return;
       }
-      pushLog(`Caught rifling the place (dex ${res.total} vs ${dc}).`, 'bad');
+      pushLog('Caught rifling the place. They come for you.', 'bad');
       illicitStandingHit(raid.locationId);
       startHumanCombat(raid.locationId, loc.factionId, false, { raidLoot: true });
     },
@@ -3087,7 +3125,7 @@ export const useGame = create<State>((set, get) => {
       const s = get();
       if (s.combat || s.pendingEvent || s.pendingSearch || s.travelAnim) return;
       if (s.meters.energy < 5) {
-        pushLog('Too exhausted to move out. Rest first.', 'bad');
+        pushLog(flavor('tooTired'), 'bad');
         return;
       }
 
@@ -3144,7 +3182,8 @@ export const useGame = create<State>((set, get) => {
         encumbered,
         moveFactor(s),
       );
-      if (advanceTime(est.travelMin / 60)) return;
+      const veg = vegetationCost(from, { lat, lng }, route.points);
+      if (advanceTime((est.travelMin / 60) * veg.travelMult)) return;
       bumpStats({ distanceM: dist });
 
       // Prefetch the landing cell — open ground is how you leave the bubble.
@@ -3174,7 +3213,6 @@ export const useGame = create<State>((set, get) => {
       );
 
       // Exposure: crossing open ground costs stamina the clock alone wouldn't.
-      const veg = vegetationCost(from, { lat, lng }, route.points);
       set({
         meters: {
           ...now.meters,
@@ -3229,12 +3267,12 @@ export const useGame = create<State>((set, get) => {
         return;
       }
       if (stationIds.length < 2 || stationIds[0] !== from.mrtStationId) {
-        pushLog('That route does not start from this platform.', 'bad');
+        pushLog('That route doesn\'t start from this platform.', 'bad');
         return;
       }
       const net = getMrtNetwork();
       if (!net) {
-        pushLog('The rail map is blank — no way to plan a tunnel walk.', 'bad');
+        pushLog('The rail map is blank — no way to plan a walk through the dark.', 'bad');
         return;
       }
       for (let i = 1; i < stationIds.length; i++) {
@@ -3244,7 +3282,7 @@ export const useGame = create<State>((set, get) => {
         }
       }
       if (s.meters.energy < 5) {
-        pushLog('Too spent to walk a tunnel. Rest first.', 'bad');
+        pushLog(flavor('tooTiredTunnel'), 'bad');
         return;
       }
 
@@ -3291,7 +3329,7 @@ export const useGame = create<State>((set, get) => {
         return;
       }
       if (s.items.some((i) => i.container === TEMP_STASH)) {
-        pushLog('Sort the temporary stash (or confirm abandon) before surfacing.', 'bad');
+        pushLog(flavor('sortHaulSurface'), 'bad');
         set({ inventoryOpenToken: s.inventoryOpenToken + 1 });
         return;
       }
@@ -3303,7 +3341,7 @@ export const useGame = create<State>((set, get) => {
       const run = s.tunnel;
       if (!run || s.combat || s.pendingEvent) return;
       if (s.items.some((i) => i.container === TEMP_STASH)) {
-        pushLog('Sort the temporary stash (or confirm abandon) before moving on.', 'bad');
+        pushLog(flavor('sortHaul'), 'bad');
         set({ inventoryOpenToken: s.inventoryOpenToken + 1 });
         return;
       }
@@ -3413,7 +3451,7 @@ export const useGame = create<State>((set, get) => {
       const s = get();
       const leftover = s.items.filter((i) => i.container === TEMP_STASH);
       if (leftover.length === 0) {
-        pushLog('Temp stash cleared.', 'info');
+        pushLog('Loose haul sorted. You\'re clean to move.', 'info');
         return;
       }
       const names = leftover
@@ -3813,7 +3851,7 @@ export const useGame = create<State>((set, get) => {
         };
       }
       set({ items, pendingSearch: working });
-      if (stashed) pushLog('Pack full — extras went to the stash.', 'info');
+      if (stashed) pushLog('Pack full — extras went onto the site stash.', 'info');
       if (!hasFoggedOrSearching(working) && !working.slots.some((sl) => sl.state === 'found')) {
         closeSearchSession(working, 'complete');
         return;
@@ -4691,7 +4729,8 @@ export const useGame = create<State>((set, get) => {
       // Blocks saved before the cutaway strip topology have nothing safe to restore,
       // so they get rebuilt rather than loaded into a UI that would crash on them.
       const stored = s.hdbBlocks[loc.id];
-      const saved = hasStripTopology(stored) ? stored : null;
+      const savedRaw = hasStripTopology(stored) ? stored : null;
+      const saved = savedRaw ? migrateHdbDungeon(savedRaw) : null;
       if (saved) {
         // The block settles while you're gone, but it doesn't forget entirely.
         // Re-enter at the void deck / lobby — fog memory stays in revealedLevels.
@@ -4755,12 +4794,12 @@ export const useGame = create<State>((set, get) => {
         pushLog(`You slip into ${unit.label} without touching the frame.`, 'info');
       }
 
-      if (outcome.hazard && rng.chance(0.35)) {
+      if (outcome.trapped && rng.chance(0.35)) {
         const dmg = rng.int(4, 12);
         const bodyParts = applyWound(get().bodyParts, dmg, rng);
         const hot = get().hdb;
         set({ bodyParts, ...(hot ? { hdb: addHeat(hot, HAZARD_HEAT, level) } : {}) });
-        pushLog(`${outcome.hazard} — it costs you ${dmg} health.`, 'bad');
+        pushLog(`Something by the door — it costs you ${dmg} health.`, 'bad');
         const cause = checkDeath(get().meters, bodyParts);
         if (cause) {
           endRun(cause);
@@ -4778,7 +4817,7 @@ export const useGame = create<State>((set, get) => {
         if (rng.chance(HUNT_ELITE_CHANCE)) {
           startZombieCombat(hot.locationId, false, {
             terrainOverride: 'hdb_corridor',
-            enemy: makeBlockHunter(rng, floorThreat(hot, level)),
+            enemy: makeHulk(rng, floorThreat(hot, level)),
             intro: `The corridor behind you fills. Whatever ${unit.label} held, it isn't the problem now.`,
             hdbUnit,
           });
@@ -4846,7 +4885,7 @@ export const useGame = create<State>((set, get) => {
           pushLog('The stairwell is not empty. It has been waiting.', 'bad');
           startZombieCombat(g.hdb.locationId, false, {
             terrainOverride: 'hdb_corridor',
-            enemy: makeBlockHunter(huntRng, floorThreat(g.hdb, from.level)),
+            enemy: makeHulk(huntRng, floorThreat(g.hdb, from.level)),
             intro: 'It fills the landing shoulder to shoulder.',
             // Resume the interrupted hop after the fight — staying put re-arms
             // the same stair check and hard-locks the floor.
@@ -4967,7 +5006,7 @@ export const useGame = create<State>((set, get) => {
       const s = get();
       if (!s.hdb || s.combat) return;
       if (s.pendingSearch) {
-        pushLog('Finish or leave the unit search in the timeline before you walk out.', 'info');
+        pushLog('Finish or leave the unit search before you walk out.', 'info');
         return;
       }
       if (s.hdb.currentLevel !== 1) {
@@ -5418,13 +5457,15 @@ export const useGame = create<State>((set, get) => {
     continueRun: () => {
       const run = loadRun();
       if (!run) return;
+      // Zones must be ready for vegetation soft-cost (and walkability) before
+      // the first trek — don't wait on the MRT fetch.
+      void ensureZonesLoaded().catch(() => {
+        /* trek/spawn degrade to country clip */
+      });
       // Stations were bound to the network when the run was created; get it
       // back in memory so the tunnels still route — and so old saves can
       // re-roll destroyed edges from seed before play resumes.
       void loadMrtNetwork().then((net) => {
-      void ensureZonesLoaded().catch(() => {
-        /* trek/spawn degrade to country clip */
-      });
       syncBackpackBonuses(
         sumTraitMod(run.character.traitIds, 'gridWidthBonus'),
         coerceEquipment(run.equipment),

@@ -25,6 +25,7 @@ import { Icon } from '../icons/Icon';
 import { LocationCard } from '../components/LocationCard';
 import { TrekCard } from '../components/TrekCard';
 import { InventoryPanel } from '../components/Inventory/InventoryPanel';
+import { InventoryInteractionProvider } from '../components/Inventory/InventoryInteractionContext';
 import { CraftingPanel } from '../components/CraftingPanel';
 import { StashLogbook } from '../components/StashLogbook';
 import { SettingsModal } from '../components/SettingsModal';
@@ -35,16 +36,19 @@ import { ObjectiveBar } from '../components/ObjectiveBar';
 import { ObjectivesPanel } from '../components/ObjectivesPanel';
 import { DayLogsModal } from '../components/DayLogsModal';
 import { GuideModal } from '../components/GuideModal';
+import { HowToPlayModal } from '../components/HowToPlayModal';
 import { HdbDungeonModal } from '../components/HdbDungeonModal';
-import { HdbContextPanel, unitUnderfoot } from '../components/HdbContextPanel';
+import { HdbContextPanel } from '../components/HdbContextPanel';
 import { TraderModal } from '../components/TraderModal';
 import { MrtRoutePlanner } from '../components/MrtRoutePlanner';
 import { TunnelRunView } from '../components/TunnelRunView';
 import type { GuideTopic } from '../content/guideContent';
+import { useSetting } from '../game/settings';
 import { itemDef } from '../game/loot';
-import { estimateExpedition } from '../game/travel';
+import { estimateExpedition, withVegetationTravel } from '../game/travel';
 import { unplayableMessage, walkabilityOf } from '../game/playable';
 import { routeLandPath } from '../game/route';
+import { vegetationCost } from '../game/vegetation';
 import {
   bleedEncounterMod,
   computeEvacBonus,
@@ -104,7 +108,7 @@ function useIsPhone(): boolean {
 type SidePanel = 'inventory' | 'craft' | 'logbook' | 'stats' | 'objective';
 
 const SIDE_PANELS: Record<SidePanel, { label: string; icon: IconName }> = {
-  inventory: { label: 'Inventory', icon: 'action.inventory' },
+  inventory: { label: 'Stash', icon: 'action.inventory' },
   craft: { label: 'Craft', icon: 'action.craft' },
   logbook: { label: 'Logbook', icon: 'action.logbook' },
   stats: { label: 'Stats', icon: 'action.stats' },
@@ -236,6 +240,15 @@ export function GameScreen() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [dayLogsOpen, setDayLogsOpen] = useState(false);
   const [guideTopic, setGuideTopic] = useState<GuideTopic | null>(null);
+  const [howToPlayOpen, setHowToPlayOpen] = useState(false);
+  const showGuideOnStart = useSetting('showGuideOnStart');
+
+  useEffect(() => {
+    if (showGuideOnStart !== 'on') return;
+    setHowToPlayOpen(true);
+    // Only auto-open once per GameScreen mount (entering / continuing a run).
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional mount-once
+  }, []);
   const [mrtPlanner, setMrtPlanner] = useState<{
     fromStationId: string;
     toStationId?: string | null;
@@ -269,7 +282,15 @@ export function GameScreen() {
   // Escape closes the slide-out unless a higher modal owns the screen.
   useEffect(() => {
     if (!sidePanel) return;
-    if (settingsOpen || dayLogsOpen || guideTopic || traderOpen || ghostOffer || hereSheetOpen)
+    if (
+      settingsOpen ||
+      dayLogsOpen ||
+      guideTopic ||
+      howToPlayOpen ||
+      traderOpen ||
+      ghostOffer ||
+      hereSheetOpen
+    )
       return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
@@ -278,7 +299,16 @@ export function GameScreen() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [sidePanel, settingsOpen, dayLogsOpen, guideTopic, traderOpen, ghostOffer, hereSheetOpen]);
+  }, [
+    sidePanel,
+    settingsOpen,
+    dayLogsOpen,
+    guideTopic,
+    howToPlayOpen,
+    traderOpen,
+    ghostOffer,
+    hereSheetOpen,
+  ]);
 
   // Phone interruptions live on the Map tab — pull the player there instead of
   // yanking them to Log. HDB / tunnel already own the map column.
@@ -298,6 +328,12 @@ export function GameScreen() {
     if (!(combat && !combat.awaitingStance)) return;
     if (mobileView !== 'map') setMobileView('map');
   }, [isPhone, combat, hdb, tunnel, mobileView]);
+
+  // Entering a block / tunnel / planner owns the Map tab — Status/Log must not
+  // share the screen with it (phone tabs replace the world column entirely).
+  useEffect(() => {
+    if (hdb || tunnel || mrtPlanner) setMobileView('map');
+  }, [hdb, tunnel, mrtPlanner]);
 
   // Close the here sheet when you leave the site or enter a block / tunnel.
   useEffect(() => {
@@ -441,26 +477,33 @@ export function GameScreen() {
     : 0;
 
   const est = useMemo(
-    () =>
-      sel && character
-        ? estimateExpedition(
-            previewRoute && !previewRoute.blocked && sel.id !== currentPositionId
-              ? previewRoute.lengthM
-              : Math.round(haversine(currentPos.lat, currentPos.lng, sel.lat, sel.lng)),
-            sel.category,
-            character.attributes,
-            meters.energy,
-            hour,
-            weather,
-            encumbered,
-            legFactor,
-          )
-        : null,
+    () => {
+      if (!sel || !character) return null;
+      const via =
+        previewRoute && !previewRoute.blocked && sel.id !== currentPositionId
+          ? previewRoute.points
+          : undefined;
+      const dist =
+        via && via.length >= 2
+          ? previewRoute!.lengthM
+          : Math.round(haversine(currentPos.lat, currentPos.lng, sel.lat, sel.lng));
+      const base = estimateExpedition(
+        dist,
+        sel.category,
+        character.attributes,
+        meters.energy,
+        hour,
+        weather,
+        encumbered,
+        legFactor,
+      );
+      const veg = vegetationCost(currentPos, { lat: sel.lat, lng: sel.lng }, via);
+      return withVegetationTravel(base, veg.travelMult, hour);
+    },
     [
       sel,
       character,
-      currentPos.lat,
-      currentPos.lng,
+      currentPos,
       currentPositionId,
       previewRoute,
       meters.energy,
@@ -472,20 +515,40 @@ export function GameScreen() {
   );
 
   const trekEst = useMemo(
-    () =>
-      trekTarget && character
-        ? estimateExpedition(
-            trekDist,
-            'fuel', // only the travel leg is used — there's nothing out there to search
-            character.attributes,
-            meters.energy,
-            hour,
-            weather,
-            encumbered,
-            legFactor,
-          )
-        : null,
-    [trekTarget, character, trekDist, meters.energy, hour, weather, encumbered, legFactor],
+    () => {
+      if (!trekTarget || !character) return null;
+      const via =
+        previewRoute && !previewRoute.blocked && previewRoute.points.length >= 2
+          ? previewRoute.points
+          : undefined;
+      const base = estimateExpedition(
+        trekDist,
+        'fuel', // only the travel leg is used — there's nothing out there to search
+        character.attributes,
+        meters.energy,
+        hour,
+        weather,
+        encumbered,
+        legFactor,
+      );
+      const veg = vegetationCost(currentPos, trekTarget, via);
+      return {
+        ...withVegetationTravel(base, veg.travelMult, hour),
+        vegetationEnergy: veg.energyCost,
+      };
+    },
+    [
+      trekTarget,
+      character,
+      trekDist,
+      meters.energy,
+      hour,
+      weather,
+      encumbered,
+      legFactor,
+      currentPos,
+      previewRoute,
+    ],
   );
 
   const trekInfo = useMemo(() => {
@@ -675,11 +738,12 @@ export function GameScreen() {
               tooClose={trekDist < TREK_MIN_DISTANCE_M}
               noDryRoute={!!previewRoute?.blocked}
               arrivalAtNight={trekEst.arrivalAtNight}
+              vegetationSlowed={trekEst.vegetationSlowed}
+              vegetationEnergy={trekEst.vegetationEnergy}
               onTrek={() => {
                 trek(trekTarget.lat, trekTarget.lng);
                 setTrekTarget(null);
               }}
-              onCancel={() => setTrekTarget(null)}
             />
           ),
           onClose: () => setTrekTarget(null),
@@ -727,15 +791,10 @@ export function GameScreen() {
     </>
   ) : null;
 
-  const hdbUnit = hdb ? unitUnderfoot(hdb) : null;
   const hereTitle: ReactNode = hdb ? (
     <span className="inline-flex items-center gap-1.5 normal-case tracking-normal">
       <Icon name="hdb.enterBlock" />
-      {hdbUnit ? (
-        <span className="text-xs font-bold tabular-nums text-concrete-50">{hdbUnit.label}</span>
-      ) : (
-        'Inside the block'
-      )}
+      Inside the block
     </span>
   ) : hereProps ? (
     <><Icon name="action.here" /> You are here</>
@@ -773,9 +832,8 @@ export function GameScreen() {
       : pendingSearch
         ? 'search'
         : null;
-  /** Show map chrome overlays when the map column is the visible phone surface. */
-  const phoneMapSurface =
-    isPhone && (mobileView === 'map' || !!hdb || !!tunnel || !!mrtPlanner);
+  /** Idle here/log chrome only while Map tab is showing the world surface. */
+  const phoneMapSurface = isPhone && mobileView === 'map';
   const backgrounded = `transition-all duration-300 ${
     contactGate ? 'pointer-events-none select-none opacity-25 saturate-50' : ''
   }`;
@@ -789,14 +847,15 @@ export function GameScreen() {
     .join(' ');
 
   return (
+    <InventoryInteractionProvider>
     <div className={shellClass}>
       <PhoneStatusBar onOpenStatus={() => setMobileView('hub')} />
 
-      {/* Click map / timeline to dismiss any slide-out. Sits under the panel
-          (z-700) and under the desktop rail (z-750) so toggles stay reliable. */}
+      {/* Click map / timeline to dismiss any slide-out. Phone: leave the status
+          bar and bottom nav clear so vitals stay readable and tabs stay usable. */}
       {sidePanel && (
         <div
-          className="absolute inset-0 z-[690]"
+          className="absolute inset-x-0 z-[690] max-lg:bottom-[calc(var(--mobile-nav-h)+env(safe-area-inset-bottom,0px))] max-lg:top-[var(--mobile-status-bar-h)] lg:inset-0"
           aria-hidden
           onClick={() => setSidePanel(null)}
         />
@@ -851,7 +910,13 @@ export function GameScreen() {
               onOpen={() => setSidePanel((p) => (p === 'objective' ? null : 'objective'))}
             />
 
-            <ConditionPanel onOpenGuide={setGuideTopic} />
+            <ConditionPanel
+              onOpenGuide={setGuideTopic}
+              showSurvivorStats={isPhone}
+            />
+
+            {/* Desktop: backpack stays on the rail so the pack is always visible. */}
+            {!isPhone && <InventoryPanel layout="backpack" />}
 
             {/* --- the panel switchers --- */}
             <div className="grid grid-cols-2 gap-1.5">
@@ -883,12 +948,14 @@ export function GameScreen() {
       {/* ================= COLUMN 2: the slide-out =================
            Toggled from the rail's panel buttons, closable from its own header.
            It overlays the map rather than squeezing it, so the map never
-           reflows when you check your pack. */}
+           reflows when you check your pack.
+           Phone: sits between the status bar and bottom nav so meters stay
+           visible while you eat/drink from inventory. */}
       {/* Closed, it parks fully off the left edge — on lg that means clearing its
           own 360px plus the 340px rail it is offset by, so it slides out from
           behind the rail instead of fading in on top of it. */}
       <div
-        className={`absolute inset-y-0 left-0 z-[700] w-full transition-transform duration-200 ease-out lg:left-[340px] lg:w-[360px] ${
+        className={`absolute left-0 z-[700] w-full transition-transform duration-200 ease-out max-lg:bottom-[calc(var(--mobile-nav-h)+env(safe-area-inset-bottom,0px))] max-lg:top-[var(--mobile-status-bar-h)] lg:inset-y-0 lg:left-[340px] lg:w-[360px] ${
           sidePanel
             ? 'translate-x-0'
             : 'pointer-events-none -translate-x-full lg:-translate-x-[700px]'
@@ -911,7 +978,9 @@ export function GameScreen() {
             </button>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto p-3">
-            {sidePanel === 'inventory' && <InventoryPanel />}
+            {sidePanel === 'inventory' && (
+              <InventoryPanel layout={isPhone ? 'full' : 'equipStash'} />
+            )}
             {sidePanel === 'craft' && <CraftingPanel />}
             {sidePanel === 'logbook' && <StashLogbook onFocusLocation={focusStashOnMap} />}
             {sidePanel === 'stats' && <StatsPanel />}
@@ -939,10 +1008,12 @@ export function GameScreen() {
       </div>
 
       {/* ================= COLUMN 3: map — or the HDB block / the tunnel, each
-           of which takes the whole view for the duration ================= */}
+           of which takes the whole view for the duration =================
+           Phone: only while Map is the active tab. Status / Log fully replace
+           this column — do not keep HDB/tunnel mounted beside them. */}
       <div
         className={`relative lg:flex lg:flex-1 ${
-          mobileView === 'map' || hdb || tunnel || mrtPlanner ? show(true) : 'hidden'
+          mobileView === 'map' ? show(true) : 'hidden'
         } lg:flex ${phoneFight ? '' : backgrounded}`}
       >
         {/* Phone active fight: CombatPanel owns the Map tab (no map peek). */}
@@ -1132,7 +1203,7 @@ export function GameScreen() {
 
       {/* ================= MOBILE bottom nav ================= */}
       <nav
-        className={`flex shrink-0 border-t border-white/10 bg-concrete-900 pb-[env(safe-area-inset-bottom,0px)] text-xs lg:hidden ${backgrounded}`}
+        className={`relative z-[710] flex shrink-0 border-t border-white/10 bg-concrete-900 pb-[env(safe-area-inset-bottom,0px)] text-xs lg:hidden ${backgrounded}`}
         style={{ minHeight: 'calc(var(--mobile-nav-h) + env(safe-area-inset-bottom, 0px))' }}
       >
         <NavBtn
@@ -1152,7 +1223,7 @@ export function GameScreen() {
           onClick={() => setMobileView('hub')}
         />
         <NavBtn
-          label={<><Icon name="action.inventory" /> Inventory</>}
+          label={<><Icon name="action.inventory" /> Stash</>}
           active={sidePanel === 'inventory'}
           onClick={() => setSidePanel((v) => (v === 'inventory' ? null : 'inventory'))}
         />
@@ -1194,13 +1265,20 @@ export function GameScreen() {
           </div>
         </div>
       )}
-      {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && (
+        <SettingsModal
+          onClose={() => setSettingsOpen(false)}
+          onReviewGuide={() => setHowToPlayOpen(true)}
+        />
+      )}
       {dayLogsOpen && <DayLogsModal onClose={() => setDayLogsOpen(false)} />}
       {guideTopic && <GuideModal topic={guideTopic} onClose={() => setGuideTopic(null)} />}
+      {howToPlayOpen && <HowToPlayModal onClose={() => setHowToPlayOpen(false)} />}
       {/* Gated on store state rather than local state: the counter belongs to
           the place you're standing in, not to a button in this screen. */}
       <TraderModal />
     </div>
+    </InventoryInteractionProvider>
   );
 }
 

@@ -94,6 +94,17 @@ export const SETTINGS_SCHEMA: SettingDef[] = [
     ],
     default: 'md',
   },
+  {
+    key: 'showGuideOnStart',
+    label: 'How to play on start',
+    description: 'Show the how-to-play primer when a run begins. Turn off after you know the ropes.',
+    group: 'Guide',
+    options: [
+      { value: 'on', label: 'On' },
+      { value: 'off', label: 'Off' },
+    ],
+    default: 'on',
+  },
 ];
 
 /** Root font-size multipliers applied via `document.documentElement`. */
@@ -113,7 +124,13 @@ function defaults(): Record<string, string> {
 function loadSettings(): Record<string, string> {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return { ...defaults(), ...(JSON.parse(raw) as Record<string, string>) };
+    if (raw) {
+      const parsed = JSON.parse(raw) as Record<string, string>;
+      const merged = { ...defaults(), ...parsed };
+      // New key: returning installs keep the primer off until they opt in.
+      if (!('showGuideOnStart' in parsed)) merged.showGuideOnStart = 'off';
+      return merged;
+    }
   } catch {
     /* ignore */
   }

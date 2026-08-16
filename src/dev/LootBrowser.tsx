@@ -17,7 +17,13 @@ import {
   type ItemsCatalog,
 } from './lootApi';
 import { EFFECT_KINDS, validateItemsCatalog } from './validateItems';
-import { OPEN_LOOT_EVENT, type OpenLootDetail } from './devBridge';
+import {
+  CLOSE_DEV_TOOLS_EVENT,
+  OPEN_LOOT_EVENT,
+  reportDevToolState,
+  type CloseDevToolsDetail,
+  type OpenLootDetail,
+} from './devBridge';
 import { ValidationErrorBadge } from './ValidationErrorBadge';
 
 type KindFilter = 'all' | ItemDef['effect']['kind'];
@@ -162,6 +168,10 @@ export function DevLootBrowser() {
   }, [open]);
 
   useEffect(() => {
+    reportDevToolState('loot', open);
+  }, [open]);
+
+  useEffect(() => {
     const onOpen = (e: Event) => {
       const detail = (e as CustomEvent<OpenLootDetail>).detail;
       setOpen(true);
@@ -173,8 +183,17 @@ export function DevLootBrowser() {
         setStatus(`Opened from Enemies · ${detail.itemId}`);
       }
     };
+    const onClose = (e: Event) => {
+      const except = (e as CustomEvent<CloseDevToolsDetail>).detail?.except;
+      if (except === 'loot') return;
+      setOpen(false);
+    };
     window.addEventListener(OPEN_LOOT_EVENT, onOpen);
-    return () => window.removeEventListener(OPEN_LOOT_EVENT, onOpen);
+    window.addEventListener(CLOSE_DEV_TOOLS_EVENT, onClose);
+    return () => {
+      window.removeEventListener(OPEN_LOOT_EVENT, onOpen);
+      window.removeEventListener(CLOSE_DEV_TOOLS_EVENT, onClose);
+    };
   }, []);
 
   const hasArt = (id: string): boolean => {
@@ -582,18 +601,7 @@ export function DevLootBrowser() {
     selectedId,
   ]);
 
-  if (!open) {
-    return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="fixed bottom-3 left-3 z-[2000] rounded border border-signal/40 bg-concrete-900/95 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-signal shadow-lg hover:bg-concrete-800"
-        title="DEV loot browser"
-      >
-        Loot
-      </button>
-    );
-  }
+  if (!open) return null;
 
   const saveFromDiff = pendingNav ? confirmSaveAndNav : confirmSave;
 

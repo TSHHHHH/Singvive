@@ -1,6 +1,8 @@
+import type { ReactNode } from 'react';
 import { Icon } from '../icons/Icon';
 import { formatDuration } from '../game/travel';
 import { HAZARD_CONFIG, riskLabel, type TrekRisk } from '../game/wilds';
+import type { IconName } from '../icons/keys';
 
 interface Props {
   distanceM: number;
@@ -15,14 +17,20 @@ interface Props {
   /** Straight chord crosses water/restricted with no land detour under budget. */
   noDryRoute?: boolean;
   arrivalAtNight: boolean;
+  /** Route cuts through baked forest / nature reserve. */
+  vegetationSlowed?: boolean;
+  /** Extra stamina burned for vegetation (on top of open-ground exposure). */
+  vegetationEnergy?: number;
   onTrek: () => void;
-  onCancel: () => void;
 }
 
 /**
  * The card for crossing open ground. Deliberately plainer than a LocationCard —
  * there's nothing there. It sells the one thing the player is buying: a way out
  * of wherever they're standing, at a price.
+ *
+ * Sized for TargetDock (~268px): labels stay on one line, values wrap cleanly
+ * on the right. Cancel lives on the dock chrome, not here.
  */
 export function TrekCard({
   distanceM,
@@ -34,44 +42,48 @@ export function TrekCard({
   tooClose,
   noDryRoute = false,
   arrivalAtNight,
+  vegetationSlowed = false,
+  vegetationEnergy = 0,
   onTrek,
-  onCancel,
 }: Props) {
   const label = riskLabel(risk.encounterChance);
   const blocked = energyLow || outOfRange || tooClose || noDryRoute;
+  const energyHit = risk.energyCost + vegetationEnergy;
 
   return (
     <>
-      <div className="flex items-center gap-2">
-        <Icon name="action.travel" size={22} className="opacity-60" />
+      <div className="flex items-start gap-2">
+        <Icon name="action.travel" size={22} className="mt-0.5 shrink-0 opacity-60" />
         <div className="min-w-0 flex-1">
           <div className="font-bold text-white/70">Open ground</div>
-          <div className="text-xs text-white/40">
+          <div className="text-xs leading-snug text-white/40">
             No building, no stash, nothing to search. Just a way through.
           </div>
         </div>
-        <button
-          onClick={onCancel}
-          className="rounded px-2 py-0.5 text-xs text-white/40 hover:bg-white/10 hover:text-white/70"
-        >
-          clear
-        </button>
       </div>
 
-      <div className="mt-2 rounded bg-black/30 p-2 text-xs text-white/55">
-        <div className="flex justify-between">
-          <span><Icon name="action.travel" /> Cross</span>
-          <span className="text-white/80">
-            {distanceM} m · {formatDuration(travelMin)}
-          </span>
-        </div>
-        <div className="flex justify-between">
-          <span><Icon name="meter.energy" /> Exposure</span>
-          <span className="text-white/80">−{risk.energyCost} energy</span>
-        </div>
-        <div className="mt-1 flex justify-between border-t border-white/10 pt-1">
-          <span><Icon name="combat.encounter" /> Route</span>
-          <span style={{ color: label.color }}>{label.text}</span>
+      <div className="mt-2 space-y-1 rounded bg-black/30 p-2 text-xs text-white/55">
+        <StatRow
+          icon="action.travel"
+          label="Cross"
+          value={
+            <>
+              {distanceM} m · {formatDuration(travelMin)}
+              {vegetationSlowed && <span className="text-white/45"> · forest</span>}
+            </>
+          }
+        />
+        <StatRow
+          icon="meter.energy"
+          label="Exposure"
+          value={<>−{energyHit} energy</>}
+        />
+        <div className="border-t border-white/10 pt-1">
+          <StatRow
+            icon="combat.encounter"
+            label="Route"
+            value={<span style={{ color: label.color }}>{label.text}</span>}
+          />
         </div>
       </div>
 
@@ -132,5 +144,25 @@ export function TrekCard({
                 : `Cross on foot · ${formatDuration(travelMin)}`}
       </button>
     </>
+  );
+}
+
+/** Label stays put; value wraps on the right in the narrow dock. */
+function StatRow({
+  icon,
+  label,
+  value,
+}: {
+  icon: IconName;
+  label: string;
+  value: ReactNode;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-2">
+      <span className="flex shrink-0 items-center gap-1 whitespace-nowrap">
+        <Icon name={icon} /> {label}
+      </span>
+      <span className="min-w-0 text-right leading-snug text-white/80">{value}</span>
+    </div>
   );
 }

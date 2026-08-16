@@ -179,7 +179,7 @@
       3
     ],
     [
-      "100_plus",
+      "plus_100",
       3
     ],
     [
@@ -192,6 +192,10 @@
     ],
     [
       "emergency_blanket",
+      2
+    ],
+    [
+      "daypack",
       2
     ]
   ],
@@ -400,15 +404,15 @@
     ],
     [
       "daypack",
-      4
+      5
     ],
     [
       "school_bag",
-      3
+      5
     ],
     [
       "hiking_pack",
-      2
+      4
     ],
     [
       "wooden_stick",
@@ -565,7 +569,7 @@
       3
     ],
     [
-      "100_plus",
+      "plus_100",
       3
     ]
   ],
@@ -648,7 +652,7 @@
     ],
     [
       "military_rucksack",
-      1.9
+      2.4
     ],
     [
       "police_baton",
@@ -851,6 +855,14 @@
     [
       "camp_pillow",
       2
+    ],
+    [
+      "daypack",
+      7
+    ],
+    [
+      "school_bag",
+      6
     ]
   ],
   "foodcourt": [
@@ -1005,7 +1017,7 @@
       3
     ],
     [
-      "100_plus",
+      "plus_100",
       3
     ],
     [
@@ -1145,6 +1157,14 @@
     [
       "security_vest",
       2
+    ],
+    [
+      "daypack",
+      4
+    ],
+    [
+      "hiking_pack",
+      3
     ]
   ],
   "school": [
@@ -1270,7 +1290,11 @@
     ],
     [
       "school_bag",
-      5
+      10
+    ],
+    [
+      "daypack",
+      3
     ],
     [
       "rotan_cane",
@@ -1373,6 +1397,14 @@
     [
       "flip_flops",
       4
+    ],
+    [
+      "daypack",
+      4
+    ],
+    [
+      "school_bag",
+      2
     ]
   ]
 }

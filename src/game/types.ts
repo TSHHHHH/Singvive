@@ -296,7 +296,7 @@ export interface ItemDef {
 
 /**
  * Where an item lives. 'backpack' is the carried 8×5 grid; any other value is a
- * location id whose 10×8 on-site stash the item is cached in.
+ * location id whose 9×8 on-site stash the item is cached in.
  */
 export type Container = string;
 

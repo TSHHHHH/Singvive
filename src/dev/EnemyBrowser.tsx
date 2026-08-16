@@ -38,7 +38,14 @@ import {
 } from './enemyApi';
 import { diffEnemiesCatalogs, enemiesFingerprint, enemyDiffIsEmpty, type EnemyDiff } from './enemyDiff';
 import { previewEncounter, type PreviewKind } from './enemySim';
-import { OPEN_ENEMY_EVENT, openLootItem, type OpenEnemyDetail } from './devBridge';
+import {
+  CLOSE_DEV_TOOLS_EVENT,
+  OPEN_ENEMY_EVENT,
+  openLootItem,
+  reportDevToolState,
+  type CloseDevToolsDetail,
+  type OpenEnemyDetail,
+} from './devBridge';
 import { EnemyOverview } from './EnemyOverview';
 import { fetchItemsCatalog } from './lootApi';
 import { validateEnemiesCatalog } from './validateEnemies';
@@ -457,7 +464,7 @@ export function DevEnemyBrowser() {
       setBaseline(enemiesFingerprint(data));
       setItemIds(Object.keys(items).sort());
       setZombieSel(
-        data.zombies[0] ? { t: 'tier', id: data.zombies[0].id } : { t: 'elite', id: 'block_hunter' },
+        data.zombies[0] ? { t: 'tier', id: data.zombies[0].id } : { t: 'elite', id: 'hulk' },
       );
       setHumanSel({ t: 'defaults' });
       setStatus('Loaded encounter kit');
@@ -471,6 +478,10 @@ export function DevEnemyBrowser() {
   useEffect(() => {
     if (!open) return;
     void load();
+  }, [open]);
+
+  useEffect(() => {
+    reportDevToolState('enemies', open);
   }, [open]);
 
   useEffect(() => {
@@ -495,8 +506,17 @@ export function DevEnemyBrowser() {
         setHumanSel({ t: 'loner', id: detail.lonerId as LonerKind });
       }
     };
+    const onClose = (e: Event) => {
+      const except = (e as CustomEvent<CloseDevToolsDetail>).detail?.except;
+      if (except === 'enemies') return;
+      setOpen(false);
+    };
     window.addEventListener(OPEN_ENEMY_EVENT, onOpen);
-    return () => window.removeEventListener(OPEN_ENEMY_EVENT, onOpen);
+    window.addEventListener(CLOSE_DEV_TOOLS_EVENT, onClose);
+    return () => {
+      window.removeEventListener(OPEN_ENEMY_EVENT, onOpen);
+      window.removeEventListener(CLOSE_DEV_TOOLS_EVENT, onClose);
+    };
   }, []);
 
   const listIds = useMemo(() => {
@@ -745,7 +765,7 @@ export function DevEnemyBrowser() {
     const next = catalog.zombies.filter((z) => z.id !== id);
     setCatalog({ ...catalog, zombies: next });
     if (zombieSel?.t === 'tier' && zombieSel.id === id) {
-      setZombieSel(next[0] ? { t: 'tier', id: next[0].id } : { t: 'elite', id: 'block_hunter' });
+      setZombieSel(next[0] ? { t: 'tier', id: next[0].id } : { t: 'elite', id: 'hulk' });
     }
   };
 
@@ -847,17 +867,7 @@ export function DevEnemyBrowser() {
     return whereUsedNotes(catalog, activeSel);
   }, [catalog, activeSel]);
 
-  if (!open) {
-    return (
-      <button
-        type="button"
-        className="fixed bottom-14 left-3 z-[2000] rounded border border-signal/40 bg-concrete-900/95 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-signal shadow-lg hover:bg-concrete-800"
-        onClick={() => setOpen(true)}
-      >
-        Enemies
-      </button>
-    );
-  }
+  if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-[2000] flex flex-col overflow-hidden bg-concrete-900">

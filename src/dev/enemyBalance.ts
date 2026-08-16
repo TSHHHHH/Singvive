@@ -213,7 +213,7 @@ export function buildOverviewRows(catalog: EnemiesCatalog, danger: number): Over
       rowFromEnemy(
         `zombie:${z.id}`,
         'zombie',
-        `tier ${i + 1} · danger ~${i + 1}`,
+        `tier ${i + 1} · ≈ danger ${1 + Math.round((i / Math.max(1, catalog.zombies.length - 1)) * 4)}`,
         expectedZombie(z),
         { tab: 'zombies', sel: { t: 'tier', id: z.id } },
       ),
@@ -297,17 +297,19 @@ export function whereUsedNotes(
   if (target.t === 'tier') {
     const idx = catalog.zombies.findIndex((z) => z.id === target.id);
     if (idx >= 0) {
-      notes.push(`Danger tier index ${idx + 1} (base pick at danger ${idx + 1})`);
+      const max = Math.max(1, catalog.zombies.length - 1);
+      const approxDanger = 1 + Math.round((idx / max) * 4);
+      notes.push(`Ladder index ${idx + 1}/${catalog.zombies.length} (≈ danger ${approxDanger})`);
       notes.push(
-        `Tier jitter ${catalog.spawn.zombieTierJitter[0]}…${catalog.spawn.zombieTierJitter[1]} can shift ±1`,
+        `Tier jitter ${catalog.spawn.zombieTierJitter[0]}…${catalog.spawn.zombieTierJitter[1]} shifts adjacent tiers`,
       );
     }
   } else if (target.t === 'elite') {
     if (catalog.spawn.eliteBindings.hdb === target.id) {
-      notes.push('Bound as HDB Corridor elite (makeBlockHunter)');
+      notes.push('Bound as HDB elite (makeHulk)');
     }
     if (catalog.spawn.eliteBindings.tunnel === target.id) {
-      notes.push('Bound as tunnel pressure elite (makeTunnelStalker)');
+      notes.push('Bound as tunnel pressure elite (makeStalker)');
     }
     if (
       catalog.spawn.eliteBindings.hdb !== target.id &&

@@ -65,7 +65,7 @@ export function PhoneStatusBar({ onOpenStatus }: { onOpenStatus: () => void }) {
     <button
       type="button"
       onClick={onOpenStatus}
-      className="flex shrink-0 items-center gap-2 border-b border-white/10 bg-concrete-900/95 px-2.5 py-1.5 lg:hidden"
+      className="relative z-[720] flex shrink-0 items-center gap-2 border-b border-white/10 bg-concrete-900/95 px-2.5 py-1.5 lg:hidden"
       style={{ minHeight: 'var(--mobile-status-bar-h)' }}
       aria-label="Open status"
     >

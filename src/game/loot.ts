@@ -81,16 +81,16 @@ export interface LootStack {
  * perception & scavenger bonuses supplied by the caller.
  */
 /** Roughly 35% of shelves have already been stripped by someone else. */
-const DUD_CHANCE = 0.5;
+export const DUD_CHANCE = 0.35;
 
 /**
- * How much of a thing a single roll turns up. Weighted hard toward one: a can
- * of food should be a can of food, not a case of them. The old flat 1–3 was
- * most of the reason a supermarket could feed you for a week.
+ * How much of a thing a single roll turns up. Still weighted toward one — a can
+ * of food should feel like a can, not a case — but not so hard that every haul
+ * is a lonely singleton. ~65% / 28% / 7% for 1 / 2 / 3.
  */
 function rollQuantity(rng: Rng, maxStack: number): number {
   if (maxStack <= 1) return 1;
-  const r = rng.chance(0.8) ? 1 : rng.chance(0.8) ? 2 : 3;
+  const r = rng.chance(0.65) ? 1 : rng.chance(0.8) ? 2 : 3;
   return Math.min(r, maxStack);
 }
 
@@ -100,17 +100,28 @@ function commonAlternative(rng: Rng, table: LootEntry[]): string | null {
   return plain.length ? rng.weighted(plain) : null;
 }
 
+export interface RollLootOpts {
+  /**
+   * Street scavenges: the first shelf always has something. Keeps thin POIs
+   * (hawker / MRT / waypoint) from feeling like coin-flips for an empty log,
+   * without changing HDB / raid volume — those callers omit this.
+   */
+  guaranteeFind?: boolean;
+}
+
 export function rollLoot(
   rng: Rng,
   category: PoiCategory,
   richness: number,
   bonusRolls: number,
+  opts?: RollLootOpts,
 ): LootStack[] {
   const table = LOOT_TABLES[category];
   const rolls = Math.max(1, richness + bonusRolls);
   const out = new Map<string, number>();
   for (let i = 0; i < rolls; i++) {
-    if (rng.chance(DUD_CHANCE)) continue;
+    // First roll skips the dud gate when asked — later shelves can still be bare.
+    if (!(opts?.guaranteeFind && i === 0) && rng.chance(DUD_CHANCE)) continue;
     let id = rng.weighted(table);
 
     /*
@@ -189,9 +200,8 @@ export function itemDef(id: string): ItemDef {
  * This is where risk buys reward. `bias` runs 0 (a ransacked shopfront anyone
  * could have walked into) to 1 (a barricaded high-floor unit that cost you
  * twenty-five minutes, a lungful of noise and a fight to open), and it moves
- * the whole window: street loot lands Old & Torn to Heavily Used, while the
- * doors nobody else could get through are the only reliable source of gear
- * that still works properly.
+ * the whole window: street first-searches can still land a rare near-new find,
+ * while sealed high doors remain the reliable source of gear that works properly.
  *
  * Returns undefined for items that don't wear at all, which `addToGrid` reads
  * as "no condition".

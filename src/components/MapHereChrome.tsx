@@ -55,7 +55,8 @@ export function MapHereChrome({
     <div
       className="pointer-events-auto absolute left-3 right-3 z-[640] flex flex-col overflow-hidden rounded-lg border border-white/15 bg-concrete-900/95 shadow-signage lg:hidden"
       style={{
-        bottom: 'calc(var(--mobile-nav-h) + env(safe-area-inset-bottom, 0px) + 0.5rem)',
+        bottom:
+          'calc(var(--mobile-nav-h) + env(safe-area-inset-bottom, 0px) + 1.75rem)',
         minHeight: 'var(--mobile-map-chrome-h)',
       }}
     >

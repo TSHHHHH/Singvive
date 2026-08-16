@@ -22,10 +22,12 @@ export function Icon({ name, size, className = '', title }: Props) {
   const box: CSSProperties = size ? { width: size, height: size } : { width: '1em', height: '1em' };
 
   if (icon.kind === 'emoji') {
+    // Same fixed box as assets — emoji ink often paints past its advance
+    // width and will sit on neighbouring text without a clip.
     return (
       <span
-        className={`inline-block text-center leading-none ${className}`}
-        style={size ? { fontSize: size } : undefined}
+        className={`inline-flex items-center justify-center overflow-hidden text-center leading-none ${className}`}
+        style={{ ...box, fontSize: size ?? '1em' }}
         role={title ? 'img' : undefined}
         aria-label={title}
         aria-hidden={title ? undefined : true}

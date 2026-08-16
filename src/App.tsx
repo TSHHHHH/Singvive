@@ -6,8 +6,10 @@ import { CharacterCreate } from './screens/CharacterCreate';
 import { SpawnSelect } from './screens/SpawnSelect';
 import { GameScreen } from './screens/GameScreen';
 import { DeathScreen } from './screens/DeathScreen';
+import { DevToolsMenu } from './dev/DevToolsMenu';
 import { DevLootBrowser } from './dev/LootBrowser';
 import { DevEnemyBrowser } from './dev/EnemyBrowser';
+import { DevIconBrowser } from './dev/IconBrowser';
 
 function FontSizeSync() {
   const fontSize = useSetting('fontSize');
@@ -33,8 +35,10 @@ export default function App() {
       {/* Combat is an overlay panel inside the game screen — no phase switch. */}
       {phase === 'game' && <GameScreen />}
       {phase === 'death' && <DeathScreen />}
+      {import.meta.env.DEV && <DevToolsMenu />}
       {import.meta.env.DEV && <DevLootBrowser />}
       {import.meta.env.DEV && <DevEnemyBrowser />}
+      {import.meta.env.DEV && <DevIconBrowser />}
     </div>
   );
 }

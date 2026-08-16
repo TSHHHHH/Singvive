@@ -1,4 +1,4 @@
-import type { Attributes, LocationState } from './types';
+import type { Attributes, LocationState, PoiCategory } from './types';
 import type { Rng } from './rng';
 import type { IconName } from '../icons/keys';
 
@@ -13,16 +13,123 @@ import type { IconName } from '../icons/keys';
 
 export type HdbArchetype = 'estate' | 'shelter';
 
+/**
+ * Door payoff type — labels match one plain effect. Entry state (open / locked /
+ * …) is the separate risk/time dial and lives on the context card, not the door face.
+ */
 export type HdbUnitType =
-  | 'residential'
-  | 'corner_unit'
-  | 'shelter_service'
-  | 'hazard';
+  | 'flat'
+  | 'stocked'
+  | 'trapped'
+  | 'storeroom'
+  | 'pantry'
+  | 'holdout';
 
 export type HdbUnitState = 'unexplored' | 'scouted' | 'breached' | 'cleared';
 
 /** How the door stands. Most of a dead block is simply hanging open. */
 export type HdbEntry = 'open' | 'ajar' | 'locked' | 'barricaded';
+
+export interface HdbUnitMeta {
+  label: string;
+  /** One-sentence effect — shown on Room-tile hover. */
+  blurb: string;
+  icon: IconName;
+  /** Loot table for a search clear; null = holdout (service instead). */
+  lootTable: PoiCategory | null;
+  /** Added to entry + height loot mods. */
+  lootMod: number;
+  /** Breach may wound before the fight/loot roll. */
+  trapped: boolean;
+}
+
+export const UNIT_META: Record<HdbUnitType, HdbUnitMeta> = {
+  flat: {
+    label: 'Flat',
+    blurb: 'Ordinary household scrap.',
+    icon: 'hdb.unit',
+    lootTable: 'residential',
+    lootMod: 0,
+    trapped: false,
+  },
+  stocked: {
+    label: 'Stocked',
+    blurb: 'Still has something worth taking.',
+    icon: 'hdb.stocked',
+    lootTable: 'residential',
+    lootMod: 2,
+    trapped: false,
+  },
+  trapped: {
+    label: 'Trapped',
+    blurb: 'Something nasty by the door — risk a wound to loot.',
+    icon: 'hdb.hazard',
+    lootTable: 'residential',
+    lootMod: 1,
+    trapped: true,
+  },
+  storeroom: {
+    label: 'Storeroom',
+    blurb: 'Tools and parts.',
+    icon: 'hdb.storeroom',
+    lootTable: 'hardware',
+    lootMod: 0,
+    trapped: false,
+  },
+  pantry: {
+    label: 'Pantry',
+    blurb: 'Food and water.',
+    icon: 'hdb.pantry',
+    lootTable: 'convenience',
+    lootMod: 0,
+    trapped: false,
+  },
+  holdout: {
+    label: 'Holdout',
+    blurb: 'Survivors still use this unit — one service, then done.',
+    icon: 'hdb.service',
+    lootTable: null,
+    lootMod: 0,
+    trapped: false,
+  },
+};
+
+/** Old save strings → current unit types. */
+const LEGACY_UNIT_TYPE: Record<string, HdbUnitType> = {
+  residential: 'flat',
+  corner_unit: 'stocked',
+  hazard: 'trapped',
+  shelter_service: 'holdout',
+};
+
+export function migrateHdbUnitType(type: string): HdbUnitType {
+  if (type in UNIT_META) return type as HdbUnitType;
+  return LEGACY_UNIT_TYPE[type] ?? 'flat';
+}
+
+/** Rewrite unit type strings on a persisted cutaway (and nested scout junk). */
+export function migrateHdbDungeon(dungeon: HdbDungeon): HdbDungeon {
+  return {
+    ...dungeon,
+    floors: dungeon.floors.map((floor) => ({
+      ...floor,
+      units: floor.units.map((unit) => {
+        const type = migrateHdbUnitType(String(unit.type));
+        const raw = unit.scoutedInfo as
+          | (HdbScoutInfo & { hazardType?: string; readRoom?: boolean })
+          | undefined;
+        const scoutedInfo = raw
+          ? {
+              threatCount: raw.threatCount,
+              lootQuality: raw.lootQuality,
+              ...(raw.containerCategory ? { containerCategory: raw.containerCategory } : {}),
+            }
+          : undefined;
+        return { ...unit, type, scoutedInfo };
+      }),
+    })),
+  };
+}
 
 export interface HdbEntryMeta {
   label: string;
@@ -101,14 +208,15 @@ export interface HdbStair {
 export type ShelterService = 'trader' | 'field_doctor' | 'safe_bunk';
 
 export interface HdbScoutInfo {
-  /** −1 when the survivor couldn't get a count. */
+  /**
+   * Corridor perception read. −1 = unread (HUD shows an estimate band).
+   * ≥0 = known: HUD shows the exact encounter %. 0 also softens the roll
+   * (quiet room) in {@link breachOutcome}.
+   */
   threatCount: number;
-  hazardType?: string;
   lootQuality: string;
   /** Category hint from a dexterous read of the doorway. */
   containerCategory?: string;
-  /** True once Wits has read the room — "no hazard" is itself information. */
-  readRoom?: boolean;
 }
 
 export interface HdbUnitNode {
@@ -122,7 +230,7 @@ export interface HdbUnitNode {
   available: boolean;
   /** How the door stands before you touch it. */
   entry: HdbEntry;
-  /** Set on shelter blocks — the service this unit runs. */
+  /** Set on holdouts — the service this unit runs. */
   service?: ShelterService;
   scoutedInfo?: HdbScoutInfo;
 }
@@ -261,8 +369,11 @@ export const BLOCK_META: Record<
 export const BLOCK_HEAT = 12;
 export const BLOCK_MINUTES = 20;
 
-/** Minutes to walk one corridor cell. */
-export const CORRIDOR_MINUTES = 2;
+/**
+ * Minutes to walk one corridor cell (door bay). ~3–4 m of flat; cautious but
+ * not crawling — outdoor walk is ~72 m/min, this is about half that.
+ */
+export const CORRIDOR_MINUTES = 0.15;
 
 /** How tall a block can run, and how much of it is ever walkable. */
 export const MIN_HEIGHT = 10;
@@ -309,7 +420,7 @@ export const HEAT_BANDS: HeatBand[] = [
   {
     at: 20,
     label: 'Stirring',
-    note: 'The stairwell is watched — going down is a check now.',
+    note: 'The stairwell is watched.',
     threatBonus: 1,
     dcStep: 1,
   },
@@ -349,10 +460,12 @@ export function isHunting(dungeon: HdbDungeon): boolean {
 
 /** Minutes each action inside the block costs. */
 export const BREACH_MINUTES = 15;
-/** Minutes per storey on the stairs (pack on, careful). Shaft hops charge by |Δlevel|. */
-export const STAIR_MINUTES = 2;
+/**
+ * Minutes per storey on the stairs (pack on, dark, careful). ~45s — shaft hops
+ * that skip sealed landings still charge by |Δlevel|.
+ */
+export const STAIR_MINUTES = 0.75;
 
-const HAZARDS = ['Gas Leak', 'Tripwire', 'Collapsed Slab', 'Live Wiring', 'Padlocked Gate'];
 const LOOT_QUALITY = ['stripped', 'picked over', 'promising', 'untouched'];
 const CONTAINER_CATEGORIES = ['Medical', 'Food', 'Tool', 'Valuables'];
 const SERVICES: ShelterService[] = ['trader', 'field_doctor', 'safe_bunk'];
@@ -368,6 +481,20 @@ export const SERVICE_ICON: Record<ShelterService, IconName> = {
   field_doctor: 'hdb.doctor',
   safe_bunk: 'hdb.bunk',
 };
+
+/** Same weights for every column — bay ends are not special. */
+function unitTypeWeights(archetype: HdbArchetype): readonly (readonly [HdbUnitType, number])[] {
+  // Shelter blocks skew toward holdouts; estates still get a few.
+  const holdout = archetype === 'shelter' ? 28 : 5;
+  return [
+    ['flat', 50],
+    ['stocked', 12],
+    ['trapped', 12],
+    ['storeroom', 8],
+    ['pantry', 8],
+    ['holdout', holdout],
+  ] as const;
+}
 
 interface StripLayout {
   stairs: HdbStair[];
@@ -672,23 +799,22 @@ export function edgeBlock(
 
 /**
  * Most doors in an abandoned block were kicked in long before you got here.
- * Only the units worth sealing — corners, hoarders' flats — still resist, and
- * those are the ones that make noise.
+ * Stocked and trapped rooms are more often still sealed — those make noise.
  */
 function rollEntry(rng: Rng, type: HdbUnitType, archetype: HdbArchetype): HdbEntry {
-  if (type === 'shelter_service') return 'open';
+  if (type === 'holdout') return 'open';
   const r = rng.next();
-  if (type === 'corner_unit') {
+  if (type === 'stocked') {
     if (r < 0.25) return 'ajar';
     if (r < 0.7) return 'locked';
     return 'barricaded';
   }
-  if (type === 'hazard') {
+  if (type === 'trapped' || type === 'storeroom') {
     if (r < 0.45) return 'ajar';
     if (r < 0.85) return 'locked';
     return 'barricaded';
   }
-  // Residential: a lived-in shelter keeps more doors usable than a dead estate.
+  // Flat / pantry: a lived-in shelter keeps more doors usable than a dead estate.
   const openCut = archetype === 'shelter' ? 0.6 : 0.5;
   if (r < openCut) return 'open';
   if (r < openCut + 0.28) return 'ajar';
@@ -697,8 +823,8 @@ function rollEntry(rng: Rng, type: HdbUnitType, archetype: HdbArchetype): HdbEnt
 }
 
 function rollAvailable(rng: Rng, type: HdbUnitType): boolean {
-  // Corners and hazards are slightly more often worth finding.
-  if (type === 'corner_unit' || type === 'hazard') return rng.chance(0.75);
+  if (type === 'holdout') return true;
+  if (type === 'stocked' || type === 'trapped') return rng.chance(0.75);
   return rng.chance(0.65);
 }
 
@@ -715,21 +841,12 @@ function buildUnits(
   const stack = rng.int(1, 6) * 100;
   const base = stack + rng.int(1, 40);
   const storey = String(level).padStart(2, '0');
+  const weights = unitTypeWeights(archetype);
 
   for (let i = 0; i < n; i++) {
     const column = unitColumns[i];
-    const corner = i === 0 || i === n - 1;
-    let type: HdbUnitType = corner
-      ? 'corner_unit'
-      : rng.chance(0.15)
-        ? 'hazard'
-        : 'residential';
-
-    if (archetype === 'shelter' && rng.chance(0.45)) {
-      type = 'shelter_service';
-    }
-
-    const available = type === 'shelter_service' ? true : rollAvailable(rng, type);
+    const type = rng.weighted(weights);
+    const available = rollAvailable(rng, type);
     const unit: HdbUnitNode = {
       id: `L${level}-c${column}`,
       type,
@@ -738,7 +855,7 @@ function buildUnits(
       label: `#${storey}-${base + i}`,
       available,
       entry: 'open',
-      ...(type === 'shelter_service' ? { service: rng.pick(SERVICES) } : {}),
+      ...(type === 'holdout' ? { service: rng.pick(SERVICES) } : {}),
     };
     unit.entry = available ? rollEntry(rng, unit.type, archetype) : 'open';
     units.push(unit);
@@ -785,10 +902,8 @@ export interface FloorScout {
 }
 
 /**
- * The sweep you make stepping onto a floor: every available unit's type is
- * noted, and each sense rolls separately per room for the detail it would
- * catch. Sharper survivors simply see more of the corridor — there's nothing
- * to click.
+ * The sweep you make stepping onto a floor: Perception pins encounter odds,
+ * Dexterity peeks at containers. Room type is always visible on the door face.
  */
 export function scoutFloor(
   rng: Rng,
@@ -818,20 +933,15 @@ export function scoutFloor(
           const threat = floorThreat(dungeon, floor.level);
           info.threatCount = Math.max(0, Math.round(threat / 2) + uRng.int(-1, 1));
         }
-        if (uRng.chance(senseChance(attrs.wits))) {
-          info.hazardType =
-            unit.type === 'hazard' || uRng.chance(0.25) ? uRng.pick(HAZARDS) : undefined;
-          info.readRoom = true;
-        }
         if (uRng.chance(senseChance(attrs.dexterity))) {
           info.containerCategory = uRng.pick(CONTAINER_CATEGORIES);
           info.lootQuality =
-            unit.type === 'corner_unit'
+            unit.type === 'stocked'
               ? LOOT_QUALITY[Math.min(3, 2 + uRng.int(0, 1))]
               : uRng.pick(LOOT_QUALITY);
         }
 
-        const readAnything = info.threatCount >= 0 || info.readRoom || !!info.containerCategory;
+        const readAnything = info.threatCount >= 0 || !!info.containerCategory;
         if (readAnything) read += 1;
         return {
           ...unit,
@@ -858,7 +968,8 @@ export interface BreachOutcome {
   dangerBoost: number;
   /** Minutes the entry costs. */
   minutes: number;
-  hazard?: string;
+  /** True when the unit type risks a wound on entry. */
+  trapped: boolean;
 }
 
 /** What getting through this door is likely to cost and yield. */
@@ -868,6 +979,7 @@ export function breachOutcome(
   level: number,
 ): BreachOutcome {
   const meta = ENTRY_META[unit.entry];
+  const unitMeta = UNIT_META[unit.type];
   const known = unit.scoutedInfo;
   // Encounter odds track heat + door type. Height only sweetens loot.
   const base = heatEncounterBase(dungeon) * meta.encounterMod;
@@ -876,10 +988,7 @@ export function breachOutcome(
     Math.min(0.9, known && known.threatCount === 0 ? base * 0.35 : base),
   );
   const lootMod =
-    (unit.type === 'corner_unit' ? 2 : 0) +
-    (unit.type === 'hazard' ? 1 : 0) +
-    meta.lootMod +
-    Math.floor((level - 1) / 2);
+    unitMeta.lootMod + meta.lootMod + Math.floor((level - 1) / 2);
   return {
     encounterChance,
     lootMod,
@@ -887,8 +996,41 @@ export function breachOutcome(
     noise: meta.noise,
     dangerBoost: meta.dangerBoost,
     minutes: meta.minutes,
-    hazard: known?.hazardType,
+    trapped: unitMeta.trapped,
   };
+}
+
+/** True once Perception read the doorway well enough to pin encounter odds. */
+export function encounterChanceKnown(unit: HdbUnitNode | null | undefined): boolean {
+  return !!unit?.scoutedInfo && unit.scoutedInfo.threatCount >= 0;
+}
+
+export interface EncounterChanceReadout {
+  /** Exact % (when known) or the midpoint the range is built around. */
+  pct: number;
+  /** Player-facing string: `6%` or `4–10%`. */
+  label: string;
+  exact: boolean;
+  lo?: number;
+  hi?: number;
+}
+
+/**
+ * HUD copy for door encounter odds. A successful perception check shows the
+ * true percentage; otherwise a deterministic band around the real chance so
+ * the player still has a usable estimate without a free exact read.
+ */
+export function encounterChanceReadout(
+  chance: number,
+  known: boolean,
+): EncounterChanceReadout {
+  const pct = Math.round(Math.max(0.02, Math.min(0.9, chance)) * 100);
+  if (known) return { pct, label: `${pct}%`, exact: true };
+  // Wider at mid odds; clamped so the band always reads as a range.
+  const half = Math.max(3, Math.min(12, Math.round(4 + pct * 0.08)));
+  const lo = Math.max(1, pct - half);
+  const hi = Math.min(90, Math.max(lo + 1, pct + half));
+  return { pct, label: `${lo}–${hi}%`, exact: false, lo, hi };
 }
 
 /** The DC for walking back down. Exported so the HUD can show it before you commit. */
@@ -927,8 +1069,8 @@ export function retreatFailChance(attrs: Attributes, dungeon: HdbDungeon): numbe
 }
 
 /**
- * Hover line for a path that changes storey: hunt % when Swarm, descent DC +
- * fail % when going down with heat. Null when stairs are free.
+ * Hover line for a path that changes storey: hunt % when Swarm, descent
+ * target + fail % when going down with heat. Null when stairs are free.
  */
 export function stairTravelHint(
   dungeon: HdbDungeon,
@@ -942,7 +1084,7 @@ export function stairTravelHint(
   }
   if (pathDescends(path) && descentIsChecked(dungeon)) {
     const failPct = Math.round(retreatFailChance(attrs, dungeon) * 100);
-    bits.push(`descent DC ${retreatDc(dungeon)} · ~${failPct}% fail`);
+    bits.push(`going down · need ${retreatDc(dungeon)}+ · ~${failPct}% fail`);
   } else if (!isHunting(dungeon) && !pathDescends(path)) {
     bits.push('climb free');
   }

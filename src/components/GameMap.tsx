@@ -22,6 +22,7 @@ import { HAZARD_CONFIG, type HazardZone } from '../game/wilds';
 import { NoiseWaves } from './NoiseWaves';
 import { trekTargetIcon } from './mapIcons';
 import { MrtOverlay, legendLines, useMrtNetwork } from './MrtOverlay';
+import { VegetationOverlay } from './UnplayableOverlay';
 import { Icon } from '../icons/Icon';
 import { pointAlongPath } from '../game/route';
 import { useThrottledNumber } from '../hooks/useAnimatedNumber';
@@ -533,6 +534,8 @@ function GameMapInner({
         maxZoom={20}
         maxNativeZoom={TILE_MAX_NATIVE_ZOOM}
       />
+      {/* Soft-cost forest wash — under fog so only explored ground shows green. */}
+      <VegetationOverlay />
       <FogOverlay
         exploredArea={exploredArea}
         currentRevealCenter={home}

@@ -19,10 +19,37 @@ const DEFAULT_SCALE = 1;
 /** Same cutoff as Tailwind `lg` / GameScreen phone shell. */
 const PHONE_MQ = '(max-width: 1023px)';
 
+/**
+ * Center the player pin in the transform wrapper via setTransform.
+ * zoomToElement's offset math mixes viewport and content coords and drifts
+ * once the action dock resizes the wrapper — this stays accurate.
+ */
 function focusPlayer(api: ReactZoomPanPinchContentRef, scale?: number, ms = 280) {
-  const el = document.querySelector(PLAYER_SEL);
-  if (!el) return;
-  api.zoomToElement(el as HTMLElement, scale ?? api.state.scale, ms);
+  const el = document.querySelector(PLAYER_SEL) as HTMLElement | null;
+  const wrapper = api.instance.wrapperComponent;
+  const content = api.instance.contentComponent;
+  if (!el || !wrapper || !content) return;
+
+  const targetScale = scale ?? api.state.scale;
+  const currentScale = api.state.scale || 1;
+  const wrapperRect = wrapper.getBoundingClientRect();
+  const elRect = el.getBoundingClientRect();
+  const contentRect = content.getBoundingClientRect();
+
+  // Pin center in unscaled content space.
+  const cx = (elRect.left + elRect.width / 2 - contentRect.left) / currentScale;
+  const cy = (elRect.top + elRect.height / 2 - contentRect.top) / currentScale;
+
+  const positionX = wrapperRect.width / 2 - cx * targetScale;
+  const positionY = wrapperRect.height / 2 - cy * targetScale;
+  api.setTransform(positionX, positionY, targetScale, ms, 'easeOut');
+}
+
+/** Run after layout (dock expand, font/metrics) so wrapper rect is final. */
+function afterLayout(fn: () => void) {
+  requestAnimationFrame(() => {
+    requestAnimationFrame(fn);
+  });
 }
 
 const PHONE_VIEWPORT =
@@ -72,10 +99,13 @@ function useLockPageZoom(surface: RefObject<HTMLElement | null>) {
 export function HdbZoomViewport({
   children,
   followKey,
+  layoutKey,
 }: {
   children: ReactNode;
   /** Changes when the player moves — soft-pans to keep the pin on screen. */
   followKey: string;
+  /** Changes when the action dock grows/shrinks the map viewport. */
+  layoutKey?: string;
 }) {
   const apiRef = useRef<ReactZoomPanPinchContentRef | null>(null);
   const surfaceRef = useRef<HTMLDivElement | null>(null);
@@ -86,16 +116,16 @@ export function HdbZoomViewport({
   const recenter = useCallback((scale = DEFAULT_SCALE) => {
     const api = apiRef.current;
     if (!api) return;
-    focusPlayer(api, scale, 280);
+    afterLayout(() => focusPlayer(api, scale, 280));
   }, []);
 
   useEffect(() => {
     if (!ready.current) return;
     const api = apiRef.current;
     if (!api) return;
-    // Keep current zoom; just slide so the pin stays visible.
-    focusPlayer(api, api.state.scale, 220);
-  }, [followKey]);
+    // Keep current zoom; slide after dock/map layout settles.
+    afterLayout(() => focusPlayer(api, api.state.scale, 220));
+  }, [followKey, layoutKey]);
 
   return (
     <TransformWrapper
@@ -112,8 +142,7 @@ export function HdbZoomViewport({
       pinch={{ step: 8 }}
       onInit={(ref) => {
         apiRef.current = ref;
-        // Wait a frame so fixed-height floors have laid out.
-        requestAnimationFrame(() => {
+        afterLayout(() => {
           focusPlayer(ref, DEFAULT_SCALE, 0);
           ready.current = true;
         });

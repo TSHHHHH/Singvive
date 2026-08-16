@@ -3,10 +3,21 @@ import type { TimeOfDay, WeatherKind } from './types';
 // ---------------------------------------------------------------------------
 // Log flavour.
 //
-// Turns the timeline from flat status lines into a survivor's diary voice —
-// second-person, a little Singlish, weather/time aware. Everything is data:
-// add a line to a pool, or a whole new pool, and it just works. Purely
-// cosmetic, so a plain Math.random pick is fine (no game RNG is disturbed).
+// Turns the timeline from flat status lines into a survivor's diary voice.
+// Source of truth for every high-frequency timeline line (travel, search, rest,
+// gates, survival). Doorway event prose in events.ts follows the same brief.
+//
+// Voice checklist:
+//   - Second person, present tense, short sentences
+//   - Name the place or the stakes; mood in the sentence, loot chips for numbers
+//   - Light Singlish only where it lands naturally (ah, shiok, bupkis) — never forced
+//   - Prefer body/scene consequence over UI instruction ("Rest first", "temp stash")
+//   - No check math in the feed (no "dex 14 vs 12")
+//
+// Rare systems refusals (crafting, slot errors) may stay terse. Everything else
+// the player sees every loop must sound like the diary.
+//
+// Purely cosmetic pools: Math.random is fine (no game RNG disturbed).
 // ---------------------------------------------------------------------------
 
 export interface FlavorCtx {
@@ -22,8 +33,17 @@ export type FlavorKey =
   | 'arrive'
   | 'atDoor'
   | 'charted'
+  | 'searchStart'
+  | 'searchStartRaid'
+  | 'searchStartFlee'
   | 'searchFound'
   | 'searchEmpty'
+  | 'searchAbort'
+  | 'searchAbortEmpty'
+  | 'searchClear'
+  | 'searchBare'
+  | 'searchFledDone'
+  | 'searchRaidDone'
   | 'pickedClean'
   | 'ambush'
   | 'roadAmbush'
@@ -33,17 +53,26 @@ export type FlavorKey =
   | 'trekOut'
   | 'trekArrive'
   | 'trekAmbush'
-  | 'restExposed';
+  | 'restExposed'
+  | 'tooTired'
+  | 'tooTiredTunnel'
+  | 'sortHaul'
+  | 'sortHaulSurface'
+  | 'packSpill'
+  | 'packLost';
 
 const POOLS: Record<FlavorKey, string[]> = {
   wake: [
     'You come to on cold concrete in {name}. The city has gone quiet — the bad kind of quiet.',
     'You jolt awake in {name}. No traffic, no birds. Just the hum of a dead island.',
     'Eyes open. {name}, or what\'s left of it. Whatever comes next, you\'re on your own now.',
+    'You wake in {name} with a dry mouth and a list of things you do not have.',
+    'Morning finds you still in {name}. The streets outside have not gotten friendlier overnight.',
   ],
   wakeOffline: [
     'You come to somewhere near {name}. The maps are down — you\'ll have to trust your feet.',
     'You wake up close to {name}. No signal, no grid. Just you and the ruins.',
+    'You sit up near {name} with no pins on the map. Guesswork from here.',
   ],
   setout: [
     'You shoulder your pack and move out toward {name}.',
@@ -70,6 +99,24 @@ const POOLS: Record<FlavorKey, string[]> = {
     'So that\'s what {name} was. Marked on your map now.',
     'You get a proper look at {name} and note it down.',
     '{name} — charted. One less blank on the map.',
+    'You pin {name} and move on. Better to know than to wonder.',
+    '{name} goes on the map. You\'ll remember the smell, too.',
+  ],
+  searchStart: [
+    'You work through {name}, hands busy, ears open.',
+    'You start picking over {name} — careful, quiet, thorough.',
+    'Time to see what {name} still has left.',
+    'You dig into {name}, shelf by shelf.',
+  ],
+  searchStartRaid: [
+    'You tear into their stores at {name} — fast, before they notice.',
+    'Raid mode. You strip {name} like you mean it.',
+    'You hit the shelves at {name} hard. No time for manners.',
+  ],
+  searchStartFlee: [
+    'You grab what you can from {name} and keep moving.',
+    'No time for a proper sweep of {name} — take and go.',
+    'You snatch what\'s in reach at {name} while your pulse settles.',
   ],
   searchFound: [
     'You pick through {name} and pocket what you can carry.',
@@ -83,9 +130,42 @@ const POOLS: Record<FlavorKey, string[]> = {
     'Others got to {name} first. Bare shelves.',
     'Whatever {name} held, it\'s long gone.',
   ],
+  searchAbort: [
+    'You cut the search short at {name} and back out.',
+    'Enough of {name} for now — you leave with what you grabbed.',
+    'You abandon the sweep of {name} mid-shelf.',
+  ],
+  searchAbortEmpty: [
+    'You stop searching {name} empty-handed.',
+    'Nothing worth the noise in {name}. You walk away with nothing.',
+    'You quit {name} before you find a single useful thing.',
+  ],
+  searchClear: [
+    'You finish with {name} and step back from the shelves.',
+    '{name} has given up what it\'s going to. You bag it and go.',
+    'You clear {name} — whatever was left is yours now.',
+  ],
+  searchBare: [
+    '{name} is bare. Not even dust worth pocketing.',
+    'You turn {name} inside out and come up empty.',
+    'Nothing left in {name} but empty drawers.',
+  ],
+  searchFledDone: [
+    'You grabbed what you could from {name} and got out.',
+    'A hasty haul from {name} — better than staying put.',
+    'You snatch a few things from {name} and keep moving.',
+  ],
+  searchRaidDone: [
+    'You raided their stores at {name} — this is why they keep a gate.',
+    'Their shelves at {name} are lighter for it. You don\'t look back.',
+    'You strip {name} for everything loose and vanish.',
+  ],
   pickedClean: [
     '{name} is stripped bare — nothing left to find.',
     'You\'ve wrung {name} dry. Move on.',
+    '{name} has nothing left but footprints and empty shelves.',
+    'You already took what {name} had. Coming back is a waste of daylight.',
+    'The cupboards at {name} are hollow. You\'ve been here.',
   ],
   ambush: [
     'Something lurches out of the dark in {name} — teeth first!',
@@ -130,11 +210,45 @@ const POOLS: Record<FlavorKey, string[]> = {
     'Out in the open with nowhere to duck — and something comes at you.',
     'Halfway across, the ground gives up what it was hiding.',
     'No cover, no warning. It\'s on you before you can pick a line.',
+    'Something was lying low in the grass. It isn\'t anymore.',
+    'Open ground was a bad idea. Something proves it.',
   ],
   restExposed: [
     'You sleep rough in the open, and it barely counts as sleep.',
     'No roof, no door. You doze in snatches, jerking awake at every sound.',
     'You lie in the dirt with one hand on your weapon and wait out the dark.',
+    'You curl up behind a low wall and call it a night. The cold disagrees.',
+    'Exposed rest. You wake more tired than you lay down.',
+  ],
+  tooTired: [
+    'Your legs won\'t take another block. Rest first.',
+    'You\'re spent — one more walk and you\'ll drop. Find a place to hole up.',
+    'Too exhausted to move out. Your body is done for now.',
+  ],
+  tooTiredTunnel: [
+    'Too spent to walk a tunnel. Your hands shake on the rail.',
+    'The bore can wait — you need rest before another stretch of dark.',
+    'You can\'t face another hop underground. Rest first.',
+  ],
+  sortHaul: [
+    'Sort what you hauled — or dump it — before you move on.',
+    'That loose haul is still sitting open. Deal with it before you walk.',
+    'Pack the spill, stash it, or leave it. You\'re not moving until you choose.',
+  ],
+  sortHaulSurface: [
+    'Sort what you hauled — or dump it — before you surface.',
+    'That spill is still open. Deal with it before you climb the stairs.',
+    'Pack it, stash it, or abandon it. Then you can come up.',
+  ],
+  packSpill: [
+    'Pack\'s full — extras sit in a loose pile. Swap what you need, then settle it.',
+    'You can\'t carry it all. The overflow is waiting for you to sort.',
+    'Too much for the pack. Spill is piled aside until you decide.',
+  ],
+  packLost: [
+    'No room left even in the spill — some finds stay behind.',
+    'You leave finds on the ground. Nowhere left to put them.',
+    'Overflow full. Whatever you couldn\'t hold is gone.',
   ],
 };
 
@@ -162,6 +276,16 @@ export function flavor(key: FlavorKey, ctx: FlavorCtx = {}): string {
 
   // Sprinkle atmosphere on arrivals ~50% of the time.
   if (key === 'arrive' && Math.random() < 0.5) {
+    let tail: string | null = null;
+    if (ctx.weather === 'rain' || ctx.weather === 'thunderstorm') tail = pick(RAIN_TAILS);
+    else if (ctx.weather === 'haze') tail = pick(HAZE_TAILS);
+    else if (ctx.weather === 'heat') tail = pick(HEAT_TAILS);
+    else if (ctx.time === 'night') tail = pick(NIGHT_TAILS);
+    if (tail) line += ` ${tail}`;
+  }
+
+  // Light atmosphere on setout / atDoor less often so it isn't arrival-only.
+  if ((key === 'setout' || key === 'atDoor') && Math.random() < 0.25) {
     let tail: string | null = null;
     if (ctx.weather === 'rain' || ctx.weather === 'thunderstorm') tail = pick(RAIN_TAILS);
     else if (ctx.weather === 'haze') tail = pick(HAZE_TAILS);

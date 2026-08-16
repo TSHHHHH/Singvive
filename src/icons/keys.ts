@@ -45,6 +45,9 @@ export type IconName =
   | 'combat.encounter'
   // --- HDB block ---
   | 'hdb.unit'
+  | 'hdb.stocked'
+  | 'hdb.storeroom'
+  | 'hdb.pantry'
   | 'hdb.cornerUnit'
   | 'hdb.stairwell'
   | 'hdb.service'
@@ -99,6 +102,11 @@ export type IconName =
   | 'choice.leave'
   // --- run statistics ---
   | 'stat.value'
+  // --- item inspect meta row (size / weight / value) ---
+  // Drop assets at src/assets/icons/meta-size.png, meta-weight.png, meta-value.png
+  | 'meta.size'
+  | 'meta.weight'
+  | 'meta.value'
   // --- weather / time ---
   | 'weather.clear'
   | 'weather.cloudy'
@@ -282,6 +290,9 @@ export const EMOJI_FALLBACK: Record<IconName, string> = {
   'combat.encounter': '☣️',
 
   'hdb.unit': '🚪',
+  'hdb.stocked': '📦',
+  'hdb.storeroom': '🔧',
+  'hdb.pantry': '🥫',
   'hdb.cornerUnit': '🪟',
   'hdb.stairwell': '🪜',
   'hdb.service': '🤝',
@@ -335,6 +346,10 @@ export const EMOJI_FALLBACK: Record<IconName, string> = {
   'choice.leave': '🚶',
 
   'stat.value': '💰',
+
+  'meta.size': '📐',
+  'meta.weight': '⚖️',
+  'meta.value': '💰',
 
   'weather.clear': '☀️',
   'weather.cloudy': '☁️',

@@ -25,6 +25,7 @@ import {
   savePreset,
   type TraitPreset,
 } from '../game/traitPresets';
+import { randomSurvivorName, SURVIVOR_NAME_MAX } from '../game/randomNames';
 import type { Occupation, Trait } from '../game/types';
 import { Icon } from '../icons/Icon';
 
@@ -80,13 +81,23 @@ export function CharacterCreate() {
   const nameField = (
     <label className="flex flex-col items-start gap-1 text-left">
       <span className="text-2xs uppercase tracking-widest text-white/40">Name</span>
-      <input
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        maxLength={16}
-        placeholder="Survivor"
-        className="w-48 rounded border border-white/15 bg-black/40 px-3 py-1.5 text-sm outline-none focus:border-signal"
-      />
+      <div className="flex items-center gap-1.5">
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          maxLength={SURVIVOR_NAME_MAX}
+          placeholder="Survivor"
+          className="w-56 rounded border border-white/15 bg-black/40 px-3 py-1.5 text-sm outline-none focus:border-signal sm:w-64"
+        />
+        <button
+          type="button"
+          onClick={() => setName(randomSurvivorName(name))}
+          title="Roll a Singapore-style full name"
+          className="rounded border border-white/15 bg-white/10 px-2.5 py-1.5 text-2xs font-semibold uppercase tracking-wide text-white/70 transition hover:border-signal/50 hover:bg-signal/10 hover:text-signal"
+        >
+          Random
+        </button>
+      </div>
     </label>
   );
 

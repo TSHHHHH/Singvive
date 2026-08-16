@@ -1,7 +1,7 @@
 import type { GuideSection } from '../content/guideContent';
 import { GuideDiagram } from './GuideDiagram';
 
-/** One guide topic: title, diagram, bullets — shared by Menu and GuideModal. */
+/** One guide topic: title, diagram, bullets — shared by HowToPlay and GuideModal. */
 export function GuideSectionView({
   section,
   showTitle = true,

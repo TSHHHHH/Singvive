@@ -18,20 +18,20 @@
   --mobile-interrupt-chrome-h: min(70vh, 28rem);
   --mobile-status-bar-h: 2.25rem;
   --mobile-chrome-bottom: calc(
-    var(--mobile-nav-h) + var(--safe-bottom) + var(--mobile-map-chrome-h) + 1.25rem
+    var(--mobile-nav-h) + var(--safe-bottom) + var(--mobile-map-chrome-h) + 2.5rem
   );
 }
 
 /* Tall contact / event / search card replaces idle map chrome on phone. */
 .phone-interrupt-open {
   --mobile-chrome-bottom: calc(
-    var(--mobile-nav-h) + var(--safe-bottom) + var(--mobile-interrupt-chrome-h) + 0.75rem
+    var(--mobile-nav-h) + var(--safe-bottom) + var(--mobile-interrupt-chrome-h) + 2rem
   );
 }
 
 /* Active fight owns the Map tab — no floating target dock clearance needed. */
 .phone-fight-open {
-  --mobile-chrome-bottom: calc(var(--mobile-nav-h) + var(--safe-bottom) + 0.5rem);
+  --mobile-chrome-bottom: calc(var(--mobile-nav-h) + var(--safe-bottom) + 1.75rem);
 }
 
 html,
@@ -197,6 +197,44 @@ select optgroup {
     opacity: 1;
     transform: none;
   }
+  .hdb-route-ribbon {
+    animation: none;
+    opacity: 0.95;
+  }
+  .hdb-route-dest {
+    animation: none;
+  }
+}
+
+/* HDB hover route — soft live telemetry pulse on the ribbon. */
+@keyframes hdb-route-breathe {
+  0%,
+  100% {
+    opacity: 0.82;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.hdb-route-ribbon {
+  animation: hdb-route-breathe 2s ease-in-out infinite;
+}
+.hdb-route-ribbon--blocked {
+  animation-duration: 1.25s;
+}
+@keyframes hdb-route-dest-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.55;
+    transform: scale(1.25);
+  }
+}
+.hdb-route-dest {
+  animation: hdb-route-dest-pulse 1.6s ease-in-out infinite;
 }
 
 /* The extraction beacon's pulse. Lives here rather than in the marker's own

@@ -18,16 +18,20 @@ type Variant = 'timeline' | 'card';
  * away.
  *
  * Nothing else on the screen accepts input while this is up (contact gate).
+ *
+ * Layout note: do NOT put inline-flex / inline-block icons inside a
+ * hanging-indent (`text-indent: -N`) paragraph. Browsers re-anchor those boxes
+ * at the hang origin, so the enemy label lands on top of "Contact". Use a
+ * real two-column flex instead — same visual, no indent math.
  */
 export function EncounterPrompt({
   variant = 'timeline',
   /** Width of the timeline's timestamp gutter — owned by LogPanel. */
   timeW = '2.5rem',
-  /** LogPanel's hanging-indent style, so prose keeps the column's left edge. */
-  hang = { paddingLeft: '2.5rem', textIndent: '-2.5rem' },
 }: {
   variant?: Variant;
   timeW?: string;
+  /** Accepted for LogPanel call-site compat; unused (see layout note above). */
   hang?: { paddingLeft: string; textIndent: string };
 }) {
   const combat = useGame((s) => s.combat);
@@ -50,14 +54,36 @@ export function EncounterPrompt({
     armCombatPenalty(bodyParts),
   );
 
+  const enemyIcon = (
+    <Icon
+      name={z.kind === 'human' ? 'combat.enemyHuman' : 'combat.enemyZombie'}
+      size={12}
+      className="mx-0.5 inline-block align-[-0.125em]"
+    />
+  );
+
+  const aftermath =
+    z.kind === 'human' ? ' blocks your way' : ' has found you';
+
+  /** Timeline row — mirrors live-event title — body. */
   const prose = (
     <>
       <span className="font-semibold text-hiss">Contact</span>
       {' — '}
-      <Icon name={z.kind === 'human' ? 'combat.enemyHuman' : 'combat.enemyZombie'} />{' '}
+      {enemyIcon}{' '}
       <span className="font-semibold text-concrete-50">{z.name}</span>
-      {z.kind === 'human' ? ' blocks your way' : ' has found you'} on the{' '}
-      {terrain.name.toLowerCase()}. Nothing else happens until you decide.
+      {aftermath} on the {terrain.name.toLowerCase()}. Nothing else happens until
+      you decide.
+    </>
+  );
+
+  /** Phone card already has a Contact eyebrow — skip the repeated label. */
+  const cardProse = (
+    <>
+      {enemyIcon}{' '}
+      <span className="font-semibold text-concrete-50">{z.name}</span>
+      {aftermath} on the {terrain.name.toLowerCase()}. Nothing else happens until
+      you decide.
     </>
   );
 
@@ -107,7 +133,7 @@ export function EncounterPrompt({
           <span className="mr-1.5 font-mono text-2xs tabular-nums text-white/35">
             {formatClock(hour, clock)}
           </span>
-          {prose}
+          {cardProse}
         </p>
         <div className="text-2xs text-white/40">{footnote}</div>
         <div className="flex flex-col gap-1">{choices}</div>
@@ -119,15 +145,15 @@ export function EncounterPrompt({
     <li className="relative flex gap-2 rounded bg-white/[0.07] py-1 pl-6">
       <span className="absolute left-0 top-[7px] h-[11px] w-[11px] animate-pulse rounded-full border-2 border-concrete-900 bg-hiss" />
       <div className="min-w-0 flex-1">
-        <p style={hang} className="whitespace-normal break-words text-xs leading-snug text-white/70">
+        <div className="flex text-xs leading-snug text-white/70">
           <span
-            className="inline-block font-mono text-2xs tabular-nums text-white/25"
-            style={{ width: timeW, textIndent: 0 }}
+            className="shrink-0 font-mono text-2xs tabular-nums text-white/25"
+            style={{ width: timeW }}
           >
             {formatClock(hour, clock)}
           </span>
-          {prose}
-        </p>
+          <p className="min-w-0 flex-1 whitespace-normal break-words">{prose}</p>
+        </div>
 
         <div className="mt-1 text-2xs text-white/40" style={{ paddingLeft: timeW }}>
           {footnote}

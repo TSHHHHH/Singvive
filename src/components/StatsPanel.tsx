@@ -3,12 +3,16 @@ import { useGame } from '../game/store';
 import { Icon } from '../icons/Icon';
 import { STAT_GROUPS } from '../game/stats';
 import { getTraits } from '../game/character';
+import { SurvivorStatsGrid } from './SurvivorStatsGrid';
+import { useIsPhoneLayout } from './HdbZoomViewport';
 
 /**
  * Who they are (traits) above what they've done (counters that only ever go
  * up). Attributes live on the Condition rail — no need to repeat them here.
+ * Desktop also hosts live combat/mobility stats (phone keeps those on Condition).
  */
 export function StatsPanel() {
+  const isPhone = useIsPhoneLayout();
   const { character, stats, day } = useGame(
     useShallow((s) => ({ character: s.character, stats: s.stats, day: s.day })),
   );
@@ -46,6 +50,12 @@ export function StatsPanel() {
               })}
             </div>
           )}
+        </section>
+      )}
+
+      {!isPhone && (
+        <section className="rounded-lg border border-white/15 bg-concrete-900/80 p-3">
+          <SurvivorStatsGrid />
         </section>
       )}
 

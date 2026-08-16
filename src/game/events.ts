@@ -8,6 +8,7 @@ import type {
 } from './types';
 import type { Rng } from './rng';
 import { itemDef } from './loot';
+import type { LonerKind } from './enemies';
 import {
   FACTION_CONFIG,
   gateStandingBand,
@@ -47,6 +48,8 @@ export type EventKind =
   | 'faction_checkpoint'
   | 'mrt_toll'
   | 'rival_scavenger'
+  | 'armed_raider'
+  | 'block_tout'
   | 'rigged_door'
   | 'quiet_tap'
   | 'body_in_the_doorway';
@@ -100,10 +103,10 @@ export type EventEffect =
   | { t: 'deny'; line: string }
   /**
    * Humans, right now. Terminal. `foe` says who: omitted means the event's
-   * faction (falling back to the local muscle), while 'scavenger'/'survivor'
-   * mean an unaffiliated loner who answers to nobody.
+   * faction (falling back to the local muscle), while a LonerKind means an
+   * unaffiliated loner who answers to nobody.
    */
-  | { t: 'fight'; foe?: 'scavenger' | 'survivor' }
+  | { t: 'fight'; foe?: LonerKind }
   /**
    * Forced entry / refused the gate: standing hit, then human combat. On a win
    * the survivor enters raid mode (`force`). Terminal.
@@ -273,6 +276,38 @@ const PROSE: Record<Exclude<EventKind, 'mrt_toll'>, Pools> = {
       'A torch is sweeping the aisles of {name}, and it isn\'t yours. Whoever holds it is working fast.',
     ],
   },
+  armed_raider: {
+    tell: [
+      'Someone is posted at the entrance like they own it.',
+      'A rifle sling creaks. Whoever\'s inside is not scavenging quietly.',
+      'Fresh brass on the step. Recent work.',
+    ],
+    text: [
+      'A raider has claimed the doorway of {name}, kit stacked behind him. "Walk away, or pay in blood."',
+      'Someone with a parang and a stolen vest is screening {name}. He\'s already decided you\'re competition.',
+      'An armed crew of one is stripping {name} methodically. He looks up mid-cut and doesn\'t bother with a greeting.',
+      'The entrance to {name} is blocked by someone who treats looting like a job with overtime.',
+    ],
+    night: [
+      'A red laser dots the frame of {name} for half a second, then vanishes. Someone is hunting this block.',
+    ],
+  },
+  block_tout: {
+    tell: [
+      'Someone is hanging around the entrance like it\'s theirs to tax.',
+      'A voice calls out before you reach the door — friendly, too friendly.',
+      'There\'s a folding stool by the doorway. Occupied.',
+    ],
+    text: [
+      'A tout at {name} opens with a smile and a price. "Entry fee, ah. Small one. Or we have a problem."',
+      'Someone has set up shop in the doorway of {name} — no badge, just nerve. "You want in, you talk to me."',
+      'A block tout blocks {name} with nothing but attitude and a scrap of cardboard that says ENTRY. He means it.',
+      'He\'s not a guard and not a scavenger — just a man charging for the privilege of walking into {name}.',
+    ],
+    night: [
+      'A cigarette tip glows in the doorway of {name}. "Night rate," someone says. "Still cheap."',
+    ],
+  },
   rigged_door: {
     tell: [
       'There\'s something wrong with how this door sits.',
@@ -350,6 +385,12 @@ const LOCKED_AT: PoiCategory[] = ['police', 'hospital', 'clinic', 'hardware'];
 const RIVAL_AT: PoiCategory[] = [
   'supermarket', 'convenience', 'pharmacy', 'clinic', 'hardware', 'foodcourt', 'fuel', 'industrial',
 ];
+const RAIDER_AT: PoiCategory[] = [
+  'police', 'fuel', 'industrial', 'hardware', 'supermarket', 'mrt',
+];
+const TOUT_AT: PoiCategory[] = [
+  'residential', 'foodcourt', 'convenience', 'school', 'mrt', 'pharmacy',
+];
 // Water points cluster where people already queued for food — and the schools
 // were the designated shelters when it fell.
 const TAP_AT: PoiCategory[] = ['supermarket', 'foodcourt', 'convenience', 'school'];
@@ -405,7 +446,7 @@ function buildFeeGate(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
         id: 'leave',
         kind: 'leave',
         label: 'Back off',
-        onSuccess: [{ t: 'deny', line: 'You back off. No hard feelings either way.' }],
+        onSuccess: [{ t: 'deny', line: 'You step back from the table. They don\'t follow.' }],
       },
     ],
   };
@@ -453,7 +494,7 @@ function buildTributeGate(rng: Rng, loc: LocationState, ctx: EventCtx, terrible:
     id: 'leave',
     kind: 'leave',
     label: 'Back off',
-    onSuccess: [{ t: 'deny', line: 'You back off before it gets worse.' }],
+    onSuccess: [{ t: 'deny', line: 'You leave before tribute becomes blood.' }],
   });
   return {
     kind: 'faction_shakedown',
@@ -498,7 +539,7 @@ function buildLockedDoor(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent
         ],
         onFailure: [
           { t: 'time', hours: 0.4, line: 'You circle the whole building for nothing.' },
-          { t: 'energy', amount: 5, line: '' },
+          { t: 'energy', amount: 5, line: 'The circuit costs you. Legs heavy, nothing gained.' },
           { t: 'deny', line: 'No way in but the hard way, and not today.' },
         ] },
       { id: 'leave', kind: 'leave', label: 'Leave it be',
@@ -606,6 +647,123 @@ function buildRival(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
   };
 }
 
+function buildRaider(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
+  const dc = dcFor(loc.currentDanger) + 1;
+  const { tell, text } = prose(rng, 'armed_raider', ctx, { name: loc.name });
+  return {
+    kind: 'armed_raider',
+    factionId: null,
+    title: 'Armed Claim',
+    tell,
+    text,
+    choices: [
+      {
+        id: 'sneak',
+        kind: 'check',
+        attr: 'dexterity',
+        dc: dc + 1,
+        label: 'Slip past while they\'re busy',
+        onSuccess: [
+          { t: 'access' },
+        ],
+        onFailure: [
+          { t: 'fight', foe: 'raider' },
+        ],
+      },
+      {
+        id: 'bluff',
+        kind: 'check',
+        attr: 'wits',
+        dc,
+        label: 'Talk like you belong here',
+        onSuccess: [
+          { t: 'time', hours: 0.3, line: 'You sell a story about a bigger crew coming. They clear a lane.' },
+          { t: 'access' },
+        ],
+        onFailure: [
+          { t: 'fight', foe: 'raider' },
+        ],
+      },
+      {
+        id: 'pay',
+        kind: 'pay',
+        itemIds: ['canned_food', 'ammo_box', 'painkillers', 'jewellery'],
+        label: 'Buy passage with supplies',
+        onSuccess: [
+          { t: 'access' },
+        ],
+        onFailure: [
+          { t: 'fight', foe: 'raider' },
+        ],
+      },
+      {
+        id: 'fight',
+        kind: 'fight',
+        label: 'Take the doorway',
+        onSuccess: [{ t: 'fight', foe: 'raider' }],
+      },
+      {
+        id: 'leave',
+        kind: 'leave',
+        label: 'Back off',
+        onSuccess: [{ t: 'deny', line: 'You leave them the claim.' }],
+      },
+    ],
+  };
+}
+
+function buildTout(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
+  const dc = dcFor(loc.currentDanger);
+  const { tell, text } = prose(rng, 'block_tout', ctx, { name: loc.name });
+  return {
+    kind: 'block_tout',
+    factionId: null,
+    title: 'Doorway Tax',
+    tell,
+    text,
+    choices: [
+      {
+        id: 'pay',
+        kind: 'pay',
+        itemIds: ['snacks', 'soft_drink', 'water_bottle', 'canned_food'],
+        label: 'Pay the nonsense fee',
+        onSuccess: [
+          { t: 'access' },
+        ],
+        onFailure: [
+          { t: 'fight', foe: 'tout' },
+        ],
+      },
+      {
+        id: 'stare',
+        kind: 'check',
+        attr: 'perception',
+        dc,
+        label: 'Stare them down',
+        onSuccess: [
+          { t: 'noise', radius: 60, intensity: 1 },
+          { t: 'access' },
+        ],
+        onFailure: [
+          { t: 'fight', foe: 'tout' },
+        ],
+      },
+      {
+        id: 'fight',
+        kind: 'fight',
+        label: 'Make it a problem',
+        onSuccess: [{ t: 'fight', foe: 'tout' }],
+      },
+      {
+        id: 'leave',
+        kind: 'leave',
+        label: 'Find another door',
+        onSuccess: [{ t: 'deny', line: 'You leave him his cardboard throne.' }],
+      },
+    ],
+  };
+}
+
 function buildRigged(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
   const dc = dcFor(loc.currentDanger);
   const { tell, text } = prose(rng, 'rigged_door', ctx, { name: loc.name });
@@ -657,7 +815,7 @@ function buildRigged(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
         // run with the horde rising, is a real price.
         onSuccess: [
           { t: 'time', hours: 1, line: 'You give the door a wide berth and let yourself in through a window on the far side.' },
-          { t: 'energy', amount: 12, line: '' },
+          { t: 'energy', amount: 12, line: 'The long way round leaves you winded — but in.' },
           { t: 'access' },
         ],
       },
@@ -784,6 +942,8 @@ const BUILDERS: Record<Exclude<EventKind, 'mrt_toll'>, Builder> = {
   locked_door: buildLockedDoor,
   desperate_survivor: buildSurvivor,
   rival_scavenger: buildRival,
+  armed_raider: buildRaider,
+  block_tout: buildTout,
   rigged_door: buildRigged,
   quiet_tap: buildTap,
   body_in_the_doorway: buildBody,
@@ -830,6 +990,8 @@ export function rollPreScavengeEvent(
     if (RIGGED_AT.includes(cat)) cands.push(['rigged_door', 13]);
   }
   if (RIVAL_AT.includes(cat)) cands.push(['rival_scavenger', 16]);
+  if (RAIDER_AT.includes(cat)) cands.push(['armed_raider', 12]);
+  if (TOUT_AT.includes(cat)) cands.push(['block_tout', 11]);
   if (TAP_AT.includes(cat)) cands.push(['quiet_tap', 11]);
   if (BODY_AT.includes(cat)) cands.push(['body_in_the_doorway', 12]);
 

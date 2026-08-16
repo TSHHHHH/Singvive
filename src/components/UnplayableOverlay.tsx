@@ -1,8 +1,8 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Polygon, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import type { ZonesData, ZoneRing } from '../game/playable';
-import { seaMaskOuter } from '../game/playable';
+import { ensureZonesLoaded, getZones, seaMaskOuter } from '../game/playable';
 
 const WATER_FILL = 'rgba(77, 122, 140, 0.48)';
 const WATER_STYLE = {
@@ -181,6 +181,8 @@ function VegetationMaskImage({ rings }: { rings: ZoneRing[] }) {
       opacity: VEGETATION_OPACITY,
       interactive: false,
       className: 'pointer-events-none',
+      // Below fog (zIndex 250) so unexplored ground stays dark; above tiles.
+      zIndex: 220,
     });
     overlay.addTo(map);
 
@@ -192,6 +194,31 @@ function VegetationMaskImage({ rings }: { rings: ZoneRing[] }) {
   }, [map, rings]);
 
   return null;
+}
+
+/**
+ * Soft-cost forest wash for the in-run world map. Loads zones if needed;
+ * fog sits above so only explored greenery reads.
+ */
+export function VegetationOverlay() {
+  const [rings, setRings] = useState<ZoneRing[]>(() => getZones()?.vegetation ?? []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void ensureZonesLoaded()
+      .then((z) => {
+        if (!cancelled) setRings(z.vegetation ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setRings(getZones()?.vegetation ?? []);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (rings.length === 0) return null;
+  return <VegetationMaskImage rings={rings} />;
 }
 
 /**

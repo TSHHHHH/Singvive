@@ -58,7 +58,7 @@ export function SleepQualityIndicator({ conditions }: { conditions: SleepConditi
   return (
     <TipHint
       className="inline-flex"
-      tipClassName="absolute right-0 top-full z-[60] mt-1 w-max min-w-[11rem] rounded-lg border border-white/15 bg-concrete-900 p-2 text-left shadow-signage"
+      tipClassName="absolute right-0 top-full z-[60] mt-1 w-max min-w-[11rem] max-w-[min(16rem,calc(100vw-1.5rem))] rounded-lg border border-white/15 bg-concrete-900 p-2 text-left shadow-signage"
       tip={<SleepTip conditions={conditions} />}
     >
       <div

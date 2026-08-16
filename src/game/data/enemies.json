@@ -13,6 +13,18 @@
       "hpJitter": [-4, 6]
     },
     {
+      "id": "crawler",
+      "name": "Crawler",
+      "hp": 22,
+      "attack": 0,
+      "defense": 0,
+      "damage": 6,
+      "infectious": 0.4,
+      "armor": 0,
+      "speed": 3,
+      "hpJitter": [-3, 5]
+    },
+    {
       "id": "walker",
       "name": "Walker",
       "hp": 34,
@@ -37,6 +49,18 @@
       "hpJitter": [-4, 6]
     },
     {
+      "id": "bloater",
+      "name": "Bloater",
+      "hp": 58,
+      "attack": 1,
+      "defense": 1,
+      "damage": 11,
+      "infectious": 0.55,
+      "armor": 1,
+      "speed": 4,
+      "hpJitter": [-5, 8]
+    },
+    {
       "id": "lurcher",
       "name": "Lurcher",
       "hp": 46,
@@ -46,6 +70,18 @@
       "infectious": 0.4,
       "armor": 2,
       "speed": 7,
+      "hpJitter": [-4, 6]
+    },
+    {
+      "id": "rioter",
+      "name": "Rioter",
+      "hp": 52,
+      "attack": 3,
+      "defense": 3,
+      "damage": 14,
+      "infectious": 0.35,
+      "armor": 4,
+      "speed": 8,
       "hpJitter": [-4, 6]
     },
     {
@@ -59,12 +95,24 @@
       "armor": 3,
       "speed": 6,
       "hpJitter": [-4, 6]
+    },
+    {
+      "id": "abomination",
+      "name": "Abomination",
+      "hp": 88,
+      "attack": 4,
+      "defense": 3,
+      "damage": 22,
+      "infectious": 0.55,
+      "armor": 4,
+      "speed": 5,
+      "hpJitter": [-6, 8]
     }
   ],
   "elites": {
-    "block_hunter": {
-      "id": "block_hunter",
-      "name": "Corridor Hulk",
+    "hulk": {
+      "id": "hulk",
+      "name": "Hulk",
       "hp": 110,
       "attack": 5,
       "defense": 3,
@@ -75,9 +123,9 @@
       "hpPerDanger": 4,
       "hpJitter": [-6, 8]
     },
-    "tunnel_stalker": {
-      "id": "tunnel_stalker",
-      "name": "Tunnel Stalker",
+    "stalker": {
+      "id": "stalker",
+      "name": "Stalker",
       "hp": 92,
       "attack": 7,
       "defense": 4,
@@ -107,21 +155,43 @@
     "syndicate_88": {
       "name": "88 Syndicate Runner",
       "armor": 1,
+      "baseHp": 24,
+      "hpPerDanger": 5,
+      "baseSpeed": 14,
+      "baseDamage": 7,
+      "damagePerDanger": 2,
       "drops": ["parang", "jewellery", "painkillers"]
     },
     "idtf": {
       "name": "IDTF Deserter",
       "armor": 4,
+      "baseHp": 34,
+      "hpPerDanger": 7,
+      "baseAttack": 2,
+      "baseDamage": 10,
+      "damagePerDanger": 3,
+      "baseSpeed": 10,
       "drops": ["ammo_box", "kevlar_vest", "bandage"]
     },
     "pasir_panjang": {
       "name": "Co-op Enforcer",
-      "armor": 1,
+      "armor": 2,
+      "baseHp": 36,
+      "hpPerDanger": 6,
+      "baseDefense": 2,
+      "baseDamage": 8,
+      "baseSpeed": 10,
       "drops": ["hawker_meal", "kitchen_knife", "canned_food"]
     },
     "sta": {
       "name": "STA Tunnel Marshal",
       "armor": 2,
+      "baseHp": 28,
+      "hpPerDanger": 6,
+      "baseAttack": 2,
+      "baseDamage": 9,
+      "damagePerDanger": 2,
+      "baseSpeed": 12,
       "drops": ["torch", "batteries", "soft_drink"]
     }
   },
@@ -161,15 +231,51 @@
       "damageJitter": [0, 2],
       "dropChance": 0.3,
       "drops": ["snacks", "bandage"]
+    },
+    "raider": {
+      "name": "Armed Raider",
+      "armor": 2,
+      "speed": 11,
+      "baseHp": 32,
+      "hpPerDanger": 5,
+      "hpJitter": [-4, 6],
+      "baseAttack": 2,
+      "attackPerDangerDiv": 2,
+      "attackBonus": 1,
+      "baseDefense": 1,
+      "defensePerDangerDiv": 2,
+      "baseDamage": 10,
+      "damagePerDanger": 2,
+      "damageJitter": [0, 3],
+      "dropChance": 0.85,
+      "drops": ["parang", "ammo_box", "painkillers", "kevlar_vest", "medkit"]
+    },
+    "tout": {
+      "name": "Block Tout",
+      "armor": 0,
+      "speed": 12,
+      "baseHp": 20,
+      "hpPerDanger": 3,
+      "hpJitter": [-3, 5],
+      "baseAttack": 1,
+      "attackPerDangerDiv": 3,
+      "attackBonus": 0,
+      "baseDefense": 0,
+      "defensePerDangerDiv": 3,
+      "baseDamage": 6,
+      "damagePerDanger": 1,
+      "damageJitter": [0, 2],
+      "dropChance": 0.45,
+      "drops": ["snacks", "soft_drink", "batteries", "duct_tape"]
     }
   },
   "spawn": {
-    "zombieTierJitter": [-1, 0],
+    "zombieTierJitter": [-1, 1],
     "humanDropChance": 0.7,
     "wildsGangFaction": "syndicate_88",
     "eliteBindings": {
-      "hdb": "block_hunter",
-      "tunnel": "tunnel_stalker"
+      "hdb": "hulk",
+      "tunnel": "stalker"
     }
   }
 }

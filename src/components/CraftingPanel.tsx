@@ -13,6 +13,7 @@ import { adjustCraftInputs } from '../game/character';
 import type { ItemInstance } from '../game/types';
 import { itemIcon } from './Inventory/itemIcon';
 import { Icon } from '../icons/Icon';
+import type { IconName } from '../icons/keys';
 
 /**
  * Workbench body for the slide-out. Recipes live here rather than buried under
@@ -40,22 +41,18 @@ export function CraftingPanel() {
 
   const field = RECIPES.filter((r) => !r.needsShelter);
   const bench = RECIPES.filter((r) => r.needsShelter);
+  const ragsIcon = itemIcon(itemDef('cloth_rags'));
 
   return (
     <div className="flex flex-col gap-3">
       <section className="rounded-lg border border-white/15 bg-concrete-900/80 p-3">
         <h4 className="mb-2 text-xs uppercase tracking-widest text-white/30">Workbench</h4>
-        <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
-          <span className={atShelter ? 'text-signal' : 'text-white/40'}>
-            {atShelter ? 'Shelter' : 'No shelter'}
-          </span>
-          <span className={hasToolbox ? 'text-signal' : 'text-white/40'}>
-            {hasToolbox ? 'Toolbox' : 'No toolbox'}
-          </span>
+        <div className="flex flex-wrap gap-1.5">
+          <StatusChip ready={atShelter} readyLabel="Shelter" missingLabel="No shelter" />
+          <StatusChip ready={hasToolbox} readyLabel="Toolbox" missingLabel="No toolbox" />
         </div>
-        <p className="mt-2 text-xs text-white/35">
-          Inputs come from the backpack. Shelter recipes need a stash or an HDB
-          room; tools stay in the pack and are not consumed.
+        <p className="mt-2 text-xs leading-snug text-white/35">
+          Inputs from the pack. Shelter recipes need a stash or HDB. Tools stay in the pack.
         </p>
       </section>
 
@@ -79,26 +76,46 @@ export function CraftingPanel() {
       <section className="rounded-lg border border-white/15 bg-concrete-900/80 p-3">
         <h4 className="mb-2 text-xs uppercase tracking-widest text-white/30">Desperate</h4>
         {clothingTears > 0 ? (
-          <button
+          <CraftActionRow
+            icon={ragsIcon}
+            name="Cut Up Your Clothes"
+            hours={TEAR_HOURS}
+            ok
             onClick={tearOwnClothes}
-            title="Cut strips from what you're wearing. Costs nothing but the clothes."
-            className="flex w-full items-baseline justify-between gap-3 rounded bg-white/5 px-2 py-1.5 text-left text-xs hover:bg-white/15"
-          >
-            <span className="min-w-0">
-              <span className="font-semibold">Cut Up Your Clothes</span>
-              <span className="block truncate text-white/35">
-                Nothing — {clothingTears} left in them
-              </span>
-            </span>
-            <span className="shrink-0 text-right text-white/35">{TEAR_HOURS}h</span>
-          </button>
+            lines={[
+              `Nothing — ${clothingTears} left in them`,
+              'Cut strips from what you are wearing. Costs nothing but the clothes.',
+            ]}
+          />
         ) : (
-          <p className="text-xs text-white/35">
+          <p className="text-xs leading-snug text-white/35">
             The clothes on your back are already stripped. Find cloth, or go without.
           </p>
         )}
       </section>
     </div>
+  );
+}
+
+function StatusChip({
+  ready,
+  readyLabel,
+  missingLabel,
+}: {
+  ready: boolean;
+  readyLabel: string;
+  missingLabel: string;
+}) {
+  return (
+    <span
+      className={`rounded px-2 py-1 text-xs ${
+        ready
+          ? 'bg-signal/15 text-signal'
+          : 'bg-white/5 text-white/40'
+      }`}
+    >
+      {ready ? readyLabel : missingLabel}
+    </span>
   );
 }
 
@@ -120,46 +137,99 @@ function RecipeGroup({
   return (
     <section className="rounded-lg border border-white/15 bg-concrete-900/80 p-3">
       <h4 className="mb-2 text-xs uppercase tracking-widest text-white/30">{title}</h4>
-      <div className="flex flex-col gap-1.5">
+      <div className="flex flex-col gap-2">
         {recipes.map((recipe) => {
           const inputs = adjustCraftInputs(recipe.inputs, traitIds);
           const check = canCraft(recipe, items, atShelter, inputs);
           const out = itemDef(recipe.outputDefId);
+          const inputLine = [
+            describeInputs(inputs),
+            recipe.tool ? itemDef(recipe.tool).name : null,
+          ]
+            .filter(Boolean)
+            .join(' · ');
+          const blurb =
+            recipe.id === 'boil'
+              ? `${recipe.blurb} Burning a jerry can lowers your extract gauge.`
+              : recipe.blurb;
+
           return (
-            <button
+            <CraftActionRow
               key={recipe.id}
-              disabled={!check.ok}
+              icon={itemIcon(out)}
+              name={`${recipe.name}${recipe.outputCount > 1 ? ` ×${recipe.outputCount}` : ''}`}
+              hours={recipe.hours}
+              ok={check.ok}
               onClick={() => onCraft(recipe.id)}
-              title={
-                recipe.id === 'boil'
-                  ? `${recipe.blurb} Burning a jerry can lowers your extract gauge.`
-                  : recipe.blurb
-              }
-              className={`flex items-start gap-2 rounded px-2 py-1.5 text-left text-xs ${
-                check.ok
-                  ? 'bg-white/5 hover:bg-white/15'
-                  : 'cursor-not-allowed bg-transparent text-white/25'
-              }`}
-            >
-              <Icon name={itemIcon(out)} size={22} className="mt-0.5 shrink-0" />
-              <span className="min-w-0 flex-1">
-                <span className={`block ${check.ok ? 'font-semibold' : ''}`}>
-                  {recipe.name}
-                  {recipe.outputCount > 1 ? ` ×${recipe.outputCount}` : ''}
-                </span>
-                <span className="block truncate text-white/35">
-                  {describeInputs(inputs)}
-                  {recipe.tool ? ` · ${itemDef(recipe.tool).name}` : ''}
-                  {recipe.id === 'boil' ? ' · burns evac fuel' : ''}
-                </span>
-              </span>
-              <span className="shrink-0 text-right text-white/35">
-                {check.ok ? `${recipe.hours}h` : check.reason}
-              </span>
-            </button>
+              lines={[inputLine, blurb]}
+              blocker={check.ok ? undefined : check.reason}
+            />
           );
         })}
       </div>
     </section>
+  );
+}
+
+/** Shared Field / Shelter / Desperate row: hours stay short on the right. */
+function CraftActionRow({
+  icon,
+  name,
+  hours,
+  ok,
+  onClick,
+  lines,
+  blocker,
+}: {
+  icon: IconName;
+  name: string;
+  hours: number;
+  ok: boolean;
+  onClick: () => void;
+  /** Inputs then blurb — both truncated to one line. */
+  lines: string[];
+  blocker?: string;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={!ok}
+      onClick={onClick}
+      className={`flex min-h-11 w-full items-start gap-2.5 rounded px-2.5 py-2.5 text-left text-xs ${
+        ok
+          ? 'bg-white/5 hover:bg-white/15 active:bg-white/20'
+          : 'cursor-not-allowed bg-transparent'
+      }`}
+    >
+      <Icon
+        name={icon}
+        size={24}
+        className={`mt-0.5 shrink-0 ${ok ? '' : 'opacity-40'}`}
+      />
+      <span className="min-w-0 flex-1">
+        <span
+          className={`block leading-snug ${
+            ok ? 'font-semibold text-white' : 'font-medium text-white/55'
+          }`}
+        >
+          {name}
+        </span>
+        {lines.map((line) => (
+          <span key={line} className="mt-0.5 block truncate leading-snug text-white/35">
+            {line}
+          </span>
+        ))}
+        {blocker ? (
+          <span className="mt-1 block leading-snug text-white/50">{blocker}</span>
+        ) : null}
+      </span>
+      <span
+        className={`shrink-0 pt-0.5 text-right tabular-nums ${
+          ok ? 'text-white/50' : 'text-white/30'
+        }`}
+      >
+        {hours}h
+      </span>
+    </button>
   );
 }

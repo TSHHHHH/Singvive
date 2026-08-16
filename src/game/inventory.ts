@@ -25,7 +25,7 @@ export const ALL_EQUIP_SLOTS: EquipSlot[] = [
 export const BACKPACK = 'backpack';
 /** Base pack without an equipped bag — pockets only. Traits / bag gear grow this. */
 export const BACKPACK_DIMS = { w: 5, h: 4 };
-export const STASH_DIMS = { w: 10, h: 8 };
+export const STASH_DIMS = { w: 9, h: 8 };
 /** Compact grid for an in-progress sequential search (timeline stash). */
 export const SEARCH_DIMS = { w: 8, h: 5 };
 /** Transient overflow while crawling a tunnel — not a location stash. */

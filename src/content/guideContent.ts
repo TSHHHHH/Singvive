@@ -1,4 +1,4 @@
-/** Player-facing tutorial copy shared by the Menu primer and in-game GuideModal. */
+/** Player-facing tutorial copy shared by HowToPlayModal and contextual GuideModal. */
 
 export type GuideTopic = 'survive' | 'loot' | 'evac' | 'score' | 'hdb' | 'tunnels';
 
@@ -31,9 +31,9 @@ export const GUIDE_SECTIONS: readonly GuideSection[] = [
     id: 'hdb',
     title: 'Inside the block',
     bullets: [
-      'Void decks open a side-elevation cutaway. Stairs stay visible even on sealed storeys; click a reachable stair or door to auto-path. Unvisited open floors stay fogged until you climb in.',
+      'Void decks open a side-elevation cutaway. Stairs stay visible even on sealed storeys; hover a reachable stair or door to preview the auto-path, then click to walk it. Unvisited open floors stay fogged until you climb in.',
       'Sealed landings are gone for good. Corridor debris, barricades, and stair gates can be cleared (heat + time). Collapses are permanent — find another route.',
-      'Higher storeys pay better loot; encounter chance tracks heat + door type. Going down can require Dex+End (hover to preview). Leave only from level 01.',
+      'Higher storeys pay better loot. Cutaway doors show room type (Flat, Stocked, Trapped, Storeroom, Pantry, Holdout) — hover the Room tile on the door card for what each means. Encounter chance tracks heat + how the door stands (Perception pins the exact %; otherwise a range). Entry and encounter live on that card, not on the door face. Heat on the bottom dock shows stair difficulty; expand it for the symbol key and sense-check odds. Going down can need Dexterity + Endurance (hover a stair to preview). Leave only from level 01.',
     ],
   },
   {

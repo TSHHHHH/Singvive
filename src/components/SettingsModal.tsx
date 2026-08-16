@@ -3,8 +3,15 @@ import { SETTINGS_SCHEMA, useSettings } from '../game/settings';
 /**
  * Settings panel. Renders entirely from SETTINGS_SCHEMA, grouped by section, so
  * new options show up here automatically — no edits to this file needed.
+ * Guide review is a one-off action wired beside the schema group.
  */
-export function SettingsModal({ onClose }: { onClose: () => void }) {
+export function SettingsModal({
+  onClose,
+  onReviewGuide,
+}: {
+  onClose: () => void;
+  onReviewGuide?: () => void;
+}) {
   const values = useSettings((s) => s.values);
   const setSetting = useSettings((s) => s.setSetting);
 
@@ -25,7 +32,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md rounded-xl border border-white/15 bg-concrete-900 p-5 shadow-signage"
+        className="max-h-[min(88vh,40rem)] w-full max-w-md overflow-y-auto rounded-xl border border-white/15 bg-concrete-900 p-5 shadow-signage"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
@@ -71,6 +78,21 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
                     </div>
                   );
                 })}
+                {group.name === 'Guide' && onReviewGuide && (
+                  <div>
+                    <div className="text-sm font-semibold">Review how to play</div>
+                    <div className="mb-1.5 text-xs text-white/40">
+                      Open the primer with Survive, Loot, Block, Tunnels, and the rest.
+                    </div>
+                    <button
+                      type="button"
+                      onClick={onReviewGuide}
+                      className="rounded border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-white/70 transition hover:border-white/30 hover:text-white"
+                    >
+                      Open guide
+                    </button>
+                  </div>
+                )}
               </div>
             </section>
           ))}

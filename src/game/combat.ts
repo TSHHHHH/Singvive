@@ -278,12 +278,12 @@ export function makeZombie(rng: Rng, danger: number, _category?: PoiCategory): E
 }
 
 /** The thing a maxed-out block sends down the corridor after you. */
-export function makeBlockHunter(rng: Rng, danger: number): Enemy {
+export function makeHulk(rng: Rng, danger: number): Enemy {
   return rollElite(ENEMIES, rng, ENEMIES.spawn.eliteBindings.hdb, danger, 'hunter');
 }
 
 /** Pinned tunnel pressure — only reachable via the elite binding, not danger tiers. */
-export function makeTunnelStalker(rng: Rng, danger: number): Enemy {
+export function makeStalker(rng: Rng, danger: number): Enemy {
   return rollElite(ENEMIES, rng, ENEMIES.spawn.eliteBindings.tunnel, danger, 'stalker');
 }
 

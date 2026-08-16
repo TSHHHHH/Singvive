@@ -193,7 +193,8 @@ export function buildSearchSession(opts: {
   const slots: SearchSlot[] = placed.map((p, i) => {
     const w = weights[i] ?? 1;
     // Real-time reveal pace (UI only) — kept deliberately slower than a single click.
-    const searchMs = Math.round(clamp(450 + w * 350, 400, 3500) * speed * 2);
+    // Pace multiplier 1.6 ≈ +25% base speed vs the prior ×2 baseline.
+    const searchMs = Math.round(clamp(450 + w * 350, 400, 3500) * speed * 1.6);
     const searchMinutes = opts.totalMinutes * (w / weightSum);
     return {
       ...p,

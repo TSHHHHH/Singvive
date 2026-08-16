@@ -4,8 +4,8 @@ import { ITEMS } from './loot';
 import enemiesCatalog from './data/enemies.json' with { type: 'json' };
 
 export type FactionKey = Exclude<FactionId, null>;
-export type LonerKind = 'scavenger' | 'survivor';
-export type EliteId = 'block_hunter' | 'tunnel_stalker';
+export type LonerKind = 'scavenger' | 'survivor' | 'raider' | 'tout';
+export type EliteId = 'hulk' | 'stalker';
 export type EliteContext = 'hdb' | 'tunnel';
 
 export type IntRange = [number, number];
@@ -108,8 +108,13 @@ export const FACTION_KEYS: readonly FactionKey[] = [
   'sta',
 ] as const;
 
-export const LONER_KINDS: readonly LonerKind[] = ['scavenger', 'survivor'] as const;
-export const ELITE_IDS: readonly EliteId[] = ['block_hunter', 'tunnel_stalker'] as const;
+export const LONER_KINDS: readonly LonerKind[] = [
+  'scavenger',
+  'survivor',
+  'raider',
+  'tout',
+] as const;
+export const ELITE_IDS: readonly EliteId[] = ['hulk', 'stalker'] as const;
 
 export const HUMAN_SCALING_KEYS: readonly (keyof HumanScaling)[] = [
   'baseHp',
@@ -160,10 +165,10 @@ function intRange(r: IntRange, rng: Rng): number {
 export function rollZombie(catalog: EnemiesCatalog, rng: Rng, danger: number): Enemy {
   const tierRng = rng.fork('zombie');
   const jitter = catalog.spawn.zombieTierJitter;
-  const idx = Math.max(
-    0,
-    Math.min(catalog.zombies.length - 1, danger - 1 + intRange(jitter, tierRng)),
-  );
+  const max = catalog.zombies.length - 1;
+  // Spread danger 1..5 across the full ladder so added mid/high tiers stay reachable.
+  const base = Math.round(((Math.max(1, Math.min(5, danger)) - 1) / 4) * max);
+  const idx = Math.max(0, Math.min(max, base + intRange(jitter, tierRng)));
   const t = catalog.zombies[idx]!;
   const hp = t.hp + intRange(t.hpJitter, tierRng);
   return {

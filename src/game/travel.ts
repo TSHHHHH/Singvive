@@ -45,6 +45,8 @@ export interface TravelEstimate {
   doneAtNight: boolean;
   encumbered: boolean;
   weatherSlowed: boolean;
+  /** True when the land route cuts through baked forest / nature reserve. */
+  vegetationSlowed: boolean;
 }
 
 /**
@@ -81,6 +83,34 @@ export function estimateExpedition(
     doneAtNight: timeOfDay(doneHour) !== 'day',
     encumbered,
     weatherSlowed: wMult > 1,
+    vegetationSlowed: false,
+  };
+}
+
+/**
+ * Fold soft vegetation cost into a base expedition quote (time only — energy
+ * is shown separately on trek cards).
+ */
+export function withVegetationTravel(
+  est: TravelEstimate,
+  travelMult: number,
+  currentHour: number,
+): TravelEstimate {
+  if (!(travelMult > 1)) return est;
+  const travelMin = Math.max(1, Math.round(est.travelMin * travelMult));
+  const totalMin = travelMin + est.searchMin;
+  const arrivalHour = (currentHour + travelMin / 60) % HOURS_PER_DAY;
+  const doneHour = (currentHour + totalMin / 60) % HOURS_PER_DAY;
+  return {
+    ...est,
+    travelMin,
+    totalMin,
+    totalHours: totalMin / 60,
+    arrivalHour,
+    doneHour,
+    arrivalAtNight: timeOfDay(arrivalHour) !== 'day',
+    doneAtNight: timeOfDay(doneHour) !== 'day',
+    vegetationSlowed: true,
   };
 }
 

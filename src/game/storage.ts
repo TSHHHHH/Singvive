@@ -12,6 +12,7 @@ import type {
 } from './types';
 import type { ExploredCircle } from './fog';
 import type { HdbDungeon } from './hdbDungeon';
+import { migrateHdbDungeon } from './hdbDungeon';
 import type { TunnelRun } from './tunnelRun';
 import type { EventClock } from './store';
 import type { FactionStanding } from './events';
@@ -163,6 +164,14 @@ export function loadRun(): SavedRun | null {
     parsed.bodyParts = migrateBodyParts(parsed.bodyParts, parsed.maxHp ?? 84);
     // Migration: body-zone slots (hands/legs/feet) added after v6; old saves omit them.
     parsed.equipment = coerceEquipment(parsed.equipment);
+    // Migration: HDB unit types renamed (residential→flat, …).
+    if (parsed.hdbBlocks) {
+      const next: Record<string, HdbDungeon> = {};
+      for (const [id, block] of Object.entries(parsed.hdbBlocks)) {
+        next[id] = migrateHdbDungeon(block);
+      }
+      parsed.hdbBlocks = next;
+    }
     return parsed;
   } catch {
     return null;

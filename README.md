@@ -217,7 +217,7 @@ hostility, trade, shelter, aid, and intel:
   playable), forward-only edges, one column of reveal ahead. Four middle node kinds — **contact**,
   **salvage**, **camp**, **obstruction** — same as before.
 - **Pressure** is the run's own gauge, continuous across the whole journey. Sleeping at a camp is
-  the one thing that lowers it. A pinned gauge can spawn a **Tunnel Stalker**.
+  the one thing that lowers it. A pinned gauge can spawn a **Stalker**.
 - **Stations are exits.** STA **toll** still gates the *stairs down* at the origin only. Roughly
   **45% of platforms stand empty** (`CLAIM_CHANCE.sta`).
 - A run **survives a reload** — same graph, same node (`SavedRun.tunnel`). Destroyed edges persist
@@ -261,12 +261,14 @@ hostility, trade, shelter, aid, and intel:
 
 ### 3.14 HDB dungeons
 - Void decks open a **vertical push-your-luck cutaway** (`game/hdbDungeon.ts`, zoom/pan via
-  `react-zoom-pan-pinch`): stair columns, units, locked/barricaded doors, block **heat**, noise,
-  and tiered loot. Sealed storeys are **permanently gone**. Stairs stay visible for orientation.
+  `react-zoom-pan-pinch`): stair columns, units, block **heat**, noise, and tiered loot.
+  Door faces show **room type** (Flat / Stocked / Trapped / Storeroom / Pantry / Holdout);
+  locked/ajar state and encounter odds live on the location card (hover Room for the type
+  blurb). Sealed storeys are **permanently gone**. Stairs stay visible for orientation.
   Auto-path stops at corridor/stair **blockades** — clear them to open the maze. Door
   **encounter chance** tracks heat + entry type; higher storeys pay better loot. Heat can
   force a Dex+End check (or hunt) when descending. **Leave only from level 01.**
-  Estate vs shelter archetypes change the floor mix.
+  Estate vs shelter archetypes change holdout rates.
 
 ### 3.15 Noise
 - Actions emit spatial **noise pulses** (`game/noise.ts`) that temporarily boost nearby POI danger
@@ -312,7 +314,7 @@ hostility, trade, shelter, aid, and intel:
   - **Right timeline** — game log; contact Fight/Flee gate dims the rest of the UI until chosen.
 - **Mobile — bottom tabs:** **Map / Status / Inventory / Log** (Log becomes Fight in combat). On the
   map, the selected location / trek slides up as a sheet.
-- **Overlays / modals:** trader, guide, settings, day logs, event modals, HDB dungeon, tunnel run,
+- **Overlays / modals:** trader, contextual guide, how-to-play primer, settings, day logs, event modals, HDB dungeon, tunnel run,
   ghost encounter.
 
 ---
@@ -343,7 +345,7 @@ src/
   content/     player-facing guide copy
   hooks/       shared React hooks (e.g. useAnimatedNumber)
   icons/       icon registry + keys (emoji fallbacks → drop-in PNGs)
-  dev/         DEV-only in-game editors (loot / enemies) — never imported from game/
+  dev/         DEV-only editors + Dev menu (loot / enemies / icons) — never imported from game/
   components/  GameMap, FogOverlay, Inventory/*, CraftingPanel, CombatPanel, ConditionPanel,
                StatsPanel, ObjectiveBar, ObjectivesPanel, HdbDungeonModal, TunnelRunView,
                TraderModal, GuideModal, SettingsModal, TrekCard, LocationCard, …
@@ -365,17 +367,19 @@ caps at z16). **Any replacement must support both `{r}` and native z20**, or the
 In-game editors that must **persist to the repo** (not just mutate a live run) follow the loot
 catalog tool. Use the same shape when adding trait, recipe, faction, or loot-table browsers.
 
-**Reference implementation:** item defs browser/editor — floating **Loot** control in `npm run
-dev` only. Encounter kit editor — floating **Enemies** control (separate overlay).
+**Launcher:** floating **Dev** control (bottom-left) in `npm run dev` only — opens a panel for
+**Loot**, **Enemies**, and **Icons**. Overlays are mutually exclusive. `Ctrl+Shift+D` hides the
+launcher for clean playtest screenshots (remembered for the tab via `sessionStorage`). Deep-links
+still work via `src/dev/devBridge.ts` (`openLootItem`, `openEnemyEditor`, `openIconBrowser`).
 
 | Layer | Role | Where |
 |---|---|---|
-| Catalog on disk | Machine-writable source of truth | e.g. `src/game/data/items.json`, `enemies.json` |
-| Game import | Load catalog into pure logic (clone if you mutate at boot) | e.g. `src/game/loot.ts`, `enemies.ts` |
+| Catalog on disk | Machine-writable source of truth | e.g. `src/game/data/items.json`, `enemies.json`; chrome icons under `src/assets/icons/` |
+| Game import | Load catalog into pure logic (clone if you mutate at boot) | e.g. `src/game/loot.ts`, `enemies.ts`; icons via `src/icons/` |
 | Shared validation | Same checks for API + UI | `src/dev/validateItems.ts`, `validateEnemies.ts` |
 | Vite DEV API | `apply: 'serve'` only — never in `vite build` | `vite.loot-dev-api.ts` → wired in `vite.config.ts` |
-| Client API helpers | `fetch` / export / import / upload | `src/dev/lootApi.ts`, `enemyApi.ts` |
-| UI | Full-screen overlay, gated by `import.meta.env.DEV` | `src/dev/LootBrowser.tsx`, `EnemyBrowser.tsx`, mounted from `App.tsx` |
+| Client API helpers | `fetch` / export / import / upload | `src/dev/lootApi.ts`, `enemyApi.ts`, `iconApi.ts` |
+| UI | Full-screen overlays + Dev menu, gated by `import.meta.env.DEV` | `src/dev/DevToolsMenu.tsx`, `LootBrowser.tsx`, `EnemyBrowser.tsx`, `IconBrowser.tsx`, mounted from `App.tsx` |
 
 **HTTP surface (localhost, DEV server only):**
 
@@ -385,6 +389,9 @@ dev` only. Encounter kit editor — floating **Enemies** control (separate overl
 - `GET /__dev/item-icons` — list on-disk `item-*` assets + max upload size
 - `POST /__dev/item-icon` — upload PNG/WebP (64 KB / 256px edge max) → `src/assets/icons/item-<id>.(png|webp)`, and
   register `item.<id>` in `src/icons/keys.ts` when missing
+- `GET /__dev/icons` — list on-disk **non-item** chrome icon assets + max upload size/edge
+- `POST /__dev/icon` — upload PNG/WebP for an existing non-`item.*` key → `src/assets/icons/<key-with-dashes>.(png|webp)` (does not edit `keys.ts`)
+- `DELETE /__dev/icon?key=…` — remove on-disk chrome asset (emoji fallback remains)
 
 **Loot browser UX extras worth copying:**
 
@@ -395,11 +402,17 @@ dev` only. Encounter kit editor — floating **Enemies** control (separate overl
 - Filters: exotic, starting, missing art; sort + group-by-kind
 - `ItemDef.startingItem` (+ optional `startingCount`) drives run-start gear in `store.ts`
 - Tables editor: scarcity-aware effective %, sort, badges, weight bars, ± steppers, normalize, duplicate category, drag reorder, craft-only / no-common warnings, only-in-table, diff-before-save, roll simulator + richness, jump-to-item
+- **Item art** is owned here (`item.*` upload / missing-art filter) — not in the Icons browser
 
-**Enemies browser:** separate floating **Enemies** chip, bottom-left above **Loot**. Tabs **Overview** |
-**Zombies** | **Humans** | **Spawn** — sortable strength table (HP/atk/threat/TTK), tier reorder,
-shared `humanDefaults` + faction overrides, elite/loner stats, drop pools (click → Loot),
-where-used, compare, derived danger readout, seeded preview.
+**Enemies browser:** opened from the Dev menu. Tabs **Overview** | **Zombies** | **Humans** |
+**Spawn** — sortable strength table (HP/atk/threat/TTK), tier reorder, shared `humanDefaults` +
+faction overrides, elite/loner stats, drop pools (click → Loot), where-used, compare, derived
+danger readout, seeded preview.
+
+**Icons browser:** opened from the Dev menu. Browse all non-`item.*` keys by namespace; filter
+missing/has art; progress counter; tint preview swatches; drag/drop or upload PNG/WebP; clear
+asset; orphan-file list for on-disk files with no matching key. Hard-refresh after uploads to
+pick up new asset URLs in the live game.
 
 **Hard rules when cloning the pattern:**
 
@@ -417,6 +430,8 @@ where-used, compare, derived danger readout, seeded preview.
    patch so the rest of the app resolves the new art after HMR.
 7. **Immutable ids after create** when other tables reference them by string (loot tables, recipes,
    factions). Allow id edits only on unsaved drafts.
+8. **Register new overlays in `DevToolsMenu`** instead of adding another floating chip; use
+   `devBridge` open/close events so tools stay mutually exclusive.
 
 **Minimal checklist for a new similar tool**
 
@@ -424,7 +439,7 @@ where-used, compare, derived danger readout, seeded preview.
 2. Point the pure game module at that file.
 3. Add `validate…` + `src/dev/<Name>Browser.tsx` + helpers under `src/dev/`.
 4. Extend or add a Vite `apply: 'serve'` plugin with `GET/PUT /__dev/<name>`.
-5. Mount `{import.meta.env.DEV && <Dev… />}` from `App.tsx`.
+5. Mount `{import.meta.env.DEV && <Dev… />}` from `App.tsx` and add a row to `DevToolsMenu`.
 6. Confirm `npm run build` — no `/__dev` strings and no editor chrome in `dist/`.
 
 ---

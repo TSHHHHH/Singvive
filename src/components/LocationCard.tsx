@@ -120,7 +120,10 @@ function UnknownCard({ est, energyLow, outOfRange, noDryRoute, onTravel }: Props
       {est && (
         <div className="mt-2 flex justify-between rounded bg-black/30 p-2 text-xs text-white/55">
           <span><Icon name="action.travel" /> Travel there</span>
-          <span className="text-white/80">{formatDuration(est.travelMin)}</span>
+          <span className="text-white/80">
+            {formatDuration(est.travelMin)}
+            {est.vegetationSlowed && <span className="text-white/45"> · forest</span>}
+          </span>
         </div>
       )}
       {est?.arrivalAtNight && (
@@ -683,6 +686,7 @@ function KnownCard({
                 {formatDuration(est.travelMin)}
                 {est.weatherSlowed && <span className="text-astral"> · rain</span>}
                 {est.encumbered && <span className="text-hiss"> · heavy</span>}
+                {est.vegetationSlowed && <span className="text-white/45"> · forest</span>}
               </span>
             </div>
             <div className="flex justify-between">

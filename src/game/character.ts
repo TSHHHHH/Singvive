@@ -710,7 +710,7 @@ export function attributeEffects(key: AttributeKey, value: number): AttributeEff
         num(Math.floor(d / 2), 'loot rolls per search'),
         pct(d * 0.04, 'search speed'),
         num(d, 'awareness (fog & blip range)'),
-        num(sense, 'threat-sense chance', '%'),
+        num(sense, 'encounter-sense chance', '%'),
         num(Math.floor(d / 2), 'flee checks'),
       ];
       break;

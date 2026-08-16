@@ -14,6 +14,8 @@ const ICONS_DIR = path.join(ROOT, 'src/assets/icons');
 const KEYS_PATH = path.join(ROOT, 'src/icons/keys.ts');
 
 export const MAX_ICON_BYTES = 64 * 1024;
+/** Either edge of an uploaded icon must be ≤ this (UI tiles). */
+export const MAX_ICON_EDGE = 256;
 
 /** Keep uploads small — inventory tiles, not full art boards. */
 
@@ -21,6 +23,8 @@ const MIME_EXT: Record<string, string> = {
   'image/png': 'png',
   'image/webp': 'webp',
 };
+
+const ICON_FILE_RE = /^(?!item-).+\.(png|webp|svg)$/i;
 
 function readBody(req: { on: (event: string, cb: (chunk?: Buffer) => void) => void }): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -54,6 +58,49 @@ function listItemIconFiles(): { key: string; file: string; bytes: number }[] {
       return { key, file, bytes };
     })
     .sort((a, b) => a.key.localeCompare(b.key));
+}
+
+function keyFromIconFile(file: string): string {
+  return file.replace(/\.(png|webp|svg)$/i, '').replace(/-/g, '.');
+}
+
+function listNonItemIconFiles(): { key: string; file: string; bytes: number }[] {
+  if (!fs.existsSync(ICONS_DIR)) return [];
+  return fs
+    .readdirSync(ICONS_DIR)
+    .filter((f) => ICON_FILE_RE.test(f))
+    .map((file) => {
+      const bytes = fs.statSync(path.join(ICONS_DIR, file)).size;
+      return { key: keyFromIconFile(file), file, bytes };
+    })
+    .sort((a, b) => a.key.localeCompare(b.key));
+}
+
+/** Icon keys registered in keys.ts that are not item.*. */
+function readKnownNonItemIconKeys(): Set<string> {
+  const src = fs.readFileSync(KEYS_PATH, 'utf8');
+  const keys = new Set<string>();
+  for (const m of src.matchAll(/'([a-z]+(?:\.[a-zA-Z0-9_]+)+)'/g)) {
+    const key = m[1]!;
+    if (!key.startsWith('item.')) keys.add(key);
+  }
+  return keys;
+}
+
+function isSafeNonItemIconKey(key: string): boolean {
+  return /^[a-z]+(\.[a-z][a-zA-Z0-9_]*)+$/.test(key) && !key.startsWith('item.');
+}
+
+function iconStemFromKey(key: string): string {
+  return key.replace(/\./g, '-');
+}
+
+function parseIconUpload(buf: Buffer, ext: string): boolean {
+  if (ext === 'png') return buf[0] === 0x89 && buf[1] === 0x50;
+  if (ext === 'webp') {
+    return buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP';
+  }
+  return false;
 }
 
 /**
@@ -115,7 +162,7 @@ function isDevLootHotFile(file: string): boolean {
   }
   const rel = path.relative(path.resolve(ICONS_DIR), path.resolve(file));
   if (!rel.startsWith('..') && !path.isAbsolute(rel)) {
-    return /^item-.*\.(png|webp)$/i.test(path.basename(rel));
+    return /\.(png|webp|svg)$/i.test(path.basename(rel));
   }
   return false;
 }
@@ -148,6 +195,117 @@ export function lootDevApi(): Plugin {
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
         const url = req.url?.split('?')[0];
+
+        if (url === '/__dev/icons' && req.method === 'GET') {
+          try {
+            json(res, 200, {
+              maxBytes: MAX_ICON_BYTES,
+              maxEdge: MAX_ICON_EDGE,
+              icons: listNonItemIconFiles(),
+            });
+          } catch (err) {
+            json(res, 500, { error: String(err) });
+          }
+          return;
+        }
+
+        if (url === '/__dev/icon' && req.method === 'POST') {
+          try {
+            const body = JSON.parse(await readBody(req)) as {
+              key?: unknown;
+              mime?: unknown;
+              dataBase64?: unknown;
+            };
+            const key = typeof body.key === 'string' ? body.key : '';
+            const mime = typeof body.mime === 'string' ? body.mime : '';
+            const dataBase64 = typeof body.dataBase64 === 'string' ? body.dataBase64 : '';
+
+            if (!isSafeNonItemIconKey(key)) {
+              json(res, 400, {
+                error: 'key must be a non-item IconName (e.g. poi.supermarket)',
+              });
+              return;
+            }
+            const known = readKnownNonItemIconKeys();
+            if (!known.has(key)) {
+              json(res, 400, { error: `Unknown icon key: ${key}` });
+              return;
+            }
+            const ext = MIME_EXT[mime];
+            if (!ext) {
+              json(res, 400, { error: 'Only image/png and image/webp are allowed' });
+              return;
+            }
+            if (!dataBase64) {
+              json(res, 400, { error: 'dataBase64 is required' });
+              return;
+            }
+
+            const buf = Buffer.from(dataBase64, 'base64');
+            if (buf.byteLength === 0) {
+              json(res, 400, { error: 'Empty image payload' });
+              return;
+            }
+            if (buf.byteLength > MAX_ICON_BYTES) {
+              json(res, 400, {
+                error: `Icon exceeds ${MAX_ICON_BYTES} byte limit (${buf.byteLength} bytes)`,
+              });
+              return;
+            }
+            if (!parseIconUpload(buf, ext)) {
+              json(res, 400, { error: 'File contents do not match the declared image type' });
+              return;
+            }
+
+            const stem = iconStemFromKey(key);
+            fs.mkdirSync(ICONS_DIR, { recursive: true });
+            for (const other of ['png', 'webp', 'svg'] as const) {
+              const p = path.join(ICONS_DIR, `${stem}.${other}`);
+              if (other !== ext && fs.existsSync(p)) fs.unlinkSync(p);
+            }
+            const file = `${stem}.${ext}`;
+            fs.writeFileSync(path.join(ICONS_DIR, file), buf);
+
+            json(res, 200, {
+              ok: true,
+              key,
+              file,
+              bytes: buf.byteLength,
+            });
+          } catch (err) {
+            json(res, 400, { error: String(err) });
+          }
+          return;
+        }
+
+        if (url === '/__dev/icon' && req.method === 'DELETE') {
+          try {
+            const rawUrl = req.url ?? '';
+            const q = new URL(rawUrl, 'http://localhost').searchParams.get('key') ?? '';
+            if (!isSafeNonItemIconKey(q)) {
+              json(res, 400, { error: 'key query param must be a non-item IconName' });
+              return;
+            }
+            const known = readKnownNonItemIconKeys();
+            if (!known.has(q)) {
+              json(res, 400, { error: `Unknown icon key: ${q}` });
+              return;
+            }
+            const stem = iconStemFromKey(q);
+            let removed: string | null = null;
+            for (const ext of ['png', 'webp', 'svg'] as const) {
+              const p = path.join(ICONS_DIR, `${stem}.${ext}`);
+              if (fs.existsSync(p)) {
+                fs.unlinkSync(p);
+                removed = `${stem}.${ext}`;
+              }
+            }
+            json(res, 200, { ok: true, key: q, removed });
+          } catch (err) {
+            json(res, 400, { error: String(err) });
+          }
+          return;
+        }
 
         if (url === '/__dev/item-icons' && req.method === 'GET') {
           try {

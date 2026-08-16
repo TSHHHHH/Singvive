@@ -18,9 +18,12 @@ import type { BodyPartId } from '../game/types';
 export function ConditionPanel({
   dollHeight = 120,
   onOpenGuide,
+  showSurvivorStats = true,
 }: {
   dollHeight?: number;
   onOpenGuide?: (topic: GuideTopic) => void;
+  /** Desktop moves live combat stats into the Stats tab. */
+  showSurvivorStats?: boolean;
 }) {
   const { meters, bodyParts } = useGame(
     useShallow((s) => ({ meters: s.meters, bodyParts: s.bodyParts })),
@@ -107,7 +110,7 @@ export function ConditionPanel({
         <AttributeRow />
       </div>
 
-      <SurvivorStatsGrid />
+      {showSurvivorStats && <SurvivorStatsGrid />}
     </section>
   );
 }

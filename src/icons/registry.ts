@@ -68,6 +68,12 @@ export const ICON_ASSETS: Partial<Record<IconName, IconAsset>> = Object.fromEntr
  *     'stance.guarded': { src: shieldPng, tint: true },
  *   });
  */
+{
+  const human = ICON_ASSETS['combat.enemyHuman'];
+  if (human && !ICON_ASSETS['combat.enemyZombie']) {
+    ICON_ASSETS['combat.enemyZombie'] = human;
+  }
+}
 
 export interface ResolvedIcon {
   kind: 'asset' | 'emoji';

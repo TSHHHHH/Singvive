@@ -1,10 +1,8 @@
-import { ITEMS } from '../game/loot';
+import { DUD_CHANCE, ITEMS } from '../game/loot';
 import { Rng } from '../game/rng';
 import type { LootTableEntry } from './validateLootTables';
 
-/** Mirrors `rollLoot` dud rate so the simulator matches live scavenging. */
-const DUD_CHANCE = 0.35;
-
+/** Mirrors live `rollQuantity` — keep in lockstep with `loot.ts`. */
 function rollQuantity(rng: Rng, maxStack: number): number {
   if (maxStack <= 1) return 1;
   const r = rng.chance(0.65) ? 1 : rng.chance(0.8) ? 2 : 3;
