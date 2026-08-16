@@ -446,7 +446,7 @@ export function repair(inst: ItemInstance, amount: number): ItemInstance {
  * meal is worthless in about two and a half days; a run lasts twelve. Rate is
  * per-item so a vacuum-packed thing can keep for the whole run.
  */
-export const SPOIL_PER_HOUR = 1.6;
+export const SPOIL_PER_HOUR = 2.4;
 
 export function spoil(items: ItemInstance[], hours: number): ItemInstance[] {
   if (hours <= 0) return items;

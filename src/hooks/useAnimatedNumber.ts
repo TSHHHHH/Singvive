@@ -33,3 +33,34 @@ export function useAnimatedNumber(target: number, durationMs = 550): number {
 
   return value;
 }
+
+/**
+ * Re-emit `value` at most once per `intervalMs`, always flushing the latest
+ * sample. Used to keep a smooth UI tween while throttling expensive consumers
+ * (fog canvas full-tile refreshes) to ~10–12 Hz.
+ */
+export function useThrottledNumber(value: number, intervalMs = 80): number {
+  const [out, setOut] = useState(value);
+  const lastEmitRef = useRef(0);
+  const valueRef = useRef(value);
+  valueRef.current = value;
+
+  useEffect(() => {
+    const now = performance.now();
+    const elapsed = now - lastEmitRef.current;
+    if (elapsed >= intervalMs) {
+      lastEmitRef.current = now;
+      setOut(value);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      lastEmitRef.current = performance.now();
+      setOut(valueRef.current);
+    }, intervalMs - elapsed);
+
+    return () => clearTimeout(timer);
+  }, [value, intervalMs]);
+
+  return out;
+}

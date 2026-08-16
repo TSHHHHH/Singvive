@@ -48,7 +48,7 @@ export function DayLogsModal({ onClose }: { onClose: () => void }) {
       onClick={onClose}
     >
       <div
-        className="flex max-h-[88%] w-full max-w-lg flex-col rounded-xl border border-white/10 bg-concrete-900"
+        className="flex max-h-[88%] w-full max-w-lg flex-col rounded-xl border border-white/15 bg-concrete-900 shadow-signage"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex shrink-0 items-center justify-between border-b border-white/10 p-4">

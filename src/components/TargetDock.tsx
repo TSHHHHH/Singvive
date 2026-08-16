@@ -19,7 +19,7 @@ export function TargetDock({
         className={
           'pointer-events-auto absolute right-3 flex w-[min(268px,calc(100%-1.5rem))] ' +
           'max-h-[min(50vh,420px)] flex-col overflow-hidden rounded-lg border ' +
-          'border-white/15 bg-concrete-900/90 shadow-lg backdrop-blur-sm ' +
+          'border-white/15 bg-concrete-900/95 shadow-signage ' +
           // Mobile: above tab chrome. Desktop: clear the ~24px attribution bar.
           'bottom-[calc(var(--mobile-chrome-bottom)+0.5rem)] lg:bottom-8'
         }

@@ -6,7 +6,7 @@ import { itemDef } from './loot';
  * and a source second — the scrap and tape you hoover up out of every hardware
  * store have somewhere to go, and clean water has to be made rather than found.
  *
- * Deliberately small. Six recipes is a resource loop; sixty is a second game.
+ * Deliberately small. A handful of recipes is a resource loop; sixty is a second game.
  */
 
 export interface Recipe {
@@ -114,6 +114,16 @@ export const RECIPES: Recipe[] = [
     needsShelter: true,
     tool: 'toolbox',
     blurb: 'Handloading. Ugly, slow, and the only ammunition anyone still makes.',
+  },
+  {
+    id: 'sleeping_bag',
+    name: 'Stitch a Sleeping Bag',
+    inputs: { cloth_rags: 4, duct_tape: 1 },
+    outputDefId: 'sleeping_bag',
+    outputCount: 1,
+    hours: 2,
+    needsShelter: true,
+    blurb: 'Rags and tape into something you can sleep in. Heavy, but better than the floor.',
   },
 ];
 

@@ -35,7 +35,7 @@ export function TraderModal() {
       onClick={closeTrader}
     >
       <div
-        className="flex max-h-[88%] w-full max-w-lg flex-col rounded-xl border bg-concrete-900"
+        className="flex max-h-[88%] w-full max-w-lg flex-col rounded-xl border bg-concrete-900 shadow-signage"
         style={{ borderColor: `${cfg.color}55` }}
         onClick={(e) => e.stopPropagation()}
       >

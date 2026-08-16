@@ -34,7 +34,7 @@ export function DigitalClock({
 
   return (
     <div
-      className="flex items-center justify-between rounded-lg border border-white/10 bg-black/50 px-3 py-2"
+      className="flex items-center justify-between rounded-lg border border-white/15 bg-concrete-900/80 px-3 py-2"
       style={{ boxShadow: 'inset 0 0 12px rgba(0,0,0,.6)' }}
     >
       <div className="flex flex-col leading-none">

@@ -17,7 +17,7 @@ export function StatsPanel() {
   return (
     <div className="flex flex-col gap-3">
       {character && (
-        <section className="rounded-lg border border-white/10 bg-black/30 p-3">
+        <section className="rounded-lg border border-white/15 bg-concrete-900/80 p-3">
           <h4 className="mb-2 text-xs uppercase tracking-widest text-white/30">Survivor</h4>
           <div className="flex items-baseline justify-between">
             <span className="truncate text-sm font-bold text-signal">{character.name}</span>
@@ -50,7 +50,7 @@ export function StatsPanel() {
       )}
 
       {STAT_GROUPS.map((group) => (
-        <section key={group.title} className="rounded-lg border border-white/10 bg-black/30 p-3">
+        <section key={group.title} className="rounded-lg border border-white/15 bg-concrete-900/80 p-3">
           <h4 className="mb-2 text-xs uppercase tracking-widest text-white/30">
             {group.title}
           </h4>

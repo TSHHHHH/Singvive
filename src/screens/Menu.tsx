@@ -1,11 +1,13 @@
 import { useGame } from '../game/store';
+import { GuideSectionView } from '../components/GuideSectionView';
+import { GUIDE_SECTIONS } from '../content/guideContent';
 
 export function Menu() {
   const { goToCharacter, continueRun, hasSavedRun, highScores } = useGame();
 
   return (
     <div className="flex min-h-full items-center justify-center p-6">
-      <div className="w-full max-w-md text-center">
+      <div className="w-full max-w-md text-center lg:max-w-6xl">
         <h1 className="mb-1 text-5xl font-black tracking-tight text-signal drop-shadow">
           SINGVIVE
         </h1>
@@ -16,44 +18,35 @@ export function Menu() {
           9400+ real locations · permadeath · extract or die
         </p>
 
-        <div className="flex flex-col gap-3">
+        <div className="mx-auto flex max-w-md flex-col gap-3">
           <button
             onClick={goToCharacter}
-            className="rounded-lg bg-signal/80 px-6 py-3 font-bold text-black transition hover:bg-signal"
+            className="rounded-sm bg-signal/80 px-6 py-3 font-bold text-black transition hover:bg-signal"
           >
             New Survivor
           </button>
           {hasSavedRun && (
             <button
               onClick={continueRun}
-              className="rounded-lg border border-white/20 px-6 py-3 font-semibold text-white/80 transition hover:bg-white/5"
+              className="rounded-sm border border-white/20 px-6 py-3 font-semibold text-white/80 transition hover:bg-white/5"
             >
               Continue Run
             </button>
           )}
         </div>
 
-        <div className="mt-8 rounded-lg border border-white/10 bg-black/40 p-4 text-left">
-          <h2 className="mb-2 text-xs uppercase tracking-widest text-signal/80">How score works</h2>
-          <ul className="flex flex-col gap-2 text-xs leading-relaxed text-white/55">
-            <li>
-              <span className="font-semibold text-white/75">Survive</span> — kills and loot scale
-              with a day multiplier. The longer you last, the higher every point counts.
-            </li>
-            <li>
-              <span className="font-semibold text-white/75">Extract</span> — pack weighted gear
-              (fuel, meds, and ammo count most), reach the staging zone, and call for a lift. The
-              escape bonus also scales with the day.
-            </li>
-            <li>
-              <span className="font-semibold text-white/75">Best run</span> — linger for the
-              multiplier, then extract late. Death still posts a score; overrun ends the city.
-            </li>
-          </ul>
+        <div className="mt-8 rounded-lg border border-white/15 bg-concrete-900/80 p-4 text-left">
+          <h2 className="mb-3 text-xs uppercase tracking-widest text-signal/80">How to play</h2>
+          {/* Phone: stacked scroll. Desktop: four columns side by side. */}
+          <div className="flex flex-col gap-5 lg:grid lg:grid-cols-4 lg:gap-4">
+            {GUIDE_SECTIONS.map((section) => (
+              <GuideSectionView key={section.id} section={section} />
+            ))}
+          </div>
         </div>
 
         {highScores.length > 0 && (
-          <div className="mt-8 text-left">
+          <div className="mx-auto mt-8 max-w-md text-left">
             <h2 className="mb-2 text-xs uppercase tracking-widest text-white/40">Top scores</h2>
             <ul className="flex flex-col gap-1 text-sm">
               {highScores.slice(0, 5).map((h, i) => (
@@ -73,7 +66,7 @@ export function Menu() {
           </div>
         )}
 
-        <p className="mt-10 text-xs leading-relaxed text-white/30">
+        <p className="mx-auto mt-10 max-w-md text-xs leading-relaxed text-white/30">
           A roguelike survival game on the real map of Singapore — 9400+ OSM places to scavenge,
           manage your body, climb the score, or get out with a lift before the horde peaks.
         </p>

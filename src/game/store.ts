@@ -214,13 +214,17 @@ import { flavor } from './flavor';
 import {
   trekRisk,
   HAZARD_CONFIG,
-  EXPOSED_SLEEP_MIN_RISK,
-  EXPOSED_SLEEP_RECOVERY,
   TREK_LIGHT_RADIUS,
   TREK_MIN_DISTANCE_M,
   type HazardKind,
   type HazardZone,
 } from './wilds';
+import {
+  applySleepRecovery,
+  evaluateSleepConditions,
+  sleepAmbushChance,
+  type SleepConditions,
+} from './sleep';
 import { vegetationCost } from './vegetation';
 import {
   addHeat,
@@ -551,6 +555,8 @@ interface State {
   /** Append a short line to the run log (UI soft-rejects, etc.). */
   notify: (text: string, tone?: GameLogEntry['tone']) => void;
   rest: () => void;
+  /** Preview sleep quality for the Rest button (same evaluator as rest()). */
+  peekSleepConditions: () => SleepConditions;
   useItem: (uid: string) => void;
   moveItem: (uid: string, container: string, x: number, y: number, rotated: boolean) => boolean;
   rotateItem: (uid: string) => void;
@@ -1037,6 +1043,33 @@ export const useGame = create<State>((set, get) => {
 
   const hasBackpackItem = (defId: string): boolean =>
     get().items.some((i) => i.container === 'backpack' && i.defId === defId);
+
+  /** Sleeping bag (or other sleepGear) in the pack or the stash at the current site. */
+  const hasSleepingBagNearby = (): boolean => {
+    const s = get();
+    const pos = s.currentPositionId;
+    return s.items.some((i) => {
+      if (!itemDef(i.defId).sleepGear) return false;
+      return i.container === 'backpack' || (pos != null && i.container === pos);
+    });
+  };
+
+  const sleepContextFromState = (
+    extras: { serviceBed?: boolean; inTunnelCamp?: boolean } = {},
+  ): Parameters<typeof evaluateSleepConditions>[0] => {
+    const s = get();
+    const loc = s.currentPositionId ? s.locations[s.currentPositionId] : null;
+    return {
+      currentPositionId: s.currentPositionId,
+      category: loc?.category ?? null,
+      hdb: s.hdb
+        ? { groundKind: s.hdb.groundKind, currentLevel: s.hdb.currentLevel }
+        : null,
+      hasSleepingBag: hasSleepingBagNearby(),
+      serviceBed: extras.serviceBed,
+      inTunnelCamp: extras.inTunnelCamp,
+    };
+  };
 
   const consumeBackpackItem = (defId: string) => {
     set({ items: consumeOneOf(get().items, defId) });
@@ -2683,7 +2716,7 @@ export const useGame = create<State>((set, get) => {
         );
 
         // Hazard + vegetation stamina — applied even when the road roll is quiet.
-        const energyHit = Math.round(risk.energyCost * 0.55) + veg.energyCost;
+        const energyHit = Math.round(risk.energyCost * 0.75) + veg.energyCost;
         if (energyHit > 0) {
           set({
             meters: {
@@ -3821,28 +3854,29 @@ export const useGame = create<State>((set, get) => {
       if (s.combat || s.pendingEvent || s.travelAnim) return;
       const hoursToMorning = ((START_HOUR - s.hour + HOURS_PER_DAY) % HOURS_PER_DAY) || HOURS_PER_DAY;
 
-      // Sleeping rough in the open is not sleeping. You recover a fraction of
-      // what four walls would give you, and the night gets a vote — otherwise
-      // trekking out and napping would be a free reset.
-      const exposed = s.currentPositionId === null;
+      const conditions = evaluateSleepConditions(sleepContextFromState());
       const fullRest = sleepRestore(
         s.meters.energy,
         hoursToMorning,
         s.meters,
         sumTraitMod(s.character!.traitIds, 'sleepRestoreMod'),
       );
-      const restedEnergy = exposed
-        ? Math.round(s.meters.energy + (fullRest - s.meters.energy) * EXPOSED_SLEEP_RECOVERY)
-        : fullRest;
+      const restedEnergy = applySleepRecovery(
+        s.meters.energy,
+        fullRest,
+        conditions.recoveryMult,
+      );
       if (advanceTime(hoursToMorning, restedEnergy, true)) return;
       bumpStats({ nightsSlept: 1 });
 
       // you slept here — your knowledge of THIS place stays current
       const posId = get().currentPositionId;
       if (posId) discoverLocation(posId);
-      pushLog(flavor(exposed ? 'restExposed' : 'rest'), exposed ? 'bad' : 'info');
+      const rough = conditions.recoveryMult < 0.85;
+      pushLog(flavor(rough ? 'restExposed' : 'rest'), rough ? 'bad' : 'info');
+      pushLog(conditions.summary, rough ? 'bad' : 'info');
 
-      if (exposed) {
+      if (conditions.ambush) {
         const g = get();
         const nightRng = new Rng(g.seed).fork(`roughsleep:${g.day}:${g.currentPos.lat.toFixed(5)}`);
         const risk = trekRisk(g.seed, g.currentPos, g.currentPos, {
@@ -3857,7 +3891,7 @@ export const useGame = create<State>((set, get) => {
             bleedEncounterMod(g.bodyParts),
           safe: g.spawn ?? undefined,
         });
-        if (nightRng.chance(Math.max(EXPOSED_SLEEP_MIN_RISK, risk.encounterChance))) {
+        if (nightRng.chance(sleepAmbushChance(conditions.ambush, risk.encounterChance))) {
           pushLog('Something found you in the dark.', 'bad');
           const enemy = makeZombie(nightRng, risk.combatDanger);
           set({
@@ -3887,6 +3921,8 @@ export const useGame = create<State>((set, get) => {
       persist();
     },
 
+    peekSleepConditions: () => evaluateSleepConditions(sleepContextFromState()),
+
     useItem: (uid) => {
       const s = get();
       // Fights are committed — no mid-swing bandages from the pack.
@@ -3911,11 +3947,22 @@ export const useGame = create<State>((set, get) => {
           consumed = true;
           pushLog(`Ate ${def.name}. Hunger restored.`, 'good');
           break;
-        case 'water':
+        case 'water': {
           m.thirst = clampMeter(m.thirst + def.effect.thirst);
+          const waterRisk = def.effect.infectionRisk ?? 0;
+          if (waterRisk > 0) {
+            const resist = sumTraitMod(s.character!.traitIds, 'infectionResist');
+            m.infection = clampMeter(m.infection + waterRisk * (1 - resist));
+            pushLog(
+              `Drank ${def.name}. Thirst eased — it sits wrong (+${Math.round(waterRisk * (1 - resist))} infection).`,
+              'bad',
+            );
+          } else {
+            pushLog(`Drank ${def.name}. Thirst quenched.`, 'good');
+          }
           consumed = true;
-          pushLog(`Drank ${def.name}. Thirst quenched.`, 'good');
           break;
+        }
         case 'heal': {
           const healAmt = (def.effect.partHeal ?? 0) + (def.effect.health ?? 0) + healBonus;
           newBodyParts = treatInjuries(
@@ -3983,9 +4030,12 @@ export const useGame = create<State>((set, get) => {
       const s = get();
       const inst = s.items.find((i) => i.uid === uid);
       if (!inst) return false;
-      // stashes can only be touched while standing at that location
-      if (container !== 'backpack' && container !== s.currentPositionId) return false;
-      if (inst.container !== 'backpack' && inst.container !== s.currentPositionId) return false;
+      const allowed = (c: string) =>
+        c === 'backpack' ||
+        c === TEMP_STASH ||
+        (c === s.currentPositionId && !s.tunnel);
+      // Location stash only while standing there (and not mid-tunnel); temp + pack always ok.
+      if (!allowed(container) || !allowed(inst.container)) return false;
       const def = itemDef(inst.defId);
       const { w, h } = footprint(def, rotated);
       if (!canPlace(container, s.items, { x, y, w, h }, uid)) return false;

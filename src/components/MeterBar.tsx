@@ -30,7 +30,7 @@ export function dynamicMeterColor(pct: number): string {
 
 export function MeterBar({ label, value, max, color, danger, icon, dynamic, modifiers }: Props) {
   const pct = Math.max(0, Math.min(100, (value / max) * 100));
-  const low = danger ? pct > 60 : pct < 25;
+  const low = danger ? pct > 60 : pct < 35;
   const fill = dynamic ? dynamicMeterColor(pct) : color;
   const hasTip = !!modifiers?.length;
 
@@ -39,7 +39,7 @@ export function MeterBar({ label, value, max, color, danger, icon, dynamic, modi
       <span className="w-5 text-center text-sm" title={label}>
         <Icon name={icon} title={label} />
       </span>
-      <div className="relative h-3 flex-1 overflow-hidden rounded bg-black/50 ring-1 ring-white/10">
+      <div className="relative h-3 flex-1 overflow-hidden rounded-none bg-black/50 ring-1 ring-white/15">
         <div
           className={`h-full transition-all duration-300 ${low ? 'pulse-danger' : ''}`}
           style={{ width: `${pct}%`, background: fill }}
@@ -58,7 +58,7 @@ export function MeterBar({ label, value, max, color, danger, icon, dynamic, modi
   return (
     <TipHint
       className="flex items-center gap-2"
-      tipClassName="absolute bottom-full left-5 mb-1 w-max max-w-[200px] rounded border border-white/15 bg-black/90 px-2 py-1.5 text-2xs leading-relaxed shadow-lg"
+      tipClassName="absolute bottom-full left-5 mb-1 w-max max-w-[200px] rounded border border-white/15 bg-black/90 px-2 py-1.5 text-2xs leading-relaxed shadow-signage"
       tip={
         <>
           <div className="mb-0.5 uppercase tracking-widest text-white/40">{label}</div>

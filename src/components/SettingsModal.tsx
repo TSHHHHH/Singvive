@@ -25,7 +25,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md rounded-xl border border-white/10 bg-concrete-900 p-5"
+        className="w-full max-w-md rounded-xl border border-white/15 bg-concrete-900 p-5 shadow-signage"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">

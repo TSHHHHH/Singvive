@@ -215,7 +215,7 @@ export function CharacterCreate() {
   };
 
   const renderOccupationDetail = (o: Occupation) => (
-    <div className="rounded border border-white/10 bg-black/40 px-4 py-3">
+    <div className="rounded border border-white/15 bg-concrete-900/80 px-4 py-3">
       <h3 className="text-base font-bold uppercase tracking-wide text-signal">{o.name}</h3>
       <p className="mt-1.5 text-xs leading-relaxed text-white/70">{o.blurb}</p>
 
@@ -251,7 +251,7 @@ export function CharacterCreate() {
   );
 
   const renderMyPresetDetail = (p: TraitPreset) => (
-    <div className="rounded border border-white/10 bg-black/40 px-4 py-3">
+    <div className="rounded border border-white/15 bg-concrete-900/80 px-4 py-3">
       <div className="flex items-start justify-between gap-2">
         <h3 className="text-base font-bold uppercase tracking-wide text-signal">{p.name}</h3>
         <button
@@ -534,7 +534,7 @@ export function CharacterCreate() {
     const pinned = t != null && locked[side] === t.id;
 
     return (
-      <div className="mt-2 min-h-[6.5rem] rounded border border-white/10 bg-black/40 px-3 py-2">
+      <div className="mt-2 min-h-[6.5rem] rounded border border-white/15 bg-concrete-900/80 px-3 py-2">
         {t ? (
           <>
             <div className="flex items-baseline justify-between gap-2">

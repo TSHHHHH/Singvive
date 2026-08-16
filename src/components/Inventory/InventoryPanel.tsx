@@ -1,4 +1,5 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useGame } from '../../game/store';
 import { itemDef } from '../../game/loot';
 import {
@@ -19,6 +20,7 @@ import {
   isEncumbered,
   isTwoHandedEquipped,
   maxCarry,
+  TEMP_STASH,
   tierLabel,
   tierOf,
   TEAR_CONDITION_COST,
@@ -67,12 +69,16 @@ type DropTarget = GridDrop | SlotDrop | null;
 
 interface DragState {
   uid: string;
+  pointerId: number;
   grabDX: number;
   grabDY: number;
+  rotated: boolean;
+  clientX: number;
+  clientY: number;
   target: DropTarget;
 }
 
-const DRAG_THRESHOLD_PX = 8;
+const DRAG_THRESHOLD_PX = 6;
 
 interface PendingDrag {
   uid: string;
@@ -81,6 +87,7 @@ interface PendingDrag {
   startY: number;
   grabDX: number;
   grabDY: number;
+  rotated: boolean;
   el: HTMLElement;
 }
 
@@ -124,32 +131,57 @@ export function InventoryPanel({ onClose }: { onClose?: () => void }) {
   const hereLoc = currentPositionId ? locations[currentPositionId] : null;
   const tunnel = useGame((s) => s.tunnel);
   const confirmTempStash = useGame((s) => s.confirmTempStash);
-  const hasTempStash = items.some((i) => i.container === 'temp:crawl');
+  const hasTempStash = items.some((i) => i.container === TEMP_STASH);
   // Mid-tunnel: location stash is unreachable — only pack + temp overflow.
   const stashContainer = tunnel || !hereLoc ? null : hereLoc.id;
 
-  const hitTest = (clientX: number, clientY: number, inst: ItemInstance): DropTarget => {
+  // Window listeners read these so pointer/key handlers stay fresh without rebinding.
+  const liveRef = useRef({
+    items,
+    equipment,
+    stashContainer,
+    hasTempStash,
+    tunnel,
+    moveItem,
+    equipItem,
+  });
+  liveRef.current = {
+    items,
+    equipment,
+    stashContainer,
+    hasTempStash,
+    tunnel,
+    moveItem,
+    equipItem,
+  };
+
+  const hitTest = (
+    clientX: number,
+    clientY: number,
+    inst: ItemInstance,
+    rotated: boolean,
+  ): DropTarget => {
+    const { items: liveItems, equipment: liveEq, stashContainer: stash, hasTempStash: temp } =
+      liveRef.current;
     const def = itemDef(inst.defId);
-    // equipment slots first
     for (const { slot } of EQUIP_SLOTS) {
       const el = slotRefs.current[slot];
       if (!el) continue;
       const r = el.getBoundingClientRect();
       if (clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom) {
         let valid = canEquip(def, slot);
-        if (valid && slot === 'offHand' && isTwoHandedEquipped(equipment)) valid = false;
-        if (valid && slot === 'mainHand' && def.twoHanded && equipment.offHand) {
+        if (valid && slot === 'offHand' && isTwoHandedEquipped(liveEq)) valid = false;
+        if (valid && slot === 'mainHand' && def.twoHanded && liveEq.offHand) {
           // Still valid — equip will stow offHand; preview as ok
         }
         return { type: 'slot', slot, valid };
       }
     }
-    // grids
-    const { w, h } = footprint(def, inst.rotated);
+    const { w, h } = footprint(def, rotated);
     const grids = [
       BACKPACK,
-      ...(stashContainer ? [stashContainer] : []),
-      ...(hasTempStash || tunnel ? ['temp:crawl'] : []),
+      ...(stash ? [stash] : []),
+      ...(temp || liveRef.current.tunnel ? [TEMP_STASH] : []),
     ];
     for (const container of grids) {
       const el = gridRefs.current[container];
@@ -157,19 +189,65 @@ export function InventoryPanel({ onClose }: { onClose?: () => void }) {
       const r = el.getBoundingClientRect();
       if (clientX < r.left || clientX > r.right || clientY < r.top || clientY > r.bottom) continue;
       const dims = dimsFor(container);
-      let cellX = Math.round((clientX - r.left - (dragRef.current?.grabDX ?? 0)) / CELL);
-      let cellY = Math.round((clientY - r.top - (dragRef.current?.grabDY ?? 0)) / CELL);
+      const grabDX = dragRef.current?.grabDX ?? 0;
+      const grabDY = dragRef.current?.grabDY ?? 0;
+      let cellX = Math.round((clientX - r.left - grabDX) / CELL);
+      let cellY = Math.round((clientY - r.top - grabDY) / CELL);
       cellX = Math.max(0, Math.min(dims.w - w, cellX));
       cellY = Math.max(0, Math.min(dims.h - h, cellY));
-      const valid = canPlace(container, items, { x: cellX, y: cellY, w, h }, inst.uid);
+      const valid = canPlace(container, liveItems, { x: cellX, y: cellY, w, h }, inst.uid);
       return { type: 'grid', container, cellX, cellY, w, h, valid };
     }
     return null;
   };
 
+  const beginDrag = (pending: PendingDrag, clientX: number, clientY: number) => {
+    pendingDrag.current = null;
+    const inst = liveRef.current.items.find((i) => i.uid === pending.uid);
+    if (!inst) return;
+    const next: DragState = {
+      uid: pending.uid,
+      pointerId: pending.pointerId,
+      grabDX: pending.grabDX,
+      grabDY: pending.grabDY,
+      rotated: pending.rotated,
+      clientX,
+      clientY,
+      target: hitTest(clientX, clientY, inst, pending.rotated),
+    };
+    dragRef.current = next;
+    setDrag(next);
+    try {
+      pending.el.setPointerCapture(pending.pointerId);
+    } catch {
+      /* synthetic events */
+    }
+  };
+
+  const endDrag = (pointerId: number) => {
+    if (pendingDrag.current?.pointerId === pointerId) {
+      pendingDrag.current = null;
+    }
+    const current = dragRef.current;
+    if (!current || current.pointerId !== pointerId) return;
+    const { items: liveItems, moveItem: move, equipItem: equip } = liveRef.current;
+    const inst = liveItems.find((i) => i.uid === current.uid);
+    const t = current.target;
+    if (inst && t) {
+      if (t.type === 'grid' && t.valid) {
+        move(current.uid, t.container, t.cellX, t.cellY, current.rotated);
+      } else if (t.type === 'slot' && t.valid) {
+        equip(current.uid, t.slot);
+      }
+    }
+    dragRef.current = null;
+    setDrag(null);
+  };
+
   const onItemPointerDown = (e: React.PointerEvent, inst: ItemInstance) => {
+    if (e.button !== 0) return;
     // Select immediately; only start a drag after the pointer moves past a
-    // threshold so the slide-out can still scroll on touch.
+    // threshold so a tap still selects without shuffling the bag.
     setSelectedUid(inst.uid);
     const el = gridRefs.current[inst.container];
     if (!el) return;
@@ -181,76 +259,92 @@ export function InventoryPanel({ onClose }: { onClose?: () => void }) {
       startY: e.clientY,
       grabDX: e.clientX - (r.left + inst.x * CELL),
       grabDY: e.clientY - (r.top + inst.y * CELL),
+      rotated: inst.rotated,
       el: e.currentTarget as HTMLElement,
     };
   };
 
-  const beginDrag = (pending: PendingDrag) => {
-    pendingDrag.current = null;
-    const next: DragState = {
-      uid: pending.uid,
-      grabDX: pending.grabDX,
-      grabDY: pending.grabDY,
-      target: null,
-    };
-    dragRef.current = next;
-    setDrag(next);
-    try {
-      pending.el.setPointerCapture(pending.pointerId);
-    } catch {
-      /* synthetic events */
-    }
-  };
-
-  const onPointerMove = (e: React.PointerEvent) => {
-    const pending = pendingDrag.current;
-    if (pending && pending.pointerId === e.pointerId && !dragRef.current) {
-      const dx = e.clientX - pending.startX;
-      const dy = e.clientY - pending.startY;
-      if (dx * dx + dy * dy >= DRAG_THRESHOLD_PX * DRAG_THRESHOLD_PX) {
-        // Horizontal intent → drag; mostly vertical → let the panel scroll.
-        if (Math.abs(dx) >= Math.abs(dy) * 0.6) {
+  useEffect(() => {
+    const onPointerMove = (e: PointerEvent) => {
+      const pending = pendingDrag.current;
+      if (pending && pending.pointerId === e.pointerId && !dragRef.current) {
+        const dx = e.clientX - pending.startX;
+        const dy = e.clientY - pending.startY;
+        if (dx * dx + dy * dy >= DRAG_THRESHOLD_PX * DRAG_THRESHOLD_PX) {
           e.preventDefault();
-          beginDrag(pending);
+          beginDrag(pending, e.clientX, e.clientY);
         } else {
-          pendingDrag.current = null;
           return;
         }
-      } else {
-        return;
       }
-    }
 
-    const current = dragRef.current;
-    if (!current) return;
-    const inst = items.find((i) => i.uid === current.uid);
-    if (!inst) return;
-    const next = { ...current, target: hitTest(e.clientX, e.clientY, inst) };
-    dragRef.current = next;
-    setDrag(next);
-  };
+      const current = dragRef.current;
+      if (!current || current.pointerId !== e.pointerId) return;
+      e.preventDefault();
+      const inst = liveRef.current.items.find((i) => i.uid === current.uid);
+      if (!inst) return;
+      const next: DragState = {
+        ...current,
+        clientX: e.clientX,
+        clientY: e.clientY,
+        target: hitTest(e.clientX, e.clientY, inst, current.rotated),
+      };
+      dragRef.current = next;
+      setDrag(next);
+    };
 
-  const onPointerUp = (e: React.PointerEvent) => {
-    if (pendingDrag.current?.pointerId === e.pointerId) {
-      pendingDrag.current = null;
-    }
-    const current = dragRef.current;
-    if (!current) return;
-    const inst = items.find((i) => i.uid === current.uid);
-    const t = current.target;
-    if (inst && t) {
-      if (t.type === 'grid' && t.valid) moveItem(current.uid, t.container, t.cellX, t.cellY, inst.rotated);
-      else if (t.type === 'slot' && t.valid) equipItem(current.uid, t.slot);
-    }
-    dragRef.current = null;
-    setDrag(null);
-  };
+    const onPointerUp = (e: PointerEvent) => {
+      endDrag(e.pointerId);
+    };
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      const current = dragRef.current;
+      if (!current) return;
+      if (e.code !== 'KeyR' || e.repeat) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const inst = liveRef.current.items.find((i) => i.uid === current.uid);
+      if (!inst) return;
+      const def = itemDef(inst.defId);
+      if (def.w === def.h) return;
+      e.preventDefault();
+      const rotated = !current.rotated;
+      const next: DragState = {
+        ...current,
+        rotated,
+        target: hitTest(current.clientX, current.clientY, inst, rotated),
+      };
+      dragRef.current = next;
+      setDrag(next);
+    };
+
+    window.addEventListener('pointermove', onPointerMove, { passive: false });
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerUp);
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
+      window.removeEventListener('keydown', onKeyDown);
+    };
+    // hitTest / beginDrag / endDrag close over refs; mount once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const gridPreview = (container: Container): DragPreview | null => {
     if (!drag || drag.target?.type !== 'grid' || drag.target.container !== container) return null;
     const t = drag.target;
     return { grid: container, cellX: t.cellX, cellY: t.cellY, w: t.w, h: t.h, valid: t.valid };
   };
+
+  const dragGhost = (() => {
+    if (!drag) return null;
+    const inst = items.find((i) => i.uid === drag.uid);
+    if (!inst) return null;
+    const gDef = itemDef(inst.defId);
+    const { w, h } = footprint(gDef, drag.rotated);
+    return { inst, def: gDef, w, h };
+  })();
 
   const equippedList = EQUIP_SLOTS.map(({ slot }) => equipment[slot]).filter(
     (i): i is ItemInstance => i != null,
@@ -308,12 +402,32 @@ export function InventoryPanel({ onClose }: { onClose?: () => void }) {
   const loadPct = carry > 0 ? (load / carry) * 100 : 0;
 
   return (
-    <div
-      className="flex flex-col gap-3"
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerCancel={onPointerUp}
-    >
+    <div className="flex flex-col gap-3">
+      {/* Portal: the slide-out uses CSS transform, which makes `position:fixed`
+          resolve against that ancestor instead of the viewport — clientX/Y would
+          then drift the ghost by the panel's screen offset. */}
+      {dragGhost &&
+        drag &&
+        createPortal(
+          <div
+            className="pointer-events-none fixed z-[900] flex flex-col items-center justify-center rounded opacity-90 shadow-lg"
+            style={{
+              left: drag.clientX - drag.grabDX,
+              top: drag.clientY - drag.grabDY,
+              width: dragGhost.w * CELL - 2,
+              height: dragGhost.h * CELL - 2,
+              background: `${dragGhost.def.color}aa`,
+              boxShadow: `inset 0 0 0 1px ${dragGhost.def.color}`,
+            }}
+          >
+            <Icon
+              name={itemIcon(dragGhost.def)}
+              size={Math.min(dragGhost.w, dragGhost.h) > 1 ? 26 : 18}
+              className="drop-shadow"
+            />
+          </div>,
+          document.body,
+        )}
       {onClose && (
         <div className="flex justify-end">
           <button onClick={onClose} className="text-white/50 hover:text-white">
@@ -323,7 +437,7 @@ export function InventoryPanel({ onClose }: { onClose?: () => void }) {
       )}
 
       {/* Fixed height so hover content can't shove equipment slots out from under the cursor */}
-      <div className="flex h-44 overflow-hidden rounded-lg border border-white/10 bg-black/40 p-3">
+      <div className="flex h-44 overflow-hidden rounded-lg border border-white/15 bg-concrete-900/80 p-3">
         {inspected && def ? (
           <div className="flex min-h-0 w-full gap-3">
             {/* Left: what it is */}
@@ -466,6 +580,7 @@ export function InventoryPanel({ onClose }: { onClose?: () => void }) {
                         <button
                           onClick={() => rotateItem(inspected.uid)}
                           className="w-full rounded bg-white/10 px-1.5 py-1 text-xs leading-tight hover:bg-white/20"
+                          title="Or press R while dragging"
                         >
                           ⟳ Rotate
                         </button>
@@ -527,7 +642,7 @@ export function InventoryPanel({ onClose }: { onClose?: () => void }) {
           </div>
         ) : (
           <p className="m-auto text-center text-xs text-white/30">
-            Select an item to inspect it. Drag onto an equipment slot to equip.
+            Select an item to inspect it. Drag to rearrange · R to rotate while dragging.
           </p>
         )}
       </div>
@@ -613,9 +728,9 @@ export function InventoryPanel({ onClose }: { onClose?: () => void }) {
             items={items}
             selectedUid={selectedUid}
             draggingUid={drag?.uid ?? null}
-            preview={gridPreview('temp:crawl')}
+            preview={gridPreview(TEMP_STASH)}
             gridRef={(el) => {
-              gridRefs.current['temp:crawl'] = el;
+              gridRefs.current[TEMP_STASH] = el;
             }}
             onItemPointerDown={onItemPointerDown}
           />
@@ -634,7 +749,7 @@ export function InventoryPanel({ onClose }: { onClose?: () => void }) {
       )}
 
       {/* Carry gauge — compact under the backpack it measures */}
-      <div className="rounded-lg border border-white/10 bg-black/40 px-3 py-2">
+      <div className="rounded-lg border border-white/15 bg-concrete-900/80 px-3 py-2">
         <div className="flex items-baseline justify-between gap-2 text-xs">
           <span className="uppercase tracking-widest text-white/40">Carry</span>
           <span className="flex items-baseline gap-2">

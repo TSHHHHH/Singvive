@@ -29,8 +29,20 @@ export default {
         hiss: '#d92d2d', // the resonance red, danger only
         astral: '#2bc4d9', // terminal cyan, live readouts only
       },
+      // Bureau terminal: near-square corners. Soft SaaS radii collapse to 0–2px;
+      // rounded-full stays for intentional circular dots only.
+      borderRadius: {
+        sm: '1px',
+        DEFAULT: '2px',
+        md: '2px',
+        lg: '2px',
+        xl: '2px',
+        '2xl': '2px',
+        '3xl': '2px',
+      },
       boxShadow: {
-        signage: '0 0 0 1px rgba(232,229,221,0.28), 0 12px 40px -12px rgba(0,0,0,0.95)',
+        // Hard frame first; depth is a tight drop, not a soft card float.
+        signage: '0 0 0 1px rgba(232,229,221,0.28), 0 8px 24px -10px rgba(0,0,0,0.95)',
       },
     },
   },

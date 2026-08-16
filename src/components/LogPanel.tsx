@@ -11,6 +11,7 @@ import type { IconName } from '../icons/keys';
 import { EncounterPrompt } from './EncounterPrompt';
 import { SearchSessionNode } from './SearchSessionNode';
 import { highlightLogText } from './logHighlight';
+import type { GuideTopic } from '../content/guideContent';
 
 const toneClass: Record<string, string> = {
   good: 'text-signal',
@@ -48,11 +49,13 @@ export function LogPanel({
   onOpenSettings,
   onOpenDayLogs,
   onFocusMap,
+  onOpenGuide,
 }: {
   onOpenSettings?: () => void;
   onOpenDayLogs?: () => void;
   /** Pan the map camera to a timeline focus target (e.g. intel tip). */
   onFocusMap?: (lat: number, lng: number) => void;
+  onOpenGuide?: (topic: GuideTopic) => void;
 }) {
   const log = useGame((s) => s.log);
   const day = useGame((s) => s.day);
@@ -340,7 +343,9 @@ export function LogPanel({
             <EncounterPrompt timeW={timeW} hang={hang} />
 
             {/* Sequential search — fogged stash grid at the foot of the day. */}
-            {pendingSearchNonce && <SearchSessionNode timeW={timeW} hang={hang} />}
+            {pendingSearchNonce && (
+              <SearchSessionNode timeW={timeW} hang={hang} onOpenGuide={onOpenGuide} />
+            )}
           </ol>
         )}
       </div>

@@ -1,4 +1,6 @@
 import { Icon } from '../icons/Icon';
+import { GuideInfoButton } from './GuideInfoButton';
+import type { GuideTopic } from '../content/guideContent';
 
 interface Props {
   evacZoneName: string | null;
@@ -17,6 +19,7 @@ interface Props {
   doomLabel: string;
   evacReady: boolean;
   onEvac: () => void;
+  onOpenGuide?: (topic: GuideTopic) => void;
 }
 
 /**
@@ -40,15 +43,19 @@ export function ObjectivesPanel({
   doomLabel,
   evacReady,
   onEvac,
+  onOpenGuide,
 }: Props) {
   const pct = Math.round(readinessRatio * 100);
 
   return (
     <div className="flex flex-col gap-3">
       {/* ---- Score ladder ---- */}
-      <section className="rounded-lg border border-white/10 bg-black/30 p-3">
+      <section className="rounded-lg border border-white/15 bg-concrete-900/80 p-3">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-sm font-bold text-concrete-50">Score ladder</span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm font-bold text-concrete-50">Score ladder</span>
+            {onOpenGuide && <GuideInfoButton topic="evac" onOpen={onOpenGuide} label="Evac and score" />}
+          </div>
           <span className="shrink-0 text-xs tabular-nums text-signal">
             ×{dayMult.toFixed(1)} day
           </span>
@@ -74,7 +81,7 @@ export function ObjectivesPanel({
       </section>
 
       {/* ---- Extraction ---- */}
-      <section className="rounded-lg border border-signal/30 bg-signal/[0.06] p-3">
+      <section className="rounded-lg border border-signal/40 bg-signal/[0.06] p-3">
         <div className="flex items-center justify-between gap-2">
           <span className="text-sm font-bold text-signal">
             <Icon name="action.evac" /> Escape Singapore
@@ -136,7 +143,7 @@ export function ObjectivesPanel({
       </section>
 
       {/* ---- Doom clock ---- */}
-      <section className="rounded-lg border border-white/10 bg-black/30 p-3">
+      <section className="rounded-lg border border-white/15 bg-concrete-900/80 p-3">
         <div className="flex items-center justify-between text-2xs uppercase tracking-wide text-white/40">
           <span>Horde · {doomLabel}</span>
           <span className="tabular-nums">{Math.round(doom)}%</span>

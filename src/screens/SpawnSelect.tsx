@@ -78,15 +78,15 @@ function ClickCatcher({
   return null;
 }
 
-/** Pan only — flyTo re-zooms every frame and desyncs ImageOverlay terrain washes. */
+/**
+ * Concurrent pan+zoom via setView. Prefer this over flyTo — flyTo re-zooms every
+ * frame and desyncs ImageOverlay terrain washes on the spawn map.
+ */
 function FocusSpawn({ lat, lng }: { lat: number; lng: number }) {
   const map = useMap();
   useEffect(() => {
-    const targetZoom = 15;
-    if (map.getZoom() < targetZoom) {
-      map.setZoom(targetZoom, { animate: false });
-    }
-    map.panTo([lat, lng], { animate: true, duration: 0.8 });
+    const targetZoom = Math.max(map.getZoom(), 15);
+    map.setView([lat, lng], targetZoom, { animate: true, duration: 0.8 });
   }, [map, lat, lng]);
   return null;
 }
@@ -297,17 +297,17 @@ export function SpawnSelect() {
           onClick={toggleMrt}
           aria-pressed={showMrt}
           title="Show the MRT & LRT network"
-          className={`absolute right-2 top-2 z-[500] flex items-center gap-1.5 rounded border px-2 py-1.5 text-xs font-semibold shadow-lg backdrop-blur transition-colors ${
+          className={`absolute right-2 top-2 z-[500] flex items-center gap-1.5 rounded border px-2 py-1.5 text-xs font-semibold shadow-signage transition-colors ${
             showMrt
               ? 'border-astral/50 bg-astral/20 text-astral'
-              : 'border-white/15 bg-black/70 text-white/60 hover:text-white/90'
+              : 'border-white/15 bg-concrete-900/95 text-white/60 hover:text-white/90'
           }`}
         >
           <Icon name="action.mrt" size={14} /> Rail map
         </button>
 
         {showMrt && mrtNet && (
-          <div className="absolute right-2 top-11 z-[500] max-w-[45vw] rounded border border-white/10 bg-black/80 p-2 text-2xs leading-tight text-white/70 shadow-lg backdrop-blur">
+          <div className="absolute right-2 top-11 z-[500] max-w-[45vw] rounded border border-white/15 bg-concrete-900/95 p-2 text-2xs leading-tight text-white/70 shadow-signage">
             {legendLines(mrtNet).map((line) => (
               <div key={line.code} className="flex items-center gap-1.5">
                 <span

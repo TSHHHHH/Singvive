@@ -44,7 +44,7 @@ export function StashLogbook({ onFocusLocation }: Props) {
             for (const i of arr) counts.set(i.defId, (counts.get(i.defId) ?? 0) + i.stack);
             const here = currentPositionId === locId;
             return (
-              <li key={locId} className="rounded-lg border border-white/10 bg-black/40 p-3">
+              <li key={locId} className="rounded-lg border border-white/15 bg-concrete-900/80 p-3">
                 <div className="flex items-center justify-between gap-2">
                   <span className="min-w-0 font-semibold">
                     <Icon name={POI_CONFIG[loc.category].icon} /> {loc.name}

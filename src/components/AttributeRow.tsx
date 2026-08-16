@@ -33,7 +33,7 @@ export function AttributeRow() {
         return (
           <TipHint
             key={k}
-            tipClassName={`absolute top-full mt-1 w-max min-w-[11rem] max-w-[15rem] rounded-lg border border-white/15 bg-concrete-900 p-2 text-left shadow-xl ${anchor}`}
+            tipClassName={`absolute top-full mt-1 w-max min-w-[11rem] max-w-[15rem] rounded-lg border border-white/15 bg-concrete-900 p-2 text-left shadow-signage ${anchor}`}
             tip={<AttributeTip attr={k} traitIds={character.traitIds} value={value} />}
           >
             <div className="cursor-help rounded bg-black/30 py-1 transition group-hover:bg-white/5">

@@ -78,7 +78,7 @@ export function DeathScreen() {
 
         <button
           onClick={resetToMenu}
-          className="mt-8 rounded-lg bg-signal/80 px-8 py-3 font-bold text-black hover:bg-signal"
+          className="mt-8 rounded-sm bg-signal/80 px-8 py-3 font-bold text-black hover:bg-signal"
         >
           Try again
         </button>
@@ -89,7 +89,7 @@ export function DeathScreen() {
 
 function Stat({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-lg border border-white/10 bg-black/40 py-3">
+    <div className="rounded-lg border border-white/15 bg-concrete-900/80 py-3">
       <div className="text-2xl font-black text-signal tabular-nums">{value}</div>
       <div className="text-xs uppercase tracking-widest text-white/40">{label}</div>
     </div>

@@ -6,14 +6,22 @@ import { BodyDoll } from './BodyDoll';
 import { LimbDetailPanel } from './LimbDetailPanel';
 import { AttributeRow } from './AttributeRow';
 import { SurvivorStatsGrid } from './SurvivorStatsGrid';
+import { GuideInfoButton } from './GuideInfoButton';
 import { countBleeding, meterModifiers, totalHp, totalMaxHp } from '../game/survival';
+import type { GuideTopic } from '../content/guideContent';
 import type { BodyPartId } from '../game/types';
 
 /**
  * Condition at a glance: body doll + all-limb overview up top, survival meters
  * and attributes in the middle, live derived stats along the bottom.
  */
-export function ConditionPanel({ dollHeight = 120 }: { dollHeight?: number }) {
+export function ConditionPanel({
+  dollHeight = 120,
+  onOpenGuide,
+}: {
+  dollHeight?: number;
+  onOpenGuide?: (topic: GuideTopic) => void;
+}) {
   const { meters, bodyParts } = useGame(
     useShallow((s) => ({ meters: s.meters, bodyParts: s.bodyParts })),
   );
@@ -24,9 +32,12 @@ export function ConditionPanel({ dollHeight = 120 }: { dollHeight?: number }) {
   const majorCount = countBleeding(bodyParts, 'major');
 
   return (
-    <section className="rounded-lg border border-white/10 bg-black/30 p-2.5">
+    <section className="rounded-lg border border-white/15 bg-concrete-900/80 p-2.5">
       <div className="mb-2 flex items-baseline justify-between gap-2">
-        <h4 className="text-xs uppercase tracking-widest text-white/30">Condition</h4>
+        <div className="flex items-center gap-1.5">
+          <h4 className="text-xs uppercase tracking-widest text-white/30">Condition</h4>
+          {onOpenGuide && <GuideInfoButton topic="survive" onOpen={onOpenGuide} />}
+        </div>
         <div className="flex items-baseline gap-1.5">
           {majorCount > 0 && (
             <span className="pulse-danger rounded-sm bg-hiss/20 px-1.5 py-px text-2xs font-semibold uppercase tracking-widest text-hiss">
@@ -41,8 +52,8 @@ export function ConditionPanel({ dollHeight = 120 }: { dollHeight?: number }) {
         </div>
       </div>
 
-      <div className="mb-2.5 grid grid-cols-2 gap-2">
-        <div className="flex items-center justify-center rounded border border-white/10 bg-black/20 py-1">
+      <div className="mb-2.5 grid grid-cols-[auto_minmax(0,1fr)] gap-2">
+        <div className="flex items-center justify-center rounded border border-white/10 bg-black/20 px-2 py-1">
           <BodyDoll
             bodyParts={bodyParts}
             height={dollHeight}

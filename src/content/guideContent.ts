@@ -1,0 +1,58 @@
+/** Player-facing tutorial copy shared by the Menu primer and in-game GuideModal. */
+
+export type GuideTopic = 'survive' | 'loot' | 'evac' | 'score';
+
+export interface GuideSection {
+  id: GuideTopic;
+  title: string;
+  bullets: string[];
+}
+
+export const GUIDE_SECTIONS: readonly GuideSection[] = [
+  {
+    id: 'survive',
+    title: 'Survive',
+    bullets: [
+      'Hunger, thirst, energy, and infection tick with every hour. Keep them up — empty hunger or thirst below 20 starts eating limb HP.',
+      'Health is the sum of your six limbs. Bleeding blocks regen; infection at 100 ends the run.',
+      'Night (after dusk) is more dangerous. Sleep restores energy but still drains hunger and thirst (at a reduced rate).',
+    ],
+  },
+  {
+    id: 'loot',
+    title: 'Loot',
+    bullets: [
+      'At a place, start a search: a fogged grid reveals finds one by one in real time.',
+      'Click a fogged cell to search it next. Click found items (or Take all) into your pack; overflow goes to the on-site stash.',
+      'Each site has limited searches. Leaving early still spends a partial charge — Done finishes and auto-fills pack then stash.',
+    ],
+  },
+  {
+    id: 'evac',
+    title: 'Evac',
+    bullets: [
+      'A map beacon marks the staging zone. Reach it during the timed window with enough weighted gear in your backpack (not stash or equipped).',
+      'Fuel counts most, then meds and ammo; weapons next; food and water least. The threshold rises each day. Boiling water burns fuel and readiness.',
+      'Miss the window and a new site opens after a cooldown — the horde keeps rising either way. Call for evac when ready.',
+    ],
+  },
+  {
+    id: 'score',
+    title: 'Score',
+    bullets: [
+      'Score = (kills × 25 + carried loot value + days × 50) × day multiplier. Day 1 is ×1.0; each further day adds ×0.1.',
+      'A successful extract adds 2000 × the same day multiplier. Linger to climb the mult, then lift out late for the best board score.',
+      'Death still posts a score. When the horde hits 100%, the city is overrun and the run ends.',
+    ],
+  },
+] as const;
+
+export const GUIDE_BY_ID: Record<GuideTopic, GuideSection> = Object.fromEntries(
+  GUIDE_SECTIONS.map((s) => [s.id, s]),
+) as Record<GuideTopic, GuideSection>;
+
+/** Sections shown when opening help from a given entry point. */
+export function guideTopicsFor(topic: GuideTopic): GuideTopic[] {
+  if (topic === 'evac') return ['evac', 'score'];
+  return [topic];
+}

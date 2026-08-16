@@ -237,7 +237,7 @@ export function hazardsOnPath(
 export const TREK_MIN_DISTANCE_M = 60;
 
 /** Flat stamina price for leaving the shelter of a known site. */
-export const TREK_BASE_ENERGY = 4;
+export const TREK_BASE_ENERGY = 7;
 
 /**
  * Open ground is strictly worse than a road between two POIs: no doorway to
@@ -329,9 +329,3 @@ export function riskLabel(chance: number): { text: string; color: string } {
 
 /** How much of the map a crossing lights up — you learn less than at a site. */
 export const TREK_LIGHT_RADIUS = 90;
-
-/** Share of a proper night's recovery you get sleeping rough in the open. */
-export const EXPOSED_SLEEP_RECOVERY = 0.45;
-
-/** Floor on the odds that a night in the open is interrupted. */
-export const EXPOSED_SLEEP_MIN_RISK = 0.3;

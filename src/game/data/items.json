@@ -7,7 +7,7 @@
     "weight": 0.4,
     "effect": {
       "kind": "food",
-      "hunger": 30
+      "hunger": 24
     },
     "value": 8,
     "stackable": true,
@@ -22,7 +22,7 @@
     "weight": 2.5,
     "effect": {
       "kind": "food",
-      "hunger": 55
+      "hunger": 44
     },
     "value": 14,
     "stackable": false,
@@ -37,7 +37,7 @@
     "weight": 0.3,
     "effect": {
       "kind": "food",
-      "hunger": 35
+      "hunger": 28
     },
     "value": 6,
     "stackable": true,
@@ -52,14 +52,12 @@
     "weight": 0.2,
     "effect": {
       "kind": "food",
-      "hunger": 15
+      "hunger": 12
     },
     "value": 3,
     "stackable": true,
     "maxStack": 6,
-    "color": "#d9a441",
-    "startingItem": true,
-    "startingCount": 2
+    "color": "#d9a441"
   },
   "hawker_meal": {
     "id": "hawker_meal",
@@ -69,7 +67,7 @@
     "weight": 0.5,
     "effect": {
       "kind": "food",
-      "hunger": 45
+      "hunger": 36
     },
     "value": 5,
     "stackable": false,
@@ -251,7 +249,7 @@
     "weight": 0.6,
     "effect": {
       "kind": "water",
-      "thirst": 35
+      "thirst": 28
     },
     "value": 5,
     "stackable": true,
@@ -268,7 +266,7 @@
     "weight": 0.6,
     "effect": {
       "kind": "water",
-      "thirst": 40
+      "thirst": 32
     },
     "value": 7,
     "stackable": true,
@@ -283,7 +281,8 @@
     "weight": 0.7,
     "effect": {
       "kind": "water",
-      "thirst": 18
+      "thirst": 14,
+      "infectionRisk": 8
     },
     "value": 1,
     "stackable": true,
@@ -312,7 +311,7 @@
     "weight": 0.4,
     "effect": {
       "kind": "water",
-      "thirst": 20
+      "thirst": 16
     },
     "value": 4,
     "stackable": true,
@@ -563,7 +562,7 @@
     "weight": 0.1,
     "effect": {
       "kind": "energy",
-      "energy": 25
+      "energy": 20
     },
     "value": 4,
     "stackable": true,
@@ -578,7 +577,7 @@
     "weight": 0.4,
     "effect": {
       "kind": "energy",
-      "energy": 40
+      "energy": 30
     },
     "value": 9,
     "stackable": true,
@@ -1615,6 +1614,23 @@
     "stackable": true,
     "maxStack": 6,
     "color": "#8c8377"
+  },
+  "sleeping_bag": {
+    "id": "sleeping_bag",
+    "name": "Sleeping Bag",
+    "w": 2,
+    "h": 3,
+    "weight": 2.2,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 18,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#4a6b5a",
+    "scarcity": 0.55,
+    "sleepGear": true,
+    "maxCondition": 100
   },
   "glass_bottle": {
     "id": "glass_bottle",

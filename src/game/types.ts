@@ -140,7 +140,7 @@ export interface Occupation {
 // ---------- Items / Inventory ----------
 export type ItemEffect =
   | { kind: 'food'; hunger: number }
-  | { kind: 'water'; thirst: number }
+  | { kind: 'water'; thirst: number; infectionRisk?: number }
   | {
       kind: 'heal';
       health: number;
@@ -263,6 +263,10 @@ export interface ItemDef {
    * good things are hard to find.
    */
   scarcity?: number;
+  /**
+   * When carried (backpack or site stash), counts as a bed for sleep quality.
+   */
+  sleepGear?: boolean;
   /**
    * When true, this def is granted at the start of a run (DEV-tunable via the
    * loot browser). Equippable defs with a free slot are worn; otherwise they

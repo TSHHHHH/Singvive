@@ -84,7 +84,7 @@ function StatusIcon({ chip }: { chip: StatusChip }) {
       } ${chip.tone === 'danger' && chip.icon === 'status.bleeding' ? 'pulse-danger' : ''}`}
     >
       <Icon name={chip.icon} size={12} title={chip.label} />
-      <span className="pointer-events-none absolute bottom-full right-0 z-30 mb-1.5 hidden w-max max-w-[14rem] rounded border border-white/15 bg-concrete-900 px-2 py-1.5 text-left shadow-xl group-hover/tip:block">
+      <span className="pointer-events-none absolute bottom-full right-0 z-30 mb-1.5 hidden w-max max-w-[14rem] rounded border border-white/15 bg-concrete-900 px-2 py-1.5 text-left shadow-signage group-hover/tip:block">
         <span className="block text-2xs font-semibold uppercase tracking-wider text-white/50">
           {chip.label}
         </span>
@@ -120,7 +120,7 @@ function LimbRow({
       <span className="w-9 shrink-0 text-2xs uppercase tracking-wide text-white/45">
         {BODY_PART_LABEL[partId]}
       </span>
-      <div className="relative h-1.5 min-w-0 flex-1 overflow-hidden rounded bg-black/50 ring-1 ring-white/10">
+      <div className="relative h-2 min-w-0 flex-1 overflow-hidden rounded bg-black/50 ring-1 ring-white/10">
         <div
           className={`h-full transition-all duration-300 ${low ? 'pulse-danger' : ''}`}
           style={{ width: `${Math.max(0, Math.min(100, pct))}%`, background: barColor(pct) }}

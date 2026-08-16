@@ -40,9 +40,8 @@ export function poiIcon(poi: Poi): L.DivIcon {
       font-size:15px;line-height:1;
       background:${factionColor ?? cfg.color};
       border:${outpost ? 3 : 2}px solid ${outpost ? '#f0ead8' : ring};
-      box-shadow:${outpost ? `0 0 0 2px ${factionColor}, 0 0 8px rgba(0,0,0,.7)` : '0 0 6px rgba(0,0,0,.6)'};
+      ${outpost ? `outline:2px solid ${factionColor};outline-offset:1px;` : ''}
       opacity:${dim ? 0.4 : 1};
-      filter:${dim ? 'grayscale(1)' : 'none'};
     ">${glyph}</div>`,
     iconSize: outpost ? [34, 34] : [30, 30],
     iconAnchor: outpost ? [17, 17] : [15, 15],
@@ -60,7 +59,6 @@ const UNKNOWN_ICON = L.divIcon({
     display:flex;align-items:center;justify-content:center;
     font-size:14px;font-weight:700;color:#1a1204;cursor:pointer;
     background:#e8e5dd;border:2px solid #ffffff;
-    box-shadow:0 0 8px rgba(232,229,221,.7);
   ">?</div>`,
   iconSize: [24, 24],
   iconAnchor: [12, 12],
@@ -108,7 +106,6 @@ const TREK_TARGET_ICON = L.divIcon({
   html: `<div style="
     width:22px;height:22px;border-radius:50%;
     border:2px dashed #e8e5dd;opacity:.85;
-    box-shadow:0 0 6px rgba(0,0,0,.6);
   "></div>`,
   iconSize: [22, 22],
   iconAnchor: [11, 11],

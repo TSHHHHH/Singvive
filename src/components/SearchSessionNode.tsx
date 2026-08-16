@@ -13,6 +13,8 @@ import { itemIcon } from './Inventory/itemIcon';
 import { formatClock } from '../game/survival';
 import { useClockFormat } from '../game/settings';
 import { SearchFindRevealCell } from './SearchFindRevealCell';
+import { GuideInfoButton } from './GuideInfoButton';
+import type { GuideTopic } from '../content/guideContent';
 
 /** Match inventory cell size so stash finds read at the same scale. */
 const CELL = 34;
@@ -24,9 +26,11 @@ const CELL = 34;
 export function SearchSessionNode({
   timeW,
   hang,
+  onOpenGuide,
 }: {
   timeW: string;
   hang: { paddingLeft: string; textIndent: string };
+  onOpenGuide?: (topic: GuideTopic) => void;
 }) {
   const session = useGame((s) => s.pendingSearch);
   const hour = useGame((s) => s.hour);
@@ -103,12 +107,13 @@ export function SearchSessionNode({
           >
             {formatClock(hour, clock)}
           </span>
-          <span className="font-semibold text-concrete-50">
+          <span className="inline-flex items-center gap-1.5 font-semibold text-concrete-50">
             {stillSearching
               ? session.hdbUnit
                 ? `Searching ${session.hdbUnit.label}`
                 : 'Searching'
               : 'Search complete'}
+            {onOpenGuide && <GuideInfoButton topic="loot" onOpen={onOpenGuide} />}
           </span>
           {session.lastWhisper ? (
             <span className={whisperHot ? 'text-amber-200/90' : 'text-white/55'}>
@@ -251,7 +256,7 @@ function SearchHoverPanel({
 }) {
   return (
     <div
-      className="min-w-0 flex-1 overflow-hidden rounded border border-white/10 bg-black/30 px-2.5 py-2"
+      className="min-w-0 flex-1 overflow-hidden rounded border border-white/15 bg-concrete-900/80 px-2.5 py-2"
       style={{ minHeight: gridH }}
     >
       {!slot ? (
@@ -362,6 +367,7 @@ function describeSearchItem(def: ItemDef, slot: SearchSlot): string[] {
       break;
     case 'water':
       lines.push(`Restores thirst ${e.thirst}`);
+      if (e.infectionRisk) lines.push(`Infection risk +${e.infectionRisk}`);
       break;
     case 'heal':
       lines.push(

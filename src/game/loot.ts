@@ -81,7 +81,7 @@ export interface LootStack {
  * perception & scavenger bonuses supplied by the caller.
  */
 /** Roughly 35% of shelves have already been stripped by someone else. */
-const DUD_CHANCE = 0.35;
+const DUD_CHANCE = 0.5;
 
 /**
  * How much of a thing a single roll turns up. Weighted hard toward one: a can
@@ -90,7 +90,7 @@ const DUD_CHANCE = 0.35;
  */
 function rollQuantity(rng: Rng, maxStack: number): number {
   if (maxStack <= 1) return 1;
-  const r = rng.chance(0.65) ? 1 : rng.chance(0.8) ? 2 : 3;
+  const r = rng.chance(0.8) ? 1 : rng.chance(0.8) ? 2 : 3;
   return Math.min(r, maxStack);
 }
 

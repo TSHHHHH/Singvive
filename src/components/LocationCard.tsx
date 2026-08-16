@@ -197,7 +197,7 @@ function Departures({
 }) {
   const net = getMrtNetwork();
   return (
-    <div className="rounded border border-white/10 bg-black/30 p-2">
+    <div className="rounded border border-white/15 bg-concrete-900/80 p-2">
       <div className="mb-1.5 text-2xs uppercase tracking-widest text-white/40">
         Tunnels from this platform
       </div>

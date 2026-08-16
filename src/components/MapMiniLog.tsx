@@ -33,7 +33,7 @@ export function MapMiniLog({
     <button
       type="button"
       onClick={onOpenLog}
-      className="pointer-events-auto absolute left-3 right-3 z-[640] rounded-lg border border-white/10 bg-concrete-900/95 px-2.5 py-1.5 text-left shadow-2xl lg:hidden"
+      className="pointer-events-auto absolute left-3 right-3 z-[640] rounded-lg border border-white/15 bg-concrete-900/95 px-2.5 py-1.5 text-left shadow-signage lg:hidden"
       style={{
         bottom,
         minHeight: 'var(--mobile-mini-log-h)',

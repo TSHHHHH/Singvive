@@ -20,7 +20,7 @@ const PATH_STEP_M = 80;
 /** Extra time per 100 m inside vegetation. */
 const TRAVEL_PER_100M = 0.12;
 /** Extra energy per 100 m inside vegetation. */
-const ENERGY_PER_100M = 2.2;
+const ENERGY_PER_100M = 3.0;
 const TRAVEL_MULT_CAP = 1.85;
 
 export interface VegetationCost {

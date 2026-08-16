@@ -43,7 +43,7 @@ export function CraftingPanel() {
 
   return (
     <div className="flex flex-col gap-3">
-      <section className="rounded-lg border border-white/10 bg-black/30 p-3">
+      <section className="rounded-lg border border-white/15 bg-concrete-900/80 p-3">
         <h4 className="mb-2 text-xs uppercase tracking-widest text-white/30">Workbench</h4>
         <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
           <span className={atShelter ? 'text-signal' : 'text-white/40'}>
@@ -76,7 +76,7 @@ export function CraftingPanel() {
         onCraft={craftItem}
       />
 
-      <section className="rounded-lg border border-white/10 bg-black/30 p-3">
+      <section className="rounded-lg border border-white/15 bg-concrete-900/80 p-3">
         <h4 className="mb-2 text-xs uppercase tracking-widest text-white/30">Desperate</h4>
         {clothingTears > 0 ? (
           <button
@@ -118,7 +118,7 @@ function RecipeGroup({
   onCraft: (recipeId: string) => void;
 }) {
   return (
-    <section className="rounded-lg border border-white/10 bg-black/30 p-3">
+    <section className="rounded-lg border border-white/15 bg-concrete-900/80 p-3">
       <h4 className="mb-2 text-xs uppercase tracking-widest text-white/30">{title}</h4>
       <div className="flex flex-col gap-1.5">
         {recipes.map((recipe) => {

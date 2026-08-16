@@ -170,7 +170,9 @@ export function SearchFindRevealCell({
       onClick={onClick}
       onMouseEnter={onMouseEnter}
       onFocus={onFocus}
-      className={`relative flex flex-col items-center justify-center overflow-visible rounded text-center ${settledRing} ${
+      // Outer shell must not set `relative`: callers pass `absolute`, and those
+      // Tailwind utilities conflict by CSS order (relative winning stacks cells in flow).
+      className={`flex flex-col items-center justify-center overflow-visible rounded text-center ${settledRing} ${
         forceMotion ? 'search-find-fx--force-motion' : ''
       } ${className}`}
       style={{
@@ -182,7 +184,7 @@ export function SearchFindRevealCell({
       <span
         ref={pulseRef}
         className={`relative flex h-full w-full flex-col items-center justify-center rounded ${
-          play ? playRing : ''
+          play ? `search-find-pulse ${playRing}` : ''
         }`}
       >
         {play && highlight ? <FindBurst highlight={highlight} runId={runId} /> : null}

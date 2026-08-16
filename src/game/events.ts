@@ -684,7 +684,7 @@ function buildTap(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
         // The patient, decent option. Costs an hour, and an hour is not free.
         onSuccess: [
           { t: 'time', hours: 1, line: 'You wait your turn like everyone else. It takes an hour and nobody thanks you for it.' },
-          { t: 'gain', defId: 'water_bottle', count: 2 },
+          { t: 'gain', defId: 'water_bottle', count: 1 },
           { t: 'standing', delta: 1 },
           { t: 'access' },
         ],
@@ -695,7 +695,7 @@ function buildTap(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
         itemIds: ['canned_food', 'snacks', 'hawker_meal'],
         label: 'Trade food for a fill',
         onSuccess: [
-          { t: 'gain', defId: 'water_bottle', count: 2 },
+          { t: 'gain', defId: 'water_bottle', count: 1 },
           { t: 'gain', defId: 'isotonic' },
           { t: 'standing', delta: 1 },
           { t: 'access' },
@@ -710,7 +710,7 @@ function buildTap(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
         label: 'Push to the front',
         // Taking water off a queue is the fastest way to be remembered badly.
         onSuccess: [
-          { t: 'gain', defId: 'water_bottle', count: 2 },
+          { t: 'gain', defId: 'water_bottle', count: 1 },
           { t: 'standing', delta: -2 },
           { t: 'fight' },
         ],

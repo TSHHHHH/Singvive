@@ -6,11 +6,12 @@ import type { TimeOfDay, WeatherKind } from '../game/types';
 // Diegetic weather over the map.
 //
 // Performance is the whole design here. There are no particles, no canvas, no
-// per-frame JS: each effect is one or two oversized <div>s painted with a
-// repeating gradient and animated with `transform`/`opacity` only. Those two
-// properties are handled on the compositor, so the layer is rasterised once and
-// the Leaflet canvas underneath is never invalidated — the same rule the
-// vignettes in index.css follow. Total cost: <=4 DOM nodes, 0 JS per frame.
+// per-frame JS: each effect is a few <div>s painted with gradients and animated
+// with `transform`/`opacity` only. Those two properties are handled on the
+// compositor, so the layer is rasterised once and the Leaflet canvas underneath
+// is never invalidated — the same rule the vignettes in index.css follow.
+// Full weather caps at one oversized animated sheet; static tints stay
+// viewport-sized. Total cost: <=3 DOM nodes, 0 JS per frame.
 //
 // The layers live in index.css (.wx-*).
 // ---------------------------------------------------------------------------
@@ -37,15 +38,18 @@ function usePrefersReducedMotion(): boolean {
   return reduce;
 }
 
-/** Which layers each weather kind puts up. `day`-only effects gate on time. */
+/** Which layers each weather kind puts up. `day`-only effects gate on time.
+ *
+ * Full caps at one oversized animated sheet per kind (rain/haze/heat shimmer);
+ * clear is a single static wash. Static tints (wet, overcast, glare) are free. */
 function layersFor(kind: WeatherKind, time: TimeOfDay, subtle: boolean): string[] {
   switch (kind) {
     case 'rain':
-      return subtle ? ['wx-rain-back'] : ['wx-rain-back', 'wx-rain-front'];
+      return subtle ? ['wx-rain-back'] : ['wx-wet-still', 'wx-rain-back'];
     case 'thunderstorm':
       return subtle
-        ? ['wx-rain-front', 'wx-flash']
-        : ['wx-rain-back', 'wx-rain-front', 'wx-flash'];
+        ? ['wx-rain-back', 'wx-flash']
+        : ['wx-overcast', 'wx-rain-back', 'wx-flash'];
     case 'haze':
       return subtle ? ['wx-haze'] : ['wx-haze', 'wx-haze-drift'];
     case 'cloudy':
@@ -55,11 +59,11 @@ function layersFor(kind: WeatherKind, time: TimeOfDay, subtle: boolean): string[
       if (time === 'night') return ['wx-heat-haze'];
       return subtle
         ? ['wx-heat-haze', 'wx-heat-glare']
-        : ['wx-heat-haze', 'wx-heat-glare', 'wx-heat-shimmer', 'wx-sun-rays'];
+        : ['wx-heat-haze', 'wx-heat-glare', 'wx-heat-shimmer'];
     case 'clear':
-      // Equatorial glare only reads in daylight; at dusk/night it's just a wash.
+      // Equatorial glare only reads in daylight; at dusk/night nothing shows.
       if (time === 'night') return [];
-      return time === 'day' && !subtle ? ['wx-sun-wash', 'wx-sun-rays'] : ['wx-sun-wash'];
+      return ['wx-sun-wash'];
   }
 }
 

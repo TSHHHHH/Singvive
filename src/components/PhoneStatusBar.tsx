@@ -23,7 +23,7 @@ function MiniMeter({
   dynamic?: boolean;
 }) {
   const pct = Math.max(0, Math.min(100, (value / max) * 100));
-  const low = danger ? pct > 60 : pct < 25;
+  const low = danger ? pct > 60 : pct < 35;
   const fill = dynamic ? dynamicMeterColor(pct) : color;
   return (
     <span
@@ -33,7 +33,7 @@ function MiniMeter({
       <span className="shrink-0 text-2xs leading-none">
         <Icon name={icon} size={12} />
       </span>
-      <span className="relative h-1.5 min-w-0 flex-1 overflow-hidden rounded bg-black/50 ring-1 ring-white/10">
+      <span className="relative h-1.5 min-w-0 flex-1 overflow-hidden rounded-none bg-black/50 ring-1 ring-white/15">
         <span
           className={`absolute inset-y-0 left-0 transition-all duration-300 ${low ? 'pulse-danger' : ''}`}
           style={{ width: `${pct}%`, background: fill }}

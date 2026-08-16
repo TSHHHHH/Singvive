@@ -23,6 +23,7 @@ import { trekTargetIcon } from './mapIcons';
 import { MrtOverlay, legendLines, useMrtNetwork } from './MrtOverlay';
 import { Icon } from '../icons/Icon';
 import { pointAlongPath } from '../game/route';
+import { useThrottledNumber } from '../hooks/useAnimatedNumber';
 
 // White outline for buildings you can see but haven't identified — stands out
 // against the dark map like the "?" blips do.
@@ -115,6 +116,8 @@ function PlayerMarker({
   useEffect(() => {
     if (!travelAnim) {
       setPos(home);
+      posRef.current = home;
+      markerRef.current?.setLatLng([home.lat, home.lng]);
       // Discrete move (spawn/MRT): follow at the current zoom, don't reset it.
       map.panTo([home.lat, home.lng], { animate: true, duration: 0.6 });
       return;
@@ -127,11 +130,20 @@ function PlayerMarker({
             { lat: travelAnim.toLat, lng: travelAnim.toLng },
           ];
     const { startedAt, durationMs } = travelAnim;
+    // Drive the Leaflet marker imperatively during the glide so React does not
+    // re-render every frame (costly on Firefox with many DivIcons). Sync React
+    // state only at the start and end of the leg.
+    const start = pointAlongPath(path, 0);
+    setPos(start);
+    posRef.current = start;
+    markerRef.current?.setLatLng([start.lat, start.lng]);
+
     const tick = () => {
       const t = Math.min(1, (Date.now() - startedAt) / durationMs);
       const e = easeInOut(t);
       const { lat, lng } = pointAlongPath(path, e);
-      setPos({ lat, lng });
+      posRef.current = { lat, lng };
+      markerRef.current?.setLatLng([lat, lng]);
 
       // Panning repositions every marker, fog tile and vector on the map, so
       // it must not run per frame. Follow only once the walker has drifted
@@ -149,7 +161,11 @@ function PlayerMarker({
         map.panTo([lat, lng], { animate: false });
       }
 
-      if (t < 1) rafRef.current = requestAnimationFrame(tick);
+      if (t < 1) {
+        rafRef.current = requestAnimationFrame(tick);
+      } else {
+        setPos({ lat, lng });
+      }
     };
     rafRef.current = requestAnimationFrame(tick);
     return () => {
@@ -478,6 +494,9 @@ function GameMapInner({
   onPickGround,
 }: Props) {
   const evacPoi = evacZoneId ? pois.find((p) => p.id === evacZoneId) : null;
+  // Planning ring stays on the smooth tween; fog canvas repaints are throttled
+  // so a 600ms range ease does not full-refresh every tile every frame.
+  const fogRevealRadius = useThrottledNumber(travelRange, 80);
 
   // The rail network is a separate file, fetched the first time the player asks
   // to see it (or already in memory, if the world build got there first).
@@ -515,7 +534,7 @@ function GameMapInner({
       <FogOverlay
         exploredArea={exploredArea}
         currentRevealCenter={home}
-        currentRevealRadius={travelRange}
+        currentRevealRadius={fogRevealRadius}
       />
 
       {/* Travelable range — a planning ring, not vision. Must stay
@@ -580,17 +599,17 @@ function GameMapInner({
         onClick={toggleMrt}
         aria-pressed={showMrt}
         title="Show the MRT & LRT network"
-        className={`absolute right-2 top-2 z-[500] flex items-center gap-1.5 rounded border px-2 py-1.5 text-xs font-semibold shadow-lg backdrop-blur transition-colors ${
+        className={`absolute right-2 top-2 z-[500] flex items-center gap-1.5 rounded border px-2 py-1.5 text-xs font-semibold shadow-signage transition-colors ${
           showMrt
             ? 'border-astral/50 bg-astral/20 text-astral'
-            : 'border-white/15 bg-black/70 text-white/60 hover:text-white/90'
+            : 'border-white/15 bg-concrete-900/95 text-white/60 hover:text-white/90'
         }`}
       >
         <Icon name="action.mrt" size={14} /> Rail map
       </button>
 
       {showMrt && net && (
-        <div className="absolute right-2 top-11 z-[500] max-w-[45vw] rounded border border-white/10 bg-black/80 p-2 text-2xs leading-tight text-white/70 shadow-lg backdrop-blur">
+        <div className="absolute right-2 top-11 z-[500] max-w-[45vw] rounded border border-white/15 bg-concrete-900/95 p-2 text-2xs leading-tight text-white/70 shadow-signage">
           {legendLines(net).map((line) => (
             <div key={line.code} className="flex items-center gap-1.5">
               <span

@@ -44,7 +44,7 @@ export function ObjectiveBar({
   return (
     <button
       onClick={onOpen}
-      className="w-full rounded-lg border border-signal/25 bg-signal/[0.07] p-2.5 text-left transition hover:bg-signal/[0.12]"
+      className="w-full rounded-lg border border-signal/35 bg-signal/[0.07] p-2.5 text-left transition hover:bg-signal/[0.12]"
     >
       <div className="flex items-center justify-between gap-2">
         <span className="text-2xs font-semibold uppercase tracking-widest text-signal/70">

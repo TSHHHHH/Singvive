@@ -30,12 +30,19 @@ import { WeatherBadge } from '../components/WeatherBadge';
 import { ObjectiveBar } from '../components/ObjectiveBar';
 import { ObjectivesPanel } from '../components/ObjectivesPanel';
 import { DayLogsModal } from '../components/DayLogsModal';
+import { GuideModal } from '../components/GuideModal';
 import { HdbDungeonModal } from '../components/HdbDungeonModal';
 import { TraderModal } from '../components/TraderModal';
 import { TunnelRunView } from '../components/TunnelRunView';
+import type { GuideTopic } from '../content/guideContent';
 import { itemDef } from '../game/loot';
 import { estimateExpedition } from '../game/travel';
 import { unplayableMessage, walkabilityOf } from '../game/playable';
+import {
+  BED_LABEL,
+  ENCLOSED_LABEL,
+  ROOF_LABEL,
+} from '../game/sleep';
 import { routeLandPath } from '../game/route';
 import {
   bleedEncounterMod,
@@ -139,6 +146,7 @@ export function GameScreen() {
     tunnelEnter,
     tunnel,
     rest,
+    peekSleepConditions,
     notify,
     meters,
     character,
@@ -179,6 +187,7 @@ export function GameScreen() {
       tunnelEnter: s.tunnelEnter,
       tunnel: s.tunnel,
       rest: s.rest,
+      peekSleepConditions: s.peekSleepConditions,
       notify: s.notify,
       meters: s.meters,
       character: s.character,
@@ -201,11 +210,19 @@ export function GameScreen() {
   const [sidePanel, setSidePanel] = useState<SidePanel | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [dayLogsOpen, setDayLogsOpen] = useState(false);
+  const [guideTopic, setGuideTopic] = useState<GuideTopic | null>(null);
   const [mapFocus, setMapFocus] = useState<{ lat: number; lng: number; token: number } | null>(
     null,
   );
 
   const inventoryOpenToken = useGame((s) => s.inventoryOpenToken);
+
+  const sleepPreview = useMemo(
+    () => peekSleepConditions(),
+    // Recompute when site, HDB, or pack contents that affect sleep gear change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- peek reads live store
+    [peekSleepConditions, currentPositionId, hdb, items],
+  );
 
   const focusStashOnMap = useCallback((lat: number, lng: number) => {
     setMapFocus((prev) => ({ lat, lng, token: (prev?.token ?? 0) + 1 }));
@@ -707,12 +724,23 @@ export function GameScreen() {
           <DigitalClock day={day} hour={hour} band={time} />
           <div className="flex items-center justify-between gap-2">
             <WeatherBadge weather={weather} />
-            <button
-              onClick={rest}
-              className="shrink-0 rounded border border-white/15 px-2.5 py-1 text-xs transition hover:bg-white/5"
-            >
-              <Icon name="action.sleep" /> Rest
-            </button>
+            <div className="flex min-w-0 flex-col items-end gap-0.5">
+              <button
+                onClick={rest}
+                className="shrink-0 rounded border border-white/15 px-2.5 py-1 text-xs transition hover:bg-white/5"
+                title={sleepPreview.summary}
+              >
+                <Icon name="action.sleep" /> Rest
+              </button>
+              <p className="max-w-[11rem] truncate text-right text-2xs text-white/40">
+                {ENCLOSED_LABEL[sleepPreview.enclosed]} · {ROOF_LABEL[sleepPreview.roof]} ·{' '}
+                {BED_LABEL[sleepPreview.bed]}
+                <span className="text-white/25">
+                  {' '}
+                  ({Math.round(sleepPreview.recoveryMult * 100)}%)
+                </span>
+              </p>
+            </div>
           </div>
         </div>
 
@@ -734,7 +762,7 @@ export function GameScreen() {
               onOpen={() => setSidePanel((p) => (p === 'objective' ? null : 'objective'))}
             />
 
-            <ConditionPanel />
+            <ConditionPanel onOpenGuide={setGuideTopic} />
 
             {/* --- the panel switchers --- */}
             <div className="grid grid-cols-2 gap-1.5">
@@ -777,7 +805,7 @@ export function GameScreen() {
             : 'pointer-events-none -translate-x-full lg:-translate-x-[700px]'
         } ${backgrounded}`}
       >
-        <div className="flex h-full flex-col border-r border-white/10 bg-concrete-900 shadow-2xl">
+        <div className="flex h-full flex-col border-r border-white/15 bg-concrete-900 shadow-signage">
           <div className="flex shrink-0 items-center justify-between border-b border-white/10 p-3">
             <h3 className="text-sm font-bold text-signal">
               {sidePanel && (
@@ -816,6 +844,7 @@ export function GameScreen() {
                 doomLabel={hordeLabel(doom)}
                 evacReady={evacReady}
                 onEvac={callEvac}
+                onOpenGuide={setGuideTopic}
               />
             )}
           </div>
@@ -890,7 +919,7 @@ export function GameScreen() {
             className="absolute inset-x-0 z-[760] p-2 lg:hidden"
             style={{ top: 'var(--mobile-status-bar-h)' }}
           >
-            <div className="rounded border border-hiss/50 bg-hiss/20 px-2 py-1.5 text-center text-xs font-semibold text-hiss shadow-lg backdrop-blur">
+            <div className="rounded border border-hiss/50 bg-hiss/20 px-2 py-1.5 text-center text-xs font-semibold text-hiss shadow-signage">
               {combat ? 'Contact — tap for Fight' : 'Someone wants a word — tap for Log'}
             </div>
           </button>
@@ -925,6 +954,7 @@ export function GameScreen() {
                 onOpenSettings={() => setSettingsOpen(true)}
                 onOpenDayLogs={() => setDayLogsOpen(true)}
                 onFocusMap={focusStashOnMap}
+                onOpenGuide={setGuideTopic}
               />
             </div>
           )}
@@ -1026,6 +1056,7 @@ export function GameScreen() {
       )}
       {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
       {dayLogsOpen && <DayLogsModal onClose={() => setDayLogsOpen(false)} />}
+      {guideTopic && <GuideModal topic={guideTopic} onClose={() => setGuideTopic(null)} />}
       {/* Gated on store state rather than local state: the counter belongs to
           the place you're standing in, not to a button in this screen. */}
       <TraderModal />
@@ -1050,7 +1081,7 @@ function RailSection({
   return (
     <section
       className={`flex-col rounded-lg border p-2.5 ${
-        accent ? 'border-signal/40 bg-signal/[0.04]' : 'border-white/10 bg-black/30'
+        accent ? 'border-signal/40 bg-signal/[0.04]' : 'border-white/15 bg-concrete-900/80'
       } ${className || 'flex'}`}
     >
       <div className="mb-1 flex items-center justify-between">
@@ -1121,7 +1152,7 @@ function HereCompactBar({
   const searchingHere = !!pendingSearch && pendingSearch.locationId === sel.id;
   return (
     <div
-      className="pointer-events-auto absolute left-3 right-3 z-[640] flex items-center gap-2 rounded-lg border border-signal/40 bg-concrete-900/95 px-3 py-2 shadow-2xl lg:hidden"
+      className="pointer-events-auto absolute left-3 right-3 z-[640] flex items-center gap-2 rounded-lg border border-signal/40 bg-concrete-900/95 px-3 py-2 shadow-signage lg:hidden"
       style={{
         bottom:
           'calc(var(--mobile-nav-h) + env(safe-area-inset-bottom, 0px) + 0.5rem)',

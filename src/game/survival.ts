@@ -7,22 +7,22 @@ export const METER_MAX = 100;
 
 /** Passive depletion per HOUR spent awake/active. */
 export const DEPLETION_PER_HOUR = {
-  hunger: 1.1,
-  thirst: 1.5,
-  energy: 2.9,
+  hunger: 2.4,
+  thirst: 3.2,
+  energy: 4.5,
 };
 
 /**
- * A sleeping body burns far less. Without this, an eight-hour night ate most of
- * a meal and a bottle, so resting meant immediately re-opening the pack.
+ * Sleep still burns less than a waking day, but a full night should cost real
+ * food and water — not leave the pack untouched until morning.
  */
-export const SLEEP_DEPLETION_MULT = 0.3;
+export const SLEEP_DEPLETION_MULT = 0.55;
 
 /** Below this, an empty stomach / dry throat starts costing HP. */
-export const STARVING_THRESHOLD = 20;
+export const STARVING_THRESHOLD = 35;
 /** HP per hour lost at a completely empty meter (scales in from the threshold). */
-const STARVE_HP_PER_HOUR = 2.5;
-const DEHYDRATE_HP_PER_HOUR = 4;
+const STARVE_HP_PER_HOUR = 4;
+const DEHYDRATE_HP_PER_HOUR = 6;
 
 /** 0 when the meter is above the threshold, ramping to 1 at empty. */
 function starvationSeverity(meter: number): number {
@@ -51,29 +51,29 @@ export function hpRegenMultiplier(hunger: number): number {
   return 1.0 + getMeterDelta(hunger) * 0.5;
 }
 
-/** How much energy a rest actually returns. 0.2x .. 1.8x */
+/** How much energy a rest actually returns. 0.0x .. 2.0x */
 export function restEnergyMultiplier(hunger: number, thirst: number): number {
-  return 1.0 + getMeterDelta(hunger) * 0.3 + getMeterDelta(thirst) * 0.5;
+  return 1.0 + getMeterDelta(hunger) * 0.4 + getMeterDelta(thirst) * 0.6;
 }
 
-/** Energy burn rate while moving/acting — dehydration burns up to 1.3x faster. */
+/** Energy burn rate while moving/acting — dehydration burns up to 1.45x faster. */
 export function activeEnergyDrainMultiplier(thirst: number): number {
-  return 1.0 - getMeterDelta(thirst) * 0.3;
+  return 1.0 - getMeterDelta(thirst) * 0.45;
 }
 
-/** Walking pace scaling from energy. 0.7x .. 1.3x */
+/** Walking pace scaling from energy. 0.6x .. 1.4x */
 export function travelSpeedMultiplier(energy: number): number {
-  return 1.0 + getMeterDelta(energy) * 0.3;
+  return 1.0 + getMeterDelta(energy) * 0.4;
 }
 
-/** d20 attack-roll bonus from energy. −2 .. +2 */
+/** d20 attack-roll bonus from energy. −3 .. +3 */
 export function energyAttackBonus(energy: number): number {
-  return Math.round(getMeterDelta(energy) * 2);
+  return Math.round(getMeterDelta(energy) * 3);
 }
 
-/** Additional chance to slip a connecting blow. −0.15 .. +0.15 */
+/** Additional chance to slip a connecting blow. −0.22 .. +0.22 */
 export function energyDodgeBonus(energy: number): number {
-  return getMeterDelta(energy) * 0.15;
+  return getMeterDelta(energy) * 0.22;
 }
 
 /** Flee DC shift — exhaustion makes breaking contact harder. +3 .. −3 */
@@ -83,9 +83,9 @@ export function energyFleeDcModifier(energy: number): number {
 
 export function initialMeters(): Meters {
   return {
-    hunger: 80,
-    thirst: 80,
-    energy: 90,
+    hunger: 55,
+    thirst: 55,
+    energy: 65,
     infection: 0,
   };
 }
@@ -123,13 +123,13 @@ export function meterModifiers(
       const d = getMeterDelta(meters.hunger);
       if (d === 0) break;
       out.push({ text: `${pctLabel(hpRegenMultiplier(meters.hunger))} limb recovery`, good: d > 0 });
-      out.push({ text: `${pctLabel(1 + d * 0.3)} rest energy gain`, good: d > 0 });
+      out.push({ text: `${pctLabel(1 + d * 0.4)} rest energy gain`, good: d > 0 });
       break;
     }
     case 'thirst': {
       const d = getMeterDelta(meters.thirst);
       if (d === 0) break;
-      out.push({ text: `${pctLabel(1 + d * 0.5)} rest energy gain`, good: d > 0 });
+      out.push({ text: `${pctLabel(1 + d * 0.6)} rest energy gain`, good: d > 0 });
       out.push({
         text: `${pctLabel(activeEnergyDrainMultiplier(meters.thirst))} energy drain`,
         good: d > 0,
@@ -756,7 +756,7 @@ export function treatInjuries(
   return next;
 }
 
-export const REST_ENERGY_PER_HOUR = 9;
+export const REST_ENERGY_PER_HOUR = 5.5;
 
 /**
  * Restore energy from sleeping `hours`, on top of the normal drain tick. Sleep

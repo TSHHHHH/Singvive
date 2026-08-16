@@ -645,6 +645,10 @@
       6
     ],
     [
+      "sleeping_bag",
+      2
+    ],
+    [
       "powerbank",
       3
     ],
@@ -863,6 +867,10 @@
       6
     ],
     [
+      "sleeping_bag",
+      2
+    ],
+    [
       "dirty_water",
       5
     ],
@@ -1007,6 +1015,10 @@
     [
       "camo_pants",
       2
+    ],
+    [
+      "sleeping_bag",
+      2
     ]
   ],
   "waypoint": [
@@ -1037,6 +1049,10 @@
     [
       "cloth_rags",
       6
+    ],
+    [
+      "sleeping_bag",
+      2
     ],
     [
       "wooden_stick",
