@@ -8,15 +8,15 @@ export function PlayerPin({
   size = 'md',
   className = '',
 }: {
-  size?: 'sm' | 'md';
+  /** `xs` = legend-row glyph; `sm` = HDB cutaway; `md` = world map. */
+  size?: 'xs' | 'sm' | 'md';
   className?: string;
 }) {
-  const glyph = size === 'sm' ? 14 : 16;
+  const glyph = size === 'xs' ? 8 : size === 'sm' ? 14 : 16;
+  const sizeCls =
+    size === 'xs' ? 'player-pin--xs' : size === 'sm' ? 'player-pin--sm' : '';
   return (
-    <div
-      className={`player-pin ${size === 'sm' ? 'player-pin--sm' : ''} ${className}`}
-      aria-hidden
-    >
+    <div className={`player-pin ${sizeCls} ${className}`} aria-hidden>
       <div className="player-pin__body">
         <div className="player-pin__glyph text-[#e8e5dd]">
           <Icon name="combat.player" size={glyph} />

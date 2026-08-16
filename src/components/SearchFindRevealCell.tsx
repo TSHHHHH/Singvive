@@ -5,11 +5,13 @@ import { Icon } from '../icons/Icon';
 import { itemIcon } from './Inventory/itemIcon';
 
 const BURST_ANGLES = [0, 45, 90, 135, 180, 225, 270, 315] as const;
+const BURST_MS = 1000;
 
-const HIGHLIGHT_RING: Record<SearchHighlight, string> = {
-  exotic: 'ring-2 ring-amber-300',
-  pristine: 'ring-2 ring-signal',
-  scarce: 'ring-2 ring-white/70',
+/** Outer-ring colors as box-shadow — must compose with the inset tile edge. */
+const HIGHLIGHT_RING_SHADOW: Record<SearchHighlight, string> = {
+  exotic: '0 0 0 2px #fcd34d',
+  pristine: '0 0 0 2px #e8e5dd',
+  scarce: '0 0 0 2px rgba(245,245,244,0.7)',
 };
 
 const BURST_COLOR: Record<SearchHighlight, string> = {
@@ -18,17 +20,14 @@ const BURST_COLOR: Record<SearchHighlight, string> = {
   scarce: '#f5f5f4',
 };
 
-export function highlightRingClass(
+function cellBoxShadow(
+  def: ItemDef,
   highlight: SearchHighlight | null | undefined,
-  opts?: { pulse?: boolean; hover?: boolean; exoticIdle?: boolean },
 ): string {
-  if (highlight) {
-    const pulse = opts?.pulse === false ? '' : ' search-find-pulse';
-    return `${HIGHLIGHT_RING[highlight]}${pulse}`;
-  }
-  if (opts?.hover) return 'ring-2 ring-white/50';
-  if (opts?.exoticIdle) return 'ring-1 ring-amber-300/50';
-  return 'ring-1 ring-black/40';
+  const inset = `inset 0 0 0 1px ${def.color}`;
+  if (highlight) return `${inset}, ${HIGHLIGHT_RING_SHADOW[highlight]}`;
+  if (def.exotic) return `${inset}, 0 0 0 1px rgba(252,211,77,0.5)`;
+  return `${inset}, 0 0 0 1px rgba(0,0,0,0.4)`;
 }
 
 function FindBurst({ highlight, runId }: { highlight: SearchHighlight; runId: number }) {
@@ -72,54 +71,20 @@ type Props = {
   onFocus?: () => void;
   /** When false, show settled ring without pulse/burst. */
   animate?: boolean;
-  /** Keep animations even when OS prefers reduced motion (loot editor). */
+  /**
+   * Play the one-shot reveal FX even when OS prefers reduced motion.
+   * Live search + loot editor both pass true — this cue is gameplay feedback.
+   */
   forceMotion?: boolean;
   as?: 'button' | 'div';
 };
 
-function CellShell({
-  as,
-  className,
-  style,
-  title,
-  onClick,
-  onMouseEnter,
-  onFocus,
-  children,
-}: {
-  as: 'button' | 'div';
-  className: string;
-  style: CSSProperties;
-  title?: string;
-  onClick?: () => void;
-  onMouseEnter?: () => void;
-  onFocus?: () => void;
-  children: ReactNode;
-}) {
-  if (as === 'div') {
-    return (
-      <div className={className} style={style} title={title}>
-        {children}
-      </div>
-    );
-  }
-  return (
-    <button
-      type="button"
-      title={title}
-      onClick={onClick}
-      onMouseEnter={onMouseEnter}
-      onFocus={onFocus}
-      className={className}
-      style={style}
-    >
-      {children}
-    </button>
-  );
-}
-
 /**
  * Shared found-cell chrome for live search and the loot-editor reveal preview.
+ *
+ * Outer shell is always a `div`: `<button>` clips overflow in Chromium even with
+ * `overflow: visible`, which ate the star burst. The interactive control is an
+ * inner full-size button when `as="button"`.
  */
 export function SearchFindRevealCell({
   def,
@@ -141,71 +106,79 @@ export function SearchFindRevealCell({
   const condPct =
     condition !== undefined ? Math.max(0, Math.min(100, Math.round(condition))) : null;
   const play = animate && highlight != null;
-  const pulseRef = useRef<HTMLSpanElement>(null);
   const [runId, setRunId] = useState(0);
+  const [bursting, setBursting] = useState(false);
+  const clearRef = useRef(0);
 
-  // Hard-restart CSS animations whenever playKey changes (Replay / first reveal).
   useLayoutEffect(() => {
-    if (!play) return;
-    const el = pulseRef.current;
-    if (el) {
-      el.classList.remove('search-find-pulse');
-      // Force reflow so the next add restarts the animation.
-      void el.offsetWidth;
-      el.classList.add('search-find-pulse');
+    window.clearTimeout(clearRef.current);
+    if (!play || !highlight) {
+      setBursting(false);
+      return;
     }
     setRunId((n) => n + 1);
+    setBursting(true);
+    clearRef.current = window.setTimeout(() => setBursting(false), BURST_MS);
+    return () => window.clearTimeout(clearRef.current);
   }, [playKey, play, highlight]);
 
-  const settledRing = highlightRingClass(highlight, {
-    pulse: false,
-    exoticIdle: !!def.exotic,
-  });
-  const playRing = highlight ? HIGHLIGHT_RING[highlight] : '';
+  const { boxShadow: _ignoredShadow, ...restStyle } = style ?? {};
+  void _ignoredShadow;
+
+  const faceClass = `relative z-[1] flex h-full w-full flex-col items-center justify-center rounded ${
+    bursting ? 'search-find-pulse' : ''
+  }`;
+
+  const face: ReactNode = (
+    <>
+      <Icon name={itemIcon(def)} size={iconSize} className="relative z-[1] drop-shadow" />
+      {count > 1 && (
+        <span className="absolute bottom-0 right-0 z-[1] rounded-tl bg-black/60 px-0.5 text-2xs font-black leading-tight text-white">
+          ×{count}
+        </span>
+      )}
+      {condPct != null && (
+        <span className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] h-[2px] bg-black/50">
+          <span
+            className="block h-full"
+            style={{
+              width: `${condPct}%`,
+              background: '#8fbf4b',
+            }}
+          />
+        </span>
+      )}
+    </>
+  );
 
   return (
-    <CellShell
-      as={as}
-      title={title}
-      onClick={onClick}
-      onMouseEnter={onMouseEnter}
-      onFocus={onFocus}
-      // Outer shell must not set `relative`: callers pass `absolute`, and those
-      // Tailwind utilities conflict by CSS order (relative winning stacks cells in flow).
-      className={`flex flex-col items-center justify-center overflow-visible rounded text-center ${settledRing} ${
+    <div
+      // Callers pass `absolute` + footprint; do not add `relative` here (Tailwind order clash).
+      className={`search-find-cell overflow-visible rounded text-center ${
         forceMotion ? 'search-find-fx--force-motion' : ''
       } ${className}`}
       style={{
         background: `${def.color}66`,
-        boxShadow: `inset 0 0 0 1px ${def.color}`,
-        ...style,
+        boxShadow: cellBoxShadow(def, highlight),
+        ...restStyle,
       }}
+      title={as === 'div' ? title : undefined}
     >
-      <span
-        ref={pulseRef}
-        className={`relative flex h-full w-full flex-col items-center justify-center rounded ${
-          play ? `search-find-pulse ${playRing}` : ''
-        }`}
-      >
-        {play && highlight ? <FindBurst highlight={highlight} runId={runId} /> : null}
-        <Icon name={itemIcon(def)} size={iconSize} className="relative z-[1] drop-shadow" />
-        {count > 1 && (
-          <span className="absolute bottom-0 right-0 z-[1] rounded-tl bg-black/60 px-0.5 text-2xs font-black leading-tight text-white">
-            ×{count}
-          </span>
-        )}
-        {condPct != null && (
-          <span className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] h-[2px] bg-black/50">
-            <span
-              className="block h-full"
-              style={{
-                width: `${condPct}%`,
-                background: '#8fbf4b',
-              }}
-            />
-          </span>
-        )}
-      </span>
-    </CellShell>
+      {bursting && highlight ? <FindBurst highlight={highlight} runId={runId} /> : null}
+      {as === 'button' ? (
+        <button
+          type="button"
+          title={title}
+          onClick={onClick}
+          onMouseEnter={onMouseEnter}
+          onFocus={onFocus}
+          className={`absolute inset-0 ${faceClass}`}
+        >
+          {face}
+        </button>
+      ) : (
+        <div className={faceClass}>{face}</div>
+      )}
+    </div>
   );
 }

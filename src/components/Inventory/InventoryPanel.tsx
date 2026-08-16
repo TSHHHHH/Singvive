@@ -97,7 +97,7 @@ export function InventoryPanel({ onClose }: { onClose?: () => void }) {
   const character = useGame((s) => s.character);
   const currentPositionId = useGame((s) => s.currentPositionId);
   const locations = useGame((s) => s.locations);
-  const useItem = useGame((s) => s.useItem);
+  const applyItem = useGame((s) => s.applyItem);
   const rotateItem = useGame((s) => s.rotateItem);
   const transferItem = useGame((s) => s.transferItem);
   const moveItem = useGame((s) => s.moveItem);
@@ -553,7 +553,7 @@ export function InventoryPanel({ onClose }: { onClose?: () => void }) {
                     <>
                       {usable && (
                         <button
-                          onClick={() => useItem(inspected.uid)}
+                          onClick={() => applyItem(inspected.uid)}
                           disabled={inCombat}
                           title={inCombat ? 'Cannot use items during combat' : undefined}
                           className={`w-full rounded px-1.5 py-1 text-xs font-semibold leading-tight ${
@@ -948,9 +948,13 @@ function statLines(
     switch (e.kind) {
       case 'food':
         lines.push({ key: 'food', label: 'Hunger', value: `+${e.hunger}` });
+        if (e.thirst != null) lines.push({ key: 'thirst', label: 'Thirst', value: `+${e.thirst}` });
+        if (e.energy != null) lines.push({ key: 'en', label: 'Energy', value: `+${e.energy}` });
         break;
       case 'water':
         lines.push({ key: 'thirst', label: 'Thirst', value: `+${e.thirst}` });
+        if (e.hunger != null) lines.push({ key: 'food', label: 'Hunger', value: `+${e.hunger}` });
+        if (e.energy != null) lines.push({ key: 'en', label: 'Energy', value: `+${e.energy}` });
         break;
       case 'heal':
         lines.push({ key: 'hp', label: 'Heal', value: `+${e.health} HP` });
@@ -960,12 +964,14 @@ function statLines(
         break;
       case 'energy':
         lines.push({ key: 'en', label: 'Energy', value: `+${e.energy}` });
+        if (e.hunger != null) lines.push({ key: 'food', label: 'Hunger', value: `+${e.hunger}` });
+        if (e.thirst != null) lines.push({ key: 'thirst', label: 'Thirst', value: `+${e.thirst}` });
         break;
       case 'fuel':
         lines.push({ key: 'fuel', label: 'Fuel', value: 'Evac weight' });
         break;
       default:
-        lines.push({ key: 'val', label: 'Value', value: `${def.value}` });
+        lines.push({ key: 'val', label: 'Curiosity', value: 'scrap / trade' });
     }
   }
   return lines;

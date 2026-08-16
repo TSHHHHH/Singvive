@@ -1,4 +1,5 @@
 import { Icon } from '../icons/Icon';
+import type { EvacVibe } from '../game/goal';
 
 interface Props {
   evacZoneName: string | null;
@@ -16,14 +17,27 @@ interface Props {
   doomColor: string;
   doomLabel: string;
   dayMult: number;
-  readinessRatio: number;
+  vibe: EvacVibe;
+  vibeLine: string;
   /** Opens the full objectives sheet (checklist, quests, the long version). */
   onOpen: () => void;
 }
 
+const VIBE_FILL: Record<EvacVibe, string> = {
+  thin: '#e8a54b',
+  maybe: '#e8c54b',
+  promising: '#7ec8a0',
+};
+
+const VIBE_WIDTH: Record<EvacVibe, number> = {
+  thin: 28,
+  maybe: 55,
+  promising: 82,
+};
+
 /**
  * The always-on objective readout for the left rail: dual-path glance
- * (survival mult + readiness) plus doom. Detail lives one click away.
+ * (survival mult + fogged radio vibe) plus doom. Detail lives one click away.
  */
 export function ObjectiveBar({
   evacZoneName,
@@ -36,11 +50,10 @@ export function ObjectiveBar({
   doomColor,
   doomLabel,
   dayMult,
-  readinessRatio,
+  vibe,
+  vibeLine,
   onOpen,
 }: Props) {
-  const readyPct = Math.round(readinessRatio * 100);
-
   return (
     <button
       onClick={onOpen}
@@ -97,13 +110,15 @@ export function ObjectiveBar({
             </div>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="w-8 shrink-0 text-2xs text-white/35">{readyPct}%</span>
+            <span className="w-10 shrink-0 truncate text-2xs text-white/35" title={vibeLine}>
+              {vibe === 'thin' ? 'thin' : vibe === 'maybe' ? 'maybe' : 'ok?'}
+            </span>
             <div className="h-1 flex-1 overflow-hidden rounded bg-black/50">
               <div
                 className="h-full transition-all"
                 style={{
-                  width: `${readyPct}%`,
-                  background: readyPct >= 100 ? '#7ec8a0' : '#e8a54b',
+                  width: `${VIBE_WIDTH[vibe]}%`,
+                  background: VIBE_FILL[vibe],
                 }}
               />
             </div>

@@ -1,9 +1,39 @@
+import { useEffect, useRef, type RefObject } from 'react';
 import { useGame } from '../game/store';
 import { GuideSectionView } from '../components/GuideSectionView';
 import { GUIDE_SECTIONS } from '../content/guideContent';
 
+/** Map vertical mouse-wheel to horizontal scroll (trackpad X still uses native). */
+function useHorizontalWheel(ref: RefObject<HTMLElement | null>) {
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    const onWheel = (e: WheelEvent) => {
+      if (el.scrollWidth <= el.clientWidth) return;
+      // Trackpads already send deltaX — leave those alone.
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+
+      const delta = e.deltaY;
+      if (delta === 0) return;
+
+      const maxScroll = el.scrollWidth - el.clientWidth;
+      const next = Math.min(maxScroll, Math.max(0, el.scrollLeft + delta));
+      if (next === el.scrollLeft) return;
+
+      e.preventDefault();
+      el.scrollLeft = next;
+    };
+
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [ref]);
+}
+
 export function Menu() {
   const { goToCharacter, continueRun, hasSavedRun, highScores } = useGame();
+  const guideScrollerRef = useRef<HTMLDivElement>(null);
+  useHorizontalWheel(guideScrollerRef);
 
   return (
     <div className="flex min-h-full items-center justify-center p-6">
@@ -36,11 +66,24 @@ export function Menu() {
         </div>
 
         <div className="mt-8 rounded-lg border border-white/15 bg-concrete-900/80 p-4 text-left">
-          <h2 className="mb-3 text-xs uppercase tracking-widest text-signal/80">How to play</h2>
-          {/* Phone: stacked scroll. Desktop: four columns side by side. */}
-          <div className="flex flex-col gap-5 lg:grid lg:grid-cols-4 lg:gap-4">
+          <div className="mb-3 flex items-baseline justify-between gap-3">
+            <h2 className="text-xs uppercase tracking-widest text-signal/80">How to play</h2>
+            <p className="text-2xs uppercase tracking-widest text-white/30">Scroll for more →</p>
+          </div>
+          {/* Horizontal scroller so new guide cards can be browsed without wrapping. */}
+          <div
+            ref={guideScrollerRef}
+            className="-mx-1 flex snap-x snap-mandatory gap-4 overflow-x-auto px-1 pb-2"
+            role="list"
+          >
             {GUIDE_SECTIONS.map((section) => (
-              <GuideSectionView key={section.id} section={section} />
+              <div
+                key={section.id}
+                className="w-[min(100%,17.5rem)] shrink-0 snap-start"
+                role="listitem"
+              >
+                <GuideSectionView section={section} />
+              </div>
             ))}
           </div>
         </div>

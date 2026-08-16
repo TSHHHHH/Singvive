@@ -7,8 +7,8 @@ import type { IconName } from '../icons/keys';
  * is pure: the store owns the live instance and applies the deltas.
  *
  * Layout is a building cutaway: full-height stair columns partition a corridor
- * of door units. Sealed landings gate which floors you can stand on; individual
- * doors may be permanently unavailable.
+ * of door units. Sealed landings are permanently gone; corridor/stair blockades
+ * gate the maze. Individual doors may also be boarded shut.
  */
 
 export type HdbArchetype = 'estate' | 'shelter';
@@ -127,50 +127,38 @@ export interface HdbUnitNode {
   scoutedInfo?: HdbScoutInfo;
 }
 
-/** Why a floor can't be walked onto. Some of these you can do something about. */
+/** Why a floor can't be walked onto. Sealed storeys are scenery — never opened. */
 export type SealKind = 'collapsed' | 'flooded' | 'welded' | 'burnt';
 
 export interface HdbSeal {
   kind: SealKind;
-  /** Welded gates and debris piles give; a pancaked slab does not. */
-  breakable: boolean;
-  /** Cost of forcing it — loud, because it is a wall. */
-  heat: number;
-  minutes: number;
 }
 
-export const SEAL_META: Record<SealKind, { label: string; blurb: string; breakable: boolean }> = {
+export const SEAL_META: Record<SealKind, { label: string; blurb: string }> = {
   collapsed: {
     label: 'Slab collapsed',
     blurb: 'The floor above came down on this one. Nothing to stand on.',
-    breakable: false,
   },
   flooded: {
     label: 'Flooded',
     blurb: 'Black water to the ceiling. The landing is below the waterline.',
-    breakable: false,
   },
   welded: {
     label: 'Gate welded',
-    blurb: 'Someone sealed the landing gate from the inside. It can be forced.',
-    breakable: true,
+    blurb: 'Someone sealed the landing from the inside. No way through.',
   },
   burnt: {
     label: 'Burnt out',
-    blurb: 'Debris packed the landing solid. It can be dug through.',
-    breakable: true,
+    blurb: 'Debris packed the landing solid. Nothing left to walk on.',
   },
 };
-
-export const SEAL_HEAT = 20;
-export const SEAL_MINUTES = 35;
 
 export interface HdbFloor {
   level: number;
   layoutType: 'slab' | 'point';
   heatLevel: number;
   units: HdbUnitNode[];
-  /** null once the floor can be entered — either born open, or forced open. */
+  /** null when the floor is walkable; otherwise permanently inaccessible. */
   sealed: HdbSeal | null;
   /**
    * Ground storey only. Open / partial void decks have pillar bays instead of
@@ -221,8 +209,9 @@ export interface HdbDungeon {
   visited: number[];
   /**
    * Counts every stairwell attempt. Folded into the rng key so a failed
-   * descent isn't re-rolled identically forever — without it, winning the
-   * fight your failed roll caused just replays the same roll.
+   * descent doesn't share a roll with the next try. Stair fights resume the
+   * interrupted cell move on combatContinue — moveSeq alone used to leave you
+   * stranded on the origin floor when heat kept failing the check.
    */
   moveSeq: number;
 }
@@ -360,7 +349,8 @@ export function isHunting(dungeon: HdbDungeon): boolean {
 
 /** Minutes each action inside the block costs. */
 export const BREACH_MINUTES = 15;
-export const STAIR_MINUTES = 6;
+/** Minutes per storey on the stairs (pack on, careful). Shaft hops charge by |Δlevel|. */
+export const STAIR_MINUTES = 2;
 
 const HAZARDS = ['Gas Leak', 'Tripwire', 'Collapsed Slab', 'Live Wiring', 'Padlocked Gate'];
 const LOOT_QUALITY = ['stripped', 'picked over', 'promising', 'untouched'];
@@ -378,8 +368,6 @@ export const SERVICE_ICON: Record<ShelterService, IconName> = {
   field_doctor: 'hdb.doctor',
   safe_bunk: 'hdb.bunk',
 };
-
-const SEAL_KINDS = Object.keys(SEAL_META) as SealKind[];
 
 interface StripLayout {
   stairs: HdbStair[];
@@ -517,14 +505,11 @@ export function generateDungeon(
     const isOpenFloor = open.has(level);
     let sealed: HdbSeal | null = null;
     if (!isOpenFloor) {
-      const kind = fRng.pick(SEAL_KINDS);
-      const meta = SEAL_META[kind];
-      sealed = {
-        kind,
-        breakable: meta.breakable,
-        heat: SEAL_HEAT,
-        minutes: SEAL_MINUTES,
-      };
+      // Flavour only — sealed storeys never open. Maze gates live in `blocks`.
+      const kind = fRng.chance(0.58)
+        ? fRng.pick(['collapsed', 'flooded'] as const)
+        : fRng.pick(['welded', 'burnt'] as const);
+      sealed = { kind };
     }
 
     let units: HdbUnitNode[] = [];
@@ -595,7 +580,7 @@ function buildMazeBlocks(
         }
       }
       if (!clear) continue;
-      if (rng.chance(0.28)) {
+      if (rng.chance(0.42)) {
         blocks[vertKey(col, a, b)] = {
           kind: 'stair_gate',
           breakable: true,
@@ -606,14 +591,14 @@ function buildMazeBlocks(
     }
   }
 
-  // Corridor obstacles on open floors (skip level 1 entry strip lightly).
+  // Corridor obstacles on open floors — the main maze pressure.
   for (const level of openLevels) {
     let placed = 0;
-    const max = level === 1 ? 1 : 2;
+    const max = level === 1 ? 2 : 3;
     for (let c = 0; c + 1 < dungeon.stripWidth && placed < max; c++) {
-      const chance = level === 1 ? 0.08 : 0.14;
+      const chance = level === 1 ? 0.14 : 0.26;
       if (!rng.chance(chance)) continue;
-      const kind: HdbBlockKind = rng.chance(0.2) ? 'collapse' : rng.chance(0.5) ? 'barricade' : 'debris';
+      const kind: HdbBlockKind = rng.chance(0.18) ? 'collapse' : rng.chance(0.5) ? 'barricade' : 'debris';
       const meta = BLOCK_META[kind];
       blocks[horizKey(level, c, c + 1)] = {
         kind,
@@ -762,16 +747,25 @@ function buildUnits(
 }
 
 /**
- * How dangerous the given floor is right now. Heat makes the whole block worse;
- * height buys a little quiet, since the dead pool at ground level.
+ * How dangerous fights on this floor hit. Heat wakes the block; storey height
+ * no longer softens it — going up is for loot, coming down is the risk.
  *
  * Capped at 5 because that's the top of the ordinary zombie roster — an
  * uncapped value used to climb forever and buy nothing above Brute.
  */
-export function floorThreat(dungeon: HdbDungeon, level: number): number {
-  const raw =
-    dungeon.baseDanger + heatBand(dungeon.blockHeat).threatBonus - Math.floor(level / 3);
+export function floorThreat(dungeon: HdbDungeon, _level?: number): number {
+  const raw = dungeon.baseDanger + heatBand(dungeon.blockHeat).threatBonus;
   return Math.max(0, Math.min(5, raw));
+}
+
+/**
+ * Heat-forward base for door encounter odds (before entry-type multiplier).
+ * Continuous heat plus band steps so every point on the gauge matters.
+ */
+export function heatEncounterBase(dungeon: HdbDungeon): number {
+  const frac = Math.min(1, dungeon.blockHeat / HEAT_MAX);
+  const band = heatBand(dungeon.blockHeat).threatBonus;
+  return Math.max(0.05, Math.min(0.85, 0.1 + frac * 0.5 + band * 0.04));
 }
 
 /**
@@ -874,12 +868,9 @@ export function breachOutcome(
   level: number,
 ): BreachOutcome {
   const meta = ENTRY_META[unit.entry];
-  const threat = floorThreat(dungeon, level);
   const known = unit.scoutedInfo;
-  // Heat feeds in twice over: coarsely through `threat`, and directly here so
-  // that every point on the gauge shifts the odds, not just a band boundary.
-  const frac = Math.min(1, dungeon.blockHeat / HEAT_MAX);
-  const base = (0.08 + threat * 0.06 + frac * 0.3) * meta.encounterMod;
+  // Encounter odds track heat + door type. Height only sweetens loot.
+  const base = heatEncounterBase(dungeon) * meta.encounterMod;
   const encounterChance = Math.max(
     0.02,
     Math.min(0.9, known && known.threatCount === 0 ? base * 0.35 : base),
@@ -888,7 +879,7 @@ export function breachOutcome(
     (unit.type === 'corner_unit' ? 2 : 0) +
     (unit.type === 'hazard' ? 1 : 0) +
     meta.lootMod +
-    Math.floor(level / 4);
+    Math.floor((level - 1) / 2);
   return {
     encounterChance,
     lootMod,
@@ -911,13 +902,51 @@ export function descentIsChecked(dungeon: HdbDungeon): boolean {
 }
 
 /** The parts that add up to floorThreat, for a HUD that has to explain itself. */
-export function threatBreakdown(dungeon: HdbDungeon, level: number) {
+export function threatBreakdown(dungeon: HdbDungeon, level?: number) {
   return {
     base: dungeon.baseDanger,
     heat: heatBand(dungeon.blockHeat).threatBonus,
-    height: -Math.floor(level / 3),
     total: floorThreat(dungeon, level),
   };
+}
+
+/**
+ * Exact fail rate for the descent check (d20 + Dex + End vs DC; nat 20 always
+ * succeeds). Exported so stair tooltips can preview the odds before you commit.
+ */
+export function retreatFailChance(attrs: Attributes, dungeon: HdbDungeon): number {
+  if (!descentIsChecked(dungeon)) return 0;
+  const dc = retreatDc(dungeon);
+  const mod = attrs.dexterity + attrs.endurance;
+  let fails = 0;
+  for (let roll = 1; roll <= 20; roll++) {
+    if (roll === 20) continue;
+    if (roll + mod < dc) fails += 1;
+  }
+  return fails / 20;
+}
+
+/**
+ * Hover line for a path that changes storey: hunt % when Swarm, descent DC +
+ * fail % when going down with heat. Null when stairs are free.
+ */
+export function stairTravelHint(
+  dungeon: HdbDungeon,
+  path: HdbPos[],
+  attrs: Attributes,
+): string | null {
+  if (!pathUsesStairs(path)) return null;
+  const bits: string[] = [];
+  if (isHunting(dungeon)) {
+    bits.push(`${Math.round(HUNT_ELITE_CHANCE * 100)}% hunt on the stairs`);
+  }
+  if (pathDescends(path) && descentIsChecked(dungeon)) {
+    const failPct = Math.round(retreatFailChance(attrs, dungeon) * 100);
+    bits.push(`descent DC ${retreatDc(dungeon)} · ~${failPct}% fail`);
+  } else if (!isHunting(dungeon) && !pathDescends(path)) {
+    bits.push('climb free');
+  }
+  return bits.length ? bits.join(' · ') : null;
 }
 
 export interface RetreatCheck {
@@ -1017,11 +1046,126 @@ export function findPath(
   return null;
 }
 
+/** Same as neighbors, but corridor / stair blocks do not stop you. */
+function neighborsIgnoringBlocks(dungeon: HdbDungeon, pos: HdbPos): HdbPos[] {
+  if (!isOpen(dungeon, pos.level)) return [];
+  const out: HdbPos[] = [];
+
+  for (const dc of [-1, 1] as const) {
+    const column = pos.column + dc;
+    if (column < 0 || column >= dungeon.stripWidth) continue;
+    out.push({ level: pos.level, column });
+  }
+
+  if (isStairColumn(dungeon, pos.column)) {
+    for (const dir of [-1, 1] as const) {
+      const level = nextOpenLevel(dungeon, pos.level, dir);
+      if (level === null) continue;
+      out.push({ level, column: pos.column });
+    }
+  }
+
+  return out;
+}
+
+/** Ideal route if every corridor block and stair gate were gone. */
+export function findPathIgnoringBlocks(
+  dungeon: HdbDungeon,
+  from: HdbPos,
+  to: HdbPos,
+): HdbPos[] | null {
+  if (samePos(from, to)) return [from];
+  if (!isOpen(dungeon, to.level)) return null;
+
+  const q: HdbPos[] = [from];
+  const prev = new Map<string, string | null>();
+  prev.set(posKey(from), null);
+
+  while (q.length) {
+    const cur = q.shift()!;
+    for (const n of neighborsIgnoringBlocks(dungeon, cur)) {
+      const k = posKey(n);
+      if (prev.has(k)) continue;
+      prev.set(k, posKey(cur));
+      if (samePos(n, to)) {
+        const path: HdbPos[] = [n];
+        let walk: string | null = posKey(cur);
+        while (walk) {
+          const [lv, col] = walk.split(':').map(Number);
+          path.push({ level: lv, column: col });
+          walk = prev.get(walk) ?? null;
+        }
+        path.reverse();
+        return path;
+      }
+      q.push(n);
+    }
+  }
+  return null;
+}
+
+export function blockKeyBetween(from: HdbPos, to: HdbPos): string | null {
+  if (from.level === to.level) return horizKey(from.level, from.column, to.column);
+  if (from.column === to.column) return vertKey(from.column, from.level, to.level);
+  return null;
+}
+
+export interface PathAttempt {
+  /** Cells to walk, including the start. Length 1 means you are already stopped at a block. */
+  path: HdbPos[];
+  /** True when the full route to the click target is clear. */
+  reached: boolean;
+  blockedBy: HdbBlock | null;
+  blockedKey: string | null;
+}
+
+/**
+ * Prefer a clear path. If a blockade sits on the ideal route, walk up to the
+ * cell before it and surface the block so the player can clear (or give up).
+ */
+export function findPathToward(
+  dungeon: HdbDungeon,
+  from: HdbPos,
+  to: HdbPos,
+): PathAttempt | null {
+  if (!isOpen(dungeon, to.level)) return null;
+  if (samePos(from, to)) {
+    return { path: [from], reached: true, blockedBy: null, blockedKey: null };
+  }
+
+  const clear = findPath(dungeon, from, to);
+  if (clear) {
+    return { path: clear, reached: true, blockedBy: null, blockedKey: null };
+  }
+
+  const ideal = findPathIgnoringBlocks(dungeon, from, to);
+  if (!ideal || ideal.length < 2) return null;
+
+  const path: HdbPos[] = [ideal[0]];
+  for (let i = 1; i < ideal.length; i++) {
+    const prev = ideal[i - 1];
+    const next = ideal[i];
+    const block = edgeBlock(dungeon, prev, next);
+    if (block) {
+      return {
+        path,
+        reached: false,
+        blockedBy: block,
+        blockedKey: blockKeyBetween(prev, next),
+      };
+    }
+    path.push(next);
+  }
+
+  return { path, reached: true, blockedBy: null, blockedKey: null };
+}
+
 export function pathMinutes(path: HdbPos[]): number {
   if (path.length <= 1) return 0;
   let m = 0;
   for (let i = 1; i < path.length; i++) {
-    m += path[i].level === path[i - 1].level ? CORRIDOR_MINUTES : STAIR_MINUTES;
+    const dLevel = Math.abs(path[i].level - path[i - 1].level);
+    m += dLevel === 0 ? CORRIDOR_MINUTES : STAIR_MINUTES * dLevel;
   }
   return m;
 }
@@ -1089,25 +1233,29 @@ export function reachableCells(dungeon: HdbDungeon): HdbPos[] {
   return out;
 }
 
-/** Levels still sealed that you can force from an adjacent stair you're able to reach. */
-export function forceableLevels(dungeon: HdbDungeon): number[] {
-  const out: number[] = [];
-  for (let l = 1; l <= dungeon.height; l++) {
-    const seal = dungeon.floors[l - 1]?.sealed;
-    if (!seal?.breakable) continue;
-    let ok = false;
-    for (const stair of dungeon.stairs) {
-      for (const adj of [l - 1, l + 1]) {
-        if (adj < 1 || adj > dungeon.height || !isOpen(dungeon, adj)) continue;
-        const target = { level: adj, column: stair.column };
-        if (findPath(dungeon, dungeon.pos, target)) {
-          ok = true;
-          break;
-        }
-      }
-      if (ok) break;
+/**
+ * Cells you can *attempt* — clear path or route that stops at a blockade.
+ * Same fog rule as reachableCells.
+ */
+export function attemptableCells(dungeon: HdbDungeon): HdbPos[] {
+  const from = dungeon.pos;
+  const seen = new Set<string>();
+  const out: HdbPos[] = [];
+  const q: HdbPos[] = [from];
+  seen.add(posKey(from));
+
+  while (q.length) {
+    const cur = q.shift()!;
+    for (const n of neighborsIgnoringBlocks(dungeon, cur)) {
+      const k = posKey(n);
+      if (seen.has(k)) continue;
+      seen.add(k);
+      const revealed = isLevelRevealed(dungeon, n.level);
+      const stair = isStairColumn(dungeon, n.column);
+      if (!revealed && !stair) continue;
+      out.push(n);
+      q.push(n);
     }
-    if (ok) out.push(l);
   }
   return out;
 }
@@ -1149,8 +1297,8 @@ export function clearBlock(
   return { ...dungeon, blocks };
 }
 
-/** Breakable blocks on an edge touching the current cell. */
-export function adjacentBreakableBlocks(
+/** Edge blocks touching the current cell (clearable and permanent). */
+export function adjacentEdgeBlocks(
   dungeon: HdbDungeon,
 ): { key: string; block: HdbBlock; toward: HdbPos }[] {
   const out: { key: string; block: HdbBlock; toward: HdbPos }[] = [];
@@ -1162,7 +1310,7 @@ export function adjacentBreakableBlocks(
     if (n.column < 0 || n.column >= dungeon.stripWidth) continue;
     const key = horizKey(pos.level, pos.column, n.column);
     const block = dungeon.blocks[key];
-    if (block?.breakable) out.push({ key, block, toward: n });
+    if (block) out.push({ key, block, toward: n });
   }
   if (isStairColumn(dungeon, pos.column)) {
     for (const dir of [-1, 1] as const) {
@@ -1171,31 +1319,17 @@ export function adjacentBreakableBlocks(
       const toward = { level, column: pos.column };
       const key = vertKey(pos.column, pos.level, level);
       const block = dungeon.blocks[key];
-      if (block?.breakable) out.push({ key, block, toward });
+      if (block) out.push({ key, block, toward });
     }
   }
   return out;
 }
 
-/** Open a forced landing and give the floor its rooms. */
-export function openSealedFloor(
-  rng: Rng,
+/** Breakable blocks on an edge touching the current cell. */
+export function adjacentBreakableBlocks(
   dungeon: HdbDungeon,
-  level: number,
-  archetype: HdbArchetype,
-): HdbDungeon {
-  return {
-    ...dungeon,
-    floors: dungeon.floors.map((f) =>
-      f.level !== level
-        ? f
-        : {
-            ...f,
-            sealed: null,
-            units: buildUnits(rng, f.level, archetype, dungeon.unitColumns),
-          },
-    ),
-  };
+): { key: string; block: HdbBlock; toward: HdbPos }[] {
+  return adjacentEdgeBlocks(dungeon).filter((e) => e.block.breakable);
 }
 
 /** Convenience for the UI — the floor the player is standing on. */

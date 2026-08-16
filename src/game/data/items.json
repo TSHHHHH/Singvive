@@ -67,7 +67,8 @@
     "weight": 0.5,
     "effect": {
       "kind": "food",
-      "hunger": 36
+      "hunger": 36,
+      "thirst": 10
     },
     "value": 5,
     "stackable": false,
@@ -100,7 +101,9 @@
     "weight": 0.9,
     "effect": {
       "kind": "food",
-      "hunger": 70
+      "hunger": 70,
+      "thirst": 12,
+      "energy": 15
     },
     "value": 24,
     "stackable": false,
@@ -116,7 +119,9 @@
     "weight": 1.4,
     "effect": {
       "kind": "food",
-      "hunger": 30
+      "hunger": 30,
+      "thirst": 6,
+      "energy": 12
     },
     "value": 10,
     "stackable": false,
@@ -180,7 +185,8 @@
     "weight": 0.5,
     "effect": {
       "kind": "food",
-      "hunger": 50
+      "hunger": 50,
+      "thirst": 8
     },
     "value": 8,
     "stackable": false,
@@ -251,7 +257,7 @@
       "kind": "water",
       "thirst": 28
     },
-    "value": 5,
+    "value": 8,
     "stackable": true,
     "maxStack": 3,
     "color": "#2f7fb5",
@@ -268,7 +274,7 @@
       "kind": "water",
       "thirst": 32
     },
-    "value": 7,
+    "value": 10,
     "stackable": true,
     "maxStack": 3,
     "color": "#2fb5a5"
@@ -326,7 +332,8 @@
     "weight": 0.5,
     "effect": {
       "kind": "water",
-      "thirst": 30
+      "thirst": 30,
+      "energy": 10
     },
     "value": 6,
     "stackable": true,
@@ -441,7 +448,7 @@
       "partHeal": 60,
       "stopsBleeding": "all"
     },
-    "value": 25,
+    "value": 26,
     "stackable": false,
     "maxStack": 1,
     "color": "#c94f4f",
@@ -457,7 +464,7 @@
       "kind": "cure",
       "infection": 45
     },
-    "value": 30,
+    "value": 24,
     "stackable": true,
     "maxStack": 3,
     "color": "#7fbf6b",
@@ -577,7 +584,8 @@
     "weight": 0.4,
     "effect": {
       "kind": "energy",
-      "energy": 30
+      "energy": 30,
+      "thirst": 8
     },
     "value": 9,
     "stackable": true,
@@ -793,7 +801,7 @@
       "accuracy": 2,
       "ranged": false
     },
-    "value": 48,
+    "value": 22,
     "stackable": false,
     "maxStack": 1,
     "color": "#8f9498",
@@ -876,7 +884,7 @@
       "accuracy": 3,
       "ranged": true
     },
-    "value": 45,
+    "value": 24,
     "stackable": false,
     "maxStack": 1,
     "color": "#4a4f55",
@@ -898,7 +906,7 @@
       "ranged": true,
       "roundsPerShot": 2
     },
-    "value": 60,
+    "value": 32,
     "stackable": false,
     "maxStack": 1,
     "color": "#5a3a1d",
@@ -918,7 +926,7 @@
       "kind": "ammo",
       "rounds": 12
     },
-    "value": 20,
+    "value": 22,
     "stackable": true,
     "maxStack": 5,
     "color": "#c9a441",
@@ -934,7 +942,7 @@
       "kind": "ammo",
       "rounds": 4
     },
-    "value": 8,
+    "value": 10,
     "stackable": true,
     "maxStack": 6,
     "color": "#a8862f"
@@ -1439,7 +1447,7 @@
     "effect": {
       "kind": "fuel"
     },
-    "value": 22,
+    "value": 20,
     "stackable": false,
     "maxStack": 1,
     "color": "#c0392b"
@@ -1509,7 +1517,7 @@
     "effect": {
       "kind": "misc"
     },
-    "value": 35,
+    "value": 2,
     "stackable": true,
     "maxStack": 3,
     "color": "#d4af37",
@@ -1524,7 +1532,7 @@
     "effect": {
       "kind": "misc"
     },
-    "value": 6,
+    "value": 1,
     "stackable": true,
     "maxStack": 4,
     "color": "#2f6fb5"
@@ -1538,7 +1546,7 @@
     "effect": {
       "kind": "misc"
     },
-    "value": 18,
+    "value": 1,
     "stackable": true,
     "maxStack": 5,
     "color": "#b5322a",
@@ -1570,7 +1578,8 @@
     "value": 10,
     "stackable": false,
     "maxStack": 1,
-    "color": "#3a5a6b"
+    "color": "#3a5a6b",
+    "sleepGear": true
   },
   "powerbank": {
     "id": "powerbank",
@@ -1750,5 +1759,560 @@
     "exotic": true,
     "scarcity": 0.35,
     "maxCondition": 100
+  },
+  "box_cutter": {
+    "id": "box_cutter",
+    "name": "Box Cutter",
+    "w": 1,
+    "h": 1,
+    "weight": 0.15,
+    "effect": {
+      "kind": "weapon",
+      "damage": 8,
+      "accuracy": 1,
+      "ranged": false
+    },
+    "value": 6,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#9aa0a6",
+    "slot": "mainHand",
+    "wearRate": 1.8,
+    "maxCondition": 60
+  },
+  "rotan_cane": {
+    "id": "rotan_cane",
+    "name": "Rotan Cane",
+    "w": 1,
+    "h": 3,
+    "weight": 0.4,
+    "effect": {
+      "kind": "weapon",
+      "damage": 11,
+      "accuracy": 2,
+      "ranged": false
+    },
+    "value": 8,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#a8804a",
+    "slot": "mainHand",
+    "wearRate": 1.4
+  },
+  "bamboo_pole": {
+    "id": "bamboo_pole",
+    "name": "Bamboo Pole",
+    "w": 1,
+    "h": 4,
+    "weight": 0.7,
+    "effect": {
+      "kind": "weapon",
+      "damage": 12,
+      "accuracy": 1,
+      "ranged": false
+    },
+    "value": 5,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#8a9a4a",
+    "slot": "mainHand",
+    "twoHanded": true,
+    "wearRate": 1.5,
+    "maxCondition": 70
+  },
+  "pipe_wrench": {
+    "id": "pipe_wrench",
+    "name": "Pipe Wrench",
+    "w": 1,
+    "h": 2,
+    "weight": 1.2,
+    "effect": {
+      "kind": "weapon",
+      "damage": 15,
+      "accuracy": 0,
+      "ranged": false
+    },
+    "value": 14,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#7a8088",
+    "slot": "mainHand",
+    "wearRate": 0.65
+  },
+  "tire_iron": {
+    "id": "tire_iron",
+    "name": "Tire Iron",
+    "w": 1,
+    "h": 3,
+    "weight": 1.4,
+    "effect": {
+      "kind": "weapon",
+      "damage": 16,
+      "accuracy": 0,
+      "ranged": false
+    },
+    "value": 13,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#5a6068",
+    "slot": "mainHand",
+    "wearRate": 0.75
+  },
+  "police_baton": {
+    "id": "police_baton",
+    "name": "Police Baton",
+    "w": 1,
+    "h": 2,
+    "weight": 0.6,
+    "effect": {
+      "kind": "weapon",
+      "damage": 16,
+      "accuracy": 2,
+      "ranged": false
+    },
+    "value": 18,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#2a2e34",
+    "slot": "mainHand",
+    "wearRate": 0.85
+  },
+  "rebar": {
+    "id": "rebar",
+    "name": "Rebar",
+    "w": 1,
+    "h": 3,
+    "weight": 2.2,
+    "effect": {
+      "kind": "weapon",
+      "damage": 17,
+      "accuracy": -1,
+      "ranged": false
+    },
+    "value": 10,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#6b7075",
+    "slot": "mainHand",
+    "wearRate": 0.5
+  },
+  "cricket_bat": {
+    "id": "cricket_bat",
+    "name": "Cricket Bat",
+    "w": 1,
+    "h": 3,
+    "weight": 1.3,
+    "effect": {
+      "kind": "weapon",
+      "damage": 20,
+      "accuracy": 1,
+      "ranged": false
+    },
+    "value": 16,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#c9a86a",
+    "slot": "mainHand",
+    "twoHanded": true,
+    "wearRate": 1,
+    "scarcity": 0.7
+  },
+  "pot_lid": {
+    "id": "pot_lid",
+    "name": "Pot Lid",
+    "w": 2,
+    "h": 2,
+    "weight": 0.5,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 4,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#8a9098",
+    "slot": "offHand",
+    "modifiers": {
+      "defenseBonus": 1,
+      "dodgeBonus": 0.03
+    }
+  },
+  "metal_tray": {
+    "id": "metal_tray",
+    "name": "Metal Tray",
+    "w": 2,
+    "h": 2,
+    "weight": 0.8,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 7,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#a8adb2",
+    "slot": "offHand",
+    "modifiers": {
+      "defenseBonus": 2,
+      "dodgeBonus": 0.04
+    }
+  },
+  "traffic_barrier": {
+    "id": "traffic_barrier",
+    "name": "Traffic Barrier Piece",
+    "w": 2,
+    "h": 3,
+    "weight": 3.5,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 12,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#c45a1d",
+    "slot": "offHand",
+    "modifiers": {
+      "defenseBonus": 3,
+      "attackBonus": -1,
+      "dodgeBonus": 0.05
+    }
+  },
+  "bike_helmet": {
+    "id": "bike_helmet",
+    "name": "Bicycle Helmet",
+    "w": 2,
+    "h": 1,
+    "weight": 0.4,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 10,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#3a8a5a",
+    "slot": "head",
+    "modifiers": {
+      "defenseBonus": 1,
+      "limbArmor": 2,
+      "statusResist": 0.12,
+      "dodgeBonus": -0.02,
+      "headTargetReduction": 0.25,
+      "headCritReduction": 0.2
+    }
+  },
+  "welding_mask": {
+    "id": "welding_mask",
+    "name": "Welding Mask",
+    "w": 2,
+    "h": 2,
+    "weight": 1.1,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 14,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#2a2e34",
+    "slot": "head",
+    "modifiers": {
+      "defenseBonus": 2,
+      "limbArmor": 3,
+      "statusResist": 0.18,
+      "dodgeBonus": -0.07,
+      "headTargetReduction": 0.32,
+      "headCritReduction": 0.28
+    }
+  },
+  "security_vest": {
+    "id": "security_vest",
+    "name": "Security Vest",
+    "w": 2,
+    "h": 2,
+    "weight": 2,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 22,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#3a4048",
+    "slot": "body",
+    "modifiers": {
+      "defenseBonus": 3,
+      "limbArmor": 3,
+      "statusResist": 0.15,
+      "dodgeBonus": -0.03
+    },
+    "scarcity": 0.55
+  },
+  "football_pads": {
+    "id": "football_pads",
+    "name": "Football Pads",
+    "w": 2,
+    "h": 3,
+    "weight": 2.8,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 18,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#4a5a7a",
+    "slot": "body",
+    "modifiers": {
+      "defenseBonus": 3,
+      "limbArmor": 4,
+      "statusResist": 0.14,
+      "dodgeBonus": -0.04
+    }
+  },
+  "knee_pads": {
+    "id": "knee_pads",
+    "name": "Knee Pads",
+    "w": 1,
+    "h": 1,
+    "weight": 0.35,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 9,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#5a6068",
+    "slot": "legs",
+    "modifiers": {
+      "limbArmor": 2,
+      "statusResist": 0.1,
+      "dodgeBonus": 0.01
+    }
+  },
+  "mee_siam": {
+    "id": "mee_siam",
+    "name": "Packet Mee Siam",
+    "w": 2,
+    "h": 1,
+    "weight": 0.45,
+    "effect": {
+      "kind": "food",
+      "hunger": 38,
+      "thirst": 10
+    },
+    "value": 7,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#c45a5a",
+    "maxCondition": 100,
+    "perishable": true
+  },
+  "chicken_rice": {
+    "id": "chicken_rice",
+    "name": "Packet Chicken Rice",
+    "w": 2,
+    "h": 1,
+    "weight": 0.55,
+    "effect": {
+      "kind": "food",
+      "hunger": 42,
+      "thirst": 12
+    },
+    "value": 8,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#d9c9a3",
+    "maxCondition": 100,
+    "perishable": true
+  },
+  "hardtack": {
+    "id": "hardtack",
+    "name": "Hardtack Biscuits",
+    "w": 1,
+    "h": 1,
+    "weight": 0.25,
+    "effect": {
+      "kind": "food",
+      "hunger": 22
+    },
+    "value": 4,
+    "stackable": true,
+    "maxStack": 5,
+    "color": "#c9b458"
+  },
+  "bandung": {
+    "id": "bandung",
+    "name": "Bottle of Bandung",
+    "w": 1,
+    "h": 2,
+    "weight": 0.5,
+    "effect": {
+      "kind": "water",
+      "thirst": 22,
+      "hunger": 8
+    },
+    "value": 5,
+    "stackable": true,
+    "maxStack": 3,
+    "color": "#c45a8a"
+  },
+  "soya_bean": {
+    "id": "soya_bean",
+    "name": "Soya Bean Drink",
+    "w": 1,
+    "h": 2,
+    "weight": 0.45,
+    "effect": {
+      "kind": "water",
+      "thirst": 20,
+      "hunger": 8
+    },
+    "value": 4,
+    "stackable": true,
+    "maxStack": 4,
+    "color": "#d9c9a3"
+  },
+  "bubble_tea": {
+    "id": "bubble_tea",
+    "name": "Bubble Tea",
+    "w": 1,
+    "h": 2,
+    "weight": 0.55,
+    "effect": {
+      "kind": "water",
+      "thirst": 16,
+      "hunger": 14,
+      "energy": 12
+    },
+    "value": 9,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#8a5a3a",
+    "maxCondition": 100,
+    "perishable": true,
+    "scarcity": 0.55
+  },
+  "premium_bento": {
+    "id": "premium_bento",
+    "name": "Premium Bento",
+    "w": 2,
+    "h": 2,
+    "weight": 0.7,
+    "effect": {
+      "kind": "food",
+      "hunger": 48,
+      "thirst": 18,
+      "energy": 20
+    },
+    "value": 18,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#4a5a3a",
+    "maxCondition": 100,
+    "perishable": true,
+    "scarcity": 0.35
+  },
+  "100_plus": {
+    "id": "100_plus",
+    "name": "100 Plus Can",
+    "w": 1,
+    "h": 2,
+    "weight": 0.4,
+    "effect": {
+      "kind": "energy",
+      "energy": 32,
+      "thirst": 14
+    },
+    "value": 10,
+    "stackable": true,
+    "maxStack": 3,
+    "color": "#2f9fb5"
+  },
+  "plasters": {
+    "id": "plasters",
+    "name": "Box of Plasters",
+    "w": 1,
+    "h": 1,
+    "weight": 0.1,
+    "effect": {
+      "kind": "heal",
+      "health": 8,
+      "stopsBleeding": "one"
+    },
+    "value": 5,
+    "stackable": true,
+    "maxStack": 4,
+    "color": "#d8d5cc"
+  },
+  "vitamin_c": {
+    "id": "vitamin_c",
+    "name": "Vitamin C Tablets",
+    "w": 1,
+    "h": 1,
+    "weight": 0.08,
+    "effect": {
+      "kind": "heal",
+      "health": 5
+    },
+    "value": 4,
+    "stackable": true,
+    "maxStack": 5,
+    "color": "#e0b020"
+  },
+  "oral_rehydration": {
+    "id": "oral_rehydration",
+    "name": "ORS Sachets",
+    "w": 1,
+    "h": 1,
+    "weight": 0.1,
+    "effect": {
+      "kind": "water",
+      "thirst": 16
+    },
+    "value": 6,
+    "stackable": true,
+    "maxStack": 5,
+    "color": "#6b8a94"
+  },
+  "yoga_mat": {
+    "id": "yoga_mat",
+    "name": "Yoga Mat",
+    "w": 2,
+    "h": 2,
+    "weight": 1,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 8,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#6a3a6a",
+    "sleepGear": true
+  },
+  "camp_pillow": {
+    "id": "camp_pillow",
+    "name": "Camp Pillow",
+    "w": 2,
+    "h": 1,
+    "weight": 0.35,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 7,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#5a6b4a",
+    "sleepGear": true,
+    "scarcity": 0.7
+  },
+  "emergency_blanket": {
+    "id": "emergency_blanket",
+    "name": "Emergency Blanket",
+    "w": 1,
+    "h": 2,
+    "weight": 0.15,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 9,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#c0c4c8",
+    "sleepGear": true
   }
 }

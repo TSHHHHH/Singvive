@@ -10,14 +10,28 @@
   --safe-right: env(safe-area-inset-right, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
-  /* Mobile bottom chrome: nav row (~44px) + HereCompactBar (~52px) + mini-log + gaps */
+  /* Mobile bottom chrome: nav row (~44px) + combined here/log strip + gaps.
+     Interrupt cards (event/search/contact) override --mobile-chrome-bottom
+     via .phone-interrupt-open on the game shell. */
   --mobile-nav-h: 2.75rem;
-  --mobile-here-bar-h: 3.25rem;
-  --mobile-mini-log-h: 2.85rem;
+  --mobile-map-chrome-h: 5.75rem;
+  --mobile-interrupt-chrome-h: min(70vh, 28rem);
   --mobile-status-bar-h: 2.25rem;
   --mobile-chrome-bottom: calc(
-    var(--mobile-nav-h) + var(--safe-bottom) + var(--mobile-here-bar-h) + var(--mobile-mini-log-h) + 1.25rem
+    var(--mobile-nav-h) + var(--safe-bottom) + var(--mobile-map-chrome-h) + 1.25rem
   );
+}
+
+/* Tall contact / event / search card replaces idle map chrome on phone. */
+.phone-interrupt-open {
+  --mobile-chrome-bottom: calc(
+    var(--mobile-nav-h) + var(--safe-bottom) + var(--mobile-interrupt-chrome-h) + 0.75rem
+  );
+}
+
+/* Active fight owns the Map tab — no floating target dock clearance needed. */
+.phone-fight-open {
+  --mobile-chrome-bottom: calc(var(--mobile-nav-h) + var(--safe-bottom) + 0.5rem);
 }
 
 html,
@@ -119,14 +133,14 @@ select optgroup {
   }
   100% {
     opacity: 0;
-    transform: translateY(-28px) scale(0.2);
+    transform: translateY(-22px) scale(0.35);
   }
 }
 .search-find-burst {
   pointer-events: none;
   position: absolute;
-  inset: 0;
-  z-index: 12;
+  inset: -12px;
+  z-index: 20;
   overflow: visible;
 }
 .search-find-burst-arm {
@@ -146,7 +160,7 @@ select optgroup {
   background: var(--burst-color, #fcd34d);
   clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
   box-shadow: 0 0 6px color-mix(in srgb, var(--burst-color, #fcd34d) 80%, transparent);
-  animation: search-find-burst-fly 0.9s ease-out 1 forwards;
+  animation: search-find-burst-fly 0.85s ease-out 1 both;
   animation-delay: var(--burst-delay, 0ms);
 }
 .search-find-burst--exotic .search-find-burst-shard {
@@ -167,16 +181,19 @@ select optgroup {
   }
   .search-find-burst-shard {
     animation: none;
-    opacity: 0.9;
-    transform: translateY(-10px) scale(0.7);
+    opacity: 0.85;
+    transform: translateY(-10px) scale(0.75);
   }
-  /* Editor preview can opt into motion so Replay stays testable. */
+  /*
+   * Gameplay reveal FX opts in via .search-find-fx--force-motion (live search +
+   * loot editor). Ambient HUD motion still respects reduced-motion above.
+   */
   .search-find-fx--force-motion .search-find-pulse {
     animation: search-find-pulse 1.1s ease-out 1;
     filter: none;
   }
   .search-find-fx--force-motion .search-find-burst-shard {
-    animation: search-find-burst-fly 0.9s ease-out 1 forwards;
+    animation: search-find-burst-fly 0.85s ease-out 1 both;
     opacity: 1;
     transform: none;
   }
@@ -225,6 +242,27 @@ select optgroup {
 }
 .player-pin.is-faded {
   opacity: 0.22;
+}
+/* Legend-row pin — matches text-xs line box, not map marker scale. */
+.player-pin--xs {
+  position: relative;
+  width: 11px;
+  height: 14px;
+}
+.player-pin--xs .player-pin__body {
+  left: 0.5px;
+  top: 0;
+  width: 10px;
+  height: 10px;
+  border-width: 1.5px;
+  box-shadow: 0 0 4px rgba(232, 229, 221, 0.45);
+}
+.player-pin--xs .player-pin__ground {
+  top: 12px;
+  width: 5px;
+  height: 2px;
+  margin-left: -2.5px;
+  box-shadow: none;
 }
 /* Compact pin for the HDB cutaway — tip still sits on the floor line. */
 .player-pin--sm {

@@ -16,6 +16,7 @@ import { visibilityOf } from '../game/fog';
 import { FogOverlay } from './FogOverlay';
 import type { ExploredCircle } from '../game/fog';
 import type { TravelAnim } from '../game/store';
+import { useGame } from '../game/store';
 import type { NoisePulse } from '../game/noise';
 import { HAZARD_CONFIG, type HazardZone } from '../game/wilds';
 import { NoiseWaves } from './NoiseWaves';
@@ -502,6 +503,7 @@ function GameMapInner({
   // to see it (or already in memory, if the world build got there first).
   const [showMrt, setShowMrt] = useState(loadMrtPref);
   const net = useMrtNetwork(showMrt);
+  const destroyedTunnelEdges = useGame((s) => s.destroyedTunnelEdges);
 
   const toggleMrt = () => {
     setShowMrt((on) => {
@@ -591,7 +593,9 @@ function GameMapInner({
 
       <NoiseWaves pulses={noisePulses} />
       <PlayerMarker home={home} travelAnim={travelAnim} />
-      {showMrt && net && <MrtOverlay net={net} />}
+      {showMrt && net && (
+        <MrtOverlay net={net} destroyedEdges={destroyedTunnelEdges} />
+      )}
     </MapContainer>
 
       {/* ---- rail network toggle + legend ---- */}
@@ -619,6 +623,15 @@ function GameMapInner({
               <span className="truncate">{line.name}</span>
             </div>
           ))}
+          {destroyedTunnelEdges.length > 0 && (
+            <div className="mt-1 flex items-center gap-1.5 border-t border-white/10 pt-1 text-white/55">
+              <span
+                className="inline-block h-0 w-4 shrink-0 border-t-2 border-dashed border-white/50"
+                aria-hidden
+              />
+              <span>Dashed = collapsed</span>
+            </div>
+          )}
           <div className="mt-1 border-t border-white/10 pt-1 text-white/35">
             OSM · baked {net.generatedAt}
           </div>

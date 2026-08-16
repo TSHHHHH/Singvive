@@ -548,18 +548,6 @@ async function main() {
       : 'bake:zones — Nominatim mainland + OSM islands/water/restricted/vegetation',
   );
 
-  const waterBody = `[out:json][timeout:600];
-(
-  way["natural"="water"]${BBOX};
-  relation["natural"="water"]${BBOX};
-  way["water"~"^(lake|reservoir|pond|basin|oxbow|lagoon|wastewater)$"]${BBOX};
-  relation["water"~"^(lake|reservoir|pond|basin|oxbow|lagoon|wastewater)$"]${BBOX};
-  way["landuse"~"^(reservoir|basin)$"]${BBOX};
-  relation["landuse"~"^(reservoir|basin)$"]${BBOX};
-  way["man_made"="reservoir_covered"]${BBOX};
-);
-out geom;`;
-
   function waterTileBody(box) {
     return `[out:json][timeout:180];
 (

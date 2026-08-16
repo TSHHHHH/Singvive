@@ -61,6 +61,13 @@ export interface SavedRun {
   evacDeadline: number | null;
   /** Set only while the channel is dark between windows. Absent on old saves. */
   evacCooldownUntil?: number | null;
+  /**
+   * Seeded weighted readiness this bird wants. Absent on older saves — resume
+   * rolls once from the current day so the quota stays opaque.
+   */
+  evacDemand?: number | null;
+  /** Soft cargo bias for the current window. Absent on older saves. */
+  evacDemandBias?: 'fuel' | 'meds' | 'ammo' | 'balanced' | null;
   /** Explored HDB blocks, so a cleared unit stays cleared between visits. */
   hdbBlocks?: Record<string, HdbDungeon>;
   /**
@@ -71,6 +78,11 @@ export interface SavedRun {
   tunnel?: TunnelRun | null;
   /** Run counter behind every tunnel rng key. @see TunnelRun.seq */
   tunnelSeq?: number;
+  /**
+   * Undirected edge keys destroyed this run. Absent on older saves — resume
+   * re-rolls from seed with the same fork so the corridor stays stable.
+   */
+  destroyedTunnelEdges?: string[];
   /** Doorway-event rate limiter, so reloading can't farm encounters. */
   eventClock?: EventClock;
   /** How each faction feels about you. Absent on saves from before standing. */

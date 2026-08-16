@@ -134,16 +134,14 @@ export const FACTION_CONFIG: Record<Exclude<FactionId, null>, FactionData> = {
     color: '#2bc4d9',
     hostileByDefault: false,
     blurb: 'They keep the tunnels running — for a toll.',
-    // A card first, because a turnstile wants a card. But the marshal on the
-    // gate is a person standing in a dark tunnel, and a person will take a
-    // working torch or a set of cells — gating passage on one uncommon item
-    // meant the tunnels were shut to anyone who hadn't found that item yet.
-    tribute: ['ez_link_card', 'batteries', 'torch', 'canned_food'],
+    // Working gear only: dead transit plastic isn't fare anymore. Cells, a
+    // torch, or a tin keep a marshal fed and lit under the city.
+    tribute: ['batteries', 'torch', 'canned_food'],
     preferredPoiCategories: ['mrt'],
     outpostName: 'Barricade Camp',
     // Surface STA outposts sit on manned platforms; abandoned MRTs stay null.
     outpostCategories: ['mrt'],
-    stock: ['torch', 'batteries', 'ez_link_card', 'rain_tarp', 'powerbank', 'glass_bottle'],
+    stock: ['torch', 'batteries', 'rain_tarp', 'powerbank', 'glass_bottle'],
     exclusiveStock: ['toolbox', 'hard_hat'],
     wants: ['batteries', 'canned_food', 'duct_tape', 'scrap_metal'],
   },

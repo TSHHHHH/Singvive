@@ -29,9 +29,17 @@ import {
   walkabilityOf,
 } from './playable';
 import { NO_DRY_ROUTE_MSG, routeLandPath } from './route';
-import { adjacentEdge, displayLine, getMrtNetwork, loadMrtNetwork, tunnelSegmentBetween } from './mrt';
+import {
+  adjacentEdge,
+  displayLine,
+  getMrtNetwork,
+  loadMrtNetwork,
+  nearestStationAny,
+} from './mrt';
+import { rollDestroyedTunnels } from './mrtDamage';
 import {
   addPressure,
+  canExitHere,
   currentNode,
   FIGHT_PRESSURE,
   generateTunnelRun,
@@ -50,6 +58,7 @@ import {
   tunnelKey,
   type TunnelNode,
   type TunnelRun,
+  type TunnelStationStop,
 } from './tunnelRun';
 import { buildLocations, generateFallbackWorld, makeStationLocation } from './world';
 import { conditionRoll, itemDef, ITEMS, rollFactionRaidLoot, rollLoot, type LootStack } from './loot';
@@ -232,13 +241,11 @@ import {
   breachOutcome,
   currentFloor,
   descentIsChecked,
-  forceableLevels,
   generateDungeon,
-  openSealedFloor,
   floorThreat,
   isHunting,
   retreatCheck,
-  findPath,
+  findPathToward,
   pathMinutes,
   pathDescends,
   pathUsesStairs,
@@ -286,8 +293,10 @@ import {
   pickDistantEvacPoi,
   pickEvacZone,
   rollEvacCooldown,
+  rollEvacDemand,
   pickNextEvacZone,
   evacWindowHours,
+  type EvacDemandBias,
 } from './goal';
 
 const SCAVENGE_RADIUS = 1500;
@@ -323,6 +332,8 @@ interface PendingEvent {
   event: GameEvent;
   /** Set when the event is the turnstile standing between you and a tunnel. */
   tunnelTo?: string;
+  /** Ordered station ids for the planned route (origin → destination). */
+  tunnelStationIds?: string[];
 }
 
 /** @see GameStore._eventClock */
@@ -344,6 +355,14 @@ const freshEventClock = (): EventClock => ({ lastAt: null, day: 1, count: 0 });
  */
 function resumableTunnel(saved: TunnelRun | null | undefined): TunnelRun | null {
   if (!saved?.nodes || !saved.columns?.length || typeof saved.seq !== 'number') return null;
+  if (!saved.stationIds?.length) {
+    return {
+      ...saved,
+      stationIds: [saved.fromStation, saved.toStation].filter(Boolean),
+      stationNames: [saved.fromName, saved.toName],
+      stationLocationIds: [saved.fromLocationId, saved.toLocationId],
+    };
+  }
   return saved;
 }
 
@@ -397,7 +416,17 @@ interface State {
    * Non-null only between a missed evac and its replacement.
    */
   evacCooldownUntil: number | null;
+  /** Seeded readiness this bird wants — never shown as a number in UI. */
+  evacDemand: number | null;
+  /** Soft cargo bias for the current window. */
+  evacDemandBias: EvacDemandBias | null;
   escaped: boolean; // true on a victory ending
+
+  /**
+   * Undirected edge keys (`a|b`) destroyed this run. Seeded at spawn with a
+   * soft bias toward the first-evac corridor. Empty until the network rolls.
+   */
+  destroyedTunnelEdges: string[];
 
   maxHp: number; // base max HP; effective max is reduced by injuries
   meters: Meters;
@@ -512,11 +541,15 @@ interface State {
   /** Strike out to bare coordinates — no site, no loot, no shelter. */
   trek: (lat: number, lng: number) => void;
   /**
-   * Descend and walk the tunnel to the next station down the line, named by its
-   * network station id. The destination need not be part of the built world —
-   * the tunnels reach past the edge of it, and the far end is built on arrival.
+   * Descend and walk a planned tunnel route (one or many stations), named by
+   * ordered network station ids. Destinations need not be in the built world
+   * yet — far ends are built on arrival / mid-route exit.
    */
+  tunnelEnterRoute: (stationIds: string[]) => void;
+  /** @deprecated Prefer tunnelEnterRoute — kept as a one-hop convenience. */
   tunnelEnter: (toStationId: string) => void;
+  /** Surface at the platform you're standing on (intermediate stop). */
+  tunnelExitHere: () => void;
   /** Move onto one of the nodes ahead and deal with whatever is on it. */
   tunnelStep: (nodeId: string) => void;
   /** Sleep at the tunnel camp you're standing in. */
@@ -547,9 +580,9 @@ interface State {
   takeSearchItem: (uid: string) => void;
   /** Take every found item still in the search grid. */
   takeAllFound: () => void;
-  /** Abandon unsearched slots; keep finds; spend a partial search charge. */
+  /** Abandon unsearched slots and any unclaimed finds; spend a partial search charge. */
   abortSearch: () => void;
-  /** Finish after all slots are searched (or treat as abort if fogged remain). */
+  /** Finish after all slots are searched; abandon unclaimed finds (or abort if fogged remain). */
   completeSearch: () => void;
   callEvac: () => void;
   /** Append a short line to the run log (UI soft-rejects, etc.). */
@@ -557,7 +590,8 @@ interface State {
   rest: () => void;
   /** Preview sleep quality for the Rest button (same evaluator as rest()). */
   peekSleepConditions: () => SleepConditions;
-  useItem: (uid: string) => void;
+  /** Eat / drink / bandage / load ammo / etc. Named applyItem so oxlint doesn't treat it as a Hook. */
+  applyItem: (uid: string) => void;
   moveItem: (uid: string, container: string, x: number, y: number, rotated: boolean) => boolean;
   rotateItem: (uid: string) => void;
   transferItem: (uid: string, toContainer: string) => void;
@@ -593,8 +627,11 @@ interface State {
   combatSetSpeedIndex: (i: number) => void;
   combatFlee: () => void;
   combatContinue: () => void;
-  /** Commit a stance once — the fight then resolves itself. */
+  /** Leave contact and start the initiative track (default Guarded). */
+  combatEngage: () => void;
+  /** Switch fight stance mid-combat — applies to subsequent actions. */
   combatSetStance: (stance: StanceId) => void;
+  /** Bail out at contact or mid-fight — resolved on the disengage profile. */
   combatBreakOff: () => void;
 
   // --- HDB vertical dungeon ---
@@ -604,8 +641,6 @@ interface State {
   hdbGoTo: (pos: HdbPos) => void;
   /** Clear a breakable corridor / stair block underfoot. */
   hdbForceBlock: (key: string) => void;
-  /** Dig out a breakable sealed landing so the floor can be entered. */
-  hdbForceSeal: (level: number) => void;
   hdbUseService: (unitId: string) => void;
   hdbLeave: () => void;
 
@@ -793,6 +828,9 @@ export const useGame = create<State>((set, get) => {
       evacZoneId: s.evacZoneId,
       evacDeadline: s.evacDeadline,
       evacCooldownUntil: s.evacCooldownUntil,
+      evacDemand: s.evacDemand,
+      evacDemandBias: s.evacDemandBias,
+      destroyedTunnelEdges: s.destroyedTunnelEdges,
       // Snapshot the block you're standing in too, so a reload keeps it cleared.
       hdbBlocks: s.hdb ? { ...s.hdbBlocks, [s.hdb.locationId]: s.hdb } : s.hdbBlocks,
       // The tunnel is saved live, not as a cache: you are mid-walk, and a
@@ -901,6 +939,8 @@ export const useGame = create<State>((set, get) => {
     set({
       evacZoneId: null,
       evacDeadline: null,
+      evacDemand: null,
+      evacDemandBias: null,
       evacCooldownUntil: totalGameHour(s.day, s.hour) + wait,
     });
     pushLog(
@@ -920,11 +960,21 @@ export const useGame = create<State>((set, get) => {
     );
     const windowH = evacWindowHours(false, s.day);
     const deadline = totalGameHour(s.day, s.hour) + windowH;
-    set({ evacZoneId: nextId, evacDeadline: deadline, evacCooldownUntil: null });
+    const rolled = rollEvacDemand(
+      new Rng(s.seed).fork(`evacdemand:${totalGameHour(s.day, s.hour)}`),
+      s.day,
+    );
+    set({
+      evacZoneId: nextId,
+      evacDeadline: deadline,
+      evacCooldownUntil: null,
+      evacDemand: rolled.demand,
+      evacDemandBias: rolled.bias,
+    });
     const loc = nextId ? s.locations[nextId] : null;
     pushLog(
       loc
-        ? `The channel wakes up: "New evac staging at ${loc.name}. ${windowH} hours. Bring weighted gear — fuel, meds, ammo count most. Move."`
+        ? `The channel wakes up: "New evac staging at ${loc.name}. ${windowH} hours. Pack fuel, meds, ammo — the bird won't name a quota. Move."`
         : 'The channel wakes up, but there is nowhere left to stage a lift.',
       loc ? 'good' : 'bad',
     );
@@ -1310,39 +1360,26 @@ export const useGame = create<State>((set, get) => {
     let working: SearchSession = { ...session, slots: session.slots.map((sl) => ({ ...sl })) };
     let items = get().items;
 
-    // Abandon fogged / searching — remove any partial materialization (none yet).
+    // Abandon fogged / searching / unclaimed finds. Explicit Take / Take all
+    // already marked slots taken; Done and Leave leave the rest behind.
+    const abandonedNote: LootStack[] = [];
     working = {
       ...working,
-      slots: working.slots.map((sl) =>
-        sl.state === 'fogged' || sl.state === 'searching'
-          ? { ...sl, state: 'abandoned' as const, remainingMs: 0 }
-          : sl,
-      ),
+      slots: working.slots.map((sl) => {
+        if (sl.state === 'fogged' || sl.state === 'searching') {
+          return { ...sl, state: 'abandoned' as const, remainingMs: 0 };
+        }
+        if (sl.state === 'found') {
+          abandonedNote.push({ defId: sl.defId, count: sl.count });
+          return { ...sl, state: 'abandoned' as const, remainingMs: 0 };
+        }
+        return sl;
+      }),
       queue: [],
       searchingStartedAt: null,
     };
 
-    // Spill remaining found items into pack / stash.
-    const stashedNote: LootStack[] = [];
-    const lostNote: LootStack[] = [];
-    const takenNow: LootStack[] = [];
-    for (const slot of working.slots) {
-      if (slot.state !== 'found' || !slot.uid) continue;
-      const moved = relocateFoundItem(items, slot.uid, working.stashLocationId);
-      if (!moved) continue;
-      items = moved.items;
-      if (moved.lost) lostNote.push({ defId: moved.defId, count: moved.count });
-      else if (moved.stashed) stashedNote.push({ defId: moved.defId, count: moved.count });
-      else takenNow.push({ defId: moved.defId, count: moved.count });
-      working = {
-        ...working,
-        slots: working.slots.map((sl) =>
-          sl.id === slot.id ? { ...sl, state: 'taken' as const } : sl,
-        ),
-      };
-    }
-
-    // Drop any stray items still in the session container.
+    // Drop any stray items still in the session container (abandoned finds).
     items = items.filter((i) => i.container !== working.containerId);
 
     const charge =
@@ -1357,46 +1394,53 @@ export const useGame = create<State>((set, get) => {
     for (const slot of working.slots) {
       if (slot.state === 'taken') haulLoot.push({ defId: slot.defId, count: slot.count });
     }
-    const leftover = [...stashedNote, ...lostNote];
-    bumpHaul(haulLoot, leftover);
+    const leftover = abandonedNote;
+    bumpHaul(haulLoot, []);
 
     const unitLabel = working.hdbUnit?.label;
     const locName = unitLabel ?? get().locations[working.locationId]?.name ?? 'the site';
     if (working.hdbUnit) {
-      if (haulLoot.length === 0 && mode === 'abort') {
+      if (haulLoot.length === 0 && leftover.length === 0 && mode === 'abort') {
         pushLog(`You stop searching ${locName} empty-handed.`, 'info');
       } else if (mode === 'abort') {
         pushLog(`You cut the search short in ${locName}.`, 'info', {
           loot: haulLoot,
-          leftover,
+          leftover: [],
         });
-      } else if (haulLoot.length === 0) {
+      } else if (haulLoot.length === 0 && leftover.length === 0) {
         pushLog(`${locName} is bare.`, 'info');
+      } else if (haulLoot.length === 0) {
+        pushLog(`You clear ${locName}.`, 'info');
       } else {
-        pushLog(`You clear ${locName}.`, 'good', { loot: haulLoot, leftover });
+        pushLog(`You clear ${locName}.`, 'good', { loot: haulLoot, leftover: [] });
       }
-      if (stashedNote.length > 0) {
-        pushLog('Your pack is full — the rest goes in the block stash.', 'info');
-      }
-    } else if (haulLoot.length === 0 && mode === 'abort') {
+    } else if (haulLoot.length === 0 && leftover.length === 0 && mode === 'abort') {
       pushLog(`You stop searching ${locName} empty-handed.`, 'info');
     } else if (mode === 'abort') {
       pushLog(`You cut the search short at ${locName}.`, 'info', {
         loot: haulLoot,
-        leftover,
+        leftover: [],
       });
     } else if (working.fled) {
-      pushLog(`Grabbed what you could from ${locName}.`, 'good', { loot: haulLoot, leftover });
+      pushLog(`Grabbed what you could from ${locName}.`, 'good', {
+        loot: haulLoot,
+        leftover: [],
+      });
     } else if (working.raiding) {
       pushLog(`Raided their stores at ${locName} — this is why they keep a gate.`, 'good', {
         loot: haulLoot,
-        leftover,
+        leftover: [],
       });
+    } else if (haulLoot.length === 0) {
+      pushLog(flavor('searchFound', { name: locName }), 'info');
     } else {
-      pushLog(flavor('searchFound', { name: locName }), 'good', { loot: haulLoot, leftover });
+      pushLog(flavor('searchFound', { name: locName }), 'good', {
+        loot: haulLoot,
+        leftover: [],
+      });
     }
-    if (!working.hdbUnit && stashedNote.length > 0) {
-      pushLog(`No room in the pack — the rest is stacked in the stash here.`, 'info');
+    if (leftover.length > 0) {
+      pushLog('You leave the rest behind.', 'info', { loot: [], leftover });
     }
 
     set({ pendingSearch: null });
@@ -1425,8 +1469,11 @@ export const useGame = create<State>((set, get) => {
     key?: string;
     /** The HDB unit this fight came out of — resolved instead of a site search. */
     hdbUnit?: { level: number; unitId: string; lootMod: number };
-    /** Cut off on the stairs — no unit, and nothing at the site to search. */
-    hdbStairs?: boolean;
+    /**
+     * Cut off on the stairs — no unit/search. `dest` is the cell the interrupted
+     * path was heading to; combatContinue finishes the move after the fight.
+     */
+    hdbStairs?: { dest: { level: number; column: number } };
     /** Met in the bore between two stations. @see CombatContext.tunnel */
     tunnel?: { nodeId: string; lootMod: number };
   }
@@ -1941,71 +1988,153 @@ export const useGame = create<State>((set, get) => {
     return loc;
   };
 
-  /** Generate the segment and drop the player onto the departure platform. */
-  const beginTunnel = (toLocationId: string) => {
+  /** Generate the crawl for a full planned route and drop onto the origin platform. */
+  const beginTunnelRoute = (stationIds: string[]) => {
     const s = get();
     const from = s.currentPositionId ? s.locations[s.currentPositionId] : null;
-    const to = s.locations[toLocationId];
     const net = getMrtNetwork();
-    const seg = from && to ? tunnelSegmentBetween(from, to) : null;
-    if (!from || !to || !seg || !net) return;
+    if (!from || !net || stationIds.length < 2) return;
+    if (from.mrtStationId !== stationIds[0]) return;
 
-    const line = displayLine(net, seg.line);
-    const seq = s.tunnelSeq + 1;
-    const walk = estimateTunnelWalk(
-      seg.meters,
-      s.character!.attributes,
-      s.meters.energy,
-      s.hour,
-      moveFactor(s),
-    );
-    const run = generateTunnelRun(new Rng(s.seed).fork(`tunnel:${from.id}:${to.id}:${seq}`), {
-      from,
-      to,
-      lineCode: seg.line.code,
-      lineName: line.name,
-      lineColor: line.color,
-      mode: seg.line.mode,
-      meters: seg.meters,
-      travelMin: walk.travelMin,
-      day: s.day,
-      hour: s.hour,
-      hordeLevel: s.hordeLevel,
-      seq,
+    // Reject any hop that crosses a destroyed edge.
+    for (let i = 1; i < stationIds.length; i++) {
+      if (!adjacentEdge(net, stationIds[i - 1], stationIds[i], s.destroyedTunnelEdges)) {
+        pushLog('That route crosses a collapsed bore — pick another path.', 'bad');
+        return;
+      }
+    }
+
+    const destId = stationIds[stationIds.length - 1];
+    void ensureStationLocation(destId).then((to) => {
+      if (!to) return;
+      const cur = get();
+      if (cur.combat || cur.pendingEvent || cur.tunnel || cur.hdb) return;
+      const fromNow = cur.currentPositionId ? cur.locations[cur.currentPositionId] : null;
+      if (!fromNow?.mrtStationId) return;
+
+      const stations: TunnelStationStop[] = stationIds.map((id) => {
+        const st = net.byId.get(id)!;
+        const loc =
+          id === fromNow.mrtStationId
+            ? fromNow
+            : id === destId
+              ? to
+              : Object.values(cur.locations).find((l) => l.mrtStationId === id) ?? null;
+        return {
+          stationId: id,
+          locationId: loc?.id ?? '',
+          name: loc?.name ?? st.name,
+        };
+      });
+
+      const hopMeters: number[] = [];
+      let meters = 0;
+      let mode: 'mrt' | 'lrt' = 'lrt';
+      let lineCode = '';
+      let lineName = 'Tunnel';
+      let lineColor = '#9c9890';
+      for (let i = 1; i < stationIds.length; i++) {
+        const seg = adjacentEdge(net, stationIds[i - 1], stationIds[i], cur.destroyedTunnelEdges)!;
+        hopMeters.push(seg.meters);
+        meters += seg.meters;
+        if (seg.line.mode === 'mrt') mode = 'mrt';
+        if (i === 1) {
+          const line = displayLine(net, seg.line);
+          lineCode = seg.line.code;
+          lineName = line.name;
+          lineColor = line.color;
+        }
+      }
+
+      const seq = cur.tunnelSeq + 1;
+      const walk = estimateTunnelWalk(
+        meters,
+        cur.character!.attributes,
+        cur.meters.energy,
+        cur.hour,
+        moveFactor(cur),
+      );
+      const run = generateTunnelRun(
+        new Rng(cur.seed).fork(`tunnel:${stations[0].stationId}:${destId}:${seq}`),
+        {
+          from: fromNow,
+          to,
+          stations,
+          hopMeters,
+          lineCode,
+          lineName,
+          lineColor,
+          mode,
+          meters,
+          travelMin: walk.travelMin,
+          day: cur.day,
+          hour: cur.hour,
+          hordeLevel: cur.hordeLevel,
+          seq,
+        },
+      );
+
+      set({ tunnel: run, tunnelSeq: seq, tunnelOffer: null });
+      pushLog(
+        stationIds.length > 2
+          ? `You drop off the platform at ${fromNow.name} — ${stationIds.length - 1} stops toward ${to.name}.`
+          : `You drop off the platform edge at ${fromNow.name} and walk into the ${lineName} bore.`,
+        'info',
+      );
+      persist();
     });
+  };
 
-    set({ tunnel: run, tunnelSeq: seq, tunnelOffer: null });
-    pushLog(
-      `You drop off the platform edge at ${from.name} and walk into the ${line.name} bore.`,
-      'info',
-    );
-    persist();
+  /** Climb the stairs at a chosen station along the route. */
+  const arriveTunnelAt = (stationId: string) => {
+    const s = get();
+    const run = s.tunnel;
+    if (!run) return;
+
+    void ensureStationLocation(stationId).then((to) => {
+      if (!to) return;
+      const cur = get();
+      const live = cur.tunnel;
+      if (!live) return;
+
+      const ids = live.stationIds?.length
+        ? live.stationIds
+        : [live.fromStation, live.toStation];
+      const idx = Math.max(0, ids.indexOf(stationId));
+      const fraction = ids.length <= 1 ? 1 : idx / (ids.length - 1);
+      const walked = Math.round(live.meters * fraction);
+
+      set({
+        tunnel: null,
+        tunnelOffer: null,
+        currentPos: { lat: to.lat, lng: to.lng },
+        currentPositionId: to.id,
+      });
+      discoverLocation(to.id);
+      bumpStats({ distanceM: walked });
+      const mid =
+        stationId !== live.toStation && idx > 0 && idx < ids.length - 1;
+      pushLog(
+        mid
+          ? `You take the stairs early. Daylight at ${to.name}.`
+          : `Stairs, then daylight. You come up at ${to.name}.`,
+        'good',
+      );
+
+      if (live.pressure > 60) {
+        pushLog('Whatever followed you up the tunnel is close behind.', 'bad');
+        get().emitNoise(to.lat, to.lng, 220, 1);
+      }
+      persist();
+    });
   };
 
   /** Climb the stairs at the far end. The run ends here, one way or another. */
   const arriveTunnel = () => {
     const s = get();
     const run = s.tunnel;
-    const to = run ? s.locations[run.toLocationId] : null;
-    if (!run || !to) return;
-
-    set({
-      tunnel: null,
-      tunnelOffer: null,
-      currentPos: { lat: to.lat, lng: to.lng },
-      currentPositionId: to.id,
-    });
-    discoverLocation(to.id);
-    bumpStats({ distanceM: run.meters });
-    pushLog(`Stairs, then daylight. You come up at ${to.name}.`, 'good');
-
-    // Loud crossings arrive loud — but only here, at the one place you're
-    // actually standing. Noise per node would raise danger where you aren't.
-    if (run.pressure > 60) {
-      pushLog('Whatever followed you up the tunnel is close behind.', 'bad');
-      get().emitNoise(to.lat, to.lng, 220, 1);
-    }
-    persist();
+    if (!run) return;
+    arriveTunnelAt(run.toStation || run.stationIds?.[run.stationIds.length - 1] || '');
   };
 
   /**
@@ -2387,7 +2516,10 @@ export const useGame = create<State>((set, get) => {
     evacZoneId: null,
     evacDeadline: null,
     evacCooldownUntil: null,
+    evacDemand: null,
+    evacDemandBias: null,
     escaped: false,
+    destroyedTunnelEdges: [],
     maxHp: 100,
     meters: initialMeters(),
     bodyParts: initialBodyParts(100),
@@ -2560,11 +2692,38 @@ export const useGame = create<State>((set, get) => {
 
       const firstWindow = evacWindowHours(true, 1);
       const evacDeadline = totalGameHour(1, START_HOUR) + firstWindow;
-      set({ hordeLevel: 0, evacZoneId, evacDeadline, evacCooldownUntil: null, escaped: false });
+      const firstDemand = rollEvacDemand(rng.fork('evacdemand:first'), 1);
+
+      // Collapse some tunnels this run — medium density, soft bias toward the
+      // rail corridor between spawn and the first evac beacon.
+      let destroyedTunnelEdges: string[] = [];
+      if (net) {
+        const fromSt = nearestStationAny(net, spawn.lat, spawn.lng);
+        const evacForBias = evacZoneId ? locations[evacZoneId] : null;
+        const toSt = evacForBias
+          ? nearestStationAny(net, evacForBias.lat, evacForBias.lng)
+          : null;
+        destroyedTunnelEdges = rollDestroyedTunnels(
+          rng.fork('mrt:destroyed'),
+          net,
+          toSt ? { fromStationId: fromSt.id, toStationId: toSt.id } : null,
+        );
+      }
+
+      set({
+        hordeLevel: 0,
+        evacZoneId,
+        evacDeadline,
+        evacCooldownUntil: null,
+        evacDemand: firstDemand.demand,
+        evacDemandBias: firstDemand.bias,
+        escaped: false,
+        destroyedTunnelEdges,
+      });
       const evacLoc = evacZoneId ? locations[evacZoneId] : null;
       if (evacLoc) {
         pushLog(
-          `Radio static, then a voice: "Evac staging at ${evacLoc.name}. Pack fuel, meds, and ammo — the heavier that kit, the better. We hold the window ${firstWindow} hours, no more. Stay longer and the score climbs — but so does the city."`,
+          `Radio static, then a voice: "Evac staging at ${evacLoc.name}. Pack fuel, meds, and ammo — we won't name a number. We hold the window ${firstWindow} hours, no more. Stay longer and the score climbs — but so does the city."`,
           'good',
         );
       }
@@ -3061,7 +3220,7 @@ export const useGame = create<State>((set, get) => {
       setTimeout(() => arriveWilds(lat, lng, startedAt), durationMs);
     },
 
-    tunnelEnter: (toStationId) => {
+    tunnelEnterRoute: (stationIds) => {
       const s = get();
       const from = s.currentPositionId ? s.locations[s.currentPositionId] : null;
       if (!from || s.combat || s.pendingEvent || s.tunnel || s.hdb) return;
@@ -3069,42 +3228,74 @@ export const useGame = create<State>((set, get) => {
         pushLog('You have to be on a platform to get into the tunnels.', 'bad');
         return;
       }
-      // One segment at a time — nothing runs, so you walk to the next platform
-      // and no further. Neither end needs to be cleared: the stairs are open,
-      // and what's waiting at the far end is the reason to go.
-      const net = getMrtNetwork();
-      if (!net || !adjacentEdge(net, from.mrtStationId, toStationId)) {
-        pushLog(`That isn't the next stop — the tunnel from here doesn't run that way.`, 'bad');
+      if (stationIds.length < 2 || stationIds[0] !== from.mrtStationId) {
+        pushLog('That route does not start from this platform.', 'bad');
         return;
+      }
+      const net = getMrtNetwork();
+      if (!net) {
+        pushLog('The rail map is blank — no way to plan a tunnel walk.', 'bad');
+        return;
+      }
+      for (let i = 1; i < stationIds.length; i++) {
+        if (!adjacentEdge(net, stationIds[i - 1], stationIds[i], s.destroyedTunnelEdges)) {
+          pushLog('That route crosses a collapsed bore — pick another path.', 'bad');
+          return;
+        }
       }
       if (s.meters.energy < 5) {
         pushLog('Too spent to walk a tunnel. Rest first.', 'bad');
         return;
       }
 
-      // Resolving the far end can mean building it, so the rest happens once
-      // there is somewhere to arrive.
-      void ensureStationLocation(toStationId).then((to) => {
+      const destId = stationIds[stationIds.length - 1];
+      void ensureStationLocation(destId).then((to) => {
         if (!to) return;
         const cur = get();
         if (cur.combat || cur.pendingEvent || cur.tunnel || cur.hdb) return;
 
-        // The STA still works the turnstiles at the stations they hold. Pay at
-        // the gate and the descent happens on the other side of the event.
-        // A fare bought today covers today. It used to be charged per descent,
-        // which taxed every there-and-back twice and made the tunnels feel
-        // like a turnstile rather than a route.
         const dayPass = (from.tollPaidThroughDay ?? -1) >= cur.day;
         if (
           from.factionId === 'sta' &&
           !dayPass &&
           (cur.factionStanding.sta ?? 0) < STANDING_TRUSTED
         ) {
-          set({ pendingEvent: { locationId: from.id, event: mrtTollEvent(), tunnelTo: to.id } });
+          set({
+            pendingEvent: {
+              locationId: from.id,
+              event: mrtTollEvent(),
+              tunnelTo: to.id,
+              tunnelStationIds: stationIds,
+            },
+          });
           return;
         }
-        beginTunnel(to.id);
+        beginTunnelRoute(stationIds);
       });
+    },
+
+    tunnelEnter: (toStationId) => {
+      const s = get();
+      const from = s.currentPositionId ? s.locations[s.currentPositionId] : null;
+      if (!from?.mrtStationId) return;
+      get().tunnelEnterRoute([from.mrtStationId, toStationId]);
+    },
+
+    tunnelExitHere: () => {
+      const s = get();
+      const run = s.tunnel;
+      if (!run || s.combat || s.pendingEvent) return;
+      const node = currentNode(run);
+      if (!canExitHere(run, node) || !node.stationId) {
+        pushLog('No stairs here — keep walking the bore.', 'info');
+        return;
+      }
+      if (s.items.some((i) => i.container === TEMP_STASH)) {
+        pushLog('Sort the temporary stash (or confirm abandon) before surfacing.', 'bad');
+        set({ inventoryOpenToken: s.inventoryOpenToken + 1 });
+        return;
+      }
+      arriveTunnelAt(node.stationId);
     },
 
     tunnelStep: (nodeId) => {
@@ -3505,9 +3696,9 @@ export const useGame = create<State>((set, get) => {
         pushLog('You need to be at the evac zone to signal for a lift.', 'bad');
         return;
       }
-      if (!hasEvacReadiness(s.items, s.day)) {
+      if (!hasEvacReadiness(s.items, s.day, s.evacDemand, s.evacDemandBias ?? 'balanced')) {
         pushLog(
-          'The crew wants a heavier pack — fuel, meds, and ammo count most toward the lift.',
+          'The crew wants a heavier pack — fuel, meds, and ammo count most toward the lift. Try again when the haul looks better.',
           'bad',
         );
         return;
@@ -3656,8 +3847,16 @@ export const useGame = create<State>((set, get) => {
       const grantAccess = () => {
         // Paying at the turnstile buys the stairs down, not a ride — the walk
         // itself is still ahead of you.
+        if (pe.tunnelStationIds?.length) {
+          beginTunnelRoute(pe.tunnelStationIds);
+          return;
+        }
         if (pe.tunnelTo) {
-          beginTunnel(pe.tunnelTo);
+          const from = get().locations[pe.locationId];
+          const to = get().locations[pe.tunnelTo];
+          if (from?.mrtStationId && to?.mrtStationId) {
+            beginTunnelRoute([from.mrtStationId, to.mrtStationId]);
+          }
           return;
         }
         const site = get().locations[pe.locationId];
@@ -3923,7 +4122,7 @@ export const useGame = create<State>((set, get) => {
 
     peekSleepConditions: () => evaluateSleepConditions(sleepContextFromState()),
 
-    useItem: (uid) => {
+    applyItem: (uid) => {
       const s = get();
       // Fights are committed — no mid-swing bandages from the pack.
       if (s.combat && !s.combat.over) {
@@ -3942,23 +4141,32 @@ export const useGame = create<State>((set, get) => {
       // Spoiled food still feeds you — it just asks for something back.
       let spoiledInfection = 0;
       switch (def.effect.kind) {
-        case 'food':
-          m.hunger = clampMeter(m.hunger + Math.round(def.effect.hunger * (1 + foodEffectMod)));
+        case 'food': {
+          const fx = def.effect;
+          m.hunger = clampMeter(m.hunger + Math.round(fx.hunger * (1 + foodEffectMod)));
+          if (fx.thirst != null) m.thirst = clampMeter(m.thirst + fx.thirst);
+          if (fx.energy != null) m.energy = clampMeter(m.energy + fx.energy);
           consumed = true;
-          pushLog(`Ate ${def.name}. Hunger restored.`, 'good');
+          pushLog(`Ate ${def.name}. ${consumableRestoreSummary(fx)}.`, 'good');
           break;
+        }
         case 'water': {
-          m.thirst = clampMeter(m.thirst + def.effect.thirst);
-          const waterRisk = def.effect.infectionRisk ?? 0;
+          const fx = def.effect;
+          m.thirst = clampMeter(m.thirst + fx.thirst);
+          if (fx.hunger != null) {
+            m.hunger = clampMeter(m.hunger + Math.round(fx.hunger * (1 + foodEffectMod)));
+          }
+          if (fx.energy != null) m.energy = clampMeter(m.energy + fx.energy);
+          const waterRisk = fx.infectionRisk ?? 0;
           if (waterRisk > 0) {
             const resist = sumTraitMod(s.character!.traitIds, 'infectionResist');
             m.infection = clampMeter(m.infection + waterRisk * (1 - resist));
             pushLog(
-              `Drank ${def.name}. Thirst eased — it sits wrong (+${Math.round(waterRisk * (1 - resist))} infection).`,
+              `Drank ${def.name}. ${consumableRestoreSummary(fx)} — it sits wrong (+${Math.round(waterRisk * (1 - resist))} infection).`,
               'bad',
             );
           } else {
-            pushLog(`Drank ${def.name}. Thirst quenched.`, 'good');
+            pushLog(`Drank ${def.name}. ${consumableRestoreSummary(fx)}.`, 'good');
           }
           consumed = true;
           break;
@@ -3994,11 +4202,17 @@ export const useGame = create<State>((set, get) => {
           consumed = true;
           pushLog(`Took ${def.name}. Infection pushed back.`, 'good');
           break;
-        case 'energy':
-          m.energy = clampMeter(m.energy + def.effect.energy);
+        case 'energy': {
+          const fx = def.effect;
+          m.energy = clampMeter(m.energy + fx.energy);
+          if (fx.hunger != null) {
+            m.hunger = clampMeter(m.hunger + Math.round(fx.hunger * (1 + foodEffectMod)));
+          }
+          if (fx.thirst != null) m.thirst = clampMeter(m.thirst + fx.thirst);
           consumed = true;
-          pushLog(`Had a ${def.name}. Feeling sharper.`, 'good');
+          pushLog(`Had a ${def.name}. ${consumableRestoreSummary(fx)}.`, 'good');
           break;
+        }
         case 'ammo': {
           newRounds = s.rounds + def.effect.rounds;
           consumed = true;
@@ -4397,14 +4611,16 @@ export const useGame = create<State>((set, get) => {
     },
 
 
-    combatSetStance: (stance) => {
+    combatEngage: () => {
       const s = get();
-      if (!s.combat || s.combat.over) return;
+      if (!s.combat || s.combat.over || !s.combat.awaitingStance) return;
       const weather = { kind: weatherKindFor(s.seed, s.day), time: timeOfDay(s.hour) };
       set({
         combat: {
           ...s.combat,
-          selectedStance: stance,
+          // Contact opens on Guarded; the player can shift stance once the
+          // track is running.
+          selectedStance: 'guarded',
           awaitingStance: false,
           // Both markers start level; from here it is speed that decides who
           // swings first, not turn order.
@@ -4413,17 +4629,48 @@ export const useGame = create<State>((set, get) => {
           log: [...s.combat.log, ...openingNotes(s.combat.terrain, weather)],
         },
       });
-      // Disengage resolves as a break-away attempt rather than a trade of blows.
-      // Anything else commits: the track starts running and the fight plays
-      // itself out.
-      if (stance === 'disengage') get().combatFlee();
     },
 
-    /** Bail out mid-fight — always resolved on the disengage profile. */
+    combatSetStance: (stance) => {
+      const s = get();
+      if (!s.combat || s.combat.over || s.combat.awaitingStance) return;
+      // Disengage is a flee attempt, not a holdable fight stance.
+      if (stance === 'disengage') return;
+      if (stance === s.combat.selectedStance) return;
+      const next = STANCES[stance];
+      set({
+        combat: {
+          ...s.combat,
+          selectedStance: stance,
+          log: [
+            ...s.combat.log,
+            {
+              round: s.combat.round,
+              tone: 'info' as const,
+              text: `You shift to ${next.name}.`,
+              side: 'player' as const,
+            },
+          ],
+        },
+      });
+    },
+
+    /** Bail out at contact or mid-fight — always resolved on the disengage profile. */
     combatBreakOff: () => {
       const s = get();
       if (!s.combat || s.combat.over) return;
-      set({ combat: { ...s.combat, selectedStance: 'disengage' } });
+      const wasAwaiting = s.combat.awaitingStance;
+      const weather = { kind: weatherKindFor(s.seed, s.day), time: timeOfDay(s.hour) };
+      set({
+        combat: {
+          ...s.combat,
+          selectedStance: 'disengage',
+          awaitingStance: false,
+          log: wasAwaiting
+            ? [...s.combat.log, ...openingNotes(s.combat.terrain, weather)]
+            : s.combat.log,
+        },
+      });
       get().combatFlee();
     },
 
@@ -4559,12 +4806,28 @@ export const useGame = create<State>((set, get) => {
       if (samePos(s.hdb.pos, target)) return;
       if (!canTargetCell(s.hdb, target)) return;
 
-      const path = findPath(s.hdb, s.hdb.pos, target);
-      if (!path || path.length < 2) {
+      const attempt = findPathToward(s.hdb, s.hdb.pos, target);
+      if (!attempt) {
         pushLog('No way through from here.', 'info');
         return;
       }
+      if (attempt.path.length < 2) {
+        if (attempt.blockedBy) {
+          const label = BLOCK_META[attempt.blockedBy.kind].label.toLowerCase();
+          pushLog(
+            attempt.blockedBy.breakable
+              ? `A ${label} blocks the way. Clear it from here to go further.`
+              : `A ${label} blocks the way. No way through.`,
+            'info',
+          );
+        } else {
+          pushLog('No way through from here.', 'info');
+        }
+        return;
+      }
 
+      const path = attempt.path;
+      const dest = path[path.length - 1];
       const from = s.hdb.pos;
       const descending = pathDescends(path);
       const onStairs = pathUsesStairs(path);
@@ -4574,7 +4837,7 @@ export const useGame = create<State>((set, get) => {
 
       if (onStairs && isHunting(s.hdb)) {
         const huntRng = new Rng(s.seed).fork(
-          `hunt:${s.hdb.locationId}:${posKey(from)}:${posKey(target)}:${s.day}:${seq}`,
+          `hunt:${s.hdb.locationId}:${posKey(from)}:${posKey(dest)}:${s.day}:${seq}`,
         );
         if (huntRng.chance(HUNT_ELITE_CHANCE)) {
           if (advanceTime(STAIR_MINUTES / 60)) return;
@@ -4585,7 +4848,9 @@ export const useGame = create<State>((set, get) => {
             terrainOverride: 'hdb_corridor',
             enemy: makeBlockHunter(huntRng, floorThreat(g.hdb, from.level)),
             intro: 'It fills the landing shoulder to shoulder.',
-            hdbStairs: true,
+            // Resume the interrupted hop after the fight — staying put re-arms
+            // the same stair check and hard-locks the floor.
+            hdbStairs: { dest },
           });
           return;
         }
@@ -4609,7 +4874,7 @@ export const useGame = create<State>((set, get) => {
             terrainOverride: 'hdb_corridor',
             danger: floorThreat(g.hdb!, from.level),
             intro: 'Cut off on the landing.',
-            hdbStairs: true,
+            hdbStairs: { dest },
           });
           return;
         }
@@ -4619,9 +4884,19 @@ export const useGame = create<State>((set, get) => {
       if (advanceTime(minutes / 60)) return;
       const g = get();
       if (!g.hdb) return;
-      const wasNew = !g.hdb.revealedLevels.includes(target.level);
-      set({ hdb: moveTo(g.hdb, target) });
-      if (wasNew) sweepFloor(target.level);
+      const wasNew = !g.hdb.revealedLevels.includes(dest.level);
+      set({ hdb: moveTo(g.hdb, dest) });
+      if (wasNew) sweepFloor(dest.level);
+
+      if (!attempt.reached && attempt.blockedBy) {
+        const label = BLOCK_META[attempt.blockedBy.kind].label.toLowerCase();
+        pushLog(
+          attempt.blockedBy.breakable
+            ? `You stop short of a ${label}. Clear it to keep going.`
+            : `You stop short of a ${label}. That way is gone.`,
+          'info',
+        );
+      }
     },
 
     hdbForceBlock: (key) => {
@@ -4639,56 +4914,6 @@ export const useGame = create<State>((set, get) => {
         `You clear the ${BLOCK_META[adj.block.kind].label.toLowerCase()}. ${adj.block.minutes} min, loud.`,
         'bad',
       );
-      persist();
-    },
-
-    /**
-     * Dig out a welded gate or a packed landing. Slow, loud, and it buys a
-     * floor nobody else has been able to reach — which is why it's worth it.
-     */
-    hdbForceSeal: (level) => {
-      const s = get();
-      if (!s.hdb || s.combat || s.pendingSearch) return;
-      const seal = s.hdb.floors[level - 1]?.sealed;
-      if (!seal?.breakable) return;
-      if (!forceableLevels(s.hdb).includes(level)) return;
-
-      const from = s.hdb.currentLevel;
-      if (advanceTime(seal.minutes / 60)) return;
-
-      const g = get();
-      if (!g.hdb) return;
-      const rng = new Rng(g.seed).fork(`seal:${g.hdb.locationId}:${level}`);
-      const opened = openSealedFloor(rng.fork('rooms'), g.hdb, level, g.hdb.archetype);
-      set({ hdb: addHeat(opened, seal.heat, from) });
-      get().emitNoise(g.currentPos.lat, g.currentPos.lng, 360, 2);
-      pushLog(
-        `You force the landing on ${String(level).padStart(2, '0')}. It takes ${seal.minutes} minutes and the whole block hears it.`,
-        'bad',
-      );
-
-      // That much noise, in a stairwell, rarely goes unanswered.
-      const hot = get().hdb;
-      if (!hot) return;
-      if (isHunting(hot)) {
-        if (rng.chance(HUNT_ELITE_CHANCE)) {
-          startZombieCombat(hot.locationId, false, {
-            terrainOverride: 'hdb_corridor',
-            enemy: makeBlockHunter(rng, floorThreat(hot, from)),
-            intro: 'The noise brought it up the shaft.',
-            hdbStairs: true,
-          });
-          return;
-        }
-      } else if (rng.chance(Math.min(0.6, 0.15 + floorThreat(hot, from) * 0.07))) {
-        startZombieCombat(hot.locationId, false, {
-          terrainOverride: 'hdb_corridor',
-          danger: floorThreat(hot, from),
-          intro: 'Something answers the hammering.',
-          hdbStairs: true,
-        });
-        return;
-      }
       persist();
     },
 
@@ -4745,9 +4970,11 @@ export const useGame = create<State>((set, get) => {
         pushLog('Finish or leave the unit search in the timeline before you walk out.', 'info');
         return;
       }
-      // Walking out from height takes the whole descent.
+      if (s.hdb.currentLevel !== 1) {
+        pushLog('Climb down to the void deck (level 01) before you leave the block.', 'info');
+        return;
+      }
       const blockId = s.hdb.locationId;
-      if (advanceTime((STAIR_MINUTES * (s.hdb.currentLevel - 1)) / 60)) return;
       const g = get();
       set({
         hdb: null,
@@ -4827,7 +5054,7 @@ export const useGame = create<State>((set, get) => {
         equipSpeedBonus(s.equipment),
       );
       const playerGauge = c.playerGauge + pSpeed * dtSeconds;
-      const enemyGauge = c.enemyGauge + c.zombie.speed * 2 * dtSeconds;
+      const enemyGauge = c.enemyGauge + c.zombie.speed * dtSeconds;
 
       // Nobody home yet — just slide the markers along.
       if (playerGauge < GAUGE_FULL && enemyGauge < GAUGE_FULL) {
@@ -5026,7 +5253,14 @@ export const useGame = create<State>((set, get) => {
       } else if (dead) {
         set({ meters, bodyParts, equipment, combat: { ...s.combat, round, log, over: true, outcome: 'dead' } });
       } else {
-        set({ meters, bodyParts, equipment, combat: { ...s.combat, round, log } });
+        // Flee failed — fight continues. Drop the disengage profile so the
+        // next swing isn't stuck on a flee-only stance.
+        set({
+          meters,
+          bodyParts,
+          equipment,
+          combat: { ...s.combat, round, log, selectedStance: 'guarded' },
+        });
       }
     },
 
@@ -5099,9 +5333,18 @@ export const useGame = create<State>((set, get) => {
         pushLog(
           outcome === 'win'
             ? 'The landing clears. You keep your hand on the rail.'
-            : 'You shoulder past it and keep going down.',
+            : 'You shoulder past it and keep going.',
           outcome === 'win' ? 'good' : 'info',
         );
+        // Finish the stair hop the fight interrupted. Without this, you stay on
+        // the origin floor and the next click can re-roll the same descent/hunt.
+        const g = get();
+        if (g.hdb) {
+          const dest = context.hdbStairs.dest;
+          const wasNew = !g.hdb.revealedLevels.includes(dest.level);
+          set({ hdb: moveTo(g.hdb, dest) });
+          if (wasNew) sweepFloor(dest.level);
+        }
       } else if (context.wilds) {
         // Nothing out here to search or loot beyond what the body carried.
         if (outcome === 'win') pushLog('It stops moving. The street is yours again — for now.', 'good');
@@ -5146,7 +5389,10 @@ export const useGame = create<State>((set, get) => {
         evacZoneId: null,
         evacDeadline: null,
         evacCooldownUntil: null,
+        evacDemand: null,
+        evacDemandBias: null,
         escaped: false,
+        destroyedTunnelEdges: [],
         combat: null,
         _combatRng: null,
         hdb: null,
@@ -5173,8 +5419,9 @@ export const useGame = create<State>((set, get) => {
       const run = loadRun();
       if (!run) return;
       // Stations were bound to the network when the run was created; get it
-      // back in memory so the tunnels still route.
-      void loadMrtNetwork();
+      // back in memory so the tunnels still route — and so old saves can
+      // re-roll destroyed edges from seed before play resumes.
+      void loadMrtNetwork().then((net) => {
       void ensureZonesLoaded().catch(() => {
         /* trek/spawn degrade to country clip */
       });
@@ -5182,6 +5429,17 @@ export const useGame = create<State>((set, get) => {
         sumTraitMod(run.character.traitIds, 'gridWidthBonus'),
         coerceEquipment(run.equipment),
       );
+      let destroyedTunnelEdges = run.destroyedTunnelEdges ?? [];
+      if (!destroyedTunnelEdges.length && net && run.spawn) {
+        const fromSt = nearestStationAny(net, run.spawn.lat, run.spawn.lng);
+        const evac = run.evacZoneId ? run.locations[run.evacZoneId] : null;
+        const toSt = evac ? nearestStationAny(net, evac.lat, evac.lng) : null;
+        destroyedTunnelEdges = rollDestroyedTunnels(
+          new Rng(run.seed).fork('mrt:destroyed'),
+          net,
+          toSt ? { fromStationId: fromSt.id, toStationId: toSt.id } : null,
+        );
+      }
       set({
         phase: 'game',
         character: run.character,
@@ -5209,7 +5467,23 @@ export const useGame = create<State>((set, get) => {
         evacDeadline:
           run.evacDeadline ?? totalGameHour(run.day, run.hour) + evacWindowHours(true, run.day),
         evacCooldownUntil: run.evacCooldownUntil ?? null,
+        ...(() => {
+          const validBias = (b: string | null | undefined): EvacDemandBias | null =>
+            b === 'fuel' || b === 'meds' || b === 'ammo' || b === 'balanced' ? b : null;
+          if (run.evacDemand != null && run.evacDemand > 0) {
+            return {
+              evacDemand: run.evacDemand,
+              evacDemandBias: validBias(run.evacDemandBias) ?? 'balanced',
+            };
+          }
+          const rolled = rollEvacDemand(
+            new Rng(run.seed).fork(`evacdemand:resume:${run.day}`),
+            run.day,
+          );
+          return { evacDemand: rolled.demand, evacDemandBias: rolled.bias };
+        })(),
         escaped: false,
+        destroyedTunnelEdges,
         travelAnim: null,
         worldLoading: false,
         worldError: null,
@@ -5288,9 +5562,31 @@ export const useGame = create<State>((set, get) => {
         pushLog('It never left. The bore is still occupied.', 'bad');
         startTunnelFight(resumed, at, 0);
       }
+      });
     },
   };
 });
+
+function consumableRestoreSummary(fx: {
+  hunger?: number;
+  thirst?: number;
+  energy?: number;
+}): string {
+  const parts: string[] = [];
+  if (fx.hunger != null) parts.push('hunger');
+  if (fx.thirst != null) parts.push('thirst');
+  if (fx.energy != null) parts.push('energy');
+  if (parts.length === 0) return 'Feeling sharper';
+  if (parts.length === 1) {
+    const only = parts[0]!;
+    if (only === 'hunger') return 'Hunger restored';
+    if (only === 'thirst') return 'Thirst quenched';
+    return 'Feeling sharper';
+  }
+  const pretty = parts.map((p, i) => (i === 0 ? p.charAt(0).toUpperCase() + p.slice(1) : p));
+  if (pretty.length === 2) return `${pretty[0]} and ${pretty[1]} restored`;
+  return `${pretty[0]}, ${pretty[1]}, and ${pretty[2]} restored`;
+}
 
 function consumeOne(items: ItemInstance[], uid: string): ItemInstance[] {
   const out: ItemInstance[] = [];

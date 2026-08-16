@@ -1,6 +1,6 @@
 /** Player-facing tutorial copy shared by the Menu primer and in-game GuideModal. */
 
-export type GuideTopic = 'survive' | 'loot' | 'evac' | 'score';
+export type GuideTopic = 'survive' | 'loot' | 'evac' | 'score' | 'hdb' | 'tunnels';
 
 export interface GuideSection {
   id: GuideTopic;
@@ -24,16 +24,34 @@ export const GUIDE_SECTIONS: readonly GuideSection[] = [
     bullets: [
       'At a place, start a search: a fogged grid reveals finds one by one in real time.',
       'Click a fogged cell to search it next. Click found items (or Take all) into your pack; overflow goes to the on-site stash.',
-      'Each site has limited searches. Leaving early still spends a partial charge — Done finishes and auto-fills pack then stash.',
+      'Each site has limited searches. Leaving early still spends a partial charge. Take what you want — Done or Leave abandons the rest.',
+    ],
+  },
+  {
+    id: 'hdb',
+    title: 'Inside the block',
+    bullets: [
+      'Void decks open a side-elevation cutaway. Stairs stay visible even on sealed storeys; click a reachable stair or door to auto-path. Unvisited open floors stay fogged until you climb in.',
+      'Sealed landings are gone for good. Corridor debris, barricades, and stair gates can be cleared (heat + time). Collapses are permanent — find another route.',
+      'Higher storeys pay better loot; encounter chance tracks heat + door type. Going down can require Dex+End (hover to preview). Leave only from level 01.',
+    ],
+  },
+  {
+    id: 'tunnels',
+    title: 'The tunnels',
+    bullets: [
+      'From an MRT platform, Plan tunnel travel opens the rail map. Pick a destination — default route is fewest stations. Some segments collapse each run and cannot be crossed.',
+      'Confirming a route starts one crawl for the whole path. You can exit at intermediate stations or keep walking to the far end. No surface range, weather, or encumbrance underground.',
+      'Pressure builds from noise in the bore. Camps can rest it down; a pinned gauge draws worse things. STA may toll the stairs down at stations they still hold.',
     ],
   },
   {
     id: 'evac',
     title: 'Evac',
     bullets: [
-      'A map beacon marks the staging zone. Reach it during the timed window with enough weighted gear in your backpack (not stash or equipped).',
-      'Fuel counts most, then meds and ammo; weapons next; food and water least. The threshold rises each day. Boiling water burns fuel and readiness.',
-      'Miss the window and a new site opens after a cooldown — the horde keeps rising either way. Call for evac when ready.',
+      'A map beacon marks the staging zone. Reach it during the timed window with a haul in your backpack (not stash or equipped), then pop the flare.',
+      'Fuel counts most, then meds and ammo; sealed water a little; food and scrap barely; weapons barely count as cargo. The bird never names a quota — each window has its own appetite, and only the flare tells you if it was enough. Boiling water burns fuel.',
+      'Miss the window and a new site opens after a cooldown — the horde keeps rising either way. Collapsed tunnels often force detours toward the first beacon.',
     ],
   },
   {
@@ -54,5 +72,7 @@ export const GUIDE_BY_ID: Record<GuideTopic, GuideSection> = Object.fromEntries(
 /** Sections shown when opening help from a given entry point. */
 export function guideTopicsFor(topic: GuideTopic): GuideTopic[] {
   if (topic === 'evac') return ['evac', 'score'];
+  if (topic === 'hdb') return ['hdb', 'loot'];
+  if (topic === 'tunnels') return ['tunnels', 'evac'];
   return [topic];
 }

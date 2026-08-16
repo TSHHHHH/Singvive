@@ -449,34 +449,124 @@ export function LootItemForm({ item, idLocked, onChange, onStatus }: Props) {
             </select>
           </Field>
           {effect.kind === 'food' && (
-            <Field label="hunger">
-              <input
-                type="number"
-                className={inputClass}
-                value={effect.hunger}
-                onChange={(e) => setEffect({ kind: 'food', hunger: Number(e.target.value) })}
-              />
-            </Field>
+            <>
+              <Field label="hunger">
+                <input
+                  type="number"
+                  className={inputClass}
+                  value={effect.hunger}
+                  onChange={(e) => setEffect({ ...effect, kind: 'food', hunger: Number(e.target.value) })}
+                />
+              </Field>
+              <Field label="thirst (opt)">
+                <input
+                  type="number"
+                  className={inputClass}
+                  value={effect.thirst ?? ''}
+                  placeholder="—"
+                  onChange={(e) => {
+                    const next = { ...effect, kind: 'food' as const };
+                    if (e.target.value.trim() === '') delete next.thirst;
+                    else next.thirst = Number(e.target.value);
+                    setEffect(next);
+                  }}
+                />
+              </Field>
+              <Field label="energy (opt)">
+                <input
+                  type="number"
+                  className={inputClass}
+                  value={effect.energy ?? ''}
+                  placeholder="—"
+                  onChange={(e) => {
+                    const next = { ...effect, kind: 'food' as const };
+                    if (e.target.value.trim() === '') delete next.energy;
+                    else next.energy = Number(e.target.value);
+                    setEffect(next);
+                  }}
+                />
+              </Field>
+            </>
           )}
           {effect.kind === 'water' && (
-            <Field label="thirst">
-              <input
-                type="number"
-                className={inputClass}
-                value={effect.thirst}
-                onChange={(e) => setEffect({ kind: 'water', thirst: Number(e.target.value) })}
-              />
-            </Field>
+            <>
+              <Field label="thirst">
+                <input
+                  type="number"
+                  className={inputClass}
+                  value={effect.thirst}
+                  onChange={(e) => setEffect({ ...effect, kind: 'water', thirst: Number(e.target.value) })}
+                />
+              </Field>
+              <Field label="hunger (opt)">
+                <input
+                  type="number"
+                  className={inputClass}
+                  value={effect.hunger ?? ''}
+                  placeholder="—"
+                  onChange={(e) => {
+                    const next = { ...effect, kind: 'water' as const };
+                    if (e.target.value.trim() === '') delete next.hunger;
+                    else next.hunger = Number(e.target.value);
+                    setEffect(next);
+                  }}
+                />
+              </Field>
+              <Field label="energy (opt)">
+                <input
+                  type="number"
+                  className={inputClass}
+                  value={effect.energy ?? ''}
+                  placeholder="—"
+                  onChange={(e) => {
+                    const next = { ...effect, kind: 'water' as const };
+                    if (e.target.value.trim() === '') delete next.energy;
+                    else next.energy = Number(e.target.value);
+                    setEffect(next);
+                  }}
+                />
+              </Field>
+            </>
           )}
           {effect.kind === 'energy' && (
-            <Field label="energy">
-              <input
-                type="number"
-                className={inputClass}
-                value={effect.energy}
-                onChange={(e) => setEffect({ kind: 'energy', energy: Number(e.target.value) })}
-              />
-            </Field>
+            <>
+              <Field label="energy">
+                <input
+                  type="number"
+                  className={inputClass}
+                  value={effect.energy}
+                  onChange={(e) => setEffect({ ...effect, kind: 'energy', energy: Number(e.target.value) })}
+                />
+              </Field>
+              <Field label="hunger (opt)">
+                <input
+                  type="number"
+                  className={inputClass}
+                  value={effect.hunger ?? ''}
+                  placeholder="—"
+                  onChange={(e) => {
+                    const next = { ...effect, kind: 'energy' as const };
+                    if (e.target.value.trim() === '') delete next.hunger;
+                    else next.hunger = Number(e.target.value);
+                    setEffect(next);
+                  }}
+                />
+              </Field>
+              <Field label="thirst (opt)">
+                <input
+                  type="number"
+                  className={inputClass}
+                  value={effect.thirst ?? ''}
+                  placeholder="—"
+                  onChange={(e) => {
+                    const next = { ...effect, kind: 'energy' as const };
+                    if (e.target.value.trim() === '') delete next.thirst;
+                    else next.thirst = Number(e.target.value);
+                    setEffect(next);
+                  }}
+                />
+              </Field>
+            </>
           )}
           {effect.kind === 'cure' && (
             <Field label="infection">

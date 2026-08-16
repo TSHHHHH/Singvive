@@ -852,7 +852,7 @@ export function mrtTollEvent(): GameEvent {
     tell: 'The turnstiles are manned.',
     text:
       'An STA marshal has the gate chained at waist height. "Tunnel\'s not free. ' +
-      `Card, cells, a torch, a tin — I'm not fussy. One of them and you're through."`,
+      `Cells, a torch, a tin — I'm not fussy. One of them and you're through."`,
     choices: [
       {
         id: 'pay',
@@ -885,7 +885,7 @@ export interface CheckResult {
   success: boolean;
 }
 
-/** "1× EZ-Link Card, batteries or a torch" — what a gate will settle for. */
+/** "1× batteries, torch or canned food" — what a gate will settle for. */
 export function priceList(defIds: string[]): string {
   const names = defIds.map((id) => itemDef(id).name);
   if (names.length === 1) return `1× ${names[0]}`;

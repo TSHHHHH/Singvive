@@ -43,9 +43,21 @@ function validateEffect(effect: unknown, id: string, errors: string[]): void {
   switch (effect.kind) {
     case 'food':
       if (!isNumber(effect.hunger)) errors.push(`${id}: food.hunger must be a number`);
+      if (effect.thirst !== undefined && !isNumber(effect.thirst)) {
+        errors.push(`${id}: food.thirst must be a number`);
+      }
+      if (effect.energy !== undefined && !isNumber(effect.energy)) {
+        errors.push(`${id}: food.energy must be a number`);
+      }
       break;
     case 'water':
       if (!isNumber(effect.thirst)) errors.push(`${id}: water.thirst must be a number`);
+      if (effect.hunger !== undefined && !isNumber(effect.hunger)) {
+        errors.push(`${id}: water.hunger must be a number`);
+      }
+      if (effect.energy !== undefined && !isNumber(effect.energy)) {
+        errors.push(`${id}: water.energy must be a number`);
+      }
       break;
     case 'heal':
       if (!isNumber(effect.health)) errors.push(`${id}: heal.health must be a number`);
@@ -68,6 +80,12 @@ function validateEffect(effect: unknown, id: string, errors: string[]): void {
       break;
     case 'energy':
       if (!isNumber(effect.energy)) errors.push(`${id}: energy.energy must be a number`);
+      if (effect.hunger !== undefined && !isNumber(effect.hunger)) {
+        errors.push(`${id}: energy.hunger must be a number`);
+      }
+      if (effect.thirst !== undefined && !isNumber(effect.thirst)) {
+        errors.push(`${id}: energy.thirst must be a number`);
+      }
       break;
     case 'weapon':
       if (!isNumber(effect.damage)) errors.push(`${id}: weapon.damage must be a number`);

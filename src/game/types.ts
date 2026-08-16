@@ -139,8 +139,20 @@ export interface Occupation {
 
 // ---------- Items / Inventory ----------
 export type ItemEffect =
-  | { kind: 'food'; hunger: number }
-  | { kind: 'water'; thirst: number; infectionRisk?: number }
+  | {
+      kind: 'food';
+      hunger: number;
+      /** Optional secondary restores — meals that come with a drink. */
+      thirst?: number;
+      energy?: number;
+    }
+  | {
+      kind: 'water';
+      thirst: number;
+      hunger?: number;
+      energy?: number;
+      infectionRisk?: number;
+    }
   | {
       kind: 'heal';
       health: number;
@@ -154,7 +166,12 @@ export type ItemEffect =
       infectionRisk?: number;
     }
   | { kind: 'cure'; infection: number }
-  | { kind: 'energy'; energy: number }
+  | {
+      kind: 'energy';
+      energy: number;
+      hunger?: number;
+      thirst?: number;
+    }
   | {
       kind: 'weapon';
       damage: number;
@@ -552,8 +569,12 @@ export interface CombatContext {
   wilds?: boolean;
   /** the HDB unit this fight came out of — settled instead of a site search. */
   hdbUnit?: { level: number; unitId: string; lootMod: number };
-  /** cut off on the stairwell — there's nothing to search, you just fight clear. */
-  hdbStairs?: boolean;
+  /**
+   * Cut off on the stairwell — nothing to search; after the fight, finish the
+   * interrupted cell move to `dest` (otherwise you stay on the origin floor and
+   * can fail/re-fight the same descent forever).
+   */
+  hdbStairs?: { dest: { level: number; column: number } };
   /**
    * Met in the tunnel between two stations. Winning settles the node, never the
    * station overhead; `lootMod` rides along when the fight interrupted a
@@ -580,10 +601,10 @@ export interface CombatState {
   playerHpSnapshot: number; // HP entering combat (for summary)
   context: CombatContext;
 
-  /** Stance chosen before the next round resolves. */
+  /** Active fight stance — switchable mid-combat; drives the next swing. */
   selectedStance: StanceId;
   terrain: TerrainModifier;
-  /** Rounds resolve only while the player has committed a stance. */
+  /** True at contact until the player chooses Fight or Flee. */
   awaitingStance: boolean;
 
   // ---- initiative track ----

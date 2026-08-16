@@ -5,11 +5,9 @@ import { Icon } from '../icons/Icon';
 import { formatClock } from '../game/survival';
 import { LOG_VIEW_MODES, logViewMode, useClockFormat, useSetting, useSettings } from '../game/settings';
 import { itemIcon } from './Inventory/itemIcon';
-import { ATTRIBUTE_ICONS, ATTRIBUTE_LABELS } from '../game/character';
-import type { ChoiceKind } from '../game/events';
-import type { IconName } from '../icons/keys';
 import { EncounterPrompt } from './EncounterPrompt';
 import { SearchSessionNode } from './SearchSessionNode';
+import { PendingEventChoices } from './PendingEventChoices';
 import { highlightLogText } from './logHighlight';
 import type { GuideTopic } from '../content/guideContent';
 
@@ -23,14 +21,6 @@ const toneClass: Record<string, string> = {
 const CTRL =
   'flex h-6 w-8 shrink-0 items-center justify-center rounded border border-white/10 text-2xs leading-none transition';
 
-/** One glyph per kind of choice, so a decision reads before it's read. */
-const CHOICE_ICON: Record<ChoiceKind, IconName> = {
-  check: 'choice.check',
-  pay: 'choice.pay',
-  fight: 'choice.fight',
-  leave: 'choice.leave',
-};
-
 const dotClass: Record<string, string> = {
   good: 'bg-signal',
   bad: 'bg-hiss',
@@ -38,32 +28,39 @@ const dotClass: Record<string, string> = {
 };
 
 /**
+ * Where live interactive nodes (event / contact / search) should render.
+ * Phone Map owns them during interruptions; desktop timeline always does.
+ */
+export type LiveNodesHost = 'timeline' | 'map';
+
+/**
  * The run's timeline — today, and only today. Entries read oldest → newest down
  * a connecting spine. Everything from previous days is rolled into the Day Logs
  * archive so this column stays short enough to actually read; how much of
  * *today* is shown is still driven by the `logView` setting (Full / Latest /
- * Recent N). A pending event lands as a live, interactive node at the end; the
- * most recent item is always highlighted.
+ * Recent N). A pending event lands as a live, interactive node at the end when
+ * `liveNodes` is `timeline`; otherwise the phone Map tab owns those controls.
  */
 export function LogPanel({
   onOpenSettings,
   onOpenDayLogs,
   onFocusMap,
   onOpenGuide,
+  liveNodes = 'timeline',
 }: {
   onOpenSettings?: () => void;
   onOpenDayLogs?: () => void;
   /** Pan the map camera to a timeline focus target (e.g. intel tip). */
   onFocusMap?: (lat: number, lng: number) => void;
   onOpenGuide?: (topic: GuideTopic) => void;
+  /** When `map`, hide live event / contact / search controls (phone Map owns them). */
+  liveNodes?: LiveNodesHost;
 }) {
   const log = useGame((s) => s.log);
   const day = useGame((s) => s.day);
   const pending = useGame((s) => s.pendingEvent);
   // Identity of the live search only — slot ticks must not re-pin scroll.
   const pendingSearchNonce = useGame((s) => s.pendingSearch?.nonce ?? null);
-  const items = useGame((s) => s.items);
-  const resolveEvent = useGame((s) => s.resolveEvent);
   // A fight waiting on a stance is a live node at the foot of the timeline,
   // exactly like a pending event — see EncounterPrompt.
   const awaitingStance = useGame((s) => !!s.combat?.awaitingStance);
@@ -92,9 +89,13 @@ export function LogPanel({
   const hiddenCount = total - shown.length;
 
   const ev = pending?.event;
+  const showLive = liveNodes === 'timeline';
   // The newest log entry is "latest" only when there's no live node below it.
   const latestId =
-    !ev && !awaitingStance && !pendingSearchNonce && shown.length > 0
+    !(showLive && ev) &&
+    !(showLive && awaitingStance) &&
+    !(showLive && pendingSearchNonce) &&
+    shown.length > 0
       ? shown[shown.length - 1].id
       : null;
 
@@ -103,12 +104,10 @@ export function LogPanel({
   useEffect(() => {
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [log.length, pending, pendingSearchNonce, awaitingStance, viewId, day]);
+  }, [log.length, pending, pendingSearchNonce, awaitingStance, viewId, day, liveNodes]);
 
-  const hasItem = (defId?: string) =>
-    !defId || items.some((i) => i.container === 'backpack' && i.defId === defId);
-
-  const hasLiveNode = !!ev || awaitingStance || !!pendingSearchNonce;
+  const hasLiveNode =
+    showLive && (!!ev || awaitingStance || !!pendingSearchNonce);
 
   return (
     <div className="flex h-full min-w-0 flex-col">
@@ -180,9 +179,6 @@ export function LogPanel({
             {shown.map((e) => {
               const isLatest = e.id === latestId;
               return (
-                // The newest entry is called out by its background alone — a
-                // "latest" badge said the same thing a second time, and the
-                // timeline is read top-down anyway.
                 <li
                   key={e.id}
                   className={`relative flex gap-2 py-1 pl-6 ${
@@ -195,9 +191,6 @@ export function LogPanel({
                     } ${isLatest ? 'ring-2 ring-signal/60' : ''}`}
                   />
                   <div className="min-w-0 flex-1">
-                    {/* Time and entry share a line: the log is long and the
-                        column is narrow, so a whole row per timestamp was the
-                        most expensive whitespace on screen. */}
                     <p
                       style={hang}
                       className={`whitespace-normal break-words text-xs leading-snug ${
@@ -206,10 +199,6 @@ export function LogPanel({
                     >
                       <span
                         className="inline-block font-mono text-2xs tabular-nums text-white/25"
-                        // text-indent inherits, and an inline-block is a block
-                        // container — without this reset the hanging indent
-                        // above drags the time out of its own box and the
-                        // column clips it.
                         style={{ width: timeW, textIndent: 0 }}
                       >
                         {formatClock(e.hour, clock)}
@@ -227,9 +216,6 @@ export function LogPanel({
                         </button>
                       </div>
                     )}
-                    {/* a haul reads inline, in the timeline — no popup to
-                        dismiss. Indented to the text, not the timestamp, so the
-                        haul lines up with the sentence that earned it. */}
                     {e.loot && e.loot.length > 0 && (
                       <ul className="mt-1 flex flex-col gap-px" style={{ paddingLeft: timeW }}>
                         {e.loot.map((s, i) => {
@@ -260,13 +246,7 @@ export function LogPanel({
               );
             })}
 
-            {/* live event node — always the most recent item when present */}
-            {ev && (
-              // The live event is a timeline row like any other — same
-              // timestamp, same hanging indent, same "this is the newest thing"
-              // background. It used to be a bordered card at a larger type
-              // size, which made the whole column lurch every time one landed.
-              // The pulsing dot and the choices are enough to say it's live.
+            {showLive && ev && (
               <li className="relative flex gap-2 rounded bg-white/[0.07] py-1 pl-6">
                 <span className="absolute left-0 top-[7px] h-[11px] w-[11px] animate-pulse rounded-full border-2 border-concrete-900 bg-signal" />
                 <div className="min-w-0 flex-1">
@@ -284,66 +264,16 @@ export function LogPanel({
                     {' — '}
                     {ev.text}
                   </p>
-                  {/* Lined up under the text, so the choices read as belonging
-                      to it rather than as a panel of their own. */}
-                  <div className="mt-1.5 flex flex-col gap-1" style={{ paddingLeft: timeW }}>
-                    {ev.choices.map((c) => {
-                      // A pay choice lists everything they'd take; holding any
-                      // one of them is enough.
-                      const affordable =
-                        c.kind !== 'pay' || !!c.itemIds?.some((id) => hasItem(id));
-                      const tone =
-                        c.kind === 'fight'
-                          ? 'border-hiss/50 text-hiss hover:bg-hiss/10'
-                          : c.kind === 'leave'
-                            ? 'border-white/15 text-white/60 hover:bg-white/5'
-                            : 'border-signal/40 text-signal hover:bg-signal/10';
-                      // The roll used to be spelled out inside the label. It's
-                      // the price of the choice, not part of the sentence, so
-                      // it sits at the far end where prices go — the same place
-                      // a haul puts its count.
-                      const check =
-                        c.kind === 'check' && c.attr && c.dc != null
-                          ? { attr: c.attr, dc: c.dc }
-                          : null;
-                      return (
-                        <button
-                          key={c.id}
-                          disabled={!affordable}
-                          onClick={() => resolveEvent(c.id)}
-                          className={`flex w-full items-center gap-1.5 rounded border px-2 py-1 text-left text-xs leading-snug transition disabled:opacity-30 ${tone}`}
-                        >
-                          <Icon name={CHOICE_ICON[c.kind]} size={13} className="shrink-0" />
-                          <span className="min-w-0 flex-1 whitespace-normal break-words">
-                            {c.label}
-                            {c.kind === 'pay' && !affordable && (
-                              <span className="ml-1 text-hiss">(you have none)</span>
-                            )}
-                          </span>
-                          {check && (
-                            <span className="inline-flex shrink-0 items-center gap-1 tabular-nums opacity-60">
-                              <Icon
-                                name={ATTRIBUTE_ICONS[check.attr]}
-                                size={12}
-                                title={ATTRIBUTE_LABELS[check.attr]}
-                              />
-                              DC {check.dc}
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
+                  <div className="mt-1.5" style={{ paddingLeft: timeW }}>
+                    <PendingEventChoices event={ev} />
                   </div>
                 </div>
               </li>
             )}
 
-            {/* Contact node — the fight's opening decision, sharing the spine
-                and the gutter with everything else that happened today. */}
-            <EncounterPrompt timeW={timeW} hang={hang} />
+            {showLive && <EncounterPrompt timeW={timeW} hang={hang} />}
 
-            {/* Sequential search — fogged stash grid at the foot of the day. */}
-            {pendingSearchNonce && (
+            {showLive && pendingSearchNonce && (
               <SearchSessionNode timeW={timeW} hang={hang} onOpenGuide={onOpenGuide} />
             )}
           </ol>

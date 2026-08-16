@@ -6,10 +6,10 @@ import { hordeIntensity } from './goal';
 import { timeOfDay } from './weather';
 
 /**
- * One walk through the tunnel between two adjacent stations, laid out as a
- * branching left-to-right map: pick a lane, take what's on it, move up a
- * column. Everything here is pure — the store owns the live run and applies
- * the deltas, exactly as hdbDungeon.ts does for a block.
+ * One walk through the tunnels along a planned route (one or many stations),
+ * laid out as a branching left-to-right map: pick a lane, take what's on it,
+ * move up a column. Intermediate platforms let you exit early. Everything
+ * here is pure — the store owns the live run and applies the deltas.
  *
  * The trains stopped a long time ago. What's down there now is standing water,
  * the dead, and the people who decided a bore with two exits was safer than a
@@ -46,6 +46,12 @@ export interface TunnelNode {
   offer?: TunnelTrade;
   /** Settlement: rest/treat already taken — one-time camp services. */
   servicesUsed?: boolean;
+  /** Platform nodes only — which station this column is. */
+  stationId?: string;
+  /** Platform nodes only — world location id once resolved. */
+  locationId?: string;
+  /** Index into TunnelRun.stationIds (0 = origin). */
+  stationIndex?: number;
 }
 
 export interface TunnelRun {
@@ -57,6 +63,12 @@ export interface TunnelRun {
   toStation: string;
   fromName: string;
   toName: string;
+  /** Ordered station ids including origin and destination. */
+  stationIds: string[];
+  /** Parallel names for HUD progress. */
+  stationNames: string[];
+  /** Parallel location ids (may be empty until ensure resolves). */
+  stationLocationIds: string[];
   lineCode: string;
   lineName: string;
   lineColor: string;
@@ -199,22 +211,34 @@ const TUNNEL_TRADES: readonly TunnelTrade[] = [
   { wantDefId: 'water_bottle', giveDefId: 'painkillers' },
   { wantDefId: 'batteries', giveDefId: 'canned_food' },
   { wantDefId: 'four_d_ticket', giveDefId: 'torch' },
-  { wantDefId: 'ez_link_card', giveDefId: 'isotonic' },
+  { wantDefId: 'batteries', giveDefId: 'isotonic' },
   { wantDefId: 'duct_tape', giveDefId: 'medkit' },
 ];
 
 // ------------------------------------------------------------ generation --
 
-const MIN_COLS = 3;
-const MAX_COLS = 6;
-const LANES = 3; // three is legible on a phone; four is not
+const MIN_MID_COLS = 1;
+const MAX_MID_COLS = 4;
+/** Soft cap so a 20-stop ride stays playable on a phone. */
+const MAX_TOTAL_COLS = 22;
+const LANES = 3;
 
 const clamp = (lo: number, hi: number, n: number) => Math.max(lo, Math.min(hi, n));
+
+export interface TunnelStationStop {
+  stationId: string;
+  locationId: string;
+  name: string;
+}
 
 /** Everything the generator needs that isn't already on the two locations. */
 export interface TunnelCtx {
   from: LocationState;
   to: LocationState;
+  /** Ordered stations including origin and destination (length >= 2). */
+  stations: TunnelStationStop[];
+  /** Meters between consecutive stations (length = stations.length - 1). */
+  hopMeters: number[];
   lineCode: string;
   lineName: string;
   lineColor: string;
@@ -258,9 +282,9 @@ const nodeId = (col: number, lane: number) => `c${col}l${lane}`;
 
 /**
  * Pick each node's kind, with three rules applied after the roll: one camp per
- * column at most, never a camp in the last column before the exit (a free heal
- * on the doorstep is not a decision), and never a whole column of fights —
- * a column where every lane is a fight isn't a choice, it's a corridor.
+ * column at most, never a camp in the last column before the next platform
+ * (a free heal on the doorstep is not a decision), and never a whole column
+ * of fights — a column where every lane is a fight isn't a choice, it's a corridor.
  */
 function pickKinds(rng: Rng, count: number, col: number, lastMiddle: number): TunnelNodeKind[] {
   const full: [TunnelNodeKind, number][] = [
@@ -323,62 +347,140 @@ function linkColumns(rng: Rng, columns: string[][], nodes: Record<string, Tunnel
   }
 }
 
-export function generateTunnelRun(rng: Rng, ctx: TunnelCtx): TunnelRun {
-  const id = `${ctx.from.mrtStationId}>${ctx.to.mrtStationId}:${ctx.day}:${ctx.seq}`;
-  const shape = rng.fork('shape');
+/** Middle columns between two platforms for one hop, before global thinning. */
+function midColsForHop(meters: number, mode: 'mrt' | 'lrt'): number {
+  const span = clamp(MIN_MID_COLS, MAX_MID_COLS, Math.round(meters / 550));
+  return mode === 'lrt' ? Math.max(MIN_MID_COLS, span - 1) : span;
+}
 
-  // Adjacent stations sit ~0.8-2km apart, which this spreads across 3-6
-  // columns: a short hop is two decisions, the long ones under the reservoir
-  // are five.
-  const span = clamp(MIN_COLS, MAX_COLS, 2 + Math.round(ctx.meters / 550));
-  const cols = ctx.mode === 'lrt' ? Math.max(MIN_COLS, span - 1) : span;
+/**
+ * Thin middle-column budgets so platform + middles stay under MAX_TOTAL_COLS.
+ * Platforms are never removed.
+ */
+function thinMiddles(mids: number[], stationCount: number): number[] {
+  const platformCols = stationCount;
+  let total = platformCols + mids.reduce((a, b) => a + b, 0);
+  if (total <= MAX_TOTAL_COLS) return mids;
+  const out = [...mids];
+  while (total > MAX_TOTAL_COLS) {
+    let best = -1;
+    let bestVal = 0;
+    for (let i = 0; i < out.length; i++) {
+      if (out[i] > bestVal) {
+        bestVal = out[i];
+        best = i;
+      }
+    }
+    if (best < 0 || bestVal <= 0) break;
+    out[best]--;
+    total--;
+  }
+  return out;
+}
+
+export function generateTunnelRun(rng: Rng, ctx: TunnelCtx): TunnelRun {
+  const stations = ctx.stations.length >= 2
+    ? ctx.stations
+    : [
+        {
+          stationId: ctx.from.mrtStationId ?? '',
+          locationId: ctx.from.id,
+          name: ctx.from.name,
+        },
+        {
+          stationId: ctx.to.mrtStationId ?? '',
+          locationId: ctx.to.id,
+          name: ctx.to.name,
+        },
+      ];
+  const hopMeters =
+    ctx.hopMeters.length === stations.length - 1
+      ? ctx.hopMeters
+      : stations.slice(1).map(() => Math.round(ctx.meters / Math.max(1, stations.length - 1)));
+
+  const id = `${stations[0].stationId}>${stations[stations.length - 1].stationId}:${ctx.day}:${ctx.seq}`;
+  const shape = rng.fork('shape');
   const baseDanger = baseDangerFor(ctx);
-  const lastMiddle = cols - 2;
+
+  let mids = hopMeters.map((m) => midColsForHop(m, ctx.mode));
+  mids = thinMiddles(mids, stations.length);
 
   const nodes: Record<string, TunnelNode> = {};
   const columns: string[][] = [];
+  let col = 0;
 
-  for (let col = 0; col < cols; col++) {
-    const edge = col === 0 || col === cols - 1;
-    // Never one node in a middle column: a column *is* the choice, and a
-    // single-lane column is just a corridor with a monster in it.
-    const count = edge ? 1 : shape.fork(`count:${col}`).weighted([[2, 6] as const, [3, 4] as const]);
-    const lanes = edge ? [1] : lanesFor(shape.fork(`lanes:${col}`), count);
-    const kinds = edge ? (['platform'] as TunnelNodeKind[]) : pickKinds(shape, lanes.length, col, lastMiddle);
+  const addPlatform = (stop: TunnelStationStop, stationIndex: number, first: boolean) => {
+    const idn = nodeId(col, 1);
+    const node: TunnelNode = {
+      id: idn,
+      col,
+      lane: 1,
+      kind: 'platform',
+      state: first ? 'done' : 'unknown',
+      name: stop.name,
+      next: [],
+      danger: clamp(0, 5, baseDanger),
+      stationId: stop.stationId,
+      locationId: stop.locationId,
+      stationIndex,
+    };
+    nodes[idn] = node;
+    columns.push([idn]);
+    col++;
+  };
 
-    const ids: string[] = [];
-    lanes.forEach((lane, i) => {
-      const kind = kinds[i];
-      const r = rng.fork(`node:${col}:${lane}`);
-      const node: TunnelNode = {
-        id: nodeId(col, lane),
-        col,
-        lane,
-        kind,
-        state: col === 0 ? 'done' : 'unknown',
-        name: kind === 'platform' ? (col === 0 ? ctx.from.name : ctx.to.name) : r.pick(NAMES[kind]),
-        next: [],
-        danger: clamp(0, 5, baseDanger + (col > cols / 2 ? 1 : 0)),
-      };
-      if (kind === 'hazard') node.hazard = r.pick(['floodwater', 'collapse'] as const);
-      if (kind === 'scavenge') node.lootMod = r.weighted([[0, 5] as const, [1, 3] as const, [2, 1] as const]);
-      if (kind === 'settlement') node.offer = r.pick(TUNNEL_TRADES);
-      nodes[node.id] = node;
-      ids.push(node.id);
-    });
-    columns.push(ids);
+  const addMiddle = (midCount: number, beforeNextPlatform: boolean) => {
+    for (let i = 0; i < midCount; i++) {
+      const lastMiddle = beforeNextPlatform && i === midCount - 1 ? col : -1;
+      const count = shape.fork(`count:${col}`).weighted([[2, 6] as const, [3, 4] as const]);
+      const lanes = lanesFor(shape.fork(`lanes:${col}`), count);
+      const kinds = pickKinds(shape, lanes.length, col, lastMiddle);
+      const ids: string[] = [];
+      lanes.forEach((lane, li) => {
+        const kind = kinds[li];
+        const r = rng.fork(`node:${col}:${lane}`);
+        const node: TunnelNode = {
+          id: nodeId(col, lane),
+          col,
+          lane,
+          kind,
+          state: 'unknown',
+          name: r.pick(NAMES[kind]),
+          next: [],
+          danger: clamp(0, 5, baseDanger + (col > 4 ? 1 : 0)),
+        };
+        if (kind === 'hazard') node.hazard = r.pick(['floodwater', 'collapse'] as const);
+        if (kind === 'scavenge') node.lootMod = r.weighted([[0, 5] as const, [1, 3] as const, [2, 1] as const]);
+        if (kind === 'settlement') node.offer = r.pick(TUNNEL_TRADES);
+        nodes[node.id] = node;
+        ids.push(node.id);
+      });
+      columns.push(ids);
+      col++;
+    }
+  };
+
+  for (let s = 0; s < stations.length; s++) {
+    addPlatform(stations[s], s, s === 0);
+    if (s < stations.length - 1) {
+      addMiddle(mids[s], true);
+    }
   }
 
+  const cols = columns.length;
   linkColumns(rng.fork('edges'), columns, nodes);
 
   return {
     id,
-    fromLocationId: ctx.from.id,
-    toLocationId: ctx.to.id,
-    fromStation: ctx.from.mrtStationId ?? '',
-    toStation: ctx.to.mrtStationId ?? '',
-    fromName: ctx.from.name,
-    toName: ctx.to.name,
+    fromLocationId: stations[0].locationId || ctx.from.id,
+    toLocationId: stations[stations.length - 1].locationId || ctx.to.id,
+    fromStation: stations[0].stationId,
+    toStation: stations[stations.length - 1].stationId,
+    fromName: stations[0].name,
+    toName: stations[stations.length - 1].name,
+    stationIds: stations.map((s) => s.stationId),
+    stationNames: stations.map((s) => s.name),
+    stationLocationIds: stations.map((s) => s.locationId),
     lineCode: ctx.lineCode,
     lineName: ctx.lineName,
     lineColor: ctx.lineColor,
@@ -390,7 +492,7 @@ export function generateTunnelRun(rng: Rng, ctx: TunnelCtx): TunnelRun {
     pressure: 0,
     baseDanger,
     seq: ctx.seq,
-    minutesPerHop: Math.max(2, Math.round(ctx.travelMin / (cols - 1))),
+    minutesPerHop: Math.max(2, Math.round(ctx.travelMin / Math.max(1, cols - 1))),
   };
 }
 
@@ -423,7 +525,40 @@ export function nodeThreat(run: TunnelRun, node: TunnelNode): number {
 /** DC for a hazard's crossing check. */
 export const hazardDc = (node: TunnelNode): number => 10 + node.danger;
 
-export const isArrival = (run: TunnelRun, node: TunnelNode): boolean => node.col === run.cols - 1;
+export const isArrival = (run: TunnelRun, node: TunnelNode): boolean => {
+  if (node.kind !== 'platform') return false;
+  // New multi-stop runs tag platforms; older single-segment saves use last column.
+  if (run.stationIds?.length) {
+    return node.stationIndex === run.stationIds.length - 1;
+  }
+  return node.col === run.cols - 1;
+};
+
+/** Intermediate (or origin) platform where the player may choose to surface. */
+export function canExitHere(run: TunnelRun, node: TunnelNode): boolean {
+  if (node.kind !== 'platform') return false;
+  if (node.id !== run.currentId) return false;
+  if (isArrival(run, node)) return false;
+  // Origin: you just entered — exit would be pointless, but allow after leaving?
+  // Only offer exit once you've reached a later platform.
+  return (node.stationIndex ?? 0) > 0;
+}
+
+/** Progress label: "Station 3 / 9". */
+export function stationProgress(run: TunnelRun): string {
+  const here = currentNode(run);
+  const idx = here.stationIndex ?? run.stationIds?.findIndex((id) => id === here.stationId) ?? 0;
+  const total = run.stationIds?.length ?? 2;
+  if (here.kind === 'platform' && idx >= 0) {
+    return `Station ${idx + 1} / ${total}`;
+  }
+  // Between platforms: show the next station index.
+  const nextPlat = Object.values(run.nodes).find(
+    (n) => n.kind === 'platform' && n.col > here.col,
+  );
+  const nextIdx = (nextPlat?.stationIndex ?? 1) + 1;
+  return `Toward station ${nextIdx} / ${total}`;
+}
 
 // -------------------------------------------------------------- mutators --
 

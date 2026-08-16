@@ -8,7 +8,6 @@ import { useMrtNetwork } from '../components/MrtOverlay';
 import {
   displayLine,
   mrtRouteBetween,
-  neighbours,
   tunnelSegmentBetween,
   type MrtNetwork,
 } from '../game/mrt';
@@ -17,9 +16,13 @@ import { StatsPanel } from '../components/StatsPanel';
 import { LogPanel } from '../components/LogPanel';
 import { CombatPanel } from '../components/CombatPanel';
 import { PhoneStatusBar } from '../components/PhoneStatusBar';
-import { MapMiniLog } from '../components/MapMiniLog';
+import { MapHereChrome } from '../components/MapHereChrome';
+import { MapInterruptCard } from '../components/MapInterruptCard';
+import { PendingEventCardBody } from '../components/PendingEventChoices';
+import { EncounterPrompt } from '../components/EncounterPrompt';
+import { SearchSessionNode } from '../components/SearchSessionNode';
 import { Icon } from '../icons/Icon';
-import { LocationCard, type Departure } from '../components/LocationCard';
+import { LocationCard } from '../components/LocationCard';
 import { TrekCard } from '../components/TrekCard';
 import { InventoryPanel } from '../components/Inventory/InventoryPanel';
 import { CraftingPanel } from '../components/CraftingPanel';
@@ -27,22 +30,20 @@ import { StashLogbook } from '../components/StashLogbook';
 import { SettingsModal } from '../components/SettingsModal';
 import { DigitalClock } from '../components/DigitalClock';
 import { WeatherBadge } from '../components/WeatherBadge';
+import { SleepQualityIndicator } from '../components/SleepQualityIndicator';
 import { ObjectiveBar } from '../components/ObjectiveBar';
 import { ObjectivesPanel } from '../components/ObjectivesPanel';
 import { DayLogsModal } from '../components/DayLogsModal';
 import { GuideModal } from '../components/GuideModal';
 import { HdbDungeonModal } from '../components/HdbDungeonModal';
+import { HdbContextPanel, unitUnderfoot } from '../components/HdbContextPanel';
 import { TraderModal } from '../components/TraderModal';
+import { MrtRoutePlanner } from '../components/MrtRoutePlanner';
 import { TunnelRunView } from '../components/TunnelRunView';
 import type { GuideTopic } from '../content/guideContent';
 import { itemDef } from '../game/loot';
 import { estimateExpedition } from '../game/travel';
 import { unplayableMessage, walkabilityOf } from '../game/playable';
-import {
-  BED_LABEL,
-  ENCLOSED_LABEL,
-  ROOF_LABEL,
-} from '../game/sleep';
 import { routeLandPath } from '../game/route';
 import {
   bleedEncounterMod,
@@ -68,7 +69,6 @@ import {
   hordeLabel,
 } from '../game/goal';
 import { Rng } from '../game/rng';
-import { POI_CONFIG } from '../game/poi';
 import {
   hazardZonesNear,
   hazardsOnPath,
@@ -79,6 +79,22 @@ import type { LocationState } from '../game/types';
 import type { IconName } from '../icons/keys';
 
 type MobileView = 'map' | 'hub' | 'log';
+
+const PHONE_MQ = '(max-width: 1023px)';
+
+function useIsPhone(): boolean {
+  const [phone, setPhone] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia(PHONE_MQ).matches,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia(PHONE_MQ);
+    const update = () => setPhone(mq.matches || window.innerWidth < 1024);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
+  return phone;
+}
 
 /**
  * Which body the slide-out panel is showing. null = closed. Everything that
@@ -98,20 +114,22 @@ const SIDE_PANELS: Record<SidePanel, { label: string; icon: IconName }> = {
 /** Rail switchers — objectives opens from its own bar. */
 const PANEL_BUTTONS: SidePanel[] = ['inventory', 'craft', 'logbook', 'stats'];
 
-const listOf = (names: string[]): string =>
-  names.length <= 1 ? names[0] ?? 'nowhere' : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
-
 /**
- * Why a station you can see on the overlay isn't somewhere you can head for:
- * how far down the line it is, and which platforms this tunnel actually joins.
+ * Orientation when a visible station isn't adjacent: how far it is, and that
+ * the planner can still route around collapsed bores.
  */
-function tunnelDirections(net: MrtNetwork, here: LocationState, sel: LocationState): string {
-  const route = mrtRouteBetween(here, sel);
-  const exits = neighbours(net, here.mrtStationId!).map((n) => n.station.name);
-  const where = route
-    ? `${route.stops} stops down the ${displayLine(net, route.legs[0].line).name}`
-    : 'not on a line that runs from here';
-  return `${sel.name} is ${where}. From this platform the tunnel only reaches ${listOf(exits)}.`;
+function tunnelDirections(
+  net: MrtNetwork,
+  here: LocationState,
+  sel: LocationState,
+  destroyed: string[],
+): string {
+  const route = mrtRouteBetween(here, sel, destroyed);
+  if (!route) {
+    return `${sel.name} has no intact tunnel path from here — collapsed bores block every route. Plan travel to try another way, or walk the surface.`;
+  }
+  const where = `${route.stops} stops via the ${displayLine(net, route.legs[0].line).name}`;
+  return `${sel.name} is ${where}. Open tunnel planning to crawl the whole route in one run.`;
 }
 
 export function GameScreen() {
@@ -128,9 +146,9 @@ export function GameScreen() {
     travelAnim,
     pendingEvent,
     combat,
+    pendingSearch,
     hdb,
     hdbEnter,
-    hdbLeave,
     ghostOffer,
     acceptGhostTrade,
     declineGhostTrade,
@@ -139,12 +157,15 @@ export function GameScreen() {
     evacZoneId,
     evacDeadline,
     evacCooldownUntil,
+    evacDemand,
+    evacDemandBias,
     callEvac,
     travel,
     enter,
     trek,
-    tunnelEnter,
+    tunnelEnterRoute,
     tunnel,
+    destroyedTunnelEdges,
     rest,
     peekSleepConditions,
     notify,
@@ -169,9 +190,9 @@ export function GameScreen() {
       travelAnim: s.travelAnim,
       pendingEvent: s.pendingEvent,
       combat: s.combat,
+      pendingSearch: s.pendingSearch,
       hdb: s.hdb,
       hdbEnter: s.hdbEnter,
-      hdbLeave: s.hdbLeave,
       ghostOffer: s.ghostOffer,
       acceptGhostTrade: s.acceptGhostTrade,
       declineGhostTrade: s.declineGhostTrade,
@@ -180,12 +201,15 @@ export function GameScreen() {
       evacZoneId: s.evacZoneId,
       evacDeadline: s.evacDeadline,
       evacCooldownUntil: s.evacCooldownUntil,
+      evacDemand: s.evacDemand,
+      evacDemandBias: s.evacDemandBias,
       callEvac: s.callEvac,
       travel: s.travel,
       enter: s.enter,
       trek: s.trek,
-      tunnelEnter: s.tunnelEnter,
+      tunnelEnterRoute: s.tunnelEnterRoute,
       tunnel: s.tunnel,
+      destroyedTunnelEdges: s.destroyedTunnelEdges,
       rest: s.rest,
       peekSleepConditions: s.peekSleepConditions,
       notify: s.notify,
@@ -208,14 +232,20 @@ export function GameScreen() {
   const [trekTarget, setTrekTarget] = useState<{ lat: number; lng: number } | null>(null);
   const [mobileView, setMobileView] = useState<MobileView>('map');
   const [sidePanel, setSidePanel] = useState<SidePanel | null>(null);
+  const [hereSheetOpen, setHereSheetOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [dayLogsOpen, setDayLogsOpen] = useState(false);
   const [guideTopic, setGuideTopic] = useState<GuideTopic | null>(null);
+  const [mrtPlanner, setMrtPlanner] = useState<{
+    fromStationId: string;
+    toStationId?: string | null;
+  } | null>(null);
   const [mapFocus, setMapFocus] = useState<{ lat: number; lng: number; token: number } | null>(
     null,
   );
 
   const inventoryOpenToken = useGame((s) => s.inventoryOpenToken);
+  const traderOpen = useGame((s) => !!s.trader);
 
   const sleepPreview = useMemo(
     () => peekSleepConditions(),
@@ -234,12 +264,45 @@ export function GameScreen() {
     if (inventoryOpenToken > 0) setSidePanel('inventory');
   }, [inventoryOpenToken]);
 
-  // An event now lives in the timeline (right column) rather than a blocking
-  // modal. On mobile the log is a separate tab, so pull the player to it.
-  // A fight takes the same column, so pull mobile there too.
+  const isPhone = useIsPhone();
+
+  // Escape closes the slide-out unless a higher modal owns the screen.
   useEffect(() => {
-    if (pendingEvent || combat) setMobileView('log');
-  }, [pendingEvent, combat]);
+    if (!sidePanel) return;
+    if (settingsOpen || dayLogsOpen || guideTopic || traderOpen || ghostOffer || hereSheetOpen)
+      return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      setSidePanel(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [sidePanel, settingsOpen, dayLogsOpen, guideTopic, traderOpen, ghostOffer, hereSheetOpen]);
+
+  // Phone interruptions live on the Map tab — pull the player there instead of
+  // yanking them to Log. HDB / tunnel already own the map column.
+  useEffect(() => {
+    if (!isPhone) return;
+    if (hdb || tunnel) return;
+    if (!(pendingEvent || combat || pendingSearch)) return;
+    // Active fight is locked to Map below; don't fight the user off Log for events.
+    if (combat && !combat.awaitingStance) return;
+    setMobileView((v) => (v === 'hub' || v === 'log' ? 'map' : v));
+  }, [isPhone, pendingEvent, combat, pendingSearch, hdb, tunnel]);
+
+  // Active fight: keep Map mounted so a single CombatPanel owns the tick loop.
+  useEffect(() => {
+    if (!isPhone) return;
+    if (hdb || tunnel) return;
+    if (!(combat && !combat.awaitingStance)) return;
+    if (mobileView !== 'map') setMobileView('map');
+  }, [isPhone, combat, hdb, tunnel, mobileView]);
+
+  // Close the here sheet when you leave the site or enter a block / tunnel.
+  useEffect(() => {
+    setHereSheetOpen(false);
+  }, [currentPositionId, hdb, tunnel]);
 
   // The map is memoised, so everything handed to it has to hold its identity
   // across renders it doesn't care about — otherwise it rebuilds every marker.
@@ -491,35 +554,30 @@ export function GameScreen() {
   const selHere = sel ? sel.id === currentPositionId : false;
 
   const here = currentPositionId ? locations[currentPositionId] : null;
-  // Nothing runs any more, so a trip is one segment on foot: you can only head
-  // for the next station down the line. Neither end has to be cleared — the
-  // stairs down are open, and what's at the far end is the point of going.
+  // Adjacent intact segment still deep-links the planner with a destination.
   const bothStations = !!(
     sel &&
     sel.isMrtStation &&
     sel.id !== currentPositionId &&
     here?.isMrtStation
   );
-  const tunnelSeg = bothStations && here && sel ? tunnelSegmentBetween(here, sel) : null;
-
-  // A station further down the line isn't a target — but silence there reads as
-  // a bug, so say how far it is and what this platform actually reaches.
-  const tunnelHint =
-    bothStations && !tunnelSeg && mrtNet && here?.mrtStationId && sel
-      ? tunnelDirections(mrtNet, here, sel)
+  const tunnelSeg =
+    bothStations && here && sel
+      ? tunnelSegmentBetween(here, sel, destroyedTunnelEdges)
       : null;
 
-  // The platform's own line map. This is how a run actually starts: the station
-  // at the far end is usually undiscovered, and fog gives it no marker to click.
-  const departures: Departure[] =
-    mrtNet && here?.mrtStationId
-      ? neighbours(mrtNet, here.mrtStationId).map((seg) => ({
-          seg,
-          known: locationList.some((l) => l.mrtStationId === seg.station.id),
-        }))
-      : [];
+  const tunnelHint =
+    bothStations && !tunnelSeg && mrtNet && here?.mrtStationId && sel
+      ? tunnelDirections(mrtNet, here, sel, destroyedTunnelEdges)
+      : null;
 
   const openStash = () => setSidePanel('inventory');
+
+  const openPlanner = (toStationId?: string | null) => {
+    if (!here?.mrtStationId) return;
+    setMobileView('map');
+    setMrtPlanner({ fromStationId: here.mrtStationId, toStationId: toStationId ?? null });
+  };
 
   const selDist =
     sel && previewRoute && !previewRoute.blocked && sel.id !== currentPositionId
@@ -542,7 +600,7 @@ export function GameScreen() {
     tunnelHint,
     onTravel: () => travel(sel.id),
     onEnter: enter,
-    onTunnel: () => sel.mrtStationId && tunnelEnter(sel.mrtStationId),
+    onTunnel: () => sel.mrtStationId && openPlanner(sel.mrtStationId),
     onOpenStash: openStash,
   };
 
@@ -554,8 +612,7 @@ export function GameScreen() {
     est: null,
     energyLow: meters.energy < 5,
     canTunnel: false,
-    departures,
-    onDepart: tunnelEnter,
+    onPlanTunnels: here.isMrtStation ? () => openPlanner() : undefined,
     onTravel: () => travel(here.id),
     onEnter: enter,
     onTunnel: () => {},
@@ -566,8 +623,13 @@ export function GameScreen() {
   // extraction goal + doom clock + dual-path score
   const evacZone = evacZoneId ? locations[evacZoneId] : null;
   const atEvac = !!evacZoneId && currentPositionId === evacZoneId;
-  const readiness = evacReadiness(items, day);
-  const evacReady = readiness.ready;
+  const readiness = evacReadiness(
+    items,
+    day,
+    evacDemand,
+    evacDemandBias ?? 'balanced',
+    `${seed}::evac-vibe:${day}`,
+  );
   const dayMult = scoreDayMult(day);
   const projectedScore = computeScore(day, kills, Math.round(totalLootValue(items)));
   const projectedEvacBonus = computeEvacBonus(day, EVAC_SCORE_BONUS);
@@ -635,29 +697,23 @@ export function GameScreen() {
         : null;
 
   const hereSlot: ReactNode = hdb ? (
-    <div className="space-y-2 text-sm">
-      <p className="text-white/70">
-        Inside the block — cutaway on the map. Clear units floor by floor, then leave when you&apos;re
-        done.
-      </p>
-      <button
-        type="button"
-        onClick={() => hdbLeave()}
-        className="w-full rounded border border-white/20 px-2 py-2 text-sm hover:bg-white/5"
-      >
-        Leave the block
-      </button>
-    </div>
+    <>
+      <div className="lg:hidden">
+        <HdbContextPanel variant="compact" />
+      </div>
+      <div className="hidden lg:block">
+        <HdbContextPanel variant="full" />
+      </div>
+    </>
   ) : hereProps ? (
     <>
       <LocationCard {...hereProps} />
       {atEvac && (
         <button
           onClick={callEvac}
-          disabled={!evacReady}
-          className="mt-2 w-full rounded-lg bg-signal/80 py-2 text-sm font-bold text-black transition hover:bg-signal disabled:opacity-30"
+          className="mt-2 w-full rounded-lg bg-signal/80 py-2 text-sm font-bold text-black transition hover:bg-signal"
         >
-          {evacReady ? <><Icon name="action.evac" /> Call for evac — escape!</> : 'Not ready to extract'}
+          <Icon name="action.evac" /> Call for evac — pop the flare
         </button>
       )}
     </>
@@ -671,8 +727,16 @@ export function GameScreen() {
     </>
   ) : null;
 
+  const hdbUnit = hdb ? unitUnderfoot(hdb) : null;
   const hereTitle: ReactNode = hdb ? (
-    <><Icon name="hdb.enterBlock" /> Inside the block</>
+    <span className="inline-flex items-center gap-1.5 normal-case tracking-normal">
+      <Icon name="hdb.enterBlock" />
+      {hdbUnit ? (
+        <span className="text-xs font-bold tabular-nums text-concrete-50">{hdbUnit.label}</span>
+      ) : (
+        'Inside the block'
+      )}
+    </span>
   ) : hereProps ? (
     <><Icon name="action.here" /> You are here</>
   ) : (
@@ -695,17 +759,48 @@ export function GameScreen() {
    * demand read as "a panel appeared" instead of "deal with this now".
    *
    * Everything except the timeline column drops back and stops taking clicks
-   * until a stance is committed. The moment it is, the world comes back up and
-   * the fight resolves itself.
+   * until Fight or Flee is chosen. The moment it is, the world comes back up —
+   * Fight hands the column to CombatPanel; Flee resolves the break-away.
    */
-  const stanceGate = !!combat?.awaitingStance;
+  const contactGate = !!combat?.awaitingStance;
+  const phoneFight = isPhone && !!combat && !contactGate;
+  const phoneOwnsLive =
+    isPhone && (!!combat || !!pendingEvent || !!pendingSearch);
+  const phoneInterruptKind: 'contact' | 'event' | 'search' | null = contactGate
+    ? 'contact'
+    : pendingEvent
+      ? 'event'
+      : pendingSearch
+        ? 'search'
+        : null;
+  /** Show map chrome overlays when the map column is the visible phone surface. */
+  const phoneMapSurface =
+    isPhone && (mobileView === 'map' || !!hdb || !!tunnel || !!mrtPlanner);
   const backgrounded = `transition-all duration-300 ${
-    stanceGate ? 'pointer-events-none select-none opacity-25 saturate-50' : ''
+    contactGate ? 'pointer-events-none select-none opacity-25 saturate-50' : ''
   }`;
 
+  const shellClass = [
+    'relative flex h-full flex-col lg:flex-row',
+    phoneFight ? 'phone-fight-open' : '',
+    phoneInterruptKind && !phoneFight ? 'phone-interrupt-open' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
   return (
-    <div className="relative flex h-full flex-col lg:flex-row">
+    <div className={shellClass}>
       <PhoneStatusBar onOpenStatus={() => setMobileView('hub')} />
+
+      {/* Click map / timeline to dismiss any slide-out. Sits under the panel
+          (z-700) and under the desktop rail (z-750) so toggles stay reliable. */}
+      {sidePanel && (
+        <div
+          className="absolute inset-0 z-[690]"
+          aria-hidden
+          onClick={() => setSidePanel(null)}
+        />
+      )}
 
       {/* ================= COLUMN 1: the survivor rail =================
            Everything about *you* and the two places that matter right now,
@@ -724,22 +819,15 @@ export function GameScreen() {
           <DigitalClock day={day} hour={hour} band={time} />
           <div className="flex items-center justify-between gap-2">
             <WeatherBadge weather={weather} />
-            <div className="flex min-w-0 flex-col items-end gap-0.5">
+            <div className="flex shrink-0 items-center gap-2">
+              <SleepQualityIndicator conditions={sleepPreview} />
               <button
                 onClick={rest}
-                className="shrink-0 rounded border border-white/15 px-2.5 py-1 text-xs transition hover:bg-white/5"
+                className="rounded border border-white/15 px-2.5 py-1 text-xs transition hover:bg-white/5"
                 title={sleepPreview.summary}
               >
                 <Icon name="action.sleep" /> Rest
               </button>
-              <p className="max-w-[11rem] truncate text-right text-2xs text-white/40">
-                {ENCLOSED_LABEL[sleepPreview.enclosed]} · {ROOF_LABEL[sleepPreview.roof]} ·{' '}
-                {BED_LABEL[sleepPreview.bed]}
-                <span className="text-white/25">
-                  {' '}
-                  ({Math.round(sleepPreview.recoveryMult * 100)}%)
-                </span>
-              </p>
             </div>
           </div>
         </div>
@@ -758,7 +846,8 @@ export function GameScreen() {
               doomColor={doomColor}
               doomLabel={hordeLabel(doom)}
               dayMult={dayMult}
-              readinessRatio={readiness.ratio}
+              vibe={readiness.vibe}
+              vibeLine={readiness.vibeLine}
               onOpen={() => setSidePanel((p) => (p === 'objective' ? null : 'objective'))}
             />
 
@@ -831,9 +920,8 @@ export function GameScreen() {
                 evacZoneName={evacZone?.name ?? null}
                 evacDist={evacDist}
                 atEvac={atEvac}
-                readinessCurrent={readiness.current}
-                readinessRequired={readiness.required}
-                readinessRatio={readiness.ratio}
+                vibe={readiness.vibe}
+                vibeLine={readiness.vibeLine}
                 dayMult={dayMult}
                 projectedScore={projectedScore}
                 projectedEvacBonus={projectedEvacBonus}
@@ -842,7 +930,6 @@ export function GameScreen() {
                 doom={doom}
                 doomColor={doomColor}
                 doomLabel={hordeLabel(doom)}
-                evacReady={evacReady}
                 onEvac={callEvac}
                 onOpenGuide={setGuideTopic}
               />
@@ -855,75 +942,80 @@ export function GameScreen() {
            of which takes the whole view for the duration ================= */}
       <div
         className={`relative lg:flex lg:flex-1 ${
-          mobileView === 'map' || hdb || tunnel ? show(true) : 'hidden'
-        } lg:flex ${backgrounded}`}
+          mobileView === 'map' || hdb || tunnel || mrtPlanner ? show(true) : 'hidden'
+        } lg:flex ${phoneFight ? '' : backgrounded}`}
       >
-        {tunnel ? (
-          <TunnelRunView />
-        ) : hdb ? (
-          <HdbDungeonModal />
-        ) : (
-          <>
-            <GameMap
-              home={currentPos}
-              pois={locationList}
-              selectedId={sel?.id ?? null}
-              hereId={currentPositionId}
-              travelRange={mapTravelRange}
-              blipRange={mapBlipRange}
-              exploredArea={exploredArea}
-              travelAnim={travelAnim}
-              evacZoneId={evacZoneId}
-              noisePulses={noisePulses}
-              vitals={mapVitals}
-              hazards={sensedHazards}
-              weather={weather}
-              time={time}
-              trekTarget={trekTarget}
-              travelPath={travelPath}
-              travelPathBlocked={travelPathBlocked}
-              focusTarget={mapFocus}
-              onSelect={selectPoi}
-              onPickGround={pickGround}
+        {/* Phone active fight: CombatPanel owns the Map tab (no map peek). */}
+        {phoneFight && (
+          <div className="flex h-full min-h-0 flex-1 flex-col p-2 lg:hidden">
+            <CombatPanel />
+          </div>
+        )}
+        <div
+          className={
+            phoneFight
+              ? 'relative hidden h-full min-h-0 flex-1 lg:flex'
+              : 'relative flex h-full min-h-0 flex-1'
+          }
+        >
+          {tunnel ? (
+            <TunnelRunView />
+          ) : hdb ? (
+            <HdbDungeonModal onOpenGuide={setGuideTopic} />
+          ) : mrtPlanner ? (
+            <MrtRoutePlanner
+              fromStationId={mrtPlanner.fromStationId}
+              initialToStationId={mrtPlanner.toStationId}
+              onClose={() => setMrtPlanner(null)}
+              onConfirm={(stationIds) => {
+                setMrtPlanner(null);
+                tunnelEnterRoute(stationIds);
+              }}
             />
-            {/* Docked bottom-right so the travel line into the target stays visible. */}
-            {targetSlot && (
-              <TargetDock title={targetSlot.title} onClose={targetSlot.onClose}>
-                {targetSlot.body}
-              </TargetDock>
-            )}
-            {worldLoading && (
-              <div className="absolute inset-0 z-[500] flex items-center justify-center bg-black/70">
-                <p className="animate-pulse text-white/70">Loading the neighbourhood…</p>
-              </div>
-            )}
-            {worldError && (
-              <div className="absolute bottom-2 left-2 z-[500] max-w-xs rounded bg-black/85 px-3 py-1.5 text-xs text-concrete-50">
-                {worldError}
-              </div>
-            )}
-          </>
-        )}
+          ) : (
+            <>
+              <GameMap
+                home={currentPos}
+                pois={locationList}
+                selectedId={sel?.id ?? null}
+                hereId={currentPositionId}
+                travelRange={mapTravelRange}
+                blipRange={mapBlipRange}
+                exploredArea={exploredArea}
+                travelAnim={travelAnim}
+                evacZoneId={evacZoneId}
+                noisePulses={noisePulses}
+                vitals={mapVitals}
+                hazards={sensedHazards}
+                weather={weather}
+                time={time}
+                trekTarget={trekTarget}
+                travelPath={travelPath}
+                travelPathBlocked={travelPathBlocked}
+                focusTarget={mapFocus}
+                onSelect={selectPoi}
+                onPickGround={pickGround}
+              />
+              {/* Docked bottom-right so the travel line into the target stays visible. */}
+              {targetSlot && (
+                <TargetDock title={targetSlot.title} onClose={targetSlot.onClose}>
+                  {targetSlot.body}
+                </TargetDock>
+              )}
+              {worldLoading && (
+                <div className="absolute inset-0 z-[500] flex items-center justify-center bg-black/70">
+                  <p className="animate-pulse text-white/70">Loading the neighbourhood…</p>
+                </div>
+              )}
+              {worldError && (
+                <div className="absolute bottom-2 left-2 z-[500] max-w-xs rounded bg-black/85 px-3 py-1.5 text-xs text-concrete-50">
+                  {worldError}
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
-
-      {/* Fight / event live in the Timeline tab on phones — keep a way back
-          from Map, HDB, or Tunnel without hunting for the nav pulse. Sits
-          outside the stance-gated columns so it stays tappable. Below the
-          phone status bar so both stay readable. */}
-      {(combat || pendingEvent) &&
-        mobileView !== 'log' &&
-        (mobileView === 'map' || !!hdb || !!tunnel) && (
-          <button
-            type="button"
-            onClick={() => setMobileView('log')}
-            className="absolute inset-x-0 z-[760] p-2 lg:hidden"
-            style={{ top: 'var(--mobile-status-bar-h)' }}
-          >
-            <div className="rounded border border-hiss/50 bg-hiss/20 px-2 py-1.5 text-center text-xs font-semibold text-hiss shadow-signage">
-              {combat ? 'Contact — tap for Fight' : 'Someone wants a word — tap for Log'}
-            </div>
-          </button>
-        )}
 
       {/* ================= COLUMN 4: timeline — or the encounter panel, which
            takes the column over for the duration of a fight ================= */}
@@ -931,22 +1023,18 @@ export function GameScreen() {
         className={`min-w-0 overflow-hidden border-white/10 bg-concrete-900/70 p-3 max-lg:flex-col lg:flex lg:w-[35vw] lg:min-w-[320px] lg:shrink-0 lg:border-l lg:p-2.5 ${
           mobileView === 'log' ? show(true) : 'hidden'
         } lg:flex lg:flex-col transition-all duration-300 ${
-          stanceGate
-            ? // The one lit thing on the screen while the decision is open.
+          contactGate && !isPhone
+            ? // Desktop: the one lit thing on the screen while the decision is open.
               'relative z-[760] ring-2 ring-inset ring-hiss shadow-[0_0_60px_-5px_rgba(217,45,45,0.55)]'
-            : combat
+            : combat && !isPhone
               ? 'ring-1 ring-inset ring-hiss/50'
               : ''
         }`}
       >
-        {/* The timeline takes what's left after the location block below it.
-             A pending encounter does *not* take the column over — it lands as
-             the newest node *inside* the still-visible log (see
-             EncounterPrompt), and the fight proper only replaces the timeline
-             once a stance is committed. The log therefore stays fully live
-             during the gate: it now holds the only decision on the screen. */}
+        {/* Desktop: fight replaces the timeline once Fight is chosen.
+             Phone: Map owns CombatPanel — Log stays history + settings. */}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
-          {combat && !stanceGate ? (
+          {combat && !contactGate && !isPhone ? (
             <CombatPanel />
           ) : (
             <div className="flex min-h-0 flex-1 flex-col">
@@ -955,6 +1043,7 @@ export function GameScreen() {
                 onOpenDayLogs={() => setDayLogsOpen(true)}
                 onFocusMap={focusStashOnMap}
                 onOpenGuide={setGuideTopic}
+                liveNodes={phoneOwnsLive ? 'map' : 'timeline'}
               />
             </div>
           )}
@@ -970,7 +1059,7 @@ export function GameScreen() {
              you. It is the one surface the lockout has to cover by hand. */}
         <div
           className={`mt-2.5 max-h-[40%] shrink-0 overflow-y-auto border-t border-white/10 pt-2.5 transition-opacity duration-300 ${
-            stanceGate ? 'pointer-events-none select-none opacity-25' : ''
+            contactGate ? 'pointer-events-none select-none opacity-25' : ''
           }`}
         >
           <RailSection title={hereTitle} accent={!!hereProps}>
@@ -979,25 +1068,66 @@ export function GameScreen() {
         </div>
       </aside>
 
-      {/* Slim "you are here" bar on the map tab — enough to search or stash
-          without leaving the map. */}
-      {hereProps && !hdb && !tunnel && mobileView === 'map' && (
-        <HereCompactBar
-          sel={hereProps.sel}
-          atEvac={atEvac}
-          evacReady={evacReady}
-          onSearch={enter}
-          onOpenStash={openStash}
-          onEvac={callEvac}
-        />
+      {/* Phone map chrome — outside stance-gated columns so interrupt cards stay
+          tappable during contact. Priority: contact → event → search → idle.
+          Interrupt cards stay mounted on any phone tab so search keeps ticking. */}
+      {isPhone && !phoneFight && phoneInterruptKind === 'contact' && (
+        <MapInterruptCard accent="hiss">
+          <EncounterPrompt variant="card" />
+        </MapInterruptCard>
       )}
+      {isPhone && !phoneFight && phoneInterruptKind === 'event' && pendingEvent && (
+        <MapInterruptCard>
+          <PendingEventCardBody event={pendingEvent.event} />
+        </MapInterruptCard>
+      )}
+      {isPhone && !phoneFight && phoneInterruptKind === 'search' && (
+        <MapInterruptCard>
+          <SearchSessionNode variant="card" onOpenGuide={setGuideTopic} />
+        </MapInterruptCard>
+      )}
+      {phoneMapSurface &&
+        !phoneFight &&
+        !phoneInterruptKind &&
+        !hdb &&
+        !tunnel &&
+        mobileView === 'map' && (
+          <MapHereChrome
+            sel={hereProps?.sel}
+            atEvac={atEvac}
+            onOpenLog={() => setMobileView('log')}
+            onOpenHere={() => setHereSheetOpen(true)}
+            onSearch={enter}
+            onOpenStash={openStash}
+            onEvac={callEvac}
+          />
+        )}
 
-      {/* Two newest log lines on the phone map — above the here bar / nav. */}
-      {!hdb && !tunnel && mobileView === 'map' && (
-        <MapMiniLog
-          onOpenLog={() => setMobileView('log')}
-          aboveHereBar={!!hereProps}
-        />
+      {/* Phone: full LocationCard sheet from the here row. */}
+      {hereSheetOpen && hereProps && (
+        <div
+          className="absolute inset-0 z-[1200] flex items-end justify-center bg-black/80 p-3 pb-[calc(var(--mobile-nav-h)+env(safe-area-inset-bottom,0px)+0.75rem)] lg:hidden"
+          onClick={() => setHereSheetOpen(false)}
+        >
+          <div
+            className="max-h-[min(75vh,36rem)] w-full max-w-md overflow-y-auto rounded-xl border border-white/15 bg-concrete-900 p-3 shadow-signage"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-2xs font-semibold uppercase tracking-widest text-signal/70">
+                You are here
+              </span>
+              <button
+                type="button"
+                onClick={() => setHereSheetOpen(false)}
+                className="text-xs text-white/40 hover:text-white/70"
+              >
+                ✕ close
+              </button>
+            </div>
+            {hereSlot}
+          </div>
+        </div>
       )}
 
       {/* ================= MOBILE bottom nav ================= */}
@@ -1005,7 +1135,17 @@ export function GameScreen() {
         className={`flex shrink-0 border-t border-white/10 bg-concrete-900 pb-[env(safe-area-inset-bottom,0px)] text-xs lg:hidden ${backgrounded}`}
         style={{ minHeight: 'calc(var(--mobile-nav-h) + env(safe-area-inset-bottom, 0px))' }}
       >
-        <NavBtn label={<><Icon name="action.map" /> Map</>} active={mobileView === 'map'} onClick={() => setMobileView('map')} />
+        <NavBtn
+          label={<><Icon name="action.map" /> Map</>}
+          active={mobileView === 'map'}
+          onClick={() => setMobileView('map')}
+          pulse={
+            !!(pendingEvent || pendingSearch) &&
+            mobileView !== 'map' &&
+            !hdb &&
+            !tunnel
+          }
+        />
         <NavBtn
           label={<><Icon name="action.status" /> Status</>}
           active={mobileView === 'hub'}
@@ -1018,9 +1158,9 @@ export function GameScreen() {
         />
         <NavBtn
           label={combat ? <><Icon name="combat.hostiles" /> Fight</> : <><Icon name="action.log" /> Log</>}
-          active={mobileView === 'log'}
-          pulse={!!(pendingEvent || combat) && mobileView !== 'log'}
-          onClick={() => setMobileView('log')}
+          active={combat ? mobileView === 'map' || !!hdb || !!tunnel : mobileView === 'log'}
+          pulse={!!combat && mobileView !== 'map' && !hdb && !tunnel}
+          onClick={() => setMobileView(combat ? 'map' : 'log')}
         />
       </nav>
 
@@ -1126,77 +1266,5 @@ function NavBtn({
         <span className="absolute right-3 top-1.5 h-2 w-2 animate-pulse rounded-full bg-signal" />
       )}
     </button>
-  );
-}
-
-/** Mobile-only: the "here" card boiled down to a bar, so the map stays visible. */
-function HereCompactBar({
-  sel,
-  atEvac,
-  evacReady,
-  onSearch,
-  onOpenStash,
-  onEvac,
-}: {
-  sel: LocationState;
-  atEvac: boolean;
-  evacReady: boolean;
-  onSearch: () => void;
-  onOpenStash: () => void;
-  onEvac: () => void;
-}) {
-  const cfg = POI_CONFIG[sel.category];
-  const occupied = !!sel.factionId;
-  const pendingSearch = useGame((s) => s.pendingSearch);
-  const abortSearch = useGame((s) => s.abortSearch);
-  const searchingHere = !!pendingSearch && pendingSearch.locationId === sel.id;
-  return (
-    <div
-      className="pointer-events-auto absolute left-3 right-3 z-[640] flex items-center gap-2 rounded-lg border border-signal/40 bg-concrete-900/95 px-3 py-2 shadow-signage lg:hidden"
-      style={{
-        bottom:
-          'calc(var(--mobile-nav-h) + env(safe-area-inset-bottom, 0px) + 0.5rem)',
-      }}
-    >
-      <Icon name={cfg.icon} size={18} />
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-bold">{sel.name}</div>
-        <div className="text-xs text-signal/70">
-          <Icon name="action.here" /> {searchingHere ? 'searching…' : 'here'}
-        </div>
-      </div>
-      {atEvac ? (
-        <button
-          onClick={onEvac}
-          disabled={!evacReady}
-          className="shrink-0 rounded bg-signal/80 px-3 py-1.5 text-xs font-bold text-black disabled:opacity-30"
-        >
-          <Icon name="action.evac" /> Evac
-        </button>
-      ) : searchingHere ? (
-        <button
-          onClick={() => abortSearch()}
-          className="shrink-0 rounded border border-white/20 px-2.5 py-1.5 text-xs font-bold"
-        >
-          Leave
-        </button>
-      ) : (
-        <>
-          <button
-            onClick={onSearch}
-            disabled={!occupied && sel.exhausted}
-            className="shrink-0 rounded bg-signal/80 px-2.5 py-1.5 text-xs font-bold text-black disabled:opacity-30"
-          >
-            {occupied ? 'Gate' : sel.exhausted ? 'Empty' : 'Go in'}
-          </button>
-          <button
-            onClick={onOpenStash}
-            className="shrink-0 rounded border border-white/15 px-2.5 py-1.5 text-xs"
-          >
-            <Icon name="action.stash" />
-          </button>
-        </>
-      )}
-    </div>
   );
 }

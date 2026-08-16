@@ -50,6 +50,11 @@ export type IconName =
   | 'hdb.service'
   | 'hdb.hazard'
   | 'hdb.unavailable'
+  | 'hdb.sealedCollapsed'
+  | 'hdb.sealedFlooded'
+  | 'hdb.sealedWelded'
+  | 'hdb.sealedBurnt'
+  | 'hdb.collapse'
   | 'hdb.enterBlock'
   | 'hdb.scout'
   | 'hdb.breach'
@@ -63,6 +68,9 @@ export type IconName =
   | 'tunnel.settlement'
   | 'tunnel.hazard'
   | 'tunnel.unknown'
+  // --- sleep quality (Rest indicator) ---
+  | 'sleep.roof'
+  | 'sleep.bed'
   // --- actions / chrome ---
   | 'action.sleep'
   | 'action.inventory'
@@ -279,6 +287,11 @@ export const EMOJI_FALLBACK: Record<IconName, string> = {
   'hdb.service': '🤝',
   'hdb.hazard': '☢️',
   'hdb.unavailable': '✕',
+  'hdb.sealedCollapsed': '🧱',
+  'hdb.sealedFlooded': '🌊',
+  'hdb.sealedWelded': '🚧',
+  'hdb.sealedBurnt': '🔥',
+  'hdb.collapse': '💥',
   'hdb.enterBlock': '🏢',
   'hdb.scout': '👁️',
   'hdb.breach': '🔨',
@@ -291,6 +304,9 @@ export const EMOJI_FALLBACK: Record<IconName, string> = {
   'tunnel.settlement': '🔦',
   'tunnel.hazard': '🌊',
   'tunnel.unknown': '❔',
+
+  'sleep.roof': '⌂',
+  'sleep.bed': '🛏️',
 
   'action.sleep': '😴',
   'action.inventory': '🎒',

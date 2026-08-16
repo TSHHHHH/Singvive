@@ -8,11 +8,14 @@ import {
   PRESSURE_BANDS,
   PRESSURE_MAX,
   TUNNEL_NODE_META,
+  canExitHere,
   currentNode,
   hazardDc,
+  isArrival,
   isRevealed,
   nodeThreat,
   pressureBand,
+  stationProgress,
   type TunnelNode,
   type TunnelRun,
 } from '../game/tunnelRun';
@@ -29,7 +32,7 @@ const LANES = 3;
 const BAND_FILL = ['bg-concrete-500', 'bg-signal/70', 'bg-signal', 'bg-hiss/80', 'bg-hiss'];
 
 export function TunnelRunView() {
-  const { run, offer, step, rest, treat, accept, decline } = useGame(
+  const { run, offer, step, rest, treat, accept, decline, exitHere } = useGame(
     useShallow((s) => ({
       run: s.tunnel,
       offer: s.tunnelOffer,
@@ -38,6 +41,7 @@ export function TunnelRunView() {
       treat: s.tunnelTreat,
       accept: s.tunnelAcceptOffer,
       decline: s.tunnelDeclineOffer,
+      exitHere: s.tunnelExitHere,
     })),
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -48,6 +52,7 @@ export function TunnelRunView() {
   const ahead = here.next.map((id) => run.nodes[id]);
   const selected = (selectedId && run.nodes[selectedId]) || ahead[0] || here;
   const canWalk = ahead.some((n) => n.id === selected.id);
+  const mayExit = canExitHere(run, here);
 
   return (
     <div className="flex h-full w-full min-h-0 flex-col overflow-hidden bg-concrete-950">
@@ -58,7 +63,7 @@ export function TunnelRunView() {
             {run.fromName} → {run.toName}
           </div>
           <div className="truncate text-xs text-concrete-400">
-            {run.lineName} · {run.meters} m of bore · no weather down here
+            {run.lineName} · {stationProgress(run)} · {run.meters} m · no weather down here
           </div>
         </div>
         <div className="shrink-0 text-right">
@@ -94,7 +99,9 @@ export function TunnelRunView() {
         run={run}
         node={selected}
         canWalk={canWalk}
+        mayExit={mayExit}
         onWalk={() => step(selected.id)}
+        onExit={exitHere}
       />
     </div>
   );
@@ -413,17 +420,22 @@ function NodeDetail({
   run,
   node,
   canWalk,
+  mayExit,
   onWalk,
+  onExit,
 }: {
   run: TunnelRun;
   node: TunnelNode;
   canWalk: boolean;
+  mayExit: boolean;
   onWalk: () => void;
+  onExit: () => void;
 }) {
   const meta = TUNNEL_NODE_META[node.kind];
   const revealed = isRevealed(run, node);
-  const arrival = node.col === run.cols - 1;
+  const arrival = isArrival(run, node);
   const hazard = node.hazard ? HAZARD_META[node.hazard] : null;
+  const standingHere = node.id === run.currentId;
 
   return (
     <div className="shrink-0 border-t border-concrete-600 bg-concrete-900/60 p-3">
@@ -453,6 +465,16 @@ function NodeDetail({
         </div>
       </div>
 
+      {mayExit && standingHere && (
+        <button
+          type="button"
+          onClick={onExit}
+          className="mt-2 w-full rounded border border-astral/50 bg-astral/15 py-2 text-sm font-bold text-astral transition hover:bg-astral/25"
+        >
+          Exit here · {node.name}
+        </button>
+      )}
+
       <button
         disabled={!canWalk}
         onClick={onWalk}
@@ -462,10 +484,14 @@ function NodeDetail({
           ? arrival
             ? `${meta.verb} at ${run.toName}`
             : `${meta.verb} · ${node.name}`
-          : 'Pick a way forward'}
+          : mayExit && standingHere
+            ? 'Or keep walking the bore'
+            : 'Pick a way forward'}
       </button>
       <p className="mt-1 text-center text-2xs text-concrete-400/70">
-        There is no way back up until the far end — the tunnel only runs one way now.
+        {mayExit
+          ? 'Stairs up at every station — or keep walking toward the far end.'
+          : 'There is no way back up until the next station — the tunnel only runs one way now.'}
       </p>
     </div>
   );

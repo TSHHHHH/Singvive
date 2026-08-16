@@ -10,18 +10,19 @@ export type BedLevel = 'ground' | 'bed';
 
 export const SLEEPING_BAG_ID = 'sleeping_bag';
 
-const ENCLOSED_MULT: Record<EnclosedLevel, number> = {
+/** Per-factor recovery multipliers — product is `SleepConditions.recoveryMult`. */
+export const ENCLOSED_MULT: Record<EnclosedLevel, number> = {
   none: 0.55,
   partial: 0.8,
   full: 1,
 };
 
-const ROOF_MULT: Record<RoofLevel, number> = {
+export const ROOF_MULT: Record<RoofLevel, number> = {
   none: 0.7,
   yes: 1,
 };
 
-const BED_MULT: Record<BedLevel, number> = {
+export const BED_MULT: Record<BedLevel, number> = {
   ground: 0.75,
   bed: 1,
 };

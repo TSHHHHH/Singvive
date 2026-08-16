@@ -163,7 +163,11 @@ export const STANCES: Record<StanceId, StanceDef> = {
   },
 };
 
+/** All stances, including the flee profile used by Break off. */
 export const STANCE_ORDER: StanceId[] = ['aggressive', 'guarded', 'precision', 'disengage'];
+
+/** Stances you can hold and switch between while the fight is running. */
+export const FIGHT_STANCE_ORDER: StanceId[] = ['aggressive', 'guarded', 'precision'];
 
 // ---------------------------------------------------------------- terrain --
 
@@ -367,10 +371,15 @@ export function playerCombatStats(
 // ------------------------------------------------------- initiative track --
 /**
  * The two markers race along one track; the first to the far end swings and is
- * sent back to the start. Gauge units are earned per real second, so a Speed of
- * 10 is one action a second at 1× — which is what the speed controls scale.
+ * sent back to the start. Gauge units are earned per real second at 1× playback,
+ * so a Speed of 10 fills the track in `GAUGE_FULL / 10` seconds (5s here).
+ *
+ * Kept at 50 (not 100) so listed speeds — player formula, enemy catalog, gear
+ * tooltips — are the rates the track actually uses. Raising the fill ceiling
+ * instead of secretly ×2-ing rates was how initiative used to drift out of sync
+ * with the SPD numbers on screen.
  */
-export const GAUGE_FULL = 100;
+export const GAUGE_FULL = 50;
 
 /** Playback rates offered by the on-screen controls. */
 export const COMBAT_SPEEDS = [0.5, 1, 2, 4] as const;
@@ -388,9 +397,8 @@ export function playerSpeed(
   equipSpeed = 0,
 ): number {
   const energyMod = energy < 20 ? -2 : energy < 45 ? -1 : 0;
-  // Doubled vs the original 6+dex*0.8 curve — combat initiative felt sluggish.
-  const base = 12 + attrs.dexterity * 1.6 + stance.speedMod * 2 + energyMod * 2 + equipSpeed * 2;
-  return Math.max(4, base * Math.max(0.4, legFactor));
+  const base = 6 + attrs.dexterity * 0.8 + stance.speedMod + energyMod + equipSpeed;
+  return Math.max(2, base * Math.max(0.4, legFactor));
 }
 
 /** Seconds of track time one action costs at the given speed. */

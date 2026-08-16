@@ -151,9 +151,39 @@ function ScoreDiagram() {
   );
 }
 
+function HdbDiagram() {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5" aria-hidden>
+      <Chip icon="hdb.enterBlock" label="climb" />
+      <Arrow />
+      <Chip icon="hdb.unit" label="door" />
+      <Arrow />
+      <Chip icon="hdb.breach" label="heat" accent />
+      <Arrow />
+      <Chip icon="action.search" label="timeline" />
+    </div>
+  );
+}
+
+function TunnelsDiagram() {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5" aria-hidden>
+      <Chip icon="action.mrt" label="plan" />
+      <Arrow />
+      <Chip label="fewest stops" accent />
+      <Arrow />
+      <Chip icon="tunnel.platform" label="crawl" />
+      <Arrow />
+      <Chip label="exit / arrive" />
+    </div>
+  );
+}
+
 const DIAGRAMS: Record<GuideTopic, () => ReactElement> = {
   survive: SurviveDiagram,
   loot: LootDiagram,
+  hdb: HdbDiagram,
+  tunnels: TunnelsDiagram,
   evac: EvacDiagram,
   score: ScoreDiagram,
 };

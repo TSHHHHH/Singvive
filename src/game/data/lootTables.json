@@ -83,6 +83,22 @@
     [
       "purification_tabs",
       3
+    ],
+    [
+      "hardtack",
+      4
+    ],
+    [
+      "soya_bean",
+      4
+    ],
+    [
+      "premium_bento",
+      2
+    ],
+    [
+      "camp_pillow",
+      2
     ]
   ],
   "convenience": [
@@ -141,6 +157,42 @@
     [
       "four_d_ticket",
       5
+    ],
+    [
+      "box_cutter",
+      3
+    ],
+    [
+      "hardtack",
+      4
+    ],
+    [
+      "bandung",
+      3
+    ],
+    [
+      "soya_bean",
+      4
+    ],
+    [
+      "bubble_tea",
+      3
+    ],
+    [
+      "100_plus",
+      3
+    ],
+    [
+      "plasters",
+      3
+    ],
+    [
+      "vitamin_c",
+      3
+    ],
+    [
+      "emergency_blanket",
+      2
     ]
   ],
   "pharmacy": [
@@ -195,6 +247,22 @@
     [
       "dirty_water",
       3
+    ],
+    [
+      "plasters",
+      5
+    ],
+    [
+      "vitamin_c",
+      4
+    ],
+    [
+      "oral_rehydration",
+      5
+    ],
+    [
+      "emergency_blanket",
+      3
     ]
   ],
   "hospital": [
@@ -241,6 +309,10 @@
     [
       "kevlar_vest",
       2
+    ],
+    [
+      "oral_rehydration",
+      4
     ]
   ],
   "clinic": [
@@ -291,6 +363,14 @@
     [
       "batteries",
       2
+    ],
+    [
+      "vitamin_c",
+      3
+    ],
+    [
+      "oral_rehydration",
+      4
     ]
   ],
   "hardware": [
@@ -401,6 +481,22 @@
     [
       "sneakers",
       3
+    ],
+    [
+      "pipe_wrench",
+      5
+    ],
+    [
+      "rebar",
+      3
+    ],
+    [
+      "welding_mask",
+      3
+    ],
+    [
+      "knee_pads",
+      3
     ]
   ],
   "fuel": [
@@ -455,83 +551,111 @@
     [
       "sneakers",
       4
+    ],
+    [
+      "tire_iron",
+      4
+    ],
+    [
+      "traffic_barrier",
+      3
+    ],
+    [
+      "bike_helmet",
+      3
+    ],
+    [
+      "100_plus",
+      3
     ]
   ],
   "police": [
     [
       "pistol",
-      7
+      7.3
     ],
     [
       "shotgun",
-      4
+      4.2
     ],
     [
       "ammo_box",
-      12
+      12.5
     ],
     [
       "ammo_shell",
-      9
+      9.4
     ],
     [
       "crowbar",
-      4
+      4.2
     ],
     [
       "bandage",
-      5
+      5.2
     ],
     [
       "batteries",
-      3
+      3.1
     ],
     [
       "riot_helmet",
-      5
+      5.2
     ],
     [
       "kevlar_vest",
-      4
+      4.2
     ],
     [
       "riot_shield",
-      4
+      4.2
     ],
     [
       "sbo_vest",
-      4
+      4.2
     ],
     [
       "gun_oil",
-      6
+      6.3
     ],
     [
       "army_ration",
-      5
+      5.2
     ],
     [
       "n95_mask",
-      3
+      3.1
     ],
     [
       "medkit",
-      5
+      5.2
     ],
     [
       "tactical_gloves",
-      4
+      4.2
     ],
     [
       "riot_pads",
-      3
+      3.1
     ],
     [
       "combat_boots",
-      4
+      4.2
     ],
     [
       "army_uniform",
+      3.1
+    ],
+    [
+      "military_rucksack",
+      1.9
+    ],
+    [
+      "police_baton",
+      4
+    ],
+    [
+      "security_vest",
       3
     ]
   ],
@@ -671,6 +795,62 @@
     [
       "motorcycle_helmet",
       2
+    ],
+    [
+      "box_cutter",
+      3
+    ],
+    [
+      "rotan_cane",
+      3
+    ],
+    [
+      "bamboo_pole",
+      3
+    ],
+    [
+      "cricket_bat",
+      2
+    ],
+    [
+      "pot_lid",
+      4
+    ],
+    [
+      "metal_tray",
+      3
+    ],
+    [
+      "bike_helmet",
+      3
+    ],
+    [
+      "football_pads",
+      2
+    ],
+    [
+      "knee_pads",
+      3
+    ],
+    [
+      "mee_siam",
+      3
+    ],
+    [
+      "chicken_rice",
+      3
+    ],
+    [
+      "rain_tarp",
+      3
+    ],
+    [
+      "yoga_mat",
+      3
+    ],
+    [
+      "camp_pillow",
+      2
     ]
   ],
   "foodcourt": [
@@ -741,6 +921,34 @@
     [
       "cut_gloves",
       3
+    ],
+    [
+      "pot_lid",
+      4
+    ],
+    [
+      "metal_tray",
+      5
+    ],
+    [
+      "mee_siam",
+      5
+    ],
+    [
+      "chicken_rice",
+      5
+    ],
+    [
+      "bandung",
+      4
+    ],
+    [
+      "bubble_tea",
+      3
+    ],
+    [
+      "premium_bento",
+      2
     ]
   ],
   "mrt": [
@@ -791,6 +999,18 @@
     [
       "flip_flops",
       4
+    ],
+    [
+      "hardtack",
+      3
+    ],
+    [
+      "100_plus",
+      3
+    ],
+    [
+      "emergency_blanket",
+      2
     ]
   ],
   "industrial": [
@@ -897,6 +1117,34 @@
     [
       "cut_gloves",
       3
+    ],
+    [
+      "box_cutter",
+      4
+    ],
+    [
+      "pipe_wrench",
+      4
+    ],
+    [
+      "tire_iron",
+      3
+    ],
+    [
+      "rebar",
+      5
+    ],
+    [
+      "traffic_barrier",
+      3
+    ],
+    [
+      "welding_mask",
+      3
+    ],
+    [
+      "security_vest",
+      2
     ]
   ],
   "school": [
@@ -1019,6 +1267,54 @@
     [
       "sleeping_bag",
       2
+    ],
+    [
+      "school_bag",
+      5
+    ],
+    [
+      "rotan_cane",
+      4
+    ],
+    [
+      "bamboo_pole",
+      3
+    ],
+    [
+      "police_baton",
+      2
+    ],
+    [
+      "cricket_bat",
+      3
+    ],
+    [
+      "bike_helmet",
+      3
+    ],
+    [
+      "security_vest",
+      2
+    ],
+    [
+      "football_pads",
+      3
+    ],
+    [
+      "knee_pads",
+      4
+    ],
+    [
+      "soya_bean",
+      3
+    ],
+    [
+      "plasters",
+      3
+    ],
+    [
+      "yoga_mat",
+      3
     ]
   ],
   "waypoint": [

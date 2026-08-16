@@ -1,14 +1,14 @@
 import { Icon } from '../icons/Icon';
 import { GuideInfoButton } from './GuideInfoButton';
 import type { GuideTopic } from '../content/guideContent';
+import type { EvacVibe } from '../game/goal';
 
 interface Props {
   evacZoneName: string | null;
   evacDist: number;
   atEvac: boolean;
-  readinessCurrent: number;
-  readinessRequired: number;
-  readinessRatio: number;
+  vibe: EvacVibe;
+  vibeLine: string;
   dayMult: number;
   projectedScore: number;
   projectedEvacBonus: number;
@@ -17,22 +17,33 @@ interface Props {
   doom: number;
   doomColor: string;
   doomLabel: string;
-  evacReady: boolean;
   onEvac: () => void;
   onOpenGuide?: (topic: GuideTopic) => void;
 }
 
+const VIBE_FILL: Record<EvacVibe, string> = {
+  thin: '#e8a54b',
+  maybe: '#e8c54b',
+  promising: '#7ec8a0',
+};
+
+/** Coarse bar only — never a percent that reverse-engineers demand. */
+const VIBE_WIDTH: Record<EvacVibe, number> = {
+  thin: 28,
+  maybe: 55,
+  promising: 82,
+};
+
 /**
  * The run's objectives in full: dual-path score (survive mult + extract),
- * weighted readiness gauge, doom clock. Rendered as the body of the side panel.
+ * fogged radio vibe (no quota numbers), doom clock.
  */
 export function ObjectivesPanel({
   evacZoneName,
   evacDist,
   atEvac,
-  readinessCurrent,
-  readinessRequired,
-  readinessRatio,
+  vibe,
+  vibeLine,
   dayMult,
   projectedScore,
   projectedEvacBonus,
@@ -41,12 +52,9 @@ export function ObjectivesPanel({
   doom,
   doomColor,
   doomLabel,
-  evacReady,
   onEvac,
   onOpenGuide,
 }: Props) {
-  const pct = Math.round(readinessRatio * 100);
-
   return (
     <div className="flex flex-col gap-3">
       {/* ---- Score ladder ---- */}
@@ -92,8 +100,8 @@ export function ObjectivesPanel({
         </div>
         {evacZoneName ? (
           <p className="mt-1 text-sm text-white/70">
-            Reach <span className="font-semibold text-signal">{evacZoneName}</span> with enough
-            weighted gear and signal for a lift out.
+            Reach <span className="font-semibold text-signal">{evacZoneName}</span> with a haul the
+            bird might accept, then signal for a lift. The radio never names a quota.
           </p>
         ) : (
           <p className="mt-1 text-sm text-white/50">No active evac window.</p>
@@ -111,33 +119,30 @@ export function ObjectivesPanel({
 
         <div className="mt-3">
           <div className="flex items-center justify-between text-2xs uppercase tracking-wide text-white/40">
-            <span>Evac readiness</span>
-            <span className="tabular-nums">
-              {readinessCurrent} / {readinessRequired}
-            </span>
+            <span>Radio read</span>
+            <span className="normal-case tracking-normal text-white/55">{vibeLine}</span>
           </div>
           <div className="mt-1 h-1.5 overflow-hidden rounded bg-black/50">
             <div
               className="h-full transition-all"
               style={{
-                width: `${pct}%`,
-                background: evacReady ? '#7ec8a0' : '#e8a54b',
+                width: `${VIBE_WIDTH[vibe]}%`,
+                background: VIBE_FILL[vibe],
               }}
             />
           </div>
           <p className="mt-1.5 text-2xs text-white/35">
-            Fuel, meds, and ammo count most. Food and water count less. Burning fuel
-            to boil water lowers this gauge.
+            Fuel, meds, and ammo count most; sealed water a little; food and scrap barely.
+            Burning fuel to boil water hurts the haul. Only the flare tells you for sure.
           </p>
         </div>
 
         {atEvac && (
           <button
             onClick={onEvac}
-            disabled={!evacReady}
-            className="mt-3 w-full rounded-lg bg-signal/80 py-2 text-sm font-bold text-black transition hover:bg-signal disabled:opacity-30"
+            className="mt-3 w-full rounded-lg bg-signal/80 py-2 text-sm font-bold text-black transition hover:bg-signal"
           >
-            {evacReady ? 'Call for evac — escape!' : 'Not ready to extract'}
+            Call for evac — pop the flare
           </button>
         )}
       </section>

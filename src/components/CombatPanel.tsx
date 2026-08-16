@@ -5,6 +5,7 @@ import { armCombatPenalty, legTravelFactor, totalHp, totalMaxHp } from '../game/
 import { equipSpeedBonus } from '../game/inventory';
 import {
   COMBAT_SPEEDS,
+  FIGHT_STANCE_ORDER,
   GAUGE_FULL,
   STANCES,
   effectiveDefense,
@@ -12,7 +13,7 @@ import {
   playerSpeed,
   secondsPerAction,
 } from '../game/combat';
-import type { CombatLogEntry } from '../game/types';
+import type { CombatLogEntry, StanceId } from '../game/types';
 
 const TONE_CLASS: Record<CombatLogEntry['tone'], string> = {
   player: 'text-astral',
@@ -29,16 +30,13 @@ const TICK_MS = 50;
 /**
  * The fight itself, in the right-hand column in place of the event log.
  *
- * This mounts only once a stance is committed — the decision that starts a
- * fight is `EncounterPrompt`, which sits in the timeline instead of replacing
- * it. So by the time this is on screen, you have already chosen to be here.
+ * This mounts once the player chooses Fight at contact — `EncounterPrompt`
+ * sits in the timeline until then. The fight runs on one initiative track:
+ * two markers racing left to right at each side's Speed, and whoever touches
+ * the far end swings.
  *
- * The fight runs on one initiative track: two markers racing left to right at
- * each side's Speed, and whoever touches the far end swings. Nothing alternates
- * — a Runner gets two hits in between your swings and you watch it happen.
- *
- * You commit a stance once; the fight then plays itself out. Mid-fight the
- * only real decisions left are break off, or slow the track so you can read it.
+ * Stance is live: switch Aggressive / Guarded / Precision any time and the
+ * next swing uses the new profile. Break off flees on the disengage profile.
  * Items stay in the pack until the fight is over.
  */
 export function CombatPanel() {
@@ -52,6 +50,7 @@ export function CombatPanel() {
   const combatTick = useGame((s) => s.combatTick);
   const combatTogglePause = useGame((s) => s.combatTogglePause);
   const combatSetSpeedIndex = useGame((s) => s.combatSetSpeedIndex);
+  const combatSetStance = useGame((s) => s.combatSetStance);
 
   const logRef = useRef<HTMLDivElement>(null);
 
@@ -129,17 +128,12 @@ export function CombatPanel() {
         />
       </div>
 
-      {/* ---- where, which turn, and the plan you committed to ---- */}
-      <div className="flex shrink-0 items-center justify-between gap-2 border-y border-white/10 py-1 text-xs text-white/45">
-        <span className="truncate">
-          {combat.awaitingStance ? (
-            <span className="text-hiss">{terrain.name}</span>
-          ) : (
-            <>
-              <Icon name={stance.icon} /> {stance.name} · {stats.weaponName}
-            </>
-          )}
-        </span>
+      {/* ---- stance switcher + terrain / turn ---- */}
+      {!combat.over && (
+        <StanceSwitcher selected={combat.selectedStance} onSelect={combatSetStance} />
+      )}
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-white/10 pb-1 text-xs text-white/45">
+        <span className="truncate text-white/30">{stats.weaponName}</span>
         <span className="shrink-0 text-white/30">
           {meters.infection > 0 && (
             <span className="mr-2 text-astral">☣ {Math.round(meters.infection)}</span>
@@ -359,8 +353,42 @@ function groupLog(log: CombatLogEntry[]) {
   return out;
 }
 
-// The stance picker moved to `EncounterPrompt` — it belongs to the moment
-// before the fight, which now lives in the timeline rather than here.
+/**
+ * Live fight stances. Switching mid-track only changes what the next swing
+ * uses — gauges keep their place on the race.
+ */
+function StanceSwitcher({
+  selected,
+  onSelect,
+}: {
+  selected: StanceId;
+  onSelect: (id: StanceId) => void;
+}) {
+  return (
+    <div className="flex shrink-0 gap-1">
+      {FIGHT_STANCE_ORDER.map((id) => {
+        const s = STANCES[id];
+        const active = id === selected;
+        return (
+          <button
+            key={id}
+            type="button"
+            onClick={() => onSelect(id)}
+            title={s.description}
+            className={`flex min-w-0 flex-1 items-center justify-center gap-1 rounded border px-1 py-1 text-xs transition ${
+              active
+                ? 'border-astral/60 bg-astral/15 text-astral'
+                : 'border-white/15 text-white/50 hover:bg-white/5 hover:text-white/70'
+            }`}
+          >
+            <Icon name={s.icon} size={12} className="shrink-0" />
+            <span className="truncate font-semibold">{s.name}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 /**
  * One fighter's corner: name and HP count on the top line, the bar under it,

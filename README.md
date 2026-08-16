@@ -3,15 +3,19 @@
 > A browser-based **zombie-apocalypse survival roguelike** played on the **real map of Singapore**.
 > This README doubles as the project's scope/design brief — hand it to a human or another AI agent
 > to reason about mechanics, extend systems, or critique the design.
+>
+> Player-facing primer copy lives in `src/content/guideContent.ts` (Survive / Loot / Evac / Score).
+> Keep that file and this doc aligned when score, evac, or survival rules change.
 
 ---
 
 ## 1. Vision
 
-You wake up in a fallen Singapore. There is no rescue. The only goal is to **survive as long as
-possible**. Knowing nothing of what's around you, you push out into the fog, chart real places by
-walking to them, scavenge what you can carry, and manage a failing body until it gives out. Every run
-is procedurally generated from live map data and a seed, so no two survivors face the same city.
+You wake up in a fallen Singapore. There is no rescue on a timetable — only a rising **horde** and,
+eventually, a chance to **extract**. Knowing nothing of what's around you, you push out into the fog,
+chart real places by walking to them, scavenge what you can carry, and manage a failing body until it
+gives out or you call for a lift. Every run is procedurally generated from live map data and a seed,
+so no two survivors face the same city.
 
 **Pillars**
 
@@ -24,23 +28,28 @@ is procedurally generated from live map data and a seed, so no two survivors fac
 3. **The body is a resource** — a Project-Zomboid-style injury model on top of survival meters; wounds
    are lasting, location-specific, and have to be treated.
 4. **Roguelike depth** — permadeath, procedural worlds, seeded reproducibility, and deep build variety
-   through attributes and a positive/negative trait economy.
+   through occupations, attributes derived from traits, and a positive/negative trait economy.
 5. **Tactile inventory** — a spatial, Tarkov-style grid where weight and space are both real
    constraints.
+6. **Dual-path scoring** — linger for a rising day multiplier, or haul a fogged cargo kit to a timed
+   map beacon and extract. Best board scores do both: survive long, then lift out late.
 
-**Current status:** feature-rich, fully playable. All systems below are implemented and verified
-end to end (desktop + mobile).
+**Current status:** feature-rich, fully playable. Systems below are implemented end to end
+(desktop + mobile), including crafting, faction trade, HDB cutaways, tunnel runs, extraction, and
+the in-game guide.
 
 ---
 
 ## 2. Core Gameplay Loop
 
 ```
-Create survivor (attributes + traits) → Choose a real SG spawn (density-checked) →
-  [ read the map: "?" blips inside your travelable range → travel BLIND to one (one-way) →
-    a pre-scavenge event may fire → search it → maybe fight → haul loot into the grid →
-    cache surplus in the location's stash → eat / drink / treat wounds / sleep ]
-  repeat until death → score → local leaderboard
+Pick an occupation (or Advanced trait build) → Choose a real SG spawn (density-checked) →
+  [ read the map: "?" blips inside your travelable range → trek BLIND across open ground →
+    arrive (pre-scavenge event / faction gate may fire) → search session → maybe fight →
+    optional HDB dive or tunnel run → haul loot into the grid → cache surplus in the stash →
+    craft / repair / trade at a hub → eat / drink / treat wounds / rest under site conditions →
+    watch the evac beacon & horde clock ]
+  repeat until death or successful extract → score → local leaderboard
 ```
 
 There is no fixed "turn": every action consumes a number of **in-game hours**. Time is the central
@@ -65,6 +74,10 @@ currency, and the survivor is always moving — the map is explored, not surveye
 - **Remote-spawn check:** if a real data source returns fewer than 5 POIs in range, the click was
   wilderness/reservoir/sea — the spawn is rejected with a notice so the player picks again. Procedural
   generation is reserved strictly as a **data-unavailable fallback**, never for genuinely empty areas.
+- **Walkability zones** (`public/zones.json`, `npm run bake:zones`): land mask, inland water,
+  restricted (military) perimeters, and vegetation. Water and restricted hard-block spawn/trek;
+  vegetation stays walkable but adds a soft stamina/time cost. Routes prefer land paths around water
+  (`game/route.ts`, `game/playable.ts`, `game/vegetation.ts`).
 
 **POI categories → real-life resources** (Singapore-flavoured):
 
@@ -77,24 +90,22 @@ currency, and the survivor is always moving — the map is explored, not surveye
 | Hardware | DIY / hardware shops | Tools, melee weapons, hard hats, crafting parts | 2 |
 | Petrol station | Shell, Esso, Caltex, SPC | Fuel, roadside snacks, torches | 3 |
 | Police | Neighbourhood police posts | Firearms, ammo, riot gear | 5 |
-| HDB void deck | Housing blocks | Common household loot | 2 |
+| HDB void deck | Housing blocks | Common household loot; gateway to HDB cutaways | 2 |
 | Hawker centre | Food courts, markets | Food | 2 |
 | MRT station | Rail / LRT stations | Way into the tunnels (see 3.8); light loot | 3 |
 
-### 3.2 Survivor — attributes & the trait economy
-- **Attributes** (point-buy, base 5, spend 6, range 3–10): **Strength** (melee damage, carry
-  capacity), **Dexterity** (accuracy, dodge, flee, travel line), **Endurance** (max HP, walking speed,
-  carry), **Perception** (loot quantity + fog awareness/blip range), **Wits** (event skill checks).
-- **Traits** — a **budget economy** (6 points): pick up to **4 positive** and **3 negative** traits;
-  negatives *refund* points to spend on positives, and **conflicting** traits grey each other out.
-  ~14 positive / ~10 negative, all Singapore-flavoured, e.g.:
-  - *NS Reservist* (+atk/+def), *Polyclinic Nurse* (+healing, −infection), *Karang Guni* (+loot &
-    extra search), *IPPT Gold* (+max HP, −energy drain), *Tekong Legs* (+travel speed), *Sixth Sense*
-    (+awareness, −ambush), *Pack Rat* (wider backpack).
-  - *Glass Jaw* (−max HP), *Bad Knees* (−speed, slow leg-heal), *Hemophiliac* (bleeding never
-    self-stops), *Noisy* (+encounter chance), *Aircon Addict* (+energy drain), *Kiasu* / *Hoarder*…
-  - Trait modifiers feed combat, travel, survival, loot and fog. A few (crafting/barricade) anticipate
-    the planned crafting system.
+### 3.2 Survivor — occupations, attributes & traits
+- **Occupations** — nine curated starting builds (College Student, Personal Trainer, Soldier, Nurse,
+  Food Vendor, Scavenger, Office Worker, Contractor, Fixer). Each spends the trait budget exactly and
+  can be opened in **Advanced Mode** and edited.
+- **Attributes** are **derived from traits** (base 5 each, clamped 1–12) — Strength, Dexterity,
+  Endurance, Perception, Wits. There is no separate point-buy panel; traits *are* the build.
+- **Traits** — budget starts at **0**. Negatives *refund* points; positives *spend* them. Trait count
+  is uncapped; a build is legal iff remaining points ≥ 0. Conflicting traits grey each other out.
+  ~26 positive / ~17 negative, Singapore-flavoured (e.g. *Reservist*, *Medic*, *Karang Guni*,
+  *Tekong Legs*, *Sixth Sense*, *Handyman*, *Glass Jaw*, *Hemophilia*, *Aircon Addict*…).
+- **Trait presets** persist across runs in `localStorage` so Advanced builds can be reused.
+- Trait modifiers feed combat, travel, survival, loot, fog, crafting cost, and faction checks.
 
 ### 3.3 Fog of war — blind exploration
 - You have **no knowledge** of any location until you stand in it. Undiscovered places show only as
@@ -109,14 +120,16 @@ currency, and the survivor is always moving — the map is explored, not surveye
   be dangerously wrong — the card flags "intel may be stale".
 - A canvas **fog overlay** darkens everything you haven't lit up by visiting.
 
-### 3.4 Time, travel & the day/night cycle
+### 3.4 Time, travel, wilds & the day/night cycle
 - A day is **24 in-game hours**, starting at **08:00**. Travel is **one-way relocation** (nomadic):
   the survivor has a tracked position, and cost = distance(current → target) ÷ walking speed, stretched
-  by **weather** (rain ×1.5, thunderstorm ×1.75) and **encumbrance** (×1.5).
+  by **weather** (rain ×1.5, thunderstorm ×1.75), **encumbrance** (×1.5), and vegetation soft-costs.
+- **Open-ground treks** (`game/wilds.ts`): between pins the path crosses seeded ~350 m hazard cells
+  (horde pocket, gang patrol, collapse, floodwater). Encounter and energy costs rise with darkness and
+  horde intensity. Short hops under a minimum distance skip the trek card.
 - **Night is dangerous.** Bands: day (06–17), dusk (17–19), night (19–06). Being out after dark sharply
   raises encounter chance and hardens combat.
-- **Sleep till dawn** fast-forwards to next morning, restoring energy (hunger/thirst still drain) and
-  regenerating location danger.
+- **Rest** is not a free full refill — see **sleep quality** (3.12).
 
 ### 3.5 Survival meters & the injury system
 - **Meters:** Health, Hunger, Thirst, Energy, Infection (drain per active hour). Infection deals HP
@@ -130,31 +143,43 @@ currency, and the survivor is always moving — the map is explored, not surveye
     stable — but **bleeding blocks regen** until you bandage it.
 - **Treatment:** bandage (stops one bleed + dresses a wound), medkit (stops all bleeds + big heal),
   painkillers (HP only), antibiotics/antiseptic (infection).
-- Death causes: overwhelmed (HP 0), starvation, dehydration, infection, fatal head/torso wound.
+- Death causes: overwhelmed (HP 0), starvation, dehydration, infection, fatal head/torso wound,
+  **overrun** (horde hits 100%).
 
-### 3.6 Combat — DnD-style turn-based auto-combat
+### 3.6 Combat — contact, then live-stance auto-combat
 - Encounters trigger while scavenging (chance scales with a place's **current** danger + darkness +
-  weather). Combat **auto-resolves round by round** with a visible dice log.
-  - **Player attack:** `d20 + Dexterity + weapon accuracy + trait − arm-injury penalty` vs.
-    `10 + enemy defense`. Natural 20 crits. Damage = `weapon damage + Strength/2`.
-  - **Enemy attack:** `d20 + attack + environment` vs. `10 + Dexterity/2 + trait/armour defense`.
-    Zombie hits can infect; the hit wounds a body part.
-  - **Environment:** night/dusk and rain/storm/haze shift odds toward the enemy.
-- **Same loop for humans:** hostile-faction/event combat reuses the exact zombie loop with a **human
+  weather + noise). At contact you choose **Fight** or **Flee** (map dims until chosen). Fight
+  **auto-resolves** on an initiative track with a visible dice log. Mid-fight you can switch
+  **stance** (*Aggressive* / *Guarded* / *Precision*) — the next swing uses the new profile. Flee /
+  Break off use the *Disengage* profile (easier flee DC, parting swing).
+- **Player attack:** `d20 + Dexterity + weapon accuracy + trait + stance − arm-injury penalty` vs.
+  `10 + enemy defense`. Natural 20 (or stance crit floor) crits. Damage = `weapon damage + Strength/2`
+  (+ stance).
+- **Enemy attack:** `d20 + attack + environment` vs. `10 + Dexterity/2 + trait/armour defense + stance`.
+  Zombie hits can infect; the hit wounds a body part.
+- **Environment:** night/dusk and rain/storm/haze shift odds toward the enemy.
+- **Same loop for humans:** hostile-faction/event combat reuses the zombie loop with a **human
   stat block** (`kind: 'human'`, no infection, higher defense; drops gear on death).
-- Weapon damage/accuracy come from the **equipped main-hand** (see 3.9), not an auto-pick. Between
-  rounds you may use a heal/cure item or attempt to **flee** (Dex+Per check).
+- **Ammo & condition:** firearms consume loaded **rounds**; a dry gun swings as a club. Item
+  **condition** degrades and can be repaired (whetstone / gun oil in the field; workbench repair with
+  tape + scrap). Items stay in the pack until the fight ends; **Break off** attempts to flee.
 
-### 3.7 Events & factions
-- Four factions hold territory, assigned by category via seeded RNG: **SAF Remnants** (police/hospital),
-  **Hawker Guild** (hawker centres), **Void Deck Raiders** (HDB, hostile), **Transit Coalition** (MRT).
-- On arrival, a **pre-scavenge event** may fire (`game/events.ts`, pure):
-  - **Locked Security Door** — Strength/Wits/Perception check; success grants entry, failure triggers
-    an ambush.
-  - **The Desperate Survivor** — give an item, pass a check, or refuse (may turn violent).
-  - **Faction Shakedown** — pay tribute, talk your way past (Wits), or refuse — hostile factions
-    (Raiders) then fight; others block access.
-- All checks are `d20 + attribute vs DC(current danger)`.
+### 3.7 Events, factions & trade
+Four factions hold territory (seeded by category), with a **standing ladder** (−5…+5) that gates
+hostility, trade, shelter, aid, and intel:
+
+| Id | Name | Flavour |
+|---|---|---|
+| `idtf` | Island Defence Task Force (IDTF) | Hardpoints — police / hospital |
+| `pasir_panjang` | Pasir Panjang Wholesale Co-op | Hawker / food hubs |
+| `syndicate_88` | The 88 Syndicate (双八会) | Hostile by default until known |
+| `sta` | Subterranean Transit Authority (STA) | Manned MRT platforms; tunnel tolls |
+
+- On arrival, a **pre-scavenge event** may fire (`game/events.ts`, pure): locked doors, desperate
+  survivors, faction shakedowns, STA tolls, etc. Checks are `d20 + attribute vs DC(current danger)`.
+- **Barter** (`game/trade.ts`): no currency — seeded daily chalk-board swaps at faction hubs. Standing
+  grows board size and unlocks better lines; each offer is take-it-or-leave-it and one-shot for the day.
+  Hubs may also offer rest, aid, or intel once standing is high enough.
 
 ### 3.8 The tunnels (Subterranean Transit Authority)
 - The **real Singapore rail network** ships with the game (`public/mrt.json`, baked from OSM — see
@@ -163,49 +188,40 @@ currency, and the survivor is always moving — the map is explored, not surveye
   within 220 m and takes its name and codes. Leftover station elements — OSM maps a big station as
   several — become *"<name> Entrance"*: searchable, but not a way into the tunnels.
 - **Map overlay.** A *Rail map* toggle draws the whole network — one centreline per line, dots per
-  station, code badges from z15 — in its own Leaflet pane **above the fog**. The MRT map is the one
-  thing every commuter here already knows by heart; fog hides what's *inside* a station, never where
-  the line runs. The preference persists like the zoom does.
-- **Nothing runs.** Travel is a **tunnel run**: one segment, on foot, between two **adjacent**
-  stations (`mrt.neighbours`). A station further down the line isn't a target — the card says how far
-  off it is and which platforms this one actually reaches. **Neither end has to be cleared**, so the
-  tunnels are how you *find* a station, not just how you get between two you know.
-- **Starting one:** stand at a station and the "you are here" card grows a **Tunnels from this
-  platform** list — the line map on the wall, one button per direction, in the line's own livery.
-  That is the primary entrance, and it has to be: the station at the far end is usually undiscovered,
-  and fog gives it no marker on the map to click (`fog.visibilityOf` returns `hidden`). Selecting an
-  adjacent station you *have* already found still offers the same trip from its target card.
-- **The tunnels run off the edge of the built world.** A neighbour outside the 1.5 km scavenge radius
-  is marked *unmapped* and is still a valid destination: resolving it calls `expandWorldAround`, which
-  pulls that station's neighbourhood out of the baked POI set and merges it in (everything
-  undiscovered, so fog still makes you walk it). Only if the bake has nothing there does
-  `makeStationLocation` stand up a bare platform, so a tunnel always has an end. This is what makes
-  the network a way to *cross the island* rather than a shuttle inside your starting district —
-  Pasir Ris → Tampines takes a 175-location world to 361, and lands you on an interchange with four
-  onward tunnels and 74 walkable POIs. Bridge waypoints are id-tagged per expansion so successive
-  merges don't collide.
+  station, code badges from z15 — in its own Leaflet pane **above the fog**. Collapsed segments for
+  *this run* draw as dashed broken strokes on top, so after spawn you can read tunnel condition
+  without opening the planner. The MRT map is the one thing every commuter here already knows by
+  heart; fog hides what's *inside* a station, never where the line runs. The preference persists
+  like the zoom does.
+- **Destroyed tunnels.** Each run collapses ~15–25% of adjacent segments (seeded, soft-biased toward
+  the spawn→first-evac corridor). Those edges are hard walls for routing — you cannot crawl through
+  a collapsed bore; the planner finds detours or reports the destination unreachable underground.
+- **Nothing runs.** Travel is a **planned tunnel crawl**: pick a destination on the route planner
+  (`MrtRoutePlanner`), choose among fewest-stop routes (and alternates), then walk **one run for the
+  whole path**. Intermediate station platforms let you **exit early**; the final platform arrives
+  as before. Adjacent hops remain valid one-stop routes.
+- **Starting one:** stand at a station and **Plan tunnel travel** replaces the world map with the
+  route planner (same column as HDB / tunnel crawl). Selecting an adjacent known station still
+  deep-links the planner with that destination. Far stations need not be discovered — fog hides
+  them on the surface map, but the planner shows the whole network.
+- **The tunnels run off the edge of the built world.** A stop outside the 1.5 km scavenge radius is
+  still a valid destination: resolving it calls `expandWorldAround`, which pulls that station's
+  neighbourhood out of the baked POI set and merges it in. Only if the bake has nothing there does
+  `makeStationLocation` stand up a bare platform. This is what makes the network a way to *cross the
+  island* rather than a shuttle inside your starting district.
 - What the bore buys you is what it doesn't charge: **no travel-range cap, no weather, no
   encumbrance**, and none of `URBAN_DECAY_DETOUR` — it's straight, and the streets above it aren't.
   Time is the real track distance at walking pace. There is no train discount any more.
 - **The run itself is a Slay-the-Spire map** (`game/tunnelRun.ts`, `components/TunnelRunView.tsx`):
-  3–6 columns by 3 lanes, forward-only edges, one column of reveal ahead. Four node kinds —
-  **contact** (a fight on `tunnel_bore` terrain), **salvage** (the `mrt` loot table; 25% of the time
-  something is already working it, and winning still pays), **camp** (people living down here: sleep,
-  patch up, one fixed barter, STA standing), **obstruction** (floodwater or collapse: an attribute
-  check, and a wound if you fail).
-- **Pressure** is the run's own gauge, mirroring HDB block heat: only your noise moves it, it adds
-  threat by band, and a pinned gauge sends a **Tunnel Stalker** — unreachable by any ordinary danger
-  roll. Sleeping at a camp is the one thing that lowers it.
-- **Stations are the only exits**, and a run is one segment, so a descent is a commitment. The STA
-  **toll event** gates the *stairs down* at stations they hold, and stops charging at +2 standing.
-  Roughly **45% of platforms stand empty** (`CLAIM_CHANCE.sta`) — no marshal, no fare — because a
-  faction that holds *every* station turns the toll from an event into a fixed tax on movement.
-- **Tributes are lists, not single items.** `FactionData.tribute` is an ordered array and a `pay`
-  choice carries `itemIds`: any one of them settles it, and the store hands over the first you're
-  carrying. The STA gate takes a card, batteries, a torch or a tin — gating passage on one uncommon
-  def id meant the tunnels were shut to anyone who hadn't happened to find that def id yet.
-- A run **survives a reload** — same graph, same node, same rolls (`SavedRun.tunnel`). Unlike a block,
-  it is not cached per segment: every trip generates fresh, because a memorised bore isn't a crawl.
+  platforms at each station on the route, bore columns between them (capped so long rides stay
+  playable), forward-only edges, one column of reveal ahead. Four middle node kinds — **contact**,
+  **salvage**, **camp**, **obstruction** — same as before.
+- **Pressure** is the run's own gauge, continuous across the whole journey. Sleeping at a camp is
+  the one thing that lowers it. A pinned gauge can spawn a **Tunnel Stalker**.
+- **Stations are exits.** STA **toll** still gates the *stairs down* at the origin only. Roughly
+  **45% of platforms stand empty** (`CLAIM_CHANCE.sta`).
+- A run **survives a reload** — same graph, same node (`SavedRun.tunnel`). Destroyed edges persist
+  with the run (or re-roll from seed on older saves). Every trip generates a fresh crawl graph.
 
 ### 3.9 Inventory, equipment & weight
 - **Spatial Tetris grid** (Tarkov-style): items have **W×H footprints**, **rotate**, and drag between
@@ -218,27 +234,86 @@ currency, and the survivor is always moving — the map is explored, not surveye
   (+ equipped bonuses). Backpack over **80%** of capacity → **Encumbered**, multiplying travel time by
   1.5×.
 
-### 3.10 Decentralized stashes & the logbook
+### 3.10 Search sessions
+- Searching a site is a **real-time fogged grid** (`game/searchSession.ts`), not an instant loot dump.
+  Click fogged cells to prioritize them; finds reveal one by one; Take / Take all claim into the pack
+  (overflow to on-site stash). **Done** or **Leave** abandons unclaimed finds. Leaving early still
+  spends a **partial search charge**.
+
+### 3.11 Decentralized stashes & the logbook
 - **No home base.** Every cleared location has its own **10×8 stash**; you deposit/withdraw only while
   physically there. Danger regenerates while you're away, so a cache you left loot in can become
   dangerous to revisit.
 - The read-only **Stash Logbook** lists every location holding cached items, with coordinates and a
   contents summary.
 
-### 3.11 Persistence & scoring
-- Fully **client-side**: the active run + high-score leaderboard autosave to `localStorage` (schema
-  `singvive.run.v5`). Score = `days×100 + kills×25 + loot value`. Permadeath clears the run.
+### 3.12 Sleep quality
+- Rest fast-forwards toward morning and restores energy, but recovery scales by **enclosure**, **roof**,
+  and **bed** (`game/sleep.ts`). A sleeping bag, faction bunk, HDB shelter, or tunnel camp beats open
+  ground. Ambush risk varies by site. Hunger/thirst still drain (at a reduced rate).
+
+### 3.13 Crafting & repair
+- Deliberately small recipe set (`game/crafting.ts`): purify/boil water, tear dressings, lash spear
+  variants, strip gear for parts, handload shells, craft a sleeping bag. Some recipes need a
+  **workbench** (stash / HDB shelter). Tools can be required without being consumed.
+- **Repair:** field whetstone / gun oil; workbench repair with duct tape + scrap + toolbox.
+- Crafting is a **loot sink** first — scrap and tape have somewhere to go; clean water is made, not found.
+
+### 3.14 HDB dungeons
+- Void decks open a **vertical push-your-luck cutaway** (`game/hdbDungeon.ts`, zoom/pan via
+  `react-zoom-pan-pinch`): stair columns, units, locked/barricaded doors, block **heat**, noise,
+  and tiered loot. Sealed storeys are **permanently gone**. Stairs stay visible for orientation.
+  Auto-path stops at corridor/stair **blockades** — clear them to open the maze. Door
+  **encounter chance** tracks heat + entry type; higher storeys pay better loot. Heat can
+  force a Dex+End check (or hunt) when descending. **Leave only from level 01.**
+  Estate vs shelter archetypes change the floor mix.
+
+### 3.15 Noise
+- Actions emit spatial **noise pulses** (`game/noise.ts`) that temporarily boost nearby POI danger
+  (`tempDangerBoost`, decays over hours). Combat and HDB entries are noisy; quiet traits help.
+
+### 3.16 Extraction goal & horde clock
+- Dual-path spine (`game/goal.ts`):
+  - **Linger** — score day multiplier rises (`1.0 + 0.1 × (days − 1)`).
+  - **Extract** — haul weighted readiness in the **backpack** (fuel > meds/ammo > water > food;
+    weapons/scrap barely count) to a timed map beacon (≥8 km from first spawn) and call for a lift.
+    Each staging window rolls a **seeded demand** (± band around a rising day curve) plus a soft cargo
+    bias — the UI never shows the quota; radio vibe is qualitative and only the flare resolves it.
+    Miss the window → cooldown → new site + fresh demand; the horde keeps rising either way.
+- **Horde** rises ~8/day; at 100 the city is **overrun** and the run ends.
+- Successful extract adds `2000 × dayMult` on top of survival score.
+
+### 3.17 Ghost survivors
+- Death writes a **legacy corpse** (`singvive.legacy_run`). A later run that walks within ~120 m can
+  meet a mini-boss, loot the corpse, or find a one-shot trader — whatever became of them
+  (`game/ghostSurvivor.ts`).
+
+### 3.18 Persistence, scoring & settings
+- Fully **client-side**. Keys:
+  - `singvive.run.v6` — active run (v6: extraction goal + horde clock)
+  - `singvive.scores.v1` — local leaderboard
+  - `singvive.settings.v1` — prefs independent of the run (timeline detail, 12/24 clock, weather FX,
+    font size)
+  - `singvive.legacy_run` — last dead survivor for ghost encounters
+  - plus zoom / MRT overlay prefs
+- **Score** = `(kills×25 + carried loot value + days×50) × dayMult` (+ optional `2000×dayMult` on
+  extract). Permadeath clears the run; death still posts a score.
 
 ---
 
 ## 4. UI
 
-- **Desktop — 3-pane layout:** a **left interaction hub** (header + pinned location card + tabbed
-  **Status** [meters, 6-part body, character sheet] and **Gear** [equipment, backpack/stash grids, a
-  dedicated item-detail box] + Sleep/Logbook), a **centre map**, and a **right column that is purely
-  the game log**.
-- **Mobile — bottom tab bar:** full-screen **Map / Status / Gear / Log** views; on the map, the
-  selected location slides up as a bottom sheet so you can travel without leaving it.
+- **Desktop — left rail + map + timeline:**
+  - **Left survivor rail** (~340px): clock, weather, Rest (with sleep-quality preview), `ObjectiveBar`,
+    `ConditionPanel` (meters + body), and panel buttons **Inventory / Craft / Logbook / Stats**.
+  - **Slide-out overlay** (does not reflow the map): inventory, craft, logbook, stats, objectives.
+  - **Centre map** with target dock, trek/location sheets, noise/weather FX; HDB cutaway or tunnel run
+    take over when active.
+  - **Right timeline** — game log; contact Fight/Flee gate dims the rest of the UI until chosen.
+- **Mobile — bottom tabs:** **Map / Status / Inventory / Log** (Log becomes Fight in combat). On the
+  map, the selected location / trek slides up as a sheet.
+- **Overlays / modals:** trader, guide, settings, day logs, event modals, HDB dungeon, tunnel run,
+  ghost encounter.
 
 ---
 
@@ -246,34 +321,44 @@ currency, and the survivor is always moving — the map is explored, not surveye
 
 | Concern | Choice |
 |---|---|
-| Framework | React 19 + TypeScript + Vite |
-| Map | Leaflet + react-leaflet, **CARTO "Dark Matter"** tiles (keyless, retina `@2x`, native z20; Stadia + Esri kept in `tileConfig.ts` as alternatives), canvas renderer + custom fog overlay |
-| Real data | OpenStreetMap, pre-baked to `public/pois.json` via `npm run bake:pois`; live Overpass as fallback. Rail network baked separately to `public/mrt.json` via `npm run bake:mrt` |
-| State | Zustand (single store) |
-| Inventory DnD | Custom pointer-drag over a cell grid (backpack ↔ stash ↔ equipment slots) |
-| Determinism | `seedrandom`, wrapped in a forkable `Rng` |
-| Styling | Tailwind CSS |
+| Framework | React 19 + TypeScript 6 + Vite 8 |
+| Map | Leaflet + react-leaflet, **CARTO "Dark Matter"** tiles (keyless, retina `{r}` / `@2x`, native z20; Stadia + Esri kept in `tileConfig.ts` as alternatives), canvas renderer + custom fog overlay |
+| Real data | OpenStreetMap → `public/pois.json` (`bake:pois`), `public/mrt.json` (`bake:mrt`), `public/zones.json` (`bake:zones`); live Overpass as POI runtime fallback |
+| State | Zustand 5 (single store); `window.__game` in DEV |
+| Inventory DnD | Custom pointer-drag over a cell grid (backpack ↔ stash ↔ equipment) |
+| HDB viewport | `react-zoom-pan-pinch` |
+| Determinism | `seedrandom`, wrapped in a forkable `Rng` (cosmetic flavour text may use `Math.random`) |
+| Styling | Tailwind CSS 3 |
+| Lint | oxlint |
 | Backend | none (localStorage only) |
+| Node | pinned by `.nvmrc` (22) |
 
 ```
 src/
-  game/        pure, seed-driven logic — rng, singapore, overpass, world, poi, loot, inventory,
-               survival (meters + injuries), travel, weather, fog, combat, factions, events,
-               character (attributes + traits), storage, types, and the Zustand store
-               (+ data/ JSON catalogs such as items.json)
-  dev/         DEV-only in-game editors (loot browser, …) — never imported from game/
-  components/  GameMap, FogOverlay, mapIcons, tileConfig, MeterBar, StatusPanel, LogPanel,
-               LocationCard, StashLogbook, EventModal, Inventory/{InventoryGrid, InventoryPanel,
-               itemGlyph}
-  screens/     Menu, CharacterCreate, SpawnSelect, GameScreen, CombatScreen, DeathScreen
+  game/        pure, seed-driven logic — rng, world, poi, loot, inventory, survival, travel,
+               weather, fog, combat, factions, events, character, occupations, crafting, trade,
+               sleep, goal, searchSession, hdbDungeon, tunnelRun, wilds, vegetation, playable,
+               route, noise, ghostSurvivor, settings, storage, types, Zustand store
+               (+ data/ JSON catalogs: items, lootTables, enemies)
+  content/     player-facing guide copy
+  hooks/       shared React hooks (e.g. useAnimatedNumber)
+  icons/       icon registry + keys (emoji fallbacks → drop-in PNGs)
+  dev/         DEV-only in-game editors (loot / enemies) — never imported from game/
+  components/  GameMap, FogOverlay, Inventory/*, CraftingPanel, CombatPanel, ConditionPanel,
+               StatsPanel, ObjectiveBar, ObjectivesPanel, HdbDungeonModal, TunnelRunView,
+               TraderModal, GuideModal, SettingsModal, TrekCard, LocationCard, …
+  screens/     Menu, CharacterCreate, SpawnSelect, GameScreen, DeathScreen
 ```
 
 **Design rule:** everything under `game/` is **pure and seed-driven** — deterministic for a given
 seed, forked per-system (`rng.fork('loot'|'faction'|'event'|'human'|'wound'…)`), and testable without
-the DOM. `window.__game` exposes the live store for dev inspection.
+the DOM. Exceptions: cosmetic flavour helpers may use `Math.random` (non-gameplay), and `rng.ts`
+itself uses it only to mint a fresh seed string.
 
-**Note on tiles:** Stadia is keyless on `localhost`; a deployed domain needs a free Stadia API key
-(an Esri dark fallback URL is in `components/tileConfig.ts`).
+**Note on tiles:** Active basemap is **CARTO Dark Matter** (keyless everywhere, `{r}` retina, native
+z20). Stadia is sharper but keyless only on `localhost`; Esri is a last-resort fallback (no `@2x`,
+caps at z16). **Any replacement must support both `{r}` and native z20**, or the map goes soft —
+`TILE_MAX_NATIVE_ZOOM` must match what the provider actually serves.
 
 ### DEV tooling stack (reuse this)
 
@@ -348,9 +433,10 @@ where-used, compare, derived danger readout, seeded preview.
 
 ```bash
 npm install
-npm run dev       # http://localhost:5173
+npm run dev       # http://localhost:5190  (PORT env overrides; see vite.config.ts)
 npm run build     # typecheck (tsc -b) + production build
 npm run lint      # oxlint
+npm run preview   # serve the production build locally
 ```
 
 ### Refreshing map data
@@ -469,24 +555,31 @@ Static SPA, no backend. Cloudflare Pages: build `npm run build`, output `dist`, 
 
 Good areas for another agent to extend or pressure-test:
 
-- **Crafting & barricades:** consume parts (scrap, tape, tools) to craft gear or fortify a stash; some
-  traits (HDB Handyman) already anticipate this.
-- **Vehicles:** fuel exists as loot — let it enable faster/farther travel with its own risks/noise.
-- **Weapon durability & ammo:** ranged weapons should consume the ammo already in the loot tables.
+- **Vehicles:** fuel already counts hard toward evac readiness — let it enable faster/farther surface
+  travel with its own risks/noise.
+- **Player fortifications:** HDB doors can be barricaded as dungeon state; player-built stash
+  fortification / street barricades are still open design.
+- **Richer NPC life:** traders and ghost survivors exist; expand schedules, travelling merchants,
+  faction quests beyond standing ladders.
 - **Meta-progression:** unlocks across runs, daily/shareable seeds, online leaderboards & accounts
   (a Neon Postgres backend is available if we go online).
-- **Survivor NPCs / trading** beyond the current event, base-building, reputation with factions.
-- **Balance:** tune travel speed, meter/injury drain, danger regen and loot rarity for a satisfying
-  survival length.
+- **Balance:** tune travel speed, meter/injury drain, danger regen, horde climb, evac thresholds, and
+  loot rarity for a satisfying survival length.
+- **Recipe expansion:** keep the craft set small on purpose — add sinks only when loot piles up with
+  nowhere to go.
+- **Tests:** pure modules (`crafting`, `goal`, `noise`, `searchSession`, `wilds`) are ripe for a
+  lightweight Vitest suite; none exists yet.
+
+### Shipped (was roadmap)
+- Crafting & repair, faction barter, ammo + weapon condition, extraction + horde clock, HDB cutaways,
+  search sessions, sleep quality, occupations, in-game guide, live-stance combat, noise.
 
 ### Known constraints
 - Overpass has rate limits and latency → map data is pre-baked to a static file, so the live API is
-  only touched by `npm run bake:pois` and as a runtime fallback. Baked data is a point-in-time
-  snapshot: new shops in OSM won't appear until the next bake.
+  only touched by `npm run bake:pois` / `bake:mrt` / `bake:zones` and as a runtime POI fallback.
+  Baked data is a point-in-time snapshot: new shops in OSM won't appear until the next bake.
 - Many Singapore shops are mapped as **point nodes**, not buildings, so not every POI has a drawable
   outline — those render as a category badge instead.
-- The Stadia basemap needs an API key off-localhost, so the deployed build uses CARTO Dark Matter
-  instead — keyless, and it serves the `@2x` tiles that keep the map sharp on high-DPI screens.
-  **Any replacement basemap must support both `{r}` (retina) and native z20**, or the map goes soft:
-  Esri was tried and looks blurry for exactly that reason. `TILE_MAX_NATIVE_ZOOM` must match whatever
-  the provider actually serves, since Leaflet upscales beyond it rather than showing blank tiles.
+- The active basemap is CARTO Dark Matter (keyless). Stadia needs an API key off-localhost; Esri
+  looks soft (no `@2x`, no z20). **Any replacement must support both `{r}` (retina) and native z20**,
+  or Leaflet upscales and the map goes soft — set `TILE_MAX_NATIVE_ZOOM` to what the provider serves.

@@ -1,4 +1,5 @@
 import { haversine } from './overpass';
+import { edgeKey, isEdgeDestroyed } from './mrtDamage';
 
 /**
  * Singapore's rail network, baked from OpenStreetMap by `npm run bake:mrt` into
@@ -6,8 +7,10 @@ import { haversine } from './overpass';
  *
  * Two things use it. The map overlay draws it — real track geometry, official
  * liveries, station codes. And travel walks it: no train has run in months, so
- * a trip is one segment of tunnel between two *adjacent* stations, on foot.
- * `neighbours` is therefore the load-bearing query here, not `findRoute`.
+ * a trip is a planned tunnel crawl along a chosen route (possibly many stops),
+ * with some edges destroyed each run. `findRoute` / `findRoutes` are the
+ * load-bearing queries for long-range travel; `neighbours` remains the one-hop
+ * building block.
  */
 
 export interface MrtStation {
@@ -79,12 +82,14 @@ export interface MrtRoute {
   meters: number;
 }
 
+export type DestroyedEdges = ReadonlySet<string> | readonly string[] | null | undefined;
+
 /**
- * A change of line costs more than the walk across the concourse: stairs,
- * a wrong turn in the dark, the other platform's turnstiles. Expressed in
- * metres so it can just be added to the path cost during the search.
+ * Tie-break only: prefer fewer line changes when hop counts match.
+ * Kept tiny vs hop cost (each hop costs 1000) so hop count always wins.
  */
-const CHANGE_PENALTY_M = 900;
+const CHANGE_TIEBREAK = 1;
+const HOP_COST = 1000;
 
 /** How far a surface POI can sit from a baked station and still *be* it. */
 export const STATION_MATCH_M = 220;
@@ -195,6 +200,23 @@ export function nearestStation(
 }
 
 /**
+ * Nearest station with no distance cap — used for corridor bias / planner
+ * anchors when the POI isn't within STATION_MATCH_M of a platform.
+ */
+export function nearestStationAny(net: MrtNetwork, lat: number, lng: number): MrtStation {
+  let best = net.stations[0];
+  let bestD = Infinity;
+  for (const s of net.stations) {
+    const d = haversine(lat, lng, s.lat, s.lng);
+    if (d < bestD) {
+      best = s;
+      bestD = d;
+    }
+  }
+  return best;
+}
+
+/**
  * The lines serving a station, as the map draws them — a branch reports its
  * parent, so Expo reads "East West Line", not "Changi Airport Branch".
  */
@@ -227,16 +249,17 @@ export interface MrtSegment {
 }
 
 /**
- * The stations one stop away. This is the whole of what travel needs now:
- * nothing runs, so you walk a single segment at a time.
- *
- * Two stations can be joined by more than one line (a branch overlaps its
- * trunk at the junction); the shortest wins, since that's the tunnel you'd
- * actually walk.
+ * The stations one stop away (optionally skipping destroyed tunnels).
+ * Two stations can be joined by more than one line; the shortest wins.
  */
-export function neighbours(net: MrtNetwork, stationId: string): MrtSegment[] {
+export function neighbours(
+  net: MrtNetwork,
+  stationId: string,
+  destroyed?: DestroyedEdges,
+): MrtSegment[] {
   const out = new Map<string, MrtSegment>();
   for (const edge of net.adjacency.get(stationId) ?? []) {
+    if (isEdgeDestroyed(destroyed, stationId, edge.to)) continue;
     const station = net.byId.get(edge.to);
     const line = net.lineByCode.get(edge.line);
     if (!station || !line) continue;
@@ -252,76 +275,32 @@ export function adjacentEdge(
   net: MrtNetwork,
   fromId: string,
   toId: string,
+  destroyed?: DestroyedEdges,
 ): MrtSegment | null {
-  return neighbours(net, fromId).find((n) => n.station.id === toId) ?? null;
+  return neighbours(net, fromId, destroyed).find((n) => n.station.id === toId) ?? null;
 }
 
 /** As `adjacentEdge`, for two locations — null unless both are known stations. */
 export function tunnelSegmentBetween(
   from: { mrtStationId?: string },
   to: { mrtStationId?: string },
+  destroyed?: DestroyedEdges,
 ): MrtSegment | null {
   const net = cached;
   if (!net || !from.mrtStationId || !to.mrtStationId) return null;
-  return adjacentEdge(net, from.mrtStationId, to.mrtStationId);
+  return adjacentEdge(net, from.mrtStationId, to.mrtStationId, destroyed);
 }
 
-/**
- * Shortest ride from one station to another, in tunnel distance with a penalty
- * per line change so the search prefers the route with fewer changes when two
- * are close. Returns null if the stations aren't connected at all.
- *
- * Dijkstra over (station, line-you-arrived-on) pairs rather than plain
- * stations: the cost of a stop depends on whether you're already on that line,
- * which a station-only graph can't express.
- */
-export function findRoute(net: MrtNetwork, fromId: string, toId: string): MrtRoute | null {
-  const from = net.byId.get(fromId);
-  const to = net.byId.get(toId);
-  if (!from || !to) return null;
-  if (from.id === to.id) return { legs: [], stops: 0, changes: 0, meters: 0 };
+interface SearchNode {
+  station: string;
+  line: string | null;
+  cost: number;
+  prev: SearchNode | null;
+}
 
-  interface Node {
-    station: string;
-    line: string | null;
-    cost: number;
-    prev: Node | null;
-  }
-
-  const start: Node = { station: from.id, line: null, cost: 0, prev: null };
-  const best = new Map<string, number>([[`${from.id}|`, 0]]);
-  // The network is ~190 stations, so a sorted-insert frontier is plenty and
-  // keeps this dependency-free.
-  const frontier: Node[] = [start];
-  let arrived: Node | null = null;
-
-  while (frontier.length) {
-    const node = frontier.shift()!;
-    const key = `${node.station}|${node.line ?? ''}`;
-    if (node.cost > (best.get(key) ?? Infinity)) continue;
-    if (node.station === to.id) {
-      arrived = node;
-      break;
-    }
-    for (const edge of net.adjacency.get(node.station) ?? []) {
-      const change = node.line !== null && node.line !== edge.line;
-      const cost = node.cost + edge.meters + (change ? CHANGE_PENALTY_M : 0);
-      const nextKey = `${edge.to}|${edge.line}`;
-      if (cost >= (best.get(nextKey) ?? Infinity)) continue;
-      best.set(nextKey, cost);
-      const next: Node = { station: edge.to, line: edge.line, cost, prev: node };
-      const at = frontier.findIndex((n) => n.cost > cost);
-      if (at === -1) frontier.push(next);
-      else frontier.splice(at, 0, next);
-    }
-  }
-
-  if (!arrived) return null;
-
-  // Walk the chain back to the start, then fold consecutive same-line hops
-  // into legs.
-  const path: Node[] = [];
-  for (let n: Node | null = arrived; n; n = n.prev) path.unshift(n);
+function pathToRoute(net: MrtNetwork, arrived: SearchNode): MrtRoute {
+  const path: SearchNode[] = [];
+  for (let n: SearchNode | null = arrived; n; n = n.prev) path.unshift(n);
 
   const legs: MrtLeg[] = [];
   let meters = 0;
@@ -351,18 +330,142 @@ export function findRoute(net: MrtNetwork, fromId: string, toId: string): MrtRou
 }
 
 /**
+ * Shortest ride by **fewest stations**, with a light tie-break for fewer line
+ * changes. Destroyed edges are hard walls. Returns null if disconnected.
+ *
+ * Dijkstra over (station, line-you-arrived-on) pairs.
+ */
+export function findRoute(
+  net: MrtNetwork,
+  fromId: string,
+  toId: string,
+  destroyed?: DestroyedEdges,
+): MrtRoute | null {
+  const from = net.byId.get(fromId);
+  const to = net.byId.get(toId);
+  if (!from || !to) return null;
+  if (from.id === to.id) return { legs: [], stops: 0, changes: 0, meters: 0 };
+
+  const start: SearchNode = { station: from.id, line: null, cost: 0, prev: null };
+  const best = new Map<string, number>([[`${from.id}|`, 0]]);
+  const frontier: SearchNode[] = [start];
+  let arrived: SearchNode | null = null;
+
+  while (frontier.length) {
+    const node = frontier.shift()!;
+    const key = `${node.station}|${node.line ?? ''}`;
+    if (node.cost > (best.get(key) ?? Infinity)) continue;
+    if (node.station === to.id) {
+      arrived = node;
+      break;
+    }
+    for (const edge of net.adjacency.get(node.station) ?? []) {
+      if (isEdgeDestroyed(destroyed, node.station, edge.to)) continue;
+      const change = node.line !== null && node.line !== edge.line;
+      const cost = node.cost + HOP_COST + (change ? CHANGE_TIEBREAK : 0);
+      const nextKey = `${edge.to}|${edge.line}`;
+      if (cost >= (best.get(nextKey) ?? Infinity)) continue;
+      best.set(nextKey, cost);
+      const next: SearchNode = { station: edge.to, line: edge.line, cost, prev: node };
+      const at = frontier.findIndex((n) => n.cost > cost);
+      if (at === -1) frontier.push(next);
+      else frontier.splice(at, 0, next);
+    }
+  }
+
+  if (!arrived) return null;
+  return pathToRoute(net, arrived);
+}
+
+/** Ordered station ids along a route, including the origin. */
+export function routeStationIds(route: MrtRoute, fromId: string): string[] {
+  const ids = [fromId];
+  for (const leg of route.legs) {
+    for (const s of leg.stops) ids.push(s.id);
+  }
+  return ids;
+}
+
+/** Stable signature so we can dedupe alternate routes. */
+function routeSignature(route: MrtRoute, fromId: string): string {
+  return routeStationIds(route, fromId).join('>');
+}
+
+/**
+ * Up to `limit` distinct routes from A to B. First is the hop-shortest
+ * (findRoute). Further candidates come from briefly forbidding edges on
+ * earlier paths (Yen-lite) so the planner can offer real alternatives.
+ */
+export function findRoutes(
+  net: MrtNetwork,
+  fromId: string,
+  toId: string,
+  destroyed?: DestroyedEdges,
+  limit = 3,
+): MrtRoute[] {
+  const primary = findRoute(net, fromId, toId, destroyed);
+  if (!primary) return [];
+  if (limit <= 1 || primary.stops === 0) return [primary];
+
+  const out: MrtRoute[] = [primary];
+  const seen = new Set([routeSignature(primary, fromId)]);
+  const baseDestroyed = destroyed instanceof Set
+    ? destroyed
+    : new Set(destroyed ?? []);
+
+  const pathIds = routeStationIds(primary, fromId);
+  for (let i = 1; i < pathIds.length && out.length < limit; i++) {
+    const forbid = new Set(baseDestroyed);
+    forbid.add(edgeKey(pathIds[i - 1], pathIds[i]));
+    const alt = findRoute(net, fromId, toId, forbid);
+    if (!alt || alt.stops === 0) continue;
+    const sig = routeSignature(alt, fromId);
+    if (seen.has(sig)) continue;
+    seen.add(sig);
+    out.push(alt);
+  }
+
+  // Extra alternates by forbidding the edge after each transfer hub.
+  if (out.length < limit && primary.changes > 0) {
+    const hubs = primary.legs.slice(0, -1).map((l) => l.to.id);
+    for (const hub of hubs) {
+      if (out.length >= limit) break;
+      const idx = pathIds.indexOf(hub);
+      if (idx <= 0 || idx >= pathIds.length - 1) continue;
+      const forbid = new Set(baseDestroyed);
+      forbid.add(edgeKey(pathIds[idx], pathIds[idx + 1]));
+      const alt = findRoute(net, fromId, toId, forbid);
+      if (!alt || alt.stops === 0) continue;
+      const sig = routeSignature(alt, fromId);
+      if (seen.has(sig)) continue;
+      seen.add(sig);
+      out.push(alt);
+    }
+  }
+
+  return out.slice(0, limit);
+}
+
+/**
  * The ride between two locations, or null if either isn't a station the network
  * knows, the network isn't loaded, or no line connects them.
- *
- * Nothing travels along a whole route any more — you walk one segment at a
- * time. This survives for orientation only: it's how the location card tells
- * you a station is seven stops down the line rather than saying nothing.
  */
 export function mrtRouteBetween(
   from: { mrtStationId?: string },
   to: { mrtStationId?: string },
+  destroyed?: DestroyedEdges,
 ): MrtRoute | null {
   const net = cached;
   if (!net || !from.mrtStationId || !to.mrtStationId) return null;
-  return findRoute(net, from.mrtStationId, to.mrtStationId);
+  return findRoute(net, from.mrtStationId, to.mrtStationId, destroyed);
+}
+
+/** Human label for a planner route option. */
+export function routeOptionLabel(route: MrtRoute, index: number): string {
+  if (index === 0) return `Fastest (${route.stops} stop${route.stops === 1 ? '' : 's'})`;
+  if (route.changes === 0 && route.legs[0]) {
+    return `Via ${route.legs[0].line.name} · ${route.stops} stops`;
+  }
+  const via = route.legs.map((l) => l.line.code).join('→');
+  return `${via} · ${route.stops} stops · ${route.changes} change${route.changes === 1 ? '' : 's'}`;
 }
