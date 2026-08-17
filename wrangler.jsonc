@@ -11,8 +11,7 @@
     {
       "binding": "DB",
       "database_name": "singvive-scores",
-      // Replace after `npx wrangler d1 create singvive-scores` (local D1 ignores this).
-      "database_id": "00000000-0000-4000-8000-000000000001",
+      "database_id": "68ed167f-e709-4262-a21f-dd6be71f1aef",
       "migrations_dir": "migrations",
     },
   ],
