@@ -323,6 +323,13 @@ function linkColumns(rng: Rng, columns: string[][], nodes: Record<string, Tunnel
       const near = next.filter((n) => Math.abs(n.lane - node.lane) <= 1);
       const pool = near.length ? near : next;
       const r = rng.fork(`link:${node.id}`);
+      const same = next.find((n) => n.lane === node.lane);
+      // Prefer staying in-lane so a side bore can run two or three hops
+      // before a platform pulls everything back to the centre.
+      if (same && r.chance(0.68)) {
+        node.next = [same.id];
+        continue;
+      }
       const width = pool.length > 1 && r.chance(0.45) ? 2 : 1;
       const start = r.int(0, Math.max(0, pool.length - width));
       node.next = pool.slice(start, start + width).map((n) => n.id);

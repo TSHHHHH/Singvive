@@ -371,11 +371,15 @@ export function GameScreen() {
   }, [phoneInterruptId, goToPhoneTab]);
 
   // Entering a block / tunnel / planner lands on Map; the player can tab away.
+  // Depend on presence, not the run object — each crawl step replaces `tunnel`
+  // and must not yank the Log tab closed.
+  const inBlock = !!hdb;
+  const inTunnel = !!tunnel;
   useEffect(() => {
-    if (!(hdb || tunnel || mrtPlanner)) return;
+    if (!(inBlock || inTunnel || mrtPlanner)) return;
     setMobileView('map');
     setSidePanel(null);
-  }, [hdb, tunnel, mrtPlanner]);
+  }, [inBlock, inTunnel, mrtPlanner]);
 
   // Close the here sheet when you leave the site or enter a block / tunnel.
   useEffect(() => {
@@ -957,7 +961,7 @@ export function GameScreen() {
   }`;
 
   const shellClass = [
-    'relative flex h-full flex-col lg:flex-row',
+    'relative flex h-full min-h-0 min-w-0 flex-col lg:flex-row',
     phoneFight ? 'phone-fight-open' : '',
     phoneInterruptKind && !phoneFight ? 'phone-interrupt-open' : '',
   ]
@@ -1133,7 +1137,7 @@ export function GameScreen() {
            Phone: only while Map is the active tab. Status / Log fully replace
            this column — do not keep HDB/tunnel mounted beside them. */}
       <div
-        className={`relative lg:flex lg:flex-1 ${
+        className={`relative min-h-0 min-w-0 overflow-hidden lg:flex lg:flex-1 ${
           mobileView === 'map' ? show(true) : 'hidden'
         } lg:flex ${phoneFight ? '' : backgrounded}`}
       >
@@ -1146,8 +1150,8 @@ export function GameScreen() {
         <div
           className={
             phoneFight
-              ? 'relative hidden h-full min-h-0 flex-1 lg:flex'
-              : 'relative flex h-full min-h-0 flex-1'
+              ? 'relative hidden h-full min-h-0 min-w-0 flex-1 lg:flex'
+              : 'relative flex h-full min-h-0 min-w-0 flex-1 overflow-hidden'
           }
         >
           {tunnel ? (
