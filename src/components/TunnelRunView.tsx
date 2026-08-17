@@ -217,15 +217,6 @@ function hash01(n: number): number {
   return (h >>> 0) / 4294967296;
 }
 
-function hashStr(s: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return (h >>> 0) / 4294967296;
-}
-
 /**
  * Integer track offset per column. Several subway-map personalities so
  * crawls don't all share the same gentle zigzag.
@@ -291,50 +282,34 @@ function buildShifts(cols: number, phase: number, maxShift: number): number[] {
   return out;
 }
 
-function laneOffset(lane: number, id: string): number {
+function laneOffset(lane: number, phase: number): number {
   if (lane === 1) return 0;
-  const reach = 1.05 + hashStr(id) * 1.35;
-  return (lane - 1) * reach;
+  const wide = hash01(Math.floor(phase * 10000) + lane * 19) > 0.72;
+  return (lane - 1) * (wide ? 2 : 1);
 }
 
-function shorten(from: FloorPt, to: FloorPt, dist: number): FloorPt {
+function unit(from: FloorPt, to: FloorPt): FloorPt {
   const dx = to.x - from.x;
   const dy = to.y - from.y;
   const len = Math.hypot(dx, dy) || 1;
-  const t = Math.min(dist / len, 0.42);
-  return { x: from.x + dx * t, y: from.y + dy * t };
+  return { x: dx / len, y: dy / len };
 }
 
 /**
- * Transit-map elbows. mode 0 = long axis first, 1 = opposite corner,
- * 2 = peel out early and run parallel.
+ * One rule: 45° until an axis is exhausted, then ortho. Equal |dx| and |dy|
+ * is a pure diagonal — no elbow. Never a 90° hook.
  */
-function octilinear(a: FloorPt, b: FloorPt, mode: number): FloorPt[] {
+function octilinear(a: FloorPt, b: FloorPt): FloorPt[] {
   const dx = b.x - a.x;
   const dy = b.y - a.y;
-  if (Math.abs(dx) < 1.5) return [a, b];
   const adx = Math.abs(dx);
   const ady = Math.abs(dy);
-  const sx = Math.sign(dx);
-  const sy = Math.sign(dy) || -1;
-  if (mode === 2 && adx > 10 && ady > 10) {
-    const d45 = Math.min(adx, ady * 0.42);
-    return [
-      a,
-      { x: a.x + sx * d45, y: a.y + sy * d45 },
-      { x: b.x, y: a.y + sy * d45 },
-      b,
-    ];
-  }
-  if (mode === 1) {
-    return [a, { x: a.x + sx * Math.min(adx, ady), y: a.y + sy * Math.min(adx, ady) }, b];
-  }
-  if (ady >= adx) {
-    return [a, { x: a.x, y: a.y + sy * (ady - adx) }, b];
-  }
-  return [a, { x: a.x + sx * (adx - ady), y: a.y }, b];
+  if (adx < 2 || ady < 2 || Math.abs(adx - ady) < 2) return [a, b];
+  const d = Math.min(adx, ady);
+  return [a, { x: a.x + Math.sign(dx) * d, y: a.y + Math.sign(dy) * d }, b];
 }
 
+/** Circular fillets, same radius on every 45° heading change. */
 function roundedPath(pts: FloorPt[], radius: number): string {
   if (pts.length < 2) return '';
   if (pts.length === 2) return `M ${fmtPt(pts[0])} L ${fmtPt(pts[1])}`;
@@ -343,9 +318,24 @@ function roundedPath(pts: FloorPt[], radius: number): string {
     const p0 = pts[i - 1];
     const p1 = pts[i];
     const p2 = pts[i + 1];
-    const into = shorten(p1, p0, radius);
-    const out = shorten(p1, p2, radius);
-    d += ` L ${fmtPt(into)} Q ${fmtPt(p1)} ${fmtPt(out)}`;
+    const u = unit(p0, p1);
+    const v = unit(p1, p2);
+    const inLen = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+    const outLen = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+    const dot = Math.max(-1, Math.min(1, u.x * v.x + u.y * v.y));
+    const phi = Math.acos(dot);
+    if (phi < 0.05 || inLen < 4 || outLen < 4) {
+      d += ` L ${fmtPt(p1)}`;
+      continue;
+    }
+    const maxL = Math.min(inLen, outLen) * 0.48;
+    let L = radius * Math.tan(phi / 2);
+    L = Math.min(L, maxL);
+    const r = L / Math.tan(phi / 2);
+    const into: FloorPt = { x: p1.x - u.x * L, y: p1.y - u.y * L };
+    const out: FloorPt = { x: p1.x + v.x * L, y: p1.y + v.y * L };
+    const sweep = u.x * v.y - u.y * v.x > 0 ? 1 : 0;
+    d += ` L ${fmtPt(into)} A ${r.toFixed(1)} ${r.toFixed(1)} 0 0 ${sweep} ${fmtPt(out)}`;
   }
   d += ` L ${fmtPt(pts[pts.length - 1])}`;
   return d;
@@ -423,27 +413,21 @@ function TunnelMap({
   const layout = useMemo(() => {
     const maxCol = Object.values(run.nodes).reduce((m, n) => Math.max(m, n.col), 0);
     const cols = Math.max(2, run.columns.length, maxCol + 1);
-    const cellX = 108;
-    const cellY = 118;
+    const cell = 112;
     const pad = 96;
     const maxShift = 3;
     const shifts = buildShifts(cols, phase, maxShift);
-    const seed = Math.floor(phase * 10000);
     const yAt: number[] = new Array(cols);
     yAt[cols - 1] = pad;
     for (let c = cols - 2; c >= 0; c--) {
-      const plat =
-        Object.values(run.nodes).some((n) => n.col === c + 1 && n.kind === 'platform') ||
-        Object.values(run.nodes).some((n) => n.col === c && n.kind === 'platform');
-      const gap = cellY * (0.78 + hash01(seed + c * 23) * 0.5) * (plat ? 1.22 : 1);
-      yAt[c] = (yAt[c + 1] ?? pad) + gap;
+      yAt[c] = (yAt[c + 1] ?? pad) + cell;
     }
     const at = new Map<string, FloorPt>();
     for (const node of Object.values(run.nodes)) {
       const shift = shifts[node.col] ?? 0;
       at.set(node.id, {
-        x: pad + (shift + laneOffset(node.lane, node.id) + maxShift) * cellX,
-        y: yAt[node.col] ?? pad + (cols - 1 - node.col) * cellY,
+        x: pad + (shift + laneOffset(node.lane, phase) + maxShift) * cell,
+        y: yAt[node.col] ?? pad + (cols - 1 - node.col) * cell,
       });
     }
     let maxX = pad;
@@ -457,6 +441,7 @@ function TunnelMap({
     const worldH = Math.max(maxY + pad, 320);
     const spine = mainSpine(run);
     const edges: Edge[] = [];
+    const cornerR = cell * 0.42;
     for (const node of Object.values(run.nodes)) {
       for (const nextId of node.next) {
         const target = run.nodes[nextId];
@@ -470,14 +455,9 @@ function TunnelMap({
             : node.state === 'done' && (target.state === 'done' || target.id === here.id)
               ? 'walked'
               : 'latent';
-        const mode = main
-          ? hash01(seed + node.col * 41) < 0.35
-            ? 1
-            : 0
-          : Math.floor(hashStr(`${node.id}>${nextId}`) * 3);
         edges.push({
           key: `${node.id}>${nextId}`,
-          d: roundedPath(octilinear(a, b, mode), Math.min(26, cellX * 0.24)),
+          d: roundedPath(octilinear(a, b), cornerR),
           main,
           kind,
           order: node.col + target.col,
@@ -504,7 +484,7 @@ function TunnelMap({
       })
       .filter((d): d is NonNullable<typeof d> => !!d);
 
-    return { at, edges, hubs, dots, cell: cellX, worldW, worldH };
+    return { at, edges, hubs, dots, cell, worldW, worldH };
   }, [run, here.id, phase]);
 
   const homeCam = useMemo(() => {

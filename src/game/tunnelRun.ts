@@ -8,9 +8,9 @@ import { timeOfDay } from './weather';
 /**
  * One walk through the tunnels along a planned route (one or many stations).
  * Generation lays a through running tunnel first (platforms + corridor nodes),
- * then hangs optional side adits: prev spine → branch node → next spine, so
- * the extra node sits in the middle of a two-hop curve. Everything here is
- * pure — the store owns the live run and applies the deltas.
+ * then hangs side passages that can run for several hops before they rejoin,
+ * so a fork is a real route choice, not only a one-node detour. Everything
+ * here is pure — the store owns the live run and applies the deltas.
  *
  * The trains stopped a long time ago. What's down there now is standing water,
  * the dead, and the people who decided a bore with two exits was safer than a
@@ -219,7 +219,7 @@ const TUNNEL_TRADES: readonly TunnelTrade[] = [
 // ------------------------------------------------------------ generation --
 
 const MIN_MID_COLS = 1;
-const MAX_MID_COLS = 4;
+const MAX_MID_COLS = 5;
 /** Soft cap so a 20-stop ride stays playable on a phone. */
 const MAX_TOTAL_COLS = 22;
 
@@ -283,12 +283,34 @@ const ADIT_KINDS: [TunnelNodeKind, number][] = [
   ['settlement', 22],
 ];
 
+const CONTRAST_KINDS: Record<TunnelNodeKind, readonly TunnelNodeKind[]> = {
+  platform: ['scavenge', 'pack', 'hazard'],
+  pack: ['scavenge', 'hazard', 'settlement'],
+  scavenge: ['pack', 'hazard', 'settlement'],
+  settlement: ['scavenge', 'pack', 'hazard'],
+  hazard: ['scavenge', 'pack', 'settlement'],
+};
+
 function rollKind(
   rng: Rng,
   campAllowed: boolean,
   table: readonly [TunnelNodeKind, number][],
 ): TunnelNodeKind {
   const pool = campAllowed ? table : table.filter(([k]) => k !== 'settlement');
+  return rng.weighted(pool);
+}
+
+function rollContrast(
+  rng: Rng,
+  mainKind: TunnelNodeKind,
+  campAllowed: boolean,
+  table: readonly [TunnelNodeKind, number][],
+): TunnelNodeKind {
+  const prefer = new Set(
+    CONTRAST_KINDS[mainKind].filter((k) => campAllowed || k !== 'settlement'),
+  );
+  const pool = table.filter(([k]) => prefer.has(k) && (campAllowed || k !== 'settlement'));
+  if (!pool.length) return rollKind(rng, campAllowed, table);
   return rng.weighted(pool);
 }
 
@@ -320,31 +342,57 @@ function spineOf(columns: string[][], nodes: Record<string, TunnelNode>, col: nu
   return row.find((n) => n.lane === 1) ?? row[0];
 }
 
+function nodeOnLane(
+  columns: string[][],
+  nodes: Record<string, TunnelNode>,
+  col: number,
+  lane: number,
+): TunnelNode | undefined {
+  if (col < 0 || col >= columns.length) return undefined;
+  return columns[col].map((id) => nodes[id]).find((n) => n.lane === lane);
+}
+
+function orderExits(node: TunnelNode, nodes: Record<string, TunnelNode>): void {
+  node.next.sort((a, b) => {
+    const la = nodes[a]?.lane ?? 1;
+    const lb = nodes[b]?.lane ?? 1;
+    return Math.abs(la - 1) - Math.abs(lb - 1) || la - lb;
+  });
+}
+
 /**
- * Through-line first: every column's lane-1 node points at the next.
- * Then each adit is prev-spine → branch → next-spine, so the extra node
- * sits at the apex of a two-hop curve and never shares a hop with the
- * corridor node beside it.
+ * Spine always runs through. A side node peels off the previous spine node.
+ * If the next column has a same-lane adit, the side bore continues (a parallel
+ * track); otherwise it rejoins. Sometimes a crossover offers both.
  */
-function linkSpineAndAdits(columns: string[][], nodes: Record<string, TunnelNode>): void {
+function linkSpineAndAdits(
+  rng: Rng,
+  columns: string[][],
+  nodes: Record<string, TunnelNode>,
+): void {
   for (let c = 0; c < columns.length - 1; c++) {
     spineOf(columns, nodes, c).next = [spineOf(columns, nodes, c + 1).id];
   }
   for (let c = 1; c < columns.length - 1; c++) {
     const prev = spineOf(columns, nodes, c - 1);
-    const next = spineOf(columns, nodes, c + 1);
+    const join = spineOf(columns, nodes, c + 1);
     for (const id of columns[c]) {
       const node = nodes[id];
       if (node.lane === 1) continue;
-      prev.next.push(node.id);
-      node.next = [next.id];
+      if (!prev.next.includes(node.id)) prev.next.push(node.id);
+      const cont = nodeOnLane(columns, nodes, c + 1, node.lane);
+      const r = rng.fork(`xo:${node.id}`);
+      if (cont && r.chance(0.34)) node.next = [join.id, cont.id];
+      else if (cont) node.next = [cont.id];
+      else node.next = [join.id];
     }
   }
+  for (const node of Object.values(nodes)) orderExits(node, nodes);
 }
 
 /** Middle columns between two platforms for one hop, before global thinning. */
 function midColsForHop(meters: number, mode: 'mrt' | 'lrt'): number {
-  const span = clamp(MIN_MID_COLS, MAX_MID_COLS, Math.round(meters / 550));
+  const span = clamp(MIN_MID_COLS, MAX_MID_COLS, Math.round(meters / 480));
   return mode === 'lrt' ? Math.max(MIN_MID_COLS, span - 1) : span;
 }
 
@@ -449,51 +497,75 @@ export function generateTunnelRun(rng: Rng, ctx: TunnelCtx): TunnelRun {
     }
   }
 
-  // Phase 2: hang adits off the spine. A branch is only legal where both
-  // neighbours exist, so the extra node can sit in the middle of prev → next.
+  const placeAdit = (c: number, lane: number, r: Rng) => {
+    if (nodeOnLane(columns, nodes, c, lane)) return;
+    const here = spineOf(columns, nodes, c);
+    if (here.kind === 'platform') return;
+    const next = spineOf(columns, nodes, c + 1);
+    const lastMiddle = next.kind === 'platform';
+    const campAllowed = !lastMiddle && here.kind !== 'settlement';
+    let kind = rollContrast(r.fork('kind'), here.kind, campAllowed, ADIT_KINDS);
+    const prevSame = nodeOnLane(columns, nodes, c - 1, lane);
+    if (kind === 'pack' && (here.kind === 'pack' || prevSame?.kind === 'pack')) {
+      kind = rollKind(
+        r.fork('nofight'),
+        campAllowed,
+        ADIT_KINDS.filter(([k]) => k !== 'pack'),
+      );
+    }
+    if (kind === 'settlement' && columns[c].some((id) => nodes[id].kind === 'settlement')) {
+      kind = rollKind(r.fork('nocamp'), false, ADIT_KINDS.filter(([k]) => k !== 'settlement'));
+    }
+    const node = fillContent(
+      rng.fork(`node:${c}:${lane}`),
+      kind,
+      c,
+      lane,
+      clamp(0, 5, baseDanger + (c > 4 ? 1 : 0)),
+    );
+    nodes[node.id] = node;
+    columns[c].push(node.id);
+    columns[c].sort((a, b) => nodes[a].lane - nodes[b].lane);
+  };
+
   for (let c = 1; c < columns.length - 1; c++) {
     const here = spineOf(columns, nodes, c);
     if (here.kind === 'platform') continue;
     const r = shape.fork(`adit:${c}`);
-    const next = spineOf(columns, nodes, c + 1);
-    const lastMiddle = next.kind === 'platform';
-    const campAllowed = !lastMiddle && here.kind !== 'settlement';
-    const prevLanes = new Set(columns[c - 1].map((id) => nodes[id].lane));
     const sides: number[] = [];
-    if (r.chance(0.56) && (r.chance(0.38) || !prevLanes.has(0))) sides.push(0);
-    if (r.chance(0.56) && (r.chance(0.38) || !prevLanes.has(2))) sides.push(2);
-    if (sides.length === 2 && r.chance(0.28)) sides.splice(r.int(0, 1), 1);
-    for (const lane of sides) {
-      let kind = rollKind(shape.fork(`aditkind:${c}:${lane}`), campAllowed, ADIT_KINDS);
-      if (kind === 'pack' && here.kind === 'pack') {
-        kind = rollKind(
-          shape.fork(`aditkind:${c}:${lane}:nofight`),
-          campAllowed,
-          ADIT_KINDS.filter(([k]) => k !== 'pack'),
-        );
+    if (r.chance(0.52)) sides.push(0);
+    if (r.chance(0.52)) sides.push(2);
+    if (sides.length === 2 && r.chance(0.35)) sides.splice(r.int(0, 1), 1);
+    for (const lane of sides) placeAdit(c, lane, r.fork(`place:${lane}`));
+  }
+
+  // At least one fork between each pair of platforms, so a hop is never a corridor.
+  for (let c = 0; c < columns.length; c++) {
+    const here = spineOf(columns, nodes, c);
+    if (here.kind !== 'platform') continue;
+    let end = columns.length - 1;
+    for (let n = c + 1; n < columns.length; n++) {
+      if (spineOf(columns, nodes, n).kind === 'platform') {
+        end = n;
+        break;
       }
-      if (kind === 'settlement' && columns[c].some((id) => nodes[id].kind === 'settlement')) {
-        kind = rollKind(
-          shape.fork(`aditkind:${c}:${lane}:nocamp`),
-          false,
-          ADIT_KINDS.filter(([k]) => k !== 'settlement'),
-        );
-      }
-      const node = fillContent(
-        rng.fork(`node:${c}:${lane}`),
-        kind,
-        c,
-        lane,
-        clamp(0, 5, baseDanger + (c > 4 ? 1 : 0)),
-      );
-      nodes[node.id] = node;
-      columns[c].push(node.id);
     }
-    columns[c].sort((a, b) => nodes[a].lane - nodes[b].lane);
+    if (end <= c + 1) continue;
+    let hasFork = false;
+    for (let m = c + 1; m < end; m++) {
+      if (columns[m].some((id) => nodes[id].lane !== 1)) {
+        hasFork = true;
+        break;
+      }
+    }
+    if (hasFork) continue;
+    const pick = c + 1 + shape.fork(`needfork:${c}`).int(0, end - c - 2);
+    const side = shape.fork(`needside:${c}`).chance(0.5) ? 0 : 2;
+    placeAdit(pick, side, shape.fork(`needplace:${c}`));
   }
 
   const cols = columns.length;
-  linkSpineAndAdits(columns, nodes);
+  linkSpineAndAdits(shape.fork('edges'), columns, nodes);
 
   return {
     id,

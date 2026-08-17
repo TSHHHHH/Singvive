@@ -44,6 +44,7 @@ export const GUIDE_SECTIONS: readonly GuideSection[] = [
     bullets: [
       'From an MRT platform, Plan tunnel travel opens the rail map. Pick a destination — default route is fewest stations. Some segments collapse each run and cannot be crossed.',
       'Confirming a route starts one crawl for the whole path. A station strip tracks the planned line, next stop, and transfers. You can exit at intermediate stations or keep walking to the far end. No surface range, weather, or encumbrance underground.',
+      'Between stations the running tunnel can split. Stay on the through line or peel into a side passage — it may run a few hops before it rejoins. Pick the node you can afford; the other way is gone once you step.',
       'Pressure builds from noise in the bore. Camps can rest it down; a pinned gauge draws worse things. STA may toll the stairs down at stations they still hold.',
     ],
   },
