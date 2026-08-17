@@ -1,11 +1,18 @@
+import type { Recipe } from '../game/crafting';
 import type { ItemDef } from '../game/types';
 import { validateItemsCatalog } from './validateItems';
 import {
   validateLootTablesCatalog,
   type LootTablesCatalog,
 } from './validateLootTables';
+import {
+  normalizeRecipesCatalog,
+  validateRecipesCatalog,
+  type RecipesCatalog,
+} from './validateRecipes';
 
 export type { LootTablesCatalog, LootTableEntry } from './validateLootTables';
+export type { RecipesCatalog } from './validateRecipes';
 export type ItemsCatalog = Record<string, ItemDef>;
 
 export const MAX_ICON_BYTES = 64 * 1024;
@@ -210,4 +217,72 @@ export function parseImportedLootTables(
   const errors = validateLootTablesCatalog(parsed, knownItemIds);
   if (errors.length > 0) throw new Error(errors.slice(0, 8).join('\n'));
   return parsed as LootTablesCatalog;
+}
+
+export async function fetchRecipesCatalog(): Promise<RecipesCatalog> {
+  const res = await fetch('/__dev/recipes');
+  if (!res.ok) throw new Error(`Failed to load recipes (${res.status})`);
+  return (await res.json()) as RecipesCatalog;
+}
+
+export async function saveRecipesCatalog(
+  catalog: RecipesCatalog,
+  knownItemIds?: ReadonlySet<string>,
+): Promise<void> {
+  const normalized = normalizeRecipesCatalog(catalog);
+  const errors = validateRecipesCatalog(normalized, knownItemIds);
+  if (errors.length > 0) throw new Error(errors.slice(0, 5).join('\n'));
+  const res = await fetch('/__dev/recipes', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(normalized),
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as {
+      error?: string;
+      errors?: string[];
+    } | null;
+    throw new Error(
+      body?.errors?.slice(0, 5).join('\n') ?? body?.error ?? `HTTP ${res.status}`,
+    );
+  }
+}
+
+export function downloadRecipes(
+  catalog: RecipesCatalog,
+  filename = 'recipes.json',
+): void {
+  const blob = new Blob(
+    [`${JSON.stringify(normalizeRecipesCatalog(catalog), null, 2)}\n`],
+    { type: 'application/json' },
+  );
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export function parseImportedRecipes(
+  text: string,
+  knownItemIds?: ReadonlySet<string>,
+): RecipesCatalog {
+  const parsed: unknown = JSON.parse(text);
+  const errors = validateRecipesCatalog(parsed, knownItemIds);
+  if (errors.length > 0) throw new Error(errors.slice(0, 8).join('\n'));
+  return normalizeRecipesCatalog(parsed as RecipesCatalog);
+}
+
+export function blankRecipe(id: string, outputDefId: string): Recipe {
+  return {
+    id,
+    name: 'New Recipe',
+    inputs: {},
+    outputDefId,
+    outputCount: 1,
+    hours: 0.5,
+    needsShelter: false,
+    blurb: 'What this craft is for.',
+  };
 }

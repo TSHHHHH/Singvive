@@ -15,7 +15,9 @@ export const GUIDE_SECTIONS: readonly GuideSection[] = [
     bullets: [
       'Hunger, thirst, energy, and infection tick with every hour. Keep them up — empty hunger or thirst below 20 starts eating limb HP.',
       'Health is the sum of your six limbs. Bleeding blocks regen; infection at 100 ends the run.',
-      'Night (after dusk) is more dangerous. Sleep restores energy but still drains hunger and thirst (at a reduced rate).',
+      'Night (after dusk) is more dangerous. Get inside before dark — the streets fill with a night swarm. Rest shows recovery and ambush chance; sleep still drains hunger and thirst (reduced).',
+      'Hazard pockets sit between pins (horde, patrols, collapse, flood). Sense them inside your ring, route around when you can — each kind bites differently if you cross.',
+      'Infected animals share the combat loop and can infect on a hit. Otters and monitors claim inland water, macaques and boars the catchment, dogs/cats/rats the streets.',
     ],
   },
   {
@@ -41,7 +43,7 @@ export const GUIDE_SECTIONS: readonly GuideSection[] = [
     title: 'The tunnels',
     bullets: [
       'From an MRT platform, Plan tunnel travel opens the rail map. Pick a destination — default route is fewest stations. Some segments collapse each run and cannot be crossed.',
-      'Confirming a route starts one crawl for the whole path. You can exit at intermediate stations or keep walking to the far end. No surface range, weather, or encumbrance underground.',
+      'Confirming a route starts one crawl for the whole path. A station strip tracks the planned line, next stop, and transfers. You can exit at intermediate stations or keep walking to the far end. No surface range, weather, or encumbrance underground.',
       'Pressure builds from noise in the bore. Camps can rest it down; a pinned gauge draws worse things. STA may toll the stairs down at stations they still hold.',
     ],
   },

@@ -8,9 +8,13 @@ export const DEV_TOOL_STATE_EVENT = 'singvive:dev-tool-state';
 
 export type DevToolId = 'loot' | 'enemies' | 'icons';
 
-export type OpenLootDetail = { itemId?: string };
+export type OpenLootDetail = {
+  itemId?: string;
+  tab?: 'items' | 'tables' | 'recipes';
+  recipeId?: string;
+};
 export type OpenEnemyDetail = {
-  tab?: 'overview' | 'zombies' | 'humans' | 'spawn';
+  tab?: 'overview' | 'zombies' | 'humans' | 'animals' | 'spawn';
   zombieId?: string;
   eliteId?: string;
   factionId?: string;
@@ -46,6 +50,10 @@ export function openLootEditor(detail: OpenLootDetail = {}): void {
 
 export function openLootItem(itemId: string): void {
   openLootEditor({ itemId });
+}
+
+export function openLootRecipe(recipeId: string): void {
+  openLootEditor({ tab: 'recipes', recipeId });
 }
 
 export function openEnemyEditor(detail: OpenEnemyDetail = {}): void {

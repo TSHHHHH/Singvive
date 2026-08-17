@@ -11,8 +11,11 @@ import type {
   LonerArchetype,
   LonerKind,
   ZombieArchetype,
+  AnimalArchetype,
+  AnimalHabitat,
 } from '../game/enemies';
 import {
+  ANIMAL_HABITATS,
   ELITE_IDS,
   FACTION_KEYS,
   HUMAN_SCALING_KEYS,
@@ -26,6 +29,7 @@ import {
   expectedHuman,
   expectedLoner,
   expectedZombie,
+  expectedAnimal,
   whereUsedNotes,
   type OverviewRow,
   type OverviewSortKey,
@@ -50,7 +54,7 @@ import { EnemyOverview } from './EnemyOverview';
 import { fetchItemsCatalog } from './lootApi';
 import { validateEnemiesCatalog } from './validateEnemies';
 
-type EnemyTab = 'overview' | 'zombies' | 'humans' | 'spawn';
+type EnemyTab = 'overview' | 'zombies' | 'humans' | 'animals' | 'spawn';
 type HumanSel =
   | { t: 'defaults' }
   | { t: 'faction'; id: FactionKey }
@@ -382,7 +386,10 @@ function blankZombie(id: string): ZombieArchetype {
   };
 }
 
-function entryFingerprint(catalog: EnemiesCatalog | null, sel: ZombieSel | HumanSel | null): string {
+function entryFingerprint(
+  catalog: EnemiesCatalog | null,
+  sel: ZombieSel | HumanSel | { t: 'animal'; id: string } | null,
+): string {
   if (!catalog || !sel) return '';
   if (sel.t === 'tier') {
     return JSON.stringify(catalog.zombies.find((z) => z.id === sel.id) ?? null);
@@ -390,6 +397,9 @@ function entryFingerprint(catalog: EnemiesCatalog | null, sel: ZombieSel | Human
   if (sel.t === 'elite') return JSON.stringify(catalog.elites[sel.id] ?? null);
   if (sel.t === 'defaults') return JSON.stringify(catalog.humanDefaults);
   if (sel.t === 'faction') return JSON.stringify(catalog.humans[sel.id] ?? null);
+  if (sel.t === 'animal') {
+    return JSON.stringify(catalog.animals.find((a) => a.id === sel.id) ?? null);
+  }
   return JSON.stringify(catalog.loners[sel.id] ?? null);
 }
 
@@ -420,6 +430,7 @@ export function DevEnemyBrowser() {
   const [itemIds, setItemIds] = useState<string[]>([]);
   const [zombieSel, setZombieSel] = useState<ZombieSel | null>(null);
   const [humanSel, setHumanSel] = useState<HumanSel | null>(null);
+  const [animalSel, setAnimalSel] = useState<string | null>(null);
   const [compare, setCompare] = useState<CompareTarget>(null);
   const [pickCompare, setPickCompare] = useState(false);
   const [formDanger, setFormDanger] = useState(3);
@@ -446,8 +457,8 @@ export function DevEnemyBrowser() {
   );
   const valid = validationErrors.length === 0;
 
-  const activeSel: ZombieSel | HumanSel | null =
-    tab === 'zombies' ? zombieSel : tab === 'humans' ? humanSel : null;
+  const activeSel: ZombieSel | HumanSel | { t: 'animal'; id: string } | null =
+    tab === 'zombies' ? zombieSel : tab === 'humans' ? humanSel : tab === 'animals' && animalSel ? { t: 'animal', id: animalSel } : null;
   const entryDirty =
     !!catalog &&
     !!baselineCatalog &&
@@ -467,6 +478,7 @@ export function DevEnemyBrowser() {
         data.zombies[0] ? { t: 'tier', id: data.zombies[0].id } : { t: 'elite', id: 'hulk' },
       );
       setHumanSel({ t: 'defaults' });
+      setAnimalSel(data.animals[0]?.id ?? null);
       setStatus('Loaded encounter kit');
     } catch (err) {
       setError(String(err));
@@ -680,6 +692,15 @@ export function DevEnemyBrowser() {
           [activeSel.id]: structuredClone(baselineCatalog.humans[activeSel.id]),
         },
       });
+    } else if (activeSel.t === 'animal') {
+      const base = baselineCatalog.animals.find((a) => a.id === activeSel.id);
+      if (!base) return;
+      setCatalog({
+        ...catalog,
+        animals: catalog.animals.map((a) =>
+          a.id === activeSel.id ? structuredClone(base) : a,
+        ),
+      });
     } else {
       setCatalog({
         ...catalog,
@@ -747,6 +768,16 @@ export function DevEnemyBrowser() {
     });
   };
 
+  const updateAnimal = (id: string, patch: Partial<AnimalArchetype>) => {
+    setCatalog((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        animals: prev.animals.map((a) => (a.id === id ? { ...a, ...patch, id: a.id } : a)),
+      };
+    });
+  };
+
   const addZombie = () => {
     if (!catalog) return;
     let n = 1;
@@ -789,7 +820,8 @@ export function DevEnemyBrowser() {
   const openOverviewRow = (row: OverviewRow) => {
     setTab(row.nav.tab);
     if (row.nav.tab === 'zombies') setZombieSel(row.nav.sel);
-    else setHumanSel(row.nav.sel);
+    else if (row.nav.tab === 'humans') setHumanSel(row.nav.sel);
+    else if (row.nav.tab === 'animals') setAnimalSel(row.nav.sel.id);
   };
 
   const trySelectZombie = (sel: ZombieSel) => {
@@ -856,16 +888,29 @@ export function DevEnemyBrowser() {
         danger: formDanger,
       };
     }
+    if (tab === 'animals' && animalSel) {
+      const a = catalog.animals.find((x) => x.id === animalSel);
+      return a
+        ? {
+            label: `Expected @ danger ${formDanger}`,
+            enemy: expectedAnimal(a, formDanger),
+            danger: formDanger,
+          }
+        : null;
+    }
     return null;
-  }, [catalog, tab, zombieSel, humanSel, formDanger]);
+  }, [catalog, tab, zombieSel, humanSel, animalSel, formDanger]);
 
   const compareEnemy =
     catalog && compare ? enemyForCompare(catalog, compare, formDanger) : null;
 
   const whereNotes = useMemo(() => {
-    if (!catalog || !activeSel) return [];
-    return whereUsedNotes(catalog, activeSel);
-  }, [catalog, activeSel]);
+    if (!catalog) return [];
+    if (tab === 'zombies' && zombieSel) return whereUsedNotes(catalog, zombieSel);
+    if (tab === 'humans' && humanSel) return whereUsedNotes(catalog, humanSel);
+    if (tab === 'animals' && animalSel) return whereUsedNotes(catalog, { t: 'animal', id: animalSel });
+    return [];
+  }, [catalog, tab, zombieSel, humanSel, animalSel]);
 
   if (!open) return null;
 
@@ -876,7 +921,7 @@ export function DevEnemyBrowser() {
           Encounter kit
         </h2>
         <div className="flex rounded border border-white/10 text-xs">
-          {(['overview', 'zombies', 'humans', 'spawn'] as const).map((t) => (
+          {(['overview', 'zombies', 'humans', 'animals', 'spawn'] as const).map((t) => (
             <button
               key={t}
               type="button"
@@ -905,7 +950,7 @@ export function DevEnemyBrowser() {
           </span>
         )}
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          {(tab === 'zombies' || tab === 'humans') && (
+          {(tab === 'zombies' || tab === 'humans' || tab === 'animals') && (
             <>
               <button
                 type="button"
@@ -1423,6 +1468,96 @@ export function DevEnemyBrowser() {
               </div>
             </main>
           </>
+        ) : tab === 'animals' ? (
+          <>
+            <aside className="flex w-56 shrink-0 flex-col border-r border-white/10">
+              <div className="border-b border-white/10 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-white/40">
+                Animals
+              </div>
+              <ul className="flex-1 overflow-y-auto p-1">
+                {catalog.animals.map((a) => (
+                  <li key={a.id}>
+                    <button
+                      type="button"
+                      className={`w-full rounded px-2 py-1.5 text-left text-sm ${
+                        animalSel === a.id
+                          ? 'bg-signal/15 text-signal'
+                          : 'text-white/70 hover:bg-white/5'
+                      }`}
+                      onClick={() => setAnimalSel(a.id)}
+                    >
+                      {a.name}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </aside>
+            <main className="min-w-0 flex-1 overflow-y-auto p-4">
+              <div className="mx-auto max-w-5xl space-y-4">
+                {animalSel &&
+                  (() => {
+                    const a = catalog.animals.find((x) => x.id === animalSel);
+                    if (!a) return null;
+                    const toggleHabitat = (h: AnimalHabitat) => {
+                      const has = a.habitats.includes(h);
+                      const habitats = has
+                        ? a.habitats.filter((x) => x !== h)
+                        : [...a.habitats, h];
+                      if (habitats.length === 0) return;
+                      updateAnimal(a.id, { habitats });
+                    };
+                    return (
+                      <>
+                        <div className="font-mono text-xs text-white/35">{a.id}</div>
+                        <h3 className="text-lg font-semibold text-white">{a.name}</h3>
+                        <WhereUsed notes={whereNotes} />
+                        <TextField
+                          label="Name"
+                          value={a.name}
+                          onChange={(name) => updateAnimal(a.id, { name })}
+                        />
+                        <div className="flex flex-wrap gap-3 text-xs text-white/55">
+                          {ANIMAL_HABITATS.map((h) => (
+                            <label key={h} className="flex items-center gap-1.5">
+                              <input
+                                type="checkbox"
+                                checked={a.habitats.includes(h)}
+                                onChange={() => toggleHabitat(h)}
+                              />
+                              {h}
+                            </label>
+                          ))}
+                        </div>
+                        <StatGrid>
+                          <NumField label="HP" value={a.hp} onChange={(hp) => updateAnimal(a.id, { hp })} />
+                          <NumField label="Attack" value={a.attack} onChange={(attack) => updateAnimal(a.id, { attack })} />
+                          <NumField label="Defense" value={a.defense} onChange={(defense) => updateAnimal(a.id, { defense })} />
+                          <NumField label="Damage" value={a.damage} onChange={(damage) => updateAnimal(a.id, { damage })} />
+                          <NumField label="Infectious" value={a.infectious} step={0.05} min={0} max={1} onChange={(infectious) => updateAnimal(a.id, { infectious })} />
+                          <NumField label="Armor" value={a.armor} onChange={(armor) => updateAnimal(a.id, { armor })} />
+                          <NumField label="Speed" value={a.speed} onChange={(speed) => updateAnimal(a.id, { speed })} />
+                          <NumField label="Weight" value={a.weight} min={1} onChange={(weight) => updateAnimal(a.id, { weight })} />
+                          <RangeField label="HP jitter" value={a.hpJitter} onChange={(hpJitter) => updateAnimal(a.id, { hpJitter })} />
+                          <NumField label="Drop chance" value={a.dropChance} step={0.05} min={0} max={1} onChange={(dropChance) => updateAnimal(a.id, { dropChance })} />
+                        </StatGrid>
+                        <DropPoolEditor
+                          drops={a.drops}
+                          itemIds={itemIds}
+                          onChange={(drops) => updateAnimal(a.id, { drops })}
+                        />
+                      </>
+                    );
+                  })()}
+                {primaryDerived && (
+                  <DerivedCard
+                    label={primaryDerived.label}
+                    enemy={primaryDerived.enemy}
+                    danger={primaryDerived.danger}
+                  />
+                )}
+              </div>
+            </main>
+          </>
         ) : (
           <main className="flex-1 overflow-y-auto p-4">
             <div className="mx-auto grid max-w-5xl gap-6 lg:grid-cols-2">
@@ -1534,7 +1669,9 @@ export function DevEnemyBrowser() {
                           ? `elite:${previewKind.id}`
                           : previewKind.t === 'human'
                             ? `human:${previewKind.faction}`
-                            : `loner:${previewKind.kind}`
+                            : previewKind.t === 'animal'
+                              ? `animal:${previewKind.habitat}`
+                              : `loner:${previewKind.kind}`
                     }
                     onChange={(e) => {
                       const v = e.target.value;
@@ -1545,6 +1682,8 @@ export function DevEnemyBrowser() {
                         setPreviewKind({ t: 'human', faction: v.slice(6) as FactionKey });
                       } else if (v.startsWith('loner:')) {
                         setPreviewKind({ t: 'loner', kind: v.slice(6) as LonerKind });
+                      } else if (v.startsWith('animal:')) {
+                        setPreviewKind({ t: 'animal', habitat: v.slice(7) as AnimalHabitat });
                       }
                     }}
                   >
@@ -1562,6 +1701,11 @@ export function DevEnemyBrowser() {
                     {LONER_KINDS.map((id) => (
                       <option key={id} value={`loner:${id}`}>
                         Loner: {catalog.loners[id].name}
+                      </option>
+                    ))}
+                    {ANIMAL_HABITATS.map((h) => (
+                      <option key={h} value={`animal:${h}`}>
+                        Animal: {h}
                       </option>
                     ))}
                   </select>

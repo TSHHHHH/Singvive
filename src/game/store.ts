@@ -225,16 +225,22 @@ import {
   HAZARD_CONFIG,
   TREK_LIGHT_RADIUS,
   TREK_MIN_DISTANCE_M,
+  resolveCrossing,
+  hazardsAtPoint,
   type HazardKind,
-  type HazardZone,
+  type CrossingOutcome,
 } from './wilds';
 import {
   applySleepRecovery,
+  applySleepOccupancy,
   evaluateSleepConditions,
-  sleepAmbushChance,
+  restAmbushPreview,
+  type RestPreview,
   type SleepConditions,
 } from './sleep';
 import { vegetationCost } from './vegetation';
+import { habitatAt, rollWildsEncounter, FLOODWATER_ANIMAL_CHANCE } from './wildsEncounter';
+import type { AnimalHabitat } from './enemies';
 import {
   addHeat,
   scoutFloor,
@@ -592,6 +598,8 @@ interface State {
   rest: () => void;
   /** Preview sleep quality for the Rest button (same evaluator as rest()). */
   peekSleepConditions: () => SleepConditions;
+  /** Recovery + night-priced ambush chance (same math rest() rolls). */
+  peekRestPreview: () => RestPreview;
   /** Eat / drink / bandage / load ammo / etc. Named applyItem so oxlint doesn't treat it as a Hook. */
   applyItem: (uid: string) => void;
   moveItem: (uid: string, container: string, x: number, y: number, rotated: boolean) => boolean;
@@ -799,7 +807,14 @@ export const useGame = create<State>((set, get) => {
 
   // Set by an en-route roll in travel(); consumed on arrival to spring a road
   // ambush before the site can be searched.
-  let roadAmbushAt: string | null = null;
+  let roadAmbush: {
+    locationId: string;
+    danger: number;
+    hazard: HazardKind | null;
+    forest: boolean;
+    habitat: AnimalHabitat | null;
+    floodwater: boolean;
+  } | null = null;
 
   const persist = () => {
     const s = get();
@@ -982,9 +997,39 @@ export const useGame = create<State>((set, get) => {
     );
   };
 
+  const applyCrossingOutcome = (outcome: CrossingOutcome, vegEnergy: number, rng: Rng) => {
+    const cur = get();
+    let meters = {
+      ...cur.meters,
+      energy: clampMeter(cur.meters.energy - outcome.energyCost - vegEnergy),
+      infection: clampMeter(cur.meters.infection + outcome.infectionDelta),
+    };
+    let bodyParts = cur.bodyParts;
+    if (outcome.woundHp > 0) {
+      if (outcome.woundPreferLeg) {
+        const leg = rng.chance(0.5) ? 'leftLeg' : 'rightLeg';
+        bodyParts = applyPartDamage(bodyParts, leg, outcome.woundHp, rng);
+      } else {
+        bodyParts = applyWound(bodyParts, outcome.woundHp, rng);
+      }
+    }
+    set({ meters, bodyParts });
+    for (const line of outcome.logs) pushLog(line.text, line.tone);
+    if (outcome.extraHours > 0) {
+      return advanceTime(outcome.extraHours, undefined, false, true);
+    }
+    return false;
+  };
+
   // Advance clock by `hours`: passive meter drain + location danger regen.
-  const advanceTime = (hours: number, restedEnergy?: number, sleeping = false): boolean => {
+  const advanceTime = (
+    hours: number,
+    restedEnergy?: number,
+    sleeping = false,
+    skipNightfall = false,
+  ): boolean => {
     const s = get();
+    const prevBand = timeOfDay(s.hour);
     const total = s.hour + hours;
     const day = s.day + Math.floor(total / HOURS_PER_DAY);
     const hour = ((total % HOURS_PER_DAY) + HOURS_PER_DAY) % HOURS_PER_DAY;
@@ -1072,6 +1117,69 @@ export const useGame = create<State>((set, get) => {
         stageNextEvac();
       }
     }
+
+    const newBand = timeOfDay(hour);
+    const duskOrNight = newBand === 'dusk' || newBand === 'night';
+    const crossedIntoDark =
+      !skipNightfall &&
+      !sleeping &&
+      !g.travelAnim &&
+      !g.hdb &&
+      !g.tunnel &&
+      g.currentPositionId === null &&
+      !g.combat &&
+      duskOrNight &&
+      prevBand !== newBand &&
+      (prevBand === 'day' || (prevBand === 'dusk' && newBand === 'night'));
+    if (crossedIntoDark) {
+      const pockets = hazardsAtPoint(
+        g.seed,
+        g.currentPos.lat,
+        g.currentPos.lng,
+        g.spawn ?? undefined,
+        hordeIntensity(g.hordeLevel),
+        { band: newBand, day },
+      );
+      const swarm = pockets.find((z) => z.kind === 'night_swarm');
+      pushLog(
+        newBand === 'dusk' ? 'They\'re coming out.' : 'The streets belong to them now.',
+        'bad',
+      );
+      if (swarm) {
+        const fightRng = new Rng(g.seed).fork(
+          `nightfall:${g.currentPos.lat.toFixed(5)}:${g.day}:${Math.round(hour)}`,
+        );
+        const nightHabitat = habitatAt(g.currentPos.lat, g.currentPos.lng);
+        const { enemy, drops } = rollWildsEncounter(fightRng, Math.min(5, 3 + swarm.severity), {
+          hazard: 'night_swarm',
+          forest: nightHabitat === 'forest',
+          habitat: nightHabitat,
+          floodwater: pockets.some((z) => z.kind === 'floodwater'),
+        });
+        set({
+          combat: {
+            locationId: null,
+            zombie: enemy,
+            round: 0,
+            log: [{ round: 0, tone: 'bad', text: `${enemy.name} finds you in the open as the light dies.` }],
+            over: false,
+            outcome: null,
+            playerHpSnapshot: totalHp(g.bodyParts),
+            context: { locationId: null, grantOnFlee: false, wilds: true, drops },
+            selectedStance: 'guarded',
+            terrain: TERRAIN.open_ground,
+            awaitingStance: true,
+            playerGauge: 0,
+            enemyGauge: 0,
+            acting: null,
+            paused: false,
+            speedIndex: 1,
+          },
+          _combatRng: fightRng.fork('fight'),
+        });
+        return true;
+      }
+    }
     return false;
   };
 
@@ -1121,6 +1229,39 @@ export const useGame = create<State>((set, get) => {
       serviceBed: extras.serviceBed,
       inTunnelCamp: extras.inTunnelCamp,
     };
+  };
+
+  const peekRestFromState = (): RestPreview => {
+    const s = get();
+    const pockets = hazardsAtPoint(
+      s.seed,
+      s.currentPos.lat,
+      s.currentPos.lng,
+      s.spawn ?? undefined,
+      hordeIntensity(s.hordeLevel),
+      { band: 'night', day: s.day },
+    );
+    const conditions = applySleepOccupancy(
+      evaluateSleepConditions(sleepContextFromState()),
+      pockets,
+    );
+    if (!s.character) {
+      return restAmbushPreview(conditions, 0);
+    }
+    const risk = trekRisk(s.seed, s.currentPos, s.currentPos, {
+      band: 'night',
+      hordeIntensity: hordeIntensity(s.hordeLevel),
+      weatherEncounterMod: 0,
+      traitEncounterMod:
+        sumTraitMod(s.character.traitIds, 'encounterChanceMod') +
+        sumTraitMod(s.character.traitIds, 'nightEncounterChanceMod') +
+        sumTraitMod(s.character.traitIds, 'ambushChanceMod') * 0.15 +
+        equipEncounterChanceMod(s.equipment) +
+        bleedEncounterMod(s.bodyParts),
+      safe: s.spawn ?? undefined,
+      day: s.day,
+    });
+    return restAmbushPreview(conditions, risk.encounterChance);
   };
 
   const consumeBackpackItem = (defId: string) => {
@@ -2415,20 +2556,26 @@ export const useGame = create<State>((set, get) => {
     const loc2 = s2.locations[loc.id];
 
     // Jumped on the approach? Fight first — no doorway event, no auto-search.
-    if (roadAmbushAt === loc.id) {
-      roadAmbushAt = null;
+    if (roadAmbush?.locationId === loc.id) {
+      const pending = roadAmbush;
+      roadAmbush = null;
       pushLog(flavor('roadAmbush', { name: loc.name }), 'bad');
       const fightRng = new Rng(s2.seed).fork(`roadfight:${loc.id}:${s2.day}:${s2.hour}`);
-      const zombie = makeZombie(fightRng, Math.round(loc2.currentDanger), loc2.category);
+      const { enemy, drops } = rollWildsEncounter(fightRng, pending.danger, {
+        hazard: pending.hazard,
+        forest: pending.forest,
+        habitat: pending.habitat,
+        floodwater: pending.floodwater,
+      });
       const combat: CombatState = {
         locationId: loc.id,
-        zombie,
+        zombie: enemy,
         round: 0,
-        log: [{ round: 0, tone: 'bad', text: `${zombie.name} blocks the way!` }],
+        log: [{ round: 0, tone: 'bad', text: `${enemy.name} blocks the way!` }],
         over: false,
         outcome: null,
         playerHpSnapshot: totalHp(s2.bodyParts),
-        context: { locationId: loc.id, grantOnFlee: false, roadAmbush: true },
+        context: { locationId: loc.id, grantOnFlee: false, roadAmbush: true, drops },
         selectedStance: 'guarded',
         terrain: terrainForCategory(loc2.category, true),
         awaitingStance: true,
@@ -2463,7 +2610,13 @@ export const useGame = create<State>((set, get) => {
   };
 
   // Set by trek()'s en-route roll; consumed when the crossing lands.
-  let trekAmbush: { danger: number; hazard: HazardKind | null } | null = null;
+  let trekAmbush: {
+    danger: number;
+    hazard: HazardKind | null;
+    forest: boolean;
+    habitat: AnimalHabitat | null;
+    floodwater: boolean;
+  } | null = null;
 
   // Fires when a cross-country glide finishes. There is no site here — no
   // faction, no doorway event, no search. Just ground, and whatever found you
@@ -2496,14 +2649,12 @@ export const useGame = create<State>((set, get) => {
     pushLog(flavor('trekAmbush'), 'bad');
     const fightRng = new Rng(s.seed).fork(`wildfight:${lat.toFixed(5)}:${lng.toFixed(5)}:${s.day}`);
 
-    // Patrolled ground sends people; everything else sends the dead.
-    const human = pending.hazard === 'gang_patrol';
-    const gangFaction = ENEMIES.spawn.wildsGangFaction;
-    const enemy = human
-      ? makeHuman(fightRng, gangFaction, pending.danger)
-      : makeZombie(fightRng, pending.danger);
-    const gangDrop = human ? rollHumanDrop(ENEMIES, fightRng, gangFaction) : null;
-    const drops = gangDrop ? [gangDrop] : undefined;
+    const { enemy, drops } = rollWildsEncounter(fightRng, pending.danger, {
+      hazard: pending.hazard,
+      forest: pending.forest,
+      habitat: pending.habitat,
+      floodwater: pending.floodwater,
+    });
 
     const combat: CombatState = {
       locationId: null,
@@ -2872,118 +3023,83 @@ export const useGame = create<State>((set, get) => {
 
       // Advance the in-game clock for the trip up front (search time is spent
       // later, on searching). Bail if the survivor dies en route.
-      if (advanceTime((est.travelMin / 60) * vegOnRoute.travelMult)) return;
+      if (advanceTime((est.travelMin / 60) * vegOnRoute.travelMult, undefined, false, true)) return;
       bumpStats({ distanceM: dist });
 
       // Prefetch the landing cell while the glide runs.
       void ensureWorldAround(loc.lat, loc.lng);
 
       // --- en-route risk: hazards on the walked route + open-road chance ---
-      roadAmbushAt = null;
-      {
-        const now = get();
-        const band = timeOfDay(now.hour);
-        const veg = vegOnRoute;
-        const risk = trekRisk(
-          now.seed,
-          from,
-          { lat: loc.lat, lng: loc.lng },
-          {
-            band,
-            hordeIntensity: hordeIntensity(now.hordeLevel),
-            weatherEncounterMod: weatherEncounterMod(weather),
-            traitEncounterMod:
-              sumTraitMod(now.character!.traitIds, 'encounterChanceMod') +
-              (band === 'night' || band === 'dusk'
-                ? sumTraitMod(now.character!.traitIds, 'nightEncounterChanceMod')
-                : 0) +
-              equipEncounterChanceMod(now.equipment) +
-              bleedEncounterMod(now.bodyParts),
-            safe: now.spawn ?? undefined,
-          },
-          undefined,
-          route.points,
-        );
+      roadAmbush = null;
+      const now = get();
+      const band = timeOfDay(now.hour);
+      const risk = trekRisk(
+        now.seed,
+        from,
+        { lat: loc.lat, lng: loc.lng },
+        {
+          band,
+          hordeIntensity: hordeIntensity(now.hordeLevel),
+          weatherEncounterMod: weatherEncounterMod(weather),
+          traitEncounterMod:
+            sumTraitMod(now.character!.traitIds, 'encounterChanceMod') +
+            (band === 'night' || band === 'dusk'
+              ? sumTraitMod(now.character!.traitIds, 'nightEncounterChanceMod')
+              : 0) +
+            equipEncounterChanceMod(now.equipment) +
+            bleedEncounterMod(now.bodyParts),
+          safe: now.spawn ?? undefined,
+          day: now.day,
+        },
+        undefined,
+        route.points,
+      );
 
-        // Hazard + vegetation stamina — applied even when the road roll is quiet.
-        const energyHit = Math.round(risk.energyCost * 0.75) + veg.energyCost;
-        if (energyHit > 0) {
-          set({
-            meters: {
-              ...get().meters,
-              energy: clampMeter(get().meters.energy - energyHit),
-            },
-          });
-        }
-        if (risk.hazards.length > 0) {
-          const names = risk.hazards
-            .slice(0, 2)
-            .map((z) => HAZARD_CONFIG[z.kind].label)
-            .join(', ');
-          pushLog(
-            `The route cuts through ${names}${risk.hazards.length > 2 ? '…' : ''}.`,
-            'bad',
-          );
-        }
-        if (veg.patches.length > 0) {
-          pushLog('Dense forest slows you — nature reserve overgrowth.', 'info');
-        }
+      const encRng = new Rng(now.seed).fork(`road:${loc.id}:${now.day}:${Math.round(now.hour)}`);
+      const outcome = resolveCrossing(encRng, risk, {
+        mode: 'road',
+        siteDanger: loc.currentDanger,
+        dexterity: now.character!.attributes.dexterity,
+        checkBonus: sumTraitMod(now.character!.traitIds, 'checkBonusMod'),
+      });
 
-        // Blend hazard encounter chance with the classic road roll.
-        let p = (dist / 100) * 0.018;
-        if (band === 'night') p += 0.12;
-        else if (band === 'dusk') p += 0.06;
-        p += hordeIntensity(now.hordeLevel) * 0.15;
-        p += sumTraitMod(now.character!.traitIds, 'encounterChanceMod');
-        if (band === 'night' || band === 'dusk') {
-          p += sumTraitMod(now.character!.traitIds, 'nightEncounterChanceMod');
-        }
-        p += equipEncounterChanceMod(now.equipment);
-        p += weatherEncounterMod(weather);
-        p += bleedEncounterMod(now.bodyParts);
-        p = Math.max(p, risk.encounterChance * 0.85);
-        p = Math.max(0, Math.min(0.7, p));
-
-        const encRng = new Rng(now.seed).fork(`road:${loc.id}:${now.day}:${Math.round(now.hour)}`);
-        if (encRng.chance(p)) {
-          const ambushW = Math.max(
-            5,
-            Math.round(55 * Math.max(0.15, 1 + sumTraitMod(now.character!.traitIds, 'ambushChanceMod'))),
-          );
-          // Crossing a real hazard pocket strongly prefers an ambush.
-          const hazardBias = risk.hazards.length > 0 ? 25 : 0;
-          const kind = encRng.weighted([
-            ['ambush', ambushW + hazardBias],
-            ['hazard', 30],
-            ['find', Math.max(5, 15 - hazardBias)],
-          ] as const);
-          if (kind === 'ambush') {
-            roadAmbushAt = loc.id;
-            if (risk.hazards.length > 0) {
-              const worst = risk.hazards.reduce((a, z) =>
-                z.severity > a.severity ? z : a,
-              );
-              pushLog(`${HAZARD_CONFIG[worst.kind].blurb}`, 'bad');
-            }
-          } else if (kind === 'hazard') {
-            const loss = 6 + encRng.int(0, 10) + Math.round(risk.energyCost * 0.2);
-            set({ meters: { ...get().meters, energy: clampMeter(get().meters.energy - loss) } });
-            if (encRng.chance(0.3)) set({ bodyParts: applyWound(get().bodyParts, encRng.int(4, 9), encRng) });
-            pushLog(flavor('roadHazard', { name: loc.name }), 'bad');
-          } else {
-            const pool = ['snacks', 'water_bottle', 'bandage', 'scrap_metal', 'duct_tape', 'batteries', 'instant_noodles', 'painkillers'];
-            const defId = encRng.pick(pool);
-            const res = addToGrid(get().items, 'backpack', defId, 1);
-            if (res.leftover === 0) {
-              set({ items: res.items });
-              pushLog(`${flavor('roadFind', { name: loc.name })} (${itemDef(defId).name})`, 'good');
-            } else {
-              pushLog(
-                `Something useful on the road to ${loc.name}, but you can't carry it.`,
-                'info',
-              );
-            }
-          }
+      let roadFindLog: { text: string; tone: 'good' | 'info' } | null = null;
+      if (outcome.ambush) {
+        roadAmbush = {
+          locationId: loc.id,
+          danger: outcome.ambush.danger,
+          hazard: outcome.ambush.hazard,
+          forest: vegOnRoute.patches.length > 0,
+          habitat: habitatAt(loc.lat, loc.lng),
+          floodwater: risk.hazards.some((z) => z.kind === 'floodwater'),
+        };
+      } else if (
+        risk.hazards.some((z) => z.kind === 'floodwater') &&
+        encRng.chance(FLOODWATER_ANIMAL_CHANCE)
+      ) {
+        roadAmbush = {
+          locationId: loc.id,
+          danger: Math.round(loc.currentDanger),
+          hazard: 'wildlife_water',
+          forest: vegOnRoute.patches.length > 0,
+          habitat: 'water',
+          floodwater: false,
+        };
+      } else if (outcome.roadFind) {
+        const pool = ['snacks', 'water_bottle', 'bandage', 'scrap_metal', 'duct_tape', 'batteries', 'instant_noodles', 'painkillers'];
+        const defId = encRng.pick(pool);
+        const res = addToGrid(get().items, 'backpack', defId, 1);
+        if (res.leftover === 0) {
+          set({ items: res.items });
+          roadFindLog = {
+            text: `${flavor('roadFind', { name: loc.name })} (${itemDef(defId).name})`,
+            tone: 'good',
+          };
+        } else {
+          roadFindLog = {
+            text: `Something useful on the road to ${loc.name}, but you can't carry it.`,
+            tone: 'info',
+          };
         }
       }
 
@@ -2997,6 +3113,11 @@ export const useGame = create<State>((set, get) => {
         time: timeOfDay(s.hour),
         weather,
       }), 'info');
+      if (vegOnRoute.patches.length > 0) {
+        pushLog('Dense forest slows you — nature reserve overgrowth.', 'info');
+      }
+      if (applyCrossingOutcome(outcome, vegOnRoute.energyCost, encRng)) return;
+      if (roadFindLog) pushLog(roadFindLog.text, roadFindLog.tone);
       set({
         travelAnim: {
           fromLat: from.lat,
@@ -3183,7 +3304,7 @@ export const useGame = create<State>((set, get) => {
         moveFactor(s),
       );
       const veg = vegetationCost(from, { lat, lng }, route.points);
-      if (advanceTime((est.travelMin / 60) * veg.travelMult)) return;
+      if (advanceTime((est.travelMin / 60) * veg.travelMult, undefined, false, true)) return;
       bumpStats({ distanceM: dist });
 
       // Prefetch the landing cell — open ground is how you leave the bubble.
@@ -3207,33 +3328,41 @@ export const useGame = create<State>((set, get) => {
             equipEncounterChanceMod(now.equipment) +
             bleedEncounterMod(now.bodyParts),
           safe: now.spawn ?? undefined,
+          day: now.day,
         },
         undefined,
         route.points,
       );
 
-      // Exposure: crossing open ground costs stamina the clock alone wouldn't.
-      set({
-        meters: {
-          ...now.meters,
-          energy: clampMeter(now.meters.energy - risk.energyCost - veg.energyCost),
-        },
-      });
-      if (veg.patches.length > 0) {
-        pushLog('You push through dense forest — every step costs.', 'info');
-      }
-
       const encRng = new Rng(now.seed).fork(
         `trek:${lat.toFixed(5)}:${lng.toFixed(5)}:${now.day}:${Math.round(now.hour)}`,
       );
+      const outcome = resolveCrossing(encRng, risk, {
+        mode: 'trek',
+        dexterity: now.character!.attributes.dexterity,
+        checkBonus: sumTraitMod(now.character!.traitIds, 'checkBonusMod'),
+      });
+
       trekAmbush = null;
-      if (encRng.chance(risk.encounterChance)) {
-        // The nastiest thing on the route decides what comes for you.
-        const worst = risk.hazards.reduce<HazardZone | null>(
-          (acc, z) => (!acc || z.severity > acc.severity ? z : acc),
-          null,
-        );
-        trekAmbush = { danger: risk.combatDanger, hazard: worst?.kind ?? null };
+      if (outcome.ambush) {
+        trekAmbush = {
+          danger: outcome.ambush.danger,
+          hazard: outcome.ambush.hazard,
+          forest: veg.patches.length > 0,
+          habitat: habitatAt(lat, lng),
+          floodwater: risk.hazards.some((z) => z.kind === 'floodwater'),
+        };
+      } else if (
+        risk.hazards.some((z) => z.kind === 'floodwater') &&
+        encRng.chance(FLOODWATER_ANIMAL_CHANCE)
+      ) {
+        trekAmbush = {
+          danger: risk.combatDanger,
+          hazard: 'wildlife_water',
+          forest: veg.patches.length > 0,
+          habitat: 'water',
+          floodwater: false,
+        };
       }
 
       const durationMs = Math.min(
@@ -3242,6 +3371,10 @@ export const useGame = create<State>((set, get) => {
       );
       const startedAt = Date.now();
       pushLog(flavor('trekOut'), 'info');
+      if (veg.patches.length > 0) {
+        pushLog('You push through dense forest — every step costs.', 'info');
+      }
+      if (applyCrossingOutcome(outcome, veg.energyCost, encRng)) return;
       set({
         travelAnim: {
           fromLat: from.lat,
@@ -4091,7 +4224,18 @@ export const useGame = create<State>((set, get) => {
       if (s.combat || s.pendingEvent || s.travelAnim) return;
       const hoursToMorning = ((START_HOUR - s.hour + HOURS_PER_DAY) % HOURS_PER_DAY) || HOURS_PER_DAY;
 
-      const conditions = evaluateSleepConditions(sleepContextFromState());
+      const pockets = hazardsAtPoint(
+        s.seed,
+        s.currentPos.lat,
+        s.currentPos.lng,
+        s.spawn ?? undefined,
+        hordeIntensity(s.hordeLevel),
+        { band: 'night', day: s.day },
+      );
+      const conditions = applySleepOccupancy(
+        evaluateSleepConditions(sleepContextFromState()),
+        pockets,
+      );
       const fullRest = sleepRestore(
         s.meters.energy,
         hoursToMorning,
@@ -4112,25 +4256,58 @@ export const useGame = create<State>((set, get) => {
       const rough = conditions.recoveryMult < 0.85;
       pushLog(flavor(rough ? 'restExposed' : 'rest'), rough ? 'bad' : 'info');
       pushLog(conditions.summary, rough ? 'bad' : 'info');
+      for (const note of conditions.occupancyNotes) {
+        pushLog(note, 'info');
+      }
+
+      const g = get();
+      const nightRng = new Rng(g.seed).fork(`roughsleep:${g.day}:${g.currentPos.lat.toFixed(5)}`);
+      const risk = trekRisk(g.seed, g.currentPos, g.currentPos, {
+        band: 'night',
+        hordeIntensity: hordeIntensity(g.hordeLevel),
+        weatherEncounterMod: 0,
+        traitEncounterMod:
+          sumTraitMod(g.character!.traitIds, 'encounterChanceMod') +
+          sumTraitMod(g.character!.traitIds, 'nightEncounterChanceMod') +
+          sumTraitMod(g.character!.traitIds, 'ambushChanceMod') * 0.15 +
+          equipEncounterChanceMod(g.equipment) +
+          bleedEncounterMod(g.bodyParts),
+        safe: g.spawn ?? undefined,
+        day: g.day,
+      });
+      const preview = restAmbushPreview(conditions, risk.encounterChance);
+      if (preview.infectionDelta > 0) {
+        set({
+          meters: {
+            ...get().meters,
+            infection: clampMeter(get().meters.infection + preview.infectionDelta),
+          },
+        });
+        pushLog('The damp gets into you.', 'bad');
+      }
+      if (preview.collapseWound && nightRng.chance(0.4)) {
+        const leg = nightRng.chance(0.5) ? 'leftLeg' : 'rightLeg';
+        set({
+          bodyParts: applyPartDamage(get().bodyParts, leg, 6 + nightRng.int(0, 6), nightRng),
+        });
+        pushLog('The rubble shifts under you in the night.', 'bad');
+      }
 
       if (conditions.ambush) {
-        const g = get();
-        const nightRng = new Rng(g.seed).fork(`roughsleep:${g.day}:${g.currentPos.lat.toFixed(5)}`);
-        const risk = trekRisk(g.seed, g.currentPos, g.currentPos, {
-          band: 'night',
-          hordeIntensity: hordeIntensity(g.hordeLevel),
-          weatherEncounterMod: 0,
-          traitEncounterMod:
-            sumTraitMod(g.character!.traitIds, 'encounterChanceMod') +
-            sumTraitMod(g.character!.traitIds, 'nightEncounterChanceMod') +
-            sumTraitMod(g.character!.traitIds, 'ambushChanceMod') * 0.15 +
-            equipEncounterChanceMod(g.equipment) +
-            bleedEncounterMod(g.bodyParts),
-          safe: g.spawn ?? undefined,
-        });
-        if (nightRng.chance(sleepAmbushChance(conditions.ambush, risk.encounterChance))) {
+        if (nightRng.chance(preview.ambushChance)) {
           pushLog('Something found you in the dark.', 'bad');
-          const enemy = makeZombie(nightRng, risk.combatDanger);
+          const worst = pockets.reduce<typeof pockets[number] | null>(
+            (acc, z) => (!acc || z.severity > acc.severity ? z : acc),
+            null,
+          );
+          const swarm = pockets.find((z) => z.kind === 'night_swarm');
+          const restHabitat = habitatAt(g.currentPos.lat, g.currentPos.lng);
+          const { enemy, drops } = rollWildsEncounter(nightRng, risk.combatDanger, {
+            hazard: swarm?.kind ?? worst?.kind ?? null,
+            forest: restHabitat === 'forest',
+            habitat: restHabitat,
+            floodwater: pockets.some((z) => z.kind === 'floodwater'),
+          });
           set({
             combat: {
               locationId: null,
@@ -4140,7 +4317,7 @@ export const useGame = create<State>((set, get) => {
               over: false,
               outcome: null,
               playerHpSnapshot: totalHp(g.bodyParts),
-              context: { locationId: null, grantOnFlee: false, wilds: true },
+              context: { locationId: null, grantOnFlee: false, wilds: true, drops },
               selectedStance: 'guarded',
               terrain: TERRAIN.open_ground,
               awaitingStance: true,
@@ -4158,7 +4335,9 @@ export const useGame = create<State>((set, get) => {
       persist();
     },
 
-    peekSleepConditions: () => evaluateSleepConditions(sleepContextFromState()),
+    peekSleepConditions: () => peekRestFromState().conditions,
+
+    peekRestPreview: () => peekRestFromState(),
 
     applyItem: (uid) => {
       const s = get();
@@ -5156,7 +5335,13 @@ export const useGame = create<State>((set, get) => {
             combat: { ...next, over: true, outcome: 'win' },
             kills: s.kills + 1,
           });
-          bumpStats(zombie.kind === 'human' ? { humanKills: 1 } : { zombieKills: 1 });
+          bumpStats(
+            zombie.kind === 'human'
+              ? { humanKills: 1 }
+              : zombie.kind === 'animal'
+                ? { animalKills: 1 }
+                : { zombieKills: 1 },
+          );
         } else {
           set({ equipment, rounds, combat: next });
         }

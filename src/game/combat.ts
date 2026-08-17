@@ -42,10 +42,12 @@ import {
   rollHuman,
   rollLoner,
   rollZombie,
+  rollAnimal,
   type LonerKind,
+  type AnimalHabitat,
 } from './enemies';
 
-export type { LonerKind } from './enemies';
+export type { LonerKind, AnimalHabitat } from './enemies';
 
 const EQUIP_SLOTS = ALL_EQUIP_SLOTS;
 
@@ -304,6 +306,11 @@ export function makeLoner(rng: Rng, kind: LonerKind, danger: number): Enemy {
   return rollLoner(ENEMIES, rng, kind, danger);
 }
 
+/** Infected wildlife — habitat table, not the zombie ladder. */
+export function makeAnimal(rng: Rng, habitat: AnimalHabitat, danger: number): Enemy {
+  return rollAnimal(ENEMIES, rng, habitat, danger);
+}
+
 /** Derive the player's combat stats from attributes, traits and equipped gear.
  *  `armPenalty` reflects injured arms lowering accuracy. */
 export function playerCombatStats(
@@ -513,7 +520,7 @@ export function resolvePlayerAction(
   // armour costs it more.
   let weaponWear = 0;
 
-  const vsUndead = zombie.kind !== 'human' ? player.zombieAttackMod : 0;
+  const vsUndead = zombie.kind === 'zombie' ? player.zombieAttackMod : 0;
   const pAtkMod =
     player.attack +
     envAccuracy +

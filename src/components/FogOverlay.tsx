@@ -13,7 +13,9 @@ export interface FogOverlayProps extends LayerProps {
   currentRevealRadius: number;
 }
 
-const FOG_COLOUR = 'rgba(10, 12, 8, 0.92)';
+// Charcoal veil, not a blackout — Dark Matter streets vanish at ~0.9 opacity,
+// especially on a phone. Keep explored ground clearly brighter than fog.
+const FOG_COLOUR = 'rgba(22, 26, 22, 0.66)';
 
 /**
  * Convert a radius in metres to pixels at a given latitude and zoom level.

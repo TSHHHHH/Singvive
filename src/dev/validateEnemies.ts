@@ -198,6 +198,56 @@ function validateLoner(kind: string, raw: unknown, errors: string[], knownItemId
   validateDrops(label, raw.drops, errors, knownItemIds);
 }
 
+function validateAnimal(
+  raw: unknown,
+  index: number,
+  errors: string[],
+  seenIds: Set<string>,
+  knownItemIds?: ReadonlySet<string>,
+): void {
+  const label = `animals[${index}]`;
+  if (!isRecord(raw)) {
+    errors.push(`${label}: must be an object`);
+    return;
+  }
+  if (typeof raw.id !== 'string' || !isSafeId(raw.id)) {
+    errors.push(`${label}: id must match /^[a-z][a-z0-9_]*$/`);
+  } else if (seenIds.has(raw.id)) {
+    errors.push(`${label}: duplicate id "${raw.id}"`);
+  } else {
+    seenIds.add(raw.id);
+  }
+  if (typeof raw.name !== 'string' || !raw.name.trim()) {
+    errors.push(`${label}: name is required`);
+  }
+  for (const key of ['hp', 'attack', 'defense', 'damage', 'armor', 'speed', 'weight'] as const) {
+    if (!isNumber(raw[key])) errors.push(`${label}: ${key} must be a number`);
+  }
+  if (!isNumber(raw.infectious) || raw.infectious < 0 || raw.infectious > 1) {
+    errors.push(`${label}: infectious must be 0..1`);
+  }
+  if (!isNumber(raw.dropChance) || raw.dropChance < 0 || raw.dropChance > 1) {
+    errors.push(`${label}: dropChance must be 0..1`);
+  }
+  if (!isIntRange(raw.hpJitter)) errors.push(`${label}: hpJitter must be [lo, hi]`);
+  if (isNumber(raw.hp) && raw.hp < 1) errors.push(`${label}: hp must be ≥ 1`);
+  if (isNumber(raw.speed) && raw.speed < 1) errors.push(`${label}: speed must be ≥ 1`);
+  if (isNumber(raw.weight) && raw.weight < 1) errors.push(`${label}: weight must be ≥ 1`);
+  if (!Array.isArray(raw.habitats) || raw.habitats.length < 1) {
+    errors.push(`${label}: habitats must be a non-empty array`);
+  } else {
+    for (const h of raw.habitats) {
+      if (h !== 'water' && h !== 'forest' && h !== 'urban') {
+        errors.push(`${label}: unknown habitat "${String(h)}"`);
+      }
+    }
+  }
+  if (typeof raw.icon !== 'string' || !raw.icon.startsWith('combat.enemy')) {
+    errors.push(`${label}: icon must be a combat.enemy* key`);
+  }
+  validateDrops(label, raw.drops, errors, knownItemIds);
+}
+
 function validateSpawn(raw: unknown, errors: string[], eliteKeys: Set<string>, humanKeys: Set<string>): void {
   if (!isRecord(raw)) {
     errors.push('spawn: must be an object');
@@ -289,6 +339,13 @@ export function validateEnemiesCatalog(
         validateLoner(key, raw.loners[key], errors, knownItemIds);
       }
     }
+  }
+
+  if (!Array.isArray(raw.animals) || raw.animals.length < 1) {
+    errors.push('animals must be a non-empty array');
+  } else {
+    const seen = new Set<string>();
+    raw.animals.forEach((a, i) => validateAnimal(a, i, errors, seen, knownItemIds));
   }
 
   const eliteKeys = new Set(

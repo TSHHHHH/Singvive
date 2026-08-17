@@ -73,6 +73,10 @@ export const ICON_ASSETS: Partial<Record<IconName, IconAsset>> = Object.fromEntr
   if (human && !ICON_ASSETS['combat.enemyZombie']) {
     ICON_ASSETS['combat.enemyZombie'] = human;
   }
+  const dog = ICON_ASSETS['combat.enemyDog'];
+  if (dog && !ICON_ASSETS['combat.enemyAnimal']) {
+    ICON_ASSETS['combat.enemyAnimal'] = dog;
+  }
 }
 
 export interface ResolvedIcon {

@@ -40,6 +40,14 @@ export type IconName =
   | 'stance.disengage'
   | 'combat.enemyHuman'
   | 'combat.enemyZombie'
+  | 'combat.enemyAnimal'
+  | 'combat.enemyMacaque'
+  | 'combat.enemyOtter'
+  | 'combat.enemyBoar'
+  | 'combat.enemyMonitor'
+  | 'combat.enemyDog'
+  | 'combat.enemyCat'
+  | 'combat.enemyRat'
   | 'combat.player'
   | 'combat.hostiles'
   | 'combat.encounter'
@@ -285,6 +293,14 @@ export const EMOJI_FALLBACK: Record<IconName, string> = {
   'stance.disengage': '🏃',
   'combat.enemyHuman': '🧑‍🦲',
   'combat.enemyZombie': '🧟',
+  'combat.enemyAnimal': '🐕',
+  'combat.enemyMacaque': '🐒',
+  'combat.enemyOtter': '🦦',
+  'combat.enemyBoar': '🐗',
+  'combat.enemyMonitor': '🦎',
+  'combat.enemyDog': '🐕',
+  'combat.enemyCat': '🐈',
+  'combat.enemyRat': '🐀',
   'combat.player': '🧍',
   'combat.hostiles': '⚔️',
   'combat.encounter': '☣️',

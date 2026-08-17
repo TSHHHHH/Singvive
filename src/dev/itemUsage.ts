@@ -2,15 +2,22 @@ import { LOOT_TABLES } from '../game/loot';
 import { RECIPES } from '../game/crafting';
 import { FACTION_CONFIG } from '../game/factions';
 import type { ItemDef } from '../game/types';
+import type { RecipesCatalog } from './validateRecipes';
 
 export type ItemUsageRef = {
   kind: 'loot_table' | 'recipe' | 'faction' | 'starting';
   label: string;
+  recipeId?: string;
 };
 
 /** Read-only cross-references for the DEV loot browser. */
-export function findItemUsage(defId: string, def?: ItemDef | null): ItemUsageRef[] {
+export function findItemUsage(
+  defId: string,
+  def?: ItemDef | null,
+  recipes?: RecipesCatalog | null,
+): ItemUsageRef[] {
   const out: ItemUsageRef[] = [];
+  const recipeList = recipes ?? RECIPES;
 
   if (def?.startingItem) {
     const count = def.startingCount ?? 1;
@@ -30,18 +37,27 @@ export function findItemUsage(defId: string, def?: ItemDef | null): ItemUsageRef
     }
   }
 
-  for (const recipe of RECIPES) {
+  for (const recipe of recipeList) {
     if (recipe.outputDefId === defId) {
-      out.push({ kind: 'recipe', label: `Recipe output · ${recipe.name}` });
+      out.push({
+        kind: 'recipe',
+        label: `Recipe output · ${recipe.name}`,
+        recipeId: recipe.id,
+      });
     }
     if (recipe.inputs[defId] !== undefined) {
       out.push({
         kind: 'recipe',
         label: `Recipe input · ${recipe.name} (×${recipe.inputs[defId]})`,
+        recipeId: recipe.id,
       });
     }
     if (recipe.tool === defId) {
-      out.push({ kind: 'recipe', label: `Recipe tool · ${recipe.name}` });
+      out.push({
+        kind: 'recipe',
+        label: `Recipe tool · ${recipe.name}`,
+        recipeId: recipe.id,
+      });
     }
   }
 

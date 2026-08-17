@@ -19,9 +19,10 @@ import type { TravelAnim } from '../game/store';
 import { useGame } from '../game/store';
 import type { NoisePulse } from '../game/noise';
 import { HAZARD_CONFIG, type HazardZone } from '../game/wilds';
+import { hazardBlobDrawList } from '../game/hazardBlob';
 import { NoiseWaves } from './NoiseWaves';
 import { trekTargetIcon } from './mapIcons';
-import { MrtOverlay, legendLines, useMrtNetwork } from './MrtOverlay';
+import { MrtOverlay, MrtLineLegend, useMrtNetwork } from './MrtOverlay';
 import { VegetationOverlay } from './UnplayableOverlay';
 import { Icon } from '../icons/Icon';
 import { pointAlongPath } from '../game/route';
@@ -244,6 +245,8 @@ interface Props {
   vitals: { exhausted: boolean; infected: boolean };
   /** hazard pockets the survivor can currently sense */
   hazards: HazardZone[];
+  /** ids of pockets the previewed path actually crosses */
+  pathHazardIds?: string[];
   /** today's sky — drives the cosmetic weather overlay only */
   weather: WeatherKind;
   time: TimeOfDay;
@@ -311,28 +314,42 @@ const RangeRing = memo(function RangeRing({
   );
 });
 
-/** Hazard pockets you can sense. Ground, not a destination — never clickable. */
-const HazardRings = memo(function HazardRings({ hazards }: { hazards: HazardZone[] }) {
+/** Hazard pockets you can sense. Nearby same-kind discs fuse into one blob. */
+const HazardRings = memo(function HazardRings({
+  hazards,
+  pathIds,
+}: {
+  hazards: HazardZone[];
+  pathIds: ReadonlySet<string>;
+}) {
+  const blobs = hazardBlobDrawList(hazards, pathIds);
   return (
     <>
-      {hazards.map((z) => {
-        const cfg = HAZARD_CONFIG[z.kind];
-        return (
-          <Circle
-            key={z.id}
-            center={[z.lat, z.lng]}
-            radius={z.radiusM}
+      {blobs.flatMap((blob) => {
+        const cfg = HAZARD_CONFIG[blob.kind];
+        const night = blob.kind === 'night_swarm';
+        const fill = night
+          ? 0.16 + blob.severity * 0.05
+          : blob.onPath
+            ? 0.14 + blob.severity * 0.05
+            : 0.1 + blob.severity * 0.04;
+        return blob.rings.map((ring, i) => (
+          <Polygon
+            key={`${blob.key}:${i}`}
+            positions={ring}
             interactive={false}
             pathOptions={{
               color: cfg.color,
-              weight: 1,
-              opacity: 0.35 + z.severity * 0.12,
-              dashArray: '3 5',
+              weight: blob.onPath ? 2 : night ? 1.5 : 1.25,
+              opacity: blob.onPath ? 0.9 : 0.5 + blob.severity * 0.12,
+              dashArray: blob.onPath ? undefined : '3 5',
               fillColor: cfg.color,
-              fillOpacity: 0.05 + z.severity * 0.035,
+              fillOpacity: fill,
+              lineJoin: 'round',
+              lineCap: 'round',
             }}
           />
-        );
+        ));
       })}
     </>
   );
@@ -486,6 +503,7 @@ function GameMapInner({
   noisePulses,
   vitals,
   hazards,
+  pathHazardIds = [],
   weather,
   time,
   trekTarget,
@@ -528,6 +546,7 @@ function GameMapInner({
       <FocusCamera target={focusTarget} />
       <GroundPicker onPick={onPickGround} />
       <TileLayer
+        className="apoc-tiles"
         attribution={TILE_ATTRIBUTION}
         url={TILE_URL}
         subdomains={TILE_SUBDOMAINS}
@@ -549,7 +568,7 @@ function GameMapInner({
       <RangeRing home={home} travelRange={travelRange} />
 
       {/* Drawn under the pins — ground, not a destination. */}
-      <HazardRings hazards={hazards} />
+      <HazardRings hazards={hazards} pathIds={new Set(pathHazardIds)} />
 
       {travelPath && travelPath.length >= 2 && (
         <Polyline
@@ -616,28 +635,8 @@ function GameMapInner({
       </button>
 
       {showMrt && net && (
-        <div className="absolute right-2 top-11 z-[500] max-w-[45vw] rounded border border-white/15 bg-concrete-900/95 p-2 text-2xs leading-tight text-white/70 shadow-signage">
-          {legendLines(net).map((line) => (
-            <div key={line.code} className="flex items-center gap-1.5">
-              <span
-                className="inline-block h-0.5 w-4 shrink-0 rounded"
-                style={{ background: line.color }}
-              />
-              <span className="truncate">{line.name}</span>
-            </div>
-          ))}
-          {destroyedTunnelEdges.length > 0 && (
-            <div className="mt-1 flex items-center gap-1.5 border-t border-white/10 pt-1 text-white/55">
-              <span
-                className="inline-block h-0 w-4 shrink-0 border-t-2 border-dashed border-white/50"
-                aria-hidden
-              />
-              <span>Dashed = collapsed</span>
-            </div>
-          )}
-          <div className="mt-1 border-t border-white/10 pt-1 text-white/35">
-            OSM · baked {net.generatedAt}
-          </div>
+        <div className="absolute right-2 top-11 z-[500]">
+          <MrtLineLegend net={net} destroyedCount={destroyedTunnelEdges.length} />
         </div>
       )}
 
@@ -663,14 +662,18 @@ function GameMapInner({
  */
 function propsEqual(a: Props, b: Props): boolean {
   for (const k of Object.keys(a) as (keyof Props)[]) {
-    if (k === 'pois' || k === 'noisePulses') continue;
+    if (k === 'pois' || k === 'noisePulses' || k === 'pathHazardIds') continue;
     if (a[k] !== b[k]) return false;
   }
   if (a.pois.length !== b.pois.length) return false;
   if (!a.pois.every((p, i) => poiLooksSame(p, b.pois[i]))) return false;
   // Pulses are append-and-prune: same count and same newest id means same set.
   if (a.noisePulses.length !== b.noisePulses.length) return false;
-  return a.noisePulses.every((p, i) => p.id === b.noisePulses[i].id);
+  if (!a.noisePulses.every((p, i) => p.id === b.noisePulses[i].id)) return false;
+  const aPath = a.pathHazardIds ?? [];
+  const bPath = b.pathHazardIds ?? [];
+  if (aPath.length !== bPath.length) return false;
+  return aPath.every((id, i) => id === bPath[i]);
 }
 
 export const GameMap = memo(GameMapInner, propsEqual);

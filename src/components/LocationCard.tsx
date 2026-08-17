@@ -24,6 +24,8 @@ import { remainingSearchMinutes } from '../game/searchSession';
 import { displayLine, getMrtNetwork, linesAt, type MrtSegment } from '../game/mrt';
 import type { FactionService, LocationState } from '../game/types';
 import type { IconName } from '../icons/keys';
+import { riskLabel, type TrekRisk } from '../game/wilds';
+import { HazardOnRoute } from './HazardOnRoute';
 
 type Estimate = ReturnType<typeof estimateExpedition> | null;
 
@@ -68,6 +70,10 @@ interface Props {
   onOpenStash: () => void;
   /** HDB blocks are entered floor by floor instead of searched. */
   onEnterBlock?: () => void;
+  /** Sensed pockets on the walk here (target card only). */
+  routeRisk?: TrekRisk | null;
+  /** Route leaves the sense bubble — quote is a guess. */
+  routeBlind?: boolean;
   /** Stack actions above info — used in the narrow map bubble. */
   compact?: boolean;
 }
@@ -105,7 +111,42 @@ function CardSplit({
   );
 }
 
-function UnknownCard({ est, energyLow, outOfRange, noDryRoute, onTravel }: Props) {
+function RouteHazardBlock({
+  routeRisk,
+  routeBlind,
+}: {
+  routeRisk?: TrekRisk | null;
+  routeBlind?: boolean;
+}) {
+  if (!routeRisk && !routeBlind) return null;
+  const label = routeRisk ? riskLabel(routeRisk.encounterChance) : null;
+  return (
+    <>
+      {routeRisk && (
+        <div className="mt-1 flex justify-between text-xs text-white/55">
+          <span>Route</span>
+          <span style={{ color: label?.color }}>{label?.text}</span>
+        </div>
+      )}
+      {routeRisk && <HazardOnRoute hazards={routeRisk.hazards} />}
+      {routeBlind && (
+        <div className="mt-2 text-xs text-white/35">
+          You can't see far enough to read that ground. Anything could be sitting on it.
+        </div>
+      )}
+    </>
+  );
+}
+
+function UnknownCard({
+  est,
+  energyLow,
+  outOfRange,
+  noDryRoute,
+  onTravel,
+  routeRisk,
+  routeBlind,
+}: Props) {
   return (
     <>
       <div className="flex items-center gap-2">
@@ -126,6 +167,7 @@ function UnknownCard({ est, energyLow, outOfRange, noDryRoute, onTravel }: Props
           </span>
         </div>
       )}
+      <RouteHazardBlock routeRisk={routeRisk} routeBlind={routeBlind} />
       {est?.arrivalAtNight && (
         <div className="mt-1 text-xs text-hiss">
           🌙 You'd arrive after dark — far more dangerous.
@@ -304,18 +346,18 @@ function FactionClaim({
   if (compact) {
     return (
       <div
-        className="mt-2 rounded border px-2 py-1 text-xs"
+        className="mt-2 rounded border px-2 py-1.5 text-xs"
         style={{
           color: faction.color,
           borderColor: `${faction.color}66`,
           background: `${faction.color}14`,
         }}
       >
-        <div className="flex items-center justify-between gap-2">
-          <span className="truncate">
+        <div className="flex items-start justify-between gap-3">
+          <span className="min-w-0 leading-snug">
             <Icon name={faction.icon} /> {faction.shortName} {place}
           </span>
-          <span className="shrink-0 opacity-80">
+          <span className="shrink-0 pt-px opacity-80">
             {standingLabel(standing)} {score}
           </span>
         </div>
@@ -487,6 +529,8 @@ function KnownCard({
   onOpenStash,
   onEnterBlock,
   compact,
+  routeRisk,
+  routeBlind,
 }: Props) {
   const cfg = POI_CONFIG[sel.category];
   const isBlock = sel.category === 'residential';
@@ -641,15 +685,17 @@ function KnownCard({
   if (!here) {
     return (
       <>
-        <div className="flex items-center gap-2">
-          <Icon name={cfg.icon} size={22} />
+        <div className="flex items-start gap-2">
+          <Icon name={cfg.icon} size={22} className="mt-0.5 shrink-0" />
           <div className="min-w-0 flex-1">
-            <div className="truncate font-bold">{sel.name}</div>
-            <div className="text-xs text-white/40">
-              {cfg.label} · {sel.size}
+            <div className="font-bold leading-snug">{sel.name}</div>
+            <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-white/40">
+              <span>
+                {cfg.label} · {sel.size}
+              </span>
+              <span className="rounded bg-white/10 px-1.5 py-0.5 text-white/50">last seen</span>
             </div>
           </div>
-          <span className="rounded bg-white/10 px-2 py-0.5 text-xs text-white/50">last seen</span>
         </div>
 
         <StationCodes sel={sel} />
@@ -700,6 +746,7 @@ function KnownCard({
             )}
           </div>
         )}
+        <RouteHazardBlock routeRisk={routeRisk} routeBlind={routeBlind} />
         <div className="mt-3 flex flex-col gap-2">
           {outOfRange && !canTunnel && (
             <div className="text-xs text-hiss">

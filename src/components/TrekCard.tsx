@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
 import { Icon } from '../icons/Icon';
 import { formatDuration } from '../game/travel';
-import { HAZARD_CONFIG, riskLabel, type TrekRisk } from '../game/wilds';
+import { riskLabel, type TrekRisk } from '../game/wilds';
+import { HazardOnRoute } from './HazardOnRoute';
 import type { IconName } from '../icons/keys';
 
 interface Props {
@@ -29,8 +30,8 @@ interface Props {
  * there's nothing there. It sells the one thing the player is buying: a way out
  * of wherever they're standing, at a price.
  *
- * Sized for TargetDock (~268px): labels stay on one line, values wrap cleanly
- * on the right. Cancel lives on the dock chrome, not here.
+ * Sized for TargetDock (~328–368px): labels stay on one line, values wrap
+ * cleanly on the right. Cancel lives on the dock chrome, not here.
  */
 export function TrekCard({
   distanceM,
@@ -87,25 +88,7 @@ export function TrekCard({
         </div>
       </div>
 
-      {risk.hazards.length > 0 && (
-        <div className="mt-2 flex flex-col gap-1">
-          {risk.hazards.map((z) => {
-            const cfg = HAZARD_CONFIG[z.kind];
-            return (
-              <div
-                key={z.id}
-                className="rounded border bg-black/30 px-2 py-1 text-xs"
-                style={{ color: cfg.color, borderColor: `${cfg.color}66` }}
-              >
-                <div className="font-semibold">
-                  {cfg.label} {'●'.repeat(z.severity)}
-                </div>
-                <div className="text-white/45">{cfg.blurb}</div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+      <HazardOnRoute hazards={risk.hazards} />
 
       {blind && (
         <div className="mt-2 text-xs text-white/35">

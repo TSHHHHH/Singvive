@@ -28,14 +28,19 @@ type Props = {
   onStatus?: (message: string | null, error?: string | null) => void;
   /** Jump to the Items tab focused on this def. */
   onOpenItem?: (itemId: string) => void;
+  onDirtyChange?: (dirty: boolean) => void;
+  /** Live recipe draft — craft-only badges follow unsaved recipes. */
+  recipesDraft?: readonly { outputDefId: string }[] | null;
+  /** When false, skip status chatter (tab is mounted hidden). */
+  active?: boolean;
 };
 
 function scarcityOf(id: string): number {
   return ITEMS[id]?.scarcity ?? 1;
 }
 
-function buildCraftOutputSet(): Set<string> {
-  return new Set(RECIPES.map((r) => r.outputDefId));
+function buildCraftOutputSet(recipes: readonly { outputDefId: string }[]): Set<string> {
+  return new Set(recipes.map((r) => r.outputDefId));
 }
 
 function buildFactionItemSet(): Set<string> {
@@ -52,7 +57,13 @@ function buildFactionItemSet(): Set<string> {
 /**
  * DEV editor for per-POI weighted loot tables (`src/game/data/lootTables.json`).
  */
-export function LootTablesEditor({ onStatus, onOpenItem }: Props) {
+export function LootTablesEditor({
+  onStatus,
+  onOpenItem,
+  onDirtyChange,
+  recipesDraft,
+  active = true,
+}: Props) {
   const [tables, setTables] = useState<LootTablesCatalog | null>(null);
   const [baselineTables, setBaselineTables] = useState<LootTablesCatalog | null>(null);
   const [baseline, setBaseline] = useState('');
@@ -73,7 +84,10 @@ export function LootTablesEditor({ onStatus, onOpenItem }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const knownIds = useMemo(() => new Set(Object.keys(ITEMS)), []);
-  const craftOutputs = useMemo(() => buildCraftOutputSet(), []);
+  const craftOutputs = useMemo(
+    () => buildCraftOutputSet(recipesDraft ?? RECIPES),
+    [recipesDraft],
+  );
   const factionItems = useMemo(() => buildFactionItemSet(), []);
 
   const load = async () => {
@@ -84,7 +98,7 @@ export function LootTablesEditor({ onStatus, onOpenItem }: Props) {
       setBaselineTables(structuredClone(data));
       setBaseline(lootTablesFingerprint(data));
       setSimResult(null);
-      onStatus?.(`Loaded loot tables (${POI_CATEGORIES.length} categories)`);
+      if (active) onStatus?.(`Loaded loot tables (${POI_CATEGORIES.length} categories)`);
     } catch (err) {
       onStatus?.(null, String(err));
     } finally {
@@ -103,6 +117,9 @@ export function LootTablesEditor({ onStatus, onOpenItem }: Props) {
   }, [category]);
 
   const dirty = tables ? lootTablesFingerprint(tables) !== baseline : false;
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
   const errors = useMemo(
     () => (tables ? validateLootTablesCatalog(tables, knownIds) : []),
     [tables, knownIds],

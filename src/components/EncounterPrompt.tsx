@@ -1,5 +1,6 @@
 import { useGame } from '../game/store';
 import { Icon } from '../icons/Icon';
+import { combatantIcon } from '../game/enemies';
 import { armCombatPenalty, formatClock } from '../game/survival';
 import { useClockFormat } from '../game/settings';
 import {
@@ -56,7 +57,7 @@ export function EncounterPrompt({
 
   const enemyIcon = (
     <Icon
-      name={z.kind === 'human' ? 'combat.enemyHuman' : 'combat.enemyZombie'}
+      name={combatantIcon(z)}
       size={12}
       className="mx-0.5 inline-block align-[-0.125em]"
     />

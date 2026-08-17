@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 
 /**
  * Compact "N errors" chip that opens a click-to-toggle list of validation
- * messages. Used by the DEV loot / tables editors where the badge alone
+ * messages. Used by the DEV loot / tables / recipes editors where the badge alone
  * used to hide what actually went wrong.
  */
 export function ValidationErrorBadge({ errors }: { errors: string[] }) {

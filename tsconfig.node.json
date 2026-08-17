@@ -19,5 +19,5 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["vite.config.ts", "vite.loot-dev-api.ts", "src/dev/validateItems.ts", "src/dev/validateLootTables.ts"]
+    "include": ["vite.config.ts", "vite.loot-dev-api.ts", "src/dev/validateItems.ts", "src/dev/validateLootTables.ts", "src/dev/validateRecipes.ts", "src/dev/validateEnemies.ts"]
 }

@@ -1,5 +1,6 @@
 import type { ItemInstance } from './types';
-import { itemDef } from './loot';
+import { ITEMS, itemDef } from './loot';
+import recipesCatalog from './data/recipes.json' with { type: 'json' };
 
 /**
  * Crafting exists to make loot flow *out*. Every recipe here is a sink first
@@ -7,6 +8,12 @@ import { itemDef } from './loot';
  * store have somewhere to go, and clean water has to be made rather than found.
  *
  * Deliberately small. A handful of recipes is a resource loop; sixty is a second game.
+ * Source of truth is `src/game/data/recipes.json` (editable via the DEV loot browser).
+ *
+ * Lashed spears stay one recipe per blade rather than one generic spear, because
+ * a single output would make binding a parang to a stick strictly worse than
+ * binding a kitchen knife to it — same result, better blade spent. The blade
+ * you give up is the blade you get back, with reach added.
  */
 
 export interface Recipe {
@@ -25,107 +32,35 @@ export interface Recipe {
   blurb: string;
 }
 
-export const RECIPES: Recipe[] = [
-  {
-    id: 'purify',
-    name: 'Purify Water',
-    inputs: { dirty_water: 1, purification_tabs: 1 },
-    outputDefId: 'newater',
-    outputCount: 1,
-    hours: 0.5,
-    needsShelter: false,
-    blurb: 'Tablets and twenty minutes turn a bottle of murk into something safe.',
-  },
-  {
-    id: 'boil',
-    name: 'Boil Water',
-    inputs: { dirty_water: 2, fuel_can: 1 },
-    outputDefId: 'newater',
-    outputCount: 2,
-    hours: 1.5,
-    needsShelter: true,
-    blurb: 'Slower than tablets and it costs you fuel — fuel also counts hard toward evac readiness.',
-  },
-  {
-    id: 'bandages',
-    name: 'Tear Dressings',
-    inputs: { cloth_rags: 2 },
-    outputDefId: 'improvised_bandage',
-    outputCount: 2,
-    hours: 0.5,
-    needsShelter: false,
-    blurb:
-      'Rags torn into strips. It will stop the bleeding — it will not stop what gets in afterwards.',
-  },
-  /*
-   * Lashed spears. One recipe per blade rather than one generic spear, because
-   * a single output would make binding a parang to a stick strictly worse than
-   * binding a kitchen knife to it — same result, better blade spent. The blade
-   * you give up is the blade you get back, with reach added.
-   */
-  {
-    id: 'spear_knife',
-    name: 'Lash a Knife Spear',
-    inputs: { wooden_stick: 1, kitchen_knife: 1, duct_tape: 1 },
-    outputDefId: 'spear_knife',
-    outputCount: 1,
-    hours: 0.5,
-    needsShelter: false,
-    blurb: 'A kitchen knife taped to a length of timber. Keeps them at arm’s length.',
-  },
-  {
-    id: 'spear_cleaver',
-    name: 'Lash a Cleaver Spear',
-    inputs: { wooden_stick: 1, meat_cleaver: 1, duct_tape: 1 },
-    outputDefId: 'spear_cleaver',
-    outputCount: 1,
-    hours: 0.5,
-    needsShelter: false,
-    blurb: 'Heavier at the tip than a knife spear, and it bites deeper for it.',
-  },
-  {
-    id: 'spear_parang',
-    name: 'Lash a Parang Spear',
-    inputs: { wooden_stick: 1, parang: 1, duct_tape: 1 },
-    outputDefId: 'spear_parang',
-    outputCount: 1,
-    hours: 0.75,
-    needsShelter: false,
-    blurb: 'The best of them — and it costs you the best blade you own.',
-  },
-  {
-    id: 'parts',
-    name: 'Strip for Parts',
-    inputs: { scrap_metal: 3 },
-    outputDefId: 'spare_parts',
-    outputCount: 1,
-    hours: 1,
-    needsShelter: true,
-    tool: 'toolbox',
-    blurb: 'Scrap is heavy and worth nothing. Parts are light and repair things.',
-  },
-  {
-    id: 'shells',
-    name: 'Reload Shells',
-    inputs: { spare_parts: 1, scrap_metal: 1 },
-    outputDefId: 'ammo_shell',
-    outputCount: 2,
-    hours: 1.5,
-    needsShelter: true,
-    tool: 'toolbox',
-    blurb: 'Handloading. Ugly, slow, and the only ammunition anyone still makes.',
-  },
-  {
-    id: 'sleeping_bag',
-    name: 'Stitch a Sleeping Bag',
-    inputs: { cloth_rags: 4, duct_tape: 1 },
-    outputDefId: 'sleeping_bag',
-    outputCount: 1,
-    hours: 2,
-    needsShelter: true,
-    blurb: 'Rags and tape into something you can sleep in. Heavy, but better than the floor.',
-  },
-];
+export const RECIPES: Recipe[] = structuredClone(recipesCatalog) as unknown as Recipe[];
+
+if (import.meta.env.DEV) {
+  const seen = new Set<string>();
+  for (const recipe of RECIPES) {
+    if (seen.has(recipe.id)) console.error(`[crafting] duplicate recipe id "${recipe.id}"`);
+    seen.add(recipe.id);
+    if (!(recipe.hours > 0)) {
+      console.error(`[crafting] ${recipe.id} has non-positive hours ${recipe.hours}`);
+    }
+    if (!(recipe.outputCount > 0)) {
+      console.error(`[crafting] ${recipe.id} has non-positive outputCount`);
+    }
+    if (!ITEMS[recipe.outputDefId]) {
+      console.error(`[crafting] ${recipe.id} outputs unknown item "${recipe.outputDefId}"`);
+    }
+    if (recipe.tool && !ITEMS[recipe.tool]) {
+      console.error(`[crafting] ${recipe.id} needs unknown tool "${recipe.tool}"`);
+    }
+    const inputIds = Object.keys(recipe.inputs);
+    if (inputIds.length === 0) {
+      console.error(`[crafting] ${recipe.id} has no inputs`);
+    }
+    for (const [defId, count] of Object.entries(recipe.inputs)) {
+      if (!ITEMS[defId]) console.error(`[crafting] ${recipe.id} consumes unknown item "${defId}"`);
+      if (!(count > 0)) console.error(`[crafting] ${recipe.id} input ${defId} has non-positive count`);
+    }
+  }
+}
 
 // ---------- Repair ----------
 

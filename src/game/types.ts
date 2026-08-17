@@ -473,7 +473,7 @@ export interface WeatherState {
 // ---------- Combat ----------
 export interface Enemy {
   name: string;
-  kind: 'zombie' | 'human';
+  kind: 'zombie' | 'human' | 'animal';
   hp: number;
   maxHp: number;
   attack: number; // modifier
@@ -481,6 +481,8 @@ export interface Enemy {
   damage: number; // per hit
   infectious: number; // 0..1 chance to infect on hit (0 for humans)
   armor: number; // flat damage soak — bypassed by the precision stance
+  /** Per-archetype combat glyph. Zombies/humans omit this and use the kind default. */
+  icon?: IconName;
   /**
    * Gauge units earned per second on the initiative track. A Runner at 13 acts
    * roughly twice for every one swing a Shambler at 5 gets in — this is the
@@ -627,6 +629,7 @@ export interface CombatState {
 export interface RunStats {
   zombieKills: number;
   humanKills: number;
+  animalKills: number;
   fightsFled: number;
   /** Metres actually walked (treks and site-to-site legs; MRT rides excluded). */
   distanceM: number;

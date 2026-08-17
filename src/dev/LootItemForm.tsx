@@ -11,6 +11,7 @@ import { highlightFor, whisperFor } from '../game/searchSession';
 import { fetchItemIcons, MAX_ICON_BYTES, MAX_ICON_EDGE, uploadItemIcon } from './lootApi';
 import { findItemUsage } from './itemUsage';
 import { EFFECT_KINDS, EQUIP_SLOTS } from './validateItems';
+import type { RecipesCatalog } from './validateRecipes';
 
 const MODIFIER_KEYS: (keyof ItemModifiers)[] = [
   'attackBonus',
@@ -77,9 +78,19 @@ type Props = {
   onChange: (next: ItemDef) => void;
   /** Optional status line for the parent browser chrome. */
   onStatus?: (message: string | null, error?: string | null) => void;
+  onOpenRecipe?: (recipeId: string) => void;
+  /** Live recipe draft from the Recipes tab (falls back to committed catalog). */
+  recipesDraft?: RecipesCatalog | null;
 };
 
-export function LootItemForm({ item, idLocked, onChange, onStatus }: Props) {
+export function LootItemForm({
+  item,
+  idLocked,
+  onChange,
+  onStatus,
+  onOpenRecipe,
+  recipesDraft,
+}: Props) {
   const patch = (partial: Partial<ItemDef>) => onChange({ ...item, ...partial });
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -123,7 +134,10 @@ export function LootItemForm({ item, idLocked, onChange, onStatus }: Props) {
 
   const resolvedKey = itemIcon(item);
   const ownKey = `item.${item.id}` as IconName;
-  const usage = useMemo(() => findItemUsage(item.id, item), [item]);
+  const usage = useMemo(
+    () => findItemUsage(item.id, item, recipesDraft),
+    [item, recipesDraft],
+  );
   const revealHighlight = useMemo(
     () => highlightFor(item, revealCondition),
     [item, revealCondition],
@@ -862,9 +876,22 @@ export function LootItemForm({ item, idLocked, onChange, onStatus }: Props) {
         ) : (
           <ul className="flex flex-col gap-1 text-xs text-white/60">
             {usage.map((u) => (
-              <li key={`${u.kind}:${u.label}`} className="rounded border border-white/5 bg-black/20 px-2 py-1">
-                <span className="mr-2 font-mono text-2xs uppercase text-white/30">{u.kind}</span>
-                {u.label}
+              <li key={`${u.kind}:${u.label}`}>
+                {u.recipeId && onOpenRecipe ? (
+                  <button
+                    type="button"
+                    onClick={() => onOpenRecipe(u.recipeId!)}
+                    className="w-full rounded border border-white/5 bg-black/20 px-2 py-1 text-left hover:border-signal/30 hover:text-signal"
+                  >
+                    <span className="mr-2 font-mono text-2xs uppercase text-white/30">{u.kind}</span>
+                    {u.label}
+                  </button>
+                ) : (
+                  <div className="rounded border border-white/5 bg-black/20 px-2 py-1">
+                    <span className="mr-2 font-mono text-2xs uppercase text-white/30">{u.kind}</span>
+                    {u.label}
+                  </div>
+                )}
               </li>
             ))}
           </ul>

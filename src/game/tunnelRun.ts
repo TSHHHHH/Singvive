@@ -544,20 +544,52 @@ export function canExitHere(run: TunnelRun, node: TunnelNode): boolean {
   return (node.stationIndex ?? 0) > 0;
 }
 
+/** Nearest platform column strictly ahead of `afterCol`. */
+function nextPlatform(run: TunnelRun, afterCol: number): TunnelNode | undefined {
+  let best: TunnelNode | undefined;
+  for (const n of Object.values(run.nodes)) {
+    if (n.kind !== 'platform' || n.col <= afterCol) continue;
+    if (!best || n.col < best.col) best = n;
+  }
+  return best;
+}
+
+/**
+ * Where you stand on the planned station list: on a platform, or in the bore
+ * walking toward the next one. `nextIndex` is null at the destination.
+ */
+export interface CrawlPlace {
+  index: number;
+  atPlatform: boolean;
+  nextIndex: number | null;
+}
+
+export function crawlPlace(run: TunnelRun): CrawlPlace {
+  const here = currentNode(run);
+  const total = run.stationIds?.length ?? 2;
+  if (here.kind === 'platform') {
+    const index = here.stationIndex ?? 0;
+    return {
+      index,
+      atPlatform: true,
+      nextIndex: index < total - 1 ? index + 1 : null,
+    };
+  }
+  const next = nextPlatform(run, here.col);
+  const nextIndex = next?.stationIndex ?? 1;
+  return {
+    index: Math.max(0, nextIndex - 1),
+    atPlatform: false,
+    nextIndex,
+  };
+}
+
 /** Progress label: "Station 3 / 9". */
 export function stationProgress(run: TunnelRun): string {
-  const here = currentNode(run);
-  const idx = here.stationIndex ?? run.stationIds?.findIndex((id) => id === here.stationId) ?? 0;
+  const place = crawlPlace(run);
   const total = run.stationIds?.length ?? 2;
-  if (here.kind === 'platform' && idx >= 0) {
-    return `Station ${idx + 1} / ${total}`;
-  }
-  // Between platforms: show the next station index.
-  const nextPlat = Object.values(run.nodes).find(
-    (n) => n.kind === 'platform' && n.col > here.col,
-  );
-  const nextIdx = (nextPlat?.stationIndex ?? 1) + 1;
-  return `Toward station ${nextIdx} / ${total}`;
+  if (place.atPlatform) return `Station ${place.index + 1} / ${total}`;
+  return `Toward station ${(place.nextIndex ?? place.index + 1) + 1} / ${total}`;
 }
 
 // -------------------------------------------------------------- mutators --

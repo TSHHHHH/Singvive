@@ -2334,5 +2334,24 @@
     "maxStack": 1,
     "color": "#c0c4c8",
     "sleepGear": true
+  },
+  "ez_link_knife": {
+    "id": "ez_link_knife",
+    "name": "EZ-Link Knife",
+    "w": 1,
+    "h": 2,
+    "weight": 0.1,
+    "effect": {
+      "kind": "weapon",
+      "damage": 7,
+      "accuracy": 0,
+      "ranged": false
+    },
+    "value": 1,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#2f6fb5",
+    "slot": "mainHand",
+    "wearRate": 1
   }
 }

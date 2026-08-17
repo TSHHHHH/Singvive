@@ -124,11 +124,14 @@ currency, and the survivor is always moving — the map is explored, not surveye
 - A day is **24 in-game hours**, starting at **08:00**. Travel is **one-way relocation** (nomadic):
   the survivor has a tracked position, and cost = distance(current → target) ÷ walking speed, stretched
   by **weather** (rain ×1.5, thunderstorm ×1.75), **encumbrance** (×1.5), and vegetation soft-costs.
-- **Open-ground treks** (`game/wilds.ts`): between pins the path crosses seeded ~350 m hazard cells
-  (horde pocket, gang patrol, collapse, floodwater). Encounter and energy costs rise with darkness and
-  horde intensity. Short hops under a minimum distance skip the trek card.
-- **Night is dangerous.** Bands: day (06–17), dusk (17–19), night (19–06). Being out after dark sharply
-  raises encounter chance and hardens combat.
+- **Open-ground treks** (`game/wilds.ts`): between pins the path crosses seeded ~350 m hazard
+  pockets (overlapping discs: horde, patrol, collapse, flood, wildlife). POI travel cards preview
+  sensed pockets on the route. Collapse wounds; flood slows and can infect; horde/patrol/wildlife
+  fight. Short hops under a minimum distance skip the trek card.
+- **Night swarm.** Dusk (17–19) they bloom; night (19–06) empty streets flood with a second seeded
+  layer (I Am Legend). Crossing is a near-certain high-danger fight. Roofed sites shelter you; tunnels
+  bypass the surface. Dawn they recede. Rest shows recovery **and** night ambush chance.
+- **Night is dangerous.** Bands: day (06–17), dusk (17–19), night (19–06). Combat hardens after dark.
 - **Rest** is not a free full refill — see **sleep quality** (3.12).
 
 ### 3.5 Survival meters & the injury system
@@ -160,6 +163,9 @@ currency, and the survivor is always moving — the map is explored, not surveye
 - **Environment:** night/dusk and rain/storm/haze shift odds toward the enemy.
 - **Same loop for humans:** hostile-faction/event combat reuses the zombie loop with a **human
   stat block** (`kind: 'human'`, no infection, higher defense; drops gear on death).
+- **Infected animals** (`kind: 'animal'`) use the same loop and **can infect**. They are not the
+  zombie ladder: otters/monitors sit on inland water, macaques/boars in forest, dogs/cats/rats
+  on urban streets. Some drop meat or stolen food.
 - **Ammo & condition:** firearms consume loaded **rounds**; a dry gun swings as a club. Item
   **condition** degrades and can be repaired (whetstone / gun oil in the field; workbench repair with
   tape + scrap). Items stay in the pack until the fight ends; **Break off** attempts to flee.
@@ -215,7 +221,9 @@ hostility, trade, shelter, aid, and intel:
 - **The run itself is a Slay-the-Spire map** (`game/tunnelRun.ts`, `components/TunnelRunView.tsx`):
   platforms at each station on the route, bore columns between them (capped so long rides stay
   playable), forward-only edges, one column of reveal ahead. Four middle node kinds — **contact**,
-  **salvage**, **camp**, **obstruction** — same as before.
+  **salvage**, **camp**, **obstruction** — same as before. The crawl HUD is an in-train schematic
+  strip of the planned route (`StationStrip`) — next stop, livery-coloured hops, and transfer
+  stations — not a single `from → to` line name.
 - **Pressure** is the run's own gauge, continuous across the whole journey. Sleeping at a camp is
   the one thing that lowers it. A pinned gauge can spawn a **Stalker**.
 - **Stations are exits.** STA **toll** still gates the *stairs down* at the origin only. Roughly
@@ -250,10 +258,12 @@ hostility, trade, shelter, aid, and intel:
 ### 3.12 Sleep quality
 - Rest fast-forwards toward morning and restores energy, but recovery scales by **enclosure**, **roof**,
   and **bed** (`game/sleep.ts`). A sleeping bag, faction bunk, HDB shelter, or tunnel camp beats open
-  ground. Ambush risk varies by site. Hunger/thirst still drain (at a reduced rate).
+  ground. The Rest control shows recovery **and** night ambush chance (priced as if you sleep through
+  the night, including night swarm on the tile). Pockets underfoot change the odds. Hunger/thirst still
+  drain (at a reduced rate).
 
 ### 3.13 Crafting & repair
-- Deliberately small recipe set (`game/crafting.ts`): purify/boil water, tear dressings, lash spear
+- Deliberately small recipe set (`game/data/recipes.json`): purify/boil water, tear dressings, lash spear
   variants, strip gear for parts, handload shells, craft a sleeping bag. Some recipes need a
   **workbench** (stash / HDB shelter). Tools can be required without being consumed.
 - **Repair:** field whetstone / gun oil; workbench repair with duct tape + scrap + toolbox.
@@ -312,7 +322,7 @@ hostility, trade, shelter, aid, and intel:
   - **Centre map** with target dock, trek/location sheets, noise/weather FX; HDB cutaway or tunnel run
     take over when active.
   - **Right timeline** — game log; contact Fight/Flee gate dims the rest of the UI until chosen.
-- **Mobile — bottom tabs:** **Map / Status / Inventory / Log** (Log becomes Fight in combat). On the
+- **Mobile — bottom tabs:** **Map / Status / Stash / Craft / Log**. On the
   map, the selected location / trek slides up as a sheet.
 - **Overlays / modals:** trader, contextual guide, how-to-play primer, settings, day logs, event modals, HDB dungeon, tunnel run,
   ghost encounter.
@@ -348,7 +358,7 @@ src/
   dev/         DEV-only editors + Dev menu (loot / enemies / icons) — never imported from game/
   components/  GameMap, FogOverlay, Inventory/*, CraftingPanel, CombatPanel, ConditionPanel,
                StatsPanel, ObjectiveBar, ObjectivesPanel, HdbDungeonModal, TunnelRunView,
-               TraderModal, GuideModal, SettingsModal, TrekCard, LocationCard, …
+               StationStrip, TraderModal, GuideModal, SettingsModal, TrekCard, LocationCard, …
   screens/     Menu, CharacterCreate, SpawnSelect, GameScreen, DeathScreen
 ```
 
@@ -374,9 +384,9 @@ still work via `src/dev/devBridge.ts` (`openLootItem`, `openEnemyEditor`, `openI
 
 | Layer | Role | Where |
 |---|---|---|
-| Catalog on disk | Machine-writable source of truth | e.g. `src/game/data/items.json`, `enemies.json`; chrome icons under `src/assets/icons/` |
-| Game import | Load catalog into pure logic (clone if you mutate at boot) | e.g. `src/game/loot.ts`, `enemies.ts`; icons via `src/icons/` |
-| Shared validation | Same checks for API + UI | `src/dev/validateItems.ts`, `validateEnemies.ts` |
+| Catalog on disk | Machine-writable source of truth | e.g. `src/game/data/items.json`, `lootTables.json`, `recipes.json`, `enemies.json`; chrome icons under `src/assets/icons/` |
+| Game import | Load catalog into pure logic (clone if you mutate at boot) | e.g. `src/game/loot.ts`, `crafting.ts`, `enemies.ts`; icons via `src/icons/` |
+| Shared validation | Same checks for API + UI | `src/dev/validateItems.ts`, `validateLootTables.ts`, `validateRecipes.ts`, `validateEnemies.ts` |
 | Vite DEV API | `apply: 'serve'` only — never in `vite build` | `vite.loot-dev-api.ts` → wired in `vite.config.ts` |
 | Client API helpers | `fetch` / export / import / upload | `src/dev/lootApi.ts`, `enemyApi.ts`, `iconApi.ts` |
 | UI | Full-screen overlays + Dev menu, gated by `import.meta.env.DEV` | `src/dev/DevToolsMenu.tsx`, `LootBrowser.tsx`, `EnemyBrowser.tsx`, `IconBrowser.tsx`, mounted from `App.tsx` |
@@ -385,7 +395,8 @@ still work via `src/dev/devBridge.ts` (`openLootItem`, `openEnemyEditor`, `openI
 
 - `GET/PUT /__dev/items` — read/write the JSON catalog (PUT validates + pretty-prints; HMR suppressed so the editor stays open)
 - `GET/PUT /__dev/loot-tables` — read/write `src/game/data/lootTables.json` (same; hard-refresh to load into live `loot.ts`)
-- `GET/PUT /__dev/enemies` — read/write `src/game/data/enemies.json` (zombies, elites, humans, loners, spawn rules; hard-refresh for live combat)
+- `GET/PUT /__dev/recipes` — read/write `src/game/data/recipes.json` (same; hard-refresh to load into live `crafting.ts`)
+- `GET/PUT /__dev/enemies` — read/write `src/game/data/enemies.json` (zombies, elites, humans, loners, animals, spawn rules; hard-refresh for live combat)
 - `GET /__dev/item-icons` — list on-disk `item-*` assets + max upload size
 - `POST /__dev/item-icon` — upload PNG/WebP (64 KB / 256px edge max) → `src/assets/icons/item-<id>.(png|webp)`, and
   register `item.<id>` in `src/icons/keys.ts` when missing
@@ -395,13 +406,14 @@ still work via `src/dev/devBridge.ts` (`openLootItem`, `openEnemyEditor`, `openI
 
 **Loot browser UX extras worth copying:**
 
-- Tabs: **Items** | **Tables** in the same floating DEV tool
+- Tabs: **Items** | **Tables** | **Recipes** in the same floating DEV tool
 - Per-item dirty prompts when changing selection; catalog-level **diff review** before Save
 - Keyboard: `Ctrl/Cmd+S` save, `Esc` dismiss/close, `↑/↓` move the list
 - Duplicate item, side-by-side compare, where-used (loot tables / recipes / factions / starting)
 - Filters: exotic, starting, missing art; sort + group-by-kind
 - `ItemDef.startingItem` (+ optional `startingCount`) drives run-start gear in `store.ts`
 - Tables editor: scarcity-aware effective %, sort, badges, weight bars, ± steppers, normalize, duplicate category, drag reorder, craft-only / no-common warnings, only-in-table, diff-before-save, roll simulator + richness, jump-to-item
+- Recipes editor: combination builder (search-add ingredients with kind filter + keyboard), output, optional tool, field vs shelter, hours, economy strip (value/weight/evac Δ), source badges, soft warnings, sandbox pack + Handyman, workbench preview + read-only repair, chain/cousin links, overview table, compare, family duplicate (swap one input), reorder, dirty-nav, jump-to-item; drafts stay mounted across Items/Tables tabs; item where-used reads the live recipe draft
 - **Item art** is owned here (`item.*` upload / missing-art filter) — not in the Icons browser
 
 **Enemies browser:** opened from the Dev menu. Tabs **Overview** | **Zombies** | **Humans** |

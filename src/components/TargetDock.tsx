@@ -3,6 +3,9 @@ import type { ReactNode } from 'react';
 /**
  * Target / trek card docked to the bottom-right of the map so the travel line
  * stays visible. Sits above Leaflet's attribution strip on desktop.
+ *
+ * Wide enough for hospital names and faction outpost labels without ellipsis;
+ * still a right-hand dock so the route into the pin stays on the map.
  */
 export function TargetDock({
   title,
@@ -17,16 +20,17 @@ export function TargetDock({
     <div className="pointer-events-none absolute inset-0 z-[600]">
       <div
         className={
-          'pointer-events-auto absolute right-3 flex w-[min(268px,calc(100%-1.5rem))] ' +
+          'pointer-events-auto absolute right-3 flex w-[min(20.5rem,calc(100%-1.5rem))] ' +
           'max-h-[min(50vh,420px)] flex-col overflow-hidden rounded-lg border ' +
           'border-white/15 bg-concrete-900/95 shadow-signage ' +
+          'lg:w-[min(23rem,calc(100%-1.5rem))] ' +
           // Mobile: above tab chrome. Desktop: clear the ~24px attribution bar.
           'bottom-[calc(var(--mobile-chrome-bottom)+0.5rem)] lg:bottom-8'
         }
       >
         <div
           className={
-            'min-h-0 flex-1 overflow-y-auto p-2 text-white/80 ' +
+            'min-h-0 flex-1 overflow-y-auto p-2.5 text-white/80 ' +
             '[&_button]:py-1.5 [&_button]:text-xs'
           }
         >

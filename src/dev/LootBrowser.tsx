@@ -5,6 +5,7 @@ import { ICON_ASSETS } from '../icons/registry';
 import { itemIcon } from '../components/Inventory/itemIcon';
 import { LootItemForm } from './LootItemForm';
 import { LootTablesEditor } from './LootTablesEditor';
+import { RecipesEditor } from './RecipesEditor';
 import { diffCatalogs, diffIsEmpty, itemFingerprint, type CatalogDiff } from './catalogDiff';
 import {
   blankItem,
@@ -25,11 +26,12 @@ import {
   type OpenLootDetail,
 } from './devBridge';
 import { ValidationErrorBadge } from './ValidationErrorBadge';
+import type { RecipesCatalog } from './validateRecipes';
 
 type KindFilter = 'all' | ItemDef['effect']['kind'];
 type SlotFilter = 'all' | 'equipped' | 'none' | NonNullable<ItemDef['slot']>;
 type SortMode = 'id' | 'name' | 'kind' | 'slot';
-type LootTab = 'items' | 'tables';
+type LootTab = 'items' | 'tables' | 'recipes';
 
 type PendingNav =
   | { kind: 'select'; id: string }
@@ -100,11 +102,15 @@ function CompareCard({ def }: { def: ItemDef }) {
 
 /**
  * DEV-only floating loot catalog browser / editor.
- * Persists to `src/game/data/items.json` via `/__dev/items`.
+ * Persists items, loot tables, and recipes via `/__dev/*`.
  */
 export function DevLootBrowser() {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<LootTab>('items');
+  const [recipeFocusId, setRecipeFocusId] = useState<string | null>(null);
+  const [recipesDraft, setRecipesDraft] = useState<RecipesCatalog | null>(null);
+  const [recipesDirty, setRecipesDirty] = useState(false);
+  const [tablesDirty, setTablesDirty] = useState(false);
   const [catalog, setCatalog] = useState<ItemsCatalog>({});
   const [baseline, setBaseline] = useState('');
   const [baselineCatalog, setBaselineCatalog] = useState<ItemsCatalog>({});
@@ -175,12 +181,22 @@ export function DevLootBrowser() {
     const onOpen = (e: Event) => {
       const detail = (e as CustomEvent<OpenLootDetail>).detail;
       setOpen(true);
-      setTab('items');
-      if (detail?.itemId) {
-        setSelectedId(detail.itemId);
-        setCreating(false);
-        setQuery(detail.itemId);
-        setStatus(`Opened from Enemies · ${detail.itemId}`);
+      if (detail?.tab === 'recipes' || detail?.recipeId) {
+        setTab('recipes');
+        setRecipeFocusId(detail.recipeId ?? null);
+        if (detail.recipeId) setStatus(`Opened recipe · ${detail.recipeId}`);
+      } else if (detail?.tab === 'tables') {
+        setTab('tables');
+        setRecipeFocusId(null);
+      } else {
+        setTab('items');
+        setRecipeFocusId(null);
+        if (detail?.itemId) {
+          setSelectedId(detail.itemId);
+          setCreating(false);
+          setQuery(detail.itemId);
+          setStatus(`Opened · ${detail.itemId}`);
+        }
       }
     };
     const onClose = (e: Event) => {
@@ -430,6 +446,15 @@ export function DevLootBrowser() {
       setPendingNav({ kind: 'close' });
       return;
     }
+    if (recipesDirty || tablesDirty) {
+      const bits = [
+        tablesDirty ? 'loot tables' : null,
+        recipesDirty ? 'recipes' : null,
+      ]
+        .filter(Boolean)
+        .join(' and ');
+      if (!confirm(`Unsaved ${bits}. Close anyway?`)) return;
+    }
     setOpen(false);
   };
 
@@ -573,6 +598,7 @@ export function DevLootBrowser() {
         requestClose();
         return;
       }
+      if (tab !== 'items') return;
       if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
       const tag = (e.target as HTMLElement | null)?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
@@ -627,6 +653,18 @@ export function DevLootBrowser() {
             }`}
           >
             Tables
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setTab('recipes');
+              setRecipeFocusId(null);
+            }}
+            className={`rounded px-2.5 py-1 text-xs ${
+              tab === 'recipes' ? 'bg-signal/20 text-signal' : 'text-white/50 hover:text-white/70'
+            }`}
+          >
+            Recipes
           </button>
         </div>
         {tab === 'items' && catalogDirty && (
@@ -752,26 +790,7 @@ export function DevLootBrowser() {
         </div>
       )}
 
-      {tab === 'tables' ? (
-        <LootTablesEditor
-          onStatus={(message, err) => {
-            if (err) {
-              setError(err);
-              setStatus(null);
-            } else {
-              setError(null);
-              setStatus(message);
-            }
-          }}
-          onOpenItem={(id) => {
-            setTab('items');
-            applySelect(id);
-            setCompareId(null);
-            setStatus(`Opened ${id} from tables`);
-          }}
-        />
-      ) : (
-      <div className="flex min-h-0 flex-1">
+      <div className={tab === 'items' ? 'flex min-h-0 flex-1' : 'hidden'}>
         <aside className="flex w-[min(22rem,30vw)] shrink-0 flex-col border-r border-white/10 bg-black/20">
           <div className="flex flex-col gap-2 border-b border-white/10 p-3">
             <input
@@ -918,6 +937,12 @@ export function DevLootBrowser() {
                 item={selected}
                 idLocked={!creating}
                 onChange={updateSelected}
+                onOpenRecipe={(recipeId) => {
+                  setTab('recipes');
+                  setRecipeFocusId(recipeId);
+                  setStatus(`Opened recipe · ${recipeId}`);
+                }}
+                recipesDraft={recipesDraft}
                 onStatus={(message, err) => {
                   if (err) {
                     setError(err);
@@ -951,13 +976,61 @@ export function DevLootBrowser() {
           )}
         </main>
       </div>
-      )}
+
+      <div className={tab === 'tables' ? 'flex min-h-0 flex-1' : 'hidden'}>
+        <LootTablesEditor
+          onStatus={(message, err) => {
+            if (err) {
+              setError(err);
+              setStatus(null);
+            } else {
+              setError(null);
+              setStatus(message);
+            }
+          }}
+          onOpenItem={(id) => {
+            setTab('items');
+            applySelect(id);
+            setCompareId(null);
+            setStatus(`Opened ${id} from tables`);
+          }}
+          onDirtyChange={setTablesDirty}
+          recipesDraft={recipesDraft}
+          active={tab === 'tables'}
+        />
+      </div>
+      <div className={tab === 'recipes' ? 'flex min-h-0 flex-1' : 'hidden'}>
+        <RecipesEditor
+          active={tab === 'recipes'}
+          focusRecipeId={recipeFocusId}
+          onStatus={(message, err) => {
+            if (err) {
+              setError(err);
+              setStatus(null);
+            } else {
+              setError(null);
+              setStatus(message);
+            }
+          }}
+          onOpenItem={(id) => {
+            setTab('items');
+            applySelect(id);
+            setCompareId(null);
+            setStatus(`Opened ${id} from recipes`);
+          }}
+          onDraftChange={setRecipesDraft}
+          onDirtyChange={setRecipesDirty}
+        />
+      </div>
 
       {pendingNav && !diffOpen && (
         <DialogShell title="Unsaved item changes" onBackdrop={() => void resolvePending('cancel')}>
           <p className="mb-4 text-sm text-white/60">
             The current item has unsaved edits. Save the catalog, discard this item&apos;s changes,
             or cancel.
+            {(recipesDirty || tablesDirty) && pendingNav?.kind === 'close'
+              ? ' Unsaved tables/recipes drafts will be discarded too.'
+              : ''}
           </p>
           <div className="flex flex-wrap justify-end gap-2">
             <button

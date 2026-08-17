@@ -1,19 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CircleMarker, MapContainer, Polyline, TileLayer, Tooltip, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import {
   findRoutes,
   routeOptionLabel,
   routeStationIds,
-  stationColor,
-  type MrtNetwork,
   type MrtRoute,
   type MrtStation,
 } from '../game/mrt';
-import { edgeKey } from '../game/mrtDamage';
 import { estimateTunnelWalk, formatDuration } from '../game/travel';
 import { useGame } from '../game/store';
-import { useMrtNetwork } from './MrtOverlay';
+import { MrtLineLegend, MrtOverlay, useMrtNetwork } from './MrtOverlay';
 import {
   TILE_ATTRIBUTION,
   TILE_MAX_NATIVE_ZOOM,
@@ -64,74 +61,9 @@ function FitTo({
       map.setView(pts[0], 13);
       return;
     }
-    map.fitBounds(L.latLngBounds(pts), { padding: [40, 40], maxZoom: 14 });
+    map.fitBounds(L.latLngBounds(pts), { padding: [40, 40], maxZoom: 15 });
   }, [map, from, to, route]);
   return null;
-}
-
-function PlannerTracks({
-  net,
-  destroyed,
-  routeIds,
-}: {
-  net: MrtNetwork;
-  destroyed: ReadonlySet<string>;
-  routeIds: string[];
-}) {
-  const tracks = useMemo(() => {
-    const out: {
-      key: string;
-      path: [number, number][];
-      color: string;
-      destroyed: boolean;
-      active: boolean;
-    }[] = [];
-    const drawn = new Set<string>();
-    for (const line of net.lines) {
-      for (let i = 1; i < line.stations.length; i++) {
-        const a = net.byCode.get(line.stations[i - 1]);
-        const b = net.byCode.get(line.stations[i]);
-        if (!a || !b || a.id === b.id) continue;
-        const key = edgeKey(a.id, b.id);
-        const ia = routeIds.indexOf(a.id);
-        const ib = routeIds.indexOf(b.id);
-        const active = ia >= 0 && ib >= 0 && Math.abs(ia - ib) === 1;
-        const dead = destroyed.has(key);
-        const dedupe = `${key}:${active ? 'a' : dead ? 'd' : 'n'}`;
-        if (drawn.has(dedupe)) continue;
-        drawn.add(dedupe);
-        out.push({
-          key: `${line.code}:${key}:${i}`,
-          path: [
-            [a.lat, a.lng],
-            [b.lat, b.lng],
-          ],
-          color: line.color,
-          destroyed: dead,
-          active,
-        });
-      }
-    }
-    return out;
-  }, [net, destroyed, routeIds]);
-
-  return (
-    <>
-      {tracks.map((t) => (
-        <Polyline
-          key={t.key}
-          positions={t.path}
-          pathOptions={{
-            color: t.active ? '#e8c547' : t.color,
-            weight: t.active ? 5 : 3,
-            opacity: t.destroyed ? 0.45 : t.active ? 1 : 0.75,
-            dashArray: t.destroyed ? '6 8' : undefined,
-            lineCap: t.destroyed ? 'butt' : 'round',
-          }}
-        />
-      ))}
-    </>
-  );
 }
 
 interface Props {
@@ -218,7 +150,10 @@ export function MrtRoutePlanner({
         <MapContainer
           center={[from.lat, from.lng]}
           zoom={12}
+          preferCanvas
+          zoomControl={false}
           className="h-full w-full"
+          style={{ background: '#08080a' }}
           maxBounds={bounds}
           maxBoundsViscosity={1}
         >
@@ -231,45 +166,32 @@ export function MrtRoutePlanner({
           />
           <SizeFix />
           <FitTo from={from} to={to} route={route} />
-          <PlannerTracks net={net} destroyed={destroyed} routeIds={routeIds} />
-          {net.stations.map((s) => {
-            const isFrom = s.id === from.id;
-            const isTo = s.id === toId;
-            const onPath = routeIds.includes(s.id);
-            return (
-              <CircleMarker
-                key={s.id}
-                center={[s.lat, s.lng]}
-                radius={isFrom || isTo ? 7 : onPath ? 5 : 3.5}
-                pathOptions={{
-                  color: isFrom ? '#2bc4d9' : isTo ? '#e8c547' : stationColor(net, s),
-                  weight: isFrom || isTo ? 2 : 1,
-                  fillColor: isFrom ? '#2bc4d9' : isTo ? '#e8c547' : stationColor(net, s),
-                  fillOpacity: 0.9,
-                }}
-                eventHandlers={{
-                  click: () => {
-                    if (s.id === from.id) return;
-                    setToId(s.id);
-                    setRouteIdx(0);
-                  },
-                }}
-              >
-                <Tooltip direction="top" offset={[0, -6]} opacity={0.95}>
-                  <span className="text-xs">
-                    {s.name}
-                    {isFrom ? ' (here)' : ''}
-                  </span>
-                </Tooltip>
-              </CircleMarker>
-            );
-          })}
+          <MrtOverlay
+            net={net}
+            destroyedEdges={destroyedList}
+            routeIds={routeIds}
+            fromStationId={from.id}
+            toStationId={toId}
+            labelZoom={13}
+            onStationClick={(s) => {
+              if (s.id === from.id) return;
+              setToId(s.id);
+              setRouteIdx(0);
+            }}
+          />
         </MapContainer>
 
-        <div className="pointer-events-none absolute bottom-3 left-3 rounded border border-white/10 bg-black/70 px-2 py-1.5 text-2xs text-white/60">
-          <span className="mr-2 inline-block h-0 w-4 border-t-2 border-dashed border-white/50" />{' '}
-          Collapsed
-          <span className="ml-3 mr-2 inline-block h-0.5 w-4 bg-[#e8c547]" /> Route
+        <div className="pointer-events-none absolute right-2 top-2 z-[500]">
+          <MrtLineLegend
+            net={net}
+            destroyedCount={destroyedList.length}
+            extra={
+              <div className="mt-1 flex items-center gap-1.5 border-t border-white/10 pt-1 text-white/55">
+                <span className="inline-block h-0.5 w-4 shrink-0 bg-[#e8c547]" aria-hidden />
+                <span>Gold = planned route</span>
+              </div>
+            }
+          />
         </div>
       </div>
 

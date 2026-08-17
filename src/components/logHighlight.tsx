@@ -10,6 +10,7 @@ const KEYWORD_GROUPS: { className: string; words: string[] }[] = [
     className: 'text-hiss font-semibold',
     words: [
       'horde',
+      'swarm',
       'ambush',
       'wound',
       'wounds',
@@ -23,8 +24,11 @@ const KEYWORD_GROUPS: { className: string; words: string[] }[] = [
       'attack',
       'collapse',
       'floodwater',
+      'flood',
       'hazard',
       'patrol',
+      'pocket',
+      'slabs',
     ],
   },
   {

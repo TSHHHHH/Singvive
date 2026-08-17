@@ -51,9 +51,15 @@ body {
   box-sizing: border-box;
 }
 
-/* Poured-concrete map: drained of colour, lit like a service corridor. */
+/* In-run basemap: Dark Matter is already muted; a small lift keeps streets
+   readable under the fog veil (phones in ambient light especially). */
 .apoc-tiles {
-  filter: grayscale(0.92) brightness(0.55) contrast(1.25) sepia(0.12);
+  filter: brightness(1.22) contrast(1.1);
+}
+@media (max-width: 640px) {
+  .apoc-tiles {
+    filter: brightness(1.4) contrast(1.15);
+  }
 }
 
 /* Bureau signage: stencilled, wide, upper-case. */

@@ -1,29 +1,31 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useGame } from '../game/store';
 import { Icon } from '../icons/Icon';
 import { itemDef } from '../game/loot';
+import { codeOnLine, journeyStrip } from '../game/mrt';
 import {
   HAZARD_META,
   PRESSURE_BANDS,
   PRESSURE_MAX,
   TUNNEL_NODE_META,
   canExitHere,
+  crawlPlace,
   currentNode,
   hazardDc,
   isArrival,
   isRevealed,
   nodeThreat,
   pressureBand,
-  stationProgress,
   type TunnelNode,
   type TunnelRun,
 } from '../game/tunnelRun';
+import { useMrtNetwork } from './MrtOverlay';
+import { CrawlPids } from './StationStrip';
 
 /**
- * The tunnel between two adjacent stations, as a map you walk left to right.
- * Pick a lane, take what's on it, move up a column — and you can only ever see
- * one column ahead, because the bore curves and the torch doesn't carry.
+ * One planned crawl, left to right. The header is an in-train station strip —
+ * next stop, livery, transfers — then the Slay-the-Spire bore map underneath.
  *
  * Replaces the map for the length of the walk (it is a view, not a modal).
  */
@@ -45,40 +47,47 @@ export function TunnelRunView() {
     })),
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const net = useMrtNetwork(true);
 
-  if (!run) return null;
+  const strip = useMemo(() => {
+    if (!run) return null;
+    const ids = run.stationIds?.length ? run.stationIds : [run.fromStation, run.toStation];
+    const names = run.stationNames?.length ? run.stationNames : [run.fromName, run.toName];
+    return journeyStrip(net, ids, {
+      names,
+      fallback: { code: run.lineCode, name: run.lineName, color: run.lineColor },
+    });
+  }, [run, net]);
+
+  if (!run || !strip) return null;
 
   const here = currentNode(run);
   const ahead = here.next.map((id) => run.nodes[id]);
   const selected = (selectedId && run.nodes[selectedId]) || ahead[0] || here;
   const canWalk = ahead.some((n) => n.id === selected.id);
   const mayExit = canExitHere(run, here);
+  const place = crawlPlace(run);
+  const platformCodes: Record<string, string> = {};
+  for (let i = 0; i < strip.stops.length; i++) {
+    const stop = strip.stops[i];
+    const hop = strip.hops[i - 1] ?? strip.hops[i];
+    platformCodes[stop.id] = codeOnLine(stop, hop?.lineCode ?? '');
+  }
 
   return (
     <div className="flex h-full w-full min-h-0 flex-col overflow-hidden bg-concrete-950">
-      {/* ---- signage header ---- */}
-      <div className="sticky top-0 z-10 flex shrink-0 items-center justify-between gap-3 border-b border-concrete-600 bg-concrete-800 px-3 py-2.5 lg:px-4">
-        <div className="min-w-0">
-          <div className="signage truncate text-xs text-signal">
-            {run.fromName} → {run.toName}
-          </div>
-          <div className="truncate text-xs text-concrete-400">
-            {run.lineName} · {stationProgress(run)} · {run.meters} m · no weather down here
-          </div>
-        </div>
-        <div className="shrink-0 text-right">
-          <div className="h-1 w-16 rounded-full" style={{ background: run.lineColor }} />
-          <div className="mt-1 text-2xs tabular-nums text-concrete-400">
-            {here.col} / {run.cols - 1}
-          </div>
-        </div>
-      </div>
+      <CrawlPids strip={strip} place={place} meters={run.meters} />
 
       <PressureGauge pressure={run.pressure} />
 
       {/* ---- the map ---- */}
       <div className="min-h-0 flex-1 overflow-auto p-3 lg:p-4">
-        <TunnelMap run={run} selectedId={selected.id} onSelect={setSelectedId} />
+        <TunnelMap
+          run={run}
+          selectedId={selected.id}
+          platformCodes={platformCodes}
+          onSelect={setSelectedId}
+        />
       </div>
 
       {/* ---- the camp you're standing in, if any ---- */}
@@ -175,10 +184,12 @@ interface Edge {
 function TunnelMap({
   run,
   selectedId,
+  platformCodes,
   onSelect,
 }: {
   run: TunnelRun;
   selectedId: string;
+  platformCodes: Record<string, string>;
   onSelect: (id: string) => void;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -273,6 +284,11 @@ function TunnelMap({
                 run={run}
                 node={node}
                 selected={node.id === selectedId}
+                platformCode={
+                  node.kind === 'platform' && node.stationId
+                    ? platformCodes[node.stationId]
+                    : undefined
+                }
                 onSelect={onSelect}
                 register={(el) => {
                   if (el) nodeRefs.current.set(node.id, el);
@@ -291,12 +307,14 @@ function NodePip({
   run,
   node,
   selected,
+  platformCode,
   onSelect,
   register,
 }: {
   run: TunnelRun;
   node: TunnelNode;
   selected: boolean;
+  platformCode?: string;
   onSelect: (id: string) => void;
   register: (el: HTMLElement | null) => void;
 }) {
@@ -315,6 +333,12 @@ function NodePip({
         ? 'border-concrete-600/50 bg-concrete-900 text-concrete-400'
         : 'border-concrete-600 bg-concrete-800 text-concrete-400 opacity-60';
 
+  const label = isHere
+    ? 'you'
+    : revealed
+      ? (platformCode ?? node.name)
+      : '???';
+
   return (
     <div className="flex w-16 flex-col items-center gap-1 lg:w-24">
       <button
@@ -329,7 +353,7 @@ function NodePip({
         <Icon name={revealed ? meta.icon : 'tunnel.unknown'} size={18} />
       </button>
       <span className="max-w-full truncate text-center text-2xs leading-tight text-concrete-400">
-        {isHere ? 'you' : revealed ? node.name : '???'}
+        {label}
       </span>
       {revealed && isNext && node.kind !== 'platform' && (
         <span className="text-2xs tabular-nums text-hiss">▲{nodeThreat(run, node)}</span>

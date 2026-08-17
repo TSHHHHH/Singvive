@@ -30,12 +30,16 @@ export type CombatFlavorKey =
   | 'gunshotEcho'
   | 'enemyRollZombie'
   | 'enemyRollHuman'
+  | 'enemyRollAnimal'
   | 'enemyHitZombie'
   | 'enemyHitHuman'
+  | 'enemyHitAnimal'
   | 'enemyCritZombie'
   | 'enemyCritHuman'
+  | 'enemyCritAnimal'
   | 'enemyMissZombie'
   | 'enemyMissHuman'
+  | 'enemyMissAnimal'
   | 'enemyDodge'
   | 'enemyBite'
   | 'oppHit'
@@ -111,6 +115,12 @@ const POOLS: Record<CombatFlavorKey, string[]> = {
     '{enemy} presses the attack',
     '{enemy} closes the gap',
   ],
+  enemyRollAnimal: [
+    '{enemy} lunges',
+    '{enemy} snaps in',
+    '{enemy} comes at you',
+    '{enemy} closes fast',
+  ],
   enemyHitZombie: [
     'Fingers rake your {zone} — {dmg}.{soakNote}',
     'It catches your {zone} for {dmg}.{soakNote}',
@@ -125,6 +135,13 @@ const POOLS: Record<CombatFlavorKey, string[]> = {
     'You take {dmg} to the {zone}.{soakNote}',
     'Their swing connects — {zone}, {dmg}.{soakNote}',
   ],
+  enemyHitAnimal: [
+    'Jaws catch your {zone} — {dmg}.{soakNote}',
+    'Claws rake your {zone} for {dmg}.{soakNote}',
+    'It slams into your {zone}. {dmg} damage.{soakNote}',
+    'Teeth scrape your {zone} — {dmg}.{soakNote}',
+    'A heavy hit to the {zone} for {dmg}.{soakNote}',
+  ],
   enemyCritZombie: [
     'CRITICAL — a blow to the {zone} for {dmg}!{soakNote}',
     'CRITICAL! It hammers your {zone} for {dmg}.{soakNote}',
@@ -134,6 +151,11 @@ const POOLS: Record<CombatFlavorKey, string[]> = {
     'CRITICAL — a brutal hit to the {zone} for {dmg}!{soakNote}',
     'CRITICAL! They smash your {zone} for {dmg}.{soakNote}',
     'CRITICAL — the blow lands square on your {zone}. {dmg}!{soakNote}',
+  ],
+  enemyCritAnimal: [
+    'CRITICAL — jaws on your {zone} for {dmg}!{soakNote}',
+    'CRITICAL! It tears into your {zone} for {dmg}.{soakNote}',
+    'CRITICAL — a crushing bite on your {zone}. {dmg}!{soakNote}',
   ],
   enemyMissZombie: [
     'You dodge its grasp.',
@@ -146,6 +168,12 @@ const POOLS: Record<CombatFlavorKey, string[]> = {
     'You duck under the blow.',
     'They miss — close, but not close enough.',
     'You step out of the strike\'s path.',
+  ],
+  enemyMissAnimal: [
+    'You twist clear of the jaws.',
+    'It snaps past — empty air.',
+    'Claws miss by a breath.',
+    'You step aside as it overshoots.',
   ],
   enemyDodge: [
     'You slip the blow — reflexes and footing.',
@@ -215,7 +243,7 @@ export function playerOutcomeKey(
 }
 
 /** Enemy narrative keys from kind. */
-export function enemyKeys(kind: 'zombie' | 'human'): {
+export function enemyKeys(kind: 'zombie' | 'human' | 'animal'): {
   roll: CombatFlavorKey;
   hit: CombatFlavorKey;
   crit: CombatFlavorKey;
@@ -227,6 +255,14 @@ export function enemyKeys(kind: 'zombie' | 'human'): {
       hit: 'enemyHitHuman',
       crit: 'enemyCritHuman',
       miss: 'enemyMissHuman',
+    };
+  }
+  if (kind === 'animal') {
+    return {
+      roll: 'enemyRollAnimal',
+      hit: 'enemyHitAnimal',
+      crit: 'enemyCritAnimal',
+      miss: 'enemyMissAnimal',
     };
   }
   return {

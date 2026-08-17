@@ -13,7 +13,7 @@ import {
 } from '../game/playable';
 import { playerIcon } from '../components/mapIcons';
 import { UnplayableLegend, UnplayableOverlay } from '../components/UnplayableOverlay';
-import { MrtOverlay, legendLines, useMrtNetwork } from '../components/MrtOverlay';
+import { MrtLineLegend, MrtOverlay, useMrtNetwork } from '../components/MrtOverlay';
 import {
   TILE_ATTRIBUTION,
   TILE_MAX_NATIVE_ZOOM,
@@ -307,19 +307,8 @@ export function SpawnSelect() {
         </button>
 
         {showMrt && mrtNet && (
-          <div className="absolute right-2 top-11 z-[500] max-w-[45vw] rounded border border-white/15 bg-concrete-900/95 p-2 text-2xs leading-tight text-white/70 shadow-signage">
-            {legendLines(mrtNet).map((line) => (
-              <div key={line.code} className="flex items-center gap-1.5">
-                <span
-                  className="inline-block h-0.5 w-4 shrink-0 rounded"
-                  style={{ background: line.color }}
-                />
-                <span className="truncate">{line.name}</span>
-              </div>
-            ))}
-            <div className="mt-1 border-t border-white/10 pt-1 text-white/35">
-              OSM · baked {mrtNet.generatedAt}
-            </div>
+          <div className="absolute right-2 top-11 z-[500]">
+            <MrtLineLegend net={mrtNet} />
           </div>
         )}
 

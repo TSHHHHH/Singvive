@@ -13,6 +13,7 @@ import {
   playerSpeed,
   secondsPerAction,
 } from '../game/combat';
+import { combatantIcon } from '../game/enemies';
 import type { CombatLogEntry, StanceId } from '../game/types';
 
 const TONE_CLASS: Record<CombatLogEntry['tone'], string> = {
@@ -115,7 +116,7 @@ export function CombatPanel() {
         />
         <Corner
           name={z.name}
-          icon={z.kind === 'human' ? 'combat.enemyHuman' : 'combat.enemyZombie'}
+          icon={combatantIcon(z)}
           hp={Math.max(0, Math.round(z.hp))}
           maxHp={z.maxHp}
           pct={zPct}

@@ -1,4 +1,5 @@
 import type { TimeOfDay, WeatherKind } from './types';
+import type { HazardKind } from './wilds';
 
 // ---------------------------------------------------------------------------
 // Log flavour.
@@ -212,6 +213,9 @@ const POOLS: Record<FlavorKey, string[]> = {
     'No cover, no warning. It\'s on you before you can pick a line.',
     'Something was lying low in the grass. It isn\'t anymore.',
     'Open ground was a bad idea. Something proves it.',
+    'A splash on the canal. Then it comes up the bank.',
+    'Something in the lallang does not stay hidden.',
+    'The street goes quiet except for claws on concrete.',
   ],
   restExposed: [
     'You sleep rough in the open, and it barely counts as sleep.',
@@ -262,8 +266,86 @@ const HEAT_TAILS = [
   'Shiok if you had a drink. You do not.',
 ];
 
+export type HazardBeat = 'cross' | 'wound' | 'clear' | 'infect';
+
+const HAZARD_POOLS: Record<HazardKind, Partial<Record<HazardBeat, string[]>>> = {
+  horde_pocket: {
+    cross: [
+      'You cut through a horde pocket. The stink clings, and every step costs you.',
+      'Dead things packed this stretch. You push through anyway — it wears you down.',
+      'A pocket of the horde. You keep moving. Your legs pay for it.',
+    ],
+    infect: [
+      'The air in the pocket is wrong. You can feel it under your skin.',
+      'Something in that clot gets into you. It will not stay a smell.',
+    ],
+  },
+  gang_patrol: {
+    cross: [
+      'You cross claimed ground. Eyes on you the whole way. It takes it out of you.',
+      'Someone still patrols this stretch. You do not linger — and it still costs you.',
+      'Patrolled ground. You keep your head down and burn the energy to get off it.',
+    ],
+  },
+  collapse: {
+    wound: [
+      'The slab shifts. Something in your leg goes wrong.',
+      'Rebar and pancaked concrete — you misstep, and the leg takes it.',
+      'The collapse field bites. Pain shoots up from the ankle.',
+    ],
+    clear: [
+      'You pick a line through the pancaked slabs and make it.',
+      'Unstable ground, but your feet find the gaps.',
+      'The rubble wants a leg. You do not give it one.',
+    ],
+  },
+  floodwater: {
+    cross: [
+      'You wade the drain runoff. Slow, cold, and the clock does not wait.',
+      'Waist-deep floodwater. Each step is a fight, and daylight leaks away.',
+      'The water hides the footing. You slog through. Time goes with it.',
+    ],
+    infect: [
+      'The floodwater gets into a cut. It will not stay a cut.',
+      'Foul water finds a break in the skin. Heat follows.',
+    ],
+  },
+  wildlife_water: {
+    cross: [
+      'Something in the water has this bank. You do not linger — it still costs you.',
+      'The canal is claimed. Crossing it puts eyes on you, and the effort in your legs.',
+    ],
+  },
+  wildlife_forest: {
+    cross: [
+      'The trees went quiet here. You push through claimed catchment, and it drains you.',
+      'Whatever lives in this stretch does not want company. Getting off it costs you.',
+    ],
+  },
+  wildlife_urban: {
+    cross: [
+      'Strays own this block. You cut through their stretch, and it wears you down.',
+      'Infested ground. You keep moving. They let you — for a price in energy.',
+    ],
+  },
+  night_swarm: {
+    cross: [
+      'The street is theirs. Crossing it in the dark is a mistake you feel in your legs.',
+      'Night swarm in the open. You run the gauntlet. It takes everything you have.',
+      'They own the dark. You cross anyway. Your body knows it was a bad call.',
+    ],
+  },
+};
+
 function pick<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
+}
+
+/** Diary line for a hazard bite — consequence first, not the map label. */
+export function flavorHazard(kind: HazardKind, beat: HazardBeat): string {
+  const pool = HAZARD_POOLS[kind][beat];
+  if (pool && pool.length > 0) return pick(pool);
+  return pick(HAZARD_POOLS.horde_pocket.cross ?? ['The ground here takes its toll.']);
 }
 
 function fill(tpl: string, ctx: FlavorCtx): string {

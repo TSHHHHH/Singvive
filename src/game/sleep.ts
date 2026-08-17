@@ -1,5 +1,6 @@
 import type { PoiCategory } from './types';
 import type { HdbGroundKind } from './hdbDungeon';
+import { HAZARD_CONFIG, type HazardZone } from './wilds';
 
 /** Walls & doors vs open air / void deck. */
 export type EnclosedLevel = 'none' | 'partial' | 'full';
@@ -63,6 +64,10 @@ export interface SleepConditions {
   ambush: SleepAmbush | null;
   /** Short line for the log / Rest preview. */
   summary: string;
+  /** Why ambush/recovery moved — shown on the Rest tip. */
+  occupancyNotes: string[];
+  floodSleep: boolean;
+  collapseSleep: boolean;
 }
 
 /** Ideal night (full walls, roof, bed) — used by service beds. */
@@ -84,6 +89,9 @@ function finalize(
     recoveryMult,
     ambush: ambushFor(enclosed, roof, bed),
     summary: summarize(enclosed, roof, bed),
+    occupancyNotes: [],
+    floodSleep: false,
+    collapseSleep: false,
   };
 }
 
@@ -169,6 +177,94 @@ export function sleepAmbushChance(
 ): number {
   if (!ambush) return 0;
   return Math.max(ambush.floor, trekEncounterChance * ambush.riskScale);
+}
+
+/**
+ * Day pockets and open-street night swarm reshape rest. A roofed site is
+ * Neville's house — night swarm does not punch through walls.
+ */
+export function applySleepOccupancy(
+  conditions: SleepConditions,
+  pockets: HazardZone[],
+): SleepConditions {
+  if (conditions.enclosed === 'full' && conditions.bed === 'bed' && pockets.length === 0) {
+    return conditions;
+  }
+
+  const roofedShelter = conditions.roof === 'yes' && conditions.enclosed !== 'none';
+  let recoveryMult = conditions.recoveryMult;
+  let ambush = conditions.ambush;
+  const notes = [...conditions.occupancyNotes];
+  let floodSleep = conditions.floodSleep;
+  let collapseSleep = conditions.collapseSleep;
+
+  const bumpAmbush = (floor: number, riskScale: number, note: string) => {
+    notes.push(note);
+    if (!ambush) {
+      ambush = { floor, riskScale };
+      return;
+    }
+    ambush = {
+      floor: Math.max(ambush.floor, floor),
+      riskScale: Math.max(ambush.riskScale, riskScale),
+    };
+  };
+
+  for (const z of pockets) {
+    if (z.kind === 'night_swarm') {
+      if (roofedShelter) {
+        notes.push('Night swarm in the street — walls hold.');
+      } else {
+        bumpAmbush(0.75, 1.15, HAZARD_CONFIG.night_swarm.blurb);
+      }
+      continue;
+    }
+    if (z.kind === 'horde_pocket' || z.kind === 'gang_patrol' || z.kind.startsWith('wildlife')) {
+      const floor = conditions.enclosed === 'full' ? 0.12 + z.severity * 0.04 : 0.28 + z.severity * 0.08;
+      const note =
+        z.kind === 'horde_pocket'
+          ? 'You lie down in a horde pocket. They are close enough to smell.'
+          : z.kind === 'gang_patrol'
+            ? 'Claimed ground. Someone is still walking it tonight.'
+            : 'Whatever claimed this stretch does not sleep.';
+      bumpAmbush(floor, conditions.enclosed === 'full' ? 0.55 : 1, note);
+      continue;
+    }
+    if (z.kind === 'floodwater') {
+      recoveryMult *= 0.82;
+      floodSleep = true;
+      notes.push('Damp ground — sleep comes harder.');
+      continue;
+    }
+    if (z.kind === 'collapse') {
+      collapseSleep = true;
+      notes.push('Unstable slabs under the bedroll.');
+    }
+  }
+
+  return { ...conditions, recoveryMult, ambush, occupancyNotes: notes, floodSleep, collapseSleep };
+}
+
+export interface RestPreview {
+  conditions: SleepConditions;
+  ambushChance: number;
+  infectionDelta: number;
+  collapseWound: boolean;
+}
+
+/** Combine occupancy-adjusted conditions with the night trek roll. */
+export function restAmbushPreview(
+  conditions: SleepConditions,
+  nightTrekEncounterChance: number,
+): RestPreview {
+  const infectionDelta = conditions.floodSleep ? 4 : 0;
+  const collapseWound = conditions.collapseSleep;
+  return {
+    conditions,
+    ambushChance: sleepAmbushChance(conditions.ambush, nightTrekEncounterChance),
+    infectionDelta,
+    collapseWound,
+  };
 }
 
 export const ENCLOSED_LABEL: Record<EnclosedLevel, string> = {

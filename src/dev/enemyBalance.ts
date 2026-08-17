@@ -10,6 +10,7 @@ import type {
   LonerArchetype,
   LonerKind,
   ZombieArchetype,
+  AnimalArchetype,
 } from '../game/enemies';
 import {
   ELITE_IDS,
@@ -125,6 +126,24 @@ export function expectedLoner(t: LonerArchetype, danger: number): Enemy {
   };
 }
 
+export function expectedAnimal(t: AnimalArchetype, danger: number): Enemy {
+  const hpScale = 1 + Math.max(0, danger - 2) * 0.08;
+  const hp = Math.max(1, Math.round((t.hp + midRange(t.hpJitter)) * hpScale));
+  return {
+    name: t.name,
+    kind: 'animal',
+    hp,
+    maxHp: hp,
+    attack: t.attack,
+    defense: t.defense,
+    damage: t.damage,
+    infectious: t.infectious,
+    armor: t.armor,
+    speed: t.speed,
+    icon: t.icon,
+  };
+}
+
 export function expectedFromScaling(s: HumanScaling, danger: number, name = 'Human', armor = 0): Enemy {
   return expectedHuman(
     {
@@ -137,7 +156,7 @@ export function expectedFromScaling(s: HumanScaling, danger: number, name = 'Hum
   );
 }
 
-export type OverviewKind = 'zombie' | 'elite' | 'human' | 'loner';
+export type OverviewKind = 'zombie' | 'elite' | 'human' | 'loner' | 'animal';
 
 export type OverviewRow = {
   key: string;
@@ -160,7 +179,8 @@ export type OverviewRow = {
     | { tab: 'zombies'; sel: { t: 'elite'; id: EliteId } }
     | { tab: 'humans'; sel: { t: 'faction'; id: FactionKey } }
     | { tab: 'humans'; sel: { t: 'loner'; id: LonerKind } }
-    | { tab: 'humans'; sel: { t: 'defaults' } };
+    | { tab: 'humans'; sel: { t: 'defaults' } }
+    | { tab: 'animals'; sel: { t: 'animal'; id: string } };
 };
 
 export type OverviewSortKey =
@@ -265,6 +285,18 @@ export function buildOverviewRows(catalog: EnemiesCatalog, danger: number): Over
     );
   }
 
+  for (const a of catalog.animals) {
+    rows.push(
+      rowFromEnemy(
+        `animal:${a.id}`,
+        'animal',
+        `${a.habitats.join('/')} · weight ${a.weight}`,
+        expectedAnimal(a, danger),
+        { tab: 'animals', sel: { t: 'animal', id: a.id } },
+      ),
+    );
+  }
+
   return rows;
 }
 
@@ -291,7 +323,8 @@ export function whereUsedNotes(
     | { t: 'elite'; id: EliteId }
     | { t: 'faction'; id: FactionKey }
     | { t: 'loner'; id: LonerKind }
-    | { t: 'defaults' },
+    | { t: 'defaults' }
+    | { t: 'animal'; id: string },
 ): string[] {
   const notes: string[] = [];
   if (target.t === 'tier') {
@@ -333,6 +366,13 @@ export function whereUsedNotes(
   } else if (target.t === 'loner') {
     notes.push('Doorway fight events (scavenger / desperate survivor)');
     notes.push(`Drop chance ${catalog.loners[target.id].dropChance}`);
+  } else if (target.t === 'animal') {
+    const a = catalog.animals.find((x) => x.id === target.id);
+    if (a) {
+      notes.push(`Habitats: ${a.habitats.join(', ')}`);
+      notes.push(`Spawn weight ${a.weight} within those habitats`);
+      notes.push(`Drop chance ${a.dropChance}`);
+    }
   } else {
     notes.push('Applied to every faction human unless that faction overrides a field');
   }

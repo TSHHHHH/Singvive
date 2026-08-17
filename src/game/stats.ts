@@ -14,6 +14,7 @@ export function emptyRunStats(): RunStats {
   return {
     zombieKills: 0,
     humanKills: 0,
+    animalKills: 0,
     fightsFled: 0,
     distanceM: 0,
     poisSearched: 0,
@@ -50,6 +51,7 @@ export const STAT_GROUPS: StatGroup[] = [
     rows: [
       { key: 'zombieKills', label: 'Zombies killed', icon: 'combat.enemyZombie' },
       { key: 'humanKills', label: 'Humans killed', icon: 'combat.enemyHuman' },
+      { key: 'animalKills', label: 'Animals killed', icon: 'combat.enemyAnimal' },
       { key: 'fightsFled', label: 'Fights fled', icon: 'stance.disengage' },
     ],
   },

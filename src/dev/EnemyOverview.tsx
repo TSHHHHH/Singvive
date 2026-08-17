@@ -78,6 +78,7 @@ export function EnemyOverview({
             <option value="elite">Elites</option>
             <option value="human">Faction humans</option>
             <option value="loner">Loners</option>
+            <option value="animal">Animals</option>
           </select>
         </label>
         <p className="max-w-xl text-[11px] leading-snug text-white/40">

@@ -82,6 +82,16 @@ export function diffEnemiesCatalogs(
 
   leafDiff('spawn', baseline.spawn, next.spawn, changed);
 
+  const baseA = new Map((baseline.animals ?? []).map((z) => [z.id, z]));
+  const nextA = new Map((next.animals ?? []).map((z) => [z.id, z]));
+  for (const id of nextA.keys()) {
+    if (!baseA.has(id)) added.push(`animal:${id}`);
+    else leafDiff(`animal:${id}`, baseA.get(id), nextA.get(id), changed);
+  }
+  for (const id of baseA.keys()) {
+    if (!nextA.has(id)) removed.push(`animal:${id}`);
+  }
+
   added.sort();
   removed.sort();
   changed.sort((a, b) => a.path.localeCompare(b.path));

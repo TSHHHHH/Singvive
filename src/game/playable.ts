@@ -30,6 +30,9 @@ interface RingIndex {
   maxLat: number;
   minLng: number;
   maxLng: number;
+  centroidLat: number;
+  centroidLng: number;
+  areaM2: number;
 }
 
 let zones: ZonesData | null = null;
@@ -45,14 +48,47 @@ function indexRings(rings: ZoneRing[]): RingIndex[] {
     let maxLat = -Infinity;
     let minLng = Infinity;
     let maxLng = -Infinity;
+    let sumLat = 0;
+    let sumLng = 0;
     for (const [lat, lng] of ring) {
       if (lat < minLat) minLat = lat;
       if (lat > maxLat) maxLat = lat;
       if (lng < minLng) minLng = lng;
       if (lng > maxLng) maxLng = lng;
+      sumLat += lat;
+      sumLng += lng;
     }
-    return { ring, minLat, maxLat, minLng, maxLng };
+    const n = Math.max(1, ring.length);
+    return {
+      ring,
+      minLat,
+      maxLat,
+      minLng,
+      maxLng,
+      centroidLat: sumLat / n,
+      centroidLng: sumLng / n,
+      areaM2: ringAreaM2(ring),
+    };
   });
+}
+
+/** Rough m² of a lat/lng ring (shoelace on a local plane). */
+function ringAreaM2(ring: ZoneRing): number {
+  if (ring.length < 3) return 0;
+  const lat0 = ring[0][0];
+  const mPerDegLat = 111000;
+  const mPerDegLng = 111000 * Math.cos((lat0 * Math.PI) / 180);
+  let area = 0;
+  for (let i = 0; i < ring.length; i++) {
+    const [aLat, aLng] = ring[i];
+    const [bLat, bLng] = ring[(i + 1) % ring.length];
+    const ax = aLng * mPerDegLng;
+    const ay = aLat * mPerDegLat;
+    const bx = bLng * mPerDegLng;
+    const by = bLat * mPerDegLat;
+    area += ax * by - bx * ay;
+  }
+  return Math.abs(area) / 2;
 }
 
 function inAny(lat: number, lng: number, indexed: RingIndex[]): boolean {
@@ -141,6 +177,52 @@ export function walkabilityOf(lat: number, lng: number): Walkability {
 
 export function isWalkable(lat: number, lng: number): boolean {
   return walkabilityOf(lat, lng) === 'ok';
+}
+
+/** True when the point sits inside a baked inland water polygon (not open sea). */
+export function inInlandWater(lat: number, lng: number): boolean {
+  if (!zones || waterIdx.length === 0) return false;
+  return inAny(lat, lng, waterIdx);
+}
+
+export interface InlandWaterFeature {
+  index: number;
+  lat: number;
+  lng: number;
+  areaM2: number;
+}
+
+/**
+ * Inland water bodies whose bbox reaches `radiusM` of a point.
+ * Open sea is not in this list — only `zones.water` rings.
+ */
+export function inlandWaterFeaturesNear(
+  lat: number,
+  lng: number,
+  radiusM: number,
+): InlandWaterFeature[] {
+  if (!zones || waterIdx.length === 0) return [];
+  const dLat = radiusM / 111000;
+  const dLng = radiusM / (111000 * Math.cos((1.35 * Math.PI) / 180));
+  const out: InlandWaterFeature[] = [];
+  for (let i = 0; i < waterIdx.length; i++) {
+    const r = waterIdx[i]!;
+    if (
+      lat + dLat < r.minLat ||
+      lat - dLat > r.maxLat ||
+      lng + dLng < r.minLng ||
+      lng - dLng > r.maxLng
+    ) {
+      continue;
+    }
+    out.push({
+      index: i,
+      lat: r.centroidLat,
+      lng: r.centroidLng,
+      areaM2: r.areaM2,
+    });
+  }
+  return out;
 }
 
 /** True when the point sits inside a baked forest / nature-reserve polygon. */

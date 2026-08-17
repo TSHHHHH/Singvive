@@ -5,10 +5,16 @@ import { fileURLToPath } from 'node:url';
 import { validateItemsCatalog } from './src/dev/validateItems.ts';
 import { validateLootTablesCatalog } from './src/dev/validateLootTables.ts';
 import { validateEnemiesCatalog } from './src/dev/validateEnemies.ts';
+import {
+  normalizeRecipesCatalog,
+  validateRecipesCatalog,
+  type RecipesCatalog,
+} from './src/dev/validateRecipes.ts';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const ITEMS_PATH = path.join(ROOT, 'src/game/data/items.json');
 const LOOT_TABLES_PATH = path.join(ROOT, 'src/game/data/lootTables.json');
+const RECIPES_PATH = path.join(ROOT, 'src/game/data/recipes.json');
 const ENEMIES_PATH = path.join(ROOT, 'src/game/data/enemies.json');
 const ICONS_DIR = path.join(ROOT, 'src/assets/icons');
 const KEYS_PATH = path.join(ROOT, 'src/icons/keys.ts');
@@ -155,6 +161,7 @@ function isDevLootHotFile(file: string): boolean {
   if (
     samePath(file, ITEMS_PATH) ||
     samePath(file, LOOT_TABLES_PATH) ||
+    samePath(file, RECIPES_PATH) ||
     samePath(file, ENEMIES_PATH) ||
     samePath(file, KEYS_PATH)
   ) {
@@ -415,6 +422,48 @@ export function lootDevApi(): Plugin {
                 return;
               }
               fs.writeFileSync(LOOT_TABLES_PATH, `${JSON.stringify(parsed, null, 2)}\n`, 'utf8');
+              json(res, 200, { ok: true });
+            } catch (err) {
+              json(res, 400, { error: String(err) });
+            }
+            return;
+          }
+
+          res.statusCode = 405;
+          res.setHeader('Allow', 'GET, PUT');
+          res.end('Method Not Allowed');
+          return;
+        }
+
+        if (url === '/__dev/recipes') {
+          if (req.method === 'GET') {
+            try {
+              const raw = fs.readFileSync(RECIPES_PATH, 'utf8');
+              res.statusCode = 200;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(raw);
+            } catch (err) {
+              json(res, 500, { error: String(err) });
+            }
+            return;
+          }
+
+          if (req.method === 'PUT') {
+            try {
+              const body = await readBody(req);
+              const parsed: unknown = JSON.parse(body);
+              const knownIds = readKnownItemIds();
+              const errors = validateRecipesCatalog(parsed, knownIds);
+              if (errors.length > 0) {
+                json(res, 400, { error: 'Validation failed', errors });
+                return;
+              }
+              const normalized = normalizeRecipesCatalog(parsed as RecipesCatalog);
+              fs.writeFileSync(
+                RECIPES_PATH,
+                `${JSON.stringify(normalized, null, 2)}\n`,
+                'utf8',
+              );
               json(res, 200, { ok: true });
             } catch (err) {
               json(res, 400, { error: String(err) });

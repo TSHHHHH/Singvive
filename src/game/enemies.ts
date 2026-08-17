@@ -1,4 +1,5 @@
 import type { Enemy, FactionId } from './types';
+import type { IconName } from '../icons/keys';
 import type { Rng } from './rng';
 import { ITEMS } from './loot';
 import enemiesCatalog from './data/enemies.json' with { type: 'json' };
@@ -9,6 +10,28 @@ export type EliteId = 'hulk' | 'stalker';
 export type EliteContext = 'hdb' | 'tunnel';
 
 export type IntRange = [number, number];
+
+export type AnimalHabitat = 'water' | 'forest' | 'urban';
+
+export const ANIMAL_HABITATS: readonly AnimalHabitat[] = ['water', 'forest', 'urban'] as const;
+
+export interface AnimalArchetype {
+  id: string;
+  name: string;
+  hp: number;
+  attack: number;
+  defense: number;
+  damage: number;
+  infectious: number;
+  armor: number;
+  speed: number;
+  hpJitter: IntRange;
+  habitats: AnimalHabitat[];
+  weight: number;
+  dropChance: number;
+  drops: string[];
+  icon: IconName;
+}
 
 export interface ZombieArchetype {
   id: string;
@@ -98,6 +121,7 @@ export interface EnemiesCatalog {
   humanDefaults: HumanScaling;
   humans: Record<FactionKey, HumanFactionEntry>;
   loners: Record<LonerKind, LonerArchetype>;
+  animals: AnimalArchetype[];
   spawn: SpawnRules;
 }
 
@@ -256,6 +280,52 @@ export function rollLoner(
   };
 }
 
+export function combatantIcon(enemy: Enemy): IconName {
+  if (enemy.icon) return enemy.icon;
+  if (enemy.kind === 'human') return 'combat.enemyHuman';
+  if (enemy.kind === 'animal') return 'combat.enemyAnimal';
+  return 'combat.enemyZombie';
+}
+
+export function rollAnimal(
+  catalog: EnemiesCatalog,
+  rng: Rng,
+  habitat: AnimalHabitat,
+  danger: number,
+): Enemy {
+  const pool = catalog.animals.filter((a) => a.habitats.includes(habitat));
+  const r = rng.fork('animal');
+  const pick = pool.length
+    ? r.weighted(pool.map((a) => [a, Math.max(1, a.weight)] as const))
+    : catalog.animals[0]!;
+  const hpScale = 1 + Math.max(0, danger - 2) * 0.08;
+  const hp = Math.max(1, Math.round((pick.hp + intRange(pick.hpJitter, r)) * hpScale));
+  return {
+    name: pick.name,
+    kind: 'animal',
+    hp,
+    maxHp: hp,
+    attack: pick.attack,
+    defense: pick.defense,
+    damage: pick.damage,
+    infectious: pick.infectious,
+    armor: pick.armor,
+    speed: pick.speed,
+    icon: pick.icon,
+  };
+}
+
+export function rollAnimalDrop(
+  catalog: EnemiesCatalog,
+  rng: Rng,
+  enemyName: string,
+): string | null {
+  const t = catalog.animals.find((a) => a.name === enemyName);
+  if (!t || !t.drops.length) return null;
+  if (t.dropChance < 1 && !rng.chance(t.dropChance)) return null;
+  return rng.pick(t.drops);
+}
+
 export function humanDrops(catalog: EnemiesCatalog, faction: FactionKey): string[] {
   return catalog.humans[faction].drops;
 }
@@ -304,9 +374,18 @@ if (import.meta.env.DEV) {
   for (const id of LONER_KINDS) {
     if (!ENEMIES.loners[id]) console.error(`[enemies] missing loner "${id}"`);
   }
+  if (!Array.isArray(ENEMIES.animals) || ENEMIES.animals.length < 1) {
+    console.error('[enemies] animals must be a non-empty array');
+  }
+  const animalIds = new Set<string>();
+  for (const a of ENEMIES.animals ?? []) {
+    if (animalIds.has(a.id)) console.error(`[enemies] duplicate animal id "${a.id}"`);
+    animalIds.add(a.id);
+  }
   const allDrops = [
     ...Object.values(ENEMIES.humans).flatMap((h) => h.drops),
     ...Object.values(ENEMIES.loners).flatMap((l) => l.drops),
+    ...(ENEMIES.animals ?? []).flatMap((a) => a.drops),
   ];
   for (const id of allDrops) {
     if (!ITEMS[id]) console.error(`[enemies] drop references unknown item "${id}"`);

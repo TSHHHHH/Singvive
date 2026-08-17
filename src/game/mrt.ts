@@ -6,7 +6,8 @@ import { edgeKey, isEdgeDestroyed } from './mrtDamage';
  * public/mrt.json.
  *
  * Two things use it. The map overlay draws it — real track geometry, official
- * liveries, station codes. And travel walks it: no train has run in months, so
+ * liveries, station codes — and the tunnel planner reuses that same overlay so
+ * both views stay in lockstep. Travel walks it: no train has run in months, so
  * a trip is a planned tunnel crawl along a chosen route (possibly many stops),
  * with some edges destroyed each run. `findRoute` / `findRoutes` are the
  * load-bearing queries for long-range travel; `neighbours` remains the one-hop
@@ -240,6 +241,29 @@ export function displayLine(net: MrtNetwork, line: MrtLine): MrtLine {
   return (line.parent ? net.lineByCode.get(line.parent) : null) ?? line;
 }
 
+/** One hop on a planned crawl, coloured as the map draws it (branch → parent). */
+export interface JourneyHop {
+  fromId: string;
+  toId: string;
+  lineCode: string;
+  lineName: string;
+  color: string;
+  meters: number;
+}
+
+/** One station on a planned crawl. `isTransfer` is a change on *this* route. */
+export interface JourneyStop {
+  id: string;
+  name: string;
+  codes: string[];
+  isTransfer: boolean;
+}
+
+export interface JourneyStrip {
+  stops: JourneyStop[];
+  hops: JourneyHop[];
+}
+
 /** One tunnel segment: the next station down the line, and how far it is. */
 export interface MrtSegment {
   station: MrtStation;
@@ -278,6 +302,60 @@ export function adjacentEdge(
   destroyed?: DestroyedEdges,
 ): MrtSegment | null {
   return neighbours(net, fromId, destroyed).find((n) => n.station.id === toId) ?? null;
+}
+
+const FALLBACK_HOP = { code: '', name: 'Tunnel', color: '#9c9890' };
+
+/**
+ * Liveries and transfer flags for an ordered station-id path. Derived at
+ * render so a crawl save does not need a new schema key. Missing network or
+ * a hop the adjacency table does not know still returns a strip — the HUD
+ * falls back to the run's first-line colour rather than going blank.
+ */
+export function journeyStrip(
+  net: MrtNetwork | null,
+  stationIds: readonly string[],
+  opts?: {
+    names?: readonly string[];
+    fallback?: { code: string; name: string; color: string };
+    destroyed?: DestroyedEdges;
+  },
+): JourneyStrip {
+  const fallback = opts?.fallback ?? FALLBACK_HOP;
+  const hops: JourneyHop[] = [];
+  for (let i = 1; i < stationIds.length; i++) {
+    const fromId = stationIds[i - 1];
+    const toId = stationIds[i];
+    const seg = net ? adjacentEdge(net, fromId, toId, opts?.destroyed) : null;
+    const shown = seg && net ? displayLine(net, seg.line) : null;
+    const prev = hops[hops.length - 1];
+    hops.push({
+      fromId,
+      toId,
+      lineCode: shown?.code ?? prev?.lineCode ?? fallback.code,
+      lineName: shown?.name ?? prev?.lineName ?? fallback.name,
+      color: shown?.color ?? prev?.color ?? fallback.color,
+      meters: seg?.meters ?? 0,
+    });
+  }
+
+  const stops: JourneyStop[] = stationIds.map((id, i) => {
+    const station = net?.byId.get(id);
+    const name = opts?.names?.[i] || station?.name || id;
+    const codes = station?.codes.length ? station.codes : [id];
+    const isTransfer =
+      i > 0 && i < hops.length && hops[i - 1].lineCode !== hops[i].lineCode;
+    return { id, name, codes, isTransfer };
+  });
+
+  return { stops, hops };
+}
+
+/** The code on this station that belongs to `lineCode`, else the canonical id. */
+export function codeOnLine(stop: JourneyStop, lineCode: string): string {
+  if (!lineCode) return stop.codes[0] ?? stop.id;
+  const prefix = lineCode.slice(0, 2);
+  return stop.codes.find((c) => c.startsWith(prefix)) ?? stop.codes[0] ?? stop.id;
 }
 
 /** As `adjacentEdge`, for two locations — null unless both are known stations. */

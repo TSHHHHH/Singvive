@@ -1,10 +1,11 @@
 import type { Enemy } from '../game/types';
-import type { EnemiesCatalog, EliteId, FactionKey, LonerKind } from '../game/enemies';
+import type { EnemiesCatalog, EliteId, FactionKey, LonerKind, AnimalHabitat } from '../game/enemies';
 import {
   rollElite,
   rollHuman,
   rollLoner,
   rollZombie,
+  rollAnimal,
 } from '../game/enemies';
 import { Rng } from '../game/rng';
 
@@ -12,7 +13,8 @@ export type PreviewKind =
   | { t: 'zombie' }
   | { t: 'elite'; id: EliteId }
   | { t: 'human'; faction: FactionKey }
-  | { t: 'loner'; kind: LonerKind };
+  | { t: 'loner'; kind: LonerKind }
+  | { t: 'animal'; habitat: AnimalHabitat };
 
 /** Seeded danger 1..5 preview for the encounter editor Spawn tab. */
 export function previewEncounter(
@@ -31,5 +33,7 @@ export function previewEncounter(
       return rollHuman(catalog, rng, kind.faction, danger);
     case 'loner':
       return rollLoner(catalog, rng, kind.kind, danger);
+    case 'animal':
+      return rollAnimal(catalog, rng, kind.habitat, danger);
   }
 }

@@ -7,16 +7,18 @@ import type { ReactNode } from 'react';
 export function MapInterruptCard({
   children,
   accent = 'signal',
+  className = '',
 }: {
   children: ReactNode;
   accent?: 'signal' | 'hiss';
+  className?: string;
 }) {
   const border =
     accent === 'hiss' ? 'border-hiss/50' : 'border-white/15';
 
   return (
     <div
-      className={`pointer-events-auto absolute left-3 right-3 z-[640] flex max-h-[min(70vh,calc(100dvh-var(--mobile-nav-h)-var(--mobile-status-bar-h)-env(safe-area-inset-bottom,0px)-1.25rem))] flex-col overflow-hidden rounded-lg border bg-concrete-900/95 shadow-signage lg:hidden ${border}`}
+      className={`pointer-events-auto absolute left-3 right-3 z-[640] flex max-h-[min(70vh,calc(100dvh-var(--mobile-nav-h)-var(--mobile-status-bar-h)-env(safe-area-inset-bottom,0px)-1.25rem))] flex-col overflow-hidden rounded-lg border bg-concrete-900/95 shadow-signage lg:hidden ${border} ${className}`}
       style={{
         bottom:
           'calc(var(--mobile-nav-h) + env(safe-area-inset-bottom, 0px) + 1.75rem)',
