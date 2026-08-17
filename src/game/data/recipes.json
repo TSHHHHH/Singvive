@@ -120,8 +120,8 @@
     "blurb": "Rags and tape into something you can sleep in. Heavy, but better than the floor."
   },
   {
-    "id": "new_recipe",
-    "name": "Make a EZ-Link Knife",
+    "id": "ez_link_knife",
+    "name": "Laminate an EZ-Link Knife",
     "inputs": {
       "ez_link_card": 4,
       "scrap_metal": 1
@@ -130,6 +130,47 @@
     "outputCount": 1,
     "hours": 0.5,
     "needsShelter": false,
-    "blurb": "What this craft is for."
+    "blurb": "Four spent cards and a scrap edge. STA will not take them as tribute anymore."
+  },
+  {
+    "id": "kopi_c",
+    "name": "Brew Kopi C",
+    "inputs": {
+      "coffee": 1,
+      "condensed_milk": 1,
+      "water_bottle": 1
+    },
+    "outputDefId": "kopi_c",
+    "outputCount": 1,
+    "hours": 0.5,
+    "needsShelter": true,
+    "blurb": "Packet kopi, a squeeze of condensed milk, and the last of a bottle. It is not a kopitiam, but it is close."
+  },
+  {
+    "id": "cooked_mee",
+    "name": "Cook Maggi",
+    "inputs": {
+      "instant_noodles": 1,
+      "water_bottle": 1
+    },
+    "outputDefId": "cooked_mee",
+    "outputCount": 1,
+    "hours": 0.5,
+    "needsShelter": false,
+    "blurb": "A brick of noodles and a bottle of water. Heat is optional. Hunger is not."
+  },
+  {
+    "id": "milo_dinosaur",
+    "name": "Mix a Milo Dinosaur",
+    "inputs": {
+      "milo_tin": 1,
+      "condensed_milk": 1,
+      "water_bottle": 1
+    },
+    "outputDefId": "milo_dinosaur",
+    "outputCount": 1,
+    "hours": 0.5,
+    "needsShelter": false,
+    "blurb": "The whole tin, extra powder on top, and whatever water you can spare. Heavy tin, light cup."
   }
 ]

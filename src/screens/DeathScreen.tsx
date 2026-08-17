@@ -1,10 +1,79 @@
+import { useEffect, useState } from 'react';
+import {
+  fetchOnlineScores,
+  submitDedupeKey,
+  submitOnlineScoreOnce,
+  type OnlineScore,
+} from '../api/scores';
+import { ScoreBoard } from '../components/ScoreBoard';
 import { useGame } from '../game/store';
 import { DEATH_TEXT, scoreDayMult } from '../game/survival';
 
+type WorldStatus = 'pending' | 'ok' | 'offline' | 'limited' | 'invalid';
+
 export function DeathScreen() {
-  const { deathCause, finalScore, day, kills, highScores, character, escaped, resetToMenu } =
-    useGame();
+  const {
+    deathCause,
+    finalScore,
+    day,
+    kills,
+    highScores,
+    character,
+    escaped,
+    seed,
+    resetToMenu,
+  } = useGame();
   const mult = scoreDayMult(day);
+  const [world, setWorld] = useState<OnlineScore[] | null | undefined>(undefined);
+  const [worldStatus, setWorldStatus] = useState<WorldStatus>('pending');
+  const [postedId, setPostedId] = useState<number | undefined>(undefined);
+  const [rank, setRank] = useState<number | undefined>(undefined);
+
+  useEffect(() => {
+    let cancelled = false;
+    const key = submitDedupeKey(seed, finalScore, escaped);
+
+    void (async () => {
+      if (!seed) {
+        setWorldStatus('offline');
+      } else {
+        const result = await submitOnlineScoreOnce(key, {
+          name: character?.name ?? 'Survivor',
+          days: day,
+          score: finalScore,
+          cause: escaped
+            ? 'Escaped Singapore by evac.'
+            : deathCause
+              ? DEATH_TEXT[deathCause]
+              : 'Gone.',
+          seed,
+          escaped,
+        });
+        if (cancelled) return;
+        if (result.ok) {
+          setPostedId(result.id);
+          setRank(result.rank);
+          setWorldStatus('ok');
+        } else {
+          setWorldStatus(result.reason);
+        }
+      }
+
+      const list = await fetchOnlineScores();
+      if (!cancelled) setWorld(list);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [character?.name, day, deathCause, escaped, finalScore, seed]);
+
+  const localRows = highScores.slice(0, 5).map((h) => ({
+    name: h.name,
+    days: h.days,
+    score: h.score,
+    escaped: h.cause === 'Escaped Singapore by evac.',
+  }));
 
   return (
     <div className="flex min-h-full items-center justify-center p-6">
@@ -32,49 +101,40 @@ export function DeathScreen() {
             <>
               {character?.name} escaped Singapore on day{' '}
               <span className="text-signal">{day}</span>
-              {day > 1 ? (
-                <>
-                  {' '}
-                  (×{mult.toFixed(1)} score mult)
-                </>
-              ) : null}
-              .
+              {day > 1 ? <> (×{mult.toFixed(1)} score mult)</> : null}.
             </>
           ) : (
             <>
               {character?.name} lasted <span className="text-signal">{day}</span>{' '}
               {day === 1 ? 'day' : 'days'} in the ruins of Singapore
-              {day > 1 ? (
-                <>
-                  {' '}
-                  (×{mult.toFixed(1)} score mult)
-                </>
-              ) : null}
-              .
+              {day > 1 ? <> (×{mult.toFixed(1)} score mult)</> : null}.
             </>
           )}
         </p>
 
-        {highScores.length > 0 && (
+        <p className="mt-3 text-xs text-white/40">{statusCopy(worldStatus, rank)}</p>
+
+        {localRows.length > 0 && (
           <div className="mt-6 text-left">
-            <h2 className="mb-2 text-xs uppercase tracking-widest text-white/40">Leaderboard</h2>
-            <ul className="flex flex-col gap-1 text-sm">
-              {highScores.slice(0, 5).map((h, i) => (
-                <li
-                  key={i}
-                  className="flex justify-between rounded bg-white/5 px-3 py-1.5 text-white/70"
-                >
-                  <span>
-                    {i + 1}. {h.name}
-                  </span>
-                  <span className="tabular-nums">
-                    {h.days}d · {h.score}
-                  </span>
-                </li>
-              ))}
-            </ul>
+            <h2 className="mb-2 text-xs uppercase tracking-widest text-white/40">This device</h2>
+            <ScoreBoard rows={localRows} />
           </div>
         )}
+
+        <div className="mt-6 text-left">
+          <h2 className="mb-2 text-xs uppercase tracking-widest text-white/40">Worldwide</h2>
+          {world === undefined ? (
+            <p className="text-sm text-white/40">Loading worldwide scores…</p>
+          ) : world === null ? (
+            <p className="text-sm text-white/40">Worldwide board unreachable.</p>
+          ) : (
+            <ScoreBoard
+              rows={world.slice(0, 10)}
+              highlightId={postedId}
+              empty="No worldwide scores yet."
+            />
+          )}
+        </div>
 
         <button
           onClick={resetToMenu}
@@ -85,6 +145,15 @@ export function DeathScreen() {
       </div>
     </div>
   );
+}
+
+function statusCopy(status: WorldStatus, rank: number | undefined): string {
+  if (status === 'pending') return 'Posting to the worldwide board…';
+  if (status === 'ok' && rank != null) return `Worldwide rank #${rank}.`;
+  if (status === 'ok') return 'Posted to the worldwide board.';
+  if (status === 'limited') return 'Worldwide board is rate-limited — saved on this device.';
+  if (status === 'invalid') return "Couldn't post this score — saved on this device.";
+  return 'Worldwide board unreachable — saved on this device.';
 }
 
 function Stat({ label, value }: { label: string; value: number }) {

@@ -10,7 +10,10 @@
     "bake:pois": "node --experimental-strip-types scripts/bake-pois.mjs",
     "bake:mrt": "node scripts/bake-mrt.mjs",
     "bake:zones": "node --experimental-strip-types scripts/bake-zones.mjs",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "deploy": "npm run build && wrangler deploy",
+    "db:migrate": "wrangler d1 migrations apply singvive-scores --remote",
+    "db:migrate:local": "wrangler d1 migrations apply singvive-scores --local"
   },
   "dependencies": {
     "leaflet": "^1.9.4",
@@ -22,6 +25,8 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.52.1",
+    "@cloudflare/workers-types": "^5.20260817.1",
     "@types/leaflet": "^1.9.21",
     "@types/node": "^24.13.2",
     "@types/react": "^19.2.17",
@@ -33,6 +38,7 @@
     "postcss": "^8.5.16",
     "tailwindcss": "^3.4.19",
     "typescript": "~6.0.2",
-    "vite": "^8.1.1"
+    "vite": "^8.1.1",
+    "wrangler": "^4.123.0"
   }
 }

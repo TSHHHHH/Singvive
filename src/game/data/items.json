@@ -2352,6 +2352,62 @@
     "maxStack": 1,
     "color": "#2f6fb5",
     "slot": "mainHand",
-    "wearRate": 1
+    "wearRate": 2,
+    "maxCondition": 50
+  },
+  "kopi_c": {
+    "id": "kopi_c",
+    "name": "Kopi C",
+    "w": 1,
+    "h": 1,
+    "weight": 0.4,
+    "effect": {
+      "kind": "energy",
+      "energy": 28,
+      "thirst": 12
+    },
+    "value": 12,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#8a6b4a",
+    "maxCondition": 100,
+    "perishable": true
+  },
+  "cooked_mee": {
+    "id": "cooked_mee",
+    "name": "Cooked Maggi",
+    "w": 2,
+    "h": 1,
+    "weight": 0.45,
+    "effect": {
+      "kind": "food",
+      "hunger": 40,
+      "thirst": 8
+    },
+    "value": 8,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#c97a32",
+    "maxCondition": 100,
+    "perishable": true
+  },
+  "milo_dinosaur": {
+    "id": "milo_dinosaur",
+    "name": "Milo Dinosaur",
+    "w": 1,
+    "h": 2,
+    "weight": 0.55,
+    "effect": {
+      "kind": "energy",
+      "energy": 24,
+      "thirst": 18,
+      "hunger": 16
+    },
+    "value": 14,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#5a3a28",
+    "maxCondition": 100,
+    "perishable": true
   }
 }

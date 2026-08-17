@@ -1,0 +1,19 @@
+CREATE TABLE IF NOT EXISTS scores (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  days INTEGER NOT NULL,
+  score INTEGER NOT NULL,
+  cause TEXT NOT NULL,
+  seed TEXT NOT NULL,
+  escaped INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_scores_rank ON scores (score DESC, created_at ASC, id ASC);
+
+CREATE TABLE IF NOT EXISTS rate_limits (
+  ip_hash TEXT PRIMARY KEY,
+  last_at INTEGER NOT NULL,
+  hour_bucket INTEGER NOT NULL,
+  count_hour INTEGER NOT NULL
+);

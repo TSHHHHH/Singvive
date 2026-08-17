@@ -1,7 +1,29 @@
+import { useEffect, useState } from 'react';
+import { fetchOnlineScores, type OnlineScore } from '../api/scores';
+import { ScoreBoard, ScoreBoardTabs } from '../components/ScoreBoard';
 import { useGame } from '../game/store';
 
 export function Menu() {
   const { goToCharacter, continueRun, hasSavedRun, highScores } = useGame();
+  const [tab, setTab] = useState<'world' | 'device'>('world');
+  const [world, setWorld] = useState<OnlineScore[] | null | undefined>(undefined);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchOnlineScores().then((list) => {
+      if (!cancelled) setWorld(list);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const localRows = highScores.slice(0, 5).map((h) => ({
+    name: h.name,
+    days: h.days,
+    score: h.score,
+    escaped: h.cause === 'Escaped Singapore by evac.',
+  }));
 
   return (
     <div className="flex min-h-full items-center justify-center p-6">
@@ -33,26 +55,21 @@ export function Menu() {
           )}
         </div>
 
-        {highScores.length > 0 && (
-          <div className="mx-auto mt-8 max-w-md text-left">
-            <h2 className="mb-2 text-xs uppercase tracking-widest text-white/40">Top scores</h2>
-            <ul className="flex flex-col gap-1 text-sm">
-              {highScores.slice(0, 5).map((h, i) => (
-                <li
-                  key={i}
-                  className="flex justify-between rounded bg-white/5 px-3 py-1.5 text-white/70"
-                >
-                  <span>
-                    {i + 1}. {h.name}
-                  </span>
-                  <span className="tabular-nums">
-                    {h.days}d · {h.score}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+        <div className="mx-auto mt-8 max-w-md text-left">
+          <h2 className="mb-2 text-xs uppercase tracking-widest text-white/40">Top scores</h2>
+          <ScoreBoardTabs value={tab} onChange={setTab} />
+          {tab === 'world' ? (
+            world === undefined ? (
+              <p className="text-sm text-white/40">Loading worldwide scores…</p>
+            ) : world === null ? (
+              <p className="text-sm text-white/40">Worldwide board unreachable.</p>
+            ) : (
+              <ScoreBoard rows={world.slice(0, 10)} empty="No worldwide scores yet." />
+            )
+          ) : (
+            <ScoreBoard rows={localRows} empty="No scores on this device yet." />
+          )}
+        </div>
 
         <p className="mx-auto mt-10 max-w-md text-xs leading-relaxed text-white/30">
           A roguelike survival game on the real map of Singapore — 9400+ OSM places to scavenge,

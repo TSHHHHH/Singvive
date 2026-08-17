@@ -164,11 +164,13 @@ export type IconName =
   | 'item.canned_food'
   | 'item.rice_pack'
   | 'item.instant_noodles'
+  | 'item.cooked_mee'
   | 'item.snacks'
   | 'item.hawker_meal'
   | 'item.bak_kwa'
   | 'item.army_ration'
   | 'item.milo_tin'
+  | 'item.milo_dinosaur'
   | 'item.condensed_milk'
   | 'item.kaya_toast'
   | 'item.curry_puff'
@@ -196,6 +198,7 @@ export type IconName =
   | 'item.changkol'
   | 'item.sbo_vest'
   | 'item.ez_link_card'
+  | 'item.ez_link_knife'
   | 'item.red_packet'
   | 'item.joss_paper'
   | 'item.rain_tarp'
@@ -218,6 +221,7 @@ export type IconName =
   | 'item.antibiotics'
   | 'item.antiseptic'
   | 'item.coffee'
+  | 'item.kopi_c'
   | 'item.energy_drink'
   | 'item.kitchen_knife'
   | 'item.hammer'
@@ -413,11 +417,13 @@ export const EMOJI_FALLBACK: Record<IconName, string> = {
   'item.canned_food': '🥫',
   'item.rice_pack': '🍚',
   'item.instant_noodles': '🍜',
+  'item.cooked_mee': '🍜',
   'item.snacks': '🍪',
   'item.hawker_meal': '🍛',
   'item.bak_kwa': '🥓',
   'item.army_ration': '🎖️',
   'item.milo_tin': '🥤',
+  'item.milo_dinosaur': '🥤',
   'item.condensed_milk': '🥛',
   'item.kaya_toast': '🍞',
   'item.curry_puff': '🥟',
@@ -445,6 +451,7 @@ export const EMOJI_FALLBACK: Record<IconName, string> = {
   'item.changkol': '⛏️',
   'item.sbo_vest': '🎽',
   'item.ez_link_card': '💳',
+  'item.ez_link_knife': '💳',
   'item.red_packet': '🧧',
   'item.joss_paper': '📄',
   'item.rain_tarp': '⛺',
@@ -467,6 +474,7 @@ export const EMOJI_FALLBACK: Record<IconName, string> = {
   'item.antibiotics': '💉',
   'item.antiseptic': '🧪',
   'item.coffee': '☕',
+  'item.kopi_c': '☕',
   'item.energy_drink': '🥫',
   'item.kitchen_knife': '🔪',
   'item.hammer': '🔨',

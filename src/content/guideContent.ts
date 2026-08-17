@@ -62,7 +62,7 @@ export const GUIDE_SECTIONS: readonly GuideSection[] = [
     bullets: [
       'Score = (kills × 25 + carried loot value + days × 50) × day multiplier. Day 1 is ×1.0; each further day adds ×0.1.',
       'A successful extract adds 2000 × the same day multiplier. Linger to climb the mult, then lift out late for the best board score.',
-      'Death still posts a score. When the horde hits 100%, the city is overrun and the run ends.',
+      'Death still posts a score on this device, and to the worldwide board when you are online. When the horde hits 100%, the city is overrun and the run ends.',
     ],
   },
 ] as const;

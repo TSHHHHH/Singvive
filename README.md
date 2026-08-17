@@ -49,7 +49,7 @@ Pick an occupation (or Advanced trait build) → Choose a real SG spawn (density
     optional HDB dive or tunnel run → haul loot into the grid → cache surplus in the stash →
     craft / repair / trade at a hub → eat / drink / treat wounds / rest under site conditions →
     watch the evac beacon & horde clock ]
-  repeat until death or successful extract → score → local leaderboard
+  repeat until death or successful extract → score → local board + worldwide honor board
 ```
 
 There is no fixed "turn": every action consumes a number of **in-game hours**. Time is the central
@@ -264,7 +264,8 @@ hostility, trade, shelter, aid, and intel:
 
 ### 3.13 Crafting & repair
 - Deliberately small recipe set (`game/data/recipes.json`): purify/boil water, tear dressings, lash spear
-  variants, strip gear for parts, handload shells, craft a sleeping bag. Some recipes need a
+  variants, strip gear for parts, handload shells, stitch a sleeping bag, plus a few SG sinks
+  (EZ-Link knife, Kopi C, Milo dinosaur, cooked Maggi). Some recipes need a
   **workbench** (stash / HDB shelter). Tools can be required without being consumed.
 - **Repair:** field whetstone / gun oil; workbench repair with duct tape + scrap + toolbox.
 - Crafting is a **loot sink** first — scrap and tape have somewhere to go; clean water is made, not found.
@@ -301,13 +302,16 @@ hostility, trade, shelter, aid, and intel:
   (`game/ghostSurvivor.ts`).
 
 ### 3.18 Persistence, scoring & settings
-- Fully **client-side**. Keys:
+- Fully **client-side** for the run. Keys:
   - `singvive.run.v6` — active run (v6: extraction goal + horde clock)
-  - `singvive.scores.v1` — local leaderboard
+  - `singvive.scores.v1` — personal leaderboard on this device
   - `singvive.settings.v1` — prefs independent of the run (timeline detail, 12/24 clock, weather FX,
     font size)
   - `singvive.legacy_run` — last dead survivor for ghost encounters
   - plus zoom / MRT overlay prefs
+- **Worldwide honor board** — death and extract also `POST /api/scores` (Cloudflare Worker + D1).
+  Failures are silent; the personal list still writes. Lists do not sync. Client-computed scores are
+  accepted (rate-limited, sanitized names) — not anti-cheat.
 - **Score** = `(kills×25 + carried loot value + days×50) × dayMult` (+ optional `2000×dayMult` on
   extract). Permadeath clears the run; death still posts a score.
 
@@ -342,7 +346,7 @@ hostility, trade, shelter, aid, and intel:
 | Determinism | `seedrandom`, wrapped in a forkable `Rng` (cosmetic flavour text may use `Math.random`) |
 | Styling | Tailwind CSS 3 |
 | Lint | oxlint |
-| Backend | none (localStorage only) |
+| Backend | Cloudflare Worker + D1 honor board (`/api/scores`); run state is localStorage |
 | Node | pinned by `.nvmrc` (22) |
 
 ```
@@ -352,6 +356,7 @@ src/
                sleep, goal, searchSession, hdbDungeon, tunnelRun, wilds, vegetation, playable,
                route, noise, ghostSurvivor, settings, storage, types, Zustand store
                (+ data/ JSON catalogs: items, lootTables, enemies)
+  api/         same-origin worldwide score client (no fetch under game/)
   content/     player-facing guide copy
   hooks/       shared React hooks (e.g. useAnimatedNumber)
   icons/       icon registry + keys (emoji fallbacks → drop-in PNGs)
@@ -360,6 +365,7 @@ src/
                StatsPanel, ObjectiveBar, ObjectivesPanel, HdbDungeonModal, TunnelRunView,
                StationStrip, TraderModal, GuideModal, SettingsModal, TrekCard, LocationCard, …
   screens/     Menu, CharacterCreate, SpawnSelect, GameScreen, DeathScreen
+worker/        Cloudflare Worker — GET/POST /api/scores → D1
 ```
 
 **Design rule:** everything under `game/` is **pure and seed-driven** — deterministic for a given
@@ -463,7 +469,8 @@ npm install
 npm run dev       # http://localhost:5190  (PORT env overrides; see vite.config.ts)
 npm run build     # typecheck (tsc -b) + production build
 npm run lint      # oxlint
-npm run preview   # serve the production build locally
+npm run preview   # serve the production build locally (Worker + assets)
+npm run db:migrate:local  # apply D1 migrations to the local honor board (first time)
 ```
 
 ### Refreshing map data
@@ -573,8 +580,22 @@ Void decks keep their category-default `size` even though they now have outlines
 
 ### Deploying
 
-Static SPA, no backend. Cloudflare Pages: build `npm run build`, output `dist`, Node pinned by
-`.nvmrc`. No `_redirects` needed — the app is phase-based state with no router, so every URL is `/`.
+Cloudflare **Workers + Assets + D1** (live origin `https://singvive.shhhhhdev.workers.dev`). Node
+pinned by `.nvmrc`. No `_redirects` — the app is phase-based with no router, so every URL is `/`
+except `/api/scores`.
+
+One-time D1 setup (Cloudflare login):
+
+```bash
+npx wrangler d1 create singvive-scores
+# paste database_id into wrangler.jsonc
+npm run db:migrate
+```
+
+Then `npm run deploy` (`tsc -b && vite build && wrangler deploy`).
+
+The worldwide board is an honor list: the client posts the score; the Worker sanitizes names and
+rate-limits by IP. Personal top-10 stays in `localStorage` and is not bulk-uploaded.
 
 ---
 
@@ -588,8 +609,8 @@ Good areas for another agent to extend or pressure-test:
   fortification / street barricades are still open design.
 - **Richer NPC life:** traders and ghost survivors exist; expand schedules, travelling merchants,
   faction quests beyond standing ladders.
-- **Meta-progression:** unlocks across runs, daily/shareable seeds, online leaderboards & accounts
-  (a Neon Postgres backend is available if we go online).
+- **Meta-progression:** unlocks across runs, daily/shareable seeds, accounts
+  (daily seeds are deferred — same seed is not the same run while spawn is player-chosen).
 - **Balance:** tune travel speed, meter/injury drain, danger regen, horde climb, evac thresholds, and
   loot rarity for a satisfying survival length.
 - **Recipe expansion:** keep the craft set small on purpose — add sinks only when loot piles up with
@@ -599,7 +620,8 @@ Good areas for another agent to extend or pressure-test:
 
 ### Shipped (was roadmap)
 - Crafting & repair, faction barter, ammo + weapon condition, extraction + horde clock, HDB cutaways,
-  search sessions, sleep quality, occupations, in-game guide, live-stance combat, noise.
+  search sessions, sleep quality, occupations, in-game guide, live-stance combat, noise, worldwide
+  honor board (D1) beside the personal local top-10.
 
 ### Known constraints
 - Overpass has rate limits and latency → map data is pre-baked to a static file, so the live API is

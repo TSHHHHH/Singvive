@@ -14,6 +14,10 @@ import recipesCatalog from './data/recipes.json' with { type: 'json' };
  * a single output would make binding a parang to a stick strictly worse than
  * binding a kitchen knife to it — same result, better blade spent. The blade
  * you give up is the blade you get back, with reach added.
+ *
+ * SG flavour crafts (EZ-Link knife, Kopi C, Maggi, Milo dinosaur) are the same
+ * rule in local dress: pile-up loot with nowhere else to go, turned into a
+ * worse-or-equal tool or meal. They do not mint value and they do not drop.
  */
 
 export interface Recipe {

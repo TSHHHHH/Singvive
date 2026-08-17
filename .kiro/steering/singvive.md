@@ -6,7 +6,7 @@ inclusion: always
 
 ## What This Is
 
-Singvive is a browser-based zombie-apocalypse survival roguelike played on the real map of Singapore. Players navigate actual OSM-sourced locations, manage survival meters, engage in D&D-style combat, and haul loot home in a spatial Tetris inventory. Permadeath. Seeded determinism. No backend.
+Singvive is a browser-based zombie-apocalypse survival roguelike played on the real map of Singapore. Players navigate actual OSM-sourced locations, manage survival meters, engage in D&D-style combat, and haul loot home in a spatial Tetris inventory. Permadeath. Seeded determinism. Worldwide scores are an honor board on Cloudflare D1; the run itself stays client-side.
 
 ## Tech Stack
 
@@ -20,7 +20,7 @@ Singvive is a browser-based zombie-apocalypse survival roguelike played on the r
 | Styling | Tailwind CSS 3 (apocalyptic palette: `rot`, `blood`, `toxic`) |
 | Inventory DnD | Custom pointer-drag + `@dnd-kit/core` |
 | Linting | oxlint |
-| Persistence | localStorage only |
+| Persistence | localStorage for the run + personal top 10; Cloudflare D1 for the worldwide honor board |
 
 ## Project Structure
 
@@ -30,15 +30,17 @@ src/
                 Key files: store.ts, types.ts, combat.ts, survival.ts,
                 world.ts, loot.ts, inventory.ts, travel.ts, weather.ts,
                 events.ts, factions.ts, fog.ts, overpass.ts, poi.ts, rng.ts
+  api/          Same-origin score client (not under game/)
   components/   React UI: GameMap, Hud, MeterBar, EventModal, Inventory/*
   screens/      Full-screen phase components: Menu, CharacterCreate,
                 SpawnSelect, GameScreen, CombatScreen, DeathScreen
   App.tsx       Phase router — renders screen based on store.phase
+worker/         Cloudflare Worker: GET/POST /api/scores → D1
 ```
 
 ## Architecture Rules
 
-1. **Pure game logic.** Everything under `src/game/` must have zero React or DOM dependencies. Functions take explicit params, return new values, and route all randomness through the seeded `Rng`.
+1. **Pure game logic.** Everything under `src/game/` must have zero React or DOM dependencies, and no `fetch`. Functions take explicit params, return new values, and route all randomness through the seeded `Rng`.
 
 2. **Single Zustand store.** `src/game/store.ts` is the one source of truth. All game actions live there. Do not introduce additional stores or React context for game state.
 
@@ -75,13 +77,13 @@ src/
 | Factions | `factions.ts` | SAF, Hawker Guild, Void Deck Raiders, Transit Coalition |
 | Fog of War | `fog.ts` | Perception + weather → reveal/detect radii |
 | World Gen | `world.ts`, `overpass.ts` | OSM query → LocationState; danger & size seeded |
-| Persistence | `storage.ts` | localStorage autosave; high scores |
+| Persistence | `storage.ts` | localStorage autosave; personal high scores |
 
 ## Build & Run
 
 ```bash
 npm install
-npm run dev        # Vite dev server at localhost:5173
+npm run dev        # Vite + local Worker/D1 at localhost:5190
 npm run build      # tsc -b && vite build (typecheck + production)
 npm run lint       # oxlint
 ```
@@ -96,7 +98,7 @@ npm run lint       # oxlint
 
 ## What Not To Do
 
-- Don't add a backend. The game is fully client-side by design.
+- Don't put `fetch` or Worker imports under `src/game/`. The worldwide board lives in `src/api/` and `worker/`.
 - Don't replace Zustand with Redux, MobX, or React context.
 - Don't use `Math.random()` anywhere in game logic.
 - Don't introduce CSS-in-JS or styled-components.
