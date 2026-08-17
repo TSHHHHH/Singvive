@@ -6,10 +6,11 @@ import { hordeIntensity } from './goal';
 import { timeOfDay } from './weather';
 
 /**
- * One walk through the tunnels along a planned route (one or many stations),
- * laid out as a branching left-to-right map: pick a lane, take what's on it,
- * move up a column. Intermediate platforms let you exit early. Everything
- * here is pure — the store owns the live run and applies the deltas.
+ * One walk through the tunnels along a planned route (one or many stations).
+ * Generation lays a through running tunnel first (platforms + corridor nodes),
+ * then hangs optional side adits: prev spine → branch node → next spine, so
+ * the extra node sits in the middle of a two-hop curve. Everything here is
+ * pure — the store owns the live run and applies the deltas.
  *
  * The trains stopped a long time ago. What's down there now is standing water,
  * the dead, and the people who decided a bore with two exits was safer than a
@@ -221,7 +222,6 @@ const MIN_MID_COLS = 1;
 const MAX_MID_COLS = 4;
 /** Soft cap so a 20-stop ride stays playable on a phone. */
 const MAX_TOTAL_COLS = 22;
-const LANES = 3;
 
 const clamp = (lo: number, hi: number, n: number) => Math.max(lo, Math.min(hi, n));
 
@@ -267,89 +267,77 @@ function baseDangerFor(ctx: TunnelCtx): number {
   return clamp(1, 5, Math.round(ends) + night + horde + lrt);
 }
 
-/** Which lanes a column of `count` nodes occupies, always centred and sorted. */
-function lanesFor(rng: Rng, count: number): number[] {
-  if (count >= LANES) return [0, 1, 2];
-  if (count === 1) return [1];
-  return rng.pick([
-    [0, 2],
-    [0, 1],
-    [1, 2],
-  ]);
-}
-
 const nodeId = (col: number, lane: number) => `c${col}l${lane}`;
 
-/**
- * Pick each node's kind, with three rules applied after the roll: one camp per
- * column at most, never a camp in the last column before the next platform
- * (a free heal on the doorstep is not a decision), and never a whole column
- * of fights — a column where every lane is a fight isn't a choice, it's a corridor.
- */
-function pickKinds(rng: Rng, count: number, col: number, lastMiddle: number): TunnelNodeKind[] {
-  const full: [TunnelNodeKind, number][] = [
-    ['pack', 34],
-    ['scavenge', 30],
-    ['hazard', 22],
-    ['settlement', 14],
-  ];
-  const noCamp = full.filter(([k]) => k !== 'settlement');
-  const noFight = full.filter(([k]) => k !== 'pack');
+const CORRIDOR_KINDS: [TunnelNodeKind, number][] = [
+  ['scavenge', 42],
+  ['hazard', 26],
+  ['pack', 24],
+  ['settlement', 8],
+];
 
-  const out: TunnelNodeKind[] = [];
-  for (let i = 0; i < count; i++) {
-    const r = rng.fork(`kind:${col}:${i}`);
-    const campAllowed = col !== lastMiddle && !out.includes('settlement');
-    let kind = r.weighted(campAllowed ? full : noCamp);
-    if (kind === 'pack' && count > 1 && out.every((k) => k === 'pack') && out.length === count - 1) {
-      kind = r.weighted(campAllowed ? noFight : noFight.filter(([k]) => k !== 'settlement'));
-    }
-    out.push(kind);
-  }
-  return out;
+const ADIT_KINDS: [TunnelNodeKind, number][] = [
+  ['pack', 32],
+  ['scavenge', 26],
+  ['hazard', 20],
+  ['settlement', 22],
+];
+
+function rollKind(
+  rng: Rng,
+  campAllowed: boolean,
+  table: readonly [TunnelNodeKind, number][],
+): TunnelNodeKind {
+  const pool = campAllowed ? table : table.filter(([k]) => k !== 'settlement');
+  return rng.weighted(pool);
+}
+
+function fillContent(
+  rng: Rng,
+  kind: TunnelNodeKind,
+  col: number,
+  lane: number,
+  danger: number,
+): TunnelNode {
+  const node: TunnelNode = {
+    id: nodeId(col, lane),
+    col,
+    lane,
+    kind,
+    state: 'unknown',
+    name: rng.pick(NAMES[kind]),
+    next: [],
+    danger,
+  };
+  if (kind === 'hazard') node.hazard = rng.pick(['floodwater', 'collapse'] as const);
+  if (kind === 'scavenge') node.lootMod = rng.weighted([[0, 5] as const, [1, 3] as const, [2, 1] as const]);
+  if (kind === 'settlement') node.offer = rng.pick(TUNNEL_TRADES);
+  return node;
+}
+
+function spineOf(columns: string[][], nodes: Record<string, TunnelNode>, col: number): TunnelNode {
+  const row = columns[col].map((id) => nodes[id]);
+  return row.find((n) => n.lane === 1) ?? row[0];
 }
 
 /**
- * Wire each column to the next. Candidates are limited to within one lane and
- * taken as a contiguous slice, which is what keeps edges from crossing; two
- * fix-up passes then guarantee every node has a way in and a way out.
+ * Through-line first: every column's lane-1 node points at the next.
+ * Then each adit is prev-spine → branch → next-spine, so the extra node
+ * sits at the apex of a two-hop curve and never shares a hop with the
+ * corridor node beside it.
  */
-function linkColumns(rng: Rng, columns: string[][], nodes: Record<string, TunnelNode>): void {
+function linkSpineAndAdits(columns: string[][], nodes: Record<string, TunnelNode>): void {
   for (let c = 0; c < columns.length - 1; c++) {
-    const here = columns[c].map((id) => nodes[id]);
-    const next = columns[c + 1].map((id) => nodes[id]);
-
-    for (const node of here) {
-      const near = next.filter((n) => Math.abs(n.lane - node.lane) <= 1);
-      const pool = near.length ? near : next;
-      const r = rng.fork(`link:${node.id}`);
-      const same = next.find((n) => n.lane === node.lane);
-      // Prefer staying in-lane so a side bore can run two or three hops
-      // before a platform pulls everything back to the centre.
-      if (same && r.chance(0.68)) {
-        node.next = [same.id];
-        continue;
-      }
-      const width = pool.length > 1 && r.chance(0.45) ? 2 : 1;
-      const start = r.int(0, Math.max(0, pool.length - width));
-      node.next = pool.slice(start, start + width).map((n) => n.id);
-    }
-
-    // Anything in the next column nobody reaches gets the closest parent...
-    for (const n of next) {
-      if (here.some((h) => h.next.includes(n.id))) continue;
-      const parent = here.reduce((best, h) =>
-        Math.abs(h.lane - n.lane) < Math.abs(best.lane - n.lane) ? h : best,
-      );
-      parent.next.push(n.id);
-    }
-    // ...and anything here that leads nowhere gets the closest child.
-    for (const h of here) {
-      if (h.next.length) continue;
-      const child = next.reduce((best, n) =>
-        Math.abs(n.lane - h.lane) < Math.abs(best.lane - h.lane) ? n : best,
-      );
-      h.next = [child.id];
+    spineOf(columns, nodes, c).next = [spineOf(columns, nodes, c + 1).id];
+  }
+  for (let c = 1; c < columns.length - 1; c++) {
+    const prev = spineOf(columns, nodes, c - 1);
+    const next = spineOf(columns, nodes, c + 1);
+    for (const id of columns[c]) {
+      const node = nodes[id];
+      if (node.lane === 1) continue;
+      prev.next.push(node.id);
+      node.next = [next.id];
     }
   }
 }
@@ -436,46 +424,76 @@ export function generateTunnelRun(rng: Rng, ctx: TunnelCtx): TunnelRun {
     col++;
   };
 
-  const addMiddle = (midCount: number, beforeNextPlatform: boolean) => {
-    for (let i = 0; i < midCount; i++) {
-      const lastMiddle = beforeNextPlatform && i === midCount - 1 ? col : -1;
-      const count = shape.fork(`count:${col}`).weighted([[2, 6] as const, [3, 4] as const]);
-      const lanes = lanesFor(shape.fork(`lanes:${col}`), count);
-      const kinds = pickKinds(shape, lanes.length, col, lastMiddle);
-      const ids: string[] = [];
-      lanes.forEach((lane, li) => {
-        const kind = kinds[li];
-        const r = rng.fork(`node:${col}:${lane}`);
-        const node: TunnelNode = {
-          id: nodeId(col, lane),
-          col,
-          lane,
-          kind,
-          state: 'unknown',
-          name: r.pick(NAMES[kind]),
-          next: [],
-          danger: clamp(0, 5, baseDanger + (col > 4 ? 1 : 0)),
-        };
-        if (kind === 'hazard') node.hazard = r.pick(['floodwater', 'collapse'] as const);
-        if (kind === 'scavenge') node.lootMod = r.weighted([[0, 5] as const, [1, 3] as const, [2, 1] as const]);
-        if (kind === 'settlement') node.offer = r.pick(TUNNEL_TRADES);
-        nodes[node.id] = node;
-        ids.push(node.id);
-      });
-      columns.push(ids);
-      col++;
-    }
+  const addMain = (lastMiddle: boolean) => {
+    const campAllowed = !lastMiddle;
+    const kind = rollKind(shape.fork(`main:${col}`), campAllowed, CORRIDOR_KINDS);
+    const node = fillContent(
+      rng.fork(`node:${col}:1`),
+      kind,
+      col,
+      1,
+      clamp(0, 5, baseDanger + (col > 4 ? 1 : 0)),
+    );
+    nodes[node.id] = node;
+    columns.push([node.id]);
+    col++;
   };
 
   for (let s = 0; s < stations.length; s++) {
     addPlatform(stations[s], s, s === 0);
     if (s < stations.length - 1) {
-      addMiddle(mids[s], true);
+      const midCount = mids[s];
+      for (let i = 0; i < midCount; i++) {
+        addMain(i === midCount - 1);
+      }
     }
   }
 
+  // Phase 2: hang adits off the spine. A branch is only legal where both
+  // neighbours exist, so the extra node can sit in the middle of prev → next.
+  for (let c = 1; c < columns.length - 1; c++) {
+    const here = spineOf(columns, nodes, c);
+    if (here.kind === 'platform') continue;
+    const r = shape.fork(`adit:${c}`);
+    const next = spineOf(columns, nodes, c + 1);
+    const lastMiddle = next.kind === 'platform';
+    const campAllowed = !lastMiddle && here.kind !== 'settlement';
+    const prevLanes = new Set(columns[c - 1].map((id) => nodes[id].lane));
+    const sides: number[] = [];
+    if (r.chance(0.56) && (r.chance(0.38) || !prevLanes.has(0))) sides.push(0);
+    if (r.chance(0.56) && (r.chance(0.38) || !prevLanes.has(2))) sides.push(2);
+    if (sides.length === 2 && r.chance(0.28)) sides.splice(r.int(0, 1), 1);
+    for (const lane of sides) {
+      let kind = rollKind(shape.fork(`aditkind:${c}:${lane}`), campAllowed, ADIT_KINDS);
+      if (kind === 'pack' && here.kind === 'pack') {
+        kind = rollKind(
+          shape.fork(`aditkind:${c}:${lane}:nofight`),
+          campAllowed,
+          ADIT_KINDS.filter(([k]) => k !== 'pack'),
+        );
+      }
+      if (kind === 'settlement' && columns[c].some((id) => nodes[id].kind === 'settlement')) {
+        kind = rollKind(
+          shape.fork(`aditkind:${c}:${lane}:nocamp`),
+          false,
+          ADIT_KINDS.filter(([k]) => k !== 'settlement'),
+        );
+      }
+      const node = fillContent(
+        rng.fork(`node:${c}:${lane}`),
+        kind,
+        c,
+        lane,
+        clamp(0, 5, baseDanger + (c > 4 ? 1 : 0)),
+      );
+      nodes[node.id] = node;
+      columns[c].push(node.id);
+    }
+    columns[c].sort((a, b) => nodes[a].lane - nodes[b].lane);
+  }
+
   const cols = columns.length;
-  linkColumns(rng.fork('edges'), columns, nodes);
+  linkSpineAndAdits(columns, nodes);
 
   return {
     id,

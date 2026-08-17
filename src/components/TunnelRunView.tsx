@@ -34,22 +34,21 @@ import { CrawlPids } from './StationStrip';
 
 /**
  * One planned crawl. The header is an in-train station strip — next stop,
- * livery, transfers — then a 2.5D bore: a main running tunnel with side
- * branches that follow the node graph, nearer discs larger.
+ * livery, transfers — then a perspective schematic of the node tree: a
+ * main running line with octilinear turnouts, like a subway diagram.
  *
  * Replaces the map for the length of the walk (it is a view, not a modal).
  */
 
 const BAND_FILL = ['bg-concrete-500', 'bg-signal/70', 'bg-signal', 'bg-hiss/80', 'bg-hiss'];
 
-/** Tilt of the floor plane, degrees. Matches a receding bore. */
-const TILT = 58;
-/** Half-width of the spine running tunnel, in lane-offset units. */
-const MAIN_HALF = 0.36;
-/** Side branches — clearly thinner than the through running tunnel. */
-const BRANCH_HALF = 0.16;
-/** Station box at a platform, where branches merge. */
-const PLATFORM_HALF = 0.48;
+/** Tilt of the schematic plane. Milder than a bore so the network reads as a map. */
+const TILT = 50;
+/** Side adits — a second "line" off the through running track. */
+const BRANCH_COLOR = '#c45b8c';
+const MAP_VOID = '#0c0c0e';
+const ZOOM_MIN = 0.4;
+const ZOOM_MAX = 2.7;
 
 export function TunnelRunView() {
   const { run, offer, step, rest, treat, accept, decline, exitHere } = useGame(
@@ -103,6 +102,7 @@ export function TunnelRunView() {
         run={run}
         selectedId={selected.id}
         platformCodes={platformCodes}
+        lineColor={run.lineColor || '#9c9890'}
         onSelect={setSelectedId}
       />
 
@@ -186,14 +186,16 @@ interface FloorPt {
   y: number;
 }
 
-interface Tube {
+interface Edge {
   key: string;
   d: string;
-  width: number;
-  kind: 'latent' | 'walked' | 'live';
   main: boolean;
-  /** Smaller = farther; paint far tubes first. */
+  kind: 'latent' | 'walked' | 'live';
   order: number;
+}
+
+function fmtPt(p: FloorPt): string {
+  return `${p.x.toFixed(1)},${p.y.toFixed(1)}`;
 }
 
 function seedPhase(id: string): number {
@@ -205,47 +207,151 @@ function seedPhase(id: string): number {
   return ((h >>> 0) / 4294967296) * Math.PI * 2;
 }
 
-/** Slow S-curve of the whole bore, plus a little per-lane drift so sides aren't mirrors. */
-function laneX(col: number, lane: number, phase: number): number {
-  const spread = 1.22;
-  const meander =
-    Math.sin(col * 0.34 + phase) * 0.62 + Math.sin(col * 0.13 + phase * 1.5) * 0.24;
-  const drift = Math.sin(col * 0.47 + phase + lane * 1.1) * 0.1;
-  return (lane - 1) * spread + meander + drift;
-}
-
 function clamp(n: number, lo: number, hi: number): number {
   return Math.min(hi, Math.max(lo, n));
 }
 
-function floorPos(
-  col: number,
-  lane: number,
-  camCol: number,
-  viewW: number,
-  viewH: number,
-  phase: number,
-  lanePx: number,
-  colGap: number,
-): FloorPt {
-  const rel = col - camCol;
-  return {
-    x: viewW / 2 + laneX(col, lane, phase) * lanePx,
-    y: viewH * 0.86 - rel * colGap,
-  };
+function hash01(n: number): number {
+  let h = Math.imul(n ^ 0x9e3779b9, 0x85ebca6b);
+  h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
+  return (h >>> 0) / 4294967296;
 }
 
-function smoothstep(t: number): number {
-  const x = clamp(t, 0, 1);
-  return x * x * (3 - 2 * x);
+function hashStr(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0) / 4294967296;
 }
 
-function halfFor(node: TunnelNode, main: boolean): number {
-  if (node.kind === 'platform') return PLATFORM_HALF;
-  return main ? MAIN_HALF : BRANCH_HALF;
+/**
+ * Integer track offset per column. Several subway-map personalities so
+ * crawls don't all share the same gentle zigzag.
+ */
+function buildShifts(cols: number, phase: number, maxShift: number): number[] {
+  const seed = Math.floor(phase * 10000);
+  const out = new Array<number>(cols).fill(0);
+  if (cols <= 1) return out;
+  const style = Math.floor(hash01(seed) * 5);
+  const clampS = (s: number) => Math.max(-maxShift, Math.min(maxShift, s));
+
+  if (style === 0) {
+    const dir = hash01(seed + 1) < 0.5 ? -1 : 1;
+    let s = 0;
+    for (let c = 1; c < cols; c++) {
+      const h = hash01(seed + c * 3);
+      if (h < 0.58) s = clampS(s + dir);
+      else if (h > 0.9) s = clampS(s - dir);
+      out[c] = s;
+    }
+  } else if (style === 1) {
+    let s = 0;
+    let hold = 2 + Math.floor(hash01(seed + 9) * 3);
+    for (let c = 1; c < cols; c++) {
+      if (hold > 0) {
+        out[c] = s;
+        hold--;
+        continue;
+      }
+      const dir = hash01(seed + c * 11) < 0.5 ? -1 : 1;
+      s = clampS(s + dir);
+      hold = 2 + Math.floor(hash01(seed + c * 13) * 3);
+      out[c] = s;
+    }
+  } else if (style === 2) {
+    const sign = hash01(seed + 6) < 0.5 ? 1 : -1;
+    const cycles = hash01(seed + 4) < 0.45 ? 1 : 1.35;
+    for (let c = 1; c < cols; c++) {
+      const t = c / (cols - 1);
+      let s = Math.round(Math.sin(t * Math.PI * cycles) * maxShift * sign);
+      if (Math.abs(s - out[c - 1]) > 1) s = out[c - 1] + Math.sign(s - out[c - 1]);
+      out[c] = clampS(s);
+    }
+  } else if (style === 3) {
+    const dir = hash01(seed + 7) < 0.5 ? -1 : 1;
+    const a = Math.max(1, Math.floor(cols * (0.2 + hash01(seed + 8) * 0.2)));
+    const extra = maxShift > 1 && hash01(seed + 10) > 0.4 ? 1 : 0;
+    const b = Math.min(cols - 1, a + 1 + extra);
+    let s = 0;
+    for (let c = 1; c < cols; c++) {
+      if (c === a || c === b) s = clampS(s + dir);
+      out[c] = s;
+    }
+  } else {
+    let s = 0;
+    for (let c = 1; c < cols; c++) {
+      const h = hash01(seed + c * 19);
+      if (h < 0.16) s = clampS(s - 1);
+      else if (h > 0.84) s = clampS(s + 1);
+      out[c] = s;
+    }
+  }
+  return out;
 }
 
-/** Prefer lane 1 (and platforms) so the spine is the through running tunnel. */
+function laneOffset(lane: number, id: string): number {
+  if (lane === 1) return 0;
+  const reach = 1.05 + hashStr(id) * 1.35;
+  return (lane - 1) * reach;
+}
+
+function shorten(from: FloorPt, to: FloorPt, dist: number): FloorPt {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const len = Math.hypot(dx, dy) || 1;
+  const t = Math.min(dist / len, 0.42);
+  return { x: from.x + dx * t, y: from.y + dy * t };
+}
+
+/**
+ * Transit-map elbows. mode 0 = long axis first, 1 = opposite corner,
+ * 2 = peel out early and run parallel.
+ */
+function octilinear(a: FloorPt, b: FloorPt, mode: number): FloorPt[] {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  if (Math.abs(dx) < 1.5) return [a, b];
+  const adx = Math.abs(dx);
+  const ady = Math.abs(dy);
+  const sx = Math.sign(dx);
+  const sy = Math.sign(dy) || -1;
+  if (mode === 2 && adx > 10 && ady > 10) {
+    const d45 = Math.min(adx, ady * 0.42);
+    return [
+      a,
+      { x: a.x + sx * d45, y: a.y + sy * d45 },
+      { x: b.x, y: a.y + sy * d45 },
+      b,
+    ];
+  }
+  if (mode === 1) {
+    return [a, { x: a.x + sx * Math.min(adx, ady), y: a.y + sy * Math.min(adx, ady) }, b];
+  }
+  if (ady >= adx) {
+    return [a, { x: a.x, y: a.y + sy * (ady - adx) }, b];
+  }
+  return [a, { x: a.x + sx * (adx - ady), y: a.y }, b];
+}
+
+function roundedPath(pts: FloorPt[], radius: number): string {
+  if (pts.length < 2) return '';
+  if (pts.length === 2) return `M ${fmtPt(pts[0])} L ${fmtPt(pts[1])}`;
+  let d = `M ${fmtPt(pts[0])}`;
+  for (let i = 1; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const into = shorten(p1, p0, radius);
+    const out = shorten(p1, p2, radius);
+    d += ` L ${fmtPt(into)} Q ${fmtPt(p1)} ${fmtPt(out)}`;
+  }
+  d += ` L ${fmtPt(pts[pts.length - 1])}`;
+  return d;
+}
+
+/** Prefer lane 1 (and platforms) so the spine is the through running line. */
 function mainSpine(run: TunnelRun): Set<string> {
   const ids = new Set<string>();
   let cur = run.columns[0]?.[0];
@@ -264,77 +370,45 @@ function mainSpine(run: TunnelRun): Set<string> {
   return ids;
 }
 
-function samplePath(
-  from: TunnelNode,
-  to: TunnelNode,
-  camCol: number,
-  viewW: number,
-  viewH: number,
-  phase: number,
-  lanePx: number,
-  colGap: number,
-  main: boolean,
-): { d: string; width: number; order: number } | null {
-  const steps = 12;
-  const pts: FloorPt[] = [];
-  const branch = !main || from.lane !== to.lane;
-  const side =
-    Math.sign((from.lane + to.lane) / 2 - 1) || (from.lane <= 1 ? -1 : 1);
-  const swing = branch ? 0.38 + 0.22 * Math.sin(from.col * 1.8 + phase + from.lane) : 0;
-  const peel = branch ? 0.1 : 0;
-  for (let i = 0; i <= steps; i++) {
-    const t = i / steps;
-    const col = from.col + (to.col - from.col) * t;
-    const u = smoothstep(clamp((t - peel) / (1 - peel), 0, 1));
-    let lane = from.lane + (to.lane - from.lane) * u;
-    if (branch) lane += side * swing * Math.sin(Math.PI * t);
-    pts.push(floorPos(col, lane, camCol, viewW, viewH, phase, lanePx, colGap));
-  }
-  const width =
-    ((halfFor(from, main) + halfFor(to, main)) / 2) * 2 * lanePx;
-  return {
-    d: `M ${pts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' L ')}`,
-    width,
-    order: from.col + to.col,
-  };
-}
-
 /**
- * Graph laid out on a tilted floor. CSS perspective tapers the tubes and
- * turns circular pads into discs. Drag / wheel looks further down the bore.
+ * Graph laid out as a tilted schematic. Edges are octilinear; CSS perspective
+ * recedes the network without turning strokes into a 3D bore.
  */
 function TunnelMap({
   run,
   selectedId,
   platformCodes,
+  lineColor,
   onSelect,
 }: {
   run: TunnelRun;
   selectedId: string;
   platformCodes: Record<string, string>;
+  lineColor: string;
   onSelect: (id: string) => void;
 }) {
   const surfaceRef = useRef<HTMLDivElement>(null);
-  const pan = useRef<{
-    pointerId: number;
-    y: number;
-    dolly: number;
-    moved: boolean;
-  } | null>(null);
+  const pointers = useRef(new Map<number, { x: number; y: number }>());
+  const gesture = useRef<
+    | { kind: 'pan'; x: number; y: number; camX: number; camY: number; moved: boolean }
+    | {
+        kind: 'pinch';
+        dist: number;
+        midX: number;
+        midY: number;
+        z: number;
+        camX: number;
+        camY: number;
+      }
+    | null
+  >(null);
   const panned = useRef(false);
   const [view, setView] = useState({ w: 0, h: 0 });
-  const [dolly, setDolly] = useState(0);
+  const [cam, setCam] = useState<{ x: number; y: number; z: number } | null>(null);
   const [dragging, setDragging] = useState(false);
-
   const here = currentNode(run);
   const phase = useMemo(() => seedPhase(run.id), [run.id]);
-  const maxDolly = Math.max(0, run.columns.length - 1 - here.col - 0.15);
-  const dollyRef = useRef(dolly);
-  dollyRef.current = dolly;
-
-  useLayoutEffect(() => {
-    setDolly(0);
-  }, [here.id]);
+  const camRef = useRef({ x: 0, y: 0, z: 1 });
 
   useLayoutEffect(() => {
     const el = surfaceRef.current;
@@ -346,99 +420,212 @@ function TunnelMap({
     return () => ro.disconnect();
   }, []);
 
-  const camCol = here.col + dolly;
-
   const layout = useMemo(() => {
-    if (view.w < 8 || view.h < 8) return null;
-    const lanePx = clamp(view.w * 0.23, 108, 180);
-    const colGap = clamp(view.h * 0.66, 230, 400);
+    const maxCol = Object.values(run.nodes).reduce((m, n) => Math.max(m, n.col), 0);
+    const cols = Math.max(2, run.columns.length, maxCol + 1);
+    const cellX = 108;
+    const cellY = 118;
+    const pad = 96;
+    const maxShift = 3;
+    const shifts = buildShifts(cols, phase, maxShift);
+    const seed = Math.floor(phase * 10000);
+    const yAt: number[] = new Array(cols);
+    yAt[cols - 1] = pad;
+    for (let c = cols - 2; c >= 0; c--) {
+      const plat =
+        Object.values(run.nodes).some((n) => n.col === c + 1 && n.kind === 'platform') ||
+        Object.values(run.nodes).some((n) => n.col === c && n.kind === 'platform');
+      const gap = cellY * (0.78 + hash01(seed + c * 23) * 0.5) * (plat ? 1.22 : 1);
+      yAt[c] = (yAt[c + 1] ?? pad) + gap;
+    }
     const at = new Map<string, FloorPt>();
     for (const node of Object.values(run.nodes)) {
-      at.set(
-        node.id,
-        floorPos(node.col, node.lane, camCol, view.w, view.h, phase, lanePx, colGap),
-      );
+      const shift = shifts[node.col] ?? 0;
+      at.set(node.id, {
+        x: pad + (shift + laneOffset(node.lane, node.id) + maxShift) * cellX,
+        y: yAt[node.col] ?? pad + (cols - 1 - node.col) * cellY,
+      });
     }
+    let maxX = pad;
+    let maxY = pad;
+    for (const pt of at.values()) {
+      if (!Number.isFinite(pt.x) || !Number.isFinite(pt.y)) continue;
+      maxX = Math.max(maxX, pt.x);
+      maxY = Math.max(maxY, pt.y);
+    }
+    const worldW = Math.max(maxX + pad, 320);
+    const worldH = Math.max(maxY + pad, 320);
     const spine = mainSpine(run);
-    const tubes: Tube[] = [];
+    const edges: Edge[] = [];
     for (const node of Object.values(run.nodes)) {
       for (const nextId of node.next) {
         const target = run.nodes[nextId];
-        if (!target) continue;
+        const a = at.get(node.id);
+        const b = at.get(nextId);
+        if (!target || !a || !b) continue;
         const main = spine.has(node.id) && spine.has(target.id);
-        const path = samplePath(
-          node,
-          target,
-          camCol,
-          view.w,
-          view.h,
-          phase,
-          lanePx,
-          colGap,
-          main,
-        );
-        if (!path) continue;
-        const kind: Tube['kind'] =
+        const kind: Edge['kind'] =
           node.id === here.id
             ? 'live'
             : node.state === 'done' && (target.state === 'done' || target.id === here.id)
               ? 'walked'
               : 'latent';
-        tubes.push({
+        const mode = main
+          ? hash01(seed + node.col * 41) < 0.35
+            ? 1
+            : 0
+          : Math.floor(hashStr(`${node.id}>${nextId}`) * 3);
+        edges.push({
           key: `${node.id}>${nextId}`,
-          ...path,
-          kind,
+          d: roundedPath(octilinear(a, b, mode), Math.min(26, cellX * 0.24)),
           main,
+          kind,
+          order: node.col + target.col,
         });
       }
     }
-    tubes.sort((a, b) => a.order - b.order);
+    edges.sort((a, b) => Number(a.main) - Number(b.main) || b.order - a.order);
 
-    return { at, tubes };
-  }, [run, here.id, camCol, view.w, view.h, phase]);
+    const hubs = Object.values(run.nodes)
+      .filter((n) => n.kind === 'platform')
+      .map((n) => ({ id: n.id, pt: at.get(n.id)! }))
+      .filter((h) => h.pt);
 
-  const applyDolly = useCallback(
-    (next: number) => setDolly(clamp(next, -0.12, maxDolly)),
-    [maxDolly],
-  );
+    const dots = Object.values(run.nodes)
+      .map((n) => {
+        const pt = at.get(n.id);
+        if (!pt) return null;
+        return {
+          id: n.id,
+          pt,
+          hub: n.kind === 'platform',
+          main: spine.has(n.id),
+        };
+      })
+      .filter((d): d is NonNullable<typeof d> => !!d);
+
+    return { at, edges, hubs, dots, cell: cellX, worldW, worldH };
+  }, [run, here.id, phase]);
+
+  const homeCam = useMemo(() => {
+    const pt = layout.at.get(here.id);
+    const vw = view.w || 720;
+    const vh = view.h || 480;
+    const z = clamp(vh / (layout.cell * 5.4), 0.55, 1.2);
+    if (!pt || !Number.isFinite(pt.x) || !Number.isFinite(pt.y)) {
+      return { z, x: vw / 2, y: vh * 0.72 };
+    }
+    return { z, x: vw / 2 - pt.x * z, y: vh * 0.72 - pt.y * z };
+  }, [layout, here.id, view.w, view.h]);
+
+  const applied = cam ?? homeCam;
+  camRef.current = applied;
+
+  useLayoutEffect(() => {
+    setCam(null);
+  }, [run.id]);
+
+  const zoomAt = useCallback((cx: number, cy: number, nextZ: number) => {
+    const cur = camRef.current;
+    const z = clamp(nextZ, ZOOM_MIN, ZOOM_MAX);
+    const lx = (cx - cur.x) / cur.z;
+    const ly = (cy - cur.y) / cur.z;
+    setCam({ z, x: cx - lx * z, y: cy - ly * z });
+  }, []);
 
   useEffect(() => {
     const el = surfaceRef.current;
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
-      applyDolly(dollyRef.current + e.deltaY / 420);
+      const rect = el.getBoundingClientRect();
+      const factor = Math.exp(-e.deltaY * 0.0018);
+      zoomAt(e.clientX - rect.left, e.clientY - rect.top, camRef.current.z * factor);
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
-  }, [applyDolly]);
+  }, [zoomAt]);
 
   const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
-    if (e.button !== 0) return;
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     panned.current = false;
-    pan.current = { pointerId: e.pointerId, y: e.clientY, dolly, moved: false };
+    if (pointers.current.size >= 2) {
+      const el = surfaceRef.current;
+      const pts = [...pointers.current.values()];
+      const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) || 1;
+      const rect = el?.getBoundingClientRect();
+      const midX = (pts[0].x + pts[1].x) / 2 - (rect?.left ?? 0);
+      const midY = (pts[0].y + pts[1].y) / 2 - (rect?.top ?? 0);
+      gesture.current = {
+        kind: 'pinch',
+        dist,
+        midX,
+        midY,
+        z: camRef.current.z,
+        camX: camRef.current.x,
+        camY: camRef.current.y,
+      };
+      setDragging(true);
+      return;
+    }
+    gesture.current = {
+      kind: 'pan',
+      x: e.clientX,
+      y: e.clientY,
+      camX: camRef.current.x,
+      camY: camRef.current.y,
+      moved: false,
+    };
   };
 
   const onPointerMove = (e: PointerEvent<HTMLDivElement>) => {
-    const d = pan.current;
+    if (!pointers.current.has(e.pointerId)) return;
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const g = gesture.current;
     const el = surfaceRef.current;
-    if (!d || d.pointerId !== e.pointerId || !el) return;
-    const dy = e.clientY - d.y;
-    if (!d.moved && dy * dy < 36) return;
-    if (!d.moved) {
-      d.moved = true;
+    if (!g || !el) return;
+    if (g.kind === 'pinch') {
+      const pts = [...pointers.current.values()];
+      if (pts.length < 2) return;
+      const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) || 1;
+      const rect = el.getBoundingClientRect();
+      const midX = (pts[0].x + pts[1].x) / 2 - rect.left;
+      const midY = (pts[0].y + pts[1].y) / 2 - rect.top;
+      panned.current = true;
+      zoomAt(midX, midY, g.z * (dist / g.dist));
+      return;
+    }
+    const dx = e.clientX - g.x;
+    const dy = e.clientY - g.y;
+    if (!g.moved && dx * dx + dy * dy < 36) return;
+    if (!g.moved) {
+      g.moved = true;
       panned.current = true;
       setDragging(true);
       el.setPointerCapture(e.pointerId);
     }
-    applyDolly(d.dolly - dy / (el.clientHeight * 0.38));
+    setCam({ z: camRef.current.z, x: g.camX + dx, y: g.camY + dy });
   };
 
   const endPan = (e: PointerEvent<HTMLDivElement>) => {
-    const d = pan.current;
-    if (!d || d.pointerId !== e.pointerId) return;
-    pan.current = null;
-    setDragging(false);
+    pointers.current.delete(e.pointerId);
+    if (pointers.current.size === 0) {
+      gesture.current = null;
+      setDragging(false);
+      return;
+    }
+    if (pointers.current.size === 1) {
+      const pt = [...pointers.current.values()][0];
+      gesture.current = {
+        kind: 'pan',
+        x: pt.x,
+        y: pt.y,
+        camX: camRef.current.x,
+        camY: camRef.current.y,
+        moved: true,
+      };
+    }
   };
 
   const onClickCapture = (e: MouseEvent<HTMLDivElement>) => {
@@ -448,16 +635,16 @@ function TunnelMap({
     panned.current = false;
   };
 
-  const move = dragging ? '' : 'motion-safe:transition-[left,top] motion-safe:duration-300';
-
   return (
     <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
       <div
         ref={surfaceRef}
         role="img"
-        aria-label="Tunnel bore. Drag or scroll to look further down."
-        className="relative min-h-0 min-w-0 flex-1 cursor-grab touch-none overflow-hidden active:cursor-grabbing"
-        style={{ perspective: '1100px', perspectiveOrigin: '50% 8%' }}
+        aria-label="Tunnel schematic. Scroll to zoom, drag to pan."
+        className={`relative min-h-0 min-w-0 flex-1 touch-none overflow-hidden ${
+          dragging ? 'cursor-grabbing' : 'cursor-grab'
+        }`}
+        style={{ perspective: '1600px', perspectiveOrigin: '50% 30%' }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={endPan}
@@ -472,53 +659,133 @@ function TunnelMap({
               transformStyle: 'preserve-3d',
             }}
           >
+            <div
+              className="absolute left-0 top-0"
+              style={{
+                width: layout.worldW,
+                height: layout.worldH,
+                transform: `translate(${applied.x}px, ${applied.y}px) scale(${applied.z})`,
+                transformOrigin: '0 0',
+              }}
+            >
             <svg
               className="pointer-events-none absolute inset-0 overflow-visible"
-              width={view.w}
-              height={view.h}
+              width={layout.worldW}
+              height={layout.worldH}
               aria-hidden
             >
-              {layout.tubes.map((t) => (
-                <path
-                  key={`lip-${t.key}`}
-                  d={t.d}
-                  fill="none"
-                  strokeWidth={t.width + (t.main ? 10 : 6)}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className={
-                    t.kind === 'live'
-                      ? 'stroke-signal/35'
-                      : t.kind === 'walked'
-                        ? 'stroke-astral/30'
-                        : 'stroke-concrete-600/70'
-                  }
-                />
-              ))}
-              {layout.tubes.map((t) => (
-                <path
-                  key={`floor-${t.key}`}
-                  d={t.d}
-                  fill="none"
-                  strokeWidth={t.width}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  stroke={t.main ? '#1e1e20' : '#161618'}
-                />
-              ))}
-              {layout.tubes
-                .filter((t) => t.kind !== 'latent')
-                .map((t) => (
-                  <path
-                    key={`rail-${t.key}`}
-                    d={t.d}
+              <defs>
+                <filter id="sv-line-glow" x="-40%" y="-40%" width="180%" height="180%">
+                  <feGaussianBlur stdDeviation="2.2" result="b" />
+                  <feMerge>
+                    <feMergeNode in="b" />
+                    <feMergeNode in="SourceGraphic" />
+                  </feMerge>
+                </filter>
+              </defs>
+              {layout.hubs.map((h) => (
+                <g key={`hub-${h.id}`} opacity={0.85}>
+                  <circle
+                    cx={h.pt.x}
+                    cy={h.pt.y}
+                    r={layout.cell * 0.42}
                     fill="none"
-                    strokeWidth={t.kind === 'live' ? 3 : 2}
+                    stroke={lineColor}
+                    strokeWidth={1.4}
+                    opacity={0.45}
+                    vectorEffect="non-scaling-stroke"
+                  />
+                  <circle
+                    cx={h.pt.x}
+                    cy={h.pt.y}
+                    r={layout.cell * 0.58}
+                    fill="none"
+                    stroke={BRANCH_COLOR}
+                    strokeWidth={1.2}
+                    opacity={0.32}
+                    vectorEffect="non-scaling-stroke"
+                  />
+                  <circle
+                    cx={h.pt.x}
+                    cy={h.pt.y}
+                    r={layout.cell * 0.74}
+                    fill="none"
+                    stroke={lineColor}
+                    strokeWidth={1}
+                    opacity={0.16}
+                    vectorEffect="non-scaling-stroke"
+                  />
+                </g>
+              ))}
+              {layout.edges.map((e) => (
+                <path
+                  key={`case-${e.key}`}
+                  d={e.d}
+                  fill="none"
+                  stroke={MAP_VOID}
+                  strokeWidth={e.main ? 14 : 8}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  opacity={e.kind === 'walked' ? 0.55 : 0.95}
+                  vectorEffect="non-scaling-stroke"
+                />
+              ))}
+              {layout.edges.map((e) => (
+                <path
+                  key={`line-${e.key}`}
+                  d={e.d}
+                  fill="none"
+                  stroke={e.main ? lineColor : BRANCH_COLOR}
+                  strokeWidth={e.main ? 8 : 3.5}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  opacity={e.kind === 'walked' ? 0.45 : e.kind === 'live' ? 1 : 0.82}
+                  filter={e.kind === 'live' ? 'url(#sv-line-glow)' : undefined}
+                  vectorEffect="non-scaling-stroke"
+                />
+              ))}
+              {layout.edges
+                .filter((e) => e.main)
+                .map((e) => (
+                  <path
+                    key={`gap-${e.key}`}
+                    d={e.d}
+                    fill="none"
+                    stroke={MAP_VOID}
+                    strokeWidth={3.2}
                     strokeLinecap="round"
-                    strokeDasharray={t.kind === 'live' ? '10 8' : undefined}
-                    className={t.kind === 'live' ? 'stroke-signal' : 'stroke-astral/45'}
+                    strokeLinejoin="round"
+                    opacity={e.kind === 'walked' ? 0.5 : 0.95}
+                    vectorEffect="non-scaling-stroke"
                   />
                 ))}
+              {layout.edges
+                .filter((e) => e.kind === 'live')
+                .map((e) => (
+                  <path
+                    key={`live-${e.key}`}
+                    d={e.d}
+                    fill="none"
+                    stroke="#f4f1ea"
+                    strokeWidth={1.6}
+                    strokeLinecap="round"
+                    strokeDasharray="7 11"
+                    opacity={0.7}
+                    vectorEffect="non-scaling-stroke"
+                  />
+                ))}
+              {layout.dots.map((d) => (
+                <circle
+                  key={`dot-${d.id}`}
+                  cx={d.pt.x}
+                  cy={d.pt.y}
+                  r={d.hub ? 7.5 : 5}
+                  fill={d.hub ? lineColor : d.main ? '#e8e6e1' : BRANCH_COLOR}
+                  stroke={MAP_VOID}
+                  strokeWidth={2}
+                  vectorEffect="non-scaling-stroke"
+                />
+              ))}
             </svg>
 
             {run.columns.flatMap((ids) =>
@@ -539,12 +806,12 @@ function TunnelMap({
                         ? platformCodes[node.stationId]
                         : undefined
                     }
-                    moveClass={move}
                     onSelect={onSelect}
                   />
                 );
               }),
             )}
+            </div>
           </div>
         )}
 
@@ -568,7 +835,6 @@ function NodePip({
   y,
   selected,
   platformCode,
-  moveClass,
   onSelect,
 }: {
   run: TunnelRun;
@@ -577,7 +843,6 @@ function NodePip({
   y: number;
   selected: boolean;
   platformCode?: string;
-  moveClass: string;
   onSelect: (id: string) => void;
 }) {
   const here = currentNode(run);
@@ -588,12 +853,10 @@ function NodePip({
   const showLabel = isHere || isNext || node.col <= here.col + 2;
 
   const discTone = isHere
-    ? 'border-astral bg-astral/30 shadow-[0_0_18px_rgba(110,180,220,0.4)]'
+    ? 'border-astral bg-astral/25 shadow-[0_0_16px_rgba(110,180,220,0.45)]'
     : isNext
-      ? 'border-signal/70 bg-signal/15'
-      : node.state === 'done'
-        ? 'border-concrete-600/40 bg-concrete-900/80'
-        : 'border-concrete-600 bg-concrete-800/80';
+      ? 'border-signal/80 bg-signal/10'
+      : 'border-transparent bg-transparent';
 
   const iconTone = isHere
     ? 'text-astral'
@@ -609,11 +872,11 @@ function NodePip({
       ? (platformCode ?? node.name)
       : '???';
 
-  const pad = node.kind === 'platform' ? 'h-16 w-16' : 'h-14 w-14';
+  const pad = node.kind === 'platform' ? 'h-11 w-11' : 'h-9 w-9';
 
   return (
     <div
-      className={`absolute ${moveClass}`}
+      className="absolute"
       style={{
         left: x,
         top: y,
@@ -631,8 +894,8 @@ function NodePip({
         className={`relative block ${pad} ${selected ? 'outline outline-1 outline-offset-2 outline-concrete-200/40' : ''}`}
       >
         <span
-          className={`absolute inset-0 rounded-full border-2 ${discTone} ${
-            isNext ? 'hover:bg-signal/25' : ''
+          className={`absolute inset-[18%] rounded-full border ${discTone} ${
+            isNext ? 'hover:bg-signal/20' : ''
           }`}
         />
       </button>
