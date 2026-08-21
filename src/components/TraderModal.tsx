@@ -1,8 +1,9 @@
 import { useGame } from '../game/store';
 import { itemDef } from '../game/loot';
 import { Icon } from '../icons/Icon';
-import { FACTION_CONFIG, standingLabel, STANDING_KIN } from '../game/factions';
+import { FACTION_CONFIG, STANDING_KIN } from '../game/factions';
 import type { TradeOffer } from '../game/trade';
+import { useT, standingDisplayLabel } from '../i18n';
 
 /**
  * The counter at a faction hub (outpost or territory site that offers trade).
@@ -19,6 +20,7 @@ export function TraderModal() {
   const standing = useGame((s) => s.factionStanding);
   const closeTrader = useGame((s) => s.closeTrader);
   const acceptTrade = useGame((s) => s.acceptTrade);
+  const { locale, t } = useT();
   if (!trader) return null;
 
   const cfg = FACTION_CONFIG[trader.factionId];
@@ -45,27 +47,23 @@ export function TraderModal() {
               <Icon name={cfg.icon} /> {cfg.shortName} {cfg.outpostName}
             </h3>
             <button onClick={closeTrader} className="text-xs text-white/40 hover:text-white/70">
-              ✕ close
+              {t('ui.common.close')}
             </button>
           </div>
           <p className="mt-2 text-xs italic text-white/50">{trader.greeting}</p>
           <div className="mt-2 flex items-center gap-2 text-2xs uppercase tracking-wide">
             <span className="rounded px-1.5 py-0.5" style={{ background: `${cfg.color}22`, color: cfg.color }}>
-              {standingLabel(rep)} {rep > 0 ? `+${rep}` : rep}
+              {standingDisplayLabel(rep, locale)} {rep > 0 ? `+${rep}` : rep}
             </span>
             {rep < STANDING_KIN && (
-              <span className="text-white/30">
-                they keep better stock back for their own
-              </span>
+              <span className="text-white/30">{t('ui.trader.kinStock')}</span>
             )}
           </div>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto p-3">
           {trader.offers.length === 0 ? (
-            <p className="p-4 text-center text-sm text-white/30">
-              The board is bare today. Come back tomorrow.
-            </p>
+            <p className="p-4 text-center text-sm text-white/30">{t('ui.trader.bare')}</p>
           ) : (
             <ul className="flex flex-col gap-2">
               {trader.offers.map((o) => (
@@ -83,7 +81,7 @@ export function TraderModal() {
         </div>
 
         <p className="shrink-0 border-t border-white/10 px-4 py-2 text-2xs text-white/30">
-          The board turns over at dawn. What's gone is gone.
+          {t('ui.trader.footer')}
         </p>
       </div>
     </div>
@@ -104,6 +102,7 @@ function OfferRow({
   held: number;
   onAccept: () => void;
 }) {
+  const { t } = useT();
   const want = itemDef(offer.wantDefId);
   const give = itemDef(offer.giveDefId);
   const afford = held >= offer.wantCount;
@@ -127,7 +126,7 @@ function OfferRow({
         {/* What you're carrying, so the decision doesn't need a trip to the
             inventory panel and back. */}
         <span className={`text-2xs ${afford ? 'text-white/40' : 'text-hiss'}`}>
-          carrying {held}
+          {t('ui.trader.carrying', { n: held })}
         </span>
         <button
           disabled={taken || !afford}
@@ -135,7 +134,11 @@ function OfferRow({
           className="rounded px-3 py-1 text-xs font-semibold text-black disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/30"
           style={taken || !afford ? undefined : { background: color }}
         >
-          {taken ? 'taken' : afford ? 'Trade' : 'Short'}
+          {taken
+            ? t('ui.trader.taken')
+            : afford
+              ? t('ui.trader.trade')
+              : t('ui.trader.short')}
         </button>
       </div>
     </li>

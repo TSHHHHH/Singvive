@@ -43,6 +43,7 @@ import {
   rollLoner,
   rollZombie,
   rollAnimal,
+  rollAnimalById,
   type LonerKind,
   type AnimalHabitat,
 } from './enemies';
@@ -284,7 +285,7 @@ export function makeHulk(rng: Rng, danger: number): Enemy {
   return rollElite(ENEMIES, rng, ENEMIES.spawn.eliteBindings.hdb, danger, 'hunter');
 }
 
-/** Pinned tunnel pressure — only reachable via the elite binding, not danger tiers. */
+/** Rare tunnel Contact — something that has been keeping pace down the bore. */
 export function makeStalker(rng: Rng, danger: number): Enemy {
   return rollElite(ENEMIES, rng, ENEMIES.spawn.eliteBindings.tunnel, danger, 'stalker');
 }
@@ -309,6 +310,11 @@ export function makeLoner(rng: Rng, kind: LonerKind, danger: number): Enemy {
 /** Infected wildlife — habitat table, not the zombie ladder. */
 export function makeAnimal(rng: Rng, habitat: AnimalHabitat, danger: number): Enemy {
   return rollAnimal(ENEMIES, rng, habitat, danger);
+}
+
+/** Named animal (e.g. the Turned Otter in a flooded bore). */
+export function makeAnimalById(rng: Rng, id: string, danger: number): Enemy {
+  return rollAnimalById(ENEMIES, rng, id, danger);
 }
 
 /** Derive the player's combat stats from attributes, traits and equipped gear.
@@ -417,6 +423,12 @@ export interface PlayerActionResult {
   zombieHpAfter: number;
   log: CombatLogEntry[];
   zombieDead: boolean;
+  /** Whether this swing connected (including crits). */
+  hit: boolean;
+  /** Natural high roll / Precision crit band. */
+  critical: boolean;
+  /** Damage applied after soak; 0 on a miss. */
+  damageDealt: number;
   /** In-game hours the swing burned beyond the usual scuffle. */
   timeCostHours: number;
   /** Extra local danger from noise (gunfire in echoing terrain). */
@@ -519,6 +531,8 @@ export function resolvePlayerAction(
   // Swinging costs the weapon something whether or not it connects; landing on
   // armour costs it more.
   let weaponWear = 0;
+  let hit = false;
+  let damageDealt = 0;
 
   const vsUndead = zombie.kind === 'zombie' ? player.zombieAttackMod : 0;
   const pAtkMod =
@@ -541,10 +555,12 @@ export function resolvePlayerAction(
     text: `You attack · ${stance.name} (d20 ${pRoll}${fmt(pAtkMod)} = ${pTotal} vs ${pTarget})`,
   });
   if (crit || pTotal >= pTarget) {
+    hit = true;
     let dmg = player.damage + stance.damageMod + rng.int(0, 3);
     if (crit) dmg = Math.round(dmg * 1.75);
     const soak = stance.ignoresArmor ? 0 : zombie.armor;
     dmg = Math.max(1, dmg - soak);
+    damageDealt = dmg;
     zombieHp -= dmg;
     weaponWear = (WEAR_ON_HIT + (zombie.armor > 0 ? WEAR_ARMOR_EXTRA : 0)) * player.wearRate;
     const hitCtx = {
@@ -599,6 +615,9 @@ export function resolvePlayerAction(
     zombieHpAfter: Math.max(0, zombieHp),
     log,
     zombieDead: zombieHp <= 0,
+    hit,
+    critical: hit && crit,
+    damageDealt,
     timeCostHours: stance.timeCostHours,
     dangerNoise,
     weaponWear,

@@ -8,6 +8,7 @@ import {
   effectiveDefense,
   playerCombatStats,
 } from '../game/combat';
+import { enemyName, useT } from '../i18n';
 
 type Variant = 'timeline' | 'card';
 
@@ -35,6 +36,7 @@ export function EncounterPrompt({
   /** Accepted for LogPanel call-site compat; unused (see layout note above). */
   hang?: { paddingLeft: string; textIndent: string };
 }) {
+  const { locale, t } = useT();
   const combat = useGame((s) => s.combat);
   const character = useGame((s) => s.character);
   const bodyParts = useGame((s) => s.bodyParts);
@@ -47,6 +49,7 @@ export function EncounterPrompt({
   if (!combat || !character || !combat.awaitingStance) return null;
 
   const z = combat.zombie;
+  const zDisplay = enemyName(z.templateId, z.name, locale);
   const terrain = combat.terrain;
   const stats = playerCombatStats(
     character.attributes,
@@ -69,10 +72,10 @@ export function EncounterPrompt({
   /** Timeline row — mirrors live-event title — body. */
   const prose = (
     <>
-      <span className="font-semibold text-hiss">Contact</span>
+      <span className="font-semibold text-hiss">{t('ui.combat.contact')}</span>
       {' — '}
       {enemyIcon}{' '}
-      <span className="font-semibold text-concrete-50">{z.name}</span>
+      <span className="font-semibold text-concrete-50">{zDisplay}</span>
       {aftermath} on the {terrain.name.toLowerCase()}. Nothing else happens until
       you decide.
     </>
@@ -82,7 +85,7 @@ export function EncounterPrompt({
   const cardProse = (
     <>
       {enemyIcon}{' '}
-      <span className="font-semibold text-concrete-50">{z.name}</span>
+      <span className="font-semibold text-concrete-50">{zDisplay}</span>
       {aftermath} on the {terrain.name.toLowerCase()}. Nothing else happens until
       you decide.
     </>
@@ -90,7 +93,7 @@ export function EncounterPrompt({
 
   const footnote = (
     <>
-      It moves at <span className="text-hiss">{z.speed.toFixed(0)}</span> · DEF{' '}
+      It moves at <span className="text-hiss">{z.speed.toFixed(0)}</span> · {t('ui.combat.def')}{' '}
       {effectiveDefense(stats, STANCES.guarded, terrain)}–
       {effectiveDefense(stats, STANCES.aggressive, terrain)} · {stats.weaponName}
     </>
@@ -105,10 +108,8 @@ export function EncounterPrompt({
       >
         <Icon name="combat.player" size={13} className="shrink-0" />
         <span className="min-w-0 flex-1 whitespace-normal break-words">
-          <span className="font-semibold">Fight</span>{' '}
-          <span className="text-white/40">
-            Commit — open on Guarded, switch stance once the track is running.
-          </span>
+          <span className="font-semibold">{t('ui.combat.fight')}</span>{' '}
+          <span className="text-white/40">{t('ui.combat.fightHint')}</span>
         </span>
       </button>
       <button
@@ -119,7 +120,7 @@ export function EncounterPrompt({
       >
         <Icon name={STANCES.disengage.icon} size={13} className="shrink-0" />
         <span className="min-w-0 flex-1 whitespace-normal break-words">
-          <span className="font-semibold">Flee</span>{' '}
+          <span className="font-semibold">{t('ui.combat.flee')}</span>{' '}
           <span className="text-hiss/70">{STANCES.disengage.description}</span>
         </span>
       </button>
@@ -129,7 +130,9 @@ export function EncounterPrompt({
   if (variant === 'card') {
     return (
       <div className="space-y-2">
-        <div className="text-2xs uppercase tracking-widest text-hiss/80">Contact</div>
+        <div className="text-2xs uppercase tracking-widest text-hiss/80">
+          {t('ui.combat.contact')}
+        </div>
         <p className="text-xs leading-snug text-white/70">
           <span className="mr-1.5 font-mono text-2xs tabular-nums text-white/35">
             {formatClock(hour, clock)}

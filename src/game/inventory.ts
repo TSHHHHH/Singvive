@@ -7,8 +7,16 @@ import type {
   EquipSlot,
   ItemDef,
   ItemInstance,
+  PackGrid,
 } from './types';
 import { itemDef } from './loot';
+import {
+  applyTraitColumns,
+  blockedSet,
+  DEFAULT_PACK_GRID,
+  packCellKey,
+  resolveItemPackGrid,
+} from './packGrid';
 
 /** Every wearable / weapon slot, in UI order. */
 export const ALL_EQUIP_SLOTS: EquipSlot[] = [
@@ -23,62 +31,54 @@ export const ALL_EQUIP_SLOTS: EquipSlot[] = [
 ];
 
 export const BACKPACK = 'backpack';
-/** Base pack without an equipped bag — pockets only. Traits / bag gear grow this. */
-export const BACKPACK_DIMS = { w: 5, h: 4 };
-export const STASH_DIMS = { w: 9, h: 8 };
+/** Base pack without an equipped bag — pockets only. Traits append columns; bags set the silhouette. */
+export const BACKPACK_DIMS = { w: DEFAULT_PACK_GRID.w, h: DEFAULT_PACK_GRID.h };
+/** On-site POI stash — tight so surplus hauls force triage. */
+export const STASH_DIMS = { w: 4, h: 4 };
 /** Compact grid for an in-progress sequential search (timeline stash). */
 export const SEARCH_DIMS = { w: 8, h: 5 };
 /** Transient overflow while crawling a tunnel — not a location stash. */
 export const TEMP_STASH = 'temp:crawl';
-export const TEMP_STASH_DIMS = { w: 8, h: 5 };
+export const TEMP_STASH_DIMS = { w: 4, h: 4 };
+
+const EMPTY_BLOCKED: ReadonlySet<string> = new Set();
 
 /**
- * Extra backpack columns / rows from traits and the equipped bag.
+ * Current backpack silhouette (bag mask + trait columns).
  *
  * Module state rather than a parameter because `dimsFor` is reached through
  * `canPlace` and `findSlot` from a dozen call sites that have no business
  * knowing about the character — and a run only ever has one. The store sets it
  * when a character is committed, a bag is equipped, or a save is resumed.
  */
-let backpackWidthBonus = 0;
-let backpackHeightBonus = 0;
+let backpackMask: PackGrid = { ...DEFAULT_PACK_GRID };
 
-export function setBackpackWidthBonus(columns: number): void {
-  backpackWidthBonus = Math.round(columns);
-}
-
-export function setBackpackHeightBonus(rows: number): void {
-  backpackHeightBonus = Math.max(0, Math.round(rows));
-}
-
-/** Recompute pack bonuses from traits + equipped bag. */
+/** Recompute pack silhouette from the equipped bag + trait column bonus. */
 export function syncBackpackBonuses(
   traitWidthBonus: number,
   equipment: Equipment,
 ): void {
   const bag = equipment.bag;
-  let bagW = 0;
-  let bagH = 0;
-  if (bag) {
-    const def = itemDef(bag.defId);
-    bagW = def.modifiers?.bagWidthBonus ?? 0;
-    bagH = def.modifiers?.bagHeightBonus ?? 0;
-  }
-  setBackpackWidthBonus(traitWidthBonus + bagW);
-  setBackpackHeightBonus(bagH);
+  const base = bag
+    ? (resolveItemPackGrid(itemDef(bag.defId)) ?? { ...DEFAULT_PACK_GRID })
+    : { ...DEFAULT_PACK_GRID };
+  backpackMask = applyTraitColumns(base, traitWidthBonus);
 }
 
-/** Grid dimensions for a container: the backpack grows with traits / bag gear. */
+/** Grid dimensions for a container: backpack bounding box follows the bag mask. */
 export function dimsFor(container: Container): { w: number; h: number } {
   if (container === BACKPACK) {
-    return {
-      w: Math.max(3, BACKPACK_DIMS.w + backpackWidthBonus),
-      h: Math.max(3, BACKPACK_DIMS.h + backpackHeightBonus),
-    };
+    return { w: backpackMask.w, h: backpackMask.h };
   }
   if (container.startsWith('search:')) return SEARCH_DIMS;
   if (container === TEMP_STASH) return TEMP_STASH_DIMS;
   return STASH_DIMS;
+}
+
+/** Cells the backpack will not accept. Other containers are solid rectangles. */
+export function blockedCellsFor(container: Container): ReadonlySet<string> {
+  if (container !== BACKPACK) return EMPTY_BLOCKED;
+  return blockedSet(backpackMask);
 }
 
 let uidCounter = 0;
@@ -106,8 +106,8 @@ export function cellsOf(inst: ItemInstance): { x: number; y: number }[] {
 }
 
 /**
- * Can `candidate` be placed in `container` without going out of bounds or
- * overlapping any item other than `ignoreUid`?
+ * Can `candidate` be placed in `container` without going out of bounds,
+ * sitting on a hole, or overlapping any item other than `ignoreUid`?
  */
 export function canPlace(
   container: Container,
@@ -120,14 +120,16 @@ export function canPlace(
   if (candidate.x + candidate.w > dims.w) return false;
   if (candidate.y + candidate.h > dims.h) return false;
 
+  const blocked = blockedCellsFor(container);
   const occupied = new Set<string>();
   for (const inst of items) {
     if (inst.container !== container || inst.uid === ignoreUid) continue;
-    for (const c of cellsOf(inst)) occupied.add(`${c.x},${c.y}`);
+    for (const c of cellsOf(inst)) occupied.add(packCellKey(c.x, c.y));
   }
   for (let dy = 0; dy < candidate.h; dy++) {
     for (let dx = 0; dx < candidate.w; dx++) {
-      if (occupied.has(`${candidate.x + dx},${candidate.y + dy}`)) return false;
+      const key = packCellKey(candidate.x + dx, candidate.y + dy);
+      if (blocked.has(key) || occupied.has(key)) return false;
     }
   }
   return true;

@@ -78,6 +78,9 @@ export type IconName =
   | 'tunnel.scavenge'
   | 'tunnel.settlement'
   | 'tunnel.hazard'
+  | 'tunnel.carriage'
+  | 'tunnel.signal'
+  | 'tunnel.checkpoint'
   | 'tunnel.unknown'
   // --- sleep quality (Rest indicator) ---
   | 'sleep.roof'
@@ -334,6 +337,9 @@ export const EMOJI_FALLBACK: Record<IconName, string> = {
   'tunnel.scavenge': '🧰',
   'tunnel.settlement': '🔦',
   'tunnel.hazard': '🌊',
+  'tunnel.carriage': '🚃',
+  'tunnel.signal': '📡',
+  'tunnel.checkpoint': '🎫',
   'tunnel.unknown': '❔',
 
   'sleep.roof': '⌂',

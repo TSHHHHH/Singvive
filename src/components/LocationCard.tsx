@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { useEffect } from 'react';
 import { POI_CONFIG } from '../game/poi';
 import { Icon } from '../icons/Icon';
 import {
@@ -15,8 +16,8 @@ import {
   hasFactionClearance,
   isOutpostSite,
   locationServices,
-  standingLabel,
 } from '../game/factions';
+import { isStreetLootPoi } from '../game/loot';
 import { useGame } from '../game/store';
 import { dangerColor } from './mapIcons';
 import { formatDuration, type estimateExpedition } from '../game/travel';
@@ -26,6 +27,13 @@ import type { FactionService, LocationState } from '../game/types';
 import type { IconName } from '../icons/keys';
 import { riskLabel, type TrekRisk } from '../game/wilds';
 import { HazardOnRoute } from './HazardOnRoute';
+import {
+  destructionDisplayLabel,
+  poiCategoryLabel,
+  standingDisplayLabel,
+  standingKey,
+  useT,
+} from '../i18n';
 
 type Estimate = ReturnType<typeof estimateExpedition> | null;
 
@@ -48,7 +56,7 @@ interface Props {
   outOfRange?: boolean;
   /** No land path around water/restricted under the routing budget. */
   noDryRoute?: boolean;
-  /** True when this is an adjacent station with an intact tunnel segment. */
+  /** True when this is an adjacent station with a tunnel segment. */
   canTunnel: boolean;
   /** That segment — the line it runs on and how long the walk is. */
   tunnelSeg?: MrtSegment | null;
@@ -118,13 +126,14 @@ function RouteHazardBlock({
   routeRisk?: TrekRisk | null;
   routeBlind?: boolean;
 }) {
+  const { t } = useT();
   if (!routeRisk && !routeBlind) return null;
   const label = routeRisk ? riskLabel(routeRisk.encounterChance) : null;
   return (
     <>
       {routeRisk && (
         <div className="mt-1 flex justify-between text-xs text-white/55">
-          <span>Route</span>
+          <span>{t('ui.location.route')}</span>
           <span style={{ color: label?.color }}>{label?.text}</span>
         </div>
       )}
@@ -147,12 +156,13 @@ function UnknownCard({
   routeRisk,
   routeBlind,
 }: Props) {
+  const { t } = useT();
   return (
     <>
       <div className="flex items-center gap-2">
         <Icon name="poi.unknown" size={22} className="opacity-60" />
         <div className="min-w-0 flex-1">
-          <div className="font-bold text-white/70">Unknown location</div>
+          <div className="font-bold text-white/70">{t('ui.location.unknownLocation')}</div>
           <div className="text-xs text-white/40">
             Commit blind — no danger intel until you arrive.
           </div>
@@ -160,7 +170,7 @@ function UnknownCard({
       </div>
       {est && (
         <div className="mt-2 flex justify-between rounded bg-black/30 p-2 text-xs text-white/55">
-          <span><Icon name="action.travel" /> Travel there</span>
+          <span><Icon name="action.travel" /> {t('ui.location.travelThere')}</span>
           <span className="text-white/80">
             {formatDuration(est.travelMin)}
             {est.vegetationSlowed && <span className="text-white/45"> · forest</span>}
@@ -189,12 +199,12 @@ function UnknownCard({
         className="mt-3 w-full rounded bg-signal/80 py-2 text-sm font-bold text-black hover:bg-signal disabled:opacity-30"
       >
         {energyLow
-          ? 'Too exhausted — sleep first'
+          ? t('ui.location.tooExhausted')
           : noDryRoute
-            ? 'No dry route'
+            ? t('ui.location.noDryRoute')
             : outOfRange
-              ? 'Too far to reach'
-              : 'Head into the unknown'}
+              ? t('ui.location.tooFar')
+              : t('ui.location.headUnknown')}
       </button>
     </>
   );
@@ -234,15 +244,16 @@ function StationCodes({ sel }: { sel: LocationState }) {
  * undiscovered, so the planner is the primary entrance into the tunnels.
  */
 function PlanTunnelsButton({ onPlan }: { onPlan: () => void }) {
+  const { t } = useT();
   return (
     <button
       type="button"
       onClick={onPlan}
       className="w-full rounded border border-astral/40 bg-astral/10 py-2 text-sm font-semibold text-astral hover:bg-astral/20"
     >
-      <Icon name="action.mrt" /> Plan tunnel travel
+      <Icon name="action.mrt" /> {t('ui.location.route')}
       <span className="block text-xs font-normal opacity-75">
-        Pick any station · collapsed bores block some routes
+        {t('ui.location.pickStation')}
       </span>
     </button>
   );
@@ -253,6 +264,7 @@ function PlanTunnelsButton({ onPlan }: { onPlan: () => void }) {
  * is what the tunnel spares you: the range cap, the weather, the streets.
  */
 function TunnelButton({ seg, onTunnel }: { seg: MrtSegment | null; onTunnel: () => void }) {
+  const { t } = useT();
   const net = getMrtNetwork();
   const line = net && seg ? displayLine(net, seg.line) : null;
   return (
@@ -265,24 +277,30 @@ function TunnelButton({ seg, onTunnel }: { seg: MrtSegment | null; onTunnel: () 
         color: line?.color ?? '#2bc4d9',
       }}
     >
-      <Icon name="action.mrt" /> Plan this tunnel
+      <Icon name="action.mrt" /> {t('ui.location.planTunnels')}
       <span className="block text-xs font-normal opacity-75">
-        {line ? `${line.name} · ` : ''}
-        {seg ? `${seg.meters} m` : 'route'} · no weather, no range
+        {seg?.collapsed
+          ? t('ui.location.collapsedBore')
+          : seg
+            ? t('ui.location.tunnelMeta', {
+                line: line ? `${line.name} · ` : '',
+                meters: seg.meters,
+              })
+            : t('ui.location.tunnelMetaRoute')}
       </span>
     </button>
   );
 }
 
 /** Named rungs on the −5…+5 standing ladder, low → high. */
-const STANDING_RUNGS: { min: number; label: string }[] = [
-  { min: STANDING_HATED, label: 'Terrible' },
-  { min: STANDING_BAD, label: 'Bad' },
-  { min: -1, label: 'Wary' },
-  { min: 0, label: 'Stranger' },
-  { min: STANDING_KNOWN, label: 'Known' },
-  { min: STANDING_TRUSTED, label: 'Welcome' },
-  { min: STANDING_KIN, label: 'Kin' },
+const STANDING_RUNGS: { min: number; key: ReturnType<typeof standingKey> }[] = [
+  { min: STANDING_HATED, key: 'terrible' },
+  { min: STANDING_BAD, key: 'bad' },
+  { min: -1, key: 'wary' },
+  { min: 0, key: 'stranger' },
+  { min: STANDING_KNOWN, key: 'known' },
+  { min: STANDING_TRUSTED, key: 'welcome' },
+  { min: STANDING_KIN, key: 'kin' },
 ];
 
 function rungIndex(standing: number): number {
@@ -295,19 +313,21 @@ function rungIndex(standing: number): number {
 
 /** Horizontal rung meter — same language as danger / loot dots. */
 function ReputationLadder({ standing, color }: { standing: number; color: string }) {
+  const { locale, t } = useT();
   const current = rungIndex(standing);
   const score = standing > 0 ? `+${standing}` : `${standing}`;
+  const label = standingDisplayLabel(standing, locale);
   return (
     <div
       className="flex items-center justify-center gap-0.5"
-      title={`${standingLabel(standing)} (${score})`}
-      aria-label={`Standing: ${standingLabel(standing)}`}
+      title={`${label} (${score})`}
+      aria-label={t('ui.location.standingAria', { label })}
     >
       {STANDING_RUNGS.map((rung, idx) => {
         const filled = idx <= current;
         return (
           <span
-            key={rung.label}
+            key={rung.key}
             className="text-[0.65rem] leading-none"
             style={{
               color: filled ? color : `${color}44`,
@@ -336,12 +356,14 @@ function FactionClaim({
   /** Narrow inline chip for the target / last-seen card. */
   compact?: boolean;
 }) {
+  const { locale, t } = useT();
   const standing = useGame((s) => s.factionStanding[faction.id]);
   const isOutpost = useGame(
     (s) => sel.isFactionOutpost || isOutpostSite(s.outposts, faction.id, sel.id),
   );
-  const place = isOutpost ? faction.outpostName : 'territory';
+  const place = isOutpost ? faction.outpostName : t('ui.location.territory');
   const score = standing > 0 ? `+${standing}` : `${standing}`;
+  const standLabel = standingDisplayLabel(standing, locale);
 
   if (compact) {
     return (
@@ -358,7 +380,7 @@ function FactionClaim({
             <Icon name={faction.icon} /> {faction.shortName} {place}
           </span>
           <span className="shrink-0 pt-px opacity-80">
-            {standingLabel(standing)} {score}
+            {standLabel} {score}
           </span>
         </div>
       </div>
@@ -385,7 +407,7 @@ function FactionClaim({
       >
         <ReputationLadder standing={standing} color={faction.color} />
         <div className="mt-0.5 text-center text-2xs font-semibold tabular-nums opacity-90">
-          {standingLabel(standing)} {score}
+          {standLabel} {score}
         </div>
       </div>
     </div>
@@ -394,16 +416,37 @@ function FactionClaim({
 
 const SERVICE_META: Record<
   FactionService,
-  { icon: IconName; label: string; hint: string }
+  { icon: IconName; labelKey: string; hintKey: string; lockedKey: string }
 > = {
-  trade: { icon: 'faction.idtf', label: 'Trade at the counter', hint: "Today's swaps" },
-  rest: { icon: 'action.sleep', label: 'Sleep inside the wire', hint: 'Safe until morning' },
-  aid: { icon: 'action.search', label: 'Field aid', hint: 'Once per day' },
-  intel: { icon: 'action.map', label: 'Ask for intel', hint: 'Once per day — map tip' },
+  trade: {
+    icon: 'faction.idtf',
+    labelKey: 'ui.location.trade',
+    hintKey: 'ui.location.tradeHint',
+    lockedKey: 'ui.location.noDealStrangers',
+  },
+  rest: {
+    icon: 'action.sleep',
+    labelKey: 'ui.location.sleepInside',
+    hintKey: 'ui.location.restHint',
+    lockedKey: 'ui.location.bedsTrusted',
+  },
+  aid: {
+    icon: 'action.search',
+    labelKey: 'ui.location.fieldAid',
+    hintKey: 'ui.location.aidHint',
+    lockedKey: 'ui.location.medicsTrusted',
+  },
+  intel: {
+    icon: 'action.map',
+    labelKey: 'ui.location.askIntel',
+    hintKey: 'ui.location.intelHint',
+    lockedKey: 'ui.location.noBriefStrangers',
+  },
 };
 
 /** NPC services on occupied ground — never scavenging. Hidden while raiding. */
 function FactionHubActions({ sel }: { sel: LocationState }) {
+  const { t } = useT();
   const standing = useGame((s) => s.factionStanding);
   const outposts = useGame((s) => s.outposts);
   const day = useGame((s) => s.day);
@@ -429,13 +472,11 @@ function FactionHubActions({ sel }: { sel: LocationState }) {
     <>
       <div className="mt-1 border-t border-white/10 pt-2">
         <div className="mb-1.5 text-2xs font-semibold uppercase tracking-widest text-white/35">
-          Services
+          {t('ui.location.services')}
         </div>
         <div className="flex flex-col gap-2">
           {!cleared && (
-            <p className="text-xs text-white/50">
-              Approach the gate first — they will not deal with you from the curb.
-            </p>
+            <p className="text-xs text-white/50">{t('ui.location.approachGateFirst')}</p>
           )}
           {services.includes('trade') && (
             <button
@@ -444,13 +485,13 @@ function FactionHubActions({ sel }: { sel: LocationState }) {
               className="w-full rounded border px-2 py-2 text-sm leading-tight hover:brightness-125 disabled:opacity-30"
               style={{ borderColor: `${cfg.color}66`, background: `${cfg.color}1a`, color: cfg.color }}
             >
-              <Icon name={cfg.icon} /> {SERVICE_META.trade.label}
+              <Icon name={cfg.icon} /> {t(SERVICE_META.trade.labelKey)}
               <span className="block text-xs font-normal opacity-75">
                 {!cleared
-                  ? 'Gate first'
+                  ? t('ui.location.gateFirst')
                   : canTrade
-                    ? SERVICE_META.trade.hint
-                    : "They don't deal with strangers"}
+                    ? t(SERVICE_META.trade.hintKey)
+                    : t(SERVICE_META.trade.lockedKey)}
               </span>
             </button>
           )}
@@ -460,13 +501,13 @@ function FactionHubActions({ sel }: { sel: LocationState }) {
               onClick={outpostRest}
               className="w-full rounded border border-white/15 px-2 py-2 text-sm leading-tight hover:bg-white/5 disabled:opacity-30"
             >
-              <Icon name={SERVICE_META.rest.icon} /> {SERVICE_META.rest.label}
+              <Icon name={SERVICE_META.rest.icon} /> {t(SERVICE_META.rest.labelKey)}
               <span className="block text-xs font-normal opacity-60">
                 {!cleared
-                  ? 'Gate first'
+                  ? t('ui.location.gateFirst')
                   : canRest
-                    ? SERVICE_META.rest.hint
-                    : 'Beds are for people they trust'}
+                    ? t(SERVICE_META.rest.hintKey)
+                    : t(SERVICE_META.rest.lockedKey)}
               </span>
             </button>
           )}
@@ -476,15 +517,15 @@ function FactionHubActions({ sel }: { sel: LocationState }) {
               onClick={factionAid}
               className="w-full rounded border border-white/15 px-2 py-2 text-sm leading-tight hover:bg-white/5 disabled:opacity-30"
             >
-              <Icon name={SERVICE_META.aid.icon} /> {SERVICE_META.aid.label}
+              <Icon name={SERVICE_META.aid.icon} /> {t(SERVICE_META.aid.labelKey)}
               <span className="block text-xs font-normal opacity-60">
                 {!cleared
-                  ? 'Gate first'
+                  ? t('ui.location.gateFirst')
                   : (sel.aidUsedDay ?? -1) >= day
-                    ? 'Already used today'
+                    ? t('ui.location.alreadyUsedToday')
                     : canAid
-                      ? SERVICE_META.aid.hint
-                      : 'Medics are for people they trust'}
+                      ? t(SERVICE_META.aid.hintKey)
+                      : t(SERVICE_META.aid.lockedKey)}
               </span>
             </button>
           )}
@@ -494,15 +535,15 @@ function FactionHubActions({ sel }: { sel: LocationState }) {
               onClick={factionIntel}
               className="w-full rounded border border-white/15 px-2 py-2 text-sm leading-tight hover:bg-white/5 disabled:opacity-30"
             >
-              <Icon name={SERVICE_META.intel.icon} /> {SERVICE_META.intel.label}
+              <Icon name={SERVICE_META.intel.icon} /> {t(SERVICE_META.intel.labelKey)}
               <span className="block text-xs font-normal opacity-60">
                 {!cleared
-                  ? 'Gate first'
+                  ? t('ui.location.gateFirst')
                   : (sel.intelUsedDay ?? -1) >= day
-                    ? 'Already used today'
+                    ? t('ui.location.alreadyUsedToday')
                     : canIntel
-                      ? SERVICE_META.intel.hint
-                      : "They don't brief strangers"}
+                      ? t(SERVICE_META.intel.hintKey)
+                      : t(SERVICE_META.intel.lockedKey)}
               </span>
             </button>
           )}
@@ -532,7 +573,9 @@ function KnownCard({
   routeRisk,
   routeBlind,
 }: Props) {
+  const { locale, t } = useT();
   const cfg = POI_CONFIG[sel.category];
+  const poiLabel = poiCategoryLabel(sel.category, locale);
   const isBlock = sel.category === 'residential';
   const inSight = here;
   const mem = sel.lastSeen;
@@ -557,40 +600,59 @@ function KnownCard({
   const sneakEnter = useGame((s) => s.sneakEnter);
   const forceEnter = useGame((s) => s.forceEnter);
   const raidSearch = useGame((s) => s.raidSearch);
+  const ensureSiteRuin = useGame((s) => s.ensureSiteRuin);
   const gateCleared = occupied && hasFactionClearance(sel, standing, day);
   const raidingHere = raidMode?.locationId === sel.id;
   const searchingHere =
     !!pendingSearch && pendingSearch.locationId === sel.id && here;
   const searchEtaMin = searchingHere ? remainingSearchMinutes(pendingSearch!) : 0;
 
+  useEffect(() => {
+    if (!sel.discovered || isBlock || !isStreetLootPoi(sel.category)) return;
+    if (sel.destruction !== undefined) return;
+    ensureSiteRuin(sel.id);
+  }, [sel.id, sel.discovered, sel.category, sel.destruction, isBlock, ensureSiteRuin]);
+
+  const destruction = useMem ? mem!.destruction : sel.destruction;
+
   const siteStatus = searchingHere
-    ? `Searching… ~${formatDuration(searchEtaMin)} left in this haul`
+    ? t('ui.location.searchingLeft', { eta: formatDuration(searchEtaMin) })
     : occupied
     ? raidingHere
       ? raidMode!.mode === 'sneak'
-        ? 'Inside unseen — their stores, if you stay quiet.'
-        : 'Forced entry — rich stores, every search draws a fight.'
+        ? t('ui.location.insideUnseen')
+        : t('ui.location.forcedEntry')
       : null
     : isBlock
-      ? '12 floors — cleared unit by unit, not searched.'
+      ? t('ui.location.twelveFloors')
       : exhausted
-        ? 'Picked clean — exhausted.'
-        : `${searchesLabel} search${Math.abs(searches - 1) < 0.05 ? '' : 'es'} left`;
+        ? t('ui.location.pickedClean')
+        : Math.abs(searches - 1) < 0.05
+          ? t('ui.location.searchesLeft', { n: searchesLabel })
+          : t('ui.location.searchesLeftPlural', { n: searchesLabel });
 
   const metaLine = (
     <div className="mt-1 text-xs text-white/45">
       <div>
-        {cfg.label} · {sel.size}
+        {poiLabel} · {sel.size}
       </div>
       <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5">
-        <span style={{ color: dangerColor(dngr) }} title={`Danger ${dngr} of 5`}>
-          Danger {'●'.repeat(dngr)}
+        <span
+          style={{ color: dangerColor(dngr) }}
+          title={`${t('ui.location.danger')} ${dngr} of 5`}
+        >
+          {t('ui.location.danger')} {'●'.repeat(dngr)}
           <span className="text-white/15">{'●'.repeat(5 - dngr)}</span>
         </span>
-        <span title={`Loot ${cfg.richness} of 5`}>
-          Loot {'●'.repeat(cfg.richness)}
-          <span className="text-white/15">{'●'.repeat(5 - cfg.richness)}</span>
-        </span>
+        {!isBlock && destruction !== undefined && (
+          <span
+            title={`${t('ui.location.ruin')} — ${destructionDisplayLabel(destruction, locale)}`}
+          >
+            {t('ui.location.ruin')} {destructionDisplayLabel(destruction, locale)}{' '}
+            {'●'.repeat(destruction + 1)}
+            <span className="text-white/15">{'●'.repeat(3 - destruction)}</span>
+          </span>
+        )}
       </div>
     </div>
   );
@@ -602,9 +664,9 @@ function KnownCard({
           onClick={() => abortSearch()}
           className="w-full rounded border border-white/20 bg-white/5 px-2 py-2 text-sm font-bold leading-tight hover:bg-white/10"
         >
-          <Icon name="action.search" /> Searching…
+          <Icon name="action.search" /> {t('ui.location.searching')}
           <span className="block text-xs font-normal opacity-75">
-            ~{formatDuration(searchEtaMin)} left — Leave to stop early
+            ~{formatDuration(searchEtaMin)} left — {t('ui.location.leaveStopEarly')}
           </span>
         </button>
       ) : occupied ? (
@@ -616,13 +678,15 @@ function KnownCard({
           >
             <Icon name="action.search" />{' '}
             {sel.exhausted
-              ? 'Nothing left'
+              ? t('ui.location.nothingLeft')
               : raidMode!.mode === 'sneak'
-                ? 'Search while unseen'
-                : 'Tear through the place'}
+                ? t('ui.location.searchWhileUnseen')
+                : t('ui.location.tearThrough')}
             {!sel.exhausted && (
               <span className="block text-xs font-normal opacity-75">
-                {searchesLabel} search{Math.abs(searches - 1) < 0.05 ? '' : 'es'} left
+                {Math.abs(searches - 1) < 0.05
+                  ? t('ui.location.searchesLeft', { n: searchesLabel })
+                  : t('ui.location.searchesLeftPlural', { n: searchesLabel })}
               </span>
             )}
           </button>
@@ -632,21 +696,21 @@ function KnownCard({
               onClick={onEnter}
               className="w-full rounded bg-signal/90 px-2 py-2 text-sm font-bold leading-tight text-black hover:bg-signal"
             >
-              <Icon name="action.search" /> Approach the gate
+              <Icon name="action.search" /> {t('ui.location.approachGate')}
             </button>
             <button
               onClick={sneakEnter}
               className="w-full rounded border border-white/20 px-2 py-2 text-sm leading-tight hover:bg-white/5"
             >
-              <Icon name="action.search" /> Sneak in
-              <span className="block text-xs font-normal opacity-60">Dexterity check — rich loot, no services</span>
+              <Icon name="action.search" /> {t('ui.location.sneakIn')}
+              <span className="block text-xs font-normal opacity-60">{t('ui.location.sneakHint')}</span>
             </button>
             <button
               onClick={forceEnter}
               className="w-full rounded border border-hiss/50 px-2 py-2 text-sm leading-tight text-hiss hover:bg-hiss/10"
             >
-              <Icon name="combat.hostiles" /> Force enter
-              <span className="block text-xs font-normal opacity-60">Fight in — every search draws combat</span>
+              <Icon name="combat.hostiles" /> {t('ui.location.forceEnter')}
+              <span className="block text-xs font-normal opacity-60">{t('ui.location.forceHint')}</span>
             </button>
           </>
         )
@@ -655,7 +719,7 @@ function KnownCard({
           onClick={onEnterBlock ?? onEnter}
           className="w-full rounded bg-signal/90 px-2 py-2 text-sm font-bold leading-tight text-black hover:bg-signal"
         >
-          <Icon name="hdb.enterBlock" /> Enter the block
+          <Icon name="hdb.enterBlock" /> {t('ui.location.enterBlock')}
         </button>
       ) : (
         <button
@@ -664,17 +728,17 @@ function KnownCard({
           className="w-full rounded bg-signal/80 px-2 py-2 text-sm font-bold leading-tight text-black hover:bg-signal disabled:opacity-30"
         >
           {sel.exhausted
-            ? 'Nothing left to search'
+            ? t('ui.location.nothingLeftToSearch')
             : sel.cleared
-              ? 'Keep searching'
-              : 'Go inside and search'}
+              ? t('ui.location.keepSearching')
+              : t('ui.location.goInsideSearch')}
         </button>
       )}
       <button
         onClick={onOpenStash}
         className="w-full rounded border border-white/15 px-2 py-2 text-sm leading-tight hover:bg-white/5"
       >
-        <Icon name="action.stash" /> Open stash here
+        <Icon name="action.stash" /> {t('ui.location.openStashHere')}
       </button>
       {here && occupied && <FactionHubActions sel={sel} />}
     </>
@@ -691,9 +755,11 @@ function KnownCard({
             <div className="font-bold leading-snug">{sel.name}</div>
             <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-white/40">
               <span>
-                {cfg.label} · {sel.size}
+                {poiLabel} · {sel.size}
               </span>
-              <span className="rounded bg-white/10 px-1.5 py-0.5 text-white/50">last seen</span>
+              <span className="rounded bg-white/10 px-1.5 py-0.5 text-white/50">
+                {t('ui.location.lastSeen')}
+              </span>
             </div>
           </div>
         </div>
@@ -703,23 +769,27 @@ function KnownCard({
         {faction && <FactionClaim sel={sel} faction={faction} compact />}
 
         <div className="mt-2 flex items-center justify-between text-xs">
-          <span className="text-white/50">{`${Math.round(sel.distanceFromSpawn)} m from spawn`}</span>
-          <span style={{ color: dangerColor(dngr) }} title={`Danger ${dngr} of 5`}>
-            Danger {'●'.repeat(dngr)}
+          <span className="text-white/50">
+            {t('ui.location.metersFromSpawn', { m: Math.round(sel.distanceFromSpawn) })}
+          </span>
+          <span style={{ color: dangerColor(dngr) }} title={`${t('ui.location.danger')} ${dngr} of 5`}>
+            {t('ui.location.danger')} {'●'.repeat(dngr)}
             <span className="text-white/15">{'●'.repeat(5 - dngr)}</span>
           </span>
         </div>
         <div className="mt-1 text-xs text-white/40">
           {occupied
             ? sel.isFactionOutpost
-              ? 'Faction outpost — full services, no scavenging.'
-              : 'Faction territory — NPC hub, no scavenging.'
+              ? t('ui.location.factionOutpost')
+              : t('ui.location.factionTerritory')
             : siteStatus}
           {useMem && (
             <span className="text-concrete-400">
               {' '}
-              · last seen danger {dngr}
-              {mem && mem.currentDanger !== sel.currentDanger ? ' (may be stale)' : ' (intel)'}
+              · {t('ui.location.lastSeenDanger', { n: dngr })}
+              {mem && mem.currentDanger !== sel.currentDanger
+                ? t('ui.location.mayBeStale')
+                : t('ui.location.intelTag')}
             </span>
           )}
         </div>
@@ -727,16 +797,22 @@ function KnownCard({
         {est && (
           <div className="mt-2 rounded bg-black/30 p-2 text-xs text-white/55">
             <div className="flex justify-between">
-              <span><Icon name="action.travel" /> Travel here</span>
+              <span><Icon name="action.travel" /> {t('ui.location.travelHere')}</span>
               <span className="text-white/80">
                 {formatDuration(est.travelMin)}
-                {est.weatherSlowed && <span className="text-astral"> · rain</span>}
-                {est.encumbered && <span className="text-hiss"> · heavy</span>}
-                {est.vegetationSlowed && <span className="text-white/45"> · forest</span>}
+                {est.weatherSlowed && (
+                  <span className="text-astral"> · {t('ui.location.rain')}</span>
+                )}
+                {est.encumbered && (
+                  <span className="text-hiss"> · {t('ui.location.heavy')}</span>
+                )}
+                {est.vegetationSlowed && (
+                  <span className="text-white/45"> · {t('ui.location.forest')}</span>
+                )}
               </span>
             </div>
             <div className="flex justify-between">
-              <span><Icon name="action.search" /> Search, once inside</span>
+              <span><Icon name="action.search" /> {t('ui.location.searchOnceInside')}</span>
               <span className="text-white/80">{formatDuration(est.searchMin)}</span>
             </div>
             {(est.arrivalAtNight || est.doneAtNight) && (
@@ -764,12 +840,12 @@ function KnownCard({
             className="w-full rounded bg-signal/80 py-2 text-sm font-bold text-black hover:bg-signal disabled:opacity-30"
           >
             {energyLow
-              ? 'Too exhausted — sleep first'
+              ? t('ui.location.tooExhausted')
               : noDryRoute
-                ? 'No dry route'
+                ? t('ui.location.noDryRoute')
                 : outOfRange
-                  ? 'Too far to reach'
-                  : `Travel here · ${est ? formatDuration(est.travelMin) : ''}`}
+                  ? t('ui.location.tooFar')
+                  : `${t('ui.location.travelHere')} · ${est ? formatDuration(est.travelMin) : ''}`}
           </button>
           {canTunnel && <TunnelButton seg={tunnelSeg ?? null} onTunnel={onTunnel} />}
           {tunnelHint && <div className="text-xs text-white/45">{tunnelHint}</div>}

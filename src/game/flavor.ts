@@ -1,4 +1,4 @@
-import type { TimeOfDay, WeatherKind } from './types';
+import type { DestructionTier, LocationSize, TimeOfDay, WeatherKind } from './types';
 import type { HazardKind } from './wilds';
 
 // ---------------------------------------------------------------------------
@@ -25,6 +25,8 @@ export interface FlavorCtx {
   name?: string; // location name
   time?: TimeOfDay;
   weather?: WeatherKind;
+  size?: LocationSize;
+  destruction?: DestructionTier;
 }
 
 export type FlavorKey =
@@ -34,6 +36,7 @@ export type FlavorKey =
   | 'arrive'
   | 'atDoor'
   | 'charted'
+  | 'siteSurvey'
   | 'searchStart'
   | 'searchStartRaid'
   | 'searchStartFlee'
@@ -61,6 +64,105 @@ export type FlavorKey =
   | 'sortHaulSurface'
   | 'packSpill'
   | 'packLost';
+
+/** Frames for first-visit street surveys — filled with size + ruin clauses. */
+const SITE_SURVEY_FRAMES: string[] = [
+  '{name}. {sizeLine} {ruinLine}',
+  'You take in {name}. {sizeLine} {ruinLine}',
+  '{name} from the doorway: {sizeLine} {ruinLine}',
+  'First proper look at {name}. {sizeLine} {ruinLine}',
+  'You clock {name} before you commit. {sizeLine} {ruinLine}',
+  '{name} sits there waiting. {sizeLine} {ruinLine}',
+  'You mark {name} on the map. {sizeLine} {ruinLine}',
+  'So this is {name}. {sizeLine} {ruinLine}',
+];
+
+const SIZE_LINES: Record<LocationSize, string[]> = {
+  small: [
+    'It\'s a tight little unit — one room and a counter if you\'re lucky.',
+    'Small footprint. You could clear it with a short sweep.',
+    'Pocket-sized place. Nowhere to hide a crowd, nowhere to run either.',
+    'Barely bigger than a kiosk. Everything\'s within arm\'s reach.',
+    'A shoebox of a shop. Fast in, faster out.',
+    'Cramped. You\'ll be turning sideways between shelves.',
+    'Tiny. Two people would fill it.',
+    'Compact — the kind of stop you loot in minutes if it\'s quiet.',
+  ],
+  medium: [
+    'Ordinary shop size — aisles, a back room, maybe a storeroom.',
+    'Mid-sized. Enough floor to search properly, enough corners to watch.',
+    'Not huge, not tiny. A normal unit with depth behind the frontage.',
+    'Standard shopfront. You\'ll need more than a glance to strip it.',
+    'Room to work: shelves, a counter, space that swallows sound.',
+    'Decent footprint. Multiple shelves, at least one dark corner.',
+    'Average Singapore shop unit — enough to keep you busy.',
+    'Middle of the road size. A proper sweep will take a few minutes.',
+  ],
+  large: [
+    'Big place. Wide floor, deep shelves, too many blind spots.',
+    'Large — you\'re looking at a proper sweep, not a grab-and-go.',
+    'Sprawling unit. Aisles that run longer than they should.',
+    'Warehouse energy. Plenty of ground to cover before you\'re done.',
+    'Huge footprint. Sound carries funny in places this size.',
+    'A big one. You could lose time in here if you get greedy.',
+    'Open floor and depth. This isn\'t a five-minute job.',
+    'Large site. More rooms than you want when something moves.',
+  ],
+};
+
+const RUIN_LINES: Record<DestructionTier, string[]> = {
+  0: [
+    'Surprisingly intact — shutters half-down, shelves still upright.',
+    'The bones of the place held. Glass cracked, but the layout\'s readable.',
+    'Not stripped bare yet. Looks like people left in a hurry, not a riot.',
+    'Condition\'s almost rude — like the chaos skipped this door.',
+    'Still standing proper. Dust, yes. Demolition, no.',
+    'You could almost pretend it\'s closed for renovations.',
+    'Roof\'s on, walls are sound. Whatever hit the block spared the insides.',
+    'Untouched enough that you check twice for someone already inside.',
+    'Quiet and mostly whole. Loot here might still work.',
+    'The place kept its shape. That\'s rarer than it should be.',
+  ],
+  1: [
+    'Damaged — scorch marks, kicked doors, shelves leaning.',
+    'Been through it. Not gutted, but nobody\'s keeping house.',
+    'Broken glass, scattered stock, the usual aftertaste of panic.',
+    'Knocked about. Stuff\'s still here; it just looks unhappy.',
+    'Weather and looters both left fingerprints.',
+    'Torn open in places. You\'ll find things, but expect wear.',
+    'Half-ransacked already. What\'s left has seen better days.',
+    'Walls hold; fixtures don\'t. Classic mid-collapse shop.',
+    'Someone forced every drawer and left the mess behind.',
+    'Scuffed and open to the street. Condition will be a gamble.',
+  ],
+  2: [
+    'Ravaged. Floors sticky, shelves tipped, air thick with old smoke.',
+    'Torn apart. Hard to tell shop from dump without squinting.',
+    'Heavy damage — ceiling down in spots, stock crushed under debris.',
+    'Looks like a fight and a fire took turns.',
+    'Ripped open. Anything useful is hiding under junk.',
+    'The place got worked over hard. Expect ruined gear and sharp edges.',
+    'Blackened walls, collapsed racks. Survival of the stubborn.',
+    'Rubble and rainwater. You\'ll dig more than you\'ll browse.',
+    'Properly wrecked. Good finds here would be luck, not planning.',
+    'Stripped and smashed in equal measure.',
+    'You smell mildew and burnt plastic before you smell anything useful.',
+  ],
+  3: [
+    'Gutted. Little left but frames, ash, and things that used to be shelves.',
+    'Hollowed out. Whatever was worth taking walked years ago — or burned.',
+    'Bare skeleton of a shop. Condition on anything left will be ugly.',
+    'Stripped to the studs. You\'re scavenging leftovers of leftovers.',
+    'Almost empty of structure, never mind stock.',
+    'A shell. Wind moves through where the front glass used to be.',
+    'Picked clean and then some. The ruin itself is the story.',
+    'Gutted down to fixtures. A pristine find here would be a miracle.',
+    'Nothing upright. You\'ll be lifting boards for scrap hope.',
+    'Beyond looted — demolished. Bring patience, not greed.',
+    'The floor plan is a suggestion. Everything else is trash and sharp metal.',
+    'Dead empty and half-collapsed. Still, empty places lie sometimes.',
+  ],
+};
 
 const POOLS: Record<FlavorKey, string[]> = {
   wake: [
@@ -103,6 +205,8 @@ const POOLS: Record<FlavorKey, string[]> = {
     'You pin {name} and move on. Better to know than to wonder.',
     '{name} goes on the map. You\'ll remember the smell, too.',
   ],
+  // Composed at call time via SITE_SURVEY_FRAMES + size/ruin pools.
+  siteSurvey: SITE_SURVEY_FRAMES,
   searchStart: [
     'You work through {name}, hands busy, ears open.',
     'You start picking over {name} — careful, quiet, thorough.',
@@ -348,12 +452,25 @@ export function flavorHazard(kind: HazardKind, beat: HazardBeat): string {
   return pick(HAZARD_POOLS.horde_pocket.cross ?? ['The ground here takes its toll.']);
 }
 
-function fill(tpl: string, ctx: FlavorCtx): string {
-  return tpl.replace(/\{name\}/g, ctx.name ?? 'here');
+function fill(tpl: string, ctx: FlavorCtx & { sizeLine?: string; ruinLine?: string }): string {
+  return tpl
+    .replace(/\{name\}/g, ctx.name ?? 'here')
+    .replace(/\{sizeLine\}/g, ctx.sizeLine ?? '')
+    .replace(/\{ruinLine\}/g, ctx.ruinLine ?? '');
+}
+
+function composeSiteSurvey(ctx: FlavorCtx): string {
+  const size = ctx.size ?? 'medium';
+  const ruin = ctx.destruction ?? 1;
+  const sizeLine = pick(SIZE_LINES[size]);
+  const ruinLine = pick(RUIN_LINES[ruin]);
+  return fill(pick(SITE_SURVEY_FRAMES), { ...ctx, sizeLine, ruinLine }).replace(/\s+/g, ' ').trim();
 }
 
 /** Build a flavourful log line for the given action + context. */
 export function flavor(key: FlavorKey, ctx: FlavorCtx = {}): string {
+  if (key === 'siteSurvey') return composeSiteSurvey(ctx);
+
   let line = fill(pick(POOLS[key]), ctx);
 
   // Sprinkle atmosphere on arrivals ~50% of the time.

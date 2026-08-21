@@ -1,7 +1,17 @@
 import type { Container, ItemInstance } from '../../game/types';
 import { itemDef } from '../../game/loot';
-import { conditionPct, dimsFor, footprint, hasCondition, isBroken } from '../../game/inventory';
+import {
+  conditionPct,
+  dimsFor,
+  footprint,
+  hasCondition,
+  isBroken,
+  blockedCellsFor,
+} from '../../game/inventory';
+import { conditionBarColor, tileColor } from '../../game/itemTileColor';
+import { packCellKey } from '../../game/packGrid';
 import { Icon } from '../../icons/Icon';
+import { itemName, useLocale } from '../../i18n';
 import { itemIcon } from './itemIcon';
 import type { ReactNode } from 'react';
 
@@ -55,9 +65,20 @@ export function InventoryGrid({
   onItemPointerMove,
   suppressNativeTitle = false,
 }: Props) {
+  const locale = useLocale();
   const dims = dimsFor(grid);
   const cells = items.filter((i) => i.container === grid);
   const showPreview = preview && preview.grid === grid;
+  const blocked = blockedCellsFor(grid);
+  const holes: { x: number; y: number }[] = [];
+  if (blocked.size > 0) {
+    for (let y = 0; y < dims.h; y++) {
+      for (let x = 0; x < dims.w; x++) {
+        if (blocked.has(packCellKey(x, y))) holes.push({ x, y });
+      }
+    }
+  }
+  const usable = dims.w * dims.h - holes.length;
 
   return (
     <div>
@@ -67,7 +88,7 @@ export function InventoryGrid({
           {titleAccessory}
         </span>
         <span>
-          {dims.w}×{dims.h}
+          {holes.length > 0 ? `${usable} cells · ${dims.w}×${dims.h}` : `${dims.w}×${dims.h}`}
         </span>
       </div>
       <div className="overflow-x-auto">
@@ -83,6 +104,21 @@ export function InventoryGrid({
             backgroundSize: `${CELL}px ${CELL}px`,
           }}
         >
+          {holes.map((cell) => (
+            <div
+              key={packCellKey(cell.x, cell.y)}
+              className="pointer-events-none absolute z-[1] bg-black/55"
+              style={{
+                left: cell.x * CELL,
+                top: cell.y * CELL,
+                width: CELL,
+                height: CELL,
+                backgroundImage:
+                  'repeating-linear-gradient(-45deg, transparent, transparent 4px, #ffffff12 4px, #ffffff12 5px)',
+              }}
+            />
+          ))}
+
           {showPreview && (
             <div
               className="pointer-events-none absolute z-20 rounded"
@@ -105,6 +141,7 @@ export function InventoryGrid({
             const wears = hasCondition(inst);
             const cond = conditionPct(inst);
             const broken = isBroken(inst);
+            const displayName = itemName(inst.defId, locale);
             return (
               <div
                 key={inst.uid}
@@ -126,13 +163,17 @@ export function InventoryGrid({
                   top: inst.y * CELL + 1,
                   width: w * CELL - 2,
                   height: h * CELL - 2,
-                  background: `${def.color}66`,
-                  boxShadow: `inset 0 0 0 1px ${def.color}`,
+                  background: `${tileColor(def)}66`,
+                  boxShadow: `inset 0 0 0 1px ${tileColor(def)}`,
                   opacity: isDragging ? 0.25 : 1,
                   zIndex: selected ? 10 : 5,
                 }}
                 title={
-                  suppressNativeTitle ? undefined : wears ? `${def.name} — ${cond}%` : def.name
+                  suppressNativeTitle
+                    ? undefined
+                    : wears
+                      ? `${displayName} — ${cond}%`
+                      : displayName
                 }
               >
                 <Icon
@@ -151,13 +192,7 @@ export function InventoryGrid({
                       className="block h-full"
                       style={{
                         width: `${cond}%`,
-                        background: broken
-                          ? '#e0342b'
-                          : cond < 25
-                            ? '#e0342b'
-                            : cond < 50
-                              ? '#e0a02b'
-                              : '#8fbf4b',
+                        background: conditionBarColor(cond, broken),
                       }}
                     />
                   </span>

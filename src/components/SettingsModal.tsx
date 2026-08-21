@@ -1,4 +1,11 @@
 import { SETTINGS_SCHEMA, useSettings } from '../game/settings';
+import {
+  settingDescription,
+  settingGroupLabel,
+  settingLabel,
+  settingOptionLabel,
+  useT,
+} from '../i18n';
 
 /**
  * Settings panel. Renders entirely from SETTINGS_SCHEMA, grouped by section, so
@@ -14,6 +21,7 @@ export function SettingsModal({
 }) {
   const values = useSettings((s) => s.values);
   const setSetting = useSettings((s) => s.setSetting);
+  const { locale, t } = useT();
 
   // group the schema by its `group` field, preserving first-seen order
   const groups: { name: string; defs: typeof SETTINGS_SCHEMA }[] = [];
@@ -36,9 +44,9 @@ export function SettingsModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-lg font-bold text-signal">⚙ Settings</h3>
+          <h3 className="text-lg font-bold text-signal">{t('ui.settings.title')}</h3>
           <button onClick={onClose} className="text-xs text-white/40 hover:text-white/70">
-            ✕ close
+            {t('ui.common.close')}
           </button>
         </div>
 
@@ -46,16 +54,20 @@ export function SettingsModal({
           {groups.map((group) => (
             <section key={group.name}>
               <h4 className="mb-2 text-2xs uppercase tracking-widest text-white/30">
-                {group.name}
+                {settingGroupLabel(group.name, locale)}
               </h4>
               <div className="flex flex-col gap-3">
                 {group.defs.map((def) => {
                   const current = values[def.key] ?? def.default;
                   return (
                     <div key={def.key}>
-                      <div className="text-sm font-semibold">{def.label}</div>
+                      <div className="text-sm font-semibold">
+                        {settingLabel(def.key, locale)}
+                      </div>
                       {def.description && (
-                        <div className="mb-1.5 text-xs text-white/40">{def.description}</div>
+                        <div className="mb-1.5 text-xs text-white/40">
+                          {settingDescription(def.key, locale)}
+                        </div>
                       )}
                       <div className="flex flex-wrap gap-1.5">
                         {def.options.map((opt) => {
@@ -70,7 +82,7 @@ export function SettingsModal({
                                   : 'border-white/10 bg-white/5 text-white/60 hover:border-white/30'
                               }`}
                             >
-                              {opt.label}
+                              {settingOptionLabel(def.key, opt.value, opt.label, locale)}
                             </button>
                           );
                         })}
@@ -80,16 +92,16 @@ export function SettingsModal({
                 })}
                 {group.name === 'Guide' && onReviewGuide && (
                   <div>
-                    <div className="text-sm font-semibold">Review how to play</div>
+                    <div className="text-sm font-semibold">{t('ui.settings.reviewGuide')}</div>
                     <div className="mb-1.5 text-xs text-white/40">
-                      Open the primer with Survive, Loot, Block, Tunnels, and the rest.
+                      {t('ui.settings.reviewGuideDesc')}
                     </div>
                     <button
                       type="button"
                       onClick={onReviewGuide}
                       className="rounded border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-white/70 transition hover:border-white/30 hover:text-white"
                     >
-                      Open guide
+                      {t('ui.settings.openGuide')}
                     </button>
                   </div>
                 )}

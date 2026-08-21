@@ -3,6 +3,7 @@ import { Polygon, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import type { ZonesData, ZoneRing } from '../game/playable';
 import { ensureZonesLoaded, getZones, seaMaskOuter } from '../game/playable';
+import { useT } from '../i18n';
 
 const WATER_FILL = 'rgba(77, 122, 140, 0.48)';
 const WATER_STYLE = {
@@ -246,20 +247,21 @@ export function UnplayableOverlay({ zones }: { zones: ZonesData }) {
 
 /** Corner legend for the spawn map. */
 export function UnplayableLegend() {
+  const { t } = useT();
   return (
     <div className="pointer-events-none absolute bottom-3 left-3 z-[400] rounded border border-white/15 bg-black/70 px-2.5 py-2 text-[11px] leading-relaxed text-white/75 backdrop-blur-sm">
-      <div className="mb-1 font-medium text-white/90">Terrain</div>
+      <div className="mb-1 font-medium text-white/90">{t('ui.terrain.title')}</div>
       <div className="flex items-center gap-2">
         <span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#4d7a8c]" />
-        Water — sealed
+        {t('ui.terrain.water')}
       </div>
       <div className="mt-0.5 flex items-center gap-2">
         <span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#6b4a32]" />
-        Restricted — sealed off
+        {t('ui.terrain.restricted')}
       </div>
       <div className="mt-0.5 flex items-center gap-2">
         <span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#2f5a38]" />
-        Vegetation — slows travel
+        {t('ui.terrain.vegetation')}
       </div>
     </div>
   );

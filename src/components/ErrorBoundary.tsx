@@ -1,5 +1,8 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { clearRun } from '../game/storage';
+import { SETTINGS_SCHEMA, useSettings } from '../game/settings';
+import { t } from '../i18n/t';
+import { DEFAULT_LOCALE, isLocaleId, type LocaleId } from '../i18n/types';
 
 interface Props {
   children: ReactNode;
@@ -7,6 +10,12 @@ interface Props {
 
 interface State {
   error: Error | null;
+}
+
+function currentLocale(): LocaleId {
+  const fallback = SETTINGS_SCHEMA.find((d) => d.key === 'language')?.default ?? 'en';
+  const raw = useSettings.getState().values.language ?? fallback;
+  return isLocaleId(raw) ? raw : DEFAULT_LOCALE;
 }
 
 /**
@@ -29,14 +38,15 @@ export class ErrorBoundary extends Component<Props, State> {
     const { error } = this.state;
     if (!error) return this.props.children;
 
+    const locale = currentLocale();
+    const tr = (key: string) => t(key, undefined, locale);
+
     return (
       <div className="flex min-h-full items-center justify-center p-6">
         <div className="w-full max-w-md text-center">
           <div className="mb-2 text-6xl">📻</div>
-          <h1 className="text-3xl font-black text-hiss">SIGNAL LOST</h1>
-          <p className="mt-1 text-sm text-white/50">
-            Something broke. Your run is saved — reloading should pick up where you left off.
-          </p>
+          <h1 className="text-3xl font-black text-hiss">{tr('ui.error.signalLost')}</h1>
+          <p className="mt-1 text-sm text-white/50">{tr('ui.error.brokeBlurb')}</p>
 
           <pre className="mt-6 overflow-x-auto rounded-lg border border-white/10 bg-black/40 p-3 text-left text-xs text-white/40">
             {error.message || String(error)}
@@ -46,7 +56,7 @@ export class ErrorBoundary extends Component<Props, State> {
             onClick={() => window.location.reload()}
             className="mt-8 rounded-lg bg-signal/80 px-8 py-3 font-bold text-black hover:bg-signal"
           >
-            Reload
+            {tr('ui.error.reload')}
           </button>
 
           <button
@@ -56,7 +66,7 @@ export class ErrorBoundary extends Component<Props, State> {
             }}
             className="mt-3 block w-full text-xs text-white/30 hover:text-white/60"
           >
-            Still broken? Delete this run and start over
+            {tr('ui.error.deleteRun')}
           </button>
         </div>
       </div>

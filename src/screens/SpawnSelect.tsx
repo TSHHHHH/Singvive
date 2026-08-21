@@ -21,6 +21,7 @@ import {
   TILE_URL,
 } from '../components/tileConfig';
 import { Icon } from '../icons/Icon';
+import { useT } from '../i18n';
 
 const bounds = L.latLngBounds(
   [SG_BOUNDS.minLat, SG_BOUNDS.minLng],
@@ -95,6 +96,7 @@ const RANDOM_TRIES = 24;
 
 export function SpawnSelect() {
   const { setSpawn, resetToMenu } = useGame();
+  const { t } = useT();
   const [picked, setPicked] = useState<Picked | null>(null);
   const [loading, setLoading] = useState(false);
   const [geoBusy, setGeoBusy] = useState(false);
@@ -151,7 +153,7 @@ export function SpawnSelect() {
 
   const useMyLocation = () => {
     if (!navigator.geolocation) {
-      setRejected('This browser cannot share your location.');
+      setRejected(t('ui.spawn.geoUnavailable'));
       return;
     }
     setGeoBusy(true);
@@ -166,7 +168,7 @@ export function SpawnSelect() {
           lng < SG_BOUNDS.minLng ||
           lng > SG_BOUNDS.maxLng
         ) {
-          setRejected('You are outside Singapore — tap the map or pick Random.');
+          setRejected(t('ui.spawn.outsideSg'));
           return;
         }
         tryPick(lat, lng);
@@ -174,9 +176,9 @@ export function SpawnSelect() {
       (err) => {
         setGeoBusy(false);
         if (err.code === err.PERMISSION_DENIED) {
-          setRejected('Location permission denied — tap the map instead.');
+          setRejected(t('ui.spawn.permissionDenied'));
         } else {
-          setRejected('Could not read your location — tap the map instead.');
+          setRejected(t('ui.spawn.geoFailed'));
         }
       },
       { enableHighAccuracy: true, timeout: 12000, maximumAge: 60_000 },
@@ -199,7 +201,7 @@ export function SpawnSelect() {
       setPicked({ lat: n.lat, lng: n.lng, name: n.name });
       return;
     }
-    setRejected('Could not find walkable ground — tap the map.');
+    setRejected(t('ui.spawn.noWalkable'));
   };
 
   const confirm = async () => {
@@ -215,7 +217,7 @@ export function SpawnSelect() {
     const result = await setSpawn(picked);
     if (result === 'remote') {
       setLoading(false);
-      setRejected('Area too remote or lacks infrastructure. Please select an urbanized zone.');
+      setRejected(t('ui.spawn.tooRemote'));
     } else if (result === 'unplayable') {
       setLoading(false);
       setRejected(unplayableMessage(walkabilityOf(picked.lat, picked.lng), 'spawn'));
@@ -227,25 +229,25 @@ export function SpawnSelect() {
     <div className="flex h-full flex-col p-3 sm:p-4">
       <div className="mb-3 flex flex-wrap items-center gap-2 sm:justify-between">
         <button onClick={resetToMenu} className="text-xs text-white/40 hover:text-white/70">
-          ← Back
+          {t('ui.common.back')}
         </button>
         <h2 className="order-first w-full text-center text-base font-bold text-signal sm:order-none sm:w-auto sm:text-lg">
-          Choose where you wake up
+          {t('ui.spawn.title')}
         </h2>
         <div className="ml-auto flex gap-2 sm:ml-0">
           <button
             onClick={useMyLocation}
             disabled={geoBusy || loading}
             className="rounded bg-white/10 px-3 py-1.5 text-sm hover:bg-white/20 disabled:opacity-40"
-            title="Ask the browser for your real-world position"
+            title={t('ui.spawn.myLocationTitle')}
           >
-            {geoBusy ? 'Locating…' : 'My location'}
+            {geoBusy ? t('ui.spawn.locating') : t('ui.spawn.myLocation')}
           </button>
           <button
             onClick={randomSpawn}
             className="rounded bg-white/10 px-3 py-1.5 text-sm hover:bg-white/20"
           >
-            Random
+            {t('ui.spawn.random')}
           </button>
         </div>
       </div>
@@ -296,14 +298,14 @@ export function SpawnSelect() {
         <button
           onClick={toggleMrt}
           aria-pressed={showMrt}
-          title="Show the MRT & LRT network"
+          title={t('ui.spawn.railMapTitle')}
           className={`absolute right-2 top-2 z-[500] flex items-center gap-1.5 rounded border px-2 py-1.5 text-xs font-semibold shadow-signage transition-colors ${
             showMrt
               ? 'border-astral/50 bg-astral/20 text-astral'
               : 'border-white/15 bg-concrete-900/95 text-white/60 hover:text-white/90'
           }`}
         >
-          <Icon name="action.mrt" size={14} /> Rail map
+          <Icon name="action.mrt" size={14} /> {t('ui.spawn.railMap')}
         </button>
 
         {showMrt && mrtNet && (
@@ -318,7 +320,7 @@ export function SpawnSelect() {
           <div className="absolute inset-0 z-[500] flex items-center justify-center bg-black/70 text-center">
             <div>
               <div className="mb-2 animate-pulse text-2xl">📡</div>
-              <p className="text-sm text-white/70">Scanning the neighbourhood for supplies…</p>
+              <p className="text-sm text-white/70">{t('ui.spawn.scanning')}</p>
             </div>
           </div>
         )}
@@ -328,10 +330,10 @@ export function SpawnSelect() {
         <p className="text-sm text-white/50">
           {picked ? (
             <>
-              Spawn: <span className="text-signal">{picked.name}</span>
+              {t('ui.spawn.spawnLabel')} <span className="text-signal">{picked.name}</span>
             </>
           ) : (
-            'Tap dry ground, use your location, or roll a random spawn.'
+            t('ui.spawn.hint')
           )}
         </p>
         <button
@@ -339,7 +341,7 @@ export function SpawnSelect() {
           disabled={!picked || loading}
           className="w-full rounded-lg bg-signal/80 px-6 py-2.5 font-bold text-black transition hover:bg-signal disabled:opacity-30 sm:w-auto"
         >
-          Wake up here →
+          {t('ui.spawn.wakeUp')}
         </button>
       </div>
     </div>

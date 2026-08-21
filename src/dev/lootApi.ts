@@ -2,6 +2,11 @@ import type { Recipe } from '../game/crafting';
 import type { ItemDef } from '../game/types';
 import { validateItemsCatalog } from './validateItems';
 import {
+  normalizeItemTileColors,
+  validateItemTileColors,
+  type ItemTileColors,
+} from './validateItemTileColors';
+import {
   validateLootTablesCatalog,
   type LootTablesCatalog,
 } from './validateLootTables';
@@ -13,6 +18,7 @@ import {
 
 export type { LootTablesCatalog, LootTableEntry } from './validateLootTables';
 export type { RecipesCatalog } from './validateRecipes';
+export type { ItemTileColors } from './validateItemTileColors';
 export type ItemsCatalog = Record<string, ItemDef>;
 
 export const MAX_ICON_BYTES = 64 * 1024;
@@ -36,6 +42,35 @@ export async function saveItemsCatalog(catalog: ItemsCatalog): Promise<void> {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(catalog),
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as {
+      error?: string;
+      errors?: string[];
+    } | null;
+    const detail =
+      body?.errors?.slice(0, 5).join('\n') ?? body?.error ?? `HTTP ${res.status}`;
+    throw new Error(detail);
+  }
+}
+
+export async function fetchItemTileColors(): Promise<ItemTileColors> {
+  const res = await fetch('/__dev/item-tile-colors');
+  if (!res.ok) {
+    throw new Error(`Failed to load item tile colors (${res.status})`);
+  }
+  return normalizeItemTileColors(await res.json());
+}
+
+export async function saveItemTileColors(colors: ItemTileColors): Promise<void> {
+  const errors = validateItemTileColors(colors);
+  if (errors.length > 0) {
+    throw new Error(errors.slice(0, 5).join('\n'));
+  }
+  const res = await fetch('/__dev/item-tile-colors', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(colors),
   });
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as {

@@ -15,6 +15,7 @@ import {
   TEAR_CONDITION_COST,
   TEAR_RAGS_YIELD,
 } from '../../game/inventory';
+import { conditionBarColor } from '../../game/itemTileColor';
 import type { EquipSlot } from '../../game/types';
 import { sumTraitMod } from '../../game/character';
 import {
@@ -32,26 +33,28 @@ import { isConsumableUsable } from './itemStatLines';
 import { ItemInspectBody } from './ItemInspectBody';
 import { useInventoryInteraction } from './InventoryInteractionContext';
 import { TipHint } from '../TipHint';
+import { useT } from '../../i18n';
 
-const PC_INVENTORY_HINTS: { action: string; keys: string }[] = [
-  { action: 'Inspect', keys: 'Hover' },
-  { action: 'Use / equip', keys: 'Double-click' },
-  { action: 'Stash / pack', keys: 'Ctrl+click' },
-  { action: 'Quick actions', keys: 'Right-click' },
-  { action: 'Move · rotate', keys: 'Drag · R' },
-];
+const PC_INVENTORY_HINT_KEYS = [
+  { actionKey: 'ui.inventory.inspect', keys: 'Hover' },
+  { actionKey: 'ui.inventory.useOrEquip', keys: 'Double-click' },
+  { actionKey: 'ui.inventory.stashOrPack', keys: 'Ctrl+click' },
+  { actionKey: 'ui.inventory.quickActions', keys: 'Right-click' },
+  { actionKey: 'ui.inventory.moveRotate', keys: 'Drag · R' },
+] as const;
 
 function InventoryControlsHint(): ReactNode {
+  const { t } = useT();
   return (
     <TipHint
       tip={
         <div className="space-y-1 text-2xs normal-case tracking-normal">
           <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-white/35">
-            Controls
+            {t('ui.inventory.controls')}
           </div>
-          {PC_INVENTORY_HINTS.map((row) => (
-            <div key={row.action} className="flex items-baseline justify-between gap-4">
-              <span className="text-concrete-200">{row.action}</span>
+          {PC_INVENTORY_HINT_KEYS.map((row) => (
+            <div key={row.actionKey} className="flex items-baseline justify-between gap-4">
+              <span className="text-concrete-200">{t(row.actionKey)}</span>
               <span className="shrink-0 tabular-nums text-white/45">{row.keys}</span>
             </div>
           ))}
@@ -62,7 +65,7 @@ function InventoryControlsHint(): ReactNode {
     >
       <button
         type="button"
-        aria-label="Inventory controls"
+        aria-label={t('ui.inventory.controlsAria')}
         className="inline-flex h-4 w-4 items-center justify-center rounded border border-white/15 text-[10px] font-semibold leading-none text-white/45 transition hover:border-signal/40 hover:text-signal"
       >
         ?
@@ -80,6 +83,7 @@ export function InventoryPanel({
   onClose?: () => void;
   layout?: InventoryLayout;
 }) {
+  const { t } = useT();
   const items = useGame((s) => s.items);
   const equipment = useGame((s) => s.equipment);
   const character = useGame((s) => s.character);
@@ -212,7 +216,7 @@ export function InventoryPanel({
                         }}
                         className="w-full rounded border border-astral/40 bg-astral/10 px-1.5 py-1 text-xs leading-tight text-astral hover:bg-astral/20"
                       >
-                        Unequip
+                        {t('ui.inventory.unequip')}
                       </button>
                     ) : (
                       <>
@@ -220,14 +224,14 @@ export function InventoryPanel({
                           <button
                             onClick={() => applyItem(inspected.uid)}
                             disabled={inCombat}
-                            title={inCombat ? 'Cannot use items during combat' : undefined}
+                            title={inCombat ? t('ui.inventory.cannotUseCombat') : undefined}
                             className={`w-full rounded px-1.5 py-1 text-xs font-semibold leading-tight ${
                               inCombat
                                 ? 'cursor-not-allowed bg-white/10 text-white/30'
                                 : 'bg-signal/80 text-black hover:bg-signal'
                             }`}
                           >
-                            Use
+                            {t('ui.inventory.use')}
                           </button>
                         )}
                         {def.slot && (
@@ -238,16 +242,16 @@ export function InventoryPanel({
                             }}
                             className="w-full rounded border border-astral/40 bg-astral/10 px-1.5 py-1 text-xs leading-tight text-astral hover:bg-astral/20"
                           >
-                            Equip
+                            {t('ui.inventory.equip')}
                           </button>
                         )}
                         {canRotate && (
                           <button
                             onClick={() => rotateItem(inspected.uid)}
                             className="w-full rounded bg-white/10 px-1.5 py-1 text-xs leading-tight hover:bg-white/20"
-                            title="Or press R while dragging"
+                            title={t('ui.inventory.rotateHint')}
                           >
-                            ⟳ Rotate
+                            {t('ui.inventory.rotate')}
                           </button>
                         )}
                         {stashContainer && (
@@ -260,7 +264,10 @@ export function InventoryPanel({
                             }
                             className="w-full rounded bg-white/10 px-1.5 py-1 text-xs leading-tight hover:bg-white/20"
                           >
-                            → {inspected.container === BACKPACK ? 'Stash' : 'Pack'}
+                            →{' '}
+                            {inspected.container === BACKPACK
+                              ? t('ui.inventory.stash')
+                              : t('ui.inventory.pack')}
                           </button>
                         )}
                         <button
@@ -269,9 +276,9 @@ export function InventoryPanel({
                             setSelectedUid(null);
                           }}
                           className="w-full rounded border border-hiss/40 px-1.5 py-1 text-xs leading-tight text-hiss/80 hover:bg-hiss/10"
-                          title="Gone for good — but the weight goes with it"
+                          title={t('ui.inventory.dropGone')}
                         >
-                          Drop
+                          {t('ui.inventory.drop')}
                         </button>
                       </>
                     )}
@@ -281,39 +288,45 @@ export function InventoryPanel({
                         className="w-full rounded border border-amber-300/40 bg-amber-300/10 px-1.5 py-1 text-xs leading-tight text-amber-200 hover:bg-amber-300/20"
                         title={
                           fieldKit
-                            ? `Uses 1× ${itemDef(fieldKit.defId).name}`
-                            : `Uses ${describeInputs(REPAIR_INPUTS)} and a ${itemDef(REPAIR_TOOL).name}`
+                            ? t('ui.inventory.usesOne', { name: itemDef(fieldKit.defId).name })
+                            : t('ui.inventory.usesInputs', {
+                                inputs: describeInputs(REPAIR_INPUTS),
+                                tool: itemDef(REPAIR_TOOL).name,
+                              })
                         }
                       >
-                        Repair
+                        {t('ui.inventory.repair')}
                       </button>
                     )}
                     {tearable && (
                       <button
                         onClick={() => tearForRags(inspected.uid)}
                         className="w-full rounded bg-white/10 px-1.5 py-1 text-xs leading-tight hover:bg-white/20"
-                        title={`Costs ${TEAR_CONDITION_COST}% condition — yields ${TEAR_RAGS_YIELD}× Cloth Rags for dressings`}
+                        title={t('ui.inventory.tearTitle', {
+                          cost: TEAR_CONDITION_COST,
+                          yield: TEAR_RAGS_YIELD,
+                        })}
                       >
-                        ✂ Rags
+                        {t('ui.inventory.rags')}
                       </button>
                     )}
                   </>
                 ) : (
-                  <p className="text-center text-2xs leading-snug text-white/25">Click to act</p>
+                  <p className="text-center text-2xs leading-snug text-white/25">
+                    {t('ui.inventory.clickToAct')}
+                  </p>
                 )}
               </div>
             </div>
           ) : (
-            <p className="m-auto text-center text-xs text-white/30">
-              Select an item to inspect it. Drag to rearrange · R to rotate while dragging.
-            </p>
+            <p className="m-auto text-center text-xs text-white/30">{t('ui.inventory.selectHint')}</p>
           )}
         </div>
       )}
 
       {showEquip && (
         <div className="grid grid-cols-4 gap-2">
-          {EQUIP_SLOTS.map(({ slot, label, icon }) => {
+          {EQUIP_SLOTS.map(({ slot, icon }) => {
             const inst = equipment[slot];
             const eDef = inst ? itemDef(inst.defId) : null;
             const highlighted = drag?.target?.type === 'slot' && drag.target.slot === slot;
@@ -321,14 +334,10 @@ export function InventoryPanel({
             const twoHandBlocked =
               slot === 'offHand' && isTwoHandedEquipped(equipment) && !inst;
             const cond = inst && hasCondition(inst) ? conditionPct(inst) : null;
-            const condColor =
+            const condWash =
               cond == null
                 ? null
-                : conditionOf(inst!) < 25
-                  ? 'bg-hiss/40'
-                  : conditionOf(inst!) < 50
-                    ? 'bg-amber-400/35'
-                    : 'bg-emerald-500/35';
+                : `${conditionBarColor(conditionOf(inst!), false)}59`;
             return (
               <div
                 key={slot}
@@ -366,17 +375,17 @@ export function InventoryPanel({
                         ? 'border-white/5 bg-black/20 opacity-50'
                         : 'border-white/10 bg-black/40'
                 } ${inst ? 'cursor-pointer' : ''}`}
-                title={twoHandBlocked ? 'Blocked by two-handed weapon' : undefined}
+                title={twoHandBlocked ? t('ui.inventory.twoHandBlocked') : undefined}
               >
-                {cond != null && condColor && (
+                {cond != null && condWash && (
                   <div
-                    className={`pointer-events-none absolute inset-x-0 bottom-0 ${condColor}`}
-                    style={{ height: `${cond}%` }}
+                    className="pointer-events-none absolute inset-x-0 bottom-0"
+                    style={{ height: `${cond}%`, background: condWash }}
                     aria-hidden
                   />
                 )}
                 <span className="relative z-[1] text-2xs uppercase tracking-wide text-white/40">
-                  {label}
+                  {t(`ui.slots.${slot}`)}
                 </span>
                 {eDef && inst ? (
                   <Icon name={itemIcon(eDef)} size={18} className="relative z-[1]" />
@@ -395,7 +404,7 @@ export function InventoryPanel({
         <>
           <InventoryGrid
             grid={BACKPACK}
-            title="Backpack"
+            title={t('ui.inventory.backpack')}
             titleAccessory={pcShortcuts ? <InventoryControlsHint /> : undefined}
             items={items}
             selectedUid={selectedUid}
@@ -406,7 +415,9 @@ export function InventoryPanel({
           />
 
           <div className="flex items-center gap-2 text-xs">
-            <span className="shrink-0 uppercase tracking-widest text-white/40">Carry</span>
+            <span className="shrink-0 uppercase tracking-widest text-white/40">
+              {t('ui.inventory.carry')}
+            </span>
             <div className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-white/10">
               <div
                 className={`h-full rounded-full transition-[width] duration-200 ${
@@ -418,11 +429,16 @@ export function InventoryPanel({
             <span className="flex shrink-0 items-baseline gap-2">
               {hasFirearm && (
                 <span className={rounds === 0 ? 'font-semibold text-hiss' : 'text-white/50'}>
-                  {rounds} rounds
+                  {t('ui.inventory.rounds', { n: rounds })}
                 </span>
               )}
               <span className={encumbered ? 'font-semibold text-hiss' : 'text-white/60'}>
-                {load.toFixed(1)} / {carry} kg{encumbered ? ' · Encumbered' : ''}
+                {encumbered
+                  ? t('ui.inventory.loadEncumbered', {
+                      load: load.toFixed(1),
+                      carry,
+                    })
+                  : t('ui.inventory.loadKg', { load: load.toFixed(1), carry })}
               </span>
             </span>
           </div>
@@ -433,7 +449,7 @@ export function InventoryPanel({
         <div className="rounded-lg border border-amber-300/30 bg-amber-300/5 p-2">
           <InventoryGrid
             grid="temp:crawl"
-            title="Temp stash (tunnel)"
+            title={t('ui.inventory.tempStash')}
             items={items}
             selectedUid={selectedUid}
             draggingUid={dragUid}
@@ -446,19 +462,19 @@ export function InventoryPanel({
             onClick={() => confirmTempStash()}
             className="mt-2 w-full rounded bg-signal/80 py-1.5 text-xs font-bold text-black hover:bg-signal"
           >
-            Confirm — abandon leftover & continue
+            {t('ui.inventory.confirmAbandon')}
           </button>
         </div>
       )}
 
       {showStash && inTunnel && !hasTempStash && (
-        <p className="text-2xs text-white/35">Location stash locked while in the tunnels.</p>
+        <p className="text-2xs text-white/35">{t('ui.inventory.stashLocked')}</p>
       )}
 
       {showStash && stashContainer && (
         <InventoryGrid
           grid={stashContainer}
-          title={`Stash · ${hereLoc!.name}`}
+          title={t('ui.inventory.stashNamed', { name: hereLoc!.name })}
           items={items}
           selectedUid={selectedUid}
           draggingUid={dragUid}

@@ -28,10 +28,13 @@ import {
   attemptableCells,
   reachableCells,
   retreatDc,
+  retreatFailChance,
+  descentIsChecked,
+  pathUsesStairs,
+  pathDescends,
   SEAL_META,
   samePos,
   senseChance,
-  stairTravelHint,
   UNIT_META,
   type HdbBlock,
   type HdbDungeon,
@@ -40,6 +43,7 @@ import {
   type SealKind,
 } from '../game/hdbDungeon';
 import type { AttributeKey, Attributes } from '../game/types';
+import { msgOr, useT, type LocaleId, type TVars } from '../i18n';
 
 type PathLinkDirs = {
   left?: boolean;
@@ -248,7 +252,9 @@ const SEAL_ICON: Record<SealKind, IconName> = {
  * Single vertical label (no companion glyph) so short rows still read cleanly.
  */
 function BlockadeStripe({ block }: { block: HdbBlock }) {
+  const { locale, t } = useT();
   const meta = BLOCK_META[block.kind];
+  const label = msgOr(`ui.hdb.blockKind.${block.kind}.label`, meta.label, undefined, locale);
   const clearable = block.breakable;
   return (
     <span
@@ -259,8 +265,8 @@ function BlockadeStripe({ block }: { block: HdbBlock }) {
       }`}
       title={
         clearable
-          ? `${meta.label} — clear to pass`
-          : `${meta.label} — permanent, no way through`
+          ? t('ui.hdb.clearToPass', { label })
+          : t('ui.hdb.permanent', { label })
       }
       style={
         clearable
@@ -273,10 +279,10 @@ function BlockadeStripe({ block }: { block: HdbBlock }) {
     >
       {clearable ? (
         <span className="max-h-full rotate-180 text-[9px] font-black leading-none tracking-wide text-black [writing-mode:vertical-rl]">
-          BLOCK
+          {t('ui.hdb.blockStripe')}
         </span>
       ) : (
-        <Icon name="hdb.collapse" size={11} className="text-concrete-300" title="Gone" />
+        <Icon name="hdb.collapse" size={11} className="text-concrete-300" title={t('ui.hdb.gone')} />
       )}
     </span>
   );
@@ -290,7 +296,9 @@ function StairGateBadge({
   /** Which cell edge the blocked shaft hop sits on. */
   edge: 'above' | 'below';
 }) {
+  const { locale, t } = useT();
   const meta = BLOCK_META[block.kind];
+  const label = msgOr(`ui.hdb.blockKind.${block.kind}.label`, meta.label, undefined, locale);
   const clearable = block.breakable;
   return (
     <span
@@ -303,11 +311,11 @@ function StairGateBadge({
       }`}
       title={
         clearable
-          ? `${meta.label} — clear to pass`
-          : `${meta.label} — permanent, no way through`
+          ? t('ui.hdb.clearToPass', { label })
+          : t('ui.hdb.permanent', { label })
       }
     >
-      ✕ {clearable ? meta.label.slice(0, 6) : (
+      ✕ {clearable ? label.slice(0, 6) : (
         <Icon name="hdb.collapse" size={10} className="inline-block align-[-0.1em]" />
       )}
     </span>
@@ -323,6 +331,7 @@ export function HdbDungeonModal({
 }: {
   onOpenGuide?: (topic: GuideTopic) => void;
 } = {}) {
+  const { locale, t } = useT();
   const hdb = useGame((s) => s.hdb);
   const character = useGame((s) => s.character);
   const hdbGoTo = useGame((s) => s.hdbGoTo);
@@ -344,15 +353,18 @@ export function HdbDungeonModal({
   const dockExpanded = !isPhone || !!unitHere || hasEdgeBlock;
   const canLeave = hdb.currentLevel === 1 && !pendingSearch;
   const leaveTitle = pendingSearch
-    ? 'Finish the unit search in the timeline first'
+    ? t('ui.hdb.leaveNeedSearch')
     : hdb.currentLevel !== 1
-      ? 'Climb down to level 01 (void deck) to leave'
+      ? t('ui.hdb.leaveNeedVoidDeck')
       : undefined;
   const placeMeta = `${
-    hdb.archetype === 'shelter' ? 'Barricaded shelter' : 'Residential block'
-  } · ${floor.layoutType === 'slab' ? 'slab' : 'point'} · ${GROUND_LABEL[hdb.groundKind]} · ${
-    hdb.height
-  } storeys`;
+    hdb.archetype === 'shelter' ? t('ui.hdb.shelter') : t('ui.hdb.residential')
+  } · ${floor.layoutType === 'slab' ? t('ui.hdb.slab') : t('ui.hdb.point')} · ${msgOr(
+    `ui.hdb.ground.${hdb.groundKind}`,
+    GROUND_LABEL[hdb.groundKind],
+    undefined,
+    locale,
+  )} · ${t('ui.hdb.storeys', { n: hdb.height })}`;
 
   const go = (target: HdbPos) => {
     if (pendingSearch) return;
@@ -413,8 +425,16 @@ export function HdbDungeonModal({
           onLeave={hdbLeave}
           onOpenGuide={onOpenGuide}
           senses={[
-            { key: 'perception', value: character.attributes.perception, gives: 'encounter %' },
-            { key: 'dexterity', value: character.attributes.dexterity, gives: 'container type' },
+            {
+              key: 'perception',
+              value: character.attributes.perception,
+              gives: t('ui.hdb.senseEncounterPct'),
+            },
+            {
+              key: 'dexterity',
+              value: character.attributes.dexterity,
+              gives: t('ui.hdb.senseContainerType'),
+            },
           ]}
         />
         {isPhone && dockExpanded && <HdbContextPanel variant="full" />}
@@ -428,6 +448,8 @@ function cellTravelTitle(
   attrs: Attributes,
   target: HdbPos,
   base: string,
+  t: (key: string, vars?: TVars) => string,
+  locale: LocaleId,
 ): string {
   if (samePos(hdb.pos, target)) return base;
   const toward = findPathToward(hdb, hdb.pos, target);
@@ -437,18 +459,36 @@ function cellTravelTitle(
   if (mins > 0) {
     const shown =
       mins < 1
-        ? `~${Math.max(1, Math.round(mins * 60))}s`
-        : `~${Math.round(mins)} min`;
+        ? t('ui.hdb.secondsApprox', { n: Math.max(1, Math.round(mins * 60)) })
+        : t('ui.hdb.minutesApprox', { n: Math.round(mins) });
     bits.push(shown);
   }
-  const risk = stairTravelHint(hdb, toward.path, attrs);
-  if (risk) bits.push(risk);
+  const riskBits: string[] = [];
+  if (pathUsesStairs(toward.path)) {
+    if (isHunting(hdb)) {
+      riskBits.push(t('ui.hdb.huntOnStairs', { n: Math.round(HUNT_ELITE_CHANCE * 100) }));
+    }
+    if (pathDescends(toward.path) && descentIsChecked(hdb)) {
+      const failPct = Math.round(retreatFailChance(attrs, hdb) * 100);
+      riskBits.push(
+        t('ui.hdb.descentNeed', { dc: retreatDc(hdb), n: failPct }),
+      );
+    } else if (!isHunting(hdb) && !pathDescends(toward.path)) {
+      riskBits.push(t('ui.hdb.climbFree'));
+    }
+  }
+  if (riskBits.length) bits.push(riskBits.join(' · '));
   if (!toward.reached && toward.blockedBy) {
-    const label = BLOCK_META[toward.blockedBy.kind].label.toLowerCase();
+    const label = msgOr(
+      `ui.hdb.blockKind.${toward.blockedBy.kind}.label`,
+      BLOCK_META[toward.blockedBy.kind].label,
+      undefined,
+      locale,
+    ).toLowerCase();
     bits.push(
       toward.blockedBy.breakable
-        ? `stops at ${label} — clear to pass`
-        : `stops at ${label} — no way through`,
+        ? t('ui.hdb.stopsClear', { label })
+        : t('ui.hdb.stopsBlocked', { label }),
     );
   }
   return bits.join(' · ');
@@ -469,6 +509,7 @@ function BuildingCutaway({
   phone: boolean;
   onGo: (pos: HdbPos) => void;
 }) {
+  const { locale, t } = useT();
   const [hoverTarget, setHoverTarget] = useState<HdbPos | null>(null);
   const stairAt = new Map(hdb.stairs.map((s) => [s.column, s]));
   const levels = Array.from({ length: hdb.height }, (_, i) => hdb.height - i);
@@ -580,10 +621,17 @@ function BuildingCutaway({
               <div
                 title={
                   seal
-                    ? `${SEAL_META[seal.kind].label} — inaccessible`
+                    ? t('ui.hdb.inaccessible', {
+                        label: msgOr(
+                          `ui.hdb.sealKind.${seal.kind}.label`,
+                          SEAL_META[seal.kind].label,
+                          undefined,
+                          locale,
+                        ),
+                      })
                     : revealed
-                      ? `Level ${label}`
-                      : `Level ${label} — unexplored`
+                      ? t('ui.hdb.level', { nn: label })
+                      : t('ui.hdb.levelUnexplored', { nn: label })
                 }
                 className={`flex items-center justify-center border-r border-concrete-700 text-xs font-bold tabular-nums ${
                   hereLevel
@@ -623,7 +671,14 @@ function BuildingCutaway({
                       <div
                         key={`seal-s-${col}`}
                         className={`relative flex min-h-[44px] items-center justify-center border-x border-concrete-700/40 bg-concrete-900/50 text-concrete-500 lg:min-h-0 ${dim}`}
-                        title={`${stair.kind === 'side' ? 'Side stair' : 'Stairwell'} ${stair.id} · ${SEAL_META[seal.kind].label} — inaccessible`}
+                        title={`${stair.kind === 'side' ? t('ui.hdb.sideStair', { id: stair.id }) : t('ui.hdb.stairwell', { id: stair.id })} · ${t('ui.hdb.inaccessible', {
+                          label: msgOr(
+                            `ui.hdb.sealKind.${seal.kind}.label`,
+                            SEAL_META[seal.kind].label,
+                            undefined,
+                            locale,
+                          ),
+                        })}`}
                       >
                         <span
                           className="pointer-events-none absolute inset-0 opacity-35"
@@ -640,7 +695,14 @@ function BuildingCutaway({
                     <div
                       key={`seal-${col}`}
                       className={`relative ${dim}`}
-                      title={`${SEAL_META[seal.kind].label} — inaccessible`}
+                      title={t('ui.hdb.inaccessible', {
+                        label: msgOr(
+                          `ui.hdb.sealKind.${seal.kind}.label`,
+                          SEAL_META[seal.kind].label,
+                          undefined,
+                          locale,
+                        ),
+                      })}
                     >
                       <span
                         className="absolute inset-0 opacity-55"
@@ -654,7 +716,12 @@ function BuildingCutaway({
                           <Icon
                             name={SEAL_ICON[seal.kind]}
                             size={phone ? 16 : 14}
-                            title={SEAL_META[seal.kind].label}
+                            title={msgOr(
+                              `ui.hdb.sealKind.${seal.kind}.label`,
+                              SEAL_META[seal.kind].label,
+                              undefined,
+                              locale,
+                            )}
                           />
                         </span>
                       )}
@@ -677,7 +744,9 @@ function BuildingCutaway({
                           hdb,
                           attrs,
                           cell,
-                          `Stair ${stair.id} — climb into the unknown`,
+                          t('ui.hdb.fogClimb', { id: stair.id }),
+                          t,
+                          locale,
                         )}
                         className={`relative flex min-h-[44px] items-center justify-center border-x border-concrete-700/40 bg-concrete-900/30 disabled:cursor-default lg:min-h-0 ${dim} ${
                           trail
@@ -708,7 +777,9 @@ function BuildingCutaway({
                 if (stair) {
                   const gates = showBlocks ? stairGatesTouching(hdb, col, level) : [];
                   const stairBase =
-                    stair.kind === 'side' ? `Side stair ${stair.id}` : `Stairwell ${stair.id}`;
+                    stair.kind === 'side'
+                      ? t('ui.hdb.sideStair', { id: stair.id })
+                      : t('ui.hdb.stairwell', { id: stair.id });
                   return (
                     <button
                       key={`s-${col}`}
@@ -716,7 +787,7 @@ function BuildingCutaway({
                       disabled={!canAttempt && !atPlayer}
                       onClick={() => onGo(cell)}
                       {...hoverProps(cell, canAttempt && !atPlayer)}
-                      title={cellTravelTitle(hdb, attrs, cell, stairBase)}
+                      title={cellTravelTitle(hdb, attrs, cell, stairBase, t, locale)}
                       className={`relative flex min-h-[44px] items-center justify-center border-x disabled:cursor-default lg:min-h-0 ${dim} ${
                         atPlayer
                           ? 'border-concrete-700/40 bg-concrete-900/40 text-concrete-300'
@@ -758,7 +829,7 @@ function BuildingCutaway({
                       disabled={!canAttempt && !atPlayer}
                       onClick={() => onGo(cell)}
                       {...hoverProps(cell, canAttempt && !atPlayer)}
-                      title={cellTravelTitle(hdb, attrs, cell, 'Void deck')}
+                      title={cellTravelTitle(hdb, attrs, cell, t('ui.hdb.voidDeck'), t, locale)}
                       className={`relative flex min-h-[44px] items-center justify-center disabled:cursor-default lg:min-h-0 ${dim} ${
                         !trail && reachable
                           ? 'bg-signal/10 ring-1 ring-inset ring-signal/20 hover:bg-white/5'
@@ -788,7 +859,7 @@ function BuildingCutaway({
                       disabled={!canAttempt && !atPlayer}
                       onClick={() => onGo(cell)}
                       {...hoverProps(cell, canAttempt && !atPlayer)}
-                      title={cellTravelTitle(hdb, attrs, cell, 'Corridor')}
+                      title={cellTravelTitle(hdb, attrs, cell, t('ui.hdb.corridor'), t, locale)}
                       className={`relative min-h-[44px] disabled:cursor-default lg:min-h-0 ${dim} ${
                         !trail && reachable
                           ? 'bg-signal/10 ring-1 ring-inset ring-signal/20 hover:bg-white/5'
@@ -827,9 +898,16 @@ function BuildingCutaway({
                               cell,
                               `${unit.label} · ${
                                 unit.state === 'cleared'
-                                  ? 'cleared'
-                                  : UNIT_META[unit.type].label
+                                  ? t('ui.hdb.doorCleared')
+                                  : msgOr(
+                                      `ui.hdb.unit.${unit.type}.label`,
+                                      UNIT_META[unit.type].label,
+                                      undefined,
+                                      locale,
+                                    )
                               }`,
+                              t,
+                              locale,
                             )
                           : undefined
                       }
@@ -900,11 +978,12 @@ function CorridorDoor({
   onFocus?: () => void;
   onBlur?: () => void;
 }) {
+  const { locale, t } = useT();
   const meta = unit.available
     ? unit.state === 'cleared'
-      ? 'cleared'
-      : UNIT_META[unit.type].label
-    : 'boarded shut';
+      ? t('ui.hdb.doorCleared')
+      : msgOr(`ui.hdb.unit.${unit.type}.label`, UNIT_META[unit.type].label, undefined, locale)
+    : t('ui.hdb.doorBoardedShut');
 
   /**
    * Door face = room type only. Entry (locked / ajar / …) and encounter odds
@@ -922,23 +1001,35 @@ function CorridorDoor({
   let face: ReactElement | null = null;
   if (!unit.available) {
     face = (
-      <span className="text-xs font-bold leading-none text-concrete-500" title="Boarded shut">
+      <span
+        className="text-xs font-bold leading-none text-concrete-500"
+        title={t('ui.hdb.doorBoardedShutTitle')}
+      >
         ✕
       </span>
     );
   } else if (unit.state === 'cleared') {
     face = (
-      <span className="text-2xs font-bold leading-none text-concrete-600" title="Cleared">
+      <span
+        className="text-2xs font-bold leading-none text-concrete-600"
+        title={t('ui.hdb.doorClearedTitle')}
+      >
         ·
       </span>
     );
   } else {
     const typeMeta = UNIT_META[unit.type];
+    const typeLabel = msgOr(
+      `ui.hdb.unit.${unit.type}.label`,
+      typeMeta.label,
+      undefined,
+      locale,
+    );
     face = (
       <Icon
         name={typeMeta.icon}
         size={phone ? 12 : 13}
-        title={typeMeta.label}
+        title={typeLabel}
         className={
           typeMeta.trapped
             ? 'text-hiss'
@@ -1038,6 +1129,7 @@ function HdbStatusDock({
   onOpenGuide?: (topic: GuideTopic) => void;
   senses: { key: AttributeKey; value: number; gives: string }[];
 }) {
+  const { locale, t } = useT();
   const [detailsOpen, setDetailsOpen] = useState(false);
   const pct = Math.min(100, (heat / HEAT_MAX) * 100);
   const idx = HEAT_BANDS.indexOf(band);
@@ -1050,11 +1142,24 @@ function HdbStatusDock({
         ? 'text-signal'
         : 'text-concrete-200';
 
+  const bandLabel = msgOr(
+    `ui.hdb.heatBand.${band.label}.label`,
+    band.label,
+    undefined,
+    locale,
+  );
+  const bandNote = msgOr(`ui.hdb.heatBand.${band.label}.note`, band.note, undefined, locale);
   const descentBit =
     band.dcStep > 0
-      ? `Going down needs Dexterity + Endurance (need ${dc}+).`
-      : 'Stairs are clear to climb down.';
-  const nextBit = !hunting && next ? ` Next: ${next.label} at ${next.at}.` : '';
+      ? t('ui.hdb.descentNeedsAttrs', { dc })
+      : t('ui.hdb.stairsClearDown');
+  const nextBit =
+    !hunting && next
+      ? t('ui.hdb.nextBand', {
+          label: msgOr(`ui.hdb.heatBand.${next.label}.label`, next.label, undefined, locale),
+          at: next.at,
+        })
+      : '';
 
   return (
     <div className="shrink-0 border-b border-concrete-600 bg-concrete-900/60 px-3 py-1.5">
@@ -1065,19 +1170,19 @@ function HdbStatusDock({
           </span>
           <span
             className="shrink-0 text-2xs tabular-nums text-concrete-500"
-            title={`${revealed} of ${height} storeys revealed`}
+            title={t('ui.hdb.storeysRevealed', { revealed, height })}
           >
             {revealed}/{height}
           </span>
           {onOpenGuide && (
-            <GuideInfoButton topic="hdb" onOpen={onOpenGuide} label="Inside the block" />
+            <GuideInfoButton topic="hdb" onOpen={onOpenGuide} label={t('ui.hdb.guide')} />
           )}
         </div>
         <button
           type="button"
           aria-expanded={detailsOpen}
-          aria-label={detailsOpen ? 'Hide block details' : 'Show block details'}
-          title={detailsOpen ? 'Hide details' : 'Key and sense checks'}
+          aria-label={detailsOpen ? t('ui.hdb.ariaHideDetails') : t('ui.hdb.ariaShowDetails')}
+          title={detailsOpen ? t('ui.hdb.hideDetails') : t('ui.hdb.showDetails')}
           onClick={() => setDetailsOpen((o) => !o)}
           className="shrink-0 rounded border border-concrete-600 px-1.5 py-1 text-2xs text-concrete-400 hover:bg-white/5"
         >
@@ -1090,7 +1195,7 @@ function HdbStatusDock({
           title={leaveTitle}
           className="shrink-0 rounded border border-concrete-600 px-2.5 py-1 text-xs hover:bg-white/5 disabled:opacity-40"
         >
-          ✕ Leave
+          {t('ui.hdb.leave')}
         </button>
       </div>
 
@@ -1098,20 +1203,20 @@ function HdbStatusDock({
         type="button"
         onClick={() => setDetailsOpen((o) => !o)}
         className="mt-1 w-full text-left"
-        title="Tap for symbol key and sense checks"
+        title={t('ui.hdb.tapDetails')}
       >
         <div className="mb-0.5 text-xs leading-snug text-concrete-400">
-          <span className="signage text-concrete-500">Heat</span>{' '}
-          <span className={`signage ${bandColor}`}>{band.label}</span>{' '}
+          <span className="signage text-concrete-500">{t('ui.hdb.heat')}</span>{' '}
+          <span className={`signage ${bandColor}`}>{bandLabel}</span>{' '}
           <span className="tabular-nums text-concrete-300">
             {heat}/{HEAT_MAX}
           </span>
           <span className="text-concrete-500"> — </span>
-          {band.note} {descentBit}
+          {bandNote} {descentBit}
           {hunting && (
             <span className="text-hiss">
               {' '}
-              {Math.round(HUNT_ELITE_CHANCE * 100)}% chance of a hunt on every door and stair.
+              {t('ui.hdb.huntChance', { n: Math.round(HUNT_ELITE_CHANCE * 100) })}
             </span>
           )}
           {nextBit}
@@ -1138,7 +1243,7 @@ function HdbStatusDock({
           <HdbSymbolKey />
           <div
             className="flex flex-wrap gap-1.5 text-2xs"
-            title="Corridor sense checks when you step onto a floor"
+            title={t('ui.hdb.senseCorridor')}
           >
             {senses.map((s) => (
               <span
@@ -1151,7 +1256,11 @@ function HdbStatusDock({
               >
                 <Icon name={ATTRIBUTE_ICONS[s.key]} size={11} title={ATTRIBUTE_LABELS[s.key]} />
                 <span className="truncate">
-                  {s.value} → {s.gives} {Math.round(senseChance(s.value) * 100)}%
+                  {t('ui.hdb.senseArrow', {
+                    value: s.value,
+                    gives: s.gives,
+                    pct: Math.round(senseChance(s.value) * 100),
+                  })}
                 </span>
               </span>
             ))}
@@ -1163,10 +1272,13 @@ function HdbStatusDock({
 }
 
 function HdbSymbolKey() {
+  const { locale, t } = useT();
   const roomTypes = (Object.keys(UNIT_META) as (keyof typeof UNIT_META)[]).map((id) => {
     const m = UNIT_META[id];
+    const label = msgOr(`ui.hdb.unit.${id}.label`, m.label, undefined, locale);
+    const blurb = msgOr(`ui.hdb.unit.${id}.blurb`, m.blurb, undefined, locale);
     return (
-      <span key={id} className="inline-flex items-center gap-1" title={m.blurb}>
+      <span key={id} className="inline-flex items-center gap-1" title={blurb}>
         <Icon
           name={m.icon}
           size={11}
@@ -1174,7 +1286,7 @@ function HdbSymbolKey() {
             m.trapped ? 'text-hiss' : id === 'holdout' ? 'text-astral' : 'text-concrete-200'
           }
         />
-        {m.label.toLowerCase()}
+        {label.toLowerCase()}
       </span>
     );
   });
@@ -1183,32 +1295,34 @@ function HdbSymbolKey() {
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-2xs leading-none text-concrete-400">
       <span className="inline-flex items-center gap-1.5">
         <PlayerPin size="xs" />
-        you
+        {t('ui.hdb.legendYou')}
       </span>
       <span className="inline-flex items-center gap-1.5">
         <span className="relative inline-block h-[3px] w-5 shrink-0">
           <span className="absolute -inset-y-[2px] inset-x-0 rounded-full bg-astral/35" />
           <span className="absolute inset-0 rounded-full bg-astral" />
         </span>
-        hover = route
+        {t('ui.hdb.legendHover')}
       </span>
       {roomTypes}
       <span className="inline-flex items-center gap-1">
-        <span className="text-2xs font-bold text-concrete-500">✕</span> boarded
+        <span className="text-2xs font-bold text-concrete-500">✕</span> {t('ui.hdb.legendBoarded')}
       </span>
-      <span className="inline-flex items-center gap-1 text-concrete-500">dim = cleared</span>
-      <span className="inline-flex items-center">fog = unvisited</span>
+      <span className="inline-flex items-center gap-1 text-concrete-500">
+        {t('ui.hdb.legendDim')}
+      </span>
+      <span className="inline-flex items-center">{t('ui.hdb.legendFog')}</span>
       <span className="inline-flex items-center gap-1.5">
         <Icon name="hdb.sealedCollapsed" size={12} className="text-concrete-400" />
-        hatch = sealed
+        {t('ui.hdb.legendHatch')}
       </span>
       <span className="inline-flex items-center gap-1.5">
         <span className="inline-block h-2.5 w-1 shrink-0 bg-hiss shadow-[0_0_4px_rgba(217,45,45,0.5)]" />
-        BLOCK = clear to pass
+        {t('ui.hdb.legendBlock')}
       </span>
       <span className="inline-flex items-center gap-1.5">
         <Icon name="hdb.collapse" size={12} className="text-concrete-400" />
-        GONE = permanent
+        {t('ui.hdb.legendGone')}
       </span>
     </div>
   );

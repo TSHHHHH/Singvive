@@ -79,7 +79,7 @@ export function rollWildsEncounter(
 
   if (table) {
     const enemy = rollAnimal(ENEMIES, rng, table, danger);
-    const drop = rollAnimalDrop(ENEMIES, rng, enemy.name);
+    const drop = rollAnimalDrop(ENEMIES, rng, enemy.templateId ?? '');
     return { enemy, drops: drop ? [drop] : undefined };
   }
 

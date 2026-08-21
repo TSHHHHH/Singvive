@@ -14,6 +14,8 @@ import type { ItemInstance } from '../game/types';
 import { itemIcon } from './Inventory/itemIcon';
 import { Icon } from '../icons/Icon';
 import type { IconName } from '../icons/keys';
+import { itemName, recipeBlurb, recipeName, useT } from '../i18n';
+import type { LocaleId } from '../i18n';
 
 /**
  * Workbench body for the slide-out. Recipes live here rather than buried under
@@ -21,6 +23,7 @@ import type { IconName } from '../icons/keys';
  * where you already have the item in hand.
  */
 export function CraftingPanel() {
+  const { locale } = useT();
   const { items, clothingTears, currentPositionId, hdb, craftItem, tearOwnClothes, character } =
     useGame(
       useShallow((s) => ({
@@ -62,6 +65,7 @@ export function CraftingPanel() {
         items={items}
         atShelter={atShelter}
         traitIds={traitIds}
+        locale={locale}
         onCraft={craftItem}
       />
       <RecipeGroup
@@ -70,6 +74,7 @@ export function CraftingPanel() {
         items={items}
         atShelter={atShelter}
         traitIds={traitIds}
+        locale={locale}
         onCraft={craftItem}
       />
 
@@ -125,6 +130,7 @@ function RecipeGroup({
   items,
   atShelter,
   traitIds,
+  locale,
   onCraft,
 }: {
   title: string;
@@ -132,6 +138,7 @@ function RecipeGroup({
   items: ItemInstance[];
   atShelter: boolean;
   traitIds: string[];
+  locale: LocaleId;
   onCraft: (recipeId: string) => void;
 }) {
   return (
@@ -144,20 +151,21 @@ function RecipeGroup({
           const out = itemDef(recipe.outputDefId);
           const inputLine = [
             describeInputs(inputs),
-            recipe.tool ? itemDef(recipe.tool).name : null,
+            recipe.tool ? itemName(recipe.tool, locale) : null,
           ]
             .filter(Boolean)
             .join(' · ');
+          const baseBlurb = recipeBlurb(recipe.id, locale);
           const blurb =
             recipe.id === 'boil'
-              ? `${recipe.blurb} Burning a jerry can lowers your extract gauge.`
-              : recipe.blurb;
+              ? `${baseBlurb} Burning a jerry can lowers your extract gauge.`
+              : baseBlurb;
 
           return (
             <CraftActionRow
               key={recipe.id}
               icon={itemIcon(out)}
-              name={`${recipe.name}${recipe.outputCount > 1 ? ` ×${recipe.outputCount}` : ''}`}
+              name={`${recipeName(recipe.id, locale)}${recipe.outputCount > 1 ? ` ×${recipe.outputCount}` : ''}`}
               hours={recipe.hours}
               ok={check.ok}
               onClick={() => onCraft(recipe.id)}

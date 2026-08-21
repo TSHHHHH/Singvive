@@ -1,16 +1,83 @@
-import type { FactionId, ItemDef, PoiCategory } from './types';
-import type { Rng } from './rng';
+import type {
+  DestructionTier,
+  FactionId,
+  ItemDef,
+  LocationSize,
+  LocationState,
+  PoiCategory,
+} from './types';
+import { Rng } from './rng';
 import itemsCatalog from './data/items.json' with { type: 'json' };
 import lootTablesCatalog from './data/lootTables.json' with { type: 'json' };
 import { FACTION_CONFIG } from './factions';
 import { POI_CATEGORIES } from './poi';
+import { collectPackGridErrors, resolveItemPackGrid } from './packGrid';
+
+/** Street scavenges use ruin + size haul counts; HDB blocks stay on unit loot. */
+export function isStreetLootPoi(category: PoiCategory): boolean {
+  return category !== 'residential';
+}
+
+export const DESTRUCTION_LABELS: Record<DestructionTier, string> = {
+  0: 'Intact',
+  1: 'Damaged',
+  2: 'Ravaged',
+  3: 'Gutted',
+};
+
+/** Weights: intact 10 / damaged 40 / ravaged 35 / gutted 15. */
+const DESTRUCTION_WEIGHTS: ReadonlyArray<readonly [DestructionTier, number]> = [
+  [0, 10],
+  [1, 40],
+  [2, 35],
+  [3, 15],
+];
+
+export function rollDestruction(rng: Rng): DestructionTier {
+  return rng.weighted(DESTRUCTION_WEIGHTS);
+}
+
+/**
+ * Assign a stable ruin tier the first time a street POI needs one
+ * (discover, search, or UI). HDB blocks stay without destruction.
+ */
+export function ensureDestruction(loc: LocationState, runSeed: string): LocationState {
+  if (!isStreetLootPoi(loc.category)) return loc;
+  if (loc.destruction !== undefined) return loc;
+  const tier = rollDestruction(new Rng(runSeed).fork(`destruction:${loc.id}`));
+  return { ...loc, destruction: tier };
+}
+
+/** Condition bias from ruin — long tail still allows rare high rolls at low bias. */
+export function destructionConditionBias(tier: DestructionTier): number {
+  switch (tier) {
+    case 0:
+      return 0.75;
+    case 1:
+      return 0.5;
+    case 2:
+      return 0.3;
+    case 3:
+      return 0.12;
+  }
+}
+
+/** Typical street haul size by footprint. */
+export function streetHaulCount(rng: Rng, size: LocationSize): number {
+  if (size === 'small') return rng.int(3, 4);
+  if (size === 'medium') return rng.int(4, 6);
+  return rng.int(5, 7);
+}
+
+/** Soft cap so perception / scavenger traits don't flood the grid. */
+export const STREET_HAUL_SOFT_CAP = 10;
 
 // ---------- Item catalogue ----------
 // Source of truth is src/game/data/items.json (editable via the DEV loot browser).
 // w/h are Tetris-grid footprints (in cells).
 export const ITEMS: Record<string, ItemDef> = structuredClone(
   itemsCatalog,
-) as Record<string, ItemDef>;
+) as unknown as Record<string, ItemDef>;
 
 /**
  * Anything you can equip wears out. Defaulting it here beats repeating
@@ -20,6 +87,9 @@ export const ITEMS: Record<string, ItemDef> = structuredClone(
  */
 for (const def of Object.values(ITEMS)) {
   if (def.slot && def.maxCondition === undefined) def.maxCondition = 100;
+  if (def.slot === 'bag' && !def.packGrid) {
+    def.packGrid = resolveItemPackGrid(def);
+  }
 }
 
 /**
@@ -42,6 +112,9 @@ if (import.meta.env.DEV) {
     }
     if (def.scarcity !== undefined && (def.scarcity <= 0 || def.scarcity > 1)) {
       console.error(`[loot] ${def.id} has scarcity ${def.scarcity}; expected 0 < s ≤ 1.`);
+    }
+    for (const err of collectPackGridErrors(def.id, def)) {
+      console.error(`[loot] ${err}`);
     }
   }
 }
@@ -143,6 +216,43 @@ export function rollLoot(
     out.set(id, (out.get(id) ?? 0) + qty);
   }
   return [...out.entries()].map(([defId, count]) => ({ defId, count }));
+}
+
+/**
+ * Street POI haul: keep rolling until we have `haulCount` shelf finds
+ * (category table + scarcity). Each find is its own stack so the search
+ * grid feels full. No dud gate — empty shelves are what ruin condition is
+ * for, not missing chips.
+ */
+export function rollStreetLoot(
+  rng: Rng,
+  category: PoiCategory,
+  bonusRolls: number,
+  haulCount: number,
+): LootStack[] {
+  const table = LOOT_TABLES[category];
+  const target = Math.min(
+    STREET_HAUL_SOFT_CAP,
+    Math.max(1, haulCount + Math.max(0, bonusRolls)),
+  );
+  const out: LootStack[] = [];
+  const maxAttempts = target * 12;
+  let attempts = 0;
+  while (out.length < target && attempts < maxAttempts) {
+    attempts += 1;
+    let id = rng.weighted(table);
+    const scarcity = ITEMS[id]?.scarcity ?? 1;
+    if (scarcity < 1 && !rng.chance(scarcity)) {
+      const fallback = commonAlternative(rng, table);
+      if (!fallback) continue;
+      id = fallback;
+    }
+    const def = ITEMS[id];
+    if (!def) continue;
+    const qty = def.stackable ? rollQuantity(rng, def.maxStack) : 1;
+    out.push({ defId: id, count: qty });
+  }
+  return out;
 }
 
 /**

@@ -342,7 +342,7 @@ export function whereUsedNotes(
       notes.push('Bound as HDB elite (makeHulk)');
     }
     if (catalog.spawn.eliteBindings.tunnel === target.id) {
-      notes.push('Bound as tunnel pressure elite (makeStalker)');
+      notes.push('Bound as rare tunnel Contact elite (makeStalker)');
     }
     if (
       catalog.spawn.eliteBindings.hdb !== target.id &&

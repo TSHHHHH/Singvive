@@ -6,6 +6,7 @@ import {
   type JourneyStrip,
 } from '../game/mrt';
 import type { CrawlPlace } from '../game/tunnelRun';
+import { useT, type TVars } from '../i18n';
 
 type StopKind = 'past' | 'here' | 'next' | 'future';
 
@@ -34,7 +35,11 @@ interface PidsCopy {
 }
 
 /** In-train PIDS line: next stop, change, or alighting. */
-function pidsCopy(strip: JourneyStrip, place: CrawlPlace): PidsCopy {
+function pidsCopy(
+  strip: JourneyStrip,
+  place: CrawlPlace,
+  t: (key: string, vars?: TVars) => string,
+): PidsCopy {
   const { stops, hops } = strip;
   const last = hops[hops.length - 1];
   const here = stops[place.index];
@@ -44,7 +49,7 @@ function pidsCopy(strip: JourneyStrip, place: CrawlPlace): PidsCopy {
 
   if (place.atPlatform && place.nextIndex == null) {
     return {
-      kicker: 'Arrived',
+      kicker: t('ui.stationStrip.arrived'),
       title: here?.name ?? '',
       lineName: last?.lineName ?? '',
       lineColor: last?.color ?? '#9c9890',
@@ -53,18 +58,20 @@ function pidsCopy(strip: JourneyStrip, place: CrawlPlace): PidsCopy {
 
   if (place.atPlatform && here?.isTransfer && departing) {
     return {
-      kicker: 'Change to',
+      kicker: t('ui.stationStrip.changeTo'),
       title: departing.lineName,
       lineName: departing.lineName,
       lineColor: departing.color,
-      detail: `Now: ${here.name}`,
+      detail: t('ui.stationStrip.nowNamed', { name: here.name }),
     };
   }
 
   if (place.atPlatform && next && departing) {
-    const change = next.isTransfer ? `Change at ${next.name}` : `Next: ${next.name}`;
+    const change = next.isTransfer
+      ? t('ui.stationStrip.changeAtNamed', { name: next.name })
+      : t('ui.stationStrip.nextNamed', { name: next.name });
     return {
-      kicker: 'Now',
+      kicker: t('ui.stationStrip.now'),
       title: here?.name ?? '',
       lineName: departing.lineName,
       lineColor: departing.color,
@@ -74,9 +81,18 @@ function pidsCopy(strip: JourneyStrip, place: CrawlPlace): PidsCopy {
 
   if (walking && next) {
     const dest = place.nextIndex === stops.length - 1;
+    if (walking.collapsed) {
+      return {
+        kicker: t('ui.stationStrip.collapsedBore'),
+        title: next.name,
+        lineName: walking.lineName,
+        lineColor: walking.color,
+        detail: dest ? t('ui.stationStrip.crawlRubble') : undefined,
+      };
+    }
     if (dest) {
       return {
-        kicker: 'Alighting',
+        kicker: t('ui.stationStrip.alighting'),
         title: next.name,
         lineName: walking.lineName,
         lineColor: walking.color,
@@ -85,15 +101,15 @@ function pidsCopy(strip: JourneyStrip, place: CrawlPlace): PidsCopy {
     if (next.isTransfer) {
       const after = hops[place.nextIndex!];
       return {
-        kicker: 'Change at',
+        kicker: t('ui.stationStrip.changeAt'),
         title: next.name,
         lineName: walking.lineName,
         lineColor: walking.color,
-        detail: after ? `to ${after.lineName}` : undefined,
+        detail: after ? t('ui.stationStrip.toLine', { line: after.lineName }) : undefined,
       };
     }
     return {
-      kicker: 'Next',
+      kicker: t('ui.stationStrip.next'),
       title: next.name,
       lineName: walking.lineName,
       lineColor: walking.color,
@@ -101,7 +117,7 @@ function pidsCopy(strip: JourneyStrip, place: CrawlPlace): PidsCopy {
   }
 
   return {
-    kicker: 'Now',
+    kicker: t('ui.stationStrip.now'),
     title: here?.name ?? '',
     lineName: last?.lineName ?? '',
     lineColor: last?.color ?? '#9c9890',
@@ -127,7 +143,8 @@ export function CrawlPids({
   place: CrawlPlace;
   meters: number;
 }) {
-  const pids = pidsCopy(strip, place);
+  const { t } = useT();
+  const pids = pidsCopy(strip, place, t);
   const remaining = stopsLeft(place, strip.stops.length);
   return (
     <div className="sticky top-0 z-10 shrink-0 border-b border-concrete-600 bg-concrete-800">
@@ -140,13 +157,17 @@ export function CrawlPids({
           <div className="truncate text-2xs text-concrete-400">
             {pids.lineName}
             {pids.detail ? ` · ${pids.detail}` : ''}
-            {remaining > 0 ? ` · ${remaining} stop${remaining === 1 ? '' : 's'} left` : ''}
+            {remaining > 0
+              ? remaining === 1
+                ? t('ui.stationStrip.stopsLeft', { n: remaining })
+                : t('ui.stationStrip.stopsLeftPlural', { n: remaining })
+              : ''}
           </div>
         </div>
         <div className="shrink-0 pt-1 text-right">
           <div className="h-1 w-16 rounded-full" style={{ background: pids.lineColor }} />
           <div className="mt-1 text-2xs tabular-nums text-concrete-400">
-            {meters} m · no weather
+            {t('ui.stationStrip.metersNoWeather', { m: meters })}
           </div>
         </div>
       </div>
@@ -166,6 +187,7 @@ export function StationStrip({
   strip: JourneyStrip;
   place: CrawlPlace;
 }) {
+  const { t } = useT();
   const scroller = useRef<HTMLDivElement>(null);
   const focusRef = useRef<HTMLDivElement>(null);
   const focusIndex = place.atPlatform ? place.index : (place.nextIndex ?? place.index);
@@ -184,7 +206,7 @@ export function StationStrip({
     <div
       ref={scroller}
       className="overflow-x-auto px-3 pb-2 pt-1 [scrollbar-width:thin]"
-      aria-label="Planned stations"
+      aria-label={t('ui.stationStrip.plannedAria')}
     >
       <div className="flex min-w-min items-start">
         {strip.stops.map((stop, i) => {
@@ -260,13 +282,19 @@ function HopBar({
   past: boolean;
   walking: boolean;
 }) {
+  const { t } = useT();
+  const collapsed = !!hop?.collapsed;
+  const color = hop?.color ?? '#9c9890';
   return (
     <div
       className={`min-w-[14px] flex-1 rounded-full lg:min-w-[22px] ${walking ? 'h-1.5' : 'h-1'}`}
       style={{
-        background: hop?.color ?? '#9c9890',
-        opacity: walking ? 1 : past ? 0.28 : 0.8,
+        background: collapsed
+          ? `repeating-linear-gradient(90deg, ${color} 0 5px, transparent 5px 9px)`
+          : color,
+        opacity: walking ? 1 : past ? 0.28 : collapsed ? 0.7 : 0.8,
       }}
+      title={collapsed ? t('ui.stationStrip.collapsedBore') : undefined}
       aria-hidden
     />
   );
@@ -283,6 +311,7 @@ function Bead({
   interchange: boolean;
   transfer: boolean;
 }) {
+  const { t } = useT();
   const size = kind === 'here' ? 'h-3.5 w-3.5' : 'h-2.5 w-2.5';
   const ring =
     kind === 'here' ? 'ring-2 ring-astral/80' : kind === 'next' ? 'ring-1 ring-signal/70' : '';
@@ -293,7 +322,7 @@ function Bead({
         kind === 'past' ? 'opacity-40' : ''
       }`}
       style={{ background: fill }}
-      title={transfer ? 'Change here' : undefined}
+      title={transfer ? t('ui.stationStrip.changeHere') : undefined}
     >
       {transfer && (
         <span

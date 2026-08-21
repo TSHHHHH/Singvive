@@ -33,35 +33,51 @@ import {
   adjacentEdge,
   displayLine,
   getMrtNetwork,
+  hopCollapsedFlags,
   loadMrtNetwork,
   nearestStationAny,
 } from './mrt';
 import { rollDestroyedTunnels } from './mrtDamage';
 import {
-  addPressure,
   canExitHere,
+  CARRIAGE_BAIT_CHANCE,
+  CARRIAGE_INVERT_ENERGY,
+  CARRIAGE_INVERT_MINUTES,
+  CARRIAGE_SMASH_MINUTES,
   currentNode,
-  FIGHT_PRESSURE,
   generateTunnelRun,
-  HAZARD_META,
-  HAZARD_PRESSURE,
   hazardDc,
+  hazardMinutes,
   isArrival,
   markDone,
+  nodeNeedsChoice,
   nodeThreat,
-  PRESSURE_MAX,
-  REST_PRESSURE_RELIEF,
   reachable,
-  SCAVENGE_PRESSURE,
+  setSightBonus,
   stepTo,
+  TUNNEL_HAZARD,
   TUNNEL_NODE_META,
   tunnelKey,
+  type CarriageChoice,
+  type CheckpointChoice,
   type TunnelNode,
   type TunnelRun,
   type TunnelStationStop,
 } from './tunnelRun';
 import { buildLocations, generateFallbackWorld, makeStationLocation } from './world';
-import { conditionRoll, itemDef, ITEMS, rollFactionRaidLoot, rollLoot, type LootStack } from './loot';
+import {
+  conditionRoll,
+  destructionConditionBias,
+  ensureDestruction,
+  isStreetLootPoi,
+  itemDef,
+  ITEMS,
+  rollFactionRaidLoot,
+  rollLoot,
+  rollStreetLoot,
+  streetHaulCount,
+  type LootStack,
+} from './loot';
 import {
   addToGrid,
   canPlace,
@@ -153,6 +169,7 @@ import {
 import { snapshot, travelableRange, VISITED_LIGHT_RADIUS, type ExploredCircle } from './fog';
 import { estimateExpedition, estimateTunnelWalk, searchMinutes } from './travel';
 import {
+  makeAnimalById,
   makeHulk,
   makeHuman,
   makeLoner,
@@ -173,6 +190,7 @@ import {
 } from './combat';
 import {
   ENEMIES,
+  rollAnimalDrop,
   rollHumanDrop,
   rollLonerDrop,
 } from './enemies';
@@ -222,7 +240,6 @@ import { traderBoard, traderGreeting, type TraderState } from './trade';
 import { flavor } from './flavor';
 import {
   trekRisk,
-  HAZARD_CONFIG,
   TREK_LIGHT_RADIUS,
   TREK_MIN_DISTANCE_M,
   resolveCrossing,
@@ -431,8 +448,9 @@ interface State {
   escaped: boolean; // true on a victory ending
 
   /**
-   * Undirected edge keys (`a|b`) destroyed this run. Seeded at spawn with a
+   * Undirected edge keys (`a|b`) collapsed this run. Seeded at spawn with a
    * soft bias toward the first-evac corridor. Empty until the network rolls.
+   * Collapsed hops stay walkable — a brutal crawl, not a wall.
    */
   destroyedTunnelEdges: string[];
 
@@ -566,6 +584,10 @@ interface State {
   tunnelTreat: () => void;
   tunnelAcceptOffer: () => void;
   tunnelDeclineOffer: () => void;
+  /** Stalled consist: drop under or smash through the cars. */
+  tunnelCarriage: (choice: CarriageChoice) => void;
+  /** STA in the bore: pay tribute or sneak past. */
+  tunnelCheckpoint: (choice: CheckpointChoice) => void;
   /** Abandon leftover temp-crawl stash and resume. */
   confirmTempStash: () => void;
   /** Step up to a faction counter. No-op unless the site offers trade. */
@@ -592,6 +614,8 @@ interface State {
   abortSearch: () => void;
   /** Finish after all slots are searched; abandon unclaimed finds (or abort if fogged remain). */
   completeSearch: () => void;
+  /** Lazy-roll ruin on discovered street POIs missing destruction (old saves / UI). */
+  ensureSiteRuin: (locationId: string) => void;
   callEvac: () => void;
   /** Append a short line to the run log (UI soft-rejects, etc.). */
   notify: (text: string, tone?: GameLogEntry['tone']) => void;
@@ -1174,6 +1198,7 @@ export const useGame = create<State>((set, get) => {
             acting: null,
             paused: false,
             speedIndex: 1,
+            impact: null,
           },
           _combatRng: fightRng.fork('fight'),
         });
@@ -1190,7 +1215,10 @@ export const useGame = create<State>((set, get) => {
     const loc = s.locations[locationId];
     if (!loc) return;
     const wasNew = !loc.discovered;
-    const updated: LocationState = { ...loc, discovered: true };
+    let updated: LocationState = { ...loc, discovered: true };
+    if (wasNew && isStreetLootPoi(updated.category)) {
+      updated = ensureDestruction(updated, s.seed);
+    }
     updated.lastSeen = snapshot(updated);
     set((st) => ({
       locations: { ...st.locations, [locationId]: updated },
@@ -1198,7 +1226,32 @@ export const useGame = create<State>((set, get) => {
         ? [...st.exploredArea, { lat: loc.lat, lng: loc.lng, radius: VISITED_LIGHT_RADIUS }]
         : st.exploredArea,
     }));
-    if (wasNew) pushLog(flavor('charted', { name: loc.name }), 'info');
+    if (wasNew) {
+      if (isStreetLootPoi(updated.category) && updated.destruction !== undefined) {
+        pushLog(
+          flavor('siteSurvey', {
+            name: updated.name,
+            size: updated.size,
+            destruction: updated.destruction,
+          }),
+          'info',
+        );
+      } else {
+        pushLog(flavor('charted', { name: loc.name }), 'info');
+      }
+    }
+  };
+
+  /** Persist ruin on older discovered street POIs when the card / UI touches them. */
+  const ensureSiteRuin = (locationId: string) => {
+    const s = get();
+    const loc = s.locations[locationId];
+    if (!loc?.discovered || !isStreetLootPoi(loc.category) || loc.destruction !== undefined) {
+      return;
+    }
+    const updated = ensureDestruction(loc, s.seed);
+    updated.lastSeen = snapshot(updated);
+    set((st) => ({ locations: { ...st.locations, [locationId]: updated } }));
   };
 
   const hasBackpackItem = (defId: string): boolean =>
@@ -1318,11 +1371,22 @@ export const useGame = create<State>((set, get) => {
   const beginSearchSession = (locationId: string, fled: boolean) => {
     const s = get();
     if (s.pendingSearch) return;
-    const loc = s.locations[locationId];
+    let loc = s.locations[locationId];
     if (!loc) return;
     if (loc.remainingSearches <= 0) {
       pushLog(flavor('searchEmpty', { name: loc.name }), 'info');
       return;
+    }
+
+    // Lazy-migrate ruin on older saves when the player next searches.
+    if (isStreetLootPoi(loc.category) && loc.destruction === undefined) {
+      loc = ensureDestruction(loc, s.seed);
+      set((st) => ({
+        locations: {
+          ...st.locations,
+          [locationId]: { ...loc, lastSeen: snapshot(loc) },
+        },
+      }));
     }
 
     const lootRng = new Rng(s.seed).fork(
@@ -1334,6 +1398,7 @@ export const useGame = create<State>((set, get) => {
       !!loc.factionId &&
       s.raidMode?.locationId === locationId &&
       !!s.raidMode.mode;
+    const street = isStreetLootPoi(loc.category);
     const loot = raiding
       ? rollFactionRaidLoot(
           lootRng,
@@ -1342,28 +1407,49 @@ export const useGame = create<State>((set, get) => {
           lootMod + perceptionBonus,
           loc.factionId!,
         )
-      : rollLoot(
-          lootRng,
-          loc.category,
-          POI_CONFIG[loc.category].richness,
-          lootMod + perceptionBonus,
-          { guaranteeFind: true },
-        );
+      : street
+        ? rollStreetLoot(
+            lootRng,
+            loc.category,
+            lootMod + perceptionBonus,
+            streetHaulCount(lootRng, loc.size),
+          )
+        : rollLoot(
+            lootRng,
+            loc.category,
+            POI_CONFIG[loc.category].richness,
+            lootMod + perceptionBonus,
+            { guaranteeFind: true },
+          );
 
     // Depletion tracks site size (search charges), not category richness —
-    // richness only decides rolls-per-charge. Small shops used to eat a fake
-    // "already stripped" penalty on their first (and only) search.
+    // richness only decides rolls-per-charge on legacy / non-street paths.
     const maxCharges = loc.size === 'large' ? 3 : loc.size === 'medium' ? 2 : 1;
     const spent = Math.max(0, maxCharges - loc.remainingSearches);
     const deplete = spent / Math.max(1, maxCharges);
+    const ruinBias =
+      street && loc.destruction !== undefined
+        ? destructionConditionBias(loc.destruction)
+        : null;
     const bias = raiding
-      ? Math.max(0.65, Math.min(1, 0.75 + loc.currentDanger / 12))
-      : Math.max(
-          // First charge can still whisper "pristine" (~6%); later charges
-          // need danger. HDB sealed doors stay the reliable near-new source.
-          spent === 0 ? 0.5 : 0.2,
-          Math.min(1, loc.currentDanger / 5 - deplete * 0.25),
-        );
+      ? Math.max(
+          ruinBias ?? 0.65,
+          Math.min(1, 0.75 + loc.currentDanger / 12),
+        )
+      : ruinBias != null
+        ? Math.max(
+            0.05,
+            Math.min(
+              1,
+              ruinBias + loc.currentDanger / 20 - deplete * 0.2,
+            ),
+          )
+        : Math.max(
+            // First charge can still whisper "pristine" (~6%); later charges
+            // need danger. HDB sealed doors stay the reliable near-new source.
+            spent === 0 ? 0.5 : 0.2,
+            Math.min(1, loc.currentDanger / 5 - deplete * 0.25),
+          );
 
     // Empty haul: spend a full charge immediately, no session UI.
     if (loot.length === 0) {
@@ -1676,6 +1762,7 @@ export const useGame = create<State>((set, get) => {
       acting: null,
       paused: false,
       speedIndex: 1,
+      impact: null,
     };
     set({ combat, _combatRng: encRng.fork('fight') });
   };
@@ -1684,21 +1771,39 @@ export const useGame = create<State>((set, get) => {
     locationId: string,
     faction: Exclude<FactionId, null>,
     grantOnFlee: boolean,
-    opts: { pendingRaid?: 'sneak' | 'force'; raidLoot?: boolean } = {},
+    opts: {
+      pendingRaid?: 'sneak' | 'force';
+      raidLoot?: boolean;
+      terrainOverride?: TerrainId;
+      danger?: number;
+      tunnel?: { nodeId: string; lootMod: number };
+      intro?: string;
+      key?: string;
+    } = {},
   ) => {
     const s = get();
     const loc = s.locations[locationId];
     const humanRng = new Rng(s.seed).fork(
-      `human:${loc.id}:${s.day}:${loc.remainingSearches}:${opts.pendingRaid ?? ''}:${opts.raidLoot ? 'loot' : ''}`,
+      `human:${loc.id}:${s.day}:${loc.remainingSearches}:${opts.pendingRaid ?? ''}:${opts.raidLoot ? 'loot' : ''}:${opts.key ?? ''}`,
     );
-    const enemy = makeHuman(humanRng, faction, Math.round(loc.currentDanger));
+    const enemy = makeHuman(
+      humanRng,
+      faction,
+      Math.round(opts.danger ?? loc.currentDanger),
+    );
     const drop = rollHumanDrop(ENEMIES, humanRng, faction);
     const drops = drop ? [drop] : [];
     const combat: CombatState = {
       locationId,
       zombie: enemy,
       round: 0,
-      log: [{ round: 0, tone: 'bad', text: `The ${enemy.name} draws on you!` }],
+      log: [
+        {
+          round: 0,
+          tone: 'bad',
+          text: opts.intro ?? `The ${enemy.name} draws on you!`,
+        },
+      ],
       over: false,
       outcome: null,
       playerHpSnapshot: totalHp(s.bodyParts),
@@ -1708,15 +1813,19 @@ export const useGame = create<State>((set, get) => {
         drops,
         pendingRaid: opts.pendingRaid,
         raidLoot: opts.raidLoot,
+        tunnel: opts.tunnel,
       },
       selectedStance: 'guarded',
-      terrain: terrainForCategory(loc.category),
+      terrain: opts.terrainOverride
+        ? TERRAIN[opts.terrainOverride]
+        : terrainForCategory(loc.category),
       awaitingStance: true,
       playerGauge: 0,
       enemyGauge: 0,
       acting: null,
       paused: false,
       speedIndex: 1,
+      impact: null,
     };
     set({ combat, _combatRng: humanRng.fork('fight') });
   };
@@ -1774,6 +1883,7 @@ export const useGame = create<State>((set, get) => {
       acting: null,
       paused: false,
       speedIndex: 1,
+      impact: null,
     };
     set({ combat, _combatRng: rng.fork('fight') });
   };
@@ -2160,10 +2270,9 @@ export const useGame = create<State>((set, get) => {
     if (!from || !net || stationIds.length < 2) return;
     if (from.mrtStationId !== stationIds[0]) return;
 
-    // Reject any hop that crosses a destroyed edge.
     for (let i = 1; i < stationIds.length; i++) {
       if (!adjacentEdge(net, stationIds[i - 1], stationIds[i], s.destroyedTunnelEdges)) {
-        pushLog('That route crosses a collapsed bore — pick another path.', 'bad');
+        pushLog('That route isn\'t on the rail map.', 'bad');
         return;
       }
     }
@@ -2192,7 +2301,9 @@ export const useGame = create<State>((set, get) => {
       });
 
       const hopMeters: number[] = [];
+      const hopCollapsed = hopCollapsedFlags(stationIds, cur.destroyedTunnelEdges);
       let meters = 0;
+      let collapsedMeters = 0;
       let mode: 'mrt' | 'lrt' = 'lrt';
       let lineCode = '';
       let lineName = 'Tunnel';
@@ -2201,6 +2312,7 @@ export const useGame = create<State>((set, get) => {
         const seg = adjacentEdge(net, stationIds[i - 1], stationIds[i], cur.destroyedTunnelEdges)!;
         hopMeters.push(seg.meters);
         meters += seg.meters;
+        if (seg.collapsed) collapsedMeters += seg.meters;
         if (seg.line.mode === 'mrt') mode = 'mrt';
         if (i === 1) {
           const line = displayLine(net, seg.line);
@@ -2217,6 +2329,7 @@ export const useGame = create<State>((set, get) => {
         cur.meters.energy,
         cur.hour,
         moveFactor(cur),
+        collapsedMeters,
       );
       const run = generateTunnelRun(
         new Rng(cur.seed).fork(`tunnel:${stations[0].stationId}:${destId}:${seq}`),
@@ -2225,6 +2338,7 @@ export const useGame = create<State>((set, get) => {
           to,
           stations,
           hopMeters,
+          hopCollapsed,
           lineCode,
           lineName,
           lineColor,
@@ -2239,6 +2353,15 @@ export const useGame = create<State>((set, get) => {
       );
 
       set({ tunnel: run, tunnelSeq: seq, tunnelOffer: null });
+      const ruined = hopCollapsed.filter(Boolean).length;
+      if (ruined > 0) {
+        pushLog(
+          ruined === 1
+            ? 'Part of this walk crosses a collapsed bore — rubble, packs, no camps.'
+            : `${ruined} stretches of this walk are collapsed bores — rubble, packs, no camps.`,
+          'bad',
+        );
+      }
       pushLog(
         stationIds.length > 2
           ? `You drop off the platform at ${fromNow.name} — ${stationIds.length - 1} stops toward ${to.name}.`
@@ -2284,11 +2407,6 @@ export const useGame = create<State>((set, get) => {
           : `Stairs, then daylight. You come up at ${to.name}.`,
         'good',
       );
-
-      if (live.pressure > 60) {
-        pushLog('Whatever followed you up the tunnel is close behind.', 'bad');
-        get().emitNoise(to.lat, to.lng, 220, 1);
-      }
       persist();
     });
   };
@@ -2354,21 +2472,30 @@ export const useGame = create<State>((set, get) => {
    * A fight in the bore. One way wide, so fleeing means shoving past and
    * carrying on — there is no back to run to.
    */
-  const startTunnelFight = (run: TunnelRun, node: TunnelNode, lootMod: number) => {
-    const s = get();
-    const threat = nodeThreat(run, node);
-    const pinned = run.pressure >= PRESSURE_MAX;
+  const startTunnelFight = (
+    run: TunnelRun,
+    node: TunnelNode,
+    lootMod: number,
+    opts: { enemy?: Enemy; intro?: string; drops?: string[] } = {},
+  ) => {
+    const threat = nodeThreat(node);
+    const elite = !opts.enemy && !!node.elite;
+    const enemy =
+      opts.enemy ??
+      (elite
+        ? makeStalker(new Rng(get().seed).fork(tunnelKey(run, `stalker:${node.id}`)), threat)
+        : undefined);
     startZombieCombat(run.fromLocationId, false, {
       terrainOverride: 'tunnel_bore',
       danger: threat,
       key: tunnelKey(run, `fight:${node.id}`),
-      // A pinned gauge has been drawing something the whole walk. It arrives.
-      enemy: pinned
-        ? makeStalker(new Rng(s.seed).fork(tunnelKey(run, `stalker:${node.id}`)), threat)
-        : undefined,
-      intro: pinned
-        ? 'Whatever has been pacing you down the tunnel stops pacing.'
-        : `${node.name}: they come at you down the bore, and the bore is one way wide.`,
+      enemy,
+      drops: opts.drops,
+      intro:
+        opts.intro ??
+        (elite
+          ? 'Whatever has been pacing you down the tunnel stops pacing.'
+          : `${node.name}: they come at you down the bore, and the bore is one way wide.`),
       tunnel: { nodeId: node.id, lootMod },
     });
   };
@@ -2395,39 +2522,113 @@ export const useGame = create<State>((set, get) => {
       return;
     }
 
-    // ---- the tunnel itself is the problem -------------------------------
-    if (node.kind === 'hazard') {
+    // ---- stalled consist: pick an approach before walking on ------------
+    if (node.kind === 'carriage') {
+      pushLog(
+        `${node.name}: the consist is blocking the bore. Under it, or through it.`,
+        'info',
+      );
+      persist();
+      return;
+    }
+
+    // ---- STA in the bore ------------------------------------------------
+    if (node.kind === 'checkpoint') {
       const after = tunnelTick(meta.minutes / 60);
       if (!after) return;
-      const hazard = HAZARD_META[node.hazard ?? 'collapse'];
-      const cfg = HAZARD_CONFIG[node.hazard ?? 'collapse'];
+      if ((get().factionStanding.sta ?? 0) >= STANDING_TRUSTED) {
+        set({ tunnel: markDone(after, nodeId) });
+        pushLog(`${node.name}: they know the face. STA wave you through.`, 'good');
+        persist();
+        return;
+      }
+      set({ tunnel: after });
+      pushLog(`${node.name}: marshals across the bore. Fare, or fade.`, 'info');
+      persist();
+      return;
+    }
+
+    // ---- look down the tube ---------------------------------------------
+    if (node.kind === 'signal') {
+      const after = tunnelTick(meta.minutes / 60);
+      if (!after) return;
       const check = rollCheck(
         rng,
-        s.character!.attributes[hazard.attr],
+        s.character!.attributes.wits,
         hazardDc(node),
         sumTraitMod(s.character!.traitIds, 'checkBonusMod'),
       );
+      if (check.success) {
+        set({ tunnel: setSightBonus(markDone(after, nodeId), 1) });
+        pushLog(`${node.name}: a board still answers. The next stretch lights up.`, 'good');
+      } else {
+        set({ tunnel: markDone(after, nodeId) });
+        pushLog(`${node.name}: dead switches and dust. You see no further.`, 'info');
+      }
+      persist();
+      return;
+    }
+
+    // ---- the tunnel itself is the problem -------------------------------
+    if (node.kind === 'hazard') {
+      const hazardKind = node.hazard ?? 'collapse';
+      const cfg = TUNNEL_HAZARD[hazardKind];
+      const check = rollCheck(
+        rng,
+        s.character!.attributes[cfg.attr],
+        hazardDc(node),
+        sumTraitMod(s.character!.traitIds, 'checkBonusMod'),
+      );
+      const minutes = hazardMinutes(node, !check.success);
+      const after = tunnelTick(minutes / 60);
+      if (!after) return;
 
       const cur = get();
+      const energy = cfg.energyCost * (check.success ? 1 : cfg.failEnergyMult);
+      const meters = { ...cur.meters, energy: clampMeter(cur.meters.energy - energy) };
+
       if (check.success) {
-        set({
-          tunnel: markDone(after, nodeId),
-          meters: { ...cur.meters, energy: clampMeter(cur.meters.energy - cfg.energyCost) },
-        });
+        set({ tunnel: markDone(after, nodeId), meters });
         pushLog(`${node.name}: you find the line through and take it.`, 'info');
-      } else {
-        const bodyParts = applyWound(cur.bodyParts, rng.int(6, 16), rng);
-        set({
-          tunnel: addPressure(markDone(after, nodeId), HAZARD_PRESSURE),
-          bodyParts,
-          meters: { ...cur.meters, energy: clampMeter(cur.meters.energy - cfg.energyCost * 2) },
+        persist();
+        return;
+      }
+
+      if (hazardKind === 'floodwater') {
+        set({ meters, tunnel: after });
+        const dropRng = rng.fork('otter');
+        const otter = makeAnimalById(dropRng, 'otter', nodeThreat(node));
+        const drop = rollAnimalDrop(ENEMIES, dropRng, otter.templateId ?? 'otter');
+        pushLog(`${node.name}: something moves in the black water.`, 'bad');
+        startTunnelFight(after, node, 0, {
+          enemy: otter,
+          drops: drop ? [drop] : undefined,
+          intro: `A ${otter.name} comes up through the flood.`,
         });
-        pushLog(`${node.name} takes its toll — you come out the other side hurt.`, 'bad');
-        const cause = checkDeath(get().meters, get().bodyParts);
-        if (cause) {
-          endRun(cause);
-          return;
-        }
+        return;
+      }
+
+      let bodyParts = cur.bodyParts;
+      if (cfg.wound) {
+        const lo = node.collapsedBore ? cfg.wound.collapsedMin : cfg.wound.min;
+        const hi = node.collapsedBore ? cfg.wound.collapsedMax : cfg.wound.max;
+        bodyParts = applyWound(cur.bodyParts, rng.int(lo, hi), rng);
+      }
+      set({
+        tunnel: markDone(after, nodeId),
+        bodyParts,
+        meters,
+      });
+      pushLog(
+        cfg.wound
+          ? `${node.name} takes its toll — you come out the other side hurt.`
+          : `${node.name}: you lose the line and burn the extra minutes finding it.`,
+        'bad',
+      );
+      const cause = checkDeath(get().meters, get().bodyParts);
+      if (cause) {
+        endRun(cause);
+        return;
       }
       persist();
       return;
@@ -2437,13 +2638,12 @@ export const useGame = create<State>((set, get) => {
     if (node.kind === 'scavenge') {
       const after = tunnelTick(meta.minutes / 60);
       if (!after) return;
-      // Picking over a wreck is noisy, and something down here is listening.
       if (rng.chance(0.25)) {
         pushLog(`Something was already working ${node.name}.`, 'bad');
         startTunnelFight(after, node, node.lootMod ?? 0);
         return;
       }
-      set({ tunnel: addPressure(markDone(after, nodeId), SCAVENGE_PRESSURE) });
+      set({ tunnel: markDone(after, nodeId) });
       grantTunnelSalvage(after, node, rng);
       persist();
       return;
@@ -2584,6 +2784,7 @@ export const useGame = create<State>((set, get) => {
         acting: null,
         paused: false,
         speedIndex: 1,
+        impact: null,
       };
       set({ combat, _combatRng: fightRng.fork('fight') });
       return;
@@ -2675,6 +2876,7 @@ export const useGame = create<State>((set, get) => {
       acting: null,
       paused: false,
       speedIndex: 1,
+      impact: null,
     };
     set({ combat, _combatRng: fightRng.fork('fight') });
   };
@@ -2911,8 +3113,10 @@ export const useGame = create<State>((set, get) => {
       }
 
       // Starting kit comes from ItemDef.startingItem flags (editable in the DEV loot browser).
+      // Equip first (incl. bag), sync the pack silhouette, then pack leftovers into that mask.
       let items: ItemInstance[] = [];
       const equipment = emptyEquipment();
+      const packStarters: { defId: string; count: number }[] = [];
       for (const def of Object.values(ITEMS)) {
         if (!def.startingItem) continue;
         if (def.slot && !equipment[def.slot]) {
@@ -2927,14 +3131,39 @@ export const useGame = create<State>((set, get) => {
             condition: def.maxCondition ?? 100,
           };
         } else {
-          const count = Math.max(1, def.startingCount ?? 1);
-          items = addToGrid(items, 'backpack', def.id, count).items;
+          packStarters.push({
+            defId: def.id,
+            count: Math.max(1, def.startingCount ?? 1),
+          });
         }
       }
-      syncBackpackBonuses(
-        sumTraitMod(get().character!.traitIds, 'gridWidthBonus'),
-        equipment,
-      );
+      const traitW = sumTraitMod(get().character!.traitIds, 'gridWidthBonus');
+      syncBackpackBonuses(traitW, equipment);
+
+      let kitLeftover = 0;
+      for (const { defId, count } of packStarters) {
+        const packed = addToGrid(items, 'backpack', defId, count);
+        items = packed.items;
+        kitLeftover += packed.leftover;
+        if (import.meta.env.DEV && packed.leftover > 0) {
+          console.error(
+            `[start] starting kit could not fit ${defId} ×${packed.leftover} in the pack grid`,
+          );
+        }
+      }
+      const packLegal = items
+        .filter((i) => i.container === 'backpack')
+        .every((i) => {
+          const d = itemDef(i.defId);
+          const { w, h } = footprint(d, i.rotated);
+          return canPlace('backpack', items, { x: i.x, y: i.y, w, h }, i.uid);
+        });
+      if (import.meta.env.DEV && (!packLegal || kitLeftover > 0)) {
+        console.error(
+          '[start] starting bag packGrid is illegal for the starting kit',
+          { packLegal, kitLeftover },
+        );
+      }
 
       // Promote up to two sites per faction to outposts, seed services, and
       // reveal outpost pins so they read as destinations from day one.
@@ -3410,7 +3639,7 @@ export const useGame = create<State>((set, get) => {
       }
       for (let i = 1; i < stationIds.length; i++) {
         if (!adjacentEdge(net, stationIds[i - 1], stationIds[i], s.destroyedTunnelEdges)) {
-          pushLog('That route crosses a collapsed bore — pick another path.', 'bad');
+          pushLog('That route isn\'t on the rail map.', 'bad');
           return;
         }
       }
@@ -3473,6 +3702,10 @@ export const useGame = create<State>((set, get) => {
       const s = get();
       const run = s.tunnel;
       if (!run || s.combat || s.pendingEvent) return;
+      if (nodeNeedsChoice(currentNode(run))) {
+        pushLog('The bore is blocked until you pick a way through.', 'info');
+        return;
+      }
       if (s.items.some((i) => i.container === TEMP_STASH)) {
         pushLog(flavor('sortHaul'), 'bad');
         set({ inventoryOpenToken: s.inventoryOpenToken + 1 });
@@ -3481,11 +3714,19 @@ export const useGame = create<State>((set, get) => {
       const node = run.nodes[nodeId];
       if (!node || !reachable(run).some((n) => n.id === nodeId)) return;
 
+      const leaving = currentNode(run);
       // The walk between columns is charged first: whatever is on the node
       // happens after you have already spent the minutes getting to it.
       const walked = tunnelTick(run.minutesPerHop / 60);
       if (!walked) return;
-      set({ tunnel: stepTo(walked, nodeId) });
+      const nextRun = stepTo(walked, nodeId);
+      if (node.collapsedBore && !leaving.collapsedBore) {
+        pushLog(
+          'The crown came down through here. You crawl the rubble — this stretch will not be kind.',
+          'bad',
+        );
+      }
+      set({ tunnel: nextRun });
       // Save the move itself before resolving it. A fight is never part of a
       // save, so without this a reload mid-contact would rewind you to the
       // previous node with the minutes already spent.
@@ -3518,7 +3759,7 @@ export const useGame = create<State>((set, get) => {
         ...after.nodes,
         [node.id]: { ...after.nodes[node.id], servicesUsed: true },
       };
-      set({ tunnel: addPressure({ ...after, nodes }, -REST_PRESSURE_RELIEF) });
+      set({ tunnel: { ...after, nodes } });
       shiftStanding('sta', 1);
       pushLog(
         `You sleep ${CAMP_REST_HOURS} hours on a mat by the barricade. Someone else keeps watch.`,
@@ -3578,6 +3819,89 @@ export const useGame = create<State>((set, get) => {
 
     tunnelDeclineOffer: () => {
       set({ tunnelOffer: null });
+    },
+
+    tunnelCarriage: (choice) => {
+      const s = get();
+      const run = s.tunnel;
+      if (!run || s.combat || s.pendingEvent) return;
+      const node = currentNode(run);
+      if (node.kind !== 'carriage' || node.state === 'done') return;
+
+      if (choice === 'invert') {
+        const after = tunnelTick(CARRIAGE_INVERT_MINUTES / 60);
+        if (!after) return;
+        const cur = get();
+        set({
+          tunnel: markDone(after, node.id),
+          meters: {
+            ...cur.meters,
+            energy: clampMeter(cur.meters.energy - CARRIAGE_INVERT_ENERGY),
+          },
+        });
+        pushLog(`${node.name}: you drop to the invert and crawl under the consist.`, 'info');
+        persist();
+        return;
+      }
+
+      const after = tunnelTick(CARRIAGE_SMASH_MINUTES / 60);
+      if (!after) return;
+      const rng = new Rng(s.seed).fork(tunnelKey(after, `smash:${node.id}`));
+      if (rng.chance(CARRIAGE_BAIT_CHANCE)) {
+        pushLog(`Something was already living in ${node.name}.`, 'bad');
+        set({ tunnel: after });
+        startTunnelFight(after, node, node.lootMod ?? 0);
+        return;
+      }
+      set({ tunnel: markDone(after, node.id) });
+      grantTunnelSalvage(after, node, rng);
+      persist();
+    },
+
+    tunnelCheckpoint: (choice) => {
+      const s = get();
+      const run = s.tunnel;
+      if (!run || s.combat || s.pendingEvent) return;
+      const node = currentNode(run);
+      if (node.kind !== 'checkpoint' || node.state === 'done') return;
+
+      if (choice === 'pay') {
+        const tribute = FACTION_CONFIG.sta.tribute;
+        const paying = tribute.find((id) => hasBackpackItem(id));
+        if (!paying) {
+          pushLog(`No fare, no passage. They want ${tribute.map((id) => itemDef(id).name).join(', or ')}.`, 'bad');
+          return;
+        }
+        consumeBackpackItem(paying);
+        set({ tunnel: markDone(run, node.id) });
+        shiftStanding('sta', 1);
+        pushLog(`You hand over ${itemDef(paying).name}. The marshals step aside.`, 'good');
+        persist();
+        return;
+      }
+
+      const rng = new Rng(s.seed).fork(tunnelKey(run, `sneak:${node.id}`));
+      const check = rollCheck(
+        rng,
+        s.character!.attributes.dexterity,
+        hazardDc(node),
+        sumTraitMod(s.character!.traitIds, 'checkBonusMod'),
+      );
+      if (check.success) {
+        set({ tunnel: markDone(run, node.id) });
+        pushLog(`${node.name}: you slip the chain and they never turn.`, 'good');
+        persist();
+        return;
+      }
+      shiftStanding('sta', -1);
+      pushLog(`${node.name}: a torch finds you. Steel comes out.`, 'bad');
+      startHumanCombat(run.fromLocationId, 'sta', false, {
+        terrainOverride: 'tunnel_bore',
+        danger: nodeThreat(node),
+        tunnel: { nodeId: node.id, lootMod: 0 },
+        key: tunnelKey(run, `sta:${node.id}`),
+        intro: `An STA marshal draws on you in ${node.name}.`,
+      });
     },
 
     confirmTempStash: () => {
@@ -4005,6 +4329,10 @@ export const useGame = create<State>((set, get) => {
       closeSearchSession(session, mode);
     },
 
+    ensureSiteRuin: (locationId) => {
+      ensureSiteRuin(locationId);
+    },
+
     resolveEvent: (choiceId) => {
       const s = get();
       const pe = s.pendingEvent;
@@ -4326,6 +4654,7 @@ export const useGame = create<State>((set, get) => {
               acting: null,
               paused: false,
               speedIndex: 1,
+              impact: null,
             },
             _combatRng: nightRng.fork('fight'),
           });
@@ -5318,6 +5647,16 @@ export const useGame = create<State>((set, get) => {
             : []),
           ...notes.map((text) => ({ round, tone: 'bad' as const, text })),
         ];
+        const impactId = (c.impact?.id ?? 0) + 1;
+        const impact = res.zombieDead
+          ? { id: impactId, side: 'enemy' as const, kind: 'kill' as const }
+          : res.hit
+            ? {
+                id: impactId,
+                side: 'enemy' as const,
+                kind: (res.critical ? 'crit' : 'hit') as 'crit' | 'hit',
+              }
+            : { id: impactId, side: 'enemy' as const, kind: 'miss' as const };
         const next = {
           ...c,
           zombie,
@@ -5326,6 +5665,7 @@ export const useGame = create<State>((set, get) => {
           acting: 'player' as const,
           playerGauge: playerGauge - GAUGE_FULL,
           enemyGauge: Math.min(enemyGauge, GAUGE_FULL),
+          impact,
         };
 
         if (res.zombieDead) {
@@ -5397,6 +5737,18 @@ export const useGame = create<State>((set, get) => {
       const { equipment, notes } = applyWear(s.equipment, 0, res.armorWear, res.wearSlot);
       const dead = checkDeath(meters, bodyParts) !== null;
       const log = [...c.log, ...res.log, ...notes.map((text) => ({ round, tone: 'bad' as const, text }))];
+      const impactId = (c.impact?.id ?? 0) + 1;
+      const impact = dead
+        ? { id: impactId, side: 'player' as const, kind: 'death' as const }
+        : res.dodged
+          ? { id: impactId, side: 'player' as const, kind: 'dodge' as const }
+          : res.playerDamage > 0
+            ? {
+                id: impactId,
+                side: 'player' as const,
+                kind: (res.critical ? 'crit' : 'hit') as 'crit' | 'hit',
+              }
+            : { id: impactId, side: 'player' as const, kind: 'miss' as const };
       const next = {
         ...c,
         round,
@@ -5404,6 +5756,7 @@ export const useGame = create<State>((set, get) => {
         acting: 'enemy' as const,
         enemyGauge: enemyGauge - GAUGE_FULL,
         playerGauge: Math.min(playerGauge, GAUGE_FULL),
+        impact,
       };
       set({
         meters,
@@ -5471,11 +5824,28 @@ export const useGame = create<State>((set, get) => {
         ...notes.map((text) => ({ round, tone: 'bad' as const, text })),
       ];
       const dead = checkDeath(meters, bodyParts) !== null;
+      const impactId = (s.combat.impact?.id ?? 0) + 1;
+      const impact =
+        dead
+          ? { id: impactId, side: 'player' as const, kind: 'death' as const }
+          : res.playerDamage > 0
+            ? { id: impactId, side: 'player' as const, kind: 'hit' as const }
+            : null;
       if (res.success && !dead) {
-        set({ meters, bodyParts, equipment, combat: { ...s.combat, round, log, over: true, outcome: 'flee' } });
+        set({
+          meters,
+          bodyParts,
+          equipment,
+          combat: { ...s.combat, round, log, over: true, outcome: 'flee', impact },
+        });
         bumpStats({ fightsFled: 1 });
       } else if (dead) {
-        set({ meters, bodyParts, equipment, combat: { ...s.combat, round, log, over: true, outcome: 'dead' } });
+        set({
+          meters,
+          bodyParts,
+          equipment,
+          combat: { ...s.combat, round, log, over: true, outcome: 'dead', impact },
+        });
       } else {
         // Flee failed — fight continues. Drop the disengage profile so the
         // next swing isn't stuck on a flee-only stance.
@@ -5483,7 +5853,7 @@ export const useGame = create<State>((set, get) => {
           meters,
           bodyParts,
           equipment,
-          combat: { ...s.combat, round, log, selectedStance: 'guarded' },
+          combat: { ...s.combat, round, log, selectedStance: 'guarded', impact },
         });
       }
     },
@@ -5524,12 +5894,12 @@ export const useGame = create<State>((set, get) => {
         const run = g.tunnel;
         if (run) {
           const node = run.nodes[nodeId];
-          const after = addPressure(markDone(run, nodeId), FIGHT_PRESSURE);
+          const after = markDone(run, nodeId);
           set({ tunnel: after });
           if (outcome === 'win') {
             pushLog('It stops moving. The bore goes quiet again.', 'good');
             // The salvage this fight interrupted is still there afterwards.
-            if (node && node.kind === 'scavenge') {
+            if (node && (node.kind === 'scavenge' || node.kind === 'carriage')) {
               grantTunnelSalvage(after, node, new Rng(g.seed).fork(tunnelKey(after, `loot:${nodeId}`)));
             } else if (lootMod > 0 && node) {
               grantTunnelSalvage(after, { ...node, lootMod }, new Rng(g.seed).fork(tunnelKey(after, `loot:${nodeId}`)));

@@ -2,6 +2,7 @@ import { Icon } from '../icons/Icon';
 import { GuideInfoButton } from './GuideInfoButton';
 import type { GuideTopic } from '../content/guideContent';
 import type { EvacVibe } from '../game/goal';
+import { useT } from '../i18n';
 
 interface Props {
   evacZoneName: string | null;
@@ -55,35 +56,58 @@ export function ObjectivesPanel({
   onEvac,
   onOpenGuide,
 }: Props) {
+  const { t } = useT();
+
+  const reachBlurb = (() => {
+    if (!evacZoneName) return null;
+    const full = t('ui.objective.reachHaul', { zone: evacZoneName });
+    const idx = full.indexOf(evacZoneName);
+    if (idx < 0) return full;
+    return (
+      <>
+        {full.slice(0, idx)}
+        <span className="font-semibold text-signal">{evacZoneName}</span>
+        {full.slice(idx + evacZoneName.length)}
+      </>
+    );
+  })();
+
   return (
     <div className="flex flex-col gap-3">
       {/* ---- Score ladder ---- */}
       <section className="rounded-lg border border-white/15 bg-concrete-900/80 p-3">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5">
-            <span className="text-sm font-bold text-concrete-50">Score ladder</span>
-            {onOpenGuide && <GuideInfoButton topic="evac" onOpen={onOpenGuide} label="Evac and score" />}
+            <span className="text-sm font-bold text-concrete-50">{t('ui.objective.scoreLadder')}</span>
+            {onOpenGuide && (
+              <GuideInfoButton
+                topic="evac"
+                onOpen={onOpenGuide}
+                label={t('ui.objective.evacAndScore')}
+              />
+            )}
           </div>
           <span className="shrink-0 text-xs tabular-nums text-signal">
-            ×{dayMult.toFixed(1)} day
+            {t('ui.objective.dayMult', { mult: dayMult.toFixed(1) })}
           </span>
         </div>
-        <p className="mt-1 text-xs leading-snug text-white/50">
-          Linger to climb the multiplier. Extract seals a bonus that also scales
-          with the day — best run is long survival, then a successful lift out.
-        </p>
+        <p className="mt-1 text-xs leading-snug text-white/50">{t('ui.objective.scoreBlurb')}</p>
         <div className="mt-2 grid grid-cols-2 gap-2 text-center">
           <div className="rounded bg-white/5 px-2 py-1.5">
             <div className="text-lg font-black tabular-nums text-concrete-50">
               {projectedScore}
             </div>
-            <div className="text-2xs uppercase tracking-wide text-white/35">If you die now</div>
+            <div className="text-2xs uppercase tracking-wide text-white/35">
+              {t('ui.objective.ifYouDieNow')}
+            </div>
           </div>
           <div className="rounded bg-signal/10 px-2 py-1.5">
             <div className="text-lg font-black tabular-nums text-signal">
               +{projectedEvacBonus}
             </div>
-            <div className="text-2xs uppercase tracking-wide text-white/35">Evac bonus</div>
+            <div className="text-2xs uppercase tracking-wide text-white/35">
+              {t('ui.objective.evacBonus')}
+            </div>
           </div>
         </div>
       </section>
@@ -92,19 +116,20 @@ export function ObjectivesPanel({
       <section className="rounded-lg border border-signal/40 bg-signal/[0.06] p-3">
         <div className="flex items-center justify-between gap-2">
           <span className="text-sm font-bold text-signal">
-            <Icon name="action.evac" /> Escape Singapore
+            <Icon name="action.evac" /> {t('ui.objective.escapeSingapore')}
           </span>
           <span className="shrink-0 text-xs text-white/40">
-            {atEvac ? 'you are here' : evacZoneName ? `${evacDist} m away` : '—'}
+            {atEvac
+              ? t('ui.objective.youAreHere')
+              : evacZoneName
+                ? t('ui.objective.metersAway', { m: evacDist })
+                : '—'}
           </span>
         </div>
         {evacZoneName ? (
-          <p className="mt-1 text-sm text-white/70">
-            Reach <span className="font-semibold text-signal">{evacZoneName}</span> with a haul the
-            bird might accept, then signal for a lift. The radio never names a quota.
-          </p>
+          <p className="mt-1 text-sm text-white/70">{reachBlurb}</p>
         ) : (
-          <p className="mt-1 text-sm text-white/50">No active evac window.</p>
+          <p className="mt-1 text-sm text-white/50">{t('ui.objective.noActiveWindow')}</p>
         )}
 
         {windowText && (
@@ -113,13 +138,13 @@ export function ObjectivesPanel({
               urgent ? 'animate-pulse text-hiss' : 'text-concrete-200'
             }`}
           >
-            Window closes in {windowText}
+            {t('ui.objective.windowCloses', { window: windowText })}
           </div>
         )}
 
         <div className="mt-3">
           <div className="flex items-center justify-between text-2xs uppercase tracking-wide text-white/40">
-            <span>Radio read</span>
+            <span>{t('ui.objective.radioRead')}</span>
             <span className="normal-case tracking-normal text-white/55">{vibeLine}</span>
           </div>
           <div className="mt-1 h-1.5 overflow-hidden rounded bg-black/50">
@@ -131,10 +156,7 @@ export function ObjectivesPanel({
               }}
             />
           </div>
-          <p className="mt-1.5 text-2xs text-white/35">
-            Fuel, meds, and ammo count most; sealed water a little; food and scrap barely.
-            Burning fuel to boil water hurts the haul. Only the flare tells you for sure.
-          </p>
+          <p className="mt-1.5 text-2xs text-white/35">{t('ui.objective.radioBlurb')}</p>
         </div>
 
         {atEvac && (
@@ -142,7 +164,7 @@ export function ObjectivesPanel({
             onClick={onEvac}
             className="mt-3 w-full rounded-lg bg-signal/80 py-2 text-sm font-bold text-black transition hover:bg-signal"
           >
-            Call for evac — pop the flare
+            {t('ui.game.callEvac')}
           </button>
         )}
       </section>
@@ -150,7 +172,7 @@ export function ObjectivesPanel({
       {/* ---- Doom clock ---- */}
       <section className="rounded-lg border border-white/15 bg-concrete-900/80 p-3">
         <div className="flex items-center justify-between text-2xs uppercase tracking-wide text-white/40">
-          <span>Horde · {doomLabel}</span>
+          <span>{t('ui.objective.horde', { label: doomLabel })}</span>
           <span className="tabular-nums">{Math.round(doom)}%</span>
         </div>
         <div className="mt-1 h-1.5 overflow-hidden rounded bg-black/50">
@@ -159,10 +181,7 @@ export function ObjectivesPanel({
             style={{ width: `${Math.min(100, doom)}%`, background: doomColor }}
           />
         </div>
-        <p className="mt-1.5 text-2xs text-white/30">
-          The city is lost when the horde hits 100%. Death still posts a score —
-          extract posts more.
-        </p>
+        <p className="mt-1.5 text-2xs text-white/30">{t('ui.objective.hordeBlurb')}</p>
       </section>
     </div>
   );

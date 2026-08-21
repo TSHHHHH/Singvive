@@ -3,7 +3,6 @@ import {
   ATTRIBUTE_BLURB,
   ATTRIBUTE_ICONS,
   ATTRIBUTE_KEYS,
-  ATTRIBUTE_LABELS,
   attributeEffects,
   attributeSources,
   BASE_ATTRIBUTE,
@@ -11,6 +10,7 @@ import {
 import type { AttributeKey } from '../game/types';
 import { Icon } from '../icons/Icon';
 import { TipHint } from './TipHint';
+import { useT } from '../i18n';
 
 /**
  * The five attributes, inline on the Condition rail so the sheet isn't a panel
@@ -19,6 +19,7 @@ import { TipHint } from './TipHint';
  * traits moved it off 5.
  */
 export function AttributeRow() {
+  const { t } = useT();
   const character = useGame((s) => s.character);
   if (!character) return null;
 
@@ -30,6 +31,7 @@ export function AttributeRow() {
         // Keep the tooltip inside the rail: edge cells anchor to their side.
         const anchor =
           i < 2 ? 'left-0' : i > 2 ? 'right-0' : 'left-1/2 -translate-x-1/2';
+        const label = t(`ui.attributes.${k}`);
         return (
           <TipHint
             key={k}
@@ -38,7 +40,7 @@ export function AttributeRow() {
           >
             <div className="cursor-help rounded bg-black/30 py-1 transition group-hover:bg-white/5">
               <div className="mx-auto mb-0.5 flex justify-center text-white/50">
-                <Icon name={ATTRIBUTE_ICONS[k]} size={12} title={ATTRIBUTE_LABELS[k]} />
+                <Icon name={ATTRIBUTE_ICONS[k]} size={12} title={label} />
               </div>
               <div
                 className={`text-sm font-bold tabular-nums ${
@@ -48,7 +50,7 @@ export function AttributeRow() {
                 {value}
               </div>
               <div className="text-2xs uppercase text-white/40">
-                {ATTRIBUTE_LABELS[k].slice(0, 3)}
+                {t(`ui.attributes.short.${k}`)}
               </div>
             </div>
           </TipHint>
@@ -67,6 +69,7 @@ function AttributeTip({
   traitIds: string[];
   value: number;
 }) {
+  const { t } = useT();
   const sources = attributeSources(traitIds, attr);
   const effects = attributeEffects(attr, value);
   return (
@@ -74,10 +77,10 @@ function AttributeTip({
       <div className="mb-1 flex items-baseline justify-between gap-2">
         <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-white/40">
           <Icon name={ATTRIBUTE_ICONS[attr]} size={12} />
-          {ATTRIBUTE_LABELS[attr]}
+          {t(`ui.attributes.${attr}`)}
         </span>
         <span className="shrink-0 text-2xs tabular-nums text-white/40">
-          base {BASE_ATTRIBUTE} → {value}
+          {t('ui.attributes.baseTo', { base: BASE_ATTRIBUTE, value })}
         </span>
       </div>
       <p className="text-xs leading-snug text-white/60">{ATTRIBUTE_BLURB[attr]}</p>
@@ -91,7 +94,7 @@ function AttributeTip({
           ))}
         </ul>
       ) : (
-        <p className="mt-1.5 text-xs text-white/35">At baseline — no bonus or penalty.</p>
+        <p className="mt-1.5 text-xs text-white/35">{t('ui.attributes.atBaseline')}</p>
       )}
 
       {sources.length > 0 && (

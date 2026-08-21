@@ -80,7 +80,7 @@ export interface SavedRun {
   /** Run counter behind every tunnel rng key. @see TunnelRun.seq */
   tunnelSeq?: number;
   /**
-   * Undirected edge keys destroyed this run. Absent on older saves — resume
+   * Undirected edge keys collapsed this run. Absent on older saves — resume
    * re-rolls from seed with the same fork so the corridor stays stable.
    */
   destroyedTunnelEdges?: string[];

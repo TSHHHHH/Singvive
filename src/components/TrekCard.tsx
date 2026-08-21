@@ -4,6 +4,7 @@ import { formatDuration } from '../game/travel';
 import { riskLabel, type TrekRisk } from '../game/wilds';
 import { HazardOnRoute } from './HazardOnRoute';
 import type { IconName } from '../icons/keys';
+import { useT } from '../i18n';
 
 interface Props {
   distanceM: number;
@@ -47,6 +48,7 @@ export function TrekCard({
   vegetationEnergy = 0,
   onTrek,
 }: Props) {
+  const { t } = useT();
   const label = riskLabel(risk.encounterChance);
   const blocked = energyLow || outOfRange || tooClose || noDryRoute;
   const energyHit = risk.energyCost + vegetationEnergy;
@@ -56,33 +58,31 @@ export function TrekCard({
       <div className="flex items-start gap-2">
         <Icon name="action.travel" size={22} className="mt-0.5 shrink-0 opacity-60" />
         <div className="min-w-0 flex-1">
-          <div className="font-bold text-white/70">Open ground</div>
-          <div className="text-xs leading-snug text-white/40">
-            No building, no stash, nothing to search. Just a way through.
-          </div>
+          <div className="font-bold text-white/70">{t('ui.trek.title')}</div>
+          <div className="text-xs leading-snug text-white/40">{t('ui.trek.blurb')}</div>
         </div>
       </div>
 
       <div className="mt-2 space-y-1 rounded bg-black/30 p-2 text-xs text-white/55">
         <StatRow
           icon="action.travel"
-          label="Cross"
+          label={t('ui.trek.cross')}
           value={
             <>
               {distanceM} m · {formatDuration(travelMin)}
-              {vegetationSlowed && <span className="text-white/45"> · forest</span>}
+              {vegetationSlowed && <span className="text-white/45">{t('ui.trek.forest')}</span>}
             </>
           }
         />
         <StatRow
           icon="meter.energy"
-          label="Exposure"
-          value={<>−{energyHit} energy</>}
+          label={t('ui.trek.exposure')}
+          value={<>{t('ui.trek.energyHit', { n: energyHit })}</>}
         />
         <div className="border-t border-white/10 pt-1">
           <StatRow
             icon="combat.encounter"
-            label="Route"
+            label={t('ui.trek.route')}
             value={<span style={{ color: label.color }}>{label.text}</span>}
           />
         </div>
@@ -90,26 +90,10 @@ export function TrekCard({
 
       <HazardOnRoute hazards={risk.hazards} />
 
-      {blind && (
-        <div className="mt-2 text-xs text-white/35">
-          You can't see far enough to read that ground. Anything could be sitting on it.
-        </div>
-      )}
-      {arrivalAtNight && (
-        <div className="mt-1 text-xs text-hiss">
-          🌙 You'd be caught out there after dark, with no door to close.
-        </div>
-      )}
-      {outOfRange && (
-        <div className="mt-1 text-xs text-hiss">
-          ⛔ Further than you can push in one go — pick somewhere nearer.
-        </div>
-      )}
-      {noDryRoute && (
-        <div className="mt-1 text-xs text-hiss">
-          ⛔ No dry route — water or sealed ground blocks the way.
-        </div>
-      )}
+      {blind && <div className="mt-2 text-xs text-white/35">{t('ui.trek.blind')}</div>}
+      {arrivalAtNight && <div className="mt-1 text-xs text-hiss">{t('ui.trek.night')}</div>}
+      {outOfRange && <div className="mt-1 text-xs text-hiss">{t('ui.trek.outOfRange')}</div>}
+      {noDryRoute && <div className="mt-1 text-xs text-hiss">{t('ui.trek.noDry')}</div>}
 
       <button
         disabled={blocked}
@@ -117,14 +101,14 @@ export function TrekCard({
         className="mt-3 w-full rounded bg-signal/80 py-2 text-sm font-bold text-black transition hover:bg-signal disabled:opacity-30"
       >
         {energyLow
-          ? 'Too exhausted — sleep first'
+          ? t('ui.trek.tooExhausted')
           : noDryRoute
-            ? 'No dry route'
+            ? t('ui.trek.noDryRoute')
             : tooClose
-              ? 'Too close to bother'
+              ? t('ui.trek.tooClose')
               : outOfRange
-                ? 'Too far to reach'
-                : `Cross on foot · ${formatDuration(travelMin)}`}
+                ? t('ui.trek.tooFar')
+                : t('ui.trek.crossCta', { dur: formatDuration(travelMin) })}
       </button>
     </>
   );

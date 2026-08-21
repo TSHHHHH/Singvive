@@ -11,6 +11,7 @@ import { restAmbushLabel } from '../game/wilds';
 import { Icon } from '../icons/Icon';
 import { resolveIcon } from '../icons/registry';
 import { TipHint } from './TipHint';
+import { msgOr, useT } from '../i18n';
 
 function pct(mult: number): string {
   return `${Math.round(mult * 100)}%`;
@@ -22,17 +23,29 @@ function factorTone(mult: number): string {
   return 'text-hiss/80';
 }
 
-/** Wide short roof — asset is ~2:1, so skip the square Icon box. */
+function ambushTextKey(chance: number): string {
+  if (chance <= 0) return 'safe';
+  if (chance < 0.15) return 'uneasy';
+  if (chance < 0.4) return 'exposed';
+  return 'suicide';
+}
+
+/** Wide short roof — asset is ~2:1, so skip the square Icon box. Sized in em so it tracks HUD type. */
 function SleepRoof({ active }: { active: boolean }) {
   const src = resolveIcon('sleep.roof').asset?.src;
-  if (!src) return <Icon name="sleep.roof" size={16} className={active ? '' : 'opacity-20'} />;
+  if (!src) {
+    return (
+      <Icon
+        name="sleep.roof"
+        className={`absolute left-1/2 top-0 -translate-x-1/2 ${active ? '' : 'opacity-20'}`}
+      />
+    );
+  }
   return (
     <span
       aria-hidden
-      className={`absolute left-1/2 top-0 -translate-x-1/2 ${active ? 'opacity-100' : 'opacity-20'}`}
+      className={`absolute left-1/2 top-0 h-[0.95em] w-full -translate-x-1/2 ${active ? 'opacity-100' : 'opacity-20'}`}
       style={{
-        width: 32,
-        height: 14,
         backgroundColor: 'currentColor',
         WebkitMaskImage: `url(${src})`,
         maskImage: `url(${src})`,
@@ -46,10 +59,11 @@ function SleepRoof({ active }: { active: boolean }) {
 }
 
 /**
- * House-shaped rest quality glyph to the left of Rest: roof, walls, bed,
- * recovery %, and the night ambush chance the Rest button actually rolls.
+ * House-shaped rest quality glyph to the left of Rest: roof, walls, and bed
+ * as condition flags; recovery % and night ambush sit beside the silhouette.
  */
 export function SleepQualityIndicator({ preview }: { preview: RestPreview }) {
+  const { t } = useT();
   const conditions = preview.conditions;
   const roofOn = conditions.roof === 'yes';
   const bedOn = conditions.bed === 'bed';
@@ -58,50 +72,47 @@ export function SleepQualityIndicator({ preview }: { preview: RestPreview }) {
   const totalPct = Math.round(conditions.recoveryMult * 100);
   const ambushPct = Math.round(preview.ambushChance * 100);
   const ambush = restAmbushLabel(preview.ambushChance);
+  const ambushLabel = msgOr(
+    `ui.sleep.ambush.${ambushTextKey(preview.ambushChance)}`,
+    ambush.text,
+  );
 
   return (
     <TipHint
       className="inline-flex"
-      tipClassName="absolute right-0 top-full z-[60] mt-1 w-max min-w-[11rem] max-w-[min(16rem,calc(100vw-1.5rem))] rounded-lg border border-white/15 bg-concrete-900 p-2 text-left shadow-signage"
+      tipClassName="absolute right-0 top-full z-[60] mt-1"
       tip={<SleepTip preview={preview} />}
     >
-      <div className="flex cursor-help items-center gap-1.5 text-white">
-        <div
-          className="relative h-7 w-8"
-          aria-label={`Rest quality ${totalPct}% — ambush ${ambushPct}% ${ambush.text} — ${conditions.summary}`}
-        >
+      <div
+        className="flex cursor-help items-center gap-1 border-b border-dashed border-white/20 text-xs text-white"
+        aria-label={t('ui.sleep.aria', {
+          pct: totalPct,
+          ambushPct,
+          ambush: ambushLabel,
+          summary: conditions.summary,
+        })}
+      >
+        <div className="relative h-[2.25em] w-[2.4em] shrink-0" aria-hidden>
           <SleepRoof active={roofOn} />
-          <div className="absolute inset-x-[1px] bottom-0 top-[11px] grid grid-cols-[2px_1fr_2px] items-stretch gap-x-0.5">
+          <div className="absolute inset-x-[0.08em] bottom-0 top-[0.8em] grid grid-cols-[0.18em_1fr_0.18em] items-stretch gap-x-[0.12em]">
             <span
               className="rounded-[1px] bg-current"
               style={{ opacity: wallOpacity }}
-              aria-hidden
             />
-            <div className="flex flex-col items-center justify-center gap-px leading-none">
-              <span className="text-[9px] font-bold tabular-nums tracking-tight text-white/90">
-                {totalPct}%
-              </span>
-              <Icon
-                name="sleep.bed"
-                size={11}
-                className={bedOn ? 'opacity-100' : 'opacity-20'}
-              />
+            <div className="flex items-center justify-center">
+              <Icon name="sleep.bed" className={bedOn ? 'opacity-100' : 'opacity-20'} />
             </div>
             <span
               className="rounded-[1px] bg-current"
               style={{ opacity: wallOpacity }}
-              aria-hidden
             />
           </div>
         </div>
-        <div className="flex min-w-[2.25rem] flex-col items-end leading-none">
-          <span
-            className="text-[9px] font-bold tabular-nums tracking-tight"
-            style={{ color: ambush.color }}
-          >
-            {preview.ambushChance <= 0 ? 'Safe' : `${ambushPct}%`}
+        <div className="flex flex-col items-start leading-none">
+          <span className="font-bold tabular-nums text-white/90">{totalPct}%</span>
+          <span className="mt-0.5 font-bold tabular-nums" style={{ color: ambush.color }}>
+            {preview.ambushChance <= 0 ? t('ui.sleep.safe') : `${ambushPct}%`}
           </span>
-          <span className="text-[8px] uppercase tracking-wider text-white/35">ambush</span>
         </div>
       </div>
     </TipHint>
@@ -109,34 +120,45 @@ export function SleepQualityIndicator({ preview }: { preview: RestPreview }) {
 }
 
 function SleepTip({ preview }: { preview: RestPreview }) {
+  const { t } = useT();
   const conditions = preview.conditions;
   const enclosedMult = ENCLOSED_MULT[conditions.enclosed];
   const roofMult = ROOF_MULT[conditions.roof];
   const bedMult = BED_MULT[conditions.bed];
   const ambush = restAmbushLabel(preview.ambushChance);
+  const ambushLabel = msgOr(
+    `ui.sleep.ambush.${ambushTextKey(preview.ambushChance)}`,
+    ambush.text,
+  );
+  const enclosedLabel = msgOr(
+    `ui.sleep.enclosed.${conditions.enclosed}`,
+    ENCLOSED_LABEL[conditions.enclosed],
+  );
+  const roofLabel = msgOr(`ui.sleep.roofLevel.${conditions.roof}`, ROOF_LABEL[conditions.roof]);
+  const bedLabel = msgOr(`ui.sleep.bedLevel.${conditions.bed}`, BED_LABEL[conditions.bed]);
   const rows = [
     {
       key: 'enclosed',
-      label: `Walls · ${ENCLOSED_LABEL[conditions.enclosed]}`,
+      label: t('ui.sleep.walls', { label: enclosedLabel }),
       mult: enclosedMult,
     },
     {
       key: 'roof',
-      label: `Roof · ${ROOF_LABEL[conditions.roof]}`,
+      label: t('ui.sleep.roof', { label: roofLabel }),
       mult: roofMult,
     },
     {
       key: 'bed',
-      label: `Bed · ${BED_LABEL[conditions.bed]}`,
+      label: t('ui.sleep.bed', { label: bedLabel }),
       mult: bedMult,
     },
   ] as const;
 
   return (
-    <>
+    <div className="w-max min-w-[14rem] max-w-[min(18rem,calc(100vw-1.5rem))] rounded-lg border border-white/15 bg-concrete-900 p-2.5 text-left shadow-signage">
       <div className="mb-1 flex items-baseline justify-between gap-2">
         <span className="text-xs font-semibold uppercase tracking-widest text-white/40">
-          Rest recovery
+          {t('ui.sleep.restRecovery')}
         </span>
         <span className="shrink-0 text-xs font-bold tabular-nums text-white/80">
           {pct(conditions.recoveryMult)}
@@ -154,18 +176,20 @@ function SleepTip({ preview }: { preview: RestPreview }) {
         ))}
       </ul>
       <div className="mt-1.5 flex justify-between gap-3 border-t border-white/10 pt-1.5 text-xs">
-        <span className="text-white/40">Combined</span>
+        <span className="text-white/40">{t('ui.sleep.combined')}</span>
         <span className="font-semibold tabular-nums text-white/80">
           ×{conditions.recoveryMult.toFixed(2)}
         </span>
       </div>
-      <div className="mt-1.5 flex items-baseline justify-between gap-2 border-t border-white/10 pt-1.5">
-        <span className="text-xs font-semibold uppercase tracking-widest text-white/40">
-          Night ambush
-        </span>
-        <span className="shrink-0 text-xs font-bold tabular-nums" style={{ color: ambush.color }}>
-          {preview.ambushChance <= 0 ? 'Safe' : `${Math.round(preview.ambushChance * 100)}% · ${ambush.text}`}
-        </span>
+      <div className="mt-1.5 border-t border-white/10 pt-1.5">
+        <div className="text-xs font-semibold uppercase tracking-widest text-white/40">
+          {t('ui.sleep.nightAmbush')}
+        </div>
+        <div className="mt-0.5 text-xs font-bold tabular-nums" style={{ color: ambush.color }}>
+          {preview.ambushChance <= 0
+            ? t('ui.sleep.safe')
+            : `${Math.round(preview.ambushChance * 100)}% · ${ambushLabel}`}
+        </div>
       </div>
       {conditions.occupancyNotes.length > 0 && (
         <ul className="mt-1 flex flex-col gap-0.5">
@@ -176,6 +200,6 @@ function SleepTip({ preview }: { preview: RestPreview }) {
           ))}
         </ul>
       )}
-    </>
+    </div>
   );
 }

@@ -2,6 +2,7 @@ import type { ReactElement } from 'react';
 import { Icon } from '../icons/Icon';
 import type { IconName } from '../icons/keys';
 import type { GuideTopic } from '../content/guideContent';
+import { useT } from '../i18n';
 
 /** Compact icon + label chip used inside guide diagrams. */
 function Chip({
@@ -32,11 +33,12 @@ function Arrow() {
 }
 
 function SurviveDiagram() {
+  const { t } = useT();
   const meters: { icon: IconName; fill: string; label: string }[] = [
-    { icon: 'meter.hunger', fill: 'w-[70%]', label: 'Hunger' },
-    { icon: 'meter.thirst', fill: 'w-[55%]', label: 'Thirst' },
-    { icon: 'meter.energy', fill: 'w-[40%]', label: 'Energy' },
-    { icon: 'meter.infection', fill: 'w-[15%]', label: 'Infect' },
+    { icon: 'meter.hunger', fill: 'w-[70%]', label: t('ui.guide.diagram.hunger') },
+    { icon: 'meter.thirst', fill: 'w-[55%]', label: t('ui.guide.diagram.thirst') },
+    { icon: 'meter.energy', fill: 'w-[40%]', label: t('ui.guide.diagram.energy') },
+    { icon: 'meter.infection', fill: 'w-[15%]', label: t('ui.guide.diagram.infect') },
   ];
 
   return (
@@ -52,15 +54,16 @@ function SurviveDiagram() {
         ))}
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
-        <Chip label="HP = 6 limbs" />
-        <Chip icon="action.sleep" label="sleep ×0.3 drain" />
-        <Chip label="<20 → HP loss" accent />
+        <Chip label={t('ui.guide.diagram.hpLimbs')} />
+        <Chip icon="action.sleep" label={t('ui.guide.diagram.sleepDrain')} />
+        <Chip label={t('ui.guide.diagram.lowHpLoss')} accent />
       </div>
     </div>
   );
 }
 
 function LootDiagram() {
+  const { t } = useT();
   const cells = [
     { fog: true, next: false },
     { fog: true, next: true },
@@ -89,29 +92,30 @@ function LootDiagram() {
         ))}
       </div>
       <Arrow />
-      <Chip icon="action.inventory" label="pack" />
+      <Chip icon="action.inventory" label={t('ui.guide.diagram.pack')} />
       <Arrow />
-      <Chip icon="action.stash" label="stash" />
-      <Chip label="limited searches" accent />
+      <Chip icon="action.stash" label={t('ui.guide.diagram.stash')} />
+      <Chip label={t('ui.guide.diagram.limitedSearches')} accent />
     </div>
   );
 }
 
 function EvacDiagram() {
+  const { t } = useT();
   const weights: { label: string; w: string; mult: string }[] = [
-    { label: 'Fuel', w: 'w-full', mult: '×3' },
-    { label: 'Meds/Ammo', w: 'w-[83%]', mult: '×2.5' },
-    { label: 'Weapons', w: 'w-1/2', mult: '×1–1.6' },
-    { label: 'Food/Water', w: 'w-1/3', mult: '×0.5' },
+    { label: t('ui.guide.diagram.fuel'), w: 'w-full', mult: '×3' },
+    { label: t('ui.guide.diagram.medsAmmo'), w: 'w-[83%]', mult: '×2.5' },
+    { label: t('ui.guide.diagram.weapons'), w: 'w-1/2', mult: '×1–1.6' },
+    { label: t('ui.guide.diagram.foodWater'), w: 'w-1/3', mult: '×0.5' },
   ];
 
   return (
     <div className="space-y-2" aria-hidden>
       <div className="flex flex-wrap items-center gap-1.5">
-        <Chip icon="action.evac" label="beacon" accent />
+        <Chip icon="action.evac" label={t('ui.guide.diagram.beacon')} accent />
         <Arrow />
-        <Chip icon="action.inventory" label="backpack only" />
-        <Chip label="timed window" />
+        <Chip icon="action.inventory" label={t('ui.guide.diagram.backpackOnly')} />
+        <Chip label={t('ui.guide.diagram.timedWindow')} />
       </div>
       <div className="space-y-1">
         {weights.map((row) => (
@@ -131,50 +135,53 @@ function EvacDiagram() {
 }
 
 function ScoreDiagram() {
+  const { t } = useT();
   return (
     <div className="space-y-2" aria-hidden>
       <div className="flex flex-wrap items-center gap-1 text-2xs text-white/55">
         <Chip icon="action.kills" label="×25" />
         <span className="text-white/25">+</span>
-        <Chip icon="stat.value" label="loot" />
+        <Chip icon="stat.value" label={t('ui.guide.diagram.loot')} />
         <span className="text-white/25">+</span>
-        <Chip label="days ×50" />
+        <Chip label={t('ui.guide.diagram.daysTimes50')} />
         <span className="text-white/25">×</span>
-        <Chip label="day mult" accent />
+        <Chip label={t('ui.guide.diagram.dayMult')} accent />
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
-        <Chip label="day 1 → ×1.0" />
-        <Chip label="+0.1 / day" />
-        <Chip icon="action.evac" label="+2000 × mult" accent />
+        <Chip label={t('ui.guide.diagram.day1Mult')} />
+        <Chip label={t('ui.guide.diagram.plusPerDay')} />
+        <Chip icon="action.evac" label={t('ui.guide.diagram.evacBonus')} accent />
       </div>
     </div>
   );
 }
 
 function HdbDiagram() {
+  const { t } = useT();
   return (
     <div className="flex flex-wrap items-center gap-1.5" aria-hidden>
-      <Chip icon="hdb.enterBlock" label="climb" />
+      <Chip icon="hdb.enterBlock" label={t('ui.guide.diagram.climb')} />
       <Arrow />
-      <Chip icon="hdb.unit" label="door" />
+      <Chip icon="hdb.unit" label={t('ui.guide.diagram.door')} />
       <Arrow />
-      <Chip icon="hdb.breach" label="heat" accent />
+      <Chip icon="hdb.breach" label={t('ui.guide.diagram.heat')} accent />
       <Arrow />
-      <Chip icon="action.search" label="timeline" />
+      <Chip icon="action.search" label={t('ui.guide.diagram.timeline')} />
     </div>
   );
 }
 
 function TunnelsDiagram() {
+  const { t } = useT();
   return (
     <div className="flex flex-wrap items-center gap-1.5" aria-hidden>
-      <Chip icon="action.mrt" label="plan" />
+      <Chip icon="action.mrt" label={t('ui.guide.diagram.plan')} />
       <Arrow />
-      <Chip label="fewest stops" accent />
+      <Chip label={t('ui.guide.diagram.fewestStops')} accent />
       <Arrow />
-      <Chip icon="tunnel.platform" label="crawl" />
+      <Chip icon="tunnel.platform" label={t('ui.guide.diagram.crawl')} />
       <Arrow />
-      <Chip label="exit / arrive" />
+      <Chip label={t('ui.guide.diagram.exitArrive')} />
     </div>
   );
 }

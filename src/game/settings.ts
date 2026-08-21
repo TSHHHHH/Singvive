@@ -50,6 +50,17 @@ export function logViewMode(id: string): LogViewMode {
 // ---- The schema (single source of truth for the Settings panel) ----
 export const SETTINGS_SCHEMA: SettingDef[] = [
   {
+    key: 'language',
+    label: 'Language',
+    description: 'Interface language. Game content follows when a translation exists.',
+    group: 'Display',
+    options: [
+      { value: 'en', label: 'English' },
+      { value: 'zh-Hans', label: '简体中文' },
+    ],
+    default: 'en',
+  },
+  {
     key: 'logView',
     label: 'Timeline detail',
     description: 'How much of the timeline to keep on screen.',

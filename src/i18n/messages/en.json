@@ -1,0 +1,1427 @@
+{
+  "ui": {
+    "common": {
+      "close": "✕ close",
+      "back": "← Back",
+      "continue": "Continue",
+      "confirm": "Confirm",
+      "cancel": "Cancel",
+      "on": "On",
+      "off": "Off",
+      "loading": "Loading…"
+    },
+    "menu": {
+      "tagline": "Singapore has fallen",
+      "subtitle": "9400+ real locations · permadeath · extract or die",
+      "newSurvivor": "New Survivor",
+      "continueRun": "Continue Run",
+      "topScores": "Top scores",
+      "loadingWorld": "Loading worldwide scores…",
+      "worldUnreachable": "Worldwide board unreachable.",
+      "noWorldScores": "No worldwide scores yet.",
+      "noDeviceScores": "No scores on this device yet.",
+      "blurb": "A roguelike survival game on the real map of Singapore — 9400+ OSM places to scavenge, manage your body, climb the score, or get out with a lift before the horde peaks. How to play opens in-run on first launch; reopen it anytime from Settings."
+    },
+    "scores": {
+      "worldwide": "Worldwide",
+      "thisDevice": "This device",
+      "evac": "evac",
+      "died": "died"
+    },
+    "settings": {
+      "title": "⚙ Settings",
+      "reviewGuide": "Review how to play",
+      "reviewGuideDesc": "Open the primer with Survive, Loot, Block, Tunnels, and the rest.",
+      "openGuide": "Open guide"
+    },
+    "guide": {
+      "howToPlay": "How to play",
+      "topicsAria": "Guide topics",
+      "dontShowAgain": "Don't show this again",
+      "gotIt": "Got it",
+      "objectives": "Objectives",
+      "diagram": {
+        "hunger": "Hunger",
+        "thirst": "Thirst",
+        "energy": "Energy",
+        "infect": "Infect",
+        "hpLimbs": "HP = 6 limbs",
+        "sleepDrain": "sleep ×0.3 drain",
+        "lowHpLoss": "<20 → HP loss",
+        "pack": "pack",
+        "stash": "stash",
+        "limitedSearches": "limited searches",
+        "fuel": "Fuel",
+        "medsAmmo": "Meds/Ammo",
+        "weapons": "Weapons",
+        "foodWater": "Food/Water",
+        "beacon": "beacon",
+        "backpackOnly": "backpack only",
+        "timedWindow": "timed window",
+        "loot": "loot",
+        "daysTimes50": "days ×50",
+        "dayMult": "day mult",
+        "day1Mult": "day 1 → ×1.0",
+        "plusPerDay": "+0.1 / day",
+        "evacBonus": "+2000 × mult",
+        "climb": "climb",
+        "door": "door",
+        "heat": "heat",
+        "timeline": "timeline",
+        "plan": "plan",
+        "fewestStops": "fewest stops",
+        "crawl": "crawl",
+        "exitArrive": "exit / arrive"
+      }
+    },
+    "death": {
+      "escaped": "YOU ESCAPED",
+      "died": "YOU DIED",
+      "escapeBlurb": "The chopper lifts off as the horde floods the streets below. You made it out.",
+      "gone": "Gone.",
+      "days": "Days",
+      "kills": "Kills",
+      "score": "Score",
+      "tryAgain": "Try again",
+      "posting": "Posting to the worldwide board…",
+      "posted": "Posted to the worldwide board.",
+      "rank": "Worldwide rank #{rank}.",
+      "rateLimited": "Worldwide board is rate-limited — saved on this device.",
+      "invalid": "Couldn't post this score — saved on this device.",
+      "unreachableSaved": "Worldwide board unreachable — saved on this device.",
+      "loadingWorld": "Loading worldwide scores…",
+      "worldUnreachable": "Worldwide board unreachable.",
+      "noWorldScores": "No worldwide scores yet.",
+      "thisDevice": "This device",
+      "worldwide": "Worldwide"
+    },
+    "spawn": {
+      "title": "Choose where you wake up",
+      "myLocation": "My location",
+      "locating": "Locating…",
+      "random": "Random",
+      "railMap": "Rail map",
+      "scanning": "Scanning the neighbourhood for supplies…",
+      "hint": "Tap dry ground, use your location, or roll a random spawn.",
+      "spawnLabel": "Spawn:",
+      "wakeUp": "Wake up here →",
+      "geoUnavailable": "This browser cannot share your location.",
+      "outsideSg": "You are outside Singapore — tap the map or pick Random.",
+      "permissionDenied": "Location permission denied — tap the map instead.",
+      "geoFailed": "Could not read your location — tap the map instead.",
+      "noWalkable": "Could not find walkable ground — tap the map.",
+      "tooRemote": "Area too remote or lacks infrastructure. Please select an urbanized zone.",
+      "myLocationTitle": "Ask the browser for your real-world position",
+      "railMapTitle": "Show the MRT & LRT network"
+    },
+    "combat": {
+      "contact": "Contact",
+      "fight": "Fight",
+      "fightHint": "Commit — open on Guarded, switch stance once the track is running.",
+      "flee": "Flee",
+      "breakOff": "Break off",
+      "breakOffTitle": "Break contact — flee DC −4, they get one parting swing",
+      "pause": "Pause",
+      "resume": "Resume",
+      "seeResults": "See results",
+      "continue": "Continue",
+      "dmg": "DMG",
+      "def": "DEF",
+      "spd": "SPD",
+      "teeth": "Teeth",
+      "claws": "Claws",
+      "improvised": "Improvised",
+      "aggressive": "Aggressive",
+      "guarded": "Guarded",
+      "precision": "Precision",
+      "disengage": "Disengage"
+    },
+    "location": {
+      "search": "Search",
+      "searching": "Searching…",
+      "leave": "Leave",
+      "rest": "Rest",
+      "travel": "Travel",
+      "travelHere": "Travel here",
+      "travelThere": "Travel there",
+      "searchOnceInside": "Search, once inside",
+      "searchWhileUnseen": "Search while unseen",
+      "tearThrough": "Tear through the place",
+      "keepSearching": "Keep searching",
+      "goInsideSearch": "Go inside and search",
+      "nothingLeft": "Nothing left",
+      "nothingLeftToSearch": "Nothing left to search",
+      "tooExhausted": "Too exhausted — sleep first",
+      "noDryRoute": "No dry route",
+      "tooFar": "Too far to reach",
+      "unknownLocation": "Unknown location",
+      "headUnknown": "Head into the unknown",
+      "leaveStopEarly": "Leave to stop early",
+      "takeAll": "Take all found",
+      "done": "Done",
+      "doneAbandon": "Done (abandon unclaimed)",
+      "leaveAbandon": "Leave (abandon unclaimed, partial search)",
+      "sleepInside": "Sleep inside the wire",
+      "fieldAid": "Field aid",
+      "askIntel": "Ask for intel",
+      "trade": "Trade at the counter",
+      "leaveBlock": "Leave the block",
+      "route": "Route",
+      "planTunnels": "Plan this tunnel",
+      "collapsedBore": "Collapsed bore · high risk",
+      "tunnelMeta": "{line}{meters} m · no weather, no range",
+      "tunnelMetaRoute": "route · no weather, no range",
+      "pickStation": "Pick any station · dashed bores are a brutal crawl",
+      "services": "Services",
+      "approachGateFirst": "Approach the gate first — they will not deal with you from the curb.",
+      "gateFirst": "Gate first",
+      "alreadyUsedToday": "Already used today",
+      "tradeHint": "Today's swaps",
+      "restHint": "Safe until morning",
+      "aidHint": "Once per day",
+      "intelHint": "Once per day — map tip",
+      "noDealStrangers": "They don't deal with strangers",
+      "bedsTrusted": "Beds are for people they trust",
+      "medicsTrusted": "Medics are for people they trust",
+      "noBriefStrangers": "They don't brief strangers",
+      "approachGate": "Approach the gate",
+      "sneakIn": "Sneak in",
+      "sneakHint": "Dexterity check — rich loot, no services",
+      "forceEnter": "Force enter",
+      "forceHint": "Fight in — every search draws combat",
+      "enterBlock": "Enter the block",
+      "openStashHere": "Open stash here",
+      "lastSeen": "last seen",
+      "metersFromSpawn": "{m} m from spawn",
+      "danger": "Danger",
+      "ruin": "Ruin",
+      "factionOutpost": "Faction outpost — full services, no scavenging.",
+      "factionTerritory": "Faction territory — NPC hub, no scavenging.",
+      "insideUnseen": "Inside unseen — their stores, if you stay quiet.",
+      "forcedEntry": "Forced entry — rich stores, every search draws a fight.",
+      "twelveFloors": "12 floors — cleared unit by unit, not searched.",
+      "pickedClean": "Picked clean — exhausted.",
+      "searchesLeft": "{n} search left",
+      "searchesLeftPlural": "{n} searches left",
+      "searchingLeft": "Searching… ~{eta} left in this haul",
+      "territory": "territory",
+      "standingAria": "Standing: {label}",
+      "lastSeenDanger": "last seen danger {n}",
+      "mayBeStale": " (may be stale)",
+      "intelTag": " (intel)",
+      "rain": "rain",
+      "heavy": "heavy",
+      "forest": "forest"
+    },
+    "inventory": {
+      "equip": "Equip",
+      "unequip": "Unequip",
+      "use": "Use",
+      "drop": "Drop",
+      "stash": "Stash",
+      "pack": "Pack",
+      "backpack": "Backpack",
+      "equipped": "Equipped",
+      "candidate": "Candidate",
+      "inspect": "Inspect",
+      "useOrEquip": "Use / equip",
+      "stashOrPack": "Stash / pack",
+      "quickActions": "Quick actions",
+      "moveRotate": "Move · rotate",
+      "controls": "Controls",
+      "tempStash": "Temp stash (tunnel)",
+      "cannotUseCombat": "Cannot use items during combat",
+      "rotate": "⟳ Rotate",
+      "rotateHint": "Or press R while dragging",
+      "carry": "Carry",
+      "encumbered": "Encumbered",
+      "loadKg": "{load} / {carry} kg",
+      "loadEncumbered": "{load} / {carry} kg · Encumbered",
+      "rounds": "{n} rounds",
+      "confirmAbandon": "Confirm — abandon leftover & continue",
+      "stashLocked": "Location stash locked while in the tunnels.",
+      "stashNamed": "Stash · {name}",
+      "dropGone": "Gone for good — but the weight goes with it",
+      "twoHandBlocked": "Blocked by two-handed weapon",
+      "clickToAct": "Click to act",
+      "selectHint": "Select an item to inspect it. Drag to rearrange · R to rotate while dragging.",
+      "repair": "Repair",
+      "rags": "✂ Rags",
+      "tearTitle": "Costs {cost}% condition — yields {yield}× Cloth Rags for dressings",
+      "usesOne": "Uses 1× {name}",
+      "usesInputs": "Uses {inputs} and a {tool}",
+      "betterThanEquipped": "Better than equipped",
+      "newBonus": "New bonus vs equipped",
+      "worseThanEquipped": "Worse than equipped",
+      "exotic": "Exotic",
+      "broken": "Broken — unusable until repaired",
+      "controlsAria": "Inventory controls"
+    },
+    "slots": {
+      "head": "Head",
+      "body": "Body",
+      "hands": "Hands",
+      "legs": "Legs",
+      "feet": "Feet",
+      "bag": "Bag",
+      "mainHand": "Main",
+      "offHand": "Off"
+    },
+    "phone": {
+      "map": "Map",
+      "status": "Status",
+      "stash": "Stash",
+      "craft": "Craft",
+      "log": "Log",
+      "logbook": "Logbook",
+      "stats": "Stats",
+      "objectives": "Objectives",
+      "openStatus": "Open status",
+      "bleed": "Bleed"
+    },
+    "attributes": {
+      "strength": "Strength",
+      "dexterity": "Dexterity",
+      "endurance": "Endurance",
+      "perception": "Perception",
+      "wits": "Wits",
+      "short": {
+        "strength": "Str",
+        "dexterity": "Dex",
+        "endurance": "End",
+        "perception": "Per",
+        "wits": "Wit"
+      },
+      "baseTo": "base {base} → {value}",
+      "atBaseline": "At baseline — no bonus or penalty."
+    },
+    "game": {
+      "rest": "Rest",
+      "enRoute": "En route",
+      "openGround": "Open ground",
+      "target": "Target",
+      "callEvac": "Call for evac — pop the flare",
+      "youAreHere": "You are here",
+      "inTheOpen": "In the open",
+      "insideBlock": "Inside the block",
+      "nowhereTitle": "Nowhere in particular.",
+      "nowhereBlurb": "No shelter, no stash, nothing to search. Tap a building to head for it, or tap bare ground to keep moving. Sleeping out here barely counts as sleep.",
+      "loadingNeighbourhood": "Loading the neighbourhood…",
+      "departing": "departing…",
+      "windowDh": "{d}d {h}h",
+      "windowH": "{h}h"
+    },
+    "objective": {
+      "title": "Objective",
+      "atEvac": "at evac",
+      "reach": "Reach {zone}",
+      "channelDark": "Channel dark. Command is staging another lift — sit tight or stock up.",
+      "noWindowSurvive": "No active evac window — survive for score, or wait for a bird.",
+      "vibeThin": "thin",
+      "vibeMaybe": "maybe",
+      "vibeOk": "ok?",
+      "scoreLadder": "Score ladder",
+      "evacAndScore": "Evac and score",
+      "dayMult": "×{mult} day",
+      "scoreBlurb": "Linger to climb the multiplier. Extract seals a bonus that also scales with the day — best run is long survival, then a successful lift out.",
+      "ifYouDieNow": "If you die now",
+      "evacBonus": "Evac bonus",
+      "escapeSingapore": "Escape Singapore",
+      "youAreHere": "you are here",
+      "metersAway": "{m} m away",
+      "reachHaul": "Reach {zone} with a haul the bird might accept, then signal for a lift. The radio never names a quota.",
+      "noActiveWindow": "No active evac window.",
+      "windowCloses": "Window closes in {window}",
+      "radioRead": "Radio read",
+      "radioBlurb": "Fuel, meds, and ammo count most; sealed water a little; food and scrap barely. Burning fuel to boil water hurts the haul. Only the flare tells you for sure.",
+      "horde": "Horde · {label}",
+      "hordeBlurb": "The city is lost when the horde hits 100%. Death still posts a score — extract posts more."
+    },
+    "horde": {
+      "stirring": "Stirring",
+      "restless": "Restless",
+      "massing": "Massing",
+      "swarming": "Swarming",
+      "overrun": "Overrun"
+    },
+    "condition": {
+      "title": "Condition",
+      "health": "Health",
+      "hunger": "Hunger",
+      "thirst": "Thirst",
+      "energy": "Energy",
+      "infection": "Infection",
+      "bleeding": "Bleeding",
+      "bleedingOut": "Bleeding out",
+      "bleedingTimes": "Bleeding ×{n}",
+      "bleedingOutTimes": "Bleeding out ×{n}"
+    },
+    "survivor": {
+      "statsTitle": "Survivor stats",
+      "defence": "Defence",
+      "dodge": "Dodge",
+      "attack": "Attack",
+      "hp": "HP",
+      "travel": "Travel",
+      "carry": "Carry",
+      "noise": "Noise",
+      "defenceTip": "Attack roll target",
+      "dodgeTip": "Chance to slip a connecting hit",
+      "attackTip": "To-hit modifier",
+      "hpTip": "Total limb vitality",
+      "travelTip": "Movement speed (energy, legs, footwear, traits)",
+      "carryTip": "Max carry capacity with gear",
+      "noiseTip": "Encounter chance from gear (camo lowers, noisy boots raise)"
+    },
+    "stats": {
+      "survivor": "Survivor",
+      "day": "day {day}",
+      "combat": "Combat",
+      "exploration": "Exploration",
+      "survival": "Survival",
+      "zombieKills": "Zombies killed",
+      "humanKills": "Humans killed",
+      "animalKills": "Animals killed",
+      "fightsFled": "Fights fled",
+      "distanceWalked": "Distance walked",
+      "sitesSearched": "Sites searched",
+      "hdbUnitsCleared": "HDB units cleared",
+      "timesSlept": "Times slept",
+      "itemsLooted": "Items looted",
+      "lootValue": "Loot value",
+      "damage": "Damage",
+      "defence": "Defence",
+      "soak": "Soak",
+      "statusResist": "Status resist",
+      "attack": "Attack",
+      "accuracy": "Accuracy",
+      "speed": "Speed",
+      "dodge": "Dodge",
+      "travel": "Travel",
+      "encounters": "Encounters",
+      "carry": "Carry",
+      "pack": "Pack",
+      "packCells": "{n} cells ({w}×{h})",
+      "awareness": "Awareness",
+      "hunger": "Hunger",
+      "thirst": "Thirst",
+      "energy": "Energy",
+      "heal": "Heal",
+      "healHp": "+{n} HP",
+      "cure": "Cure",
+      "fuel": "Fuel",
+      "fuelEvac": "Evac weight",
+      "curiosity": "Curiosity",
+      "curiosityScrap": "scrap / trade",
+      "damageOf": "{dmg} (of {base})"
+    },
+    "itemKind": {
+      "weapon": "Weapon",
+      "armour": "Armour",
+      "gear": "Gear",
+      "food": "Food",
+      "drink": "Drink",
+      "medical": "Medical",
+      "stimulant": "Stimulant",
+      "fuel": "Fuel",
+      "ammo": "Ammo",
+      "misc": "Misc"
+    },
+    "search": {
+      "searching": "Searching",
+      "searchingNamed": "Searching {name}",
+      "complete": "Search complete",
+      "takeAllCount": "Take all found ({count})",
+      "clickNext": "Click to search this next",
+      "hoverDetails": "Hover a cell for details.",
+      "unknown": "Unknown",
+      "footprint": "Footprint {label}"
+    },
+    "standing": {
+      "terrible": "Terrible",
+      "bad": "Bad",
+      "wary": "Wary",
+      "stranger": "Stranger",
+      "known": "Known",
+      "welcome": "Welcome",
+      "kin": "Kin"
+    },
+    "log": {
+      "timeline": "Timeline",
+      "timelineDay": "Timeline · day {day}",
+      "dayLogsTitle": "Day logs — every previous day",
+      "settings": "Settings",
+      "showMode": "Show {mode}",
+      "freshDay": "A fresh day. Nothing has happened yet.",
+      "storyStarts": "Your story starts here…",
+      "earlierHidden": "…{n} earlier entry today hidden",
+      "earlierHiddenPlural": "…{n} earlier entries today hidden",
+      "previousDays": "previous days in Day logs",
+      "showOnMap": "Show on map",
+      "showOnMapLabel": "Show on map · {label}",
+      "packFull": "Pack full — left behind {items}",
+      "dayLogs": "Day logs",
+      "nothingRecorded": "Nothing recorded yet.",
+      "dayN": "Day {day}",
+      "today": "today",
+      "entry": "{n} entry",
+      "entries": "{n} entries",
+      "hauls": "{n} hauls",
+      "bad": "{n} bad"
+    },
+    "error": {
+      "signalLost": "SIGNAL LOST",
+      "brokeBlurb": "Something broke. Your run is saved — reloading should pick up where you left off.",
+      "reload": "Reload",
+      "deleteRun": "Still broken? Delete this run and start over"
+    },
+    "terrain": {
+      "title": "Terrain",
+      "water": "Water — sealed",
+      "restricted": "Restricted — sealed off",
+      "vegetation": "Vegetation — slows travel"
+    },
+    "weather": {
+      "clear": "Clear",
+      "cloudy": "Overcast",
+      "rain": "Rain",
+      "thunderstorm": "Thunderstorm",
+      "haze": "Haze",
+      "heat": "Heat Wave",
+      "effects": "{kind} — effects"
+    },
+    "poi": {
+      "supermarket": "Supermarket",
+      "convenience": "Convenience Store",
+      "pharmacy": "Pharmacy",
+      "hospital": "Hospital",
+      "clinic": "Clinic",
+      "hardware": "Hardware Store",
+      "fuel": "Petrol Station",
+      "police": "Police Station",
+      "residential": "HDB Void Deck",
+      "foodcourt": "Hawker Centre",
+      "mrt": "MRT Station",
+      "industrial": "Industrial Unit",
+      "school": "School",
+      "waypoint": "Waypoint"
+    },
+    "destruction": {
+      "intact": "Intact",
+      "damaged": "Damaged",
+      "ravaged": "Ravaged",
+      "gutted": "Gutted"
+    },
+    "hdb": {
+      "leave": "✕ Leave",
+      "leaveBlock": "Leave the block",
+      "leaveNeedSearch": "Finish the unit search in the timeline first",
+      "leaveNeedVoidDeck": "Climb down to level 01 (void deck) to leave",
+      "heat": "Heat",
+      "guide": "Inside the block",
+      "voidDeck": "Void deck",
+      "corridor": "Corridor",
+      "quiet": "quiet",
+      "heatPlus": "+{n} heat",
+      "min": "{n} min",
+      "secondsApprox": "~{n}s",
+      "minutesApprox": "~{n} min",
+      "blockStripe": "BLOCK",
+      "gone": "Gone",
+      "clearToPass": "{label} — clear to pass",
+      "permanent": "{label} — permanent, no way through",
+      "noWayThrough": "{label} — no way through",
+      "clearAction": "Clear {label} · {min} min · +{heat} heat",
+      "inaccessible": "{label} — inaccessible",
+      "storeys": "{n} storeys",
+      "storeysRevealed": "{revealed} of {height} storeys revealed",
+      "level": "Level {nn}",
+      "levelUnexplored": "Level {nn} — unexplored",
+      "storey": "Storey {nn}",
+      "shelter": "Barricaded shelter",
+      "residential": "Residential block",
+      "slab": "slab",
+      "point": "point",
+      "sideStair": "Side stair {id}",
+      "stairwell": "Stairwell {id}",
+      "sideShort": "Side",
+      "wellShort": "Well",
+      "fogClimb": "Stair {id} — climb into the unknown",
+      "sideStairTitle": "Side stair at the end of the strip",
+      "internalWell": "Internal stairwell",
+      "stopsClear": "stops at {label} — clear to pass",
+      "stopsBlocked": "stops at {label} — no way through",
+      "huntOnStairs": "{n}% hunt on the stairs",
+      "descentNeed": "going down · need {dc}+ · ~{n}% fail",
+      "climbFree": "climb free",
+      "descentNeedsAttrs": "Going down needs Dexterity + Endurance (need {dc}+).",
+      "stairsClearDown": "Stairs are clear to climb down.",
+      "nextBand": " Next: {label} at {at}.",
+      "huntChance": "{n}% chance of a hunt on every door and stair.",
+      "showDetails": "Key and sense checks",
+      "hideDetails": "Hide details",
+      "ariaShowDetails": "Show block details",
+      "ariaHideDetails": "Hide block details",
+      "tapDetails": "Tap for symbol key and sense checks",
+      "senseCorridor": "Corridor sense checks when you step onto a floor",
+      "senseEncounterPct": "encounter %",
+      "senseContainerType": "container type",
+      "senseArrow": "{value} → {gives} {pct}%",
+      "doorCleared": "cleared",
+      "doorClearedTitle": "Cleared",
+      "doorBoarded": "boarded",
+      "doorBoardedShut": "boarded shut",
+      "doorBoardedShutTitle": "Boarded shut",
+      "doorOpen": "open",
+      "scoutEncounter": "Encounter",
+      "scoutRoom": "Room",
+      "scoutContainers": "Containers",
+      "scoutDescent": "Descent",
+      "scoutLanding": "Landing",
+      "scoutShaft": "Shaft",
+      "scoutClear": "Clear",
+      "scoutEncounterExact": "Perception read — exact chance a fight starts when you breach",
+      "scoutEncounterEstimate": "Estimate from heat + door type — raise Perception to pin the exact %",
+      "scoutContainersUnread": "Containers unread — raise Dexterity to scout from the corridor",
+      "scoutDescentWatched": "Going down is watched — about {n}% chance to fail",
+      "scoutDescentClear": "Stairs are clear — no check at this heat",
+      "breachLine": "{verb} · {min} min · {heat}",
+      "unitClearedBlurb": "You've already been through this one. Nothing left in it.",
+      "compactHint": "Actions stay on the cutaway. Clear units floor by floor, then leave from the void deck.",
+      "voidHint": "Walk the pillars to a stair, then climb into the fog.",
+      "pathHintPhone": "Tap a reachable cell or door to auto-path. Pinch to zoom. Breach only when you stand at the door.",
+      "pathHintDesktop": "Click a reachable cell or door to auto-path. Unvisited floors stay fogged. Breach only when you stand at the door.",
+      "legendYou": "you",
+      "legendHover": "hover = route",
+      "legendBoarded": "boarded",
+      "legendDim": "dim = cleared",
+      "legendFog": "fog = unvisited",
+      "legendHatch": "hatch = sealed",
+      "legendBlock": "BLOCK = clear to pass",
+      "legendGone": "GONE = permanent",
+      "unit": {
+        "flat": {
+          "label": "Flat",
+          "blurb": "Ordinary household scrap."
+        },
+        "stocked": {
+          "label": "Stocked",
+          "blurb": "Still has something worth taking."
+        },
+        "trapped": {
+          "label": "Trapped",
+          "blurb": "Something nasty by the door — risk a wound to loot."
+        },
+        "storeroom": {
+          "label": "Storeroom",
+          "blurb": "Tools and parts."
+        },
+        "pantry": {
+          "label": "Pantry",
+          "blurb": "Food and water."
+        },
+        "holdout": {
+          "label": "Holdout",
+          "blurb": "Survivors still use this unit — one service, then done."
+        }
+      },
+      "entry": {
+        "open": {
+          "label": "wide open",
+          "verb": "Step inside"
+        },
+        "ajar": {
+          "label": "ajar",
+          "verb": "Push it open"
+        },
+        "locked": {
+          "label": "locked",
+          "verb": "Force it"
+        },
+        "barricaded": {
+          "label": "barricaded",
+          "verb": "Break through"
+        }
+      },
+      "blockKind": {
+        "debris": {
+          "label": "Debris",
+          "blurb": "Junk packed the corridor. It can be hauled aside."
+        },
+        "barricade": {
+          "label": "Barricade",
+          "blurb": "Someone nailed the landing shut. Loud to break."
+        },
+        "collapse": {
+          "label": "Collapse",
+          "blurb": "The slab gave way. No way through."
+        },
+        "stair_gate": {
+          "label": "Stair gate",
+          "blurb": "A welded grate across the shaft. It can be forced."
+        }
+      },
+      "sealKind": {
+        "collapsed": {
+          "label": "Slab collapsed"
+        },
+        "flooded": {
+          "label": "Flooded"
+        },
+        "welded": {
+          "label": "Gate welded"
+        },
+        "burnt": {
+          "label": "Burnt out"
+        }
+      },
+      "heatBand": {
+        "Quiet": {
+          "label": "Quiet",
+          "note": "Nothing has noticed you yet."
+        },
+        "Stirring": {
+          "label": "Stirring",
+          "note": "The stairwell is watched."
+        },
+        "Awake": {
+          "label": "Awake",
+          "note": "The block is moving. Every floor is worse than it was."
+        },
+        "Hunting": {
+          "label": "Hunting",
+          "note": "They are looking for you now."
+        },
+        "Swarm": {
+          "label": "Swarm",
+          "note": "The block has your floor. Get out."
+        }
+      },
+      "ground": {
+        "void_open": "open void deck",
+        "void_partial": "partial void deck",
+        "enclosed": "enclosed ground"
+      },
+      "service": {
+        "trader": "Barter Corner",
+        "field_doctor": "Field Doctor",
+        "safe_bunk": "Safe Bunk"
+      },
+      "container": {
+        "Medical": "Medical",
+        "Food": "Food",
+        "Tool": "Tool",
+        "Valuables": "Valuables"
+      }
+    },
+    "tunnel": {
+      "ariaSchematic": "Tunnel schematic. Scroll to zoom, drag to pan.",
+      "you": "you",
+      "unknown": "???",
+      "farAhead": "You cannot see that far ahead",
+      "furtherDown": "Further down the bore",
+      "nodeTitle": "{name} · {label}",
+      "metaTitle": "{label} — {name}",
+      "minutesApprox": "~{n} min",
+      "attrVsDc": "{attr} vs DC {dc}",
+      "stalker": "Stalker",
+      "threat": "threat {n}",
+      "exitHere": "Exit here · {name}",
+      "verbAt": "{verb} at {name}",
+      "verbName": "{verb} · {name}",
+      "pickWayFirst": "Pick a way through first",
+      "keepWalking": "Or keep walking the bore",
+      "pickForward": "Pick a way forward",
+      "sleep": "Sleep 5h",
+      "sleepHint": "sleep and eat · once",
+      "patch": "Patch up",
+      "patchHint": "1× canned food · once",
+      "trade": "Trade",
+      "pass": "Pass",
+      "forConnector": " for ",
+      "dropInvert": "Drop to the invert",
+      "invertHint": "{min} min · {energy} energy · no loot",
+      "smash": "Smash through the cars",
+      "smashHint": "{min} min · salvage, maybe company",
+      "payFare": "Pay fare",
+      "slipPast": "Slip past",
+      "dexVsDc": "Dex vs DC {dc}",
+      "meta": {
+        "platform": {
+          "label": "Platform",
+          "verb": "Climb out"
+        },
+        "pack": {
+          "label": "Contact",
+          "verb": "Push through"
+        },
+        "scavenge": {
+          "label": "Salvage",
+          "verb": "Pick it over"
+        },
+        "settlement": {
+          "label": "Camp",
+          "verb": "Walk in"
+        },
+        "hazard": {
+          "label": "Obstruction",
+          "verb": "Get past it"
+        },
+        "carriage": {
+          "label": "Carriage",
+          "verb": "Climb through"
+        },
+        "signal": {
+          "label": "Signal",
+          "verb": "Read the board"
+        },
+        "checkpoint": {
+          "label": "Checkpoint",
+          "verb": "Approach"
+        }
+      },
+      "hazard": {
+        "floodwater": {
+          "label": "Floodwater"
+        },
+        "collapse": {
+          "label": "Falling path"
+        },
+        "live_rail": {
+          "label": "Live rail"
+        },
+        "blackout": {
+          "label": "Blackout"
+        },
+        "pinch": {
+          "label": "Pinch"
+        }
+      }
+    },
+    "mrt": {
+      "loading": "Loading rail map…",
+      "cancel": "Cancel",
+      "title": "Tunnel route",
+      "from": "From {name}",
+      "to": " → {name}",
+      "tapStation": " — tap a station",
+      "backToMap": "Back to map",
+      "goldPlanned": "Gold = planned route",
+      "noPath": "No tunnel path to {name} — the network does not connect from here.",
+      "allCollapsed": "Every tunnel path to {name} crawls a collapsed bore — rubble, packs, no camps.",
+      "shortcutCollapsed": "This shortcut crawls a collapsed bore — expect a brutal walk.",
+      "tooSpent": "Too spent — rest first",
+      "crawlCollapsed": "Crawl collapsed · {n} stop",
+      "crawlCollapsedPlural": "Crawl collapsed · {n} stops",
+      "enterTunnels": "Enter tunnels · {n} stop",
+      "enterTunnelsPlural": "Enter tunnels · {n} stops",
+      "pickDestination": "Pick a destination",
+      "crawlHint": "One crawl for the whole route. You can exit at any station along the way.",
+      "changes": " · {n} change",
+      "changesPlural": " · {n} changes",
+      "noChanges": " · no changes",
+      "throughCollapsed": "Through collapsed ({stops} · {n} ruined)",
+      "fewestIntact": "Fewest intact ({stops})",
+      "viaLine": "Via {line} · {n} stops",
+      "viaCodes": "{codes} · {n} stops · {changes} change",
+      "viaCodesPlural": "{codes} · {n} stops · {changes} changes",
+      "stopsOne": "1 stop",
+      "stopsMany": "{n} stops",
+      "tooltipHere": " (here)",
+      "tooltipDestination": " (destination)",
+      "legendCollapsed": "Dashed = collapsed · passable, brutal",
+      "osmBaked": "OSM · baked {date}"
+    },
+    "stationStrip": {
+      "arrived": "Arrived",
+      "changeTo": "Change to",
+      "now": "Now",
+      "nowNamed": "Now: {name}",
+      "collapsedBore": "Collapsed bore",
+      "alighting": "Alighting",
+      "changeAt": "Change at",
+      "changeAtNamed": "Change at {name}",
+      "next": "Next",
+      "nextNamed": "Next: {name}",
+      "crawlRubble": "Crawl the rubble",
+      "toLine": "to {line}",
+      "stopsLeft": " · {n} stop left",
+      "stopsLeftPlural": " · {n} stops left",
+      "metersNoWeather": "{m} m · no weather",
+      "plannedAria": "Planned stations",
+      "changeHere": "Change here"
+    },
+    "trader": {
+      "kinStock": "they keep better stock back for their own",
+      "bare": "The board is bare today. Come back tomorrow.",
+      "carrying": "carrying {n}",
+      "taken": "taken",
+      "trade": "Trade",
+      "short": "Short",
+      "footer": "The board turns over at dawn. What's gone is gone."
+    },
+    "pending": {
+      "someoneWantsWord": "Someone wants a word",
+      "youHaveNone": "(you have none)",
+      "dc": "DC {n}"
+    },
+    "sleep": {
+      "safe": "Safe",
+      "restRecovery": "Rest recovery",
+      "walls": "Walls · {label}",
+      "roof": "Roof · {label}",
+      "bed": "Bed · {label}",
+      "combined": "Combined",
+      "nightAmbush": "Night ambush",
+      "aria": "Rest quality {pct}% — ambush {ambushPct}% {ambush} — {summary}",
+      "enclosed": {
+        "none": "Open",
+        "partial": "Partial",
+        "full": "Enclosed"
+      },
+      "roofLevel": {
+        "none": "No roof",
+        "yes": "Roofed"
+      },
+      "bedLevel": {
+        "ground": "Ground",
+        "bed": "Bed"
+      },
+      "ambush": {
+        "safe": "Safe",
+        "uneasy": "Uneasy",
+        "exposed": "Exposed",
+        "suicide": "Suicide"
+      }
+    },
+    "trek": {
+      "title": "Open ground",
+      "blurb": "No building, no stash, nothing to search. Just a way through.",
+      "cross": "Cross",
+      "exposure": "Exposure",
+      "route": "Route",
+      "forest": " · forest",
+      "energyHit": "−{n} energy",
+      "blind": "You can't see far enough to read that ground. Anything could be sitting on it.",
+      "night": "🌙 You'd be caught out there after dark, with no door to close.",
+      "outOfRange": "⛔ Further than you can push in one go — pick somewhere nearer.",
+      "noDry": "⛔ No dry route — water or sealed ground blocks the way.",
+      "tooExhausted": "Too exhausted — sleep first",
+      "noDryRoute": "No dry route",
+      "tooClose": "Too close to bother",
+      "tooFar": "Too far to reach",
+      "crossCta": "Cross on foot · {dur}"
+    }
+  },
+  "settings": {
+    "language": {
+      "label": "Language",
+      "description": "Interface language. Game content follows when a translation exists.",
+      "options": {
+        "en": "English",
+        "zh-Hans": "简体中文"
+      }
+    },
+    "groups": {
+      "Display": "Display",
+      "Timeline": "Timeline",
+      "Guide": "Guide"
+    },
+    "logView": {
+      "label": "Timeline detail",
+      "description": "How much of the timeline to keep on screen.",
+      "options": {
+        "full": "Full",
+        "latest": "Latest",
+        "recent5": "Recent 5",
+        "recent10": "Recent 10"
+      }
+    },
+    "clockFormat": {
+      "label": "Clock",
+      "description": "How the time reads on the clock, the timeline and the day logs.",
+      "options": {
+        "12": "12-hour",
+        "24": "24-hour"
+      }
+    },
+    "weatherFx": {
+      "label": "Weather effects",
+      "description": "Rain, glare and haze drawn over the map. Purely visual — costs GPU fill rate, so it is off unless you ask for it.",
+      "options": {
+        "off": "Off",
+        "subtle": "Subtle",
+        "full": "Full"
+      }
+    },
+    "fontSize": {
+      "label": "Font size",
+      "description": "UI text scale. Affects the whole interface, including the timeline.",
+      "options": {
+        "sm": "Small",
+        "md": "Medium",
+        "lg": "Large",
+        "xl": "Extra large"
+      }
+    },
+    "showGuideOnStart": {
+      "label": "How to play on start",
+      "description": "Show the how-to-play primer when a run begins. Turn off after you know the ropes.",
+      "options": {
+        "on": "On",
+        "off": "Off"
+      }
+    }
+  },
+  "guide": {
+    "survive": {
+      "title": "Survive",
+      "bullets": [
+        "Hunger, thirst, energy, and infection tick with every hour. Keep them up — empty hunger or thirst below 20 starts eating limb HP.",
+        "Health is the sum of your six limbs. Bleeding blocks regen; infection at 100 ends the run.",
+        "Night (after dusk) is more dangerous. Get inside before dark — the streets fill with a night swarm. Rest shows recovery and ambush chance; sleep still drains hunger and thirst (reduced).",
+        "Hazard pockets sit between pins (horde, patrols, collapse, flood). Sense them inside your ring, route around when you can — each kind bites differently if you cross.",
+        "Infected animals share the combat loop and can infect on a hit. Otters and monitors claim inland water, macaques and boars the catchment, dogs/cats/rats the streets."
+      ]
+    },
+    "loot": {
+      "title": "Loot",
+      "bullets": [
+        "At a place, start a search: a fogged grid reveals finds one by one in real time. Street sites usually turn up a handful of items — condition tracks how wrecked the place looks.",
+        "First visit sizes up the footprint and ruin (Intact → Gutted). Worse ruin means more worn gear on average; pristine finds are still possible, just rarer.",
+        "Click a fogged cell to search it next. Click found items (or Take all) into your pack; overflow goes to the tiny on-site stash (4×4).",
+        "Equipped bags change the pack's cell shape, not just its size — holes cannot hold loot.",
+        "Each site has limited searches. Leaving early still spends a partial charge. Take what you want — Done or Leave abandons the rest."
+      ]
+    },
+    "hdb": {
+      "title": "Inside the block",
+      "bullets": [
+        "Void decks open a side-elevation cutaway. Stairs stay visible even on sealed storeys; hover a reachable stair or door to preview the auto-path, then click to walk it. Unvisited open floors stay fogged until you climb in.",
+        "Sealed landings are gone for good. Corridor debris, barricades, and stair gates can be cleared (heat + time). Collapses are permanent — find another route.",
+        "Higher storeys pay better loot. Cutaway doors show room type (Flat, Stocked, Trapped, Storeroom, Pantry, Holdout) — hover the Room tile on the door card for what each means. Encounter chance tracks heat + how the door stands (Perception pins the exact %; otherwise a range). Entry and encounter live on that card, not on the door face. Heat on the bottom dock shows stair difficulty; expand it for the symbol key and sense-check odds. Going down can need Dexterity + Endurance (hover a stair to preview). Leave only from level 01."
+      ]
+    },
+    "tunnels": {
+      "title": "The tunnels",
+      "bullets": [
+        "From an MRT platform, Plan tunnel travel opens the rail map. Pick a destination — default route is fewest intact stations. Some segments collapse each run: still passable, but a crawl through rubble and packs with no camps. Long trips may tempt the shortcut.",
+        "Confirming a route starts one crawl for the whole path. A station strip tracks the planned line, next stop, and transfers. You can exit at intermediate stations or keep walking to the far end. No surface range, weather, or encumbrance underground.",
+        "Between stations the running tunnel can split. Stay on the through line or peel into a side passage — it may run a few hops before it rejoins. Pick the node you can afford; the other way is gone once you step.",
+        "Camps offer a mat, a patch-up, or a swap — the only bunk underground. Obstructions vary: floodwater can hide a turned otter, falling debris wounds hard, a blackout eats the clock. Rare Contact is a Stalker that has been keeping pace. STA may toll the stairs down, and sometimes the bore itself."
+      ]
+    },
+    "evac": {
+      "title": "Evac",
+      "bullets": [
+        "A map beacon marks the staging zone. Reach it during the timed window with a haul in your backpack (not stash or equipped), then pop the flare.",
+        "Fuel counts most, then meds and ammo; sealed water a little; food and scrap barely; weapons barely count as cargo. The bird never names a quota — each window has its own appetite, and only the flare tells you if it was enough. Boiling water burns fuel.",
+        "Miss the window and a new site opens after a cooldown — the horde keeps rising either way. Collapsed tunnels often force a detour toward the first beacon, or a high-risk crawl through the rubble."
+      ]
+    },
+    "score": {
+      "title": "Score",
+      "bullets": [
+        "Score = (kills × 25 + carried loot value + days × 50) × day multiplier. Day 1 is ×1.0; each further day adds ×0.1.",
+        "A successful extract adds 2000 × the same day multiplier. Linger to climb the mult, then lift out late for the best board score.",
+        "Death still posts a score on this device, and to the worldwide board when you are online. When the horde hits 100%, the city is overrun and the run ends."
+      ]
+    }
+  },
+  "item": {
+    "canned_food": "Canned Food",
+    "rice_pack": "Bag of Rice",
+    "instant_noodles": "Instant Noodles",
+    "snacks": "Snacks",
+    "hawker_meal": "Leftover Hawker Meal",
+    "bak_kwa": "Vacuum-Packed Bak Kwa",
+    "army_ration": "SAF Ration Pack",
+    "milo_tin": "Tin of Milo",
+    "condensed_milk": "Condensed Milk",
+    "kaya_toast": "Kaya Toast",
+    "curry_puff": "Curry Puff",
+    "nasi_lemak": "Packet Nasi Lemak",
+    "wild_boar_meat": "Wild Boar Meat",
+    "river_fish": "River Fish",
+    "durian": "Durian",
+    "water_bottle": "Bottled Water",
+    "newater": "NEWater Bottle",
+    "dirty_water": "Murky Water",
+    "purification_tabs": "Purification Tablets",
+    "soft_drink": "Soft Drink",
+    "isotonic": "100PLUS",
+    "tiger_beer": "Warm Tiger Beer",
+    "chin_chow": "Grass Jelly Drink",
+    "yakult": "Yakult",
+    "bandage": "Bandage",
+    "improvised_bandage": "Improvised Dressing",
+    "painkillers": "Painkillers",
+    "medkit": "First-Aid Kit",
+    "antibiotics": "Antibiotics",
+    "antiseptic": "Antiseptic",
+    "tiger_balm": "Tiger Balm",
+    "axe_oil": "Medicated Oil",
+    "po_chai": "Po Chai Pills",
+    "splint": "Splint",
+    "mosquito_coil": "Mosquito Coil",
+    "coffee": "Kopi Packet",
+    "energy_drink": "Energy Drink",
+    "kitchen_knife": "Kitchen Knife",
+    "hammer": "Claw Hammer",
+    "crowbar": "Crowbar",
+    "fire_axe": "Fire Axe",
+    "parang": "Parang",
+    "wooden_stick": "Wooden Stick",
+    "meat_cleaver": "Meat Cleaver",
+    "golf_club": "Golf Club",
+    "baseball_bat": "Baseball Bat",
+    "changkol": "Changkol",
+    "katana": "Katana",
+    "spear_knife": "Knife Spear",
+    "spear_cleaver": "Cleaver Spear",
+    "spear_parang": "Parang Spear",
+    "pistol": "Service Pistol",
+    "shotgun": "Shotgun",
+    "ammo_box": "Box of Ammo",
+    "ammo_shell": "Loose Shells",
+    "n95_mask": "N95 Mask",
+    "hard_hat": "Hard Hat",
+    "motorcycle_helmet": "Motorcycle Helmet",
+    "riot_helmet": "Riot Helmet",
+    "leather_jacket": "Leather Jacket",
+    "work_vest": "Utility Vest",
+    "army_uniform": "Army Camo Uniform",
+    "kevlar_vest": "Kevlar Vest",
+    "sbo_vest": "SBO Load-Bearing Vest",
+    "work_gloves": "Work Gloves",
+    "cut_gloves": "Cut-Resistant Gloves",
+    "grip_gloves": "Grip Gloves",
+    "tactical_gloves": "Tactical Gloves",
+    "jeans": "Jeans",
+    "work_trousers": "Work Trousers",
+    "camo_pants": "Camo Pants",
+    "riot_pads": "Riot Leg Pads",
+    "flip_flops": "Flip-Flops",
+    "sneakers": "Sneakers",
+    "hiking_boots": "Hiking Boots",
+    "combat_boots": "Combat Boots",
+    "riot_shield": "Riot Shield",
+    "torch": "Torch",
+    "fuel_can": "Jerry Can (Fuel)",
+    "duct_tape": "Duct Tape",
+    "batteries": "Batteries",
+    "scrap_metal": "Scrap Metal",
+    "toolbox": "Toolbox",
+    "jewellery": "Jewellery",
+    "ez_link_card": "EZ-Link Card",
+    "red_packet": "Ang Bao",
+    "joss_paper": "Joss Paper",
+    "rain_tarp": "Rain Tarp",
+    "powerbank": "Powerbank",
+    "four_d_ticket": "4D Ticket",
+    "cloth_rags": "Cloth Rags",
+    "sleeping_bag": "Sleeping Bag",
+    "glass_bottle": "Empty Bottle",
+    "spare_parts": "Spare Parts",
+    "whetstone": "Whetstone",
+    "gun_oil": "Gun Oil",
+    "daypack": "Daypack",
+    "school_bag": "School Bag",
+    "hiking_pack": "Hiking Pack",
+    "military_rucksack": "Military Rucksack",
+    "box_cutter": "Box Cutter",
+    "rotan_cane": "Rotan Cane",
+    "bamboo_pole": "Bamboo Pole",
+    "pipe_wrench": "Pipe Wrench",
+    "tire_iron": "Tire Iron",
+    "police_baton": "Police Baton",
+    "rebar": "Rebar",
+    "cricket_bat": "Cricket Bat",
+    "pot_lid": "Pot Lid",
+    "metal_tray": "Metal Tray",
+    "traffic_barrier": "Traffic Barrier Piece",
+    "bike_helmet": "Bicycle Helmet",
+    "welding_mask": "Welding Mask",
+    "security_vest": "Security Vest",
+    "football_pads": "Football Pads",
+    "knee_pads": "Knee Pads",
+    "mee_siam": "Packet Mee Siam",
+    "chicken_rice": "Packet Chicken Rice",
+    "hardtack": "Hardtack Biscuits",
+    "bandung": "Bottle of Bandung",
+    "soya_bean": "Soya Bean Drink",
+    "bubble_tea": "Bubble Tea",
+    "premium_bento": "Premium Bento",
+    "plus_100": "100 Plus Can",
+    "plasters": "Box of Plasters",
+    "vitamin_c": "Vitamin C Tablets",
+    "oral_rehydration": "ORS Sachets",
+    "yoga_mat": "Yoga Mat",
+    "camp_pillow": "Camp Pillow",
+    "emergency_blanket": "Emergency Blanket",
+    "ez_link_knife": "EZ-Link Knife",
+    "kopi_c": "Kopi C",
+    "cooked_mee": "Cooked Maggi",
+    "milo_dinosaur": "Milo Dinosaur"
+  },
+  "enemy": {
+    "shambler": "Shambler",
+    "crawler": "Crawler",
+    "walker": "Walker",
+    "runner": "Runner",
+    "bloater": "Bloater",
+    "lurcher": "Lurcher",
+    "rioter": "Rioter",
+    "brute": "Brute",
+    "abomination": "Abomination",
+    "hulk": "Hulk",
+    "stalker": "Stalker",
+    "macaque": "Turned Macaque",
+    "otter": "Turned Otter",
+    "wild_boar": "Catchment Boar",
+    "monitor": "Canal Biawak",
+    "dog": "Turned Dog",
+    "cat": "Turned Cat",
+    "rat": "Drain Rat",
+    "human": {
+      "syndicate_88": "88 Syndicate Runner",
+      "idtf": "IDTF Deserter",
+      "pasir_panjang": "Co-op Enforcer",
+      "sta": "STA Tunnel Marshal"
+    },
+    "loner": {
+      "scavenger": "Rival Scavenger",
+      "survivor": "Desperate Survivor",
+      "raider": "Armed Raider",
+      "tout": "Block Tout"
+    }
+  },
+  "recipe": {
+    "purify": {
+      "name": "Purify Water",
+      "blurb": "Tablets and twenty minutes turn a bottle of murk into something safe."
+    },
+    "boil": {
+      "name": "Boil Water",
+      "blurb": "Slower than tablets and it costs you fuel — fuel also counts hard toward evac readiness."
+    },
+    "bandages": {
+      "name": "Tear Dressings",
+      "blurb": "Rags torn into strips. It will stop the bleeding — it will not stop what gets in afterwards."
+    },
+    "spear_knife": {
+      "name": "Lash a Knife Spear",
+      "blurb": "A kitchen knife taped to a length of timber. Keeps them at arm’s length."
+    },
+    "spear_cleaver": {
+      "name": "Lash a Cleaver Spear",
+      "blurb": "Heavier at the tip than a knife spear, and it bites deeper for it."
+    },
+    "spear_parang": {
+      "name": "Lash a Parang Spear",
+      "blurb": "The best of them — and it costs you the best blade you own."
+    },
+    "parts": {
+      "name": "Strip for Parts",
+      "blurb": "Scrap is heavy and worth nothing. Parts are light and repair things."
+    },
+    "shells": {
+      "name": "Reload Shells",
+      "blurb": "Handloading. Ugly, slow, and the only ammunition anyone still makes."
+    },
+    "sleeping_bag": {
+      "name": "Stitch a Sleeping Bag",
+      "blurb": "Rags and tape into something you can sleep in. Heavy, but better than the floor."
+    },
+    "ez_link_knife": {
+      "name": "Laminate an EZ-Link Knife",
+      "blurb": "Four spent cards and a scrap edge. STA will not take them as tribute anymore."
+    },
+    "kopi_c": {
+      "name": "Brew Kopi C",
+      "blurb": "Packet kopi, a squeeze of condensed milk, and the last of a bottle. It is not a kopitiam, but it is close."
+    },
+    "cooked_mee": {
+      "name": "Cook Maggi",
+      "blurb": "A brick of noodles and a bottle of water. Heat is optional. Hunger is not."
+    },
+    "milo_dinosaur": {
+      "name": "Mix a Milo Dinosaur",
+      "blurb": "The whole tin, extra powder on top, and whatever water you can spare. Heavy tin, light cup."
+    }
+  },
+  "trait": {
+    "ns_combat": {
+      "name": "Reservist",
+      "description": "+1 Strength, +2 attack, +1 defense. Muscle memory from mandatory service drills that never quite left."
+    },
+    "medic": {
+      "name": "Trained Medic",
+      "description": "Healing items restore +5 HP. 35% less infection gain. Clinic shifts taught you triage the hard way."
+    },
+    "hawker_cook": {
+      "name": "Home Cook",
+      "description": "Food items restore 30% more hunger. Years behind a wok — or a home kitchen that worked like one."
+    },
+    "marathoner": {
+      "name": "Distance Runner",
+      "description": "+1 Endurance, +15 max HP, −10% energy drain. The kind of fitness that used to earn a gold standard."
+    },
+    "karang_guni": {
+      "name": "Scavenger",
+      "description": "+1 loot, +1 extra search per POI, +10% search speed. You already knew which blocks had the good stuff."
+    },
+    "tekong_legs": {
+      "name": "Trail Legs",
+      "description": "+1 Dexterity, +15% travel speed. Route marches forged these calves — island or otherwise."
+    },
+    "night_owl": {
+      "name": "Night Owl",
+      "description": "No accuracy penalty at night. Years of shift work pay off."
+    },
+    "thick_skin": {
+      "name": "Thick Skin",
+      "description": "30% infection resist, +1 defense. Mosquito-hardened immune system."
+    },
+    "kiasuism": {
+      "name": "Opportunist",
+      "description": "+1 Wits, +10% loot value, see POI searches remaining. Must. Get. More. — queue culture never dies."
+    },
+    "kampong_spirit": {
+      "name": "Community Ties",
+      "description": "Start Known with the IDTF and the PP Co-op — their counters are open to you from day one. Neighbour bonds transcend the apocalypse."
+    },
+    "ah_long_debt": {
+      "name": "Underworld Contact",
+      "description": "Somebody in the 88 Syndicate remembers you. They will not shoot on sight and their court is open — but the IDTF has read the same file."
+    },
+    "water_baby": {
+      "name": "Strong Swimmer",
+      "description": "−20% thirst drain. Weekend reservoir laps paid off."
+    },
+    "handyman": {
+      "name": "Handyman",
+      "description": "Craft recipes cost −1 material. Cable ties, scrap, and a flat-repair habit go a long way."
+    },
+    "sixth_sense": {
+      "name": "Sixth Sense",
+      "description": "+1 Perception, +30% detection radius, ambush chance halved. You feel them before you see them."
+    },
+    "pack_rat": {
+      "name": "Pack Rat",
+      "description": "Backpack +1 column. Every pocket has a pocket."
+    },
+    "mule": {
+      "name": "Mule",
+      "description": "Backpack +2 columns. You were built to haul."
+    },
+    "light_pockets": {
+      "name": "Light Pockets",
+      "description": "Backpack −1 column. Travel light — refunds a trait point."
+    },
+    "deep_sleeper": {
+      "name": "Deep Sleeper",
+      "description": "Sleep restores 25% more energy. When you are out, you are out."
+    },
+    "quiet_step": {
+      "name": "Quiet Step",
+      "description": "−10% encounter chance when travelling. Soft soles, softer habits."
+    },
+    "strong_back": {
+      "name": "Strong Back",
+      "description": "+4 kg carry capacity. Years of hauling crates or laundry bags."
+    },
+    "iron_stomach": {
+      "name": "Iron Stomach",
+      "description": "−15% hunger drain. You can eat almost anything and keep moving."
+    },
+    "heat_hardened": {
+      "name": "Heat Hardened",
+      "description": "−15% energy drain outdoors and in heat. You stopped complaining about the weather years ago."
+    },
+    "silver_tongue": {
+      "name": "Silver Tongue",
+      "description": "+1 Wits, +2 on doorway and dialogue checks. You talk your way through more doors than you kick."
+    },
+    "field_dressing": {
+      "name": "Field Dressing",
+      "description": "Healing items restore +3 HP. Leg injuries heal 30% faster."
+    },
+    "calm_hands": {
+      "name": "Calm Hands",
+      "description": "+4% dodge chance. You flinch less when something lunges."
+    },
+    "frugal": {
+      "name": "Frugal",
+      "description": "Food restores 15% more hunger. You stretch every packet."
+    },
+    "aircon_addict": {
+      "name": "Soft Living",
+      "description": "+20% energy drain outdoors and in heat. Never spent a day without climate control."
+    },
+    "picky_eater": {
+      "name": "Picky Eater",
+      "description": "Food restores 25% less hunger. Texture and branding still matter somehow."
+    },
+    "glass_jaw": {
+      "name": "Glass Jaw",
+      "description": "−1 Endurance, −15 max HP. One hit and it is lights out."
+    },
+    "clumsy": {
+      "name": "Clumsy",
+      "description": "−1 Dexterity, −1 attack, +5% ambush chance. Trips over flat ground."
+    },
+    "hoarder": {
+      "name": "Hoarder",
+      "description": "Cannot voluntarily drop items — must consume or stash. It might be useful later."
+    },
+    "noisy": {
+      "name": "Noisy",
+      "description": "+15% encounter chance when travelling. Cannot stop talking — or clattering."
+    },
+    "bad_knees": {
+      "name": "Bad Knees",
+      "description": "−1 Dexterity, −20% travel speed, leg injuries heal 50% slower. Years of hard floors took their toll."
+    },
+    "hemophilia": {
+      "name": "Hemophiliac",
+      "description": "Bleeding never self-stops — must treat. Carry bandages or die."
+    },
+    "poor_sleep": {
+      "name": "Light Sleeper",
+      "description": "Sleep restores 30% less energy. Every sound jolts you awake."
+    },
+    "squeamish": {
+      "name": "Squeamish",
+      "description": "−1 attack vs the undead. The rot still makes you gag."
+    },
+    "out_of_shape": {
+      "name": "Out of Shape",
+      "description": "+15% energy drain, −10% travel speed. Desk years caught up."
+    },
+    "weak_stomach": {
+      "name": "Weak Stomach",
+      "description": "+20% hunger drain. Meals do not stick around long."
+    },
+    "dehydrated": {
+      "name": "Always Thirsty",
+      "description": "+20% thirst drain. Your mouth is dry before noon."
+    },
+    "afraid_of_dark": {
+      "name": "Afraid of the Dark",
+      "description": "+10% encounter chance at night, and an extra −1 accuracy after dark. Shadows still win."
+    },
+    "thin_blood": {
+      "name": "Thin Blood",
+      "description": "−20% infection resistance. Cuts go septic faster than they should."
+    },
+    "short_fuse": {
+      "name": "Short Fuse",
+      "description": "−1 Wits. Pressure turns into shouting before it turns into plans."
+    },
+    "heavy_sleeper": {
+      "name": "Heavy Sleeper",
+      "description": "+10% ambush chance. You do not hear trouble until it is on you."
+    }
+  }
+}

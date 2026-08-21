@@ -5,6 +5,7 @@ import type { IconName } from '../icons/keys';
 import { useClockFormat } from '../game/settings';
 import { countBleeding, formatClock, totalHp, totalMaxHp } from '../game/survival';
 import { dynamicMeterColor } from './MeterBar';
+import { useT } from '../i18n';
 
 /** Tiny icon + fill used in the phone chrome strip. */
 function MiniMeter({
@@ -48,6 +49,7 @@ function MiniMeter({
  * without opening Status. Tap jumps to the hub.
  */
 export function PhoneStatusBar({ onOpenStatus }: { onOpenStatus: () => void }) {
+  const { t } = useT();
   const { day, hour, meters, bodyParts } = useGame(
     useShallow((s) => ({
       day: s.day,
@@ -67,7 +69,7 @@ export function PhoneStatusBar({ onOpenStatus }: { onOpenStatus: () => void }) {
       onClick={onOpenStatus}
       className="relative z-[720] flex shrink-0 items-center gap-2 border-b border-white/10 bg-concrete-900/95 px-2.5 py-1.5 lg:hidden"
       style={{ minHeight: 'var(--mobile-status-bar-h)' }}
-      aria-label="Open status"
+      aria-label={t('ui.phone.openStatus')}
     >
       <span className="shrink-0 tabular-nums text-2xs text-white/50">
         D{day} <span className="text-white/80">{formatClock(hour, clock)}</span>
@@ -89,7 +91,7 @@ export function PhoneStatusBar({ onOpenStatus }: { onOpenStatus: () => void }) {
       </span>
       {bleeding > 0 && (
         <span className="shrink-0 text-2xs font-semibold uppercase tracking-wider text-hiss">
-          Bleed
+          {t('ui.phone.bleed')}
         </span>
       )}
     </button>

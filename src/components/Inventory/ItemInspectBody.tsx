@@ -8,10 +8,11 @@ import {
   tierLabel,
   tierOf,
 } from '../../game/inventory';
+import { conditionBarColor } from '../../game/itemTileColor';
 import type { Equipment, EquipSlot, ItemInstance } from '../../game/types';
 import { Icon } from '../../icons/Icon';
+import { itemName, useT } from '../../i18n';
 import { itemIcon } from './itemIcon';
-import { EQUIP_SLOTS } from './equipSlots';
 import { itemKind, itemStatLines } from './itemStatLines';
 
 function ConditionBlock({
@@ -21,31 +22,31 @@ function ConditionBlock({
   inst: ItemInstance;
   compact: boolean;
 }) {
+  const { t } = useT();
   if (!hasCondition(inst)) return null;
+  const cond = conditionOf(inst);
+  const broken = isBroken(inst);
   return (
     <div className={compact ? 'mt-1.5' : 'mt-2'}>
       <div className="flex items-baseline justify-between text-xs">
         <span
           className={
-            isBroken(inst)
+            broken
               ? 'font-semibold text-hiss'
               : 'uppercase tracking-wide text-white/50'
           }
         >
-          {isBroken(inst) ? 'Broken — unusable until repaired' : tierLabel(tierOf(inst))}
+          {broken ? t('ui.inventory.broken') : tierLabel(tierOf(inst))}
         </span>
         <span className="tabular-nums text-white/40">{conditionPct(inst)}%</span>
       </div>
       <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/10">
         <div
-          className={`h-full rounded-full ${
-            conditionOf(inst) < 25
-              ? 'bg-hiss'
-              : conditionOf(inst) < 50
-                ? 'bg-amber-400'
-                : 'bg-signal'
-          }`}
-          style={{ width: `${conditionPct(inst)}%` }}
+          className="h-full rounded-full"
+          style={{
+            width: `${conditionPct(inst)}%`,
+            background: conditionBarColor(cond, broken),
+          }}
         />
       </div>
     </div>
@@ -70,13 +71,13 @@ export function ItemInspectBody({
   hideCompareNote?: boolean;
   badge?: string;
 }) {
+  const { locale, t } = useT();
   const def = itemDef(inst.defId);
   const iconSize = compact ? 24 : 30;
-  const kind = itemKind(def);
+  const kind = itemKind(def, t);
+  const slotLabel = (slot: EquipSlot) => t(`ui.slots.${slot}`);
   // Location (backpack/stash) adds noise on hover — only slot label is useful.
-  const kindLine = equipSlot
-    ? `${kind} · ${EQUIP_SLOTS.find((s) => s.slot === equipSlot)!.label}`
-    : kind;
+  const kindLine = equipSlot ? `${kind} · ${slotLabel(equipSlot)}` : kind;
 
   return (
     <div className={compact ? 'space-y-1.5' : undefined}>
@@ -87,10 +88,12 @@ export function ItemInspectBody({
         <Icon name={itemIcon(def)} size={iconSize} className="mt-0.5 shrink-0" />
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2">
-            <span className={`font-bold ${compact ? 'text-sm' : ''}`}>{def.name}</span>
+            <span className={`font-bold ${compact ? 'text-sm' : ''}`}>
+              {itemName(inst.defId, locale)}
+            </span>
             {def.exotic && (
               <span className="rounded bg-amber-300/15 px-1.5 text-2xs uppercase tracking-wide text-amber-300">
-                Exotic
+                {t('ui.inventory.exotic')}
               </span>
             )}
           </div>
@@ -101,7 +104,7 @@ export function ItemInspectBody({
       <ConditionBlock inst={inst} compact={compact} />
 
       <div className={`space-y-1 ${compact ? 'mt-1.5' : 'mt-2'}`}>
-        {itemStatLines(def, inst, equipment).map((line) => (
+        {itemStatLines(def, inst, equipment, t).map((line) => (
           <div
             key={line.key}
             className="flex items-center justify-between gap-2 text-xs text-white/70"
@@ -113,17 +116,17 @@ export function ItemInspectBody({
             <span className="flex items-center gap-1 tabular-nums">
               <span>{line.value}</span>
               {line.delta === 'up' && (
-                <span className="font-bold text-emerald-400" title="Better than equipped">
+                <span className="font-bold text-emerald-400" title={t('ui.inventory.betterThanEquipped')}>
                   ▲
                 </span>
               )}
               {line.delta === 'new' && (
-                <span className="font-bold text-emerald-400" title="New bonus vs equipped">
+                <span className="font-bold text-emerald-400" title={t('ui.inventory.newBonus')}>
                   ＋
                 </span>
               )}
               {line.delta === 'down' && (
-                <span className="font-bold text-hiss" title="Worse than equipped">
+                <span className="font-bold text-hiss" title={t('ui.inventory.worseThanEquipped')}>
                   ▼
                 </span>
               )}
@@ -159,7 +162,7 @@ export function ItemInspectBody({
         equipment[def.slot] &&
         equipment[def.slot]!.uid !== inst.uid && (
           <p className="mt-1.5 text-2xs text-white/35">
-            Compared to equipped {EQUIP_SLOTS.find((s) => s.slot === def.slot)?.label ?? 'item'}
+            Compared to equipped {slotLabel(def.slot)}
           </p>
         )}
     </div>

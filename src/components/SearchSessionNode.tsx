@@ -15,6 +15,7 @@ import { useClockFormat } from '../game/settings';
 import { SearchFindRevealCell } from './SearchFindRevealCell';
 import { GuideInfoButton } from './GuideInfoButton';
 import type { GuideTopic } from '../content/guideContent';
+import { useT } from '../i18n';
 
 /** Match inventory cell size so stash finds read at the same scale. */
 const CELL = 34;
@@ -44,6 +45,7 @@ export function SearchSessionNode({
   const abortSearch = useGame((s) => s.abortSearch);
   const completeSearch = useGame((s) => s.completeSearch);
   const clock = useClockFormat();
+  const { t } = useT();
   const [now, setNow] = useState(() => Date.now());
   const [hoverSlotId, setHoverSlotId] = useState<string | null>(null);
   const [whisperHot, setWhisperHot] = useState(false);
@@ -98,9 +100,9 @@ export function SearchSessionNode({
 
   const title = stillSearching
     ? session.hdbUnit
-      ? `Searching ${session.hdbUnit.label}`
-      : 'Searching'
-    : 'Search complete';
+      ? t('ui.search.searchingNamed', { name: session.hdbUnit.label })
+      : t('ui.search.searching')
+    : t('ui.search.complete');
 
   const headerInner = (
     <>
@@ -178,7 +180,7 @@ export function SearchSessionNode({
                 <button
                   key={slot.id}
                   type="button"
-                  title="Click to search this next"
+                  title={t('ui.search.clickNext')}
                   onMouseEnter={() => setHoverSlotId(slot.id)}
                   onFocus={() => setHoverSlotId(slot.id)}
                   onClick={() => prioritizeSearchSlot(slot.id)}
@@ -214,7 +216,7 @@ export function SearchSessionNode({
             className="flex w-full items-center gap-1.5 rounded border border-signal/40 px-2 py-1 text-left text-xs text-signal transition hover:bg-signal/10"
           >
             <Icon name="action.stash" size={13} className="shrink-0" />
-            Take all found ({foundCount})
+            {t('ui.search.takeAllCount', { count: foundCount })}
           </button>
         )}
         {stillSearching ? (
@@ -224,7 +226,7 @@ export function SearchSessionNode({
             className="flex w-full items-center gap-1.5 rounded border border-white/15 px-2 py-1 text-left text-xs text-white/60 transition hover:bg-white/5"
           >
             <Icon name="choice.leave" size={13} className="shrink-0" />
-            Leave (abandon unclaimed, partial search)
+            {t('ui.location.leaveAbandon')}
           </button>
         ) : (
           <button
@@ -233,7 +235,7 @@ export function SearchSessionNode({
             className="flex w-full items-center gap-1.5 rounded border border-signal/40 px-2 py-1 text-left text-xs font-semibold text-signal transition hover:bg-signal/10"
           >
             <Icon name="choice.check" size={13} className="shrink-0" />
-            {foundCount > 0 ? 'Done (abandon unclaimed)' : 'Done'}
+            {foundCount > 0 ? t('ui.location.doneAbandon') : t('ui.location.done')}
           </button>
         )}
       </div>
@@ -243,7 +245,9 @@ export function SearchSessionNode({
   if (variant === 'card') {
     return (
       <div className="space-y-2">
-        <div className="text-2xs uppercase tracking-widest text-signal/70">Search</div>
+        <div className="text-2xs uppercase tracking-widest text-signal/70">
+          {t('ui.location.search')}
+        </div>
         <p className="text-xs leading-snug text-white/70">
           <span className="mr-1.5 font-mono text-2xs tabular-nums text-white/35">
             {formatClock(hour, clock)}
@@ -287,20 +291,21 @@ function SearchHoverPanel({
   slot: SearchSlot | null;
   gridH: number;
 }) {
+  const { t } = useT();
   return (
     <div
       className="min-w-0 flex-1 overflow-hidden rounded border border-white/15 bg-concrete-900/80 px-2.5 py-2"
       style={{ minHeight: gridH }}
     >
       {!slot ? (
-        <p className="text-2xs leading-snug text-white/30">Hover a cell for details.</p>
+        <p className="text-2xs leading-snug text-white/30">{t('ui.search.hoverDetails')}</p>
       ) : slot.state === 'fogged' || slot.state === 'searching' ? (
         <div className="space-y-1">
-          <div className="text-xs font-semibold text-white/50">Unknown</div>
-          <p className="text-2xs leading-snug text-white/35">
-            Still buried. Click to search this next.
+          <div className="text-xs font-semibold text-white/50">{t('ui.search.unknown')}</div>
+          <p className="text-2xs leading-snug text-white/35">{t('ui.search.clickNext')}</p>
+          <p className="text-2xs text-white/25">
+            {t('ui.search.footprint', { label: slotFootprintLabel(slot) })}
           </p>
-          <p className="text-2xs text-white/25">Footprint {slotFootprintLabel(slot)}</p>
         </div>
       ) : (
         <FoundHoverDetails slot={slot} />

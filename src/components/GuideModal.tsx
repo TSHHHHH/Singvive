@@ -1,4 +1,5 @@
-import { GUIDE_BY_ID, guideTopicsFor, type GuideTopic } from '../content/guideContent';
+import { getGuideSection, guideTopicsFor, type GuideTopic } from '../content/guideContent';
+import { useT } from '../i18n';
 import { GuideSectionView } from './GuideSectionView';
 
 /**
@@ -12,9 +13,10 @@ export function GuideModal({
   topic: GuideTopic;
   onClose: () => void;
 }) {
+  const { locale, t } = useT();
   const topics = guideTopicsFor(topic);
-  const sections = topics.map((id) => GUIDE_BY_ID[id]);
-  const heading = sections.length === 1 ? sections[0].title : 'Objectives';
+  const sections = topics.map((id) => getGuideSection(id, locale));
+  const heading = sections.length === 1 ? sections[0].title : t('ui.guide.objectives');
 
   return (
     <div
@@ -32,7 +34,7 @@ export function GuideModal({
             onClick={onClose}
             className="text-xs text-white/40 hover:text-white/70"
           >
-            ✕ close
+            {t('ui.common.close')}
           </button>
         </div>
 

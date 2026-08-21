@@ -120,17 +120,25 @@ export function withVegetationTravel(
  * No train, so no discount — `distanceM` is the real distance along the bore
  * and you cover it on foot. What the tunnel buys you is what it *doesn't*
  * charge: no weather, no encumbrance penalty, and none of URBAN_DECAY_DETOUR,
- * because a bore is straight and the streets above it are not.
+ * because a bore is straight and the streets above it are not. Collapsed hops
+ * still cost extra — you crawl the rubble, you do not walk the invert.
  */
+/** Collapsed bore metres count this much heavier than intact track. */
+export const COLLAPSED_BORE_PACE = 1.8;
+
 export function estimateTunnelWalk(
   distanceM: number,
   attrs: Attributes,
   energy: number,
   currentHour: number,
   legFactor = 1,
+  /** Track metres that run through a collapsed bore — crawled, not walked. */
+  collapsedMeters = 0,
 ): { travelMin: number; totalHours: number; arrivalHour: number } {
   const speed = walkSpeed(attrs, energy, legFactor);
-  const travelMin = Math.max(4, Math.round(distanceM / speed));
+  const rubble = Math.max(0, Math.min(collapsedMeters, distanceM));
+  const effective = distanceM - rubble + rubble * COLLAPSED_BORE_PACE;
+  const travelMin = Math.max(4, Math.round(effective / speed));
   return {
     travelMin,
     totalHours: travelMin / 60,

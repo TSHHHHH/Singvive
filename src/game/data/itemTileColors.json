@@ -1,0 +1,12 @@
+{
+  "food": "#b5651d",
+  "water": "#2f7fb5",
+  "heal": "#7fbf6b",
+  "cure": "#8fcf7b",
+  "energy": "#c9a441",
+  "ammo": "#a8935f",
+  "fuel": "#b5432a",
+  "weapon": "#8a8f94",
+  "gear": "#6a7080",
+  "misc": "#7f8c8d"
+}

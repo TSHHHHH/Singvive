@@ -1,5 +1,6 @@
 import { Icon } from '../icons/Icon';
 import type { EvacVibe } from '../game/goal';
+import { useT } from '../i18n';
 
 interface Props {
   evacZoneName: string | null;
@@ -35,6 +36,26 @@ const VIBE_WIDTH: Record<EvacVibe, number> = {
   promising: 82,
 };
 
+function ReachLine({ zone }: { zone: string }) {
+  const { t } = useT();
+  const full = t('ui.objective.reach', { zone });
+  const idx = full.indexOf(zone);
+  if (idx < 0) {
+    return (
+      <>
+        <Icon name="action.evac" /> {full}
+      </>
+    );
+  }
+  return (
+    <>
+      <Icon name="action.evac" /> {full.slice(0, idx)}
+      <span className="font-semibold text-signal">{zone}</span>
+      {full.slice(idx + zone.length)}
+    </>
+  );
+}
+
 /**
  * The always-on objective readout for the left rail: dual-path glance
  * (survival mult + fogged radio vibe) plus doom. Detail lives one click away.
@@ -54,6 +75,14 @@ export function ObjectiveBar({
   vibeLine,
   onOpen,
 }: Props) {
+  const { t } = useT();
+  const vibeShort =
+    vibe === 'thin'
+      ? t('ui.objective.vibeThin')
+      : vibe === 'maybe'
+        ? t('ui.objective.vibeMaybe')
+        : t('ui.objective.vibeOk');
+
   return (
     <button
       onClick={onOpen}
@@ -61,7 +90,7 @@ export function ObjectiveBar({
     >
       <div className="flex items-center justify-between gap-2">
         <span className="text-2xs font-semibold uppercase tracking-widest text-signal/70">
-          <Icon name="action.objectives" /> Objective
+          <Icon name="action.objectives" /> {t('ui.objective.title')}
         </span>
         <span
           className={`shrink-0 text-xs tabular-nums ${
@@ -69,7 +98,7 @@ export function ObjectiveBar({
           }`}
         >
           {atEvac
-            ? 'at evac'
+            ? t('ui.objective.atEvac')
             : windowText
               ? `${windowText}`
               : evacZoneName
@@ -82,15 +111,12 @@ export function ObjectiveBar({
 
       <div className="mt-0.5 truncate text-sm text-concrete-50">
         {evacZoneName ? (
-          <>
-            <Icon name="action.evac" /> Reach{' '}
-            <span className="font-semibold text-signal">{evacZoneName}</span>
-          </>
+          <ReachLine zone={evacZoneName} />
         ) : (
           <span className="text-white/40">
             {evacCooldownHours != null
-              ? 'Channel dark. Command is staging another lift — sit tight or stock up.'
-              : 'No active evac window — survive for score, or wait for a bird.'}
+              ? t('ui.objective.channelDark')
+              : t('ui.objective.noWindowSurvive')}
           </span>
         )}
       </div>
@@ -111,7 +137,7 @@ export function ObjectiveBar({
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-10 shrink-0 truncate text-2xs text-white/35" title={vibeLine}>
-              {vibe === 'thin' ? 'thin' : vibe === 'maybe' ? 'maybe' : 'ok?'}
+              {vibeShort}
             </span>
             <div className="h-1 flex-1 overflow-hidden rounded bg-black/50">
               <div

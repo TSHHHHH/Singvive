@@ -10,6 +10,7 @@ import {
   type MrtStation,
 } from '../game/mrt';
 import { edgeKey } from '../game/mrtDamage';
+import { useT } from '../i18n';
 
 /**
  * The rail network drawn over the map — and over the tunnel planner, which
@@ -20,7 +21,7 @@ import { edgeKey } from '../game/mrtDamage';
  * Deliberately drawn *over* the fog. The MRT map is the one piece of the city
  * everybody already carries in their head — the fog hides what's in a station,
  * never where the line runs. Collapsed hops keep the same livery but draw
- * dashed and muted — one stroke per segment, not a second overlay line.
+ * dashed and muted — still walkable, a brutal crawl rather than a wall.
  */
 
 /**
@@ -51,7 +52,7 @@ const LABEL_ZOOM = 15;
 
 interface Props {
   net: MrtNetwork;
-  /** Undirected edge keys destroyed this run — drawn as collapsed bores. */
+  /** Undirected edge keys collapsed this run — drawn as dashed bores. */
   destroyedEdges?: readonly string[];
   /**
    * Consecutive station ids of a planned crawl. Matching hops draw gold and
@@ -173,6 +174,7 @@ export function MrtOverlay({
   onStationClick,
   labelZoom = LABEL_ZOOM,
 }: Props) {
+  const { t } = useT();
   const map = useMap();
   const { zoom, bounds } = useViewport();
   const destroyed = useMemo(() => new Set(destroyedEdges), [destroyedEdges]);
@@ -265,7 +267,7 @@ export function MrtOverlay({
           pathOptions={{
             color: active ? '#e8c547' : color,
             weight: active ? 5 : 3,
-            opacity: dead ? 0.45 : active ? 1 : 0.85,
+            opacity: dead ? (active ? 0.9 : 0.45) : active ? 1 : 0.85,
             dashArray: dead ? '6 8' : undefined,
             lineCap: dead ? 'butt' : 'round',
             lineJoin: 'round',
@@ -305,7 +307,11 @@ export function MrtOverlay({
             >
               <Tooltip direction="top" offset={[0, -6]}>
                 <span className="font-bold">{s.name}</span>
-                {isFrom ? ' (here)' : isTo ? ' (destination)' : ''}
+                {isFrom
+                  ? t('ui.mrt.tooltipHere')
+                  : isTo
+                    ? t('ui.mrt.tooltipDestination')
+                    : ''}
                 <br />
                 {s.codes.join(' · ')} — {linesAt(net, s).map((l) => l.name).join(', ')}
               </Tooltip>
@@ -340,6 +346,7 @@ export function MrtLineLegend({
   destroyedCount?: number;
   extra?: ReactNode;
 }) {
+  const { t } = useT();
   return (
     <div className="max-w-[45vw] rounded border border-white/15 bg-concrete-900/95 p-2 text-2xs leading-tight text-white/70 shadow-signage">
       {legendLines(net).map((line) => (
@@ -357,12 +364,12 @@ export function MrtLineLegend({
             className="inline-block h-0 w-4 shrink-0 border-t-2 border-dashed border-white/50"
             aria-hidden
           />
-          <span>Dashed = collapsed</span>
+          <span>{t('ui.mrt.legendCollapsed')}</span>
         </div>
       )}
       {extra}
       <div className="mt-1 border-t border-white/10 pt-1 text-white/35">
-        OSM · baked {net.generatedAt}
+        {t('ui.mrt.osmBaked', { date: net.generatedAt })}
       </div>
     </div>
   );

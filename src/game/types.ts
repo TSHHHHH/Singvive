@@ -229,10 +229,21 @@ export interface ItemModifiers {
   encounterChanceMod?: number;
   /** Additive sequential-search speed, e.g. 0.15 = +15% faster reveals. */
   searchSpeedBonus?: number;
-  /** Extra backpack columns when this bag is equipped. */
+  /**
+   * @deprecated Bags use `ItemDef.packGrid`. Boot still synthesizes a solid
+   * rectangle from these if `packGrid` is missing.
+   */
   bagWidthBonus?: number;
-  /** Extra backpack rows when this bag is equipped. */
+  /** @deprecated See `bagWidthBonus`. */
   bagHeightBonus?: number;
+}
+
+/** Usable cells of the backpack when this bag is equipped. Bounding box + holes. */
+export interface PackGrid {
+  w: number;
+  h: number;
+  /** Unusable cells inside the bounding box. Omit = solid rectangle. */
+  blocked?: [number, number][];
 }
 
 export interface ItemDef {
@@ -245,7 +256,11 @@ export interface ItemDef {
   value: number; // score / trade value
   stackable: boolean;
   maxStack: number;
-  color: string; // tailwind-ish hex for the tile
+  /**
+   * Legacy per-item tint. Gameplay tiles use `tileColor(def)` from
+   * `itemTileColors.json` instead. Kept optional for older catalog rows.
+   */
+  color?: string;
   icon?: IconName; // specific art; falls back to the item's effect kind
   slot?: EquipSlot; // equippable slot, if any
   modifiers?: ItemModifiers; // combat/capacity bonuses when equipped
@@ -292,11 +307,17 @@ export interface ItemDef {
   startingItem?: boolean;
   /** How many to grant when `startingItem` is set and the item is not equipped. Default 1. */
   startingCount?: number;
+  /**
+   * Full backpack silhouette while this bag is equipped (not a bonus overlay).
+   * Required on `slot: 'bag'`. Traits still add/remove columns on the right.
+   */
+  packGrid?: PackGrid;
 }
 
 /**
- * Where an item lives. 'backpack' is the carried 8×5 grid; any other value is a
- * location id whose 9×8 on-site stash the item is cached in.
+ * Where an item lives. 'backpack' is the carried pack (5×4 pockets, or the
+ * equipped bag's packGrid); any other value is a location id whose 4×4 on-site
+ * stash the item is cached in.
  */
 export type Container = string;
 
@@ -338,6 +359,12 @@ export type PoiCategory =
 export type FactionId = 'idtf' | 'pasir_panjang' | 'syndicate_88' | 'sta' | null;
 export type LocationSize = 'small' | 'medium' | 'large';
 
+/**
+ * How wrecked a street POI looks on first visit (0 intact … 3 gutted).
+ * Absent on HDB blocks and on saves written before ruin existed.
+ */
+export type DestructionTier = 0 | 1 | 2 | 3;
+
 /** NPC services available on faction-held ground (never scavenging). */
 export type FactionService = 'trade' | 'rest' | 'aid' | 'intel';
 
@@ -349,6 +376,8 @@ export interface LocationMemory {
   exhausted: boolean;
   remainingSearches: number;
   cleared: boolean;
+  /** Remembered ruin tier when the site had one. */
+  destruction?: DestructionTier;
 }
 
 export interface LocationState {
@@ -369,6 +398,11 @@ export interface LocationState {
   exhausted: boolean; // remainingSearches hit 0 — permanently picked clean
   cleared: boolean; // visited & searched at least once
   looted: boolean; // convenience: true once fully picked over this visit-cycle
+  /**
+   * Street-POI ruin rolled on first discovery. Biases loot condition; shown
+   * instead of category richness. Never set on residential (HDB) blocks.
+   */
+  destruction?: DestructionTier;
 
   factionId: FactionId;
   isFactionRevealed: boolean;
@@ -472,6 +506,8 @@ export interface WeatherState {
 
 // ---------- Combat ----------
 export interface Enemy {
+  /** Catalog / spawn template id for localization and drop tables. */
+  templateId?: string;
   name: string;
   kind: 'zombie' | 'human' | 'animal';
   hp: number;
@@ -557,6 +593,18 @@ export interface CombatLogEntry {
   side?: 'player' | 'enemy';
 }
 
+/**
+ * One-shot UI feedback for the last resolved swing / outcome. Ephemeral —
+ * cleared on load so mid-fight saves never replay stale FX.
+ */
+export interface CombatImpact {
+  /** Bumped every event so CSS animations restart. */
+  id: number;
+  /** Who was hit, or the outcome focus (kill / death). */
+  side: 'player' | 'enemy';
+  kind: 'hit' | 'crit' | 'miss' | 'dodge' | 'kill' | 'death' | 'win';
+}
+
 /** What to do once a fight ends (win/flee). */
 export interface CombatContext {
   /** null when the fight happens out in the open, away from any site. */
@@ -619,6 +667,8 @@ export interface CombatState {
   paused: boolean;
   /** Index into COMBAT_SPEEDS — how fast the track runs in real time. */
   speedIndex: number;
+  /** Last swing/outcome cue for the combat panel; null between events. */
+  impact: CombatImpact | null;
 }
 
 // ---------- Run statistics ----------

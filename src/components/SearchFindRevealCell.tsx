@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import type { ItemDef } from '../game/types';
 import type { SearchHighlight } from '../game/searchSession';
+import { conditionBarColor, tileColor } from '../game/itemTileColor';
 import { Icon } from '../icons/Icon';
 import { itemIcon } from './Inventory/itemIcon';
 
@@ -24,7 +25,8 @@ function cellBoxShadow(
   def: ItemDef,
   highlight: SearchHighlight | null | undefined,
 ): string {
-  const inset = `inset 0 0 0 1px ${def.color}`;
+  const hex = tileColor(def);
+  const inset = `inset 0 0 0 1px ${hex}`;
   if (highlight) return `${inset}, ${HIGHLIGHT_RING_SHADOW[highlight]}`;
   if (def.exotic) return `${inset}, 0 0 0 1px rgba(252,211,77,0.5)`;
   return `${inset}, 0 0 0 1px rgba(0,0,0,0.4)`;
@@ -143,7 +145,7 @@ export function SearchFindRevealCell({
             className="block h-full"
             style={{
               width: `${condPct}%`,
-              background: '#8fbf4b',
+              background: conditionBarColor(condPct),
             }}
           />
         </span>
@@ -158,7 +160,7 @@ export function SearchFindRevealCell({
         forceMotion ? 'search-find-fx--force-motion' : ''
       } ${className}`}
       style={{
-        background: `${def.color}66`,
+        background: `${tileColor(def)}66`,
         boxShadow: cellBoxShadow(def, highlight),
         ...restStyle,
       }}

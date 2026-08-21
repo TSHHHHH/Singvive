@@ -5,6 +5,7 @@ import { STAT_GROUPS } from '../game/stats';
 import { getTraits } from '../game/character';
 import { SurvivorStatsGrid } from './SurvivorStatsGrid';
 import { useIsPhoneLayout } from './HdbZoomViewport';
+import { traitDescription, traitName, useT } from '../i18n';
 
 /**
  * Who they are (traits) above what they've done (counters that only ever go
@@ -12,6 +13,7 @@ import { useIsPhoneLayout } from './HdbZoomViewport';
  * Desktop also hosts live combat/mobility stats (phone keeps those on Condition).
  */
 export function StatsPanel() {
+  const { locale, t } = useT();
   const isPhone = useIsPhoneLayout();
   const { character, stats, day } = useGame(
     useShallow((s) => ({ character: s.character, stats: s.stats, day: s.day })),
@@ -22,27 +24,29 @@ export function StatsPanel() {
     <div className="flex flex-col gap-3">
       {character && (
         <section className="rounded-lg border border-white/15 bg-concrete-900/80 p-3">
-          <h4 className="mb-2 text-xs uppercase tracking-widest text-white/30">Survivor</h4>
+          <h4 className="mb-2 text-xs uppercase tracking-widest text-white/30">
+            {t('ui.stats.survivor')}
+          </h4>
           <div className="flex items-baseline justify-between">
             <span className="truncate text-sm font-bold text-signal">{character.name}</span>
-            <span className="shrink-0 text-xs text-white/40">day {day}</span>
+            <span className="shrink-0 text-xs text-white/40">{t('ui.stats.day', { day })}</span>
           </div>
           {traits.length > 0 && (
             <div className="mt-2 space-y-1.5">
               {(['positive', 'negative'] as const).map((cat) => {
-                const list = traits.filter((t) => t.category === cat);
+                const list = traits.filter((tr) => tr.category === cat);
                 if (list.length === 0) return null;
                 return (
                   <div key={cat} className="flex flex-wrap gap-1">
-                    {list.map((t) => (
+                    {list.map((tr) => (
                       <span
-                        key={t.id}
-                        title={t.description}
+                        key={tr.id}
+                        title={traitDescription(tr.id, locale)}
                         className={`rounded px-1.5 py-0.5 text-xs ${
                           cat === 'positive' ? 'bg-signal/15 text-signal' : 'bg-hiss/15 text-hiss'
                         }`}
                       >
-                        {t.name}
+                        {traitName(tr.id, locale)}
                       </span>
                     ))}
                   </div>
@@ -60,9 +64,12 @@ export function StatsPanel() {
       )}
 
       {STAT_GROUPS.map((group) => (
-        <section key={group.title} className="rounded-lg border border-white/15 bg-concrete-900/80 p-3">
+        <section
+          key={group.titleKey}
+          className="rounded-lg border border-white/15 bg-concrete-900/80 p-3"
+        >
           <h4 className="mb-2 text-xs uppercase tracking-widest text-white/30">
-            {group.title}
+            {t(group.titleKey)}
           </h4>
           <dl className="flex flex-col gap-1">
             {group.rows.map((row) => {
@@ -72,7 +79,7 @@ export function StatsPanel() {
                   <span className="w-5 shrink-0 text-center text-white/40">
                     <Icon name={row.icon} />
                   </span>
-                  <dt className="min-w-0 flex-1 truncate text-white/50">{row.label}</dt>
+                  <dt className="min-w-0 flex-1 truncate text-white/50">{t(row.labelKey)}</dt>
                   <dd className="shrink-0 tabular-nums text-concrete-50">
                     {row.format ? row.format(raw) : Math.round(raw)}
                   </dd>

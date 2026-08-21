@@ -3,7 +3,6 @@ import { MapContainer, TileLayer, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import {
   findRoutes,
-  routeOptionLabel,
   routeStationIds,
   type MrtRoute,
   type MrtStation,
@@ -18,10 +17,12 @@ import {
   TILE_URL,
 } from './tileConfig';
 import { SG_BOUNDS } from '../game/singapore';
+import { useT, type TVars } from '../i18n';
 
 /**
  * Fills the map column: pick a destination on the rail map, choose among
- * fewest-stop routes that avoid destroyed tunnels, then descend into one crawl.
+ * fewest-intact routes (and a shorter collapsed shortcut if one exists), then
+ * descend into one crawl.
  */
 
 const bounds = L.latLngBounds(
@@ -66,6 +67,27 @@ function FitTo({
   return null;
 }
 
+/** Localized route chip — mirrors game `routeOptionLabel` without touching purity. */
+function localizedRouteOptionLabel(
+  route: MrtRoute,
+  index: number,
+  t: (key: string, vars?: TVars) => string,
+): string {
+  const stops =
+    route.stops === 1 ? t('ui.mrt.stopsOne') : t('ui.mrt.stopsMany', { n: route.stops });
+  if (route.collapsedHops > 0) {
+    return t('ui.mrt.throughCollapsed', { stops, n: route.collapsedHops });
+  }
+  if (index === 0) return t('ui.mrt.fewestIntact', { stops });
+  if (route.changes === 0 && route.legs[0]) {
+    return t('ui.mrt.viaLine', { line: route.legs[0].line.name, n: route.stops });
+  }
+  const via = route.legs.map((l) => l.line.code).join('→');
+  return route.changes === 1
+    ? t('ui.mrt.viaCodes', { codes: via, n: route.stops, changes: route.changes })
+    : t('ui.mrt.viaCodesPlural', { codes: via, n: route.stops, changes: route.changes });
+}
+
 interface Props {
   fromStationId: string;
   /** Optional preselected destination (e.g. adjacent station card). */
@@ -80,6 +102,7 @@ export function MrtRoutePlanner({
   onClose,
   onConfirm,
 }: Props) {
+  const { t } = useT();
   const net = useMrtNetwork(true);
   const destroyedList = useGame((s) => s.destroyedTunnelEdges);
   const character = useGame((s) => s.character);
@@ -107,16 +130,23 @@ export function MrtRoutePlanner({
 
   const walkHint = useMemo(() => {
     if (!route || !character) return null;
-    return estimateTunnelWalk(route.meters, character.attributes, energy, hour, 1);
+    return estimateTunnelWalk(
+      route.meters,
+      character.attributes,
+      energy,
+      hour,
+      1,
+      route.collapsedMeters,
+    );
   }, [route, character, energy, hour]);
 
   if (!net || !from) {
     return (
       <div className="flex h-full w-full min-h-0 flex-col items-center justify-center bg-concrete-950 p-4">
         <div className="rounded border border-white/15 bg-concrete-900 p-4 text-sm text-white/70">
-          Loading rail map…
+          {t('ui.mrt.loading')}
           <button type="button" className="mt-3 block text-signal" onClick={onClose}>
-            Cancel
+            {t('ui.mrt.cancel')}
           </button>
         </div>
       </div>
@@ -131,10 +161,10 @@ export function MrtRoutePlanner({
     <div className="flex h-full w-full min-h-0 flex-col overflow-hidden bg-concrete-950">
       <div className="flex shrink-0 items-center justify-between gap-3 border-b border-concrete-600 bg-concrete-900 px-3 py-2.5">
         <div className="min-w-0">
-          <div className="signage text-xs text-signal">Tunnel route</div>
+          <div className="signage text-xs text-signal">{t('ui.mrt.title')}</div>
           <div className="truncate text-xs text-concrete-400">
-            From {from.name}
-            {to ? ` → ${to.name}` : ' — tap a station'}
+            {t('ui.mrt.from', { name: from.name })}
+            {to ? t('ui.mrt.to', { name: to.name }) : t('ui.mrt.tapStation')}
           </div>
         </div>
         <button
@@ -142,7 +172,7 @@ export function MrtRoutePlanner({
           onClick={onClose}
           className="rounded border border-white/15 px-3 py-1.5 text-xs text-white/70 hover:bg-white/5"
         >
-          Back to map
+          {t('ui.mrt.backToMap')}
         </button>
       </div>
 
@@ -188,7 +218,7 @@ export function MrtRoutePlanner({
             extra={
               <div className="mt-1 flex items-center gap-1.5 border-t border-white/10 pt-1 text-white/55">
                 <span className="inline-block h-0.5 w-4 shrink-0 bg-[#e8c547]" aria-hidden />
-                <span>Gold = planned route</span>
+                <span>{t('ui.mrt.goldPlanned')}</span>
               </div>
             }
           />
@@ -197,9 +227,15 @@ export function MrtRoutePlanner({
 
       <div className="shrink-0 border-t border-concrete-600 bg-concrete-900 p-3">
         {to && !reachable && (
+          <p className="mb-2 text-xs text-hiss">{t('ui.mrt.noPath', { name: to.name })}</p>
+        )}
+        {to && reachable && routes.every((r) => r.collapsedHops > 0) && (
           <p className="mb-2 text-xs text-hiss">
-            No intact tunnel path to {to.name} — collapsed bores block every route.
+            {t('ui.mrt.allCollapsed', { name: to.name })}
           </p>
+        )}
+        {route && route.collapsedHops > 0 && !routes.every((r) => r.collapsedHops > 0) && (
+          <p className="mb-2 text-xs text-hiss">{t('ui.mrt.shortcutCollapsed')}</p>
         )}
         {routes.length > 0 && (
           <div className="mb-2 flex flex-col gap-1.5">
@@ -210,16 +246,20 @@ export function MrtRoutePlanner({
                 onClick={() => setRouteIdx(i)}
                 className={`rounded border px-2 py-1.5 text-left text-xs transition ${
                   routeIdx === i || (!routes[routeIdx] && i === 0)
-                    ? 'border-signal/50 bg-signal/10 text-signal'
+                    ? r.collapsedHops > 0
+                      ? 'border-hiss/50 bg-hiss/10 text-hiss'
+                      : 'border-signal/50 bg-signal/10 text-signal'
                     : 'border-white/10 text-white/70 hover:bg-white/5'
                 }`}
               >
-                {routeOptionLabel(r, i)}
+                {localizedRouteOptionLabel(r, i, t)}
                 <span className="mt-0.5 block text-2xs text-white/40">
                   {r.meters} m
                   {r.changes > 0
-                    ? ` · ${r.changes} change${r.changes === 1 ? '' : 's'}`
-                    : ' · no changes'}
+                    ? r.changes === 1
+                      ? t('ui.mrt.changes', { n: r.changes })
+                      : t('ui.mrt.changesPlural', { n: r.changes })
+                    : t('ui.mrt.noChanges')}
                   {i === routeIdx && walkHint ? ` · ~${formatDuration(walkHint.travelMin)}` : ''}
                 </span>
               </button>
@@ -233,14 +273,18 @@ export function MrtRoutePlanner({
           className="w-full rounded bg-signal/90 py-2.5 text-sm font-bold text-black hover:bg-signal disabled:opacity-30"
         >
           {energyLow
-            ? 'Too spent — rest first'
+            ? t('ui.mrt.tooSpent')
             : route
-              ? `Enter tunnels · ${route.stops} stop${route.stops === 1 ? '' : 's'}`
-              : 'Pick a destination'}
+              ? route.collapsedHops > 0
+                ? route.stops === 1
+                  ? t('ui.mrt.crawlCollapsed', { n: route.stops })
+                  : t('ui.mrt.crawlCollapsedPlural', { n: route.stops })
+                : route.stops === 1
+                  ? t('ui.mrt.enterTunnels', { n: route.stops })
+                  : t('ui.mrt.enterTunnelsPlural', { n: route.stops })
+              : t('ui.mrt.pickDestination')}
         </button>
-        <p className="mt-1.5 text-center text-2xs text-concrete-400">
-          One crawl for the whole route. You can exit at any station along the way.
-        </p>
+        <p className="mt-1.5 text-center text-2xs text-concrete-400">{t('ui.mrt.crawlHint')}</p>
       </div>
     </div>
   );

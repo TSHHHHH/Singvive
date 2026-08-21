@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react';
 import { useGame } from '../game/store';
-import { itemDef } from '../game/loot';
 import { Icon } from '../icons/Icon';
 import { formatClock } from '../game/survival';
 import { useClockFormat } from '../game/settings';
 import { highlightLogText } from './logHighlight';
 import type { GameLogEntry } from '../game/types';
+import { itemName, useT } from '../i18n';
 
 const toneClass: Record<string, string> = {
   good: 'text-signal',
@@ -35,6 +35,7 @@ function groupByDay(log: GameLogEntry[]): { day: number; entries: GameLogEntry[]
  * only ever shows today. Days open one at a time — the newest is open on entry.
  */
 export function DayLogsModal({ onClose }: { onClose: () => void }) {
+  const { locale, t } = useT();
   const log = useGame((s) => s.log);
   const currentDay = useGame((s) => s.day);
   const clock = useClockFormat();
@@ -53,16 +54,16 @@ export function DayLogsModal({ onClose }: { onClose: () => void }) {
       >
         <div className="flex shrink-0 items-center justify-between border-b border-white/10 p-4">
           <h3 className="text-sm font-bold text-signal">
-            <Icon name="action.dayLogs" /> Day logs
+            <Icon name="action.dayLogs" /> {t('ui.log.dayLogs')}
           </h3>
           <button onClick={onClose} className="text-xs text-white/40 hover:text-white/70">
-            ✕ close
+            {t('ui.common.close')}
           </button>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto p-3">
           {days.length === 0 ? (
-            <p className="p-4 text-center text-sm text-white/30">Nothing recorded yet.</p>
+            <p className="p-4 text-center text-sm text-white/30">{t('ui.log.nothingRecorded')}</p>
           ) : (
             <ul className="flex flex-col gap-1.5">
               {days.map(({ day, entries }) => {
@@ -81,19 +82,25 @@ export function DayLogsModal({ onClose }: { onClose: () => void }) {
                       className="flex w-full items-center justify-between px-3 py-2 text-left transition hover:bg-white/5"
                     >
                       <span className="text-sm font-semibold">
-                        Day {day}
+                        {t('ui.log.dayN', { day })}
                         {day === currentDay && (
                           <span className="ml-2 rounded bg-signal/20 px-1 text-2xs font-semibold uppercase tracking-wide text-signal">
-                            today
+                            {t('ui.log.today')}
                           </span>
                         )}
                       </span>
                       <span className="flex items-center gap-2 text-xs text-white/35">
                         <span>
-                          {entries.length} {entries.length === 1 ? 'entry' : 'entries'}
+                          {entries.length === 1
+                            ? t('ui.log.entry', { n: entries.length })
+                            : t('ui.log.entries', { n: entries.length })}
                         </span>
-                        {hauls > 0 && <span className="text-signal/60">{hauls} hauls</span>}
-                        {bad > 0 && <span className="text-hiss/70">{bad} bad</span>}
+                        {hauls > 0 && (
+                          <span className="text-signal/60">{t('ui.log.hauls', { n: hauls })}</span>
+                        )}
+                        {bad > 0 && (
+                          <span className="text-hiss/70">{t('ui.log.bad', { n: bad })}</span>
+                        )}
                         <span className="text-white/25">{open ? '▾' : '▸'}</span>
                       </span>
                     </button>
@@ -117,7 +124,7 @@ export function DayLogsModal({ onClose }: { onClose: () => void }) {
                                 <div className="mt-0.5 flex flex-wrap gap-x-2 text-xs text-white/40">
                                   {e.loot.map((s, i) => (
                                     <span key={i}>
-                                      {itemDef(s.defId).name} ×{s.count}
+                                      {itemName(s.defId, locale)} ×{s.count}
                                     </span>
                                   ))}
                                 </div>

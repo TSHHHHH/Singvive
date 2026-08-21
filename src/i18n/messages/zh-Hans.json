@@ -1,0 +1,1427 @@
+{
+  "ui": {
+    "common": {
+      "close": "✕ 关闭",
+      "back": "← 返回",
+      "continue": "继续",
+      "confirm": "确认",
+      "cancel": "取消",
+      "on": "开",
+      "off": "关",
+      "loading": "加载中…"
+    },
+    "menu": {
+      "tagline": "新加坡已沦陷",
+      "subtitle": "9400+ 真实地点 · 永久死亡 · 撤离或死",
+      "newSurvivor": "新幸存者",
+      "continueRun": "继续本局",
+      "topScores": "最高分",
+      "loadingWorld": "正在加载全球分数…",
+      "worldUnreachable": "无法连接全球榜。",
+      "noWorldScores": "全球榜尚无分数。",
+      "noDeviceScores": "本机尚无分数。",
+      "blurb": "在真实新加坡地图上的肉鸽求生——9400+ OSM 地点搜刮、管好身体、冲高分，或在尸潮见顶前坐上撤离直升机。首次开局会弹出怎么玩；之后可随时在设置里重开。"
+    },
+    "scores": {
+      "worldwide": "全球",
+      "thisDevice": "本机",
+      "evac": "撤离",
+      "died": "阵亡"
+    },
+    "settings": {
+      "title": "⚙ 设置",
+      "reviewGuide": "重看怎么玩",
+      "reviewGuideDesc": "打开入门指南：求生、搜刮、组屋、隧道等。",
+      "openGuide": "打开指南"
+    },
+    "guide": {
+      "howToPlay": "怎么玩",
+      "topicsAria": "指南主题",
+      "dontShowAgain": "不再显示",
+      "gotIt": "知道了",
+      "objectives": "目标",
+      "diagram": {
+        "hunger": "饱食度",
+        "thirst": "口渴值",
+        "energy": "精力",
+        "infect": "感染",
+        "hpLimbs": "HP = 6 肢",
+        "sleepDrain": "睡眠 ×0.3 消耗",
+        "lowHpLoss": "<20 → 掉 HP",
+        "pack": "背包",
+        "stash": "囤点",
+        "limitedSearches": "搜索次数有限",
+        "fuel": "燃料",
+        "medsAmmo": "药品/弹药",
+        "weapons": "武器",
+        "foodWater": "食物/水",
+        "beacon": "信标",
+        "backpackOnly": "仅背包",
+        "timedWindow": "限时窗口",
+        "loot": "战利品",
+        "daysTimes50": "天数 ×50",
+        "dayMult": "日乘数",
+        "day1Mult": "第 1 天 → ×1.0",
+        "plusPerDay": "+0.1 / 天",
+        "evacBonus": "+2000 × 乘数",
+        "climb": "上楼",
+        "door": "门",
+        "heat": "热量",
+        "timeline": "时间线",
+        "plan": "规划",
+        "fewestStops": "最少站",
+        "crawl": "爬行",
+        "exitArrive": "出站 / 到达"
+      }
+    },
+    "death": {
+      "escaped": "逃出生天！",
+      "died": "你死了",
+      "escapeBlurb": "直升机升起，尸潮淹没脚下街道。你活着出来了。",
+      "gone": "没了。",
+      "days": "天数",
+      "kills": "击杀",
+      "score": "分数",
+      "tryAgain": "再试一次",
+      "posting": "正在上传全球榜…",
+      "posted": "已上传全球榜。",
+      "rank": "全球排名 #{rank}。",
+      "rateLimited": "全球榜限流——已保存在本机。",
+      "invalid": "无法上传此分数——已保存在本机。",
+      "unreachableSaved": "无法连接全球榜——已保存在本机。",
+      "loadingWorld": "正在加载全球分数…",
+      "worldUnreachable": "无法连接全球榜。",
+      "noWorldScores": "全球榜尚无分数。",
+      "thisDevice": "本机",
+      "worldwide": "全球"
+    },
+    "spawn": {
+      "title": "选择醒来的地方",
+      "myLocation": "我的位置",
+      "locating": "定位中…",
+      "random": "随机",
+      "railMap": "铁路图",
+      "scanning": "正在扫描附近补给…",
+      "hint": "点干燥陆地、用定位，或随机出生点。",
+      "spawnLabel": "出生：",
+      "wakeUp": "在此醒来 →",
+      "geoUnavailable": "此浏览器无法分享位置。",
+      "outsideSg": "你在新加坡以外——点地图或选随机。",
+      "permissionDenied": "定位权限被拒——请改点地图。",
+      "geoFailed": "读不到位置——请改点地图。",
+      "noWalkable": "找不到可走地面——请点地图。",
+      "tooRemote": "区域过于偏远或缺少基础设施。请选择城市化区域。",
+      "myLocationTitle": "向浏览器请求真实世界位置",
+      "railMapTitle": "显示 MRT 与 LRT 路网"
+    },
+    "combat": {
+      "contact": "接触",
+      "fight": "开战",
+      "fightHint": "投入战斗——以戒备开场，轨道跑起来后再切换姿态。",
+      "flee": "逃跑",
+      "breakOff": "脱身",
+      "breakOffTitle": "脱离接触——逃跑 DC −4，对方有一记分手刀",
+      "pause": "暂停",
+      "resume": "继续",
+      "seeResults": "查看结果",
+      "continue": "继续",
+      "dmg": "伤害",
+      "def": "防御",
+      "spd": "速度",
+      "teeth": "牙齿",
+      "claws": "利爪",
+      "improvised": "简陋",
+      "aggressive": "猛攻",
+      "guarded": "戒备",
+      "precision": "精准",
+      "disengage": "脱离"
+    },
+    "location": {
+      "search": "搜索",
+      "searching": "搜索中…",
+      "leave": "离开",
+      "rest": "休息",
+      "travel": "前往",
+      "travelHere": "前往此处",
+      "travelThere": "前往那里",
+      "searchOnceInside": "进去后再搜索",
+      "searchWhileUnseen": "趁未被发现搜索",
+      "tearThrough": "撕开这地方",
+      "keepSearching": "继续搜索",
+      "goInsideSearch": "进去搜索",
+      "nothingLeft": "已搜空",
+      "nothingLeftToSearch": "没什么可搜了",
+      "tooExhausted": "太累了——先睡",
+      "noDryRoute": "没有干路",
+      "tooFar": "太远到不了",
+      "unknownLocation": "未知地点",
+      "headUnknown": "冲进未知",
+      "leaveStopEarly": "离开可提前结束",
+      "takeAll": "全部拿走",
+      "done": "完成",
+      "doneAbandon": "完成（放弃未拿）",
+      "leaveAbandon": "离开（放弃未拿，部分搜索）",
+      "sleepInside": "在铁丝网内睡觉",
+      "fieldAid": "战地救护",
+      "askIntel": "打听情报",
+      "trade": "柜台交易",
+      "leaveBlock": "离开组屋",
+      "route": "路线",
+      "planTunnels": "规划此段隧道",
+      "collapsedBore": "塌方隧道 · 高风险",
+      "tunnelMeta": "{line}{meters} 米 · 无天气、无行程限制",
+      "tunnelMetaRoute": "路线 · 无天气、无行程限制",
+      "pickStation": "任选车站 · 虚线路段是艰苦爬行",
+      "services": "服务",
+      "approachGateFirst": "先靠近大门——他们不会在路边跟你谈。",
+      "gateFirst": "先过门",
+      "alreadyUsedToday": "今日已用过",
+      "tradeHint": "今日换货",
+      "restHint": "安全到天亮",
+      "aidHint": "每日一次",
+      "intelHint": "每日一次 — 地图提示",
+      "noDealStrangers": "他们不跟陌生人做买卖",
+      "bedsTrusted": "床位只给信得过的人",
+      "medicsTrusted": "医护只给信得过的人",
+      "noBriefStrangers": "他们不给陌生人简报",
+      "approachGate": "靠近大门",
+      "sneakIn": "潜入",
+      "sneakHint": "敏捷检定 — 丰厚战利品，无服务",
+      "forceEnter": "强行闯入",
+      "forceHint": "打进去 — 每次搜索都会开战",
+      "enterBlock": "进入组屋",
+      "openStashHere": "打开此处囤点",
+      "lastSeen": "上次所见",
+      "metersFromSpawn": "距出生点 {m} 米",
+      "danger": "危险",
+      "ruin": "毁损",
+      "factionOutpost": "派系据点 — 完整服务，不可搜刮。",
+      "factionTerritory": "派系地盘 — NPC 枢纽，不可搜刮。",
+      "insideUnseen": "潜入内部 — 安静就能摸他们的库房。",
+      "forcedEntry": "强行闯入 — 库房丰厚，每次搜索都会开战。",
+      "twelveFloors": "12 层 — 一间间清，不是整栋搜。",
+      "pickedClean": "已被搜空 — 耗尽。",
+      "searchesLeft": "剩余 {n} 次搜索",
+      "searchesLeftPlural": "剩余 {n} 次搜索",
+      "searchingLeft": "搜索中… 本趟还剩约 {eta}",
+      "territory": "地盘",
+      "standingAria": "声望：{label}",
+      "lastSeenDanger": "上次所见危险 {n}",
+      "mayBeStale": "（可能过时）",
+      "intelTag": "（情报）",
+      "rain": "雨",
+      "heavy": "过重",
+      "forest": "林带"
+    },
+    "inventory": {
+      "equip": "装备",
+      "unequip": "卸下",
+      "use": "使用",
+      "drop": "丢弃",
+      "stash": "囤点",
+      "pack": "入包",
+      "backpack": "背包",
+      "equipped": "已装备",
+      "candidate": "候选",
+      "inspect": "查看",
+      "useOrEquip": "使用 / 装备",
+      "stashOrPack": "囤点 / 入包",
+      "quickActions": "快捷操作",
+      "moveRotate": "移动 · 旋转",
+      "controls": "操作",
+      "tempStash": "临时囤点（隧道）",
+      "cannotUseCombat": "战斗中不能使用物品",
+      "rotate": "⟳ 旋转",
+      "rotateHint": "拖动时也可按 R",
+      "carry": "负重",
+      "encumbered": "过重",
+      "loadKg": "{load} / {carry} kg",
+      "loadEncumbered": "{load} / {carry} kg · 过重",
+      "rounds": "{n} 发",
+      "confirmAbandon": "确认 — 放弃剩余并继续",
+      "stashLocked": "在隧道中地点囤点已锁定。",
+      "stashNamed": "囤点 · {name}",
+      "dropGone": "永久丢掉——但重量也会没",
+      "twoHandBlocked": "被双手武器挡住",
+      "clickToAct": "点击操作",
+      "selectHint": "选中物品以查看。拖动整理 · 拖动时按 R 旋转。",
+      "repair": "修理",
+      "rags": "✂ 撕布条",
+      "tearTitle": "消耗 {cost}% 耐久 — 产出 {yield}× 布条作敷料",
+      "usesOne": "消耗 1× {name}",
+      "usesInputs": "消耗 {inputs} 与一把 {tool}",
+      "betterThanEquipped": "优于已装备",
+      "newBonus": "相对已装备的新加成",
+      "worseThanEquipped": "劣于已装备",
+      "exotic": "珍品",
+      "broken": "损坏 — 修好前无法使用",
+      "controlsAria": "背包操作说明"
+    },
+    "slots": {
+      "head": "头",
+      "body": "身",
+      "hands": "手",
+      "legs": "腿",
+      "feet": "脚",
+      "bag": "包",
+      "mainHand": "主手",
+      "offHand": "副手"
+    },
+    "phone": {
+      "map": "地图",
+      "status": "状态",
+      "stash": "囤点",
+      "craft": "合成",
+      "log": "日志",
+      "logbook": "记录本",
+      "stats": "属性",
+      "objectives": "目标",
+      "openStatus": "打开状态",
+      "bleed": "流血"
+    },
+    "attributes": {
+      "strength": "力量",
+      "dexterity": "敏捷",
+      "endurance": "耐力",
+      "perception": "感知",
+      "wits": "机智",
+      "short": {
+        "strength": "力",
+        "dexterity": "敏",
+        "endurance": "耐",
+        "perception": "感",
+        "wits": "智"
+      },
+      "baseTo": "基础 {base} → {value}",
+      "atBaseline": "处于基线——无加成或惩罚。"
+    },
+    "game": {
+      "rest": "休息",
+      "enRoute": "途中",
+      "openGround": "空地",
+      "target": "目标",
+      "callEvac": "呼叫撤离 — 打信号弹",
+      "youAreHere": "你在这里",
+      "inTheOpen": "露天",
+      "insideBlock": "组屋内",
+      "nowhereTitle": "无处可依。",
+      "nowhereBlurb": "没有庇护、没有囤点、没什么可搜。点建筑物前往，或点空地继续走。在这外面睡几乎不算睡觉。",
+      "loadingNeighbourhood": "正在加载街区…",
+      "departing": "即将起飞…",
+      "windowDh": "{d}天 {h}时",
+      "windowH": "{h}时"
+    },
+    "objective": {
+      "title": "目标",
+      "atEvac": "已在撤离点",
+      "reach": "前往 {zone}",
+      "channelDark": "频道静默。指挥部在部署下一班机——先撑住或囤货。",
+      "noWindowSurvive": "当前无撤离窗口——靠求生冲分，或等下一班机。",
+      "vibeThin": "稀薄",
+      "vibeMaybe": "也许",
+      "vibeOk": "行？",
+      "scoreLadder": "分数阶梯",
+      "evacAndScore": "撤离与分数",
+      "dayMult": "×{mult} 日",
+      "scoreBlurb": "多留几天抬高乘数。撤离会锁定同样随日数放大的奖励——最佳局是长活再成功起飞。",
+      "ifYouDieNow": "现在死掉",
+      "evacBonus": "撤离奖励",
+      "escapeSingapore": "逃离新加坡",
+      "youAreHere": "你在这里",
+      "metersAway": "{m} 米外",
+      "reachHaul": "带着直升机可能收的物资到达 {zone}，再发信号求接。电台从不报配额。",
+      "noActiveWindow": "当前无撤离窗口。",
+      "windowCloses": "窗口还剩 {window}",
+      "radioRead": "电台读数",
+      "radioBlurb": "燃料、药品与弹药最值钱；密封水差一点；食物与废料几乎不算。烧水会伤到物资。只有信号弹能确认。",
+      "horde": "尸潮 · {label}",
+      "hordeBlurb": "尸潮到 100% 城市沦陷。死亡仍记分——撤离记更多。"
+    },
+    "horde": {
+      "stirring": "躁动",
+      "restless": "不安",
+      "massing": "集结",
+      "swarming": "涌动",
+      "overrun": "沦陷"
+    },
+    "condition": {
+      "title": "状况",
+      "health": "生命",
+      "hunger": "饱食度",
+      "thirst": "口渴值",
+      "energy": "精力",
+      "infection": "感染",
+      "bleeding": "流血",
+      "bleedingOut": "大出血",
+      "bleedingTimes": "流血 ×{n}",
+      "bleedingOutTimes": "大出血 ×{n}"
+    },
+    "survivor": {
+      "statsTitle": "幸存者属性",
+      "defence": "防御",
+      "dodge": "闪避",
+      "attack": "攻击",
+      "hp": "HP",
+      "travel": "移动",
+      "carry": "负重",
+      "noise": "噪音",
+      "defenceTip": "对方命中目标值",
+      "dodgeTip": "躲开命中的概率",
+      "attackTip": "命中修正",
+      "hpTip": "四肢生命合计",
+      "travelTip": "移动速度（精力、腿、鞋、特质）",
+      "carryTip": "含装备的最大负重",
+      "noiseTip": "装备带来的遭遇概率（迷彩降低，吵鞋提高）"
+    },
+    "stats": {
+      "survivor": "幸存者",
+      "day": "第 {day} 天",
+      "combat": "战斗",
+      "exploration": "探索",
+      "survival": "求生",
+      "zombieKills": "击杀丧尸",
+      "humanKills": "击杀人类",
+      "animalKills": "击杀动物",
+      "fightsFled": "逃离战斗",
+      "distanceWalked": "步行距离",
+      "sitesSearched": "搜索地点",
+      "hdbUnitsCleared": "清空组屋单位",
+      "timesSlept": "睡眠次数",
+      "itemsLooted": "搜刮物品",
+      "lootValue": "战利品价值",
+      "damage": "伤害",
+      "defence": "防御",
+      "soak": "吸收",
+      "statusResist": "状态抗性",
+      "attack": "攻击",
+      "accuracy": "命中",
+      "speed": "速度",
+      "dodge": "闪避",
+      "travel": "移动",
+      "encounters": "遭遇",
+      "carry": "负重",
+      "pack": "背包格",
+      "packCells": "{n} 格（{w}×{h}）",
+      "awareness": "察觉",
+      "hunger": "饱食度",
+      "thirst": "口渴值",
+      "energy": "精力",
+      "heal": "治疗",
+      "healHp": "+{n} HP",
+      "cure": "治愈",
+      "fuel": "燃料",
+      "fuelEvac": "撤离重量",
+      "curiosity": "杂物",
+      "curiosityScrap": "废料 / 交易",
+      "damageOf": "{dmg}（满 {base}）"
+    },
+    "itemKind": {
+      "weapon": "武器",
+      "armour": "护甲",
+      "gear": "装备",
+      "food": "食物",
+      "drink": "饮料",
+      "medical": "医疗",
+      "stimulant": "兴奋剂",
+      "fuel": "燃料",
+      "ammo": "弹药",
+      "misc": "杂物"
+    },
+    "search": {
+      "searching": "搜索中",
+      "searchingNamed": "正在搜索 {name}",
+      "complete": "搜索完成",
+      "takeAllCount": "全部拿走（{count}）",
+      "clickNext": "点击优先搜索此格",
+      "hoverDetails": "悬停格子查看详情。",
+      "unknown": "未知",
+      "footprint": "占地 {label}"
+    },
+    "standing": {
+      "terrible": "糟透",
+      "bad": "恶劣",
+      "wary": "戒备",
+      "stranger": "陌生人",
+      "known": "认识",
+      "welcome": "欢迎",
+      "kin": "自己人"
+    },
+    "log": {
+      "timeline": "时间线",
+      "timelineDay": "时间线 · 第 {day} 天",
+      "dayLogsTitle": "日日志 — 以往每一天",
+      "settings": "设置",
+      "showMode": "显示{mode}",
+      "freshDay": "新的一天。还什么都没发生。",
+      "storyStarts": "你的故事从这里开始…",
+      "earlierHidden": "…今日另有 {n} 条较早记录已隐藏",
+      "earlierHiddenPlural": "…今日另有 {n} 条较早记录已隐藏",
+      "previousDays": "以往日子在日日志里",
+      "showOnMap": "在地图上显示",
+      "showOnMapLabel": "在地图上显示 · {label}",
+      "packFull": "背包满了 — 留下了 {items}",
+      "dayLogs": "日日志",
+      "nothingRecorded": "尚无记录。",
+      "dayN": "第 {day} 天",
+      "today": "今天",
+      "entry": "{n} 条",
+      "entries": "{n} 条",
+      "hauls": "{n} 次搜刮",
+      "bad": "{n} 条坏消息"
+    },
+    "error": {
+      "signalLost": "信号中断",
+      "brokeBlurb": "出了点问题。本局已保存 — 重新加载应能接上。",
+      "reload": "重新加载",
+      "deleteRun": "还是坏？删除本局重新开始"
+    },
+    "terrain": {
+      "title": "地形",
+      "water": "水域 — 封闭",
+      "restricted": "禁区 — 封锁",
+      "vegetation": "植被 — 减速"
+    },
+    "weather": {
+      "clear": "晴朗",
+      "cloudy": "阴天",
+      "rain": "雨",
+      "thunderstorm": "雷暴",
+      "haze": "霾",
+      "heat": "热浪",
+      "effects": "{kind} — 效果"
+    },
+    "poi": {
+      "supermarket": "超市",
+      "convenience": "便利店",
+      "pharmacy": "药房",
+      "hospital": "医院",
+      "clinic": "诊所",
+      "hardware": "五金店",
+      "fuel": "加油站",
+      "police": "警察局",
+      "residential": "组屋底层",
+      "foodcourt": "熟食中心",
+      "mrt": "MRT 站",
+      "industrial": "工业单元",
+      "school": "学校",
+      "waypoint": "路点"
+    },
+    "destruction": {
+      "intact": "完好",
+      "damaged": "受损",
+      "ravaged": "摧残",
+      "gutted": "掏空"
+    },
+    "hdb": {
+      "leave": "✕ 离开",
+      "leaveBlock": "离开组屋",
+      "leaveNeedSearch": "请先在时间线完成单元搜索",
+      "leaveNeedVoidDeck": "下到 01 层（底层空地）才能离开",
+      "heat": "热度",
+      "guide": "组屋内部",
+      "voidDeck": "底层空地",
+      "corridor": "走廊",
+      "quiet": "安静",
+      "heatPlus": "+{n} 热度",
+      "min": "{n} 分钟",
+      "secondsApprox": "~{n}秒",
+      "minutesApprox": "~{n} 分钟",
+      "blockStripe": "阻挡",
+      "gone": "没了",
+      "clearToPass": "{label} — 清理后可通过",
+      "permanent": "{label} — 永久，无路可通",
+      "noWayThrough": "{label} — 无路可通",
+      "clearAction": "清理{label} · {min} 分钟 · +{heat} 热度",
+      "inaccessible": "{label} — 无法进入",
+      "storeys": "{n} 层",
+      "storeysRevealed": "已探明 {revealed}/{height} 层",
+      "level": "第 {nn} 层",
+      "levelUnexplored": "第 {nn} 层 — 未探索",
+      "storey": "楼层 {nn}",
+      "shelter": "设防避难所",
+      "residential": "住宅组屋",
+      "slab": "板楼",
+      "point": "点式",
+      "sideStair": "侧梯 {id}",
+      "stairwell": "楼梯井 {id}",
+      "sideShort": "侧",
+      "wellShort": "井",
+      "fogClimb": "楼梯 {id} — 爬入未知",
+      "sideStairTitle": "走廊尽头的侧梯",
+      "internalWell": "内部楼梯井",
+      "stopsClear": "停在 {label} — 清理后可通过",
+      "stopsBlocked": "停在 {label} — 无路可通",
+      "huntOnStairs": "楼梯遭遇 {n}%",
+      "descentNeed": "下行 · 需 {dc}+ · 失败约 {n}%",
+      "climbFree": "可自由下行",
+      "descentNeedsAttrs": "下行需要敏捷 + 耐力（需 {dc}+）。",
+      "stairsClearDown": "楼梯可安全下行。",
+      "nextBand": " 下一档：{label}（{at}）。",
+      "huntChance": "每扇门与每段楼梯有 {n}% 遭遇概率。",
+      "showDetails": "图例与感知检定",
+      "hideDetails": "隐藏详情",
+      "ariaShowDetails": "显示组屋详情",
+      "ariaHideDetails": "隐藏组屋详情",
+      "tapDetails": "点按查看图例与感知检定",
+      "senseCorridor": "踏上楼层时的走廊感知检定",
+      "senseEncounterPct": "遭遇率",
+      "senseContainerType": "容器类型",
+      "senseArrow": "{value} → {gives} {pct}%",
+      "doorCleared": "已清空",
+      "doorClearedTitle": "已清空",
+      "doorBoarded": "封死",
+      "doorBoardedShut": "钉死",
+      "doorBoardedShutTitle": "钉死",
+      "doorOpen": "畅通",
+      "scoutEncounter": "遭遇",
+      "scoutRoom": "房间",
+      "scoutContainers": "容器",
+      "scoutDescent": "下行",
+      "scoutLanding": "平台",
+      "scoutShaft": "竖井",
+      "scoutClear": "畅通",
+      "scoutEncounterExact": "感知读数 — 破门时开战的确切概率",
+      "scoutEncounterEstimate": "由热度与门况估算 — 提高感知可锁定确切百分比",
+      "scoutContainersUnread": "容器未侦察 — 提高敏捷可从走廊侦察",
+      "scoutDescentWatched": "下行有人盯着 — 约 {n}% 失败",
+      "scoutDescentClear": "楼梯畅通 — 当前热度无需检定",
+      "breachLine": "{verb} · {min} 分钟 · {heat}",
+      "unitClearedBlurb": "你已经搜过这里。里面什么都不剩了。",
+      "compactHint": "行动在剖面图上。逐层清空单元，再从底层空地离开。",
+      "voidHint": "沿柱子走到楼梯，再爬进雾区。",
+      "pathHintPhone": "点可达格或门自动寻路。双指缩放。站在门前才能破门。",
+      "pathHintDesktop": "点击可达格或门自动寻路。未访楼层保持迷雾。站在门前才能破门。",
+      "legendYou": "你",
+      "legendHover": "悬停 = 路线",
+      "legendBoarded": "封死",
+      "legendDim": "暗 = 已清空",
+      "legendFog": "雾 = 未访",
+      "legendHatch": "影线 = 封闭",
+      "legendBlock": "阻挡 = 清理可通过",
+      "legendGone": "没了 = 永久",
+      "unit": {
+        "flat": {
+          "label": "住家",
+          "blurb": "普通家用杂物。"
+        },
+        "stocked": {
+          "label": "存货",
+          "blurb": "还有值得拿走的东西。"
+        },
+        "trapped": {
+          "label": "陷阱",
+          "blurb": "门口有危险 — 冒险受伤换战利品。"
+        },
+        "storeroom": {
+          "label": "储藏",
+          "blurb": "工具与零件。"
+        },
+        "pantry": {
+          "label": "食阁",
+          "blurb": "食物与饮水。"
+        },
+        "holdout": {
+          "label": "据点",
+          "blurb": "幸存者仍在使用 — 一次服务后结束。"
+        }
+      },
+      "entry": {
+        "open": {
+          "label": "大敞",
+          "verb": "走进去"
+        },
+        "ajar": {
+          "label": "半掩",
+          "verb": "推开"
+        },
+        "locked": {
+          "label": "上锁",
+          "verb": "撬开"
+        },
+        "barricaded": {
+          "label": "设障",
+          "verb": "破门"
+        }
+      },
+      "blockKind": {
+        "debris": {
+          "label": "残骸",
+          "blurb": "走廊塞满杂物。可以搬开。"
+        },
+        "barricade": {
+          "label": "路障",
+          "blurb": "有人把平台钉死了。拆开很吵。"
+        },
+        "collapse": {
+          "label": "坍塌",
+          "blurb": "楼板塌了。无路可通。"
+        },
+        "stair_gate": {
+          "label": "楼梯闸",
+          "blurb": "竖井上焊了铁栅。可以强行打开。"
+        }
+      },
+      "sealKind": {
+        "collapsed": {
+          "label": "楼板坍塌"
+        },
+        "flooded": {
+          "label": "淹没"
+        },
+        "welded": {
+          "label": "闸门焊死"
+        },
+        "burnt": {
+          "label": "烧毁"
+        }
+      },
+      "heatBand": {
+        "Quiet": {
+          "label": "安静",
+          "note": "还没有东西注意到你。"
+        },
+        "Stirring": {
+          "label": "骚动",
+          "note": "楼梯井有人盯着。"
+        },
+        "Awake": {
+          "label": "惊醒",
+          "note": "整栋楼在动。每层都比刚才更糟。"
+        },
+        "Hunting": {
+          "label": "猎杀",
+          "note": "它们在找你了。"
+        },
+        "Swarm": {
+          "label": "蜂拥",
+          "note": "它们占了你这层。快出去。"
+        }
+      },
+      "ground": {
+        "void_open": "开放底层空地",
+        "void_partial": "半开放底层空地",
+        "enclosed": "封闭底层"
+      },
+      "service": {
+        "trader": "以物易物角",
+        "field_doctor": "战地医生",
+        "safe_bunk": "安全床位"
+      },
+      "container": {
+        "Medical": "医疗",
+        "Food": "食物",
+        "Tool": "工具",
+        "Valuables": "贵重"
+      }
+    },
+    "tunnel": {
+      "ariaSchematic": "隧道示意图。滚动缩放，拖动平移。",
+      "you": "你",
+      "unknown": "???",
+      "farAhead": "你看不了那么远",
+      "furtherDown": "隧道更深处",
+      "nodeTitle": "{name} · {label}",
+      "metaTitle": "{label} — {name}",
+      "minutesApprox": "~{n} 分钟",
+      "attrVsDc": "{attr} vs DC {dc}",
+      "stalker": "潜行者",
+      "threat": "威胁 {n}",
+      "exitHere": "在此出站 · {name}",
+      "verbAt": "{verb} · 前往 {name}",
+      "verbName": "{verb} · {name}",
+      "pickWayFirst": "先选一条通路",
+      "keepWalking": "或继续沿隧道走",
+      "pickForward": "选一条前进路线",
+      "sleep": "睡 5 小时",
+      "sleepHint": "睡觉并进食 · 一次",
+      "patch": "包扎",
+      "patchHint": "1× 罐头食品 · 一次",
+      "trade": "交易",
+      "pass": "路过",
+      "forConnector": " 换 ",
+      "dropInvert": "钻到车底",
+      "invertHint": "{min} 分钟 · {energy} 精力 · 无战利品",
+      "smash": "砸穿车厢",
+      "smashHint": "{min} 分钟 · 可搜刮，或有遭遇",
+      "payFare": "付车费",
+      "slipPast": "溜过去",
+      "dexVsDc": "敏捷 vs DC {dc}",
+      "meta": {
+        "platform": {
+          "label": "站台",
+          "verb": "爬出去"
+        },
+        "pack": {
+          "label": "接触",
+          "verb": "冲过去"
+        },
+        "scavenge": {
+          "label": "搜刮",
+          "verb": "翻找"
+        },
+        "settlement": {
+          "label": "营地",
+          "verb": "走进去"
+        },
+        "hazard": {
+          "label": "障碍",
+          "verb": "闯过去"
+        },
+        "carriage": {
+          "label": "车厢",
+          "verb": "爬过去"
+        },
+        "signal": {
+          "label": "信号",
+          "verb": "读指示板"
+        },
+        "checkpoint": {
+          "label": "检查站",
+          "verb": "靠近"
+        }
+      },
+      "hazard": {
+        "floodwater": {
+          "label": "积水"
+        },
+        "collapse": {
+          "label": "坠物通道"
+        },
+        "live_rail": {
+          "label": "带电轨"
+        },
+        "blackout": {
+          "label": "断电"
+        },
+        "pinch": {
+          "label": "窄缝"
+        }
+      }
+    },
+    "mrt": {
+      "loading": "正在加载铁路图…",
+      "cancel": "取消",
+      "title": "隧道路线",
+      "from": "从 {name}",
+      "to": " → {name}",
+      "tapStation": " — 点选站点",
+      "backToMap": "返回地图",
+      "goldPlanned": "金色 = 计划路线",
+      "noPath": "无法到达 {name} — 路网未连通。",
+      "allCollapsed": "通往 {name} 的每条隧道都要爬坍塌段 — 碎石、尸群、无营地。",
+      "shortcutCollapsed": "此捷径要爬坍塌段 — 会是一趟苦差。",
+      "tooSpent": "太累了 — 先休息",
+      "crawlCollapsed": "爬坍塌段 · {n} 站",
+      "crawlCollapsedPlural": "爬坍塌段 · {n} 站",
+      "enterTunnels": "进入隧道 · {n} 站",
+      "enterTunnelsPlural": "进入隧道 · {n} 站",
+      "pickDestination": "选择目的地",
+      "crawlHint": "整条路线一次爬行。途中可在任意站出站。",
+      "changes": " · 换乘 {n} 次",
+      "changesPlural": " · 换乘 {n} 次",
+      "noChanges": " · 无需换乘",
+      "throughCollapsed": "经坍塌段（{stops} · {n} 段损毁）",
+      "fewestIntact": "最少完好站（{stops}）",
+      "viaLine": "经 {line} · {n} 站",
+      "viaCodes": "{codes} · {n} 站 · 换乘 {changes} 次",
+      "viaCodesPlural": "{codes} · {n} 站 · 换乘 {changes} 次",
+      "stopsOne": "1 站",
+      "stopsMany": "{n} 站",
+      "tooltipHere": "（此处）",
+      "tooltipDestination": "（目的地）",
+      "legendCollapsed": "虚线 = 坍塌 · 可通行，极苦",
+      "osmBaked": "OSM · 烘焙 {date}"
+    },
+    "stationStrip": {
+      "arrived": "到达",
+      "changeTo": "换乘",
+      "now": "当前",
+      "nowNamed": "当前：{name}",
+      "collapsedBore": "坍塌隧道",
+      "alighting": "即将下车",
+      "changeAt": "换乘于",
+      "changeAtNamed": "换乘于 {name}",
+      "next": "下一站",
+      "nextNamed": "下一站：{name}",
+      "crawlRubble": "爬过碎石",
+      "toLine": "至 {line}",
+      "stopsLeft": " · 剩 {n} 站",
+      "stopsLeftPlural": " · 剩 {n} 站",
+      "metersNoWeather": "{m} m · 无天气",
+      "plannedAria": "计划站点",
+      "changeHere": "在此换乘"
+    },
+    "trader": {
+      "kinStock": "好货留给自己人",
+      "bare": "今天板子是空的。明天再来。",
+      "carrying": "携带 {n}",
+      "taken": "已换",
+      "trade": "交易",
+      "short": "不够",
+      "footer": "板子天亮翻新。没了就是没了。"
+    },
+    "pending": {
+      "someoneWantsWord": "有人想说话",
+      "youHaveNone": "（你没有）",
+      "dc": "DC {n}"
+    },
+    "sleep": {
+      "safe": "安全",
+      "restRecovery": "休息恢复",
+      "walls": "墙 · {label}",
+      "roof": "顶 · {label}",
+      "bed": "床 · {label}",
+      "combined": "合计",
+      "nightAmbush": "夜间伏击",
+      "aria": "休息质量 {pct}% — 伏击 {ambushPct}% {ambush} — {summary}",
+      "enclosed": {
+        "none": "露天",
+        "partial": "半围",
+        "full": "封闭"
+      },
+      "roofLevel": {
+        "none": "无顶",
+        "yes": "有顶"
+      },
+      "bedLevel": {
+        "ground": "地面",
+        "bed": "床"
+      },
+      "ambush": {
+        "safe": "安全",
+        "uneasy": "不安",
+        "exposed": "暴露",
+        "suicide": "送死"
+      }
+    },
+    "trek": {
+      "title": "开阔地",
+      "blurb": "没有建筑，没有囤点，没什么可搜。只是一条路。",
+      "cross": "穿越",
+      "exposure": "消耗",
+      "route": "路线",
+      "forest": " · 树林",
+      "energyHit": "−{n} 精力",
+      "blind": "你看不清那边的地面。什么都可能趴在那儿。",
+      "night": "🌙 你会在天黑后被困在外头，连门都关不上。",
+      "outOfRange": "⛔ 比你一次能撑的更远 — 选近一点的地方。",
+      "noDry": "⛔ 没有干路 — 水域或禁区挡住了。",
+      "tooExhausted": "太累了 — 先睡",
+      "noDryRoute": "没有干路",
+      "tooClose": "太近不值得",
+      "tooFar": "太远到不了",
+      "crossCta": "步行穿越 · {dur}"
+    }
+  },
+  "settings": {
+    "language": {
+      "label": "语言",
+      "description": "界面语言。有译文的游戏内容会一并切换。",
+      "options": {
+        "en": "English",
+        "zh-Hans": "简体中文"
+      }
+    },
+    "groups": {
+      "Display": "显示",
+      "Timeline": "时间线",
+      "Guide": "指南"
+    },
+    "logView": {
+      "label": "时间线详细度",
+      "description": "屏幕上保留多少时间线条目。",
+      "options": {
+        "full": "全部",
+        "latest": "最新",
+        "recent5": "最近 5 条",
+        "recent10": "最近 10 条"
+      }
+    },
+    "clockFormat": {
+      "label": "时钟",
+      "description": "时钟、时间线与日日志里时间的显示格式。",
+      "options": {
+        "12": "12 小时制",
+        "24": "24 小时制"
+      }
+    },
+    "weatherFx": {
+      "label": "天气特效",
+      "description": "地图上的雨、眩光与霾。纯视觉——吃 GPU，默认关，想开再开。",
+      "options": {
+        "off": "关",
+        "subtle": "轻微",
+        "full": "完整"
+      }
+    },
+    "fontSize": {
+      "label": "字体大小",
+      "description": "界面文字缩放。影响整个界面，包括时间线。",
+      "options": {
+        "sm": "小",
+        "md": "中",
+        "lg": "大",
+        "xl": "特大"
+      }
+    },
+    "showGuideOnStart": {
+      "label": "开局显示怎么玩",
+      "description": "开局时显示怎么玩入门。熟了可以关掉。",
+      "options": {
+        "on": "开",
+        "off": "关"
+      }
+    }
+  },
+  "guide": {
+    "survive": {
+      "title": "求生",
+      "bullets": [
+        "饥饿、口渴、精力与感染每小时都会推进。把它们撑住——饥饿或口渴掉到 20 以下会开始啃四肢 HP。",
+        "生命值是六条肢体的总和。流血会挡住自然回复；感染到 100 本局结束。",
+        "入夜（黄昏后）更危险。天黑前进屋——街上会涌起夜群。休息会显示恢复量与伏击概率；睡觉仍会消耗饥饿与口渴（幅度降低）。",
+        "危险区落在地标之间（尸潮、巡逻、塌方、积水）。感应范围内能察觉它们，能绕就绕——每种踩上去咬法不同。",
+        "感染动物走同一套战斗循环，击中也可能传染。水獭与巨蜥占内陆水域，猕猴与野猪在集水区，狗/猫/鼠在街上。"
+      ]
+    },
+    "loot": {
+      "title": "搜刮",
+      "bullets": [
+        "到地点后开始搜索：迷雾格会实时一格格揭开发现。街边点通常只有一小把物品——状况反映这地方有多烂。",
+        "首次造访会估出占地与毁损（完好 → 掏空）。毁损越重，平均装备越破；完好货仍可能出现，只是更稀。",
+        "点迷雾格可指定下一搜。点已发现物品（或「全部拿走」）进背包；装不下的进现场小囤点（4×4）。",
+        "装备中的背包会改格子形状，不只改容量——空洞格放不了东西。",
+        "每个地点搜索次数有限。提早离开仍会扣部分次数。想要的拿走——「完成」或「离开」会放弃其余。"
+      ]
+    },
+    "hdb": {
+      "title": "进组屋",
+      "bullets": [
+        "底层公共空间会开侧立面剖面。即使楼层封死，楼梯仍可见；悬停可达楼梯或门可预览自动路径，再点击走过去。未到过的开放楼层会一直迷雾，直到你爬上去。",
+        "封死的平台永久消失。走廊杂物、路障与楼梯闸可清理（热量 + 时间）。塌方永久——另找路。",
+        "越高层战利品越好。剖面门显示房间类型（单位、囤货、陷阱、储藏、粮仓、据点）——悬停门卡上的「房间」格看含义。遭遇概率跟热量与门况走（感知可钉死精确％，否则给区间）。进入与遭遇写在那张卡上，不在门面上。底部栏的热量显示爬楼难度；展开可看符号图例与感应检定概率。下楼可能需要敏捷 + 耐力（悬停楼梯可预览）。只能从 01 层离开。"
+      ]
+    },
+    "tunnels": {
+      "title": "隧道",
+      "bullets": [
+        "在 MRT 站台点「规划隧道行程」打开铁路图。选目的地——默认走完好站最少的路线。每局有些路段会塌：仍能过，但是碎石里爬行，途中没有营地。长途可能诱惑你抄近路。",
+        "确认路线后整段一次爬完。站台条显示计划线路、下一站与换乘。可在中途站出站，也可走到终点。地下没有地表行程、天气或负重。",
+        "站与站之间正线可能分叉。可留在正线，也可拐进侧道——侧道可能再走几站才汇合。选你付得起的节点；迈出去后另一条就没了。",
+        "营地可垫席、包扎或换物——地下唯一的床位。障碍各异：积水可能藏着变异水獭，落石伤得重，断电吃掉钟点。稀有「接触」是一路尾随的潜行者。STA 可能对下楼收费，有时连隧道本身也要。"
+      ]
+    },
+    "evac": {
+      "title": "撤离",
+      "bullets": [
+        "地图信标标出集结区。在限时窗口内带着背包里的物资到达（不是囤点或已装备），再打信号弹。",
+        "燃料最值钱，其次是药品与弹药；密封水差一点；食物与废料几乎不算；武器几乎不算货物。直升机从不报配额——每个窗口胃口不同，只有信号弹告诉你够不够。烧水会烧掉燃料。",
+        "错过窗口后冷却结束会开新点——尸潮照样涨。塌了的隧道常逼你绕向第一座信标，或高风险从碎石里爬过去。"
+      ]
+    },
+    "score": {
+      "title": "分数",
+      "bullets": [
+        "分数 =（击杀 × 25 + 随身战利品价值 + 天数 × 50）× 日乘数。第 1 天 ×1.0；之后每天再加 ×0.1。",
+        "成功撤离再加 2000 × 同一日乘数。多留几天抬乘数，再晚些起飞，榜分最高。",
+        "死亡仍会在本机记分，在线时也会上全球榜。尸潮到 100%，城市沦陷，本局结束。"
+      ]
+    }
+  },
+  "item": {
+    "canned_food": "罐头食品",
+    "rice_pack": "袋装米",
+    "instant_noodles": "方便面",
+    "snacks": "零食",
+    "hawker_meal": "剩的小贩餐",
+    "bak_kwa": "真空包装肉干",
+    "army_ration": "SAF 口粮包",
+    "milo_tin": "罐装美禄",
+    "condensed_milk": "炼乳",
+    "kaya_toast": "咖椰吐司",
+    "curry_puff": "咖喱卜",
+    "nasi_lemak": "盒装椰浆饭",
+    "wild_boar_meat": "野猪肉",
+    "river_fish": "河鱼",
+    "durian": "榴莲",
+    "water_bottle": "瓶装水",
+    "newater": "NEWater 瓶",
+    "dirty_water": "浑水",
+    "purification_tabs": "净水片",
+    "soft_drink": "汽水",
+    "isotonic": "100PLUS",
+    "tiger_beer": "温热的虎牌啤酒",
+    "chin_chow": "凉粉饮料",
+    "yakult": "养乐多",
+    "bandage": "绷带",
+    "improvised_bandage": "简易敷料",
+    "painkillers": "止痛药",
+    "medkit": "急救包",
+    "antibiotics": "抗生素",
+    "antiseptic": "消毒液",
+    "tiger_balm": "老虎膏",
+    "axe_oil": "风油",
+    "po_chai": "保济丸",
+    "splint": "夹板",
+    "mosquito_coil": "蚊香",
+    "coffee": "咖啡粉包",
+    "energy_drink": "能量饮料",
+    "kitchen_knife": "菜刀",
+    "hammer": "羊角锤",
+    "crowbar": "撬棍",
+    "fire_axe": "消防斧",
+    "parang": "巴冷刀",
+    "wooden_stick": "木棍",
+    "meat_cleaver": "砍骨刀",
+    "golf_club": "高尔夫球杆",
+    "baseball_bat": "棒球棒",
+    "changkol": "锄头",
+    "katana": "武士刀",
+    "spear_knife": "刀矛",
+    "spear_cleaver": "砍刀矛",
+    "spear_parang": "巴冷矛",
+    "pistol": "制式手枪",
+    "shotgun": "霰弹枪",
+    "ammo_box": "弹药盒",
+    "ammo_shell": "散装霰弹",
+    "n95_mask": "N95 口罩",
+    "hard_hat": "安全帽",
+    "motorcycle_helmet": "摩托车盔",
+    "riot_helmet": "防暴盔",
+    "leather_jacket": "皮夹克",
+    "work_vest": "工作背心",
+    "army_uniform": "迷彩军服",
+    "kevlar_vest": "凯夫拉背心",
+    "sbo_vest": "SBO 负重背心",
+    "work_gloves": "工作手套",
+    "cut_gloves": "防割手套",
+    "grip_gloves": "防滑手套",
+    "tactical_gloves": "战术手套",
+    "jeans": "牛仔裤",
+    "work_trousers": "工作裤",
+    "camo_pants": "迷彩裤",
+    "riot_pads": "防暴护腿",
+    "flip_flops": "人字拖",
+    "sneakers": "运动鞋",
+    "hiking_boots": "徒步靴",
+    "combat_boots": "作战靴",
+    "riot_shield": "防暴盾",
+    "torch": "手电筒",
+    "fuel_can": "汽油桶",
+    "duct_tape": "胶带",
+    "batteries": "电池",
+    "scrap_metal": "废金属",
+    "toolbox": "工具箱",
+    "jewellery": "首饰",
+    "ez_link_card": "EZ-Link 卡",
+    "red_packet": "红包",
+    "joss_paper": "冥纸",
+    "rain_tarp": "防雨布",
+    "powerbank": "充电宝",
+    "four_d_ticket": "4D 彩票",
+    "cloth_rags": "布条",
+    "sleeping_bag": "睡袋",
+    "glass_bottle": "空瓶",
+    "spare_parts": "零件",
+    "whetstone": "磨刀石",
+    "gun_oil": "枪油",
+    "daypack": "日用背包",
+    "school_bag": "书包",
+    "hiking_pack": "徒步背包",
+    "military_rucksack": "军用背包",
+    "box_cutter": "美工刀",
+    "rotan_cane": "藤鞭",
+    "bamboo_pole": "竹竿",
+    "pipe_wrench": "管钳",
+    "tire_iron": "撬胎棒",
+    "police_baton": "警棍",
+    "rebar": "钢筋",
+    "cricket_bat": "板球拍",
+    "pot_lid": "锅盖",
+    "metal_tray": "金属托盘",
+    "traffic_barrier": "路障碎片",
+    "bike_helmet": "自行车盔",
+    "welding_mask": "焊工面罩",
+    "security_vest": "保安背心",
+    "football_pads": "橄榄球护具",
+    "knee_pads": "护膝",
+    "mee_siam": "盒装暹罗面",
+    "chicken_rice": "盒装海南鸡饭",
+    "hardtack": "硬饼干",
+    "bandung": "瓶装班兰汽水",
+    "soya_bean": "豆奶",
+    "bubble_tea": "珍珠奶茶",
+    "premium_bento": "高级便当",
+    "plus_100": "100 Plus 罐",
+    "plasters": "创可贴盒",
+    "vitamin_c": "维C片",
+    "oral_rehydration": "ORS 冲剂",
+    "yoga_mat": "瑜伽垫",
+    "camp_pillow": "露营枕",
+    "emergency_blanket": "应急毯",
+    "ez_link_knife": "EZ-Link 刀",
+    "kopi_c": "Kopi C",
+    "cooked_mee": "煮好的 Maggi",
+    "milo_dinosaur": "美禄恐龙"
+  },
+  "enemy": {
+    "shambler": "蹒跚者",
+    "crawler": "爬行者",
+    "walker": "行走者",
+    "runner": "奔跑者",
+    "bloater": "肿胀者",
+    "lurcher": "踉跄者",
+    "rioter": "暴徒",
+    "brute": "蛮力者",
+    "abomination": "憎恶",
+    "hulk": "巨怪",
+    "stalker": "潜行者",
+    "macaque": "变异猕猴",
+    "otter": "变异水獭",
+    "wild_boar": "集水区野猪",
+    "monitor": "运河巨蜥",
+    "dog": "变异狗",
+    "cat": "变异猫",
+    "rat": "阴沟鼠",
+    "human": {
+      "syndicate_88": "88 帮跑手",
+      "idtf": "IDTF 逃兵",
+      "pasir_panjang": "合作社打手",
+      "sta": "STA 隧道执勤"
+    },
+    "loner": {
+      "scavenger": "对手拾荒者",
+      "survivor": "绝望幸存者",
+      "raider": "武装劫匪",
+      "tout": "组屋掮客"
+    }
+  },
+  "recipe": {
+    "purify": {
+      "name": "净水",
+      "blurb": "药片加二十分钟，把一瓶浑水变成能喝的。"
+    },
+    "boil": {
+      "name": "煮水",
+      "blurb": "比药片慢，还烧掉燃料——燃料对撤离准备也很关键。"
+    },
+    "bandages": {
+      "name": "撕敷料",
+      "blurb": "布条撕成条。能止血——挡不住之后钻进去的东西。"
+    },
+    "spear_knife": {
+      "name": "绑刀矛",
+      "blurb": "菜刀胶带捆在木棍上。把它们挡在一臂之外。"
+    },
+    "spear_cleaver": {
+      "name": "绑砍刀矛",
+      "blurb": "尖端比刀矛重，咬得更深。"
+    },
+    "spear_parang": {
+      "name": "绑巴冷矛",
+      "blurb": "里头最好的——也要赔上你最好的刀。"
+    },
+    "parts": {
+      "name": "拆零件",
+      "blurb": "废料又重又不值钱。零件轻，能修东西。"
+    },
+    "shells": {
+      "name": "装填霰弹",
+      "blurb": "手装弹。难看、慢，却是还在造的唯一弹药。"
+    },
+    "sleeping_bag": {
+      "name": "缝睡袋",
+      "blurb": "布条和胶带缝成能睡的东西。重，但比地板强。"
+    },
+    "ez_link_knife": {
+      "name": "叠 EZ-Link 刀",
+      "blurb": "四张废卡加一块废铁边。STA 不再收它们当贡品了。"
+    },
+    "kopi_c": {
+      "name": "冲 Kopi C",
+      "blurb": "袋装咖啡、挤一点炼乳，加上瓶里最后一点水。不是咖啡店，但差不多。"
+    },
+    "cooked_mee": {
+      "name": "煮 Maggi",
+      "blurb": "一块面加一瓶水。热可选。饿不行。"
+    },
+    "milo_dinosaur": {
+      "name": "调美禄恐龙",
+      "blurb": "整罐、顶上再加粉，再加你能省下的水。罐重，杯轻。"
+    }
+  },
+  "trait": {
+    "ns_combat": {
+      "name": "预备役",
+      "description": "+1 力量、+2 攻击、+1 防御。强制服役的肌肉记忆还没散干净。"
+    },
+    "medic": {
+      "name": "训练有素的医护",
+      "description": "治疗物品多恢复 +5 HP。感染增长少 35%。诊所轮班把分诊教得很硬。"
+    },
+    "hawker_cook": {
+      "name": "家常厨子",
+      "description": "食物多恢复 30% 饥饿。灶台后混了多年——或家里厨房也当灶台用。"
+    },
+    "marathoner": {
+      "name": "长跑者",
+      "description": "+1 耐力、+15 最大 HP、精力消耗 −10%。以前能拿金标准的那种体能。"
+    },
+    "karang_guni": {
+      "name": "拾荒客",
+      "description": "+1 战利品、每个地点多 1 次搜索、搜索速度 +10%。你早知道哪几栋有好货。"
+    },
+    "tekong_legs": {
+      "name": "野径腿",
+      "description": "+1 敏捷、旅行速度 +15%。行军练出来的小腿——岛上岛下都一样。"
+    },
+    "night_owl": {
+      "name": "夜猫子",
+      "description": "夜间无命中惩罚。多年轮班值回来了。"
+    },
+    "thick_skin": {
+      "name": "厚皮",
+      "description": "30% 感染抗性、+1 防御。蚊子练出来的免疫系统。"
+    },
+    "kiasuism": {
+      "name": "机会主义",
+      "description": "+1 机智、战利品价值 +10%、能看见地点剩余搜索次数。必须多拿——排队文化不死。"
+    },
+    "kampong_spirit": {
+      "name": "邻里情",
+      "description": "开局与 IDTF、PP 合作社为「认识」——柜台第一天就对你开。邻里情比末日还长。"
+    },
+    "ah_long_debt": {
+      "name": "黑道门路",
+      "description": "88 帮有人记得你。不会见面就开枪，他们的摊子也对你开——但 IDTF 也读过同一份档案。"
+    },
+    "water_baby": {
+      "name": "好泳者",
+      "description": "口渴消耗 −20%。周末水库圈游值回来了。"
+    },
+    "handyman": {
+      "name": "万能手",
+      "description": "合成配方少耗 1 份材料。扎带、废料，加上修房子的习惯走得远。"
+    },
+    "sixth_sense": {
+      "name": "第六感",
+      "description": "+1 感知、侦测半径 +30%、伏击概率减半。还没看见就先感觉到了。"
+    },
+    "pack_rat": {
+      "name": "仓鼠",
+      "description": "背包 +1 列。每个口袋里还有口袋。"
+    },
+    "mule": {
+      "name": "驮骡",
+      "description": "背包 +2 列。你天生就是扛货的。"
+    },
+    "light_pockets": {
+      "name": "轻装",
+      "description": "背包 −1 列。轻装上路——退还 1 点特质点。"
+    },
+    "deep_sleeper": {
+      "name": "沉睡者",
+      "description": "睡眠多恢复 25% 精力。一睡就死沉。"
+    },
+    "quiet_step": {
+      "name": "轻步",
+      "description": "旅行时遭遇概率 −10%。鞋底软，习惯更软。"
+    },
+    "strong_back": {
+      "name": "铁背",
+      "description": "+4 kg 负重。扛箱子或洗衣袋的年头堆出来的。"
+    },
+    "iron_stomach": {
+      "name": "铁胃",
+      "description": "饥饿消耗 −15%。几乎什么都能吃，还能继续走。"
+    },
+    "heat_hardened": {
+      "name": "耐热",
+      "description": "户外与高温下精力消耗 −15%。天气抱怨早几年就不说了。"
+    },
+    "silver_tongue": {
+      "name": "巧舌",
+      "description": "+1 机智，门口与对话检定 +2。你说开的门比踹开的多。"
+    },
+    "field_dressing": {
+      "name": "战地包扎",
+      "description": "治疗物品多恢复 +3 HP。腿伤愈合快 30%。"
+    },
+    "calm_hands": {
+      "name": "沉稳之手",
+      "description": "闪避 +4%。有东西扑过来时你少抖一下。"
+    },
+    "frugal": {
+      "name": "省着用",
+      "description": "食物多恢复 15% 饥饿。每一包都抠着用。"
+    },
+    "aircon_addict": {
+      "name": "娇生惯养",
+      "description": "户外与高温下精力消耗 +20%。没空调过不了一天。"
+    },
+    "picky_eater": {
+      "name": "挑食",
+      "description": "食物少恢复 25% 饥饿。口感与牌子居然还重要。"
+    },
+    "glass_jaw": {
+      "name": "玻璃下巴",
+      "description": "−1 耐力、−15 最大 HP。一下就黑屏。"
+    },
+    "clumsy": {
+      "name": "笨手笨脚",
+      "description": "−1 敏捷、−1 攻击、伏击概率 +5%。平地都能绊倒。"
+    },
+    "hoarder": {
+      "name": "囤积症",
+      "description": "不能主动丢弃物品——只能消耗或存囤。说不定以后有用。"
+    },
+    "noisy": {
+      "name": "吵闹",
+      "description": "旅行时遭遇概率 +15%。嘴停不下来——东西也叮当响。"
+    },
+    "bad_knees": {
+      "name": "膝盖差",
+      "description": "−1 敏捷、旅行速度 −20%、腿伤愈合慢 50%。硬地板年头咬过来的。"
+    },
+    "hemophilia": {
+      "name": "血友病",
+      "description": "流血不会自停——必须处理。带着绷带，否则死。"
+    },
+    "poor_sleep": {
+      "name": "浅眠",
+      "description": "睡眠少恢复 30% 精力。一点响动就把你惊醒。"
+    },
+    "squeamish": {
+      "name": "恶心怕脏",
+      "description": "对亡灵攻击 −1。腐臭还是让你想吐。"
+    },
+    "out_of_shape": {
+      "name": "走形",
+      "description": "精力消耗 +15%、旅行速度 −10%。坐办公室的年头追上了。"
+    },
+    "weak_stomach": {
+      "name": "肠胃弱",
+      "description": "饥饿消耗 +20%。吃下去留不久。"
+    },
+    "dehydrated": {
+      "name": "总是渴",
+      "description": "口渴消耗 +20%。还没到中午嘴就干了。"
+    },
+    "afraid_of_dark": {
+      "name": "怕黑",
+      "description": "夜间遭遇概率 +10%，天黑后再 −1 命中。影子还是赢。"
+    },
+    "thin_blood": {
+      "name": "稀血",
+      "description": "感染抗性 −20%。伤口化脓快得不正常。"
+    },
+    "short_fuse": {
+      "name": "暴脾气",
+      "description": "−1 机智。压力先变成吼，再变成计划。"
+    },
+    "heavy_sleeper": {
+      "name": "睡死了",
+      "description": "伏击概率 +10%。麻烦爬到身上才听见。"
+    }
+  }
+}

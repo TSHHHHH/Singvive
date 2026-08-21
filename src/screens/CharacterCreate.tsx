@@ -4,7 +4,6 @@ import {
   ATTRIBUTE_BLURB,
   ATTRIBUTE_ICONS,
   ATTRIBUTE_KEYS,
-  ATTRIBUTE_LABELS,
   BASE_ATTRIBUTE,
   TRAITS,
   TRAIT_BUDGET,
@@ -28,6 +27,7 @@ import {
 import { randomSurvivorName, SURVIVOR_NAME_MAX } from '../game/randomNames';
 import type { Occupation, Trait } from '../game/types';
 import { Icon } from '../icons/Icon';
+import { traitDescription, traitName, useT } from '../i18n';
 
 type Side = 'positive' | 'negative';
 type Step = 'occupation' | 'custom';
@@ -39,6 +39,7 @@ function sameTraits(a: string[], b: string[]): boolean {
 
 export function CharacterCreate() {
   const { commitCharacter, resetToMenu } = useGame();
+  const { locale, t } = useT();
   const [name, setName] = useState('');
   const [step, setStep] = useState<Step>('occupation');
   const [traitIds, setTraitIds] = useState<string[]>([]);
@@ -112,10 +113,10 @@ export function CharacterCreate() {
                 <Icon
                   name={ATTRIBUTE_ICONS[k]}
                   size={13}
-                  title={ATTRIBUTE_LABELS[k]}
+                  title={t(`ui.attributes.${k}`)}
                   className="shrink-0"
                 />
-                <span className="truncate">{ATTRIBUTE_LABELS[k]}</span>
+                <span className="truncate">{t(`ui.attributes.${k}`)}</span>
               </span>
               <span className="flex shrink-0 items-baseline gap-1">
                 <span className="text-base font-bold tabular-nums">{attrs[k]}</span>
@@ -188,18 +189,18 @@ export function CharacterCreate() {
     const positives = ids.filter((id) => getTrait(id).category === 'positive');
     const negatives = ids.filter((id) => getTrait(id).category === 'negative');
     const chip = (id: string) => {
-      const t = getTrait(id);
+      const trait = getTrait(id);
       return (
         <span
           key={id}
-          title={withAttrEmojis(t.description)}
+          title={withAttrEmojis(traitDescription(id, locale))}
           className={`rounded border px-1.5 py-0.5 text-2xs ${
-            t.category === 'positive'
+            trait.category === 'positive'
               ? 'border-signal/30 bg-signal/10 text-signal'
               : 'border-hiss/30 bg-hiss/10 text-hiss'
           }`}
         >
-          {t.name}
+          {traitName(id, locale)}
         </span>
       );
     };
@@ -516,7 +517,7 @@ export function CharacterCreate() {
           </span>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-xs font-semibold uppercase tracking-wide">
-              {t.name}
+              {traitName(t.id, locale)}
             </span>
             <span className={`text-2xs tabular-nums ${accent}`}>
               {sign}
@@ -540,32 +541,35 @@ export function CharacterCreate() {
 
   const renderDetail = (side: Side) => {
     const id = locked[side] ?? hovered[side];
-    const t = id ? getTrait(id) : null;
+    const trait = id ? getTrait(id) : null;
     const accent = side === 'positive' ? 'text-signal' : 'text-hiss';
-    const pinned = t != null && locked[side] === t.id;
+    const pinned = trait != null && locked[side] === trait.id;
 
     return (
       <div className="mt-2 min-h-[6.5rem] rounded border border-white/15 bg-concrete-900/80 px-3 py-2">
-        {t ? (
+        {trait ? (
           <>
             <div className="flex items-baseline justify-between gap-2">
-              <span className="text-sm font-bold uppercase tracking-wide">{t.name}</span>
+              <span className="text-sm font-bold uppercase tracking-wide">
+                {traitName(trait.id, locale)}
+              </span>
               <span className={`shrink-0 text-xs tabular-nums ${accent}`}>
                 {side === 'positive' ? '−' : '+'}
-                {Math.abs(t.cost)} pt
+                {Math.abs(trait.cost)} pt
               </span>
             </div>
             <p className="mt-1 text-xs leading-relaxed text-white/70">
-              {withAttrEmojis(t.description)}
+              {withAttrEmojis(traitDescription(trait.id, locale))}
             </p>
-            {t.conflicts.length > 0 && (
+            {trait.conflicts.length > 0 && (
               <p className="mt-1.5 text-2xs text-white/40">
-                Conflicts: {t.conflicts.map((c) => getTrait(c).name).join(', ')}
+                Conflicts:{' '}
+                {trait.conflicts.map((c) => traitName(c, locale)).join(', ')}
               </p>
             )}
             {pinned && (
               <button
-                onClick={() => toggleLock(side, t.id)}
+                onClick={() => toggleLock(side, trait.id)}
                 className="mt-1.5 text-2xs text-white/40 hover:text-white/80"
               >
                 📌 pinned — click to unpin
@@ -721,7 +725,7 @@ export function CharacterCreate() {
         onClick={() => (step === 'custom' ? setStep('occupation') : resetToMenu())}
         className="text-xs text-white/40 hover:text-white/70"
       >
-        ← Back
+        {t('ui.common.back')}
       </button>
 
       {step === 'occupation' ? renderOccupationStep() : renderCustomStep()}

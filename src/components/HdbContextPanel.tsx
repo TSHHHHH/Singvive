@@ -20,6 +20,7 @@ import {
   type HdbDungeon,
   type HdbUnitNode,
 } from '../game/hdbDungeon';
+import { msgOr, useT } from '../i18n';
 import { useIsPhoneLayout } from './HdbZoomViewport';
 
 const CONTAINER_ICON: Record<string, IconName> = {
@@ -76,6 +77,7 @@ export function HdbContextPanel({
 }: {
   variant?: 'full' | 'compact';
 }) {
+  const { locale, t } = useT();
   const hdb = useGame((s) => s.hdb);
   const character = useGame((s) => s.character);
   const pendingSearch = useGame((s) => s.pendingSearch);
@@ -94,22 +96,20 @@ export function HdbContextPanel({
     floor.units.find((u) => u.column === hdb.pos.column && u.available) ?? null;
   const doorStatus = sel
     ? sel.state === 'cleared'
-      ? 'cleared'
-      : ENTRY_META[sel.entry].label
+      ? t('ui.hdb.doorCleared')
+      : msgOr(`ui.hdb.entry.${sel.entry}.label`, ENTRY_META[sel.entry].label, undefined, locale)
     : null;
 
   if (variant === 'compact') {
     const canLeave = hdb.currentLevel === 1 && !pendingSearch;
     const leaveTitle = pendingSearch
-      ? 'Finish the unit search in the timeline first'
+      ? t('ui.hdb.leaveNeedSearch')
       : hdb.currentLevel !== 1
-        ? 'Climb down to level 01 (void deck) to leave'
+        ? t('ui.hdb.leaveNeedVoidDeck')
         : undefined;
     return (
       <div className="space-y-2 text-xs">
-        <p className="text-concrete-300">
-          Actions stay on the cutaway. Clear units floor by floor, then leave from the void deck.
-        </p>
+        <p className="text-concrete-300">{t('ui.hdb.compactHint')}</p>
         <div className="flex justify-end">
           <button
             type="button"
@@ -118,7 +118,7 @@ export function HdbContextPanel({
             title={leaveTitle}
             className="rounded border border-white/15 px-2.5 py-1 text-xs text-concrete-300 hover:bg-white/5 disabled:opacity-40"
           >
-            Leave the block
+            {t('ui.hdb.leaveBlock')}
           </button>
         </div>
       </div>
@@ -135,25 +135,51 @@ export function HdbContextPanel({
 
   const blockActions = (
     <>
-      {clearable.map((c) => (
-        <button
-          key={c.key}
-          type="button"
-          onClick={() => hdbForceBlock(c.key)}
-          className="min-h-[44px] w-full rounded border border-hiss/60 bg-hiss/15 px-3 py-2 text-xs text-hiss hover:bg-hiss/25 lg:min-h-0 lg:py-1.5"
-        >
-          Clear {BLOCK_META[c.block.kind].label} · {c.block.minutes} min · +{c.block.heat} heat
-        </button>
-      ))}
-      {impassable.map((c) => (
-        <span
-          key={c.key}
-          title={BLOCK_META[c.block.kind].blurb}
-          className="min-h-[44px] w-full rounded border border-concrete-600 bg-concrete-900/80 px-3 py-2 text-xs text-concrete-300 lg:min-h-0 lg:py-1.5"
-        >
-          {BLOCK_META[c.block.kind].label} — no way through
-        </span>
-      ))}
+      {clearable.map((c) => {
+        const blockLabel = msgOr(
+          `ui.hdb.blockKind.${c.block.kind}.label`,
+          BLOCK_META[c.block.kind].label,
+          undefined,
+          locale,
+        );
+        return (
+          <button
+            key={c.key}
+            type="button"
+            onClick={() => hdbForceBlock(c.key)}
+            className="min-h-[44px] w-full rounded border border-hiss/60 bg-hiss/15 px-3 py-2 text-xs text-hiss hover:bg-hiss/25 lg:min-h-0 lg:py-1.5"
+          >
+            {t('ui.hdb.clearAction', {
+              label: blockLabel,
+              min: c.block.minutes,
+              heat: c.block.heat,
+            })}
+          </button>
+        );
+      })}
+      {impassable.map((c) => {
+        const blockLabel = msgOr(
+          `ui.hdb.blockKind.${c.block.kind}.label`,
+          BLOCK_META[c.block.kind].label,
+          undefined,
+          locale,
+        );
+        const blockBlurb = msgOr(
+          `ui.hdb.blockKind.${c.block.kind}.blurb`,
+          BLOCK_META[c.block.kind].blurb,
+          undefined,
+          locale,
+        );
+        return (
+          <span
+            key={c.key}
+            title={blockBlurb}
+            className="min-h-[44px] w-full rounded border border-concrete-600 bg-concrete-900/80 px-3 py-2 text-xs text-concrete-300 lg:min-h-0 lg:py-1.5"
+          >
+            {t('ui.hdb.noWayThrough', { label: blockLabel })}
+          </span>
+        );
+      })}
     </>
   );
 
@@ -165,27 +191,47 @@ export function HdbContextPanel({
     ? sel.label
     : stair
       ? stair.kind === 'side'
-        ? `Side stair ${stair.id}`
-        : `Stairwell ${stair.id}`
+        ? t('ui.hdb.sideStair', { id: stair.id })
+        : t('ui.hdb.stairwell', { id: stair.id })
       : boarded
         ? boarded.label
         : isVoidDeckFloor(floor) && floor.units.length === 0
-          ? 'Void deck'
-          : `Level ${String(hdb.currentLevel).padStart(2, '0')}`;
+          ? t('ui.hdb.voidDeck')
+          : t('ui.hdb.level', { nn: String(hdb.currentLevel).padStart(2, '0') });
   const placeStatus = sel
     ? doorStatus
     : stair
       ? clearable[0]
-        ? BLOCK_META[clearable[0].block.kind].label
+        ? msgOr(
+            `ui.hdb.blockKind.${clearable[0].block.kind}.label`,
+            BLOCK_META[clearable[0].block.kind].label,
+            undefined,
+            locale,
+          )
         : impassable[0]
-          ? BLOCK_META[impassable[0].block.kind].label
-          : 'open'
+          ? msgOr(
+              `ui.hdb.blockKind.${impassable[0].block.kind}.label`,
+              BLOCK_META[impassable[0].block.kind].label,
+              undefined,
+              locale,
+            )
+          : t('ui.hdb.doorOpen')
       : boarded
-        ? 'boarded'
+        ? t('ui.hdb.doorBoarded')
         : clearable[0]
-          ? BLOCK_META[clearable[0].block.kind].label
+          ? msgOr(
+              `ui.hdb.blockKind.${clearable[0].block.kind}.label`,
+              BLOCK_META[clearable[0].block.kind].label,
+              undefined,
+              locale,
+            )
           : impassable[0]
-            ? BLOCK_META[impassable[0].block.kind].label
+            ? msgOr(
+                `ui.hdb.blockKind.${impassable[0].block.kind}.label`,
+                BLOCK_META[impassable[0].block.kind].label,
+                undefined,
+                locale,
+              )
             : null;
 
   const placeHeader = (
@@ -206,15 +252,22 @@ export function HdbContextPanel({
     ? Math.round(retreatFailChance(character.attributes, hdb) * 100)
     : 0;
 
+  const unitLabel = sel
+    ? msgOr(`ui.hdb.unit.${sel.type}.label`, UNIT_META[sel.type].label, undefined, locale)
+    : '';
+  const unitBlurb = sel
+    ? msgOr(`ui.hdb.unit.${sel.type}.blurb`, UNIT_META[sel.type].blurb, undefined, locale)
+    : '';
+
   const scoutColumn = sel ? (
     <div className="flex w-[7.5rem] shrink-0 flex-col items-center justify-center gap-1.5 self-stretch sm:w-[8.5rem]">
       {encounter && (
         <ScoutTile
-          label="Encounter"
+          label={t('ui.hdb.scoutEncounter')}
           title={
             encounter.exact
-              ? 'Perception read — exact chance a fight starts when you breach'
-              : 'Estimate from heat + door type — raise Perception to pin the exact %'
+              ? t('ui.hdb.scoutEncounterExact')
+              : t('ui.hdb.scoutEncounterEstimate')
           }
         >
           <span className={encounter.pct >= 50 ? 'text-hiss' : 'text-signal'}>
@@ -223,19 +276,24 @@ export function HdbContextPanel({
         </ScoutTile>
       )}
 
-      <ScoutTile label="Room" title={UNIT_META[sel.type].blurb}>
+      <ScoutTile label={t('ui.hdb.scoutRoom')} title={unitBlurb}>
         <span className="inline-flex max-w-full items-center gap-0.5 text-xs text-concrete-200">
           <Icon name={UNIT_META[sel.type].icon} size={12} />
-          <span className="truncate">{UNIT_META[sel.type].label}</span>
+          <span className="truncate">{unitLabel}</span>
         </span>
       </ScoutTile>
 
       <ScoutTile
-        label="Containers"
+        label={t('ui.hdb.scoutContainers')}
         title={
           sel.scoutedInfo?.containerCategory
-            ? `${sel.scoutedInfo.containerCategory} · ${sel.scoutedInfo.lootQuality}`
-            : 'Containers unread — raise Dexterity to scout from the corridor'
+            ? `${msgOr(
+                `ui.hdb.container.${sel.scoutedInfo.containerCategory}`,
+                sel.scoutedInfo.containerCategory,
+                undefined,
+                locale,
+              )} · ${sel.scoutedInfo.lootQuality}`
+            : t('ui.hdb.scoutContainersUnread')
         }
         unread={containerUnread}
       >
@@ -247,7 +305,14 @@ export function HdbContextPanel({
               }
               size={12}
             />
-            <span className="truncate text-xs">{sel.scoutedInfo.containerCategory}</span>
+            <span className="truncate text-xs">
+              {msgOr(
+                `ui.hdb.container.${sel.scoutedInfo.containerCategory}`,
+                sel.scoutedInfo.containerCategory,
+                undefined,
+                locale,
+              )}
+            </span>
           </span>
         ) : (
           <span className="text-concrete-500">?</span>
@@ -257,21 +322,21 @@ export function HdbContextPanel({
   ) : stair ? (
     <div className="flex w-[7.5rem] shrink-0 flex-col items-center justify-center gap-1.5 self-stretch sm:w-[8.5rem]">
       <ScoutTile
-        label="Descent"
-          title={
-            descentChecked
-              ? `Going down is watched — about ${descentFailPct}% chance to fail`
-              : 'Stairs are clear — no check at this heat'
-          }
+        label={t('ui.hdb.scoutDescent')}
+        title={
+          descentChecked
+            ? t('ui.hdb.scoutDescentWatched', { n: descentFailPct })
+            : t('ui.hdb.scoutDescentClear')
+        }
       >
         <span className={descentChecked && descentFailPct >= 50 ? 'text-hiss' : 'text-signal'}>
-          {descentChecked ? `${descentFailPct}%` : 'Clear'}
+          {descentChecked ? `${descentFailPct}%` : t('ui.hdb.scoutClear')}
         </span>
       </ScoutTile>
 
       <ScoutTile
-        label="Landing"
-        title={`Storey ${String(hdb.currentLevel).padStart(2, '0')}`}
+        label={t('ui.hdb.scoutLanding')}
+        title={t('ui.hdb.storey', { nn: String(hdb.currentLevel).padStart(2, '0') })}
       >
         <span className="tabular-nums text-concrete-100">
           #{String(hdb.currentLevel).padStart(2, '0')}
@@ -279,16 +344,26 @@ export function HdbContextPanel({
       </ScoutTile>
 
       <ScoutTile
-        label="Shaft"
-        title={stair.kind === 'side' ? 'Side stair at the end of the strip' : 'Internal stairwell'}
+        label={t('ui.hdb.scoutShaft')}
+        title={
+          stair.kind === 'side' ? t('ui.hdb.sideStairTitle') : t('ui.hdb.internalWell')
+        }
       >
         <span className="inline-flex items-center gap-0.5 text-xs text-concrete-200">
           <Icon name="hdb.stairwell" size={12} />
-          {stair.kind === 'side' ? 'Side' : 'Well'}
+          {stair.kind === 'side' ? t('ui.hdb.sideShort') : t('ui.hdb.wellShort')}
         </span>
       </ScoutTile>
     </div>
   ) : null;
+
+  const entryVerb = sel
+    ? msgOr(`ui.hdb.entry.${sel.entry}.verb`, ENTRY_META[sel.entry].verb, undefined, locale)
+    : '';
+  const heatBit =
+    sel && ENTRY_META[sel.entry].heat > 0
+      ? t('ui.hdb.heatPlus', { n: ENTRY_META[sel.entry].heat })
+      : t('ui.hdb.quiet');
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
@@ -305,11 +380,17 @@ export function HdbContextPanel({
                   disabled={sel.state === 'cleared'}
                   className="min-h-[44px] w-full rounded bg-signal/80 px-3 py-2 text-xs font-bold text-black hover:bg-signal disabled:opacity-30 lg:min-h-0 lg:py-1.5"
                 >
-                  <Icon name={SERVICE_ICON[sel.service]} /> {SERVICE_LABEL[sel.service]}
+                  <Icon name={SERVICE_ICON[sel.service]} />{' '}
+                  {msgOr(
+                    `ui.hdb.service.${sel.service}`,
+                    SERVICE_LABEL[sel.service],
+                    undefined,
+                    locale,
+                  )}
                 </button>
               ) : sel.state === 'cleared' ? (
                 <span className="text-xs leading-snug text-concrete-400">
-                  You&apos;ve already been through this one. Nothing left in it.
+                  {t('ui.hdb.unitClearedBlurb')}
                 </span>
               ) : (
                 <button
@@ -319,19 +400,20 @@ export function HdbContextPanel({
                   className="min-h-[44px] w-full rounded bg-signal/80 px-3 py-2 text-xs font-bold text-black hover:bg-signal disabled:opacity-30 lg:min-h-0 lg:py-1.5"
                 >
                   <Icon name={ENTRY_META[sel.entry].heat > 0 ? 'hdb.breach' : 'hdb.unit'} />{' '}
-                  {ENTRY_META[sel.entry].verb} · {ENTRY_META[sel.entry].minutes} min ·{' '}
-                  {ENTRY_META[sel.entry].heat > 0
-                    ? `+${ENTRY_META[sel.entry].heat} heat`
-                    : 'quiet'}
+                  {t('ui.hdb.breachLine', {
+                    verb: entryVerb,
+                    min: ENTRY_META[sel.entry].minutes,
+                    heat: heatBit,
+                  })}
                 </button>
               )
             ) : !stair && !boarded && clearable.length === 0 && impassable.length === 0 ? (
               <p className="text-xs text-concrete-400">
                 {isVoidDeckFloor(floor) && floor.units.length === 0
-                  ? 'Walk the pillars to a stair, then climb into the fog.'
+                  ? t('ui.hdb.voidHint')
                   : isPhone
-                    ? 'Tap a reachable cell or door to auto-path. Pinch to zoom. Breach only when you stand at the door.'
-                    : 'Click a reachable cell or door to auto-path. Unvisited floors stay fogged. Breach only when you stand at the door.'}
+                    ? t('ui.hdb.pathHintPhone')
+                    : t('ui.hdb.pathHintDesktop')}
               </p>
             ) : null}
           </div>

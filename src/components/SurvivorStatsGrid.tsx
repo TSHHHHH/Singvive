@@ -14,6 +14,7 @@ import {
   totalMaxHp,
   travelSpeedMultiplier,
 } from '../game/survival';
+import { useT } from '../i18n';
 
 function pct(n: number): string {
   return `${Math.round(n * 100)}%`;
@@ -36,6 +37,7 @@ function StatCell({ label, value, title }: StatCellProps) {
 
 /** Live combat and mobility numbers from stats, gear, traits, and injuries. */
 export function SurvivorStatsGrid() {
+  const { t } = useT();
   const { character, equipment, bodyParts, meters, rounds } = useGame(
     useShallow((s) => ({
       character: s.character,
@@ -80,26 +82,44 @@ export function SurvivorStatsGrid() {
 
   return (
     <div>
-      <h4 className="mb-1.5 text-xs uppercase tracking-widest text-white/30">Survivor stats</h4>
+      <h4 className="mb-1.5 text-xs uppercase tracking-widest text-white/30">
+        {t('ui.survivor.statsTitle')}
+      </h4>
       <div className="grid grid-cols-3 gap-1">
-        <StatCell label="Defence" value={String(pStats.defense)} title="Attack roll target" />
-        <StatCell label="Dodge" value={pct(dodge)} title="Chance to slip a connecting hit" />
-        <StatCell label="Attack" value={`+${pStats.attack}`} title="To-hit modifier" />
         <StatCell
-          label="HP"
+          label={t('ui.survivor.defence')}
+          value={String(pStats.defense)}
+          title={t('ui.survivor.defenceTip')}
+        />
+        <StatCell
+          label={t('ui.survivor.dodge')}
+          value={pct(dodge)}
+          title={t('ui.survivor.dodgeTip')}
+        />
+        <StatCell
+          label={t('ui.survivor.attack')}
+          value={`+${pStats.attack}`}
+          title={t('ui.survivor.attackTip')}
+        />
+        <StatCell
+          label={t('ui.survivor.hp')}
           value={`${Math.round(totalHp(bodyParts))}/${totalMaxHp(bodyParts) || maxHpFor(character)}`}
-          title="Total limb vitality"
+          title={t('ui.survivor.hpTip')}
         />
         <StatCell
-          label="Travel"
+          label={t('ui.survivor.travel')}
           value={`×${travel.toFixed(2)}`}
-          title="Movement speed (energy, legs, footwear, traits)"
+          title={t('ui.survivor.travelTip')}
         />
-        <StatCell label="Carry" value={`${carry}kg`} title="Max carry capacity with gear" />
         <StatCell
-          label="Noise"
+          label={t('ui.survivor.carry')}
+          value={`${carry}kg`}
+          title={t('ui.survivor.carryTip')}
+        />
+        <StatCell
+          label={t('ui.survivor.noise')}
           value={stealthLabel}
-          title="Encounter chance from gear (camo lowers, noisy boots raise)"
+          title={t('ui.survivor.noiseTip')}
         />
       </div>
     </div>

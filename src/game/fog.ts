@@ -88,5 +88,6 @@ export function snapshot(loc: LocationState): LocationMemory {
     exhausted: loc.exhausted,
     remainingSearches: loc.remainingSearches,
     cleared: loc.cleared,
+    ...(loc.destruction !== undefined ? { destruction: loc.destruction } : {}),
   };
 }

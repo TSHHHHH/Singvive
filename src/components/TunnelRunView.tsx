@@ -13,10 +13,13 @@ import { useGame } from '../game/store';
 import { Icon } from '../icons/Icon';
 import { itemDef } from '../game/loot';
 import { codeOnLine, journeyStrip } from '../game/mrt';
+import { FACTION_CONFIG } from '../game/factions';
+import { priceList } from '../game/events';
 import {
-  HAZARD_META,
-  PRESSURE_BANDS,
-  PRESSURE_MAX,
+  CARRIAGE_INVERT_ENERGY,
+  CARRIAGE_INVERT_MINUTES,
+  CARRIAGE_SMASH_MINUTES,
+  TUNNEL_HAZARD,
   TUNNEL_NODE_META,
   canExitHere,
   crawlPlace,
@@ -24,13 +27,15 @@ import {
   hazardDc,
   isArrival,
   isRevealed,
+  nodeNeedsChoice,
+  nodePreviewMinutes,
   nodeThreat,
-  pressureBand,
   type TunnelNode,
   type TunnelRun,
 } from '../game/tunnelRun';
 import { useMrtNetwork } from './MrtOverlay';
 import { CrawlPids } from './StationStrip';
+import { msgOr, useT } from '../i18n';
 
 /**
  * One planned crawl. The header is an in-train station strip — next stop,
@@ -39,8 +44,6 @@ import { CrawlPids } from './StationStrip';
  *
  * Replaces the map for the length of the walk (it is a view, not a modal).
  */
-
-const BAND_FILL = ['bg-concrete-500', 'bg-signal/70', 'bg-signal', 'bg-hiss/80', 'bg-hiss'];
 
 /** Tilt of the schematic plane. Milder than a bore so the network reads as a map. */
 const TILT = 50;
@@ -51,7 +54,19 @@ const ZOOM_MIN = 0.4;
 const ZOOM_MAX = 2.7;
 
 export function TunnelRunView() {
-  const { run, offer, step, rest, treat, accept, decline, exitHere } = useGame(
+  const {
+    run,
+    offer,
+    step,
+    rest,
+    treat,
+    accept,
+    decline,
+    exitHere,
+    carriage,
+    checkpoint,
+    destroyedEdges,
+  } = useGame(
     useShallow((s) => ({
       run: s.tunnel,
       offer: s.tunnelOffer,
@@ -61,6 +76,9 @@ export function TunnelRunView() {
       accept: s.tunnelAcceptOffer,
       decline: s.tunnelDeclineOffer,
       exitHere: s.tunnelExitHere,
+      carriage: s.tunnelCarriage,
+      checkpoint: s.tunnelCheckpoint,
+      destroyedEdges: s.destroyedTunnelEdges,
     })),
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -73,15 +91,17 @@ export function TunnelRunView() {
     return journeyStrip(net, ids, {
       names,
       fallback: { code: run.lineCode, name: run.lineName, color: run.lineColor },
+      destroyed: destroyedEdges,
     });
-  }, [run, net]);
+  }, [run, net, destroyedEdges]);
 
   if (!run || !strip) return null;
 
   const here = currentNode(run);
   const ahead = here.next.map((id) => run.nodes[id]);
   const selected = (selectedId && run.nodes[selectedId]) || ahead[0] || here;
-  const canWalk = ahead.some((n) => n.id === selected.id);
+  const blocked = nodeNeedsChoice(here);
+  const canWalk = !blocked && ahead.some((n) => n.id === selected.id);
   const mayExit = canExitHere(run, here);
   const place = crawlPlace(run);
   const platformCodes: Record<string, string> = {};
@@ -94,8 +114,6 @@ export function TunnelRunView() {
   return (
     <div className="flex h-full w-full min-h-0 min-w-0 flex-col overflow-hidden bg-concrete-950">
       <CrawlPids strip={strip} place={place} meters={run.meters} />
-
-      <PressureGauge pressure={run.pressure} />
 
       {/* ---- the map ---- */}
       <TunnelMap
@@ -118,65 +136,28 @@ export function TunnelRunView() {
           onDecline={decline}
         />
       )}
+      {here.kind === 'carriage' && here.state !== 'done' && (
+        <CarriagePanel name={here.name} onInvert={() => carriage('invert')} onSmash={() => carriage('smash')} />
+      )}
+      {here.kind === 'checkpoint' && here.state !== 'done' && (
+        <CheckpointPanel
+          name={here.name}
+          dc={hazardDc(here)}
+          onPay={() => checkpoint('pay')}
+          onSneak={() => checkpoint('sneak')}
+        />
+      )}
 
       {/* ---- what you're looking at ---- */}
       <NodeDetail
         run={run}
         node={selected}
         canWalk={canWalk}
+        blocked={blocked}
         mayExit={mayExit}
         onWalk={() => step(selected.id)}
         onExit={exitHere}
       />
-    </div>
-  );
-}
-
-/** How loud this walk has been. Nothing but your own noise moves it. */
-function PressureGauge({ pressure }: { pressure: number }) {
-  const band = pressureBand(pressure);
-  const idx = PRESSURE_BANDS.indexOf(band);
-  const next = PRESSURE_BANDS[idx + 1];
-
-  return (
-    <div className="shrink-0 border-b border-concrete-600 bg-concrete-900/60 px-4 py-2">
-      <div className="mb-1 flex items-baseline justify-between gap-3">
-        <span className="signage text-2xs text-concrete-400">
-          Tunnel pressure ·{' '}
-          <span className={idx >= 3 ? 'text-hiss' : idx >= 2 ? 'text-signal' : 'text-concrete-200'}>
-            {band.label}
-          </span>{' '}
-          <span className="tabular-nums text-concrete-400">
-            {pressure}/{PRESSURE_MAX}
-          </span>
-        </span>
-        <span className="text-2xs tabular-nums text-concrete-400">
-          {band.threatBonus > 0 ? `+${band.threatBonus} threat` : 'no bonus threat'}
-        </span>
-      </div>
-
-      <div className="relative h-2 w-full overflow-hidden rounded-sm bg-concrete-800">
-        <div
-          className={`h-full transition-all duration-300 ${BAND_FILL[idx]} ${
-            idx >= 4 ? 'pulse-danger' : ''
-          }`}
-          style={{ width: `${Math.min(100, (pressure / PRESSURE_MAX) * 100)}%` }}
-        />
-        {PRESSURE_BANDS.slice(1).map((b) => (
-          <span
-            key={b.at}
-            className="absolute top-0 h-full w-px bg-concrete-950/70"
-            style={{ left: `${(b.at / PRESSURE_MAX) * 100}%` }}
-          />
-        ))}
-      </div>
-
-      <div className="mt-1 text-2xs leading-snug text-concrete-400">
-        {band.note}
-        {next && (
-          <span className="text-concrete-400/70"> · {next.at - pressure} more noise to {next.label}</span>
-        )}
-      </div>
     </div>
   );
 }
@@ -399,6 +380,8 @@ function TunnelMap({
   const here = currentNode(run);
   const phase = useMemo(() => seedPhase(run.id), [run.id]);
   const camRef = useRef({ x: 0, y: 0, z: 1 });
+  const { t } = useT();
+  const ariaLabel = t('ui.tunnel.ariaSchematic');
 
   useLayoutEffect(() => {
     const el = surfaceRef.current;
@@ -620,7 +603,7 @@ function TunnelMap({
       <div
         ref={surfaceRef}
         role="img"
-        aria-label="Tunnel schematic. Scroll to zoom, drag to pan."
+        aria-label={ariaLabel}
         className={`relative min-h-0 min-w-0 flex-1 touch-none overflow-hidden ${
           dragging ? 'cursor-grabbing' : 'cursor-grab'
         }`}
@@ -825,11 +808,18 @@ function NodePip({
   platformCode?: string;
   onSelect: (id: string) => void;
 }) {
+  const { locale, t } = useT();
   const here = currentNode(run);
   const isHere = node.id === here.id;
   const isNext = here.next.includes(node.id);
   const revealed = isRevealed(run, node);
   const meta = TUNNEL_NODE_META[node.kind];
+  const metaLabel = msgOr(
+    `ui.tunnel.meta.${node.kind}.label`,
+    meta.label,
+    undefined,
+    locale,
+  );
   const showLabel = isHere || isNext || node.col <= here.col + 2;
 
   const discTone = isHere
@@ -847,10 +837,10 @@ function NodePip({
         : 'text-concrete-400';
 
   const label = isHere
-    ? 'you'
+    ? t('ui.tunnel.you')
     : revealed
       ? (platformCode ?? node.name)
-      : '???';
+      : t('ui.tunnel.unknown');
 
   const pad = node.kind === 'platform' ? 'h-11 w-11' : 'h-9 w-9';
 
@@ -870,7 +860,11 @@ function NodePip({
         type="button"
         onClick={() => onSelect(node.id)}
         disabled={!revealed && !isNext}
-        title={revealed ? `${meta.label} — ${node.name}` : 'You cannot see that far ahead'}
+        title={
+          revealed
+            ? t('ui.tunnel.metaTitle', { label: metaLabel, name: node.name })
+            : t('ui.tunnel.farAhead')
+        }
         className={`relative block ${pad} ${selected ? 'outline outline-1 outline-offset-2 outline-concrete-200/40' : ''}`}
       >
         <span
@@ -893,7 +887,7 @@ function NodePip({
           <span className="mt-0.5 max-w-[9.5rem] truncate text-center text-xs font-medium leading-tight text-concrete-200">
             {label}
             {revealed && isNext && node.kind !== 'platform' ? (
-              <span className="text-hiss"> ▲{nodeThreat(run, node)}</span>
+              <span className="text-hiss"> ▲{nodeThreat(node)}</span>
             ) : null}
           </span>
         )}
@@ -924,6 +918,7 @@ function CampPanel({
   onAccept: () => void;
   onDecline: () => void;
 }) {
+  const { t } = useT();
   return (
     <div className="shrink-0 border-t border-astral/30 bg-astral/5 px-3 py-2">
       <div className="signage mb-1.5 text-2xs text-astral">{name} · they let you in</div>
@@ -937,15 +932,15 @@ function CampPanel({
             onClick={onRest}
             className="flex-1 rounded border border-astral/40 px-2 py-1.5 text-xs text-astral hover:bg-astral/10"
           >
-            <Icon name="action.sleep" size={12} /> Sleep 5h
-            <span className="block text-2xs opacity-70">quiets the tunnel · once</span>
+            <Icon name="action.sleep" size={12} /> {t('ui.tunnel.sleep')}
+            <span className="block text-2xs opacity-70">{t('ui.tunnel.sleepHint')}</span>
           </button>
           <button
             onClick={onTreat}
             className="flex-1 rounded border border-astral/40 px-2 py-1.5 text-xs text-astral hover:bg-astral/10"
           >
-            <Icon name="hdb.doctor" size={12} /> Patch up
-            <span className="block text-2xs opacity-70">1× canned food · once</span>
+            <Icon name="hdb.doctor" size={12} /> {t('ui.tunnel.patch')}
+            <span className="block text-2xs opacity-70">{t('ui.tunnel.patchHint')}</span>
           </button>
         </div>
       )}
@@ -955,7 +950,7 @@ function CampPanel({
           <div className="flex items-center justify-between gap-2 text-xs">
             <span>
               <span className="text-hiss">− {itemDef(offer.wantDefId).name}</span>
-              <span className="text-concrete-400"> for </span>
+              <span className="text-concrete-400">{t('ui.tunnel.forConnector')}</span>
               <span className="text-signal">+ {itemDef(offer.giveDefId).name}</span>
             </span>
             <span className="flex shrink-0 gap-1">
@@ -963,13 +958,13 @@ function CampPanel({
                 onClick={onAccept}
                 className="rounded bg-signal/90 px-2 py-1 text-xs font-bold text-black hover:bg-signal"
               >
-                Trade
+                {t('ui.tunnel.trade')}
               </button>
               <button
                 onClick={onDecline}
                 className="rounded border border-concrete-600 px-2 py-1 text-xs hover:bg-white/5"
               >
-                Pass
+                {t('ui.tunnel.pass')}
               </button>
             </span>
           </div>
@@ -979,11 +974,91 @@ function CampPanel({
   );
 }
 
+function CarriagePanel({
+  name,
+  onInvert,
+  onSmash,
+}: {
+  name: string;
+  onInvert: () => void;
+  onSmash: () => void;
+}) {
+  const { t } = useT();
+  return (
+    <div className="shrink-0 border-t border-astral/30 bg-astral/5 px-3 py-2">
+      <div className="signage mb-1.5 text-2xs text-astral">{name} · the consist is in the way</div>
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={onInvert}
+          className="flex-1 rounded border border-astral/40 px-2 py-1.5 text-xs text-astral hover:bg-astral/10"
+        >
+          {t('ui.tunnel.dropInvert')}
+          <span className="block text-2xs opacity-70">
+            {t('ui.tunnel.invertHint', {
+              min: CARRIAGE_INVERT_MINUTES,
+              energy: CARRIAGE_INVERT_ENERGY,
+            })}
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={onSmash}
+          className="flex-1 rounded border border-astral/40 px-2 py-1.5 text-xs text-astral hover:bg-astral/10"
+        >
+          {t('ui.tunnel.smash')}
+          <span className="block text-2xs opacity-70">
+            {t('ui.tunnel.smashHint', { min: CARRIAGE_SMASH_MINUTES })}
+          </span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function CheckpointPanel({
+  name,
+  dc,
+  onPay,
+  onSneak,
+}: {
+  name: string;
+  dc: number;
+  onPay: () => void;
+  onSneak: () => void;
+}) {
+  const { t } = useT();
+  return (
+    <div className="shrink-0 border-t border-astral/30 bg-astral/5 px-3 py-2">
+      <div className="signage mb-1.5 text-2xs text-astral">{name} · STA holds the bore</div>
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={onPay}
+          className="flex-1 rounded border border-astral/40 px-2 py-1.5 text-xs text-astral hover:bg-astral/10"
+        >
+          {t('ui.tunnel.payFare')}
+          <span className="block text-2xs opacity-70">{priceList(FACTION_CONFIG.sta.tribute)}</span>
+        </button>
+        <button
+          type="button"
+          onClick={onSneak}
+          className="flex-1 rounded border border-astral/40 px-2 py-1.5 text-xs text-astral hover:bg-astral/10"
+        >
+          {t('ui.tunnel.slipPast')}
+          <span className="block text-2xs opacity-70">{t('ui.tunnel.dexVsDc', { dc })}</span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /** The commit pane: what it is, what it costs, and the one button that does it. */
 function NodeDetail({
   run,
   node,
   canWalk,
+  blocked,
   mayExit,
   onWalk,
   onExit,
@@ -991,40 +1066,74 @@ function NodeDetail({
   run: TunnelRun;
   node: TunnelNode;
   canWalk: boolean;
+  blocked: boolean;
   mayExit: boolean;
   onWalk: () => void;
   onExit: () => void;
 }) {
+  const { locale, t } = useT();
   const meta = TUNNEL_NODE_META[node.kind];
+  const metaLabel = msgOr(
+    `ui.tunnel.meta.${node.kind}.label`,
+    meta.label,
+    undefined,
+    locale,
+  );
+  const metaVerb = msgOr(
+    `ui.tunnel.meta.${node.kind}.verb`,
+    meta.verb,
+    undefined,
+    locale,
+  );
   const revealed = isRevealed(run, node);
   const arrival = isArrival(run, node);
-  const hazard = node.hazard ? HAZARD_META[node.hazard] : null;
+  const hazard = node.hazard ? TUNNEL_HAZARD[node.hazard] : null;
   const standingHere = node.id === run.currentId;
+  const blurb = !revealed
+    ? 'Too far ahead to make out. You will find out by walking into it.'
+    : node.elite
+      ? 'Something has been keeping pace with you down the bore.'
+      : hazard
+        ? hazard.blurb
+        : meta.blurb;
 
   return (
     <div className="shrink-0 border-t border-concrete-600 bg-concrete-900/60 p-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="signage text-xs text-concrete-50">
-            {revealed ? `${node.name} · ${meta.label}` : 'Further down the bore'}
+            {revealed
+              ? t('ui.tunnel.nodeTitle', { name: node.name, label: metaLabel })
+              : t('ui.tunnel.furtherDown')}
           </div>
-          <p className="mt-1 text-xs leading-snug text-concrete-400">
-            {!revealed
-              ? 'Too far ahead to make out. You will find out by walking into it.'
-              : hazard
-                ? hazard.blurb
-                : meta.blurb}
-          </p>
+          <p className="mt-1 text-xs leading-snug text-concrete-400">{blurb}</p>
+          {revealed && node.collapsedBore && (
+            <p className="mt-1 text-2xs text-hiss">Collapsed bore — rubble, packs, no camps.</p>
+          )}
         </div>
         <div className="shrink-0 text-right text-2xs tabular-nums text-concrete-400">
-          <div>~{run.minutesPerHop + meta.minutes} min</div>
+          <div>{t('ui.tunnel.minutesApprox', { n: nodePreviewMinutes(run, node) })}</div>
           {revealed && hazard && (
             <div className="text-hiss">
-              {hazard.attr === 'endurance' ? 'End' : 'Dex'} vs DC {hazardDc(node)}
+              {t('ui.tunnel.attrVsDc', {
+                attr: t(`ui.attributes.short.${hazard.attr}`),
+                dc: hazardDc(node),
+              })}
+            </div>
+          )}
+          {revealed && node.kind === 'signal' && (
+            <div className="text-hiss">
+              {t('ui.tunnel.attrVsDc', {
+                attr: t('ui.attributes.short.wits'),
+                dc: hazardDc(node),
+              })}
             </div>
           )}
           {revealed && node.kind === 'pack' && (
-            <div className="text-hiss">threat {nodeThreat(run, node)}</div>
+            <div className="text-hiss">
+              {node.elite ? `${t('ui.tunnel.stalker')} · ` : ''}
+              {t('ui.tunnel.threat', { n: nodeThreat(node) })}
+            </div>
           )}
         </div>
       </div>
@@ -1035,7 +1144,7 @@ function NodeDetail({
           onClick={onExit}
           className="mt-2 w-full rounded border border-astral/50 bg-astral/15 py-2 text-sm font-bold text-astral transition hover:bg-astral/25"
         >
-          Exit here · {node.name}
+          {t('ui.tunnel.exitHere', { name: node.name })}
         </button>
       )}
 
@@ -1046,11 +1155,13 @@ function NodeDetail({
       >
         {canWalk
           ? arrival
-            ? `${meta.verb} at ${run.toName}`
-            : `${meta.verb} · ${node.name}`
-          : mayExit && standingHere
-            ? 'Or keep walking the bore'
-            : 'Pick a way forward'}
+            ? t('ui.tunnel.verbAt', { verb: metaVerb, name: run.toName })
+            : t('ui.tunnel.verbName', { verb: metaVerb, name: node.name })
+          : blocked
+            ? t('ui.tunnel.pickWayFirst')
+            : mayExit && standingHere
+              ? t('ui.tunnel.keepWalking')
+              : t('ui.tunnel.pickForward')}
       </button>
       <p className="mt-1 text-center text-2xs text-concrete-400/70">
         {mayExit

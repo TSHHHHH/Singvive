@@ -3,6 +3,7 @@ import {
   DEV_TOOL_STATE_EVENT,
   openEnemyEditor,
   openIconBrowser,
+  openLocaleEditor,
   openLootEditor,
   type DevToolId,
   type DevToolStateDetail,
@@ -14,6 +15,7 @@ const TOOLS: { id: DevToolId; label: string; open: () => void }[] = [
   { id: 'loot', label: 'Loot', open: () => openLootEditor() },
   { id: 'enemies', label: 'Enemies', open: () => openEnemyEditor() },
   { id: 'icons', label: 'Icons', open: () => openIconBrowser() },
+  { id: 'locale', label: 'Locale', open: () => openLocaleEditor() },
 ];
 
 function readHidden(): boolean {

@@ -1,11 +1,17 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { ItemDef } from '../game/types';
+import {
+  DEFAULT_ITEM_TILE_COLORS,
+  tileColor,
+  type ItemTileColors,
+} from '../game/itemTileColor';
 import { Icon } from '../icons/Icon';
 import { ICON_ASSETS } from '../icons/registry';
 import { itemIcon } from '../components/Inventory/itemIcon';
 import { LootItemForm } from './LootItemForm';
 import { LootTablesEditor } from './LootTablesEditor';
 import { RecipesEditor } from './RecipesEditor';
+import { TileColorsEditor } from './TileColorsEditor';
 import { diffCatalogs, diffIsEmpty, itemFingerprint, type CatalogDiff } from './catalogDiff';
 import {
   blankItem,
@@ -13,11 +19,17 @@ import {
   downloadCatalog,
   fetchItemIcons,
   fetchItemsCatalog,
+  fetchItemTileColors,
   parseImportedCatalog,
   saveItemsCatalog,
+  saveItemTileColors,
   type ItemsCatalog,
 } from './lootApi';
 import { EFFECT_KINDS, validateItemsCatalog } from './validateItems';
+import {
+  itemTileColorsFingerprint,
+  validateItemTileColors,
+} from './validateItemTileColors';
 import {
   CLOSE_DEV_TOOLS_EVENT,
   OPEN_LOOT_EVENT,
@@ -31,7 +43,7 @@ import type { RecipesCatalog } from './validateRecipes';
 type KindFilter = 'all' | ItemDef['effect']['kind'];
 type SlotFilter = 'all' | 'equipped' | 'none' | NonNullable<ItemDef['slot']>;
 type SortMode = 'id' | 'name' | 'kind' | 'slot';
-type LootTab = 'items' | 'tables' | 'recipes';
+type LootTab = 'items' | 'tables' | 'recipes' | 'tiles';
 
 type PendingNav =
   | { kind: 'select'; id: string }
@@ -83,6 +95,17 @@ function CompareCard({ def }: { def: ItemDef }) {
         </dd>
         <dt className="text-white/35">slot</dt>
         <dd>{def.slot ?? '—'}</dd>
+        {def.packGrid && (
+          <>
+            <dt className="text-white/35">pack</dt>
+            <dd>
+              {def.packGrid.w}×{def.packGrid.h}
+              {def.packGrid.blocked?.length
+                ? ` · ${def.packGrid.w * def.packGrid.h - def.packGrid.blocked.length} cells`
+                : ''}
+            </dd>
+          </>
+        )}
         <dt className="text-white/35">scarcity</dt>
         <dd>{def.scarcity ?? '—'}</dd>
         <dt className="text-white/35">starting</dt>
@@ -114,6 +137,8 @@ export function DevLootBrowser() {
   const [catalog, setCatalog] = useState<ItemsCatalog>({});
   const [baseline, setBaseline] = useState('');
   const [baselineCatalog, setBaselineCatalog] = useState<ItemsCatalog>({});
+  const [tileColors, setTileColors] = useState<ItemTileColors>({ ...DEFAULT_ITEM_TILE_COLORS });
+  const [tileColorsBaseline, setTileColorsBaseline] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [query, setQuery] = useState('');
@@ -139,6 +164,13 @@ export function DevLootBrowser() {
   const listRef = useRef<HTMLUListElement>(null);
 
   const catalogDirty = catalogFingerprint(catalog) !== baseline;
+  const tileColorsDirty =
+    itemTileColorsFingerprint(tileColors) !== tileColorsBaseline;
+  const tileColorsErrors = useMemo(
+    () => validateItemTileColors(tileColors),
+    [tileColors],
+  );
+  const tileColorsValid = tileColorsErrors.length === 0;
 
   const isItemDirty = (id: string | null): boolean => {
     if (!id) return false;
@@ -151,10 +183,15 @@ export function DevLootBrowser() {
     setBusy(true);
     setError(null);
     try {
-      const data = await fetchItemsCatalog();
+      const [data, colors] = await Promise.all([
+        fetchItemsCatalog(),
+        fetchItemTileColors().catch(() => ({ ...DEFAULT_ITEM_TILE_COLORS })),
+      ]);
       setCatalog(data);
       setBaselineCatalog(structuredClone(data));
       setBaseline(catalogFingerprint(data));
+      setTileColors(colors);
+      setTileColorsBaseline(itemTileColorsFingerprint(colors));
       const ids = Object.keys(data).sort();
       setSelectedId((prev) => (prev && data[prev] ? prev : (ids[0] ?? null)));
       setCreating(false);
@@ -446,16 +483,49 @@ export function DevLootBrowser() {
       setPendingNav({ kind: 'close' });
       return;
     }
-    if (recipesDirty || tablesDirty) {
+    if (recipesDirty || tablesDirty || tileColorsDirty) {
       const bits = [
         tablesDirty ? 'loot tables' : null,
         recipesDirty ? 'recipes' : null,
+        tileColorsDirty ? 'tile colors' : null,
       ]
         .filter(Boolean)
         .join(' and ');
       if (!confirm(`Unsaved ${bits}. Close anyway?`)) return;
     }
     setOpen(false);
+  };
+
+  const persistTileColors = async (): Promise<boolean> => {
+    if (!tileColorsValid) {
+      setError(tileColorsErrors.slice(0, 5).join('\n'));
+      return false;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await saveItemTileColors(tileColors);
+      setTileColorsBaseline(itemTileColorsFingerprint(tileColors));
+      setStatus('Saved to src/game/data/itemTileColors.json');
+      return true;
+    } catch (err) {
+      setError(String(err));
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleRevertTileColors = () => {
+    if (!tileColorsDirty) return;
+    void fetchItemTileColors()
+      .then((colors) => {
+        setTileColors(colors);
+        setTileColorsBaseline(itemTileColorsFingerprint(colors));
+        setStatus('Reverted tile colors to last saved');
+        setError(null);
+      })
+      .catch((err) => setError(String(err)));
   };
 
   const resolvePending = async (action: 'save' | 'discard' | 'cancel') => {
@@ -573,6 +643,10 @@ export function DevLootBrowser() {
       const meta = e.metaKey || e.ctrlKey;
       if (meta && e.key.toLowerCase() === 's') {
         e.preventDefault();
+        if (tab === 'tiles') {
+          if (tileColorsDirty && tileColorsValid && !busy) void persistTileColors();
+          return;
+        }
         if (tab !== 'items') return;
         if (catalogDirty && valid && !busy) requestSave();
         return;
@@ -619,6 +693,8 @@ export function DevLootBrowser() {
     catalogDirty,
     valid,
     busy,
+    tileColorsDirty,
+    tileColorsValid,
     saveSuccessOpen,
     closeAfterSuccess,
     diffOpen,
@@ -666,8 +742,22 @@ export function DevLootBrowser() {
           >
             Recipes
           </button>
+          <button
+            type="button"
+            onClick={() => setTab('tiles')}
+            className={`rounded px-2.5 py-1 text-xs ${
+              tab === 'tiles' ? 'bg-signal/20 text-signal' : 'text-white/50 hover:text-white/70'
+            }`}
+          >
+            Tile colors
+          </button>
         </div>
         {tab === 'items' && catalogDirty && (
+          <span className="rounded bg-amber-500/20 px-2 py-0.5 text-2xs uppercase tracking-wider text-amber-300">
+            unsaved
+          </span>
+        )}
+        {tab === 'tiles' && tileColorsDirty && (
           <span className="rounded bg-amber-500/20 px-2 py-0.5 text-2xs uppercase tracking-wider text-amber-300">
             unsaved
           </span>
@@ -678,6 +768,9 @@ export function DevLootBrowser() {
           </span>
         )}
         {tab === 'items' && !valid && <ValidationErrorBadge errors={validationErrors} />}
+        {tab === 'tiles' && !tileColorsValid && (
+          <ValidationErrorBadge errors={tileColorsErrors} />
+        )}
         {tab === 'items' && (
           <>
         <button
@@ -768,6 +861,27 @@ export function DevLootBrowser() {
             if (file) void handleImport(file);
           }}
         />
+          </>
+        )}
+        {tab === 'tiles' && (
+          <>
+            <button
+              type="button"
+              disabled={busy || !tileColorsDirty || !tileColorsValid}
+              onClick={() => void persistTileColors()}
+              className="rounded border border-signal/40 px-2.5 py-1 text-xs text-signal disabled:opacity-40"
+              title="Ctrl/Cmd+S"
+            >
+              Save
+            </button>
+            <button
+              type="button"
+              disabled={busy || !tileColorsDirty}
+              onClick={handleRevertTileColors}
+              className="rounded border border-white/15 px-2.5 py-1 text-xs text-white/70 disabled:opacity-40"
+            >
+              Revert
+            </button>
           </>
         )}
         <button
@@ -901,7 +1015,7 @@ export function DevLootBrowser() {
                                 : 'text-white/85 hover:brightness-110'
                           }`}
                           style={{
-                            backgroundImage: `linear-gradient(270deg, ${item.color}66 0%, ${item.color}22 42%, transparent 78%)`,
+                            backgroundImage: `linear-gradient(270deg, ${tileColor(item, tileColors)}66 0%, ${tileColor(item, tileColors)}22 42%, transparent 78%)`,
                           }}
                         >
                           <span
@@ -937,6 +1051,7 @@ export function DevLootBrowser() {
                 item={selected}
                 idLocked={!creating}
                 onChange={updateSelected}
+                tileColors={tileColors}
                 onOpenRecipe={(recipeId) => {
                   setTab('recipes');
                   setRecipeFocusId(recipeId);
@@ -1022,6 +1137,9 @@ export function DevLootBrowser() {
           onDirtyChange={setRecipesDirty}
         />
       </div>
+      <div className={tab === 'tiles' ? 'flex min-h-0 flex-1' : 'hidden'}>
+        <TileColorsEditor colors={tileColors} onChange={setTileColors} />
+      </div>
 
       {pendingNav && !diffOpen && (
         <DialogShell title="Unsaved item changes" onBackdrop={() => void resolvePending('cancel')}>
@@ -1029,7 +1147,7 @@ export function DevLootBrowser() {
             The current item has unsaved edits. Save the catalog, discard this item&apos;s changes,
             or cancel.
             {(recipesDirty || tablesDirty) && pendingNav?.kind === 'close'
-              ? ' Unsaved tables/recipes drafts will be discarded too.'
+              ? ' Unsaved tables/recipes/tile-color drafts will be discarded too.'
               : ''}
           </p>
           <div className="flex flex-wrap justify-end gap-2">

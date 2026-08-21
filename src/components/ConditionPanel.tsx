@@ -10,6 +10,7 @@ import { GuideInfoButton } from './GuideInfoButton';
 import { countBleeding, meterModifiers, totalHp, totalMaxHp } from '../game/survival';
 import type { GuideTopic } from '../content/guideContent';
 import type { BodyPartId } from '../game/types';
+import { useT } from '../i18n';
 
 /**
  * Condition at a glance: body doll + all-limb overview up top, survival meters
@@ -25,6 +26,7 @@ export function ConditionPanel({
   /** Desktop moves live combat stats into the Stats tab. */
   showSurvivorStats?: boolean;
 }) {
+  const { t } = useT();
   const { meters, bodyParts } = useGame(
     useShallow((s) => ({ meters: s.meters, bodyParts: s.bodyParts })),
   );
@@ -38,18 +40,22 @@ export function ConditionPanel({
     <section className="rounded-lg border border-white/15 bg-concrete-900/80 p-2.5">
       <div className="mb-2 flex items-baseline justify-between gap-2">
         <div className="flex items-center gap-1.5">
-          <h4 className="text-xs uppercase tracking-widest text-white/30">Condition</h4>
+          <h4 className="text-xs uppercase tracking-widest text-white/30">{t('ui.condition.title')}</h4>
           {onOpenGuide && <GuideInfoButton topic="survive" onOpen={onOpenGuide} />}
         </div>
         <div className="flex items-baseline gap-1.5">
           {majorCount > 0 && (
             <span className="pulse-danger rounded-sm bg-hiss/20 px-1.5 py-px text-2xs font-semibold uppercase tracking-widest text-hiss">
-              Bleeding out{majorCount > 1 ? ` ×${majorCount}` : ''}
+              {majorCount > 1
+                ? t('ui.condition.bleedingOutTimes', { n: majorCount })
+                : t('ui.condition.bleedingOut')}
             </span>
           )}
           {minorCount > 0 && (
             <span className="rounded-sm bg-white/10 px-1.5 py-px text-2xs font-semibold uppercase tracking-widest text-concrete-200">
-              Bleeding{minorCount > 1 ? ` ×${minorCount}` : ''}
+              {minorCount > 1
+                ? t('ui.condition.bleedingTimes', { n: minorCount })
+                : t('ui.condition.bleeding')}
             </span>
           )}
         </div>
@@ -68,9 +74,15 @@ export function ConditionPanel({
       </div>
 
       <div className="mb-2.5 flex flex-col gap-1.5">
-        <MeterBar label="Health" icon="meter.health" value={hp} max={hpMax} color="#d92d2d" />
         <MeterBar
-          label="Hunger"
+          label={t('ui.condition.health')}
+          icon="meter.health"
+          value={hp}
+          max={hpMax}
+          color="#d92d2d"
+        />
+        <MeterBar
+          label={t('ui.condition.hunger')}
           icon="meter.hunger"
           value={meters.hunger}
           max={100}
@@ -79,7 +91,7 @@ export function ConditionPanel({
           modifiers={meterModifiers('hunger', meters)}
         />
         <MeterBar
-          label="Thirst"
+          label={t('ui.condition.thirst')}
           icon="meter.thirst"
           value={meters.thirst}
           max={100}
@@ -88,7 +100,7 @@ export function ConditionPanel({
           modifiers={meterModifiers('thirst', meters)}
         />
         <MeterBar
-          label="Energy"
+          label={t('ui.condition.energy')}
           icon="meter.energy"
           value={meters.energy}
           max={100}
@@ -97,7 +109,7 @@ export function ConditionPanel({
           modifiers={meterModifiers('energy', meters)}
         />
         <MeterBar
-          label="Infection"
+          label={t('ui.condition.infection')}
           icon="meter.infection"
           value={meters.infection}
           max={100}

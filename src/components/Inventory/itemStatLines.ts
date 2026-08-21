@@ -1,25 +1,29 @@
 import { itemDef } from '../../game/loot';
 import { effectiveDamage, equipDefenseBonus } from '../../game/inventory';
+import { packGridUsableCount, resolveItemPackGrid } from '../../game/packGrid';
 import type { Equipment, ItemInstance } from '../../game/types';
 import type { IconName } from '../../icons/keys';
+import type { TVars } from '../../i18n';
 
-export function itemKind(def: ReturnType<typeof itemDef>): string {
-  if (def.slot) return def.effect.kind === 'weapon' ? 'Weapon' : 'Armour';
+export type TranslateFn = (key: string, vars?: TVars) => string;
+
+export function itemKind(def: ReturnType<typeof itemDef>, t: TranslateFn): string {
+  if (def.slot) return def.effect.kind === 'weapon' ? t('ui.itemKind.weapon') : t('ui.itemKind.armour');
   switch (def.effect.kind) {
     case 'food':
-      return 'Food';
+      return t('ui.itemKind.food');
     case 'water':
-      return 'Drink';
+      return t('ui.itemKind.drink');
     case 'heal':
-      return 'Medical';
+      return t('ui.itemKind.medical');
     case 'cure':
-      return 'Medical';
+      return t('ui.itemKind.medical');
     case 'energy':
-      return 'Stimulant';
+      return t('ui.itemKind.stimulant');
     case 'fuel':
-      return 'Fuel';
+      return t('ui.itemKind.fuel');
     default:
-      return 'Misc';
+      return t('ui.itemKind.misc');
   }
 }
 
@@ -78,6 +82,7 @@ export function itemStatLines(
   def: ReturnType<typeof itemDef>,
   inst: ItemInstance,
   equipment: Equipment,
+  t: TranslateFn,
 ): StatLine[] {
   const lines: StatLine[] = [];
   const e = def.effect;
@@ -102,8 +107,10 @@ export function itemStatLines(
     lines.push(
       line(
         'dmg',
-        'Damage',
-        dmg === e.damage ? `${dmg}` : `${dmg} (of ${e.damage})`,
+        t('ui.stats.damage'),
+        dmg === e.damage
+          ? `${dmg}`
+          : t('ui.stats.damageOf', { dmg, base: e.damage }),
         theirs !== undefined ? numDelta(dmg, theirs) : undefined,
       ),
     );
@@ -111,17 +118,24 @@ export function itemStatLines(
   if (m.defenseBonus) {
     const v = equipDefenseBonus(inst);
     lines.push(
-      line('def', 'Defence', `+${v}`, numDelta(v, compare ? equipDefenseBonus(compare) : undefined)),
+      line(
+        'def',
+        t('ui.stats.defence'),
+        `+${v}`,
+        numDelta(v, compare ? equipDefenseBonus(compare) : undefined),
+      ),
     );
   }
   if (m.limbArmor) {
-    lines.push(line('soak', 'Soak', `${m.limbArmor}`, numDelta(m.limbArmor, cmpM.limbArmor)));
+    lines.push(
+      line('soak', t('ui.stats.soak'), `${m.limbArmor}`, numDelta(m.limbArmor, cmpM.limbArmor)),
+    );
   }
   if (m.statusResist) {
     lines.push(
       line(
         'status',
-        'Status resist',
+        t('ui.stats.statusResist'),
         `${Math.round(m.statusResist * 100)}%`,
         numDelta(m.statusResist, cmpM.statusResist),
       ),
@@ -131,7 +145,7 @@ export function itemStatLines(
     lines.push(
       line(
         'atk',
-        'Attack',
+        t('ui.stats.attack'),
         `${m.attackBonus > 0 ? '+' : ''}${m.attackBonus}`,
         numDelta(m.attackBonus, cmpM.attackBonus),
       ),
@@ -139,14 +153,19 @@ export function itemStatLines(
   }
   if (m.accuracyBonus) {
     lines.push(
-      line('acc', 'Accuracy', `+${m.accuracyBonus}`, numDelta(m.accuracyBonus, cmpM.accuracyBonus)),
+      line(
+        'acc',
+        t('ui.stats.accuracy'),
+        `+${m.accuracyBonus}`,
+        numDelta(m.accuracyBonus, cmpM.accuracyBonus),
+      ),
     );
   }
   if (m.speedBonus) {
     lines.push(
       line(
         'spd',
-        'Speed',
+        t('ui.stats.speed'),
         `+${m.speedBonus.toFixed(1)}`,
         numDelta(m.speedBonus, cmpM.speedBonus),
       ),
@@ -156,7 +175,7 @@ export function itemStatLines(
     lines.push(
       line(
         'dodge',
-        'Dodge',
+        t('ui.stats.dodge'),
         `${m.dodgeBonus > 0 ? '+' : ''}${Math.round(m.dodgeBonus * 100)}%`,
         numDelta(m.dodgeBonus, cmpM.dodgeBonus),
       ),
@@ -166,7 +185,7 @@ export function itemStatLines(
     lines.push(
       line(
         'travel',
-        'Travel',
+        t('ui.stats.travel'),
         `${m.travelSpeedBonus > 0 ? '+' : ''}${Math.round(m.travelSpeedBonus * 100)}%`,
         numDelta(m.travelSpeedBonus, cmpM.travelSpeedBonus),
       ),
@@ -176,7 +195,7 @@ export function itemStatLines(
     lines.push(
       line(
         'enc',
-        'Encounters',
+        t('ui.stats.encounters'),
         `${m.encounterChanceMod > 0 ? '+' : ''}${Math.round(m.encounterChanceMod * 100)}%`,
         numDelta(
           -m.encounterChanceMod,
@@ -189,59 +208,67 @@ export function itemStatLines(
     lines.push(
       line(
         'carry',
-        'Carry',
+        t('ui.stats.carry'),
         `+${m.weightCapacityBonus} kg`,
         numDelta(m.weightCapacityBonus, cmpM.weightCapacityBonus),
       ),
     );
   }
-  if (m.bagWidthBonus || m.bagHeightBonus) {
-    lines.push(
-      line(
-        'bag',
-        'Pack size',
-        `+${m.bagWidthBonus ?? 0} col${m.bagHeightBonus ? ` +${m.bagHeightBonus} row` : ''}`,
-        numDelta(
-          (m.bagWidthBonus ?? 0) + (m.bagHeightBonus ?? 0) * 10,
-          (cmpM.bagWidthBonus ?? 0) + (cmpM.bagHeightBonus ?? 0) * 10,
+  if (def.slot === 'bag') {
+    const grid = resolveItemPackGrid(def);
+    if (grid) {
+      const n = packGridUsableCount(grid);
+      const cmpGrid = cmpDef?.slot === 'bag' ? resolveItemPackGrid(cmpDef) : undefined;
+      const cmpN = cmpGrid ? packGridUsableCount(cmpGrid) : undefined;
+      lines.push(
+        line(
+          'bag',
+          t('ui.stats.pack'),
+          t('ui.stats.packCells', { n, w: grid.w, h: grid.h }),
+          cmpN !== undefined ? numDelta(n, cmpN) : undefined,
         ),
-      ),
-    );
+      );
+    }
   }
   if (m.awarenessMod) {
     lines.push(
-      line('aw', 'Awareness', `+${m.awarenessMod}`, numDelta(m.awarenessMod, cmpM.awarenessMod)),
+      line(
+        'aw',
+        t('ui.stats.awareness'),
+        `+${m.awarenessMod}`,
+        numDelta(m.awarenessMod, cmpM.awarenessMod),
+      ),
     );
   }
 
   if (lines.length === 0) {
     switch (e.kind) {
       case 'food':
-        lines.push(line('food', 'Hunger', `+${e.hunger}`));
-        if (e.thirst != null) lines.push(line('thirst', 'Thirst', `+${e.thirst}`));
-        if (e.energy != null) lines.push(line('en', 'Energy', `+${e.energy}`));
+        lines.push(line('food', t('ui.stats.hunger'), `+${e.hunger}`));
+        if (e.thirst != null) lines.push(line('thirst', t('ui.stats.thirst'), `+${e.thirst}`));
+        if (e.energy != null) lines.push(line('en', t('ui.stats.energy'), `+${e.energy}`));
         break;
       case 'water':
-        lines.push(line('thirst', 'Thirst', `+${e.thirst}`));
-        if (e.hunger != null) lines.push(line('food', 'Hunger', `+${e.hunger}`));
-        if (e.energy != null) lines.push(line('en', 'Energy', `+${e.energy}`));
+        lines.push(line('thirst', t('ui.stats.thirst'), `+${e.thirst}`));
+        if (e.hunger != null) lines.push(line('food', t('ui.stats.hunger'), `+${e.hunger}`));
+        if (e.energy != null) lines.push(line('en', t('ui.stats.energy'), `+${e.energy}`));
         break;
       case 'heal':
-        lines.push(line('hp', 'Heal', `+${e.health} HP`));
+        lines.push(line('hp', t('ui.stats.heal'), t('ui.stats.healHp', { n: e.health })));
         break;
       case 'cure':
-        lines.push(line('inf', 'Cure', `−${e.infection}`));
+        lines.push(line('inf', t('ui.stats.cure'), `−${e.infection}`));
         break;
       case 'energy':
-        lines.push(line('en', 'Energy', `+${e.energy}`));
-        if (e.hunger != null) lines.push(line('food', 'Hunger', `+${e.hunger}`));
-        if (e.thirst != null) lines.push(line('thirst', 'Thirst', `+${e.thirst}`));
+        lines.push(line('en', t('ui.stats.energy'), `+${e.energy}`));
+        if (e.hunger != null) lines.push(line('food', t('ui.stats.hunger'), `+${e.hunger}`));
+        if (e.thirst != null) lines.push(line('thirst', t('ui.stats.thirst'), `+${e.thirst}`));
         break;
       case 'fuel':
-        lines.push(line('fuel', 'Fuel', 'Evac weight'));
+        lines.push(line('fuel', t('ui.stats.fuel'), t('ui.stats.fuelEvac')));
         break;
       default:
-        lines.push(line('val', 'Curiosity', 'scrap / trade'));
+        lines.push(line('val', t('ui.stats.curiosity'), t('ui.stats.curiosityScrap')));
     }
   }
   return lines;

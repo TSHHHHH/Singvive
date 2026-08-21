@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { itemDef } from '../../game/loot';
 import type { Equipment, EquipSlot, ItemInstance } from '../../game/types';
-import { EQUIP_SLOTS } from './equipSlots';
+import { useT } from '../../i18n';
 import { ItemInspectBody } from './ItemInspectBody';
 
 const VIEW_PAD = 8;
@@ -62,6 +62,7 @@ export function ItemHoverCard({
   clientX: number;
   clientY: number;
 }) {
+  const { t } = useT();
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ left: clientX + OFFSET, top: clientY + OFFSET });
 
@@ -72,9 +73,7 @@ export function ItemHoverCard({
       ? equipment[compareSlot]!
       : null;
   const dual = worn != null;
-  const wornSlotLabel = compareSlot
-    ? (EQUIP_SLOTS.find((s) => s.slot === compareSlot)?.label ?? compareSlot)
-    : '';
+  const wornSlotLabel = compareSlot ? t(`ui.slots.${compareSlot}`) : '';
 
   useLayoutEffect(() => {
     const el = ref.current;
@@ -109,7 +108,7 @@ export function ItemHoverCard({
             equipSlot={compareSlot}
             compact
             hideCompareNote
-            badge={`Equipped · ${wornSlotLabel}`}
+            badge={`${t('ui.inventory.equipped')} · ${wornSlotLabel}`}
           />
         </HoverPanel>
       )}

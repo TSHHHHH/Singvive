@@ -5,6 +5,9 @@ import type { MrtNetwork } from './mrt';
  * Per-run tunnel collapses. Edges are undirected keys `"a|b"` with sorted
  * station ids. Rolled once at spawn after the first evac beacon is known, so
  * the soft bias can lean on the spawn→evac rail corridor.
+ *
+ * Collapsed bores are still walkable — a brutal crawl, not a wall. Routing
+ * prefers intact hops and offers the rubble path as a shorter, riskier option.
  */
 
 /** Undirected edge key — order-independent. */

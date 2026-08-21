@@ -1,3 +1,5 @@
+import { useT } from '../i18n';
+
 export type ScoreRow = {
   id?: number;
   name: string;
@@ -15,6 +17,8 @@ export function ScoreBoard({
   highlightId?: number;
   empty?: string;
 }) {
+  const { t } = useT();
+
   if (rows.length === 0) {
     return empty ? <p className="text-sm text-white/40">{empty}</p> : null;
   }
@@ -34,11 +38,11 @@ export function ScoreBoard({
               {i + 1}. {h.name}
               {h.escaped === true ? (
                 <span className="ml-2 text-[10px] uppercase tracking-widest text-signal/80">
-                  evac
+                  {t('ui.scores.evac')}
                 </span>
               ) : h.escaped === false ? (
                 <span className="ml-2 text-[10px] uppercase tracking-widest text-white/30">
-                  died
+                  {t('ui.scores.died')}
                 </span>
               ) : null}
             </span>
@@ -59,13 +63,14 @@ export function ScoreBoardTabs({
   value: 'world' | 'device';
   onChange: (next: 'world' | 'device') => void;
 }) {
+  const { t } = useT();
   return (
     <div className="mb-2 flex gap-1">
       <TabButton active={value === 'world'} onClick={() => onChange('world')}>
-        Worldwide
+        {t('ui.scores.worldwide')}
       </TabButton>
       <TabButton active={value === 'device'} onClick={() => onChange('device')}>
-        This device
+        {t('ui.scores.thisDevice')}
       </TabButton>
     </div>
   );

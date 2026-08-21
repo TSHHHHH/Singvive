@@ -1,5 +1,10 @@
 /** Shared item-catalog validation for the DEV loot API and browser UI. */
 
+import {
+  collectStartingKitFitErrors,
+  type StartingKitItemDef,
+} from '../game/packGrid.ts';
+
 const EFFECT_KINDS = new Set([
   'food',
   'water',
@@ -104,6 +109,71 @@ function validateEffect(effect: unknown, id: string, errors: string[]): void {
   }
 }
 
+function isInt(v: unknown): v is number {
+  return isNumber(v) && Number.isInteger(v);
+}
+
+function validatePackGrid(
+  id: string,
+  raw: Record<string, unknown>,
+  errors: string[],
+): void {
+  const grid = raw.packGrid;
+  if (raw.slot === 'bag') {
+    if (grid === undefined) {
+      errors.push(`${id}: bag slot requires packGrid`);
+      return;
+    }
+  } else if (grid !== undefined) {
+    errors.push(`${id}: packGrid is only valid on slot "bag"`);
+    return;
+  } else {
+    return;
+  }
+
+  if (!isRecord(grid)) {
+    errors.push(`${id}: packGrid must be an object`);
+    return;
+  }
+  if (!isInt(grid.w) || grid.w < 1) {
+    errors.push(`${id}: packGrid.w must be an integer >= 1`);
+  }
+  if (!isInt(grid.h) || grid.h < 1) {
+    errors.push(`${id}: packGrid.h must be an integer >= 1`);
+  }
+
+  if (grid.blocked === undefined) return;
+  if (!Array.isArray(grid.blocked)) {
+    errors.push(`${id}: packGrid.blocked must be an array of [x, y]`);
+    return;
+  }
+
+  const seen = new Set<string>();
+  for (const cell of grid.blocked) {
+    if (!Array.isArray(cell) || cell.length !== 2 || !isInt(cell[0]) || !isInt(cell[1])) {
+      errors.push(`${id}: packGrid.blocked entries must be [x, y] integers`);
+      continue;
+    }
+    const x = cell[0];
+    const y = cell[1];
+    if (
+      x < 0 ||
+      y < 0 ||
+      (isInt(grid.w) && x >= grid.w) ||
+      (isInt(grid.h) && y >= grid.h)
+    ) {
+      errors.push(`${id}: packGrid.blocked cell [${x}, ${y}] is out of bounds`);
+    }
+    const key = `${x},${y}`;
+    if (seen.has(key)) errors.push(`${id}: packGrid.blocked has duplicate [${x}, ${y}]`);
+    seen.add(key);
+  }
+
+  if (isInt(grid.w) && isInt(grid.h) && grid.w > 0 && grid.h > 0 && seen.size >= grid.w * grid.h) {
+    errors.push(`${id}: packGrid must have at least one usable cell`);
+  }
+}
+
 function validateItem(id: string, raw: unknown, errors: string[]): void {
   if (!isRecord(raw)) {
     errors.push(`${id}: item must be an object`);
@@ -119,8 +189,9 @@ function validateItem(id: string, raw: unknown, errors: string[]): void {
     if (!isNumber(raw[key])) errors.push(`${id}: ${key} must be a number`);
   }
   if (typeof raw.stackable !== 'boolean') errors.push(`${id}: stackable must be a boolean`);
-  if (typeof raw.color !== 'string' || !raw.color.trim()) {
-    errors.push(`${id}: color is required`);
+  // `color` is legacy — tile tint comes from itemTileColors.json by category.
+  if (raw.color !== undefined && (typeof raw.color !== 'string' || !raw.color.trim())) {
+    errors.push(`${id}: color must be a non-empty string when set`);
   }
   validateEffect(raw.effect, id, errors);
 
@@ -160,6 +231,7 @@ function validateItem(id: string, raw: unknown, errors: string[]): void {
   if (raw.modifiers !== undefined && !isRecord(raw.modifiers)) {
     errors.push(`${id}: modifiers must be an object`);
   }
+  validatePackGrid(id, raw, errors);
 
   // Match loot.ts DEV invariants
   if (raw.maxCondition !== undefined && raw.stackable === true) {
@@ -179,6 +251,50 @@ function validateItem(id: string, raw: unknown, errors: string[]): void {
   }
 }
 
+function toStartingKitDef(id: string, raw: unknown): StartingKitItemDef | null {
+  if (!isRecord(raw)) return null;
+  if (!isNumber(raw.w) || !isNumber(raw.h) || !isNumber(raw.maxStack)) return null;
+  if (typeof raw.stackable !== 'boolean') return null;
+  const def: StartingKitItemDef = {
+    id,
+    w: raw.w,
+    h: raw.h,
+    stackable: raw.stackable,
+    maxStack: raw.maxStack,
+  };
+  if (raw.startingItem === true) def.startingItem = true;
+  if (isNumber(raw.startingCount)) def.startingCount = raw.startingCount;
+  if (typeof raw.slot === 'string') def.slot = raw.slot;
+  if (isRecord(raw.packGrid)) {
+    const pg = raw.packGrid;
+    if (isInt(pg.w) && isInt(pg.h)) {
+      const grid: StartingKitItemDef['packGrid'] = { w: pg.w, h: pg.h };
+      if (Array.isArray(pg.blocked)) {
+        const blocked: [number, number][] = [];
+        for (const cell of pg.blocked) {
+          if (
+            Array.isArray(cell) &&
+            cell.length === 2 &&
+            isInt(cell[0]) &&
+            isInt(cell[1])
+          ) {
+            blocked.push([cell[0], cell[1]]);
+          }
+        }
+        if (blocked.length) grid.blocked = blocked;
+      }
+      def.packGrid = grid;
+    }
+  }
+  if (isRecord(raw.modifiers)) {
+    const m = raw.modifiers;
+    def.modifiers = {};
+    if (isNumber(m.bagWidthBonus)) def.modifiers.bagWidthBonus = m.bagWidthBonus;
+    if (isNumber(m.bagHeightBonus)) def.modifiers.bagHeightBonus = m.bagHeightBonus;
+  }
+  return def;
+}
+
 /** Returns a list of human-readable errors; empty means valid. */
 export function validateItemsCatalog(catalog: unknown): string[] {
   if (!isRecord(catalog)) {
@@ -194,6 +310,16 @@ export function validateItemsCatalog(catalog: unknown): string[] {
       errors.push(`${id}: id must match /^[a-z][a-z0-9_]*$/`);
     }
     validateItem(id, catalog[id], errors);
+  }
+
+  // Cross-item: starting bag silhouette must hold non-equip starting kit.
+  if (errors.length === 0) {
+    const kitCatalog: Record<string, StartingKitItemDef> = {};
+    for (const id of ids) {
+      const def = toStartingKitDef(id, catalog[id]);
+      if (def) kitCatalog[id] = def;
+    }
+    errors.push(...collectStartingKitFitErrors(kitCatalog));
   }
   return errors;
 }

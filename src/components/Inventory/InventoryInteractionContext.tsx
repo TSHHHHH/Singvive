@@ -20,6 +20,7 @@ import {
   isTwoHandedEquipped,
   TEMP_STASH,
 } from '../../game/inventory';
+import { tileColor } from '../../game/itemTileColor';
 import type { Container, EquipSlot, ItemInstance } from '../../game/types';
 import { useCoarsePointer } from '../TipHint';
 import { useIsPhoneLayout } from '../HdbZoomViewport';
@@ -635,8 +636,8 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
               top: drag.clientY - drag.grabDY,
               width: dragGhost.w * CELL - 2,
               height: dragGhost.h * CELL - 2,
-              background: `${dragGhost.def.color}aa`,
-              boxShadow: `inset 0 0 0 1px ${dragGhost.def.color}`,
+              background: `${tileColor(dragGhost.def)}aa`,
+              boxShadow: `inset 0 0 0 1px ${tileColor(dragGhost.def)}`,
             }}
           >
             <Icon

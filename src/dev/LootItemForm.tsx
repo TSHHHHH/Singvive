@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { EquipSlot, ItemDef, ItemEffect, ItemModifiers } from '../game/types';
+import {
+  ITEM_TILE_COLORS,
+  TILE_COLOR_LABELS,
+  tileColor,
+  tileColorCategory,
+  type ItemTileColors,
+} from '../game/itemTileColor';
 import type { IconName } from '../icons/keys';
 import { EMOJI_FALLBACK } from '../icons/keys';
 import { Icon } from '../icons/Icon';
@@ -7,6 +14,8 @@ import { ICON_ASSETS } from '../icons/registry';
 import { itemIcon } from '../components/Inventory/itemIcon';
 import { SearchFindRevealCell } from '../components/SearchFindRevealCell';
 import { footprint } from '../game/inventory';
+import { DEFAULT_BAG_PACK_GRID } from '../game/packGrid';
+import { BagGridEditor } from './BagGridEditor';
 import { highlightFor, whisperFor } from '../game/searchSession';
 import { fetchItemIcons, MAX_ICON_BYTES, MAX_ICON_EDGE, uploadItemIcon } from './lootApi';
 import { findItemUsage } from './itemUsage';
@@ -81,6 +90,8 @@ type Props = {
   onOpenRecipe?: (recipeId: string) => void;
   /** Live recipe draft from the Recipes tab (falls back to committed catalog). */
   recipesDraft?: RecipesCatalog | null;
+  /** Live tile-color draft from the Tile colors tab. */
+  tileColors?: ItemTileColors;
 };
 
 export function LootItemForm({
@@ -90,6 +101,7 @@ export function LootItemForm({
   onStatus,
   onOpenRecipe,
   recipesDraft,
+  tileColors = ITEM_TILE_COLORS,
 }: Props) {
   const patch = (partial: Partial<ItemDef>) => onChange({ ...item, ...partial });
   const fileRef = useRef<HTMLInputElement>(null);
@@ -99,6 +111,8 @@ export function LootItemForm({
   const [dragOver, setDragOver] = useState(false);
   const [revealCondition, setRevealCondition] = useState(100);
   const [revealPlayKey, setRevealPlayKey] = useState(0);
+  const category = tileColorCategory(item);
+  const categoryHex = tileColor(item, tileColors);
 
   useEffect(() => {
     let cancelled = false;
@@ -238,19 +252,24 @@ export function LootItemForm({
             onChange={(e) => patch({ name: e.target.value })}
           />
         </Field>
-        <Field label="color">
-          <div className="flex gap-2">
-            <input
-              type="color"
-              className="h-9 w-10 cursor-pointer rounded border border-white/10 bg-transparent"
-              value={/^#[0-9a-fA-F]{6}$/.test(item.color) ? item.color : '#7f8c8d'}
-              onChange={(e) => patch({ color: e.target.value })}
+        <Field label="tile color">
+          <div className="flex items-center gap-2">
+            <span
+              className="inline-flex h-9 w-9 shrink-0 rounded border border-white/10"
+              style={{
+                background: `${categoryHex}66`,
+                boxShadow: `inset 0 0 0 1px ${categoryHex}`,
+              }}
+              aria-hidden
             />
-            <input
-              className={`${inputClass} flex-1 font-mono`}
-              value={item.color}
-              onChange={(e) => patch({ color: e.target.value })}
-            />
+            <div className="min-w-0 flex-1 text-xs text-white/55">
+              <div className="font-medium text-white/75">
+                {TILE_COLOR_LABELS[category]}
+              </div>
+              <div className="font-mono text-2xs text-white/35">
+                {categoryHex} · from Tile colors tab
+              </div>
+            </div>
           </div>
         </Field>
       </section>
@@ -720,8 +739,17 @@ export function LootItemForm({
               value={item.slot ?? ''}
               onChange={(e) => {
                 const next = { ...item };
-                if (!e.target.value) delete next.slot;
-                else next.slot = e.target.value as EquipSlot;
+                if (!e.target.value) {
+                  delete next.slot;
+                  delete next.packGrid;
+                } else {
+                  next.slot = e.target.value as EquipSlot;
+                  if (next.slot === 'bag') {
+                    if (!next.packGrid) next.packGrid = { ...DEFAULT_BAG_PACK_GRID };
+                  } else {
+                    delete next.packGrid;
+                  }
+                }
                 onChange(next);
               }}
             >
@@ -765,6 +793,18 @@ export function LootItemForm({
             />
           </Field>
         </div>
+
+        {item.slot === 'bag' && (
+          <div className="mt-4">
+            <BagGridEditor
+              grid={item.packGrid ?? DEFAULT_BAG_PACK_GRID}
+              onChange={(packGrid) => {
+                const next = { ...item, packGrid };
+                onChange(next);
+              }}
+            />
+          </div>
+        )}
 
         <div className="mt-4 rounded border border-white/10 bg-black/25 p-3">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">

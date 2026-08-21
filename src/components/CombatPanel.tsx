@@ -1,6 +1,7 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useGame } from '../game/store';
 import { Icon } from '../icons/Icon';
+import type { IconName } from '../icons/keys';
 import { armCombatPenalty, legTravelFactor, totalHp, totalMaxHp } from '../game/survival';
 import { equipSpeedBonus } from '../game/inventory';
 import {
@@ -14,7 +15,8 @@ import {
   secondsPerAction,
 } from '../game/combat';
 import { combatantIcon } from '../game/enemies';
-import type { CombatLogEntry, StanceId } from '../game/types';
+import type { CombatImpact, CombatLogEntry, Enemy, StanceId } from '../game/types';
+import { enemyName, useT } from '../i18n';
 
 const TONE_CLASS: Record<CombatLogEntry['tone'], string> = {
   player: 'text-astral',
@@ -27,6 +29,9 @@ const TONE_CLASS: Record<CombatLogEntry['tone'], string> = {
 
 /** Wall-clock tick. Small enough that the markers read as sliding, not jumping. */
 const TICK_MS = 50;
+
+const PLAYER_SHAKE_KINDS = new Set<CombatImpact['kind']>(['hit', 'crit', 'death']);
+const HP_PUNCH_KINDS = new Set<CombatImpact['kind']>(['hit', 'crit', 'kill', 'death']);
 
 /**
  * The fight itself, in the right-hand column in place of the event log.
@@ -41,6 +46,7 @@ const TICK_MS = 50;
  * Items stay in the pack until the fight is over.
  */
 export function CombatPanel() {
+  const { locale, t } = useT();
   const combat = useGame((s) => s.combat);
   const meters = useGame((s) => s.meters);
   const bodyParts = useGame((s) => s.bodyParts);
@@ -54,6 +60,8 @@ export function CombatPanel() {
   const combatSetStance = useGame((s) => s.combatSetStance);
 
   const logRef = useRef<HTMLDivElement>(null);
+  const [shakeClass, setShakeClass] = useState('');
+  const [outcomeClass, setOutcomeClass] = useState('');
 
   const running = !!combat && !combat.over && !combat.awaitingStance && !combat.paused;
   const rate = combat ? COMBAT_SPEEDS[combat.speedIndex] : 1;
@@ -69,6 +77,35 @@ export function CombatPanel() {
   useEffect(() => {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: 'smooth' });
   }, [combat?.log.length]);
+
+  // Restart one-shot shake without remounting the log / track.
+  useEffect(() => {
+    const impact = combat?.impact;
+    if (!impact || impact.side !== 'player' || !PLAYER_SHAKE_KINDS.has(impact.kind)) {
+      return;
+    }
+    const next = impact.kind === 'crit' || impact.kind === 'death' ? 'combat-shake-hard' : 'combat-shake';
+    setShakeClass('');
+    const id = requestAnimationFrame(() => setShakeClass(next));
+    return () => cancelAnimationFrame(id);
+  }, [combat?.impact?.id, combat?.impact?.kind, combat?.impact?.side]);
+
+  useEffect(() => {
+    if (!combat?.over) {
+      setOutcomeClass('');
+      return;
+    }
+    const next =
+      combat.outcome === 'win'
+        ? 'combat-outcome-win'
+        : combat.outcome === 'dead'
+          ? 'combat-outcome-dead'
+          : '';
+    if (!next) return;
+    setOutcomeClass('');
+    const id = requestAnimationFrame(() => setOutcomeClass(next));
+    return () => cancelAnimationFrame(id);
+  }, [combat?.over, combat?.outcome]);
 
   if (!combat || !character) return null;
 
@@ -94,17 +131,22 @@ export function CombatPanel() {
   );
 
   const groups = groupLog(combat.log);
+  const impact = combat.impact;
+  const playerPunch =
+    impact && impact.side === 'player' && HP_PUNCH_KINDS.has(impact.kind) ? impact.id : 0;
+  const enemyPunch =
+    impact && impact.side === 'enemy' && HP_PUNCH_KINDS.has(impact.kind) ? impact.id : 0;
+  const lowHp = !combat.over && hpPct <= 25;
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-1.5 text-sm">
-      {/* ---- the two corners, side by side ----
-           Both fighters get the same three lines in the same order, so the
-           comparison you actually care about mid-fight — am I hitting harder
-           than it, am I slower than it — is a straight left-to-right read. */}
-      <div className="flex shrink-0 gap-1.5">
-        <Corner
-          name={character.name}
-          icon="combat.player"
+    <div
+      className={`combat-fx--force-motion flex h-full min-h-0 flex-col gap-1.5 text-sm ${shakeClass} ${outcomeClass}`}
+    >
+      {/* ---- fighter header ----
+           Info columns share leftover width; names sit atop the portraits
+           inside the portrait frame; bars / stats / weapon stay on the sides. */}
+      <div className="grid shrink-0 grid-cols-[minmax(0,1fr)_auto_auto_minmax(0,1fr)] items-stretch gap-1.5">
+        <FighterColumn
           hp={Math.max(0, Math.round(currentHp))}
           maxHp={Math.round(maxHp)}
           pct={hpPct}
@@ -112,11 +154,28 @@ export function CombatPanel() {
           damage={stats.damage + stance.damageMod}
           defense={effectiveDefense(stats, stance, terrain)}
           speed={pSpeed}
-          flash={combat.acting === 'player'}
+          weapon={stats.weaponName}
+          dmgLabel={t('ui.combat.dmg')}
+          defLabel={t('ui.combat.def')}
+          spdLabel={t('ui.combat.spd')}
+          punchToken={playerPunch}
+          lowHpPulse={lowHp}
         />
-        <Corner
-          name={z.name}
+        <Portrait
+          key={`p-${impact?.side === 'player' ? impact.id : 'idle'}`}
+          name={character.name}
+          icon="combat.player"
+          flash={combat.acting === 'player'}
+          impact={impact?.side === 'player' ? impact : null}
+        />
+        <Portrait
+          key={`e-${impact?.side === 'enemy' ? impact.id : 'idle'}`}
+          name={enemyName(z.templateId, z.name, locale)}
           icon={combatantIcon(z)}
+          flash={combat.acting === 'enemy'}
+          impact={impact?.side === 'enemy' ? impact : null}
+        />
+        <FighterColumn
           hp={Math.max(0, Math.round(z.hp))}
           maxHp={z.maxHp}
           pct={zPct}
@@ -124,21 +183,20 @@ export function CombatPanel() {
           damage={z.damage}
           defense={10 + z.defense}
           speed={z.speed}
-          flash={combat.acting === 'enemy'}
+          weapon={enemyWeaponLabel(z.kind, t)}
+          dmgLabel={t('ui.combat.dmg')}
+          defLabel={t('ui.combat.def')}
+          spdLabel={t('ui.combat.spd')}
           mirrored
+          punchToken={enemyPunch}
         />
       </div>
 
-      {/* ---- stance switcher + terrain / turn ---- */}
-      {!combat.over && (
-        <StanceSwitcher selected={combat.selectedStance} onSelect={combatSetStance} />
-      )}
-      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-white/10 pb-1 text-xs text-white/45">
-        <span className="truncate text-white/30">{stats.weaponName}</span>
-        <span className="shrink-0 text-white/30">
-          {meters.infection > 0 && (
-            <span className="mr-2 text-astral">☣ {Math.round(meters.infection)}</span>
-          )}
+      <div className="flex shrink-0 items-center justify-end gap-2 border-b border-white/10 pb-1 text-xs text-white/30">
+        {meters.infection > 0 && (
+          <span className="text-astral">☣ {Math.round(meters.infection)}</span>
+        )}
+        <span>
           {terrain.name} · T{combat.round}
         </span>
       </div>
@@ -205,7 +263,7 @@ export function CombatPanel() {
         <div className="flex shrink-0 items-center gap-1">
           <button
             onClick={combatTogglePause}
-            title={combat.paused ? 'Resume' : 'Pause'}
+            title={combat.paused ? t('ui.combat.resume') : t('ui.combat.pause')}
             className={`h-6 w-10 rounded border text-xs font-bold transition ${
               combat.paused
                 ? 'border-signal/60 bg-signal/15 text-signal'
@@ -237,26 +295,60 @@ export function CombatPanel() {
           onClick={combatContinue}
           className="shrink-0 rounded bg-signal/90 py-1.5 text-sm font-bold text-black hover:bg-signal"
         >
-          {combat.outcome === 'dead' ? 'See results' : 'Continue'}
+          {combat.outcome === 'dead' ? t('ui.combat.seeResults') : t('ui.combat.continue')}
         </button>
       ) : (
-        <button
-          onClick={combatBreakOff}
-          title="Break contact — flee DC −4, they get one parting swing"
-          className="h-7 shrink-0 self-end rounded border border-hiss/50 px-2 text-xs font-bold uppercase tracking-wide text-hiss hover:bg-hiss/10"
-        >
-          Break off
-        </button>
+        <div className="flex shrink-0 items-stretch gap-1">
+          <StanceSwitcher selected={combat.selectedStance} onSelect={combatSetStance} />
+          <button
+            onClick={combatBreakOff}
+            title={t('ui.combat.breakOffTitle')}
+            className="h-7 shrink-0 rounded border border-hiss/50 px-2 text-xs font-bold uppercase tracking-wide text-hiss hover:bg-hiss/10"
+          >
+            {t('ui.combat.breakOff')}
+          </button>
+        </div>
       )}
     </div>
   );
 }
 
+function StanceSwitcher({
+  selected,
+  onSelect,
+}: {
+  selected: StanceId;
+  onSelect: (id: StanceId) => void;
+}) {
+  const { t } = useT();
+  return (
+    <div className="flex min-w-0 flex-1 gap-1">
+      {FIGHT_STANCE_ORDER.map((id) => {
+        const s = STANCES[id];
+        const on = id === selected;
+        return (
+          <button
+            key={id}
+            onClick={() => onSelect(id)}
+            title={s.description}
+            className={`h-7 min-w-0 flex-1 truncate rounded border px-1 text-xs font-bold uppercase tracking-wide transition ${
+              on
+                ? 'border-astral/70 bg-astral/20 text-astral'
+                : 'border-white/15 text-white/50 hover:border-white/30 hover:text-white/80'
+            }`}
+          >
+            {t(`ui.combat.${id}`)}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 /**
- * One track, two markers. Both crawl right at their own Speed; the one that
- * touches the finish line swings and snaps back to the start. Reading it tells
- * you the thing a round counter never could — whether you are about to get hit
- * twice before you answer.
+ * Dual markers on a shared rail. `left` is a % of the full gauge; the 50ms
+ * transition matches the tick so the markers look continuous rather than
+ * stepping.
  */
 function SpeedTrack({
   playerGauge,
@@ -273,132 +365,110 @@ function SpeedTrack({
 }) {
   const pPct = Math.min(100, (playerGauge / GAUGE_FULL) * 100);
   const ePct = Math.min(100, (enemyGauge / GAUGE_FULL) * 100);
+  const pSec = secondsPerAction(playerSpeedValue);
+  const eSec = secondsPerAction(enemySpeedValue);
+
   return (
-    <div className="shrink-0">
-      <div className="mb-0.5 flex items-baseline justify-between text-xs text-white/30">
-        <span>
-          SPD <span className="text-astral">{playerSpeedValue.toFixed(0)}</span> ·{' '}
-          {secondsPerAction(playerSpeedValue).toFixed(1)}s
-        </span>
-        <span>
-          <span className="text-hiss">{enemySpeedValue.toFixed(0)}</span> ·{' '}
-          {secondsPerAction(enemySpeedValue).toFixed(1)}s
-        </span>
+    <div className="shrink-0 space-y-0.5">
+      <div className="flex justify-between text-2xs tabular-nums text-white/30">
+        <span title="Seconds per your action at current Speed">you {pSec.toFixed(1)}s</span>
+        <span title="Seconds per their action">them {eSec.toFixed(1)}s</span>
       </div>
-      <div className="relative h-7 overflow-hidden rounded-sm bg-black/60 ring-1 ring-white/10">
-        {/* lane hatching, so the markers have something to travel against */}
+      <div className="relative h-3 rounded-sm bg-black/50 ring-1 ring-white/10">
         <div
-          className="absolute inset-0 opacity-20"
+          className={`absolute top-0 h-full w-1.5 -translate-x-1/2 rounded-sm bg-astral transition-[left] duration-[50ms] linear ${
+            acting === 'player' ? 'combat-marker-hot' : ''
+          }`}
           style={{
-            backgroundImage:
-              'repeating-linear-gradient(90deg, transparent 0 9px, rgba(255,255,255,.35) 9px 10px)',
+            left: `${pPct}%`,
+            boxShadow: acting === 'player' ? '0 0 8px 2px rgba(56, 189, 248, 0.7)' : undefined,
           }}
         />
-        {/* the finish line */}
-        <div className="absolute inset-y-0 right-0 w-0.5 bg-signal/70" />
-        <Marker pct={pPct} color="#4ea3ff" glyph="▲" top hot={acting === 'player'} />
-        <Marker pct={ePct} color="#d92d2d" glyph="▼" top={false} hot={acting === 'enemy'} />
+        <div
+          className={`absolute top-0 h-full w-1.5 -translate-x-1/2 rounded-sm bg-hiss transition-[left] duration-[50ms] linear ${
+            acting === 'enemy' ? 'combat-marker-hot' : ''
+          }`}
+          style={{
+            left: `${ePct}%`,
+            boxShadow: acting === 'enemy' ? '0 0 8px 2px rgba(217, 45, 45, 0.7)' : undefined,
+          }}
+        />
       </div>
     </div>
   );
 }
 
-function Marker({
-  pct,
-  color,
-  glyph,
-  top,
-  hot,
-}: {
-  pct: number;
-  color: string;
-  glyph: string;
-  top: boolean;
-  hot: boolean;
-}) {
-  return (
-    <div
-      // The transition matches the tick, so a 50ms hop reads as a slide. It is
-      // deliberately not longer: a marker must never lag behind the swing it
-      // is supposed to be explaining.
-      className={`absolute text-xs leading-none transition-[left] duration-[50ms] ease-linear ${
-        top ? 'top-0.5' : 'bottom-0.5'
-      }`}
-      style={{
-        // Half a glyph, so the marker's point sits on the gauge value rather
-        // than trailing it — the finish line has to mean exactly what it looks
-        // like it means.
-        left: `calc(${pct}% - 5px)`,
-        color,
-        textShadow: hot ? `0 0 6px ${color}` : undefined,
-      }}
-    >
-      {glyph}
-    </div>
-  );
-}
-
-/**
- * One bubble per *action*, not per side. The store stamps every action with its
- * own turn number, so three swings from the same fast enemy stay three separate
- * boxes — which is the whole thing the track is trying to show you. Only the
- * lines within a single swing (the roll, then what it did) share a box.
- */
-function groupLog(log: CombatLogEntry[]) {
-  const out: { side?: 'player' | 'enemy'; turn: number; entries: CombatLogEntry[] }[] = [];
+/** Consecutive log lines that share a `side` become one bubble. */
+function groupLog(log: CombatLogEntry[]): { side?: 'player' | 'enemy'; entries: CombatLogEntry[] }[] {
+  const out: { side?: 'player' | 'enemy'; entries: CombatLogEntry[] }[] = [];
   for (const e of log) {
     const last = out[out.length - 1];
-    if (last && last.side === e.side && last.turn === e.round) last.entries.push(e);
-    else out.push({ side: e.side, turn: e.round, entries: [e] });
+    if (last && last.side === e.side && e.side) {
+      last.entries.push(e);
+    } else {
+      out.push({ side: e.side, entries: [e] });
+    }
   }
   return out;
 }
 
-/**
- * Live fight stances. Switching mid-track only changes what the next swing
- * uses — gauges keep their place on the race.
- */
-function StanceSwitcher({
-  selected,
-  onSelect,
+/** Display-only kit label — enemies have no equipped weapon in the sim. */
+function enemyWeaponLabel(kind: Enemy['kind'], t: (key: string) => string): string {
+  if (kind === 'zombie') return t('ui.combat.teeth');
+  if (kind === 'animal') return t('ui.combat.claws');
+  return t('ui.combat.improvised');
+}
+
+function portraitHitClass(impact: CombatImpact | null | undefined): string {
+  if (!impact) return '';
+  if (impact.kind === 'dodge') return 'combat-portrait-dodge';
+  if (impact.kind === 'miss') return '';
+  if (impact.side === 'player' && (impact.kind === 'hit' || impact.kind === 'crit' || impact.kind === 'death')) {
+    return impact.kind === 'crit' || impact.kind === 'death'
+      ? 'combat-portrait-hit-bad combat-portrait-hit-hard'
+      : 'combat-portrait-hit-bad';
+  }
+  if (impact.side === 'enemy' && (impact.kind === 'hit' || impact.kind === 'crit' || impact.kind === 'kill')) {
+    return impact.kind === 'crit' || impact.kind === 'kill'
+      ? 'combat-portrait-hit combat-portrait-hit-hard'
+      : 'combat-portrait-hit';
+  }
+  return '';
+}
+
+function Portrait({
+  name,
+  icon,
+  flash,
+  impact,
 }: {
-  selected: StanceId;
-  onSelect: (id: StanceId) => void;
+  name: string;
+  icon: IconName;
+  flash?: boolean;
+  impact?: CombatImpact | null;
 }) {
+  const hitClass = portraitHitClass(impact);
   return (
-    <div className="flex shrink-0 gap-1">
-      {FIGHT_STANCE_ORDER.map((id) => {
-        const s = STANCES[id];
-        const active = id === selected;
-        return (
-          <button
-            key={id}
-            type="button"
-            onClick={() => onSelect(id)}
-            title={s.description}
-            className={`flex min-w-0 flex-1 items-center justify-center gap-1 rounded border px-1 py-1 text-xs transition ${
-              active
-                ? 'border-astral/60 bg-astral/15 text-astral'
-                : 'border-white/15 text-white/50 hover:bg-white/5 hover:text-white/70'
-            }`}
-          >
-            <Icon name={s.icon} size={12} className="shrink-0" />
-            <span className="truncate font-semibold">{s.name}</span>
-          </button>
-        );
-      })}
+    <div
+      className={`flex w-14 min-h-14 flex-col items-stretch self-stretch rounded-sm bg-black/40 text-white/70 ring-1 transition ${
+        flash ? 'ring-white/50' : 'ring-white/10'
+      } ${hitClass}`}
+    >
+      <span className="truncate px-0.5 pt-0.5 text-center text-2xs leading-tight text-white/70" title={name}>
+        {name}
+      </span>
+      <div className="flex min-h-0 flex-1 items-center justify-center">
+        <Icon name={icon} size={36} className="shrink-0" />
+      </div>
     </div>
   );
 }
 
 /**
- * One fighter's corner: name and HP count on the top line, the bar under it,
- * then the three numbers that decide the fight. The enemy's corner is mirrored
- * so the two names sit at the outer edges and the pair reads as one header.
+ * One fighter's info stack. HP count, bar, DMG / DEF / SPD, and weapon — names
+ * live on the portraits. Outer edges keep HP readable at a glance.
  */
-function Corner({
-  name,
-  icon,
+function FighterColumn({
   hp,
   maxHp,
   pct,
@@ -406,11 +476,14 @@ function Corner({
   damage,
   defense,
   speed,
-  flash,
+  weapon,
+  dmgLabel,
+  defLabel,
+  spdLabel,
   mirrored,
+  punchToken = 0,
+  lowHpPulse = false,
 }: {
-  name: ReactNode;
-  icon: Parameters<typeof Icon>[0]['name'];
   hp: number;
   maxHp: number;
   pct: number;
@@ -418,49 +491,54 @@ function Corner({
   damage: number;
   defense: number;
   speed: number;
-  /** This side is mid-swing — the corner lights so the log has a source. */
-  flash?: boolean;
-  /** Enemy side: name to the right, HP count to the left. */
+  weapon: string;
+  dmgLabel: string;
+  defLabel: string;
+  spdLabel: string;
+  /** Enemy side: HP count and weapon to the left. */
   mirrored?: boolean;
+  /** Non-zero when this side just took a damaging impact — restarts HP punch FX. */
+  punchToken?: number;
+  /** Player critical health — continuous pulse while the fight is live. */
+  lowHpPulse?: boolean;
 }) {
   return (
-    <div className="min-w-0 flex-1 space-y-0.5">
-      <div
-        className={`flex items-baseline gap-1 ${mirrored ? 'flex-row-reverse' : ''}`}
-      >
-        <Icon name={icon} size={11} className="shrink-0 text-white/50" />
-        <span className="min-w-0 flex-1 truncate text-xs text-white/70">{name}</span>
+    <div className="flex min-w-0 flex-col justify-between gap-0.5">
+      <div className={`flex items-baseline ${mirrored ? 'justify-start' : 'justify-end'}`}>
         <span className="shrink-0 text-xs tabular-nums text-white/45">
           {hp}/{maxHp}
         </span>
       </div>
       <div
-        className={`h-1.5 overflow-hidden rounded-sm bg-black/60 ring-1 transition ${
-          flash ? 'ring-white/50' : 'ring-white/10'
+        className={`h-2 overflow-hidden rounded-sm bg-black/60 ring-1 ring-white/10 ${
+          lowHpPulse ? 'pulse-danger' : ''
         }`}
       >
         <div
-          className={`h-full transition-all ${mirrored ? 'ml-auto' : ''}`}
+          key={punchToken || 'bar'}
+          className={`h-full origin-center transition-all ${mirrored ? 'ml-auto' : ''} ${
+            punchToken ? 'combat-hp-punch' : ''
+          }`}
           style={{ width: `${pct}%`, background: color }}
         />
       </div>
-      {/* The name mirrors to the outer edge, but the numbers never do — three
-          stats in a fixed order is what makes the two corners comparable at a
-          glance, and a reversed row breaks that for no gain. */}
       <div
-        className={`flex gap-2 rounded-sm border border-white/10 px-1 py-0.5 text-xs tabular-nums text-white/40 ${
+        className={`flex min-w-0 gap-1 overflow-hidden rounded-sm border border-white/10 px-1 py-0.5 text-2xs tabular-nums text-white/40 ${
           mirrored ? 'justify-end' : ''
         }`}
       >
         <span title="Damage per hit">
-          <span className="text-white/25">DMG</span> {Math.round(damage)}
+          <span className="text-white/25">{dmgLabel}</span> {Math.round(damage)}
         </span>
         <span title="What the other side has to beat">
-          <span className="text-white/25">DEF</span> {defense}
+          <span className="text-white/25">{defLabel}</span> {defense}
         </span>
         <span title="Gauge units per second on the track">
-          <span className="text-white/25">SPD</span> {speed.toFixed(0)}
+          <span className="text-white/25">{spdLabel}</span> {speed.toFixed(0)}
         </span>
+      </div>
+      <div className={`truncate text-xs text-white/30 ${mirrored ? 'text-right' : ''}`}>
+        {weapon}
       </div>
     </div>
   );

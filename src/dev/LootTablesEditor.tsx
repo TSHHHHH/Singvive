@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { RECIPES } from '../game/crafting';
 import { FACTION_CONFIG } from '../game/factions';
+import { tileColor } from '../game/itemTileColor';
 import { ITEMS } from '../game/loot';
 import { POI_CATEGORIES, POI_CONFIG } from '../game/poi';
 import type { PoiCategory } from '../game/types';
@@ -553,7 +554,7 @@ export function LootTablesEditor({
                     }`}
                     style={{
                       backgroundImage: def
-                        ? `linear-gradient(270deg, ${def.color}44 0%, ${def.color}14 40%, transparent 75%)`
+                        ? `linear-gradient(270deg, ${tileColor(def)}44 0%, ${tileColor(def)}14 40%, transparent 75%)`
                         : undefined,
                     }}
                   >

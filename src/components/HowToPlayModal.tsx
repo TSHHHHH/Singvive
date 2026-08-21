@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { GUIDE_SECTIONS, type GuideTopic } from '../content/guideContent';
+import { getGuideSections, type GuideTopic } from '../content/guideContent';
 import { useSetting, useSettings } from '../game/settings';
+import { useT } from '../i18n';
 import { GuideSectionView } from './GuideSectionView';
 
 /**
@@ -8,10 +9,12 @@ import { GuideSectionView } from './GuideSectionView';
  * `showGuideOnStart` is on, and reopenable from Settings.
  */
 export function HowToPlayModal({ onClose }: { onClose: () => void }) {
-  const [active, setActive] = useState<GuideTopic>(GUIDE_SECTIONS[0].id);
+  const { locale, t } = useT();
+  const sections = getGuideSections(locale);
+  const [active, setActive] = useState<GuideTopic>(sections[0].id);
   const showOnStart = useSetting('showGuideOnStart');
   const setSetting = useSettings((s) => s.setSetting);
-  const section = GUIDE_SECTIONS.find((s) => s.id === active) ?? GUIDE_SECTIONS[0];
+  const section = sections.find((s) => s.id === active) ?? sections[0];
   const dontShowAgain = showOnStart === 'off';
 
   return (
@@ -27,23 +30,23 @@ export function HowToPlayModal({ onClose }: { onClose: () => void }) {
       >
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
           <h3 id="how-to-play-title" className="text-lg font-bold text-signal">
-            How to play
+            {t('ui.guide.howToPlay')}
           </h3>
           <button
             type="button"
             onClick={onClose}
             className="text-xs text-white/40 hover:text-white/70"
           >
-            ✕ close
+            {t('ui.common.close')}
           </button>
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col sm:flex-row">
           <nav
             className="flex shrink-0 gap-1 overflow-x-auto border-b border-white/10 p-2 sm:w-40 sm:flex-col sm:overflow-y-auto sm:overflow-x-hidden sm:border-b-0 sm:border-r"
-            aria-label="Guide topics"
+            aria-label={t('ui.guide.topicsAria')}
           >
-            {GUIDE_SECTIONS.map((s) => {
+            {sections.map((s) => {
               const selected = s.id === active;
               return (
                 <button
@@ -76,14 +79,14 @@ export function HowToPlayModal({ onClose }: { onClose: () => void }) {
               onChange={(e) => setSetting('showGuideOnStart', e.target.checked ? 'off' : 'on')}
               className="rounded border-white/30 bg-black/40 text-signal focus:ring-signal/40"
             />
-            Don&apos;t show this again
+            {t('ui.guide.dontShowAgain')}
           </label>
           <button
             type="button"
             onClick={onClose}
             className="rounded-sm bg-signal/80 px-4 py-1.5 text-xs font-bold text-black transition hover:bg-signal"
           >
-            Got it
+            {t('ui.guide.gotIt')}
           </button>
         </div>
       </div>

@@ -22,6 +22,7 @@ import { PendingEventCardBody } from '../components/PendingEventChoices';
 import { EncounterPrompt } from '../components/EncounterPrompt';
 import { SearchSessionNode } from '../components/SearchSessionNode';
 import { Icon } from '../icons/Icon';
+import { useT } from '../i18n';
 import { LocationCard } from '../components/LocationCard';
 import { TrekCard } from '../components/TrekCard';
 import { InventoryPanel } from '../components/Inventory/InventoryPanel';
@@ -70,7 +71,7 @@ import {
   EVAC_SCORE_BONUS,
   evacReadiness,
   hordeIntensity,
-  hordeLabel,
+  hordeTier,
 } from '../game/goal';
 import { Rng } from '../game/rng';
 import {
@@ -138,20 +139,28 @@ function HereHazardLine({
  */
 type SidePanel = 'inventory' | 'craft' | 'logbook' | 'stats' | 'objective';
 
-const SIDE_PANELS: Record<SidePanel, { label: string; icon: IconName }> = {
-  inventory: { label: 'Stash', icon: 'action.inventory' },
-  craft: { label: 'Craft', icon: 'action.craft' },
-  logbook: { label: 'Logbook', icon: 'action.logbook' },
-  stats: { label: 'Stats', icon: 'action.stats' },
-  objective: { label: 'Objectives', icon: 'action.objectives' },
+const SIDE_PANEL_ICONS: Record<SidePanel, IconName> = {
+  inventory: 'action.inventory',
+  craft: 'action.craft',
+  logbook: 'action.logbook',
+  stats: 'action.stats',
+  objective: 'action.objectives',
 };
 
 /** Rail switchers — objectives opens from its own bar. */
 const PANEL_BUTTONS: SidePanel[] = ['inventory', 'craft', 'logbook', 'stats'];
 
+function sidePanelLabelKey(id: SidePanel): string {
+  if (id === 'inventory') return 'ui.phone.stash';
+  if (id === 'craft') return 'ui.phone.craft';
+  if (id === 'logbook') return 'ui.phone.logbook';
+  if (id === 'stats') return 'ui.phone.stats';
+  return 'ui.phone.objectives';
+}
+
 /**
  * Orientation when a visible station isn't adjacent: how far it is, and that
- * the planner can still route around collapsed bores.
+ * the planner can still route — collapsed bores are a brutal crawl, not a wall.
  */
 function tunnelDirections(
   net: MrtNetwork,
@@ -161,13 +170,17 @@ function tunnelDirections(
 ): string {
   const route = mrtRouteBetween(here, sel, destroyed);
   if (!route) {
-    return `${sel.name} has no intact tunnel path from here — collapsed bores block every route. Plan travel to try another way, or walk the surface.`;
+    return `${sel.name} has no tunnel path from here. Plan travel to try another way, or walk the surface.`;
   }
   const where = `${route.stops} stops via the ${displayLine(net, route.legs[0].line).name}`;
+  if (route.collapsedHops > 0) {
+    return `${sel.name} is ${where}, but the only underground path crawls a collapsed bore. Plan travel — or walk the surface.`;
+  }
   return `${sel.name} is ${where}. Open tunnel planning to crawl the whole route in one run.`;
 }
 
 export function GameScreen() {
+  const { t } = useT();
   // Subscribing to the whole store meant every write re-rendered this screen —
   // including the log, which grows on almost every action and which nothing
   // here reads. Naming the slice keeps re-renders to changes that matter.
@@ -726,7 +739,7 @@ export function GameScreen() {
   const selHere = sel ? sel.id === currentPositionId : false;
 
   const here = currentPositionId ? locations[currentPositionId] : null;
-  // Adjacent intact segment still deep-links the planner with a destination.
+  // Adjacent segment still deep-links the planner with a destination.
   const bothStations = !!(
     sel &&
     sel.isMrtStation &&
@@ -817,11 +830,12 @@ export function GameScreen() {
   const nowHours = (day - 1) * 24 + hour;
   const evacHoursLeft = evacDeadline != null ? Math.max(0, evacDeadline - nowHours) : null;
   const fmtWindow = (h: number) => {
-    if (h <= 0) return 'departing…';
+    if (h <= 0) return t('ui.game.departing');
     const d = Math.floor(h / 24);
     const hr = Math.ceil(h % 24);
-    return d > 0 ? `${d}d ${hr}h` : `${hr}h`;
+    return d > 0 ? t('ui.game.windowDh', { d, h: hr }) : t('ui.game.windowH', { h: hr });
   };
+  const doomLabel = t(`ui.horde.${hordeTier(doom)}`);
   const evacUrgent = evacHoursLeft != null && evacHoursLeft <= 8;
   const windowText = evacHoursLeft != null ? fmtWindow(evacHoursLeft) : null;
   const evacCooldownHours =
@@ -834,9 +848,9 @@ export function GameScreen() {
     trekTarget && trekInfo && trekEst && !combat
       ? {
           title: travelAnim ? (
-            <><Icon name="action.travel" /> En route</>
+            <><Icon name="action.travel" /> {t('ui.game.enRoute')}</>
           ) : (
-            <><Icon name="action.target" /> Open ground</>
+            <><Icon name="action.target" /> {t('ui.game.openGround')}</>
           ),
           body: (
             <TrekCard
@@ -862,9 +876,9 @@ export function GameScreen() {
       : cardProps && !selHere
         ? {
             title: travelAnim ? (
-              <><Icon name="action.travel" /> En route</>
+              <><Icon name="action.travel" /> {t('ui.game.enRoute')}</>
             ) : (
-              <><Icon name="action.target" /> Target</>
+              <><Icon name="action.target" /> {t('ui.game.target')}</>
             ),
             body: <LocationCard {...cardProps} compact />,
             onClose: () => setSelectedId(null),
@@ -888,17 +902,14 @@ export function GameScreen() {
           onClick={callEvac}
           className="mt-2 w-full rounded-lg bg-signal/80 py-2 text-sm font-bold text-black transition hover:bg-signal"
         >
-          <Icon name="action.evac" /> Call for evac — pop the flare
+          <Icon name="action.evac" /> {t('ui.game.callEvac')}
         </button>
       )}
     </>
   ) : !worldLoading ? (
     <>
-      <div className="text-sm text-white/70">Nowhere in particular.</div>
-      <div className="mt-1 text-xs text-white/40">
-        No shelter, no stash, nothing to search. Tap a building to head for it, or tap bare ground
-        to keep moving. Sleeping out here barely counts as sleep.
-      </div>
+      <div className="text-sm text-white/70">{t('ui.game.nowhereTitle')}</div>
+      <div className="mt-1 text-xs text-white/40">{t('ui.game.nowhereBlurb')}</div>
       <HereHazardLine
         seed={seed}
         lat={currentPos.lat}
@@ -914,12 +925,12 @@ export function GameScreen() {
   const hereTitle: ReactNode = hdb ? (
     <span className="inline-flex items-center gap-1.5 normal-case tracking-normal">
       <Icon name="hdb.enterBlock" />
-      Inside the block
+      {t('ui.game.insideBlock')}
     </span>
   ) : hereProps ? (
-    <><Icon name="action.here" /> You are here</>
+    <><Icon name="action.here" /> {t('ui.game.youAreHere')}</>
   ) : (
-    <><Icon name="action.here" /> In the open</>
+    <><Icon name="action.here" /> {t('ui.game.inTheOpen')}</>
   );
 
   // The active mobile tab fills the screen — but only on mobile. Left
@@ -996,7 +1007,7 @@ export function GameScreen() {
         } lg:flex ${backgrounded}`}
       >
         {/* --- time, day, weather, rest --- */}
-        <div className="shrink-0 space-y-2 border-b border-white/10 p-2.5">
+        <div className="relative z-20 shrink-0 space-y-2 border-b border-white/10 p-2.5">
           <DigitalClock day={day} hour={hour} band={time} />
           <div className="flex items-center justify-between gap-2">
             <WeatherBadge weather={weather} />
@@ -1007,7 +1018,7 @@ export function GameScreen() {
                 className="rounded border border-white/15 px-2.5 py-1 text-xs transition hover:bg-white/5"
                 title={sleepPreview.conditions.summary}
               >
-                <Icon name="action.sleep" /> Rest
+                <Icon name="action.sleep" /> {t('ui.game.rest')}
               </button>
             </div>
           </div>
@@ -1025,7 +1036,7 @@ export function GameScreen() {
               urgent={evacUrgent}
               doom={doom}
               doomColor={doomColor}
-              doomLabel={hordeLabel(doom)}
+              doomLabel={doomLabel}
               dayMult={dayMult}
               vibe={readiness.vibe}
               vibeLine={readiness.vibeLine}
@@ -1057,7 +1068,7 @@ export function GameScreen() {
                         : 'border-white/15 text-white/70 hover:bg-white/5'
                     }`}
                   >
-                    <Icon name={SIDE_PANELS[id].icon} /> {SIDE_PANELS[id].label}
+                    <Icon name={SIDE_PANEL_ICONS[id]} /> {t(sidePanelLabelKey(id))}
                   </button>
                 );
               })}
@@ -1091,7 +1102,7 @@ export function GameScreen() {
             <h3 className="text-sm font-bold text-signal">
               {sidePanel && (
                 <>
-                  <Icon name={SIDE_PANELS[sidePanel].icon} /> {SIDE_PANELS[sidePanel].label}
+                  <Icon name={SIDE_PANEL_ICONS[sidePanel]} /> {t(sidePanelLabelKey(sidePanel))}
                 </>
               )}
             </h3>
@@ -1099,7 +1110,7 @@ export function GameScreen() {
               onClick={() => setSidePanel(null)}
               className="text-xs text-white/40 hover:text-white/70"
             >
-              ✕ close
+              {t('ui.common.close')}
             </button>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto p-3">
@@ -1123,10 +1134,10 @@ export function GameScreen() {
                 urgent={evacUrgent}
                 doom={doom}
                 doomColor={doomColor}
-                doomLabel={hordeLabel(doom)}
-                onEvac={callEvac}
-                onOpenGuide={setGuideTopic}
-              />
+              doomLabel={doomLabel}
+              onEvac={callEvac}
+              onOpenGuide={setGuideTopic}
+            />
             )}
           </div>
         </div>
@@ -1203,7 +1214,7 @@ export function GameScreen() {
               )}
               {worldLoading && (
                 <div className="absolute inset-0 z-[500] flex items-center justify-center bg-black/70">
-                  <p className="animate-pulse text-white/70">Loading the neighbourhood…</p>
+                  <p className="animate-pulse text-white/70">{t('ui.game.loadingNeighbourhood')}</p>
                 </div>
               )}
               {worldError && (
@@ -1312,14 +1323,14 @@ export function GameScreen() {
           >
             <div className="mb-2 flex items-center justify-between">
               <span className="text-2xs font-semibold uppercase tracking-widest text-signal/70">
-                You are here
+                {t('ui.game.youAreHere')}
               </span>
               <button
                 type="button"
                 onClick={() => setHereSheetOpen(false)}
                 className="text-xs text-white/40 hover:text-white/70"
               >
-                ✕ close
+                {t('ui.common.close')}
               </button>
             </div>
             {hereSlot}
@@ -1333,7 +1344,7 @@ export function GameScreen() {
         style={{ minHeight: 'calc(var(--mobile-nav-h) + env(safe-area-inset-bottom, 0px))' }}
       >
         <NavBtn
-          label={<><Icon name="action.map" /> Map</>}
+          label={<><Icon name="action.map" /> {t('ui.phone.map')}</>}
           active={phoneOnMap}
           onClick={() => goToPhoneTab('map')}
           pulse={
@@ -1344,22 +1355,22 @@ export function GameScreen() {
           }
         />
         <NavBtn
-          label={<><Icon name="action.status" /> Status</>}
+          label={<><Icon name="action.status" /> {t('ui.phone.status')}</>}
           active={!sidePanel && mobileView === 'hub'}
           onClick={() => goToPhoneTab('hub')}
         />
         <NavBtn
-          label={<><Icon name="action.inventory" /> Stash</>}
+          label={<><Icon name="action.inventory" /> {t('ui.phone.stash')}</>}
           active={sidePanel === 'inventory'}
           onClick={() => goToPhoneTab('inventory')}
         />
         <NavBtn
-          label={<><Icon name="action.craft" /> Craft</>}
+          label={<><Icon name="action.craft" /> {t('ui.phone.craft')}</>}
           active={sidePanel === 'craft'}
           onClick={() => goToPhoneTab('craft')}
         />
         <NavBtn
-          label={<><Icon name="action.log" /> Log</>}
+          label={<><Icon name="action.log" /> {t('ui.phone.log')}</>}
           active={!sidePanel && mobileView === 'log'}
           onClick={() => goToPhoneTab('log')}
         />
@@ -1426,6 +1437,7 @@ function RailSection({
   accent?: boolean;
   className?: string;
 }) {
+  const { t } = useT();
   return (
     <section
       className={`flex-col rounded-lg border p-2.5 ${
@@ -1442,7 +1454,7 @@ function RailSection({
         </span>
         {onClose && (
           <button onClick={onClose} className="text-xs text-white/40 hover:text-white/70">
-            ✕
+            {t('ui.common.close')}
           </button>
         )}
       </div>

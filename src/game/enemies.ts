@@ -196,6 +196,7 @@ export function rollZombie(catalog: EnemiesCatalog, rng: Rng, danger: number): E
   const t = catalog.zombies[idx]!;
   const hp = t.hp + intRange(t.hpJitter, tierRng);
   return {
+    templateId: t.id,
     name: t.name,
     kind: 'zombie',
     hp,
@@ -220,6 +221,7 @@ export function rollElite(
   const r = rng.fork(forkKey);
   const hp = t.hp + danger * t.hpPerDanger + intRange(t.hpJitter, r);
   return {
+    templateId: eliteId,
     name: t.name,
     kind: 'zombie',
     hp,
@@ -243,6 +245,7 @@ export function rollHuman(
   const r = rng.fork('human');
   const hp = t.baseHp + danger * t.hpPerDanger + intRange(t.hpJitter, r);
   return {
+    templateId: `human.${faction}`,
     name: t.name,
     kind: 'human',
     hp,
@@ -266,6 +269,7 @@ export function rollLoner(
   const r = rng.fork('loner');
   const hp = t.baseHp + danger * t.hpPerDanger + intRange(t.hpJitter, r);
   return {
+    templateId: `loner.${kind}`,
     name: t.name,
     kind: 'human',
     hp,
@@ -287,20 +291,15 @@ export function combatantIcon(enemy: Enemy): IconName {
   return 'combat.enemyZombie';
 }
 
-export function rollAnimal(
-  catalog: EnemiesCatalog,
+function scaleAnimal(
+  pick: AnimalArchetype,
   rng: Rng,
-  habitat: AnimalHabitat,
   danger: number,
 ): Enemy {
-  const pool = catalog.animals.filter((a) => a.habitats.includes(habitat));
-  const r = rng.fork('animal');
-  const pick = pool.length
-    ? r.weighted(pool.map((a) => [a, Math.max(1, a.weight)] as const))
-    : catalog.animals[0]!;
   const hpScale = 1 + Math.max(0, danger - 2) * 0.08;
-  const hp = Math.max(1, Math.round((pick.hp + intRange(pick.hpJitter, r)) * hpScale));
+  const hp = Math.max(1, Math.round((pick.hp + intRange(pick.hpJitter, rng)) * hpScale));
   return {
+    templateId: pick.id,
     name: pick.name,
     kind: 'animal',
     hp,
@@ -315,12 +314,37 @@ export function rollAnimal(
   };
 }
 
+export function rollAnimal(
+  catalog: EnemiesCatalog,
+  rng: Rng,
+  habitat: AnimalHabitat,
+  danger: number,
+): Enemy {
+  const pool = catalog.animals.filter((a) => a.habitats.includes(habitat));
+  const r = rng.fork('animal');
+  const pick = pool.length
+    ? r.weighted(pool.map((a) => [a, Math.max(1, a.weight)] as const))
+    : catalog.animals[0]!;
+  return scaleAnimal(pick, r, danger);
+}
+
+/** Force a named animal (tunnel floodwater always wants the otter). */
+export function rollAnimalById(
+  catalog: EnemiesCatalog,
+  rng: Rng,
+  id: string,
+  danger: number,
+): Enemy {
+  const pick = catalog.animals.find((a) => a.id === id) ?? catalog.animals[0]!;
+  return scaleAnimal(pick, rng.fork('animal'), danger);
+}
+
 export function rollAnimalDrop(
   catalog: EnemiesCatalog,
   rng: Rng,
-  enemyName: string,
+  enemyTemplateId: string,
 ): string | null {
-  const t = catalog.animals.find((a) => a.name === enemyName);
+  const t = catalog.animals.find((a) => a.id === enemyTemplateId);
   if (!t || !t.drops.length) return null;
   if (t.dropChance < 1 && !rng.chance(t.dropChance)) return null;
   return rng.pick(t.drops);

@@ -273,10 +273,25 @@ export function hordeIntensity(hordeLevel: number): number {
   return Math.min(1, hordeLevel / HORDE_MAX);
 }
 
+export type HordeTier = 'stirring' | 'restless' | 'massing' | 'swarming' | 'overrun';
+
+/** Stable id for `ui.horde.*` — translate at the call site. */
+export function hordeTier(hordeLevel: number): HordeTier {
+  if (hordeLevel >= HORDE_MAX) return 'overrun';
+  if (hordeLevel >= 75) return 'swarming';
+  if (hordeLevel >= 50) return 'massing';
+  if (hordeLevel >= 25) return 'restless';
+  return 'stirring';
+}
+
+/** English fallback for logs / non-i18n callers. */
 export function hordeLabel(hordeLevel: number): string {
-  if (hordeLevel >= HORDE_MAX) return 'Overrun';
-  if (hordeLevel >= 75) return 'Swarming';
-  if (hordeLevel >= 50) return 'Massing';
-  if (hordeLevel >= 25) return 'Restless';
-  return 'Stirring';
+  const labels: Record<HordeTier, string> = {
+    overrun: 'Overrun',
+    swarming: 'Swarming',
+    massing: 'Massing',
+    restless: 'Restless',
+    stirring: 'Stirring',
+  };
+  return labels[hordeTier(hordeLevel)];
 }

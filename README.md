@@ -199,9 +199,10 @@ hostility, trade, shelter, aid, and intel:
   without opening the planner. The MRT map is the one thing every commuter here already knows by
   heart; fog hides what's *inside* a station, never where the line runs. The preference persists
   like the zoom does.
-- **Destroyed tunnels.** Each run collapses ~15–25% of adjacent segments (seeded, soft-biased toward
-  the spawn→first-evac corridor). Those edges are hard walls for routing — you cannot crawl through
-  a collapsed bore; the planner finds detours or reports the destination unreachable underground.
+- **Collapsed tunnels.** Each run collapses ~15–25% of adjacent segments (seeded, soft-biased toward
+  the spawn→first-evac corridor). Those edges stay walkable — a brutal crawl (rubble, packs, no camps),
+  not a wall. The planner defaults to a fewest-stop **intact** path and offers a
+  shorter rubble shortcut when one exists. Long island crossings may have no intact route at all.
 - **Nothing runs.** Travel is a **planned tunnel crawl**: pick a destination on the route planner
   (`MrtRoutePlanner`), choose among fewest-stop routes (and alternates), then walk **one run for the
   whole path**. Intermediate station platforms let you **exit early**; the final platform arrives
@@ -220,20 +221,23 @@ hostility, trade, shelter, aid, and intel:
   Time is the real track distance at walking pace. There is no train discount any more.
 - **The run itself is a Slay-the-Spire map** (`game/tunnelRun.ts`, `components/TunnelRunView.tsx`):
   platforms at each station on the route, bore columns between them (capped so long rides stay
-  playable), forward-only edges, one column of reveal ahead. Four middle node kinds — **contact**,
-  **salvage**, **camp**, **obstruction** — same as before. The crawl HUD is an in-train schematic
-  strip of the planned route (`StationStrip`) — next stop, livery-coloured hops, and transfer
-  stations — not a single `from → to` line name.
-- **Pressure** is the run's own gauge, continuous across the whole journey. Sleeping at a camp is
-  the one thing that lowers it. A pinned gauge can spawn a **Stalker**.
-- **Stations are exits.** STA **toll** still gates the *stairs down* at the origin only. Roughly
-  **45% of platforms stand empty** (`CLAIM_CHANCE.sta`).
-- A run **survives a reload** — same graph, same node (`SavedRun.tunnel`). Destroyed edges persist
+  playable), forward-only edges, one column of reveal ahead (two after a working **signal** board).
+  Middle node kinds: **contact**, **salvage**, **camp**, **obstruction**, **carriage**, **signal**,
+  **checkpoint**. Obstructions are floodwater (fail: turned otter, no wound), falling debris (heavy
+  wound), live rail, a long **blackout**, or a strength pinch. A stalled **carriage** is under-or-through;
+  rare Contact is a **Stalker** keeping pace. The crawl HUD is an in-train schematic strip of the
+  planned route (`StationStrip`) — next stop, livery-coloured hops, and transfer stations — not a
+  single `from → to` line name.
+- **Stations are exits.** STA **toll** still gates the *stairs down* at the origin only; marshals
+  may also hold a **checkpoint** in the bore. Roughly **45% of platforms stand empty**
+  (`CLAIM_CHANCE.sta`).
+- A run **survives a reload** — same graph, same node (`SavedRun.tunnel`). Collapsed edges persist
   with the run (or re-roll from seed on older saves). Every trip generates a fresh crawl graph.
 
 ### 3.9 Inventory, equipment & weight
 - **Spatial Tetris grid** (Tarkov-style): items have **W×H footprints**, **rotate**, and drag between
-  the **Backpack** (8×5, what you carry) and the **on-site stash** of wherever you're standing.
+  the **Backpack** (5×4 pockets; an equipped bag sets a cell mask so holes are unusable) and the
+  **on-site stash** of wherever you're standing.
 - **Equipment slots** — head / body / mainHand / offHand. Equipping **removes the item from the grid**
   (freeing space) and applies its `modifiers` (attack/defense/carry bonuses). Combat reads the weapon
   from mainHand. Armour comes from police/hospital/hardware (riot helmet, kevlar/utility vest, riot
@@ -244,14 +248,16 @@ hostility, trade, shelter, aid, and intel:
 
 ### 3.10 Search sessions
 - Searching a site is a **real-time fogged grid** (`game/searchSession.ts`), not an instant loot dump.
+  Street POIs roll a **destruction tier** on first visit (shown instead of loot richness); haul size
+  scales with footprint (~3–7 finds) and item **condition** tracks how wrecked the place is.
   Click fogged cells to prioritize them; finds reveal one by one; Take / Take all claim into the pack
   (overflow to on-site stash). **Done** or **Leave** abandons unclaimed finds. Leaving early still
   spends a **partial search charge**.
 
 ### 3.11 Decentralized stashes & the logbook
-- **No home base.** Every cleared location has its own **10×8 stash**; you deposit/withdraw only while
+- **No home base.** Every cleared location has its own **4×4 stash**; you deposit/withdraw only while
   physically there. Danger regenerates while you're away, so a cache you left loot in can become
-  dangerous to revisit.
+  dangerous to revisit. Tunnel crawl overflow uses the same **4×4** temp pile.
 - The read-only **Stash Logbook** lists every location holding cached items, with coordinates and a
   contents summary.
 

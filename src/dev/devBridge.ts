@@ -3,10 +3,11 @@
 export const OPEN_LOOT_EVENT = 'singvive:open-loot';
 export const OPEN_ENEMY_EVENT = 'singvive:open-enemy';
 export const OPEN_ICON_EVENT = 'singvive:open-icon';
+export const OPEN_LOCALE_EVENT = 'singvive:open-locale';
 export const CLOSE_DEV_TOOLS_EVENT = 'singvive:close-dev-tools';
 export const DEV_TOOL_STATE_EVENT = 'singvive:dev-tool-state';
 
-export type DevToolId = 'loot' | 'enemies' | 'icons';
+export type DevToolId = 'loot' | 'enemies' | 'icons' | 'locale';
 
 export type OpenLootDetail = {
   itemId?: string;
@@ -68,4 +69,9 @@ export function openIconBrowser(detail: OpenIconDetail = {}): void {
   window.dispatchEvent(
     new CustomEvent<OpenIconDetail>(OPEN_ICON_EVENT, { detail }),
   );
+}
+
+export function openLocaleEditor(): void {
+  closeDevTools('locale');
+  window.dispatchEvent(new CustomEvent(OPEN_LOCALE_EVENT));
 }

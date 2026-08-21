@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { validateItemsCatalog } from './src/dev/validateItems.ts';
 import { validateLootTablesCatalog } from './src/dev/validateLootTables.ts';
 import { validateEnemiesCatalog } from './src/dev/validateEnemies.ts';
+import { validateItemTileColors } from './src/dev/validateItemTileColors.ts';
 import {
   normalizeRecipesCatalog,
   validateRecipesCatalog,
@@ -13,9 +14,12 @@ import {
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const ITEMS_PATH = path.join(ROOT, 'src/game/data/items.json');
+const ITEM_TILE_COLORS_PATH = path.join(ROOT, 'src/game/data/itemTileColors.json');
 const LOOT_TABLES_PATH = path.join(ROOT, 'src/game/data/lootTables.json');
 const RECIPES_PATH = path.join(ROOT, 'src/game/data/recipes.json');
 const ENEMIES_PATH = path.join(ROOT, 'src/game/data/enemies.json');
+const LOCALE_EN_PATH = path.join(ROOT, 'src/i18n/messages/en.json');
+const LOCALE_ZH_PATH = path.join(ROOT, 'src/i18n/messages/zh-Hans.json');
 const ICONS_DIR = path.join(ROOT, 'src/assets/icons');
 const KEYS_PATH = path.join(ROOT, 'src/icons/keys.ts');
 
@@ -160,10 +164,13 @@ function samePath(a: string, b: string): boolean {
 function isDevLootHotFile(file: string): boolean {
   if (
     samePath(file, ITEMS_PATH) ||
+    samePath(file, ITEM_TILE_COLORS_PATH) ||
     samePath(file, LOOT_TABLES_PATH) ||
     samePath(file, RECIPES_PATH) ||
     samePath(file, ENEMIES_PATH) ||
-    samePath(file, KEYS_PATH)
+    samePath(file, KEYS_PATH) ||
+    samePath(file, LOCALE_EN_PATH) ||
+    samePath(file, LOCALE_ZH_PATH)
   ) {
     return true;
   }
@@ -201,7 +208,53 @@ export function lootDevApi(): Plugin {
     },
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
-        const url = req.url?.split('?')[0];
+        const rawUrl = req.url ?? '';
+        const url = rawUrl.split('?')[0];
+        const qs = rawUrl.includes('?') ? new URL(rawUrl, 'http://dev.local').searchParams : null;
+
+        // Locale catalogs — support /__dev/locale?id=en|zh-Hans (preferred) and
+        // /__dev/locale/en path form. Query form avoids SPA fallback eating hyphens.
+        const localeIdFromPath = url?.match(/^\/__dev\/locale\/(en|zh-Hans)$/)?.[1];
+        const localeIdFromQuery =
+          url === '/__dev/locale' ? qs?.get('id') : null;
+        const localeId =
+          localeIdFromPath ??
+          (localeIdFromQuery === 'en' || localeIdFromQuery === 'zh-Hans'
+            ? localeIdFromQuery
+            : null);
+        if (localeId) {
+          const filePath = localeId === 'en' ? LOCALE_EN_PATH : LOCALE_ZH_PATH;
+          if (req.method === 'GET') {
+            try {
+              const raw = fs.readFileSync(filePath, 'utf8');
+              res.statusCode = 200;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(raw);
+            } catch (err) {
+              json(res, 500, { error: String(err) });
+            }
+            return;
+          }
+          if (req.method === 'PUT') {
+            try {
+              const body = await readBody(req);
+              const parsed: unknown = JSON.parse(body);
+              if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+                json(res, 400, { error: 'Locale catalog must be a JSON object' });
+                return;
+              }
+              fs.writeFileSync(filePath, `${JSON.stringify(parsed, null, 2)}\n`, 'utf8');
+              json(res, 200, { ok: true });
+            } catch (err) {
+              json(res, 400, { error: String(err) });
+            }
+            return;
+          }
+          res.statusCode = 405;
+          res.setHeader('Allow', 'GET, PUT');
+          res.end('Method Not Allowed');
+          return;
+        }
 
         if (url === '/__dev/icons' && req.method === 'GET') {
           try {
@@ -501,6 +554,43 @@ export function lootDevApi(): Plugin {
                 return;
               }
               fs.writeFileSync(ENEMIES_PATH, `${JSON.stringify(parsed, null, 2)}\n`, 'utf8');
+              json(res, 200, { ok: true });
+            } catch (err) {
+              json(res, 400, { error: String(err) });
+            }
+            return;
+          }
+
+          res.statusCode = 405;
+          res.setHeader('Allow', 'GET, PUT');
+          res.end('Method Not Allowed');
+          return;
+        }
+
+        if (url === '/__dev/item-tile-colors') {
+          if (req.method === 'GET') {
+            try {
+              const raw = fs.readFileSync(ITEM_TILE_COLORS_PATH, 'utf8');
+              res.statusCode = 200;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(raw);
+            } catch (err) {
+              json(res, 500, { error: String(err) });
+            }
+            return;
+          }
+
+          if (req.method === 'PUT') {
+            try {
+              const body = await readBody(req);
+              const parsed: unknown = JSON.parse(body);
+              const errors = validateItemTileColors(parsed);
+              if (errors.length > 0) {
+                json(res, 400, { error: 'Validation failed', errors });
+                return;
+              }
+              const pretty = `${JSON.stringify(parsed, null, 2)}\n`;
+              fs.writeFileSync(ITEM_TILE_COLORS_PATH, pretty, 'utf8');
               json(res, 200, { ok: true });
             } catch (err) {
               json(res, 400, { error: String(err) });

@@ -8,6 +8,8 @@ import {
 import { ScoreBoard } from '../components/ScoreBoard';
 import { useGame } from '../game/store';
 import { DEATH_TEXT, scoreDayMult } from '../game/survival';
+import { useT } from '../i18n';
+import type { TVars } from '../i18n';
 
 type WorldStatus = 'pending' | 'ok' | 'offline' | 'limited' | 'invalid';
 
@@ -23,6 +25,7 @@ export function DeathScreen() {
     seed,
     resetToMenu,
   } = useGame();
+  const { t } = useT();
   const mult = scoreDayMult(day);
   const [world, setWorld] = useState<OnlineScore[] | null | undefined>(undefined);
   const [worldStatus, setWorldStatus] = useState<WorldStatus>('pending');
@@ -80,20 +83,20 @@ export function DeathScreen() {
       <div className="w-full max-w-md text-center">
         <div className="mb-2 text-6xl">{escaped ? '🚁' : '💀'}</div>
         <h1 className={`text-3xl font-black ${escaped ? 'text-signal' : 'text-hiss'}`}>
-          {escaped ? 'YOU ESCAPED' : 'YOU DIED'}
+          {escaped ? t('ui.death.escaped') : t('ui.death.died')}
         </h1>
         <p className="mt-1 text-sm text-white/50">
           {escaped
-            ? 'The chopper lifts off as the horde floods the streets below. You made it out.'
+            ? t('ui.death.escapeBlurb')
             : deathCause
               ? DEATH_TEXT[deathCause]
-              : 'Gone.'}
+              : t('ui.death.gone')}
         </p>
 
         <div className="mt-6 grid grid-cols-3 gap-2 text-center">
-          <Stat label="Days" value={day} />
-          <Stat label="Kills" value={kills} />
-          <Stat label="Score" value={finalScore} />
+          <Stat label={t('ui.death.days')} value={day} />
+          <Stat label={t('ui.death.kills')} value={kills} />
+          <Stat label={t('ui.death.score')} value={finalScore} />
         </div>
 
         <p className="mt-4 text-sm text-white/50">
@@ -112,26 +115,30 @@ export function DeathScreen() {
           )}
         </p>
 
-        <p className="mt-3 text-xs text-white/40">{statusCopy(worldStatus, rank)}</p>
+        <p className="mt-3 text-xs text-white/40">{statusCopy(worldStatus, rank, t)}</p>
 
         {localRows.length > 0 && (
           <div className="mt-6 text-left">
-            <h2 className="mb-2 text-xs uppercase tracking-widest text-white/40">This device</h2>
+            <h2 className="mb-2 text-xs uppercase tracking-widest text-white/40">
+              {t('ui.death.thisDevice')}
+            </h2>
             <ScoreBoard rows={localRows} />
           </div>
         )}
 
         <div className="mt-6 text-left">
-          <h2 className="mb-2 text-xs uppercase tracking-widest text-white/40">Worldwide</h2>
+          <h2 className="mb-2 text-xs uppercase tracking-widest text-white/40">
+            {t('ui.death.worldwide')}
+          </h2>
           {world === undefined ? (
-            <p className="text-sm text-white/40">Loading worldwide scores…</p>
+            <p className="text-sm text-white/40">{t('ui.death.loadingWorld')}</p>
           ) : world === null ? (
-            <p className="text-sm text-white/40">Worldwide board unreachable.</p>
+            <p className="text-sm text-white/40">{t('ui.death.worldUnreachable')}</p>
           ) : (
             <ScoreBoard
               rows={world.slice(0, 10)}
               highlightId={postedId}
-              empty="No worldwide scores yet."
+              empty={t('ui.death.noWorldScores')}
             />
           )}
         </div>
@@ -140,20 +147,24 @@ export function DeathScreen() {
           onClick={resetToMenu}
           className="mt-8 rounded-sm bg-signal/80 px-8 py-3 font-bold text-black hover:bg-signal"
         >
-          Try again
+          {t('ui.death.tryAgain')}
         </button>
       </div>
     </div>
   );
 }
 
-function statusCopy(status: WorldStatus, rank: number | undefined): string {
-  if (status === 'pending') return 'Posting to the worldwide board…';
-  if (status === 'ok' && rank != null) return `Worldwide rank #${rank}.`;
-  if (status === 'ok') return 'Posted to the worldwide board.';
-  if (status === 'limited') return 'Worldwide board is rate-limited — saved on this device.';
-  if (status === 'invalid') return "Couldn't post this score — saved on this device.";
-  return 'Worldwide board unreachable — saved on this device.';
+function statusCopy(
+  status: WorldStatus,
+  rank: number | undefined,
+  t: (key: string, vars?: TVars) => string,
+): string {
+  if (status === 'pending') return t('ui.death.posting');
+  if (status === 'ok' && rank != null) return t('ui.death.rank', { rank });
+  if (status === 'ok') return t('ui.death.posted');
+  if (status === 'limited') return t('ui.death.rateLimited');
+  if (status === 'invalid') return t('ui.death.invalid');
+  return t('ui.death.unreachableSaved');
 }
 
 function Stat({ label, value }: { label: string; value: number }) {

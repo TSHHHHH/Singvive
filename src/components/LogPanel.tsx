@@ -10,6 +10,7 @@ import { SearchSessionNode } from './SearchSessionNode';
 import { PendingEventChoices } from './PendingEventChoices';
 import { highlightLogText } from './logHighlight';
 import type { GuideTopic } from '../content/guideContent';
+import { itemName, useT } from '../i18n';
 
 const toneClass: Record<string, string> = {
   good: 'text-signal',
@@ -56,6 +57,7 @@ export function LogPanel({
   /** When `map`, hide live event / contact / search controls (phone Map owns them). */
   liveNodes?: LiveNodesHost;
 }) {
+  const { locale, t } = useT();
   const log = useGame((s) => s.log);
   const day = useGame((s) => s.day);
   const pending = useGame((s) => s.pendingEvent);
@@ -110,10 +112,10 @@ export function LogPanel({
     showLive && (!!ev || awaitingStance || !!pendingSearchNonce);
 
   return (
-    <div className="flex h-full min-w-0 flex-col">
+    <div className="flex h-full min-h-0 flex-col">
       <div className="mb-2 flex shrink-0 items-center justify-between gap-2">
         <h3 className="text-xs uppercase tracking-widest text-white/30">
-          Timeline <span className="text-white/20">· day {day}</span>
+          {t('ui.log.timelineDay', { day })}
         </h3>
         {/* One row of identically-sized controls — the view toggles and the two
             sheet openers all read as the same kind of thing, so they look it. */}
@@ -121,7 +123,7 @@ export function LogPanel({
           {onOpenDayLogs && (
             <button
               onClick={onOpenDayLogs}
-              title="Day logs — every previous day"
+              title={t('ui.log.dayLogsTitle')}
               className={`${CTRL} text-white/40 hover:bg-white/5 hover:text-white/70`}
             >
               <Icon name="action.dayLogs" />
@@ -131,7 +133,7 @@ export function LogPanel({
             <button
               key={m.id}
               onClick={() => setSetting('logView', m.id)}
-              title={`Show ${m.label.toLowerCase()}`}
+              title={t('ui.log.showMode', { mode: m.label.toLowerCase() })}
               className={`${CTRL} ${
                 viewId === m.id
                   ? 'bg-signal/20 text-signal'
@@ -144,7 +146,7 @@ export function LogPanel({
           {onOpenSettings && (
             <button
               onClick={onOpenSettings}
-              title="Settings"
+              title={t('ui.log.settings')}
               className={`${CTRL} text-white/40 hover:bg-white/5 hover:text-white/70`}
             >
               <Icon name="action.settings" />
@@ -156,7 +158,7 @@ export function LogPanel({
       <div ref={scrollRef} className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden pl-1.5 pr-2">
         {shown.length === 0 && !hasLiveNode ? (
           <p className="text-white/30">
-            {earlierDays ? 'A fresh day. Nothing has happened yet.' : 'Your story starts here…'}
+            {earlierDays ? t('ui.log.freshDay') : t('ui.log.storyStarts')}
           </p>
         ) : (
           <ol className="relative flex flex-col">
@@ -166,11 +168,13 @@ export function LogPanel({
             {(hiddenCount > 0 || earlierDays) && (
               <li className="relative mb-1 pl-6 text-2xs italic text-white/25">
                 {hiddenCount > 0 &&
-                  `…${hiddenCount} earlier ${hiddenCount === 1 ? 'entry' : 'entries'} today hidden`}
+                  (hiddenCount === 1
+                    ? t('ui.log.earlierHidden', { n: hiddenCount })
+                    : t('ui.log.earlierHiddenPlural', { n: hiddenCount }))}
                 {hiddenCount > 0 && earlierDays && ' · '}
                 {earlierDays && onOpenDayLogs && (
                   <button onClick={onOpenDayLogs} className="underline hover:text-white/50">
-                    previous days in Day logs
+                    {t('ui.log.previousDays')}
                   </button>
                 )}
               </li>
@@ -212,7 +216,9 @@ export function LogPanel({
                           onClick={() => onFocusMap(e.focus!.lat, e.focus!.lng)}
                           className="rounded border border-signal/40 bg-signal/10 px-2 py-0.5 text-2xs text-signal hover:bg-signal/20"
                         >
-                          Show on map{e.focus.label ? ` · ${e.focus.label}` : ''}
+                          {e.focus.label
+                            ? t('ui.log.showOnMapLabel', { label: e.focus.label })
+                            : t('ui.log.showOnMap')}
                         </button>
                       </div>
                     )}
@@ -227,7 +233,7 @@ export function LogPanel({
                             >
                               <Icon name={itemIcon(def)} size={13} className="shrink-0" />
                               <span className="min-w-0 flex-1 truncate text-concrete-200">
-                                {def.name}
+                                {itemName(s.defId, locale)}
                               </span>
                               <span className="shrink-0 tabular-nums text-signal">×{s.count}</span>
                             </li>
@@ -237,8 +243,11 @@ export function LogPanel({
                     )}
                     {e.leftover && e.leftover.length > 0 && (
                       <div className="mt-1 text-2xs text-hiss" style={{ paddingLeft: timeW }}>
-                        Pack full — left behind{' '}
-                        {e.leftover.map((s) => `${itemDef(s.defId).name} ×${s.count}`).join(', ')}
+                        {t('ui.log.packFull', {
+                          items: e.leftover
+                            .map((s) => `${itemName(s.defId, locale)} ×${s.count}`)
+                            .join(', '),
+                        })}
                       </div>
                     )}
                   </div>

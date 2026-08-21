@@ -7,7 +7,7 @@ import type { RunStats } from './types';
  * The store owns the numbers; this module owns their shape, their reset value
  * and the display descriptors. Adding a counter means one field here plus one
  * `bumpStats` call at the site where it happens — the Stats panel picks it up
- * automatically from STAT_GROUPS.
+ * automatically from STAT_GROUPS. Labels are i18n keys under `ui.stats.*`.
  */
 
 export function emptyRunStats(): RunStats {
@@ -32,14 +32,16 @@ export function normalizeRunStats(raw: Partial<RunStats> | undefined): RunStats 
 
 export interface StatRow {
   key: keyof RunStats;
-  label: string;
+  /** Message key under `ui.stats.*`. */
+  labelKey: string;
   icon: IconName;
   /** How the raw number reads on screen. */
   format?: (n: number) => string;
 }
 
 export interface StatGroup {
-  title: string;
+  /** Message key under `ui.stats.*`. */
+  titleKey: string;
   rows: StatRow[];
 }
 
@@ -47,28 +49,28 @@ const km = (m: number) => (m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFix
 
 export const STAT_GROUPS: StatGroup[] = [
   {
-    title: 'Combat',
+    titleKey: 'ui.stats.combat',
     rows: [
-      { key: 'zombieKills', label: 'Zombies killed', icon: 'combat.enemyZombie' },
-      { key: 'humanKills', label: 'Humans killed', icon: 'combat.enemyHuman' },
-      { key: 'animalKills', label: 'Animals killed', icon: 'combat.enemyAnimal' },
-      { key: 'fightsFled', label: 'Fights fled', icon: 'stance.disengage' },
+      { key: 'zombieKills', labelKey: 'ui.stats.zombieKills', icon: 'combat.enemyZombie' },
+      { key: 'humanKills', labelKey: 'ui.stats.humanKills', icon: 'combat.enemyHuman' },
+      { key: 'animalKills', labelKey: 'ui.stats.animalKills', icon: 'combat.enemyAnimal' },
+      { key: 'fightsFled', labelKey: 'ui.stats.fightsFled', icon: 'stance.disengage' },
     ],
   },
   {
-    title: 'Exploration',
+    titleKey: 'ui.stats.exploration',
     rows: [
-      { key: 'distanceM', label: 'Distance walked', icon: 'action.travel', format: km },
-      { key: 'poisSearched', label: 'Sites searched', icon: 'action.search' },
-      { key: 'hdbUnitsCleared', label: 'HDB units cleared', icon: 'hdb.unit' },
+      { key: 'distanceM', labelKey: 'ui.stats.distanceWalked', icon: 'action.travel', format: km },
+      { key: 'poisSearched', labelKey: 'ui.stats.sitesSearched', icon: 'action.search' },
+      { key: 'hdbUnitsCleared', labelKey: 'ui.stats.hdbUnitsCleared', icon: 'hdb.unit' },
     ],
   },
   {
-    title: 'Survival',
+    titleKey: 'ui.stats.survival',
     rows: [
-      { key: 'nightsSlept', label: 'Times slept', icon: 'action.sleep' },
-      { key: 'itemsLooted', label: 'Items looted', icon: 'action.stash' },
-      { key: 'lootValue', label: 'Loot value', icon: 'stat.value' },
+      { key: 'nightsSlept', labelKey: 'ui.stats.timesSlept', icon: 'action.sleep' },
+      { key: 'itemsLooted', labelKey: 'ui.stats.itemsLooted', icon: 'action.stash' },
+      { key: 'lootValue', labelKey: 'ui.stats.lootValue', icon: 'stat.value' },
     ],
   },
 ];
