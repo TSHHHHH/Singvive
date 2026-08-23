@@ -20,6 +20,12 @@ export const CELL = 34;
 /** Extra px taken off the scaled icon so art doesn't sit on the cell border. */
 const ICON_INSET = 16;
 
+/** Icon size for a grid-placed item — same scale in backpack, stash, and search. */
+export function gridItemIconSize(w: number, h: number, cell = CELL): number {
+  const inset = cell === CELL ? ICON_INSET : Math.round((ICON_INSET * cell) / CELL);
+  return Math.max(1, Math.min(w, h) * cell - inset);
+}
+
 export interface DragPreview {
   grid: Container;
   cellX: number;
@@ -181,7 +187,7 @@ export function InventoryGrid({
               >
                 <Icon
                   name={itemIcon(def)}
-                  size={Math.min(w, h) * CELL - ICON_INSET}
+                  size={gridItemIconSize(w, h)}
                   className="drop-shadow"
                 />
                 {def.stackable && inst.stack > 1 && (

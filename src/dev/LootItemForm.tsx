@@ -13,6 +13,7 @@ import { Icon } from '../icons/Icon';
 import { ICON_ASSETS } from '../icons/registry';
 import { itemIcon } from '../components/Inventory/itemIcon';
 import { SearchFindRevealCell } from '../components/SearchFindRevealCell';
+import { gridItemIconSize } from '../components/Inventory/InventoryGrid';
 import { footprint } from '../game/inventory';
 import { DEFAULT_BAG_PACK_GRID } from '../game/packGrid';
 import { BagGridEditor } from './BagGridEditor';
@@ -860,7 +861,7 @@ export function LootItemForm({
                 playKey={revealPlayKey}
                 animate={!!revealHighlight}
                 forceMotion
-                iconSize={Math.min(revealFoot.w, revealFoot.h) > 1 ? 22 : 18}
+                iconSize={gridItemIconSize(revealFoot.w, revealFoot.h, REVEAL_CELL)}
                 as="div"
                 className="absolute"
                 style={{

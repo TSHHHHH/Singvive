@@ -321,6 +321,10 @@
       "openStatus": "打开状态",
       "bleed": "流血"
     },
+    "craft": {
+      "needHave": "{name} — 需要 {need}，现有 {have}",
+      "toolTip": "{name} — 留在背包（现有 {have}）"
+    },
     "attributes": {
       "strength": "力量",
       "dexterity": "敏捷",
@@ -467,6 +471,71 @@
       "curiosityScrap": "废料 / 交易",
       "damageOf": "{dmg}（满值 {base}）",
       "restoreOf": "{n}（满值 {base}）"
+    },
+    "sheet": {
+      "group": {
+        "attributes": "属性",
+        "combat": "战斗",
+        "mobility": "机动",
+        "survival": "生存",
+        "search": "搜索",
+        "other": "其他"
+      },
+      "row": {
+        "strength": "力量",
+        "dexterity": "敏捷",
+        "endurance": "耐力",
+        "perception": "感知",
+        "wits": "脑筋",
+        "attack": "攻击",
+        "defence": "防御",
+        "dodge": "闪避",
+        "damage": "伤害",
+        "maxHp": "最大生命",
+        "infectionResist": "感染抗性",
+        "zombieAttack": "对丧尸",
+        "soak": "吸收",
+        "statusResist": "状态抗性",
+        "block": "格挡",
+        "combatSpeed": "战斗速度",
+        "travel": "移动",
+        "carry": "负重",
+        "encounters": "遭遇",
+        "hungerDrain": "饥饿消耗",
+        "thirstDrain": "口渴消耗",
+        "energyDrain": "精力消耗",
+        "sleepRestore": "睡眠恢复",
+        "healBonus": "治疗加成",
+        "foodEffect": "食物效果",
+        "searchSpeed": "搜索速度",
+        "searchBonus": "额外搜索",
+        "loot": "搜刮",
+        "awareness": "察觉",
+        "checkBonus": "检定加成",
+        "craftCost": "制作消耗",
+        "gridWidth": "背包宽度",
+        "ambush": "伏击几率",
+        "firstHit": "首击",
+        "nightVision": "夜间无瞄准惩罚",
+        "cannotDrop": "无法丢弃物品",
+        "bleedNoClot": "流血不会自停",
+        "showSearches": "可见剩余搜索"
+      },
+      "source": {
+        "base": "基础",
+        "weapon": "武器",
+        "unarmed": "徒手",
+        "arms": "手臂受伤",
+        "load": "负重",
+        "energy": "精力",
+        "night": "夜晚 / 黄昏",
+        "weather": "天气",
+        "offHand": "空手",
+        "legs": "腿部受伤",
+        "bleed": "流血",
+        "gear": "装备",
+        "outdoors": "户外 / 炎热"
+      }
     },
     "itemKind": {
       "weapon": "武器",

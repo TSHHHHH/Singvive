@@ -12,6 +12,7 @@ import { adjustCraftInputs } from '../game/character';
 import { ITEMS } from '../game/loot';
 import type { ItemDef } from '../game/types';
 import { itemIcon } from '../components/Inventory/itemIcon';
+import { RecipeInputChip } from '../components/CraftingPanel';
 import { Icon } from '../icons/Icon';
 import {
   blankRecipe,
@@ -1383,15 +1384,36 @@ export function RecipesEditor({
                     {selected.name}
                     {selected.outputCount > 1 ? ` ×${selected.outputCount}` : ''}
                   </span>
-                  <span className="mt-0.5 block truncate leading-snug text-white/35">
-                    {Object.entries(selected.inputs)
-                      .map(([id, n]) => `${n}× ${itemName(items, id)}`)
-                      .join(' · ')}
-                    {selected.tool ? ` · ${itemName(items, selected.tool)}` : ''}
+                  <span className="mt-1 flex flex-wrap gap-1">
+                    {Object.entries(sandboxResult?.adjusted ?? selected.inputs)
+                      .filter(([, n]) => n > 0)
+                      .map(([id, n]) => (
+                        <RecipeInputChip
+                          key={id}
+                          defId={id}
+                          def={defOf(items, id)}
+                          need={n}
+                          have={sandboxPack[id] ?? 0}
+                        />
+                      ))}
+                    {selected.tool ? (
+                      <RecipeInputChip
+                        defId={selected.tool}
+                        def={defOf(items, selected.tool)}
+                        need={1}
+                        have={sandboxPack[selected.tool] ?? 0}
+                        role="tool"
+                      />
+                    ) : null}
                   </span>
                   <span className="mt-0.5 block truncate leading-snug text-white/35">
                     {selected.blurb}
                   </span>
+                  {selected.needsShelter && !sandboxShelter ? (
+                    <span className="mt-1 block leading-snug text-white/50">
+                      Needs somewhere to work
+                    </span>
+                  ) : null}
                 </span>
                 <span className="shrink-0 pt-0.5 text-right tabular-nums text-white/50">
                   {selected.hours}h

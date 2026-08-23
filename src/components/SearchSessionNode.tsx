@@ -13,14 +13,12 @@ import { itemIcon } from './Inventory/itemIcon';
 import { formatClock } from '../game/survival';
 import { useClockFormat } from '../game/settings';
 import { SearchFindRevealCell } from './SearchFindRevealCell';
+import { CELL, gridItemIconSize } from './Inventory/InventoryGrid';
 import { ItemHoverCard } from './Inventory/ItemHoverCard';
 import { GuideInfoButton } from './GuideInfoButton';
 import type { GuideTopic } from '../content/guideContent';
 import { useT } from '../i18n';
 import { tip } from './tips';
-
-/** Match inventory cell size so stash finds read at the same scale. */
-const CELL = 34;
 
 type Variant = 'timeline' | 'card';
 
@@ -186,7 +184,7 @@ export function SearchSessionNode({
                     playKey={`${session.nonce}-${slot.id}-${slot.uid ?? 'pending'}`}
                     animate={!!highlight}
                     forceMotion
-                    iconSize={Math.min(w, h) > 1 ? 22 : 18}
+                    iconSize={gridItemIconSize(w, h)}
                     tip={floatCard ? undefined : def.name}
                     onMouseEnter={() => setHoverSlotId(slot.id)}
                     onPointerEnter={(e) => {

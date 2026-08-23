@@ -5,6 +5,7 @@ import { STAT_GROUPS } from '../game/stats';
 import { getTraits } from '../game/character';
 import { getOccupation } from '../game/occupations';
 import { SurvivorStatsGrid } from './SurvivorStatsGrid';
+import { StatBonusesPanel } from './StatBonusesPanel';
 import { useIsPhoneLayout } from './HdbZoomViewport';
 import { traitHoverText, traitName, useT } from '../i18n';
 import { tip } from './tips';
@@ -79,6 +80,8 @@ export function StatsPanel() {
           <SurvivorStatsGrid />
         </section>
       )}
+
+      <StatBonusesPanel />
 
       {STAT_GROUPS.map((group) => (
         <section

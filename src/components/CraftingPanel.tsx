@@ -1,21 +1,17 @@
+import type { ReactNode } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useGame } from '../game/store';
-import { itemDef } from '../game/loot';
+import { itemDef, ITEMS } from '../game/loot';
 import { TEAR_HOURS } from '../game/inventory';
-import {
-  canCraft,
-  countOf,
-  describeInputs,
-  RECIPES,
-  type Recipe,
-} from '../game/crafting';
+import { canCraft, countOf, RECIPES, type Recipe } from '../game/crafting';
 import { adjustCraftInputs } from '../game/character';
-import type { ItemInstance } from '../game/types';
+import type { ItemDef, ItemInstance } from '../game/types';
 import { itemIcon } from './Inventory/itemIcon';
 import { Icon } from '../icons/Icon';
 import type { IconName } from '../icons/keys';
 import { itemName, recipeBlurb, recipeName, useT } from '../i18n';
 import type { LocaleId } from '../i18n';
+import { tip } from './tips';
 
 /**
  * Workbench body for the slide-out. Recipes live here rather than buried under
@@ -114,9 +110,7 @@ function StatusChip({
   return (
     <span
       className={`rounded px-2 py-1 text-xs ${
-        ready
-          ? 'bg-signal/15 text-signal'
-          : 'bg-white/5 text-white/40'
+        ready ? 'bg-signal/15 text-signal' : 'bg-white/5 text-white/40'
       }`}
     >
       {ready ? readyLabel : missingLabel}
@@ -149,17 +143,34 @@ function RecipeGroup({
           const inputs = adjustCraftInputs(recipe.inputs, traitIds);
           const check = canCraft(recipe, items, atShelter, inputs);
           const out = itemDef(recipe.outputDefId);
-          const inputLine = [
-            describeInputs(inputs),
-            recipe.tool ? itemName(recipe.tool, locale) : null,
-          ]
-            .filter(Boolean)
-            .join(' · ');
           const baseBlurb = recipeBlurb(recipe.id, locale);
           const blurb =
             recipe.id === 'boil'
               ? `${baseBlurb} Burning a jerry can lowers your extract gauge.`
               : baseBlurb;
+          const chips = [
+            ...Object.entries(inputs)
+              .filter(([, n]) => n > 0)
+              .map(([defId, need]) => (
+                <RecipeInputChip
+                  key={defId}
+                  defId={defId}
+                  need={need}
+                  have={countOf(items, defId)}
+                />
+              )),
+            ...(recipe.tool
+              ? [
+                  <RecipeInputChip
+                    key={`tool-${recipe.tool}`}
+                    defId={recipe.tool}
+                    need={1}
+                    have={countOf(items, recipe.tool)}
+                    role="tool"
+                  />,
+                ]
+              : []),
+          ];
 
           return (
             <CraftActionRow
@@ -169,8 +180,11 @@ function RecipeGroup({
               hours={recipe.hours}
               ok={check.ok}
               onClick={() => onCraft(recipe.id)}
-              lines={[inputLine, blurb]}
-              blocker={check.ok ? undefined : check.reason}
+              chips={chips}
+              lines={[blurb]}
+              blocker={
+                recipe.needsShelter && !atShelter ? 'Needs somewhere to work' : undefined
+              }
             />
           );
         })}
@@ -186,6 +200,7 @@ function CraftActionRow({
   hours,
   ok,
   onClick,
+  chips,
   lines,
   blocker,
 }: {
@@ -194,15 +209,17 @@ function CraftActionRow({
   hours: number;
   ok: boolean;
   onClick: () => void;
-  /** Inputs then blurb — both truncated to one line. */
-  lines: string[];
+  chips?: ReactNode;
+  /** Blurb (recipes) or desperate copy — each truncated to one line. */
+  lines?: string[];
+  /** Shelter-only; mat/tool shortages live on the chips. */
   blocker?: string;
 }) {
   return (
     <button
       type="button"
-      disabled={!ok}
-      onClick={onClick}
+      aria-disabled={!ok}
+      onClick={ok ? onClick : undefined}
       className={`flex min-h-11 w-full items-start gap-2.5 rounded px-2.5 py-2.5 text-left text-xs ${
         ok
           ? 'bg-white/5 hover:bg-white/15 active:bg-white/20'
@@ -222,7 +239,8 @@ function CraftActionRow({
         >
           {name}
         </span>
-        {lines.map((line) => (
+        {chips ? <span className="mt-1 flex flex-wrap gap-1">{chips}</span> : null}
+        {lines?.map((line) => (
           <span key={line} className="mt-0.5 block truncate leading-snug text-white/35">
             {line}
           </span>
@@ -239,5 +257,54 @@ function CraftActionRow({
         {hours}h
       </span>
     </button>
+  );
+}
+
+/** Icon-only recipe input. Names and have/need live on the hover/hold tip. */
+export function RecipeInputChip({
+  defId,
+  need,
+  have,
+  role = 'input',
+  def,
+}: {
+  defId: string;
+  need: number;
+  have: number;
+  role?: 'input' | 'tool';
+  def?: ItemDef;
+}) {
+  const { t, locale } = useT();
+  const resolved = def ?? ITEMS[defId];
+  if (!resolved) return null;
+
+  const name = itemName(defId, locale);
+  const short = have < need;
+  const text =
+    role === 'tool'
+      ? t('ui.craft.toolTip', { name, have })
+      : t('ui.craft.needHave', { name, need, have });
+
+  return (
+    <span
+      className={`relative inline-flex h-7 w-7 shrink-0 items-center justify-center border ${
+        role === 'tool' ? 'border-dashed' : ''
+      } ${short ? 'border-hiss/50 bg-hiss/10' : 'border-white/15 bg-black/40'}`}
+      {...tip(text)}
+    >
+      <Icon name={itemIcon(resolved)} size={18} className={short ? 'opacity-40' : undefined} />
+      {role === 'tool' ? (
+        <span className="pointer-events-none absolute -left-0.5 -top-0.5 rounded bg-black/80 text-white/80">
+          <Icon name="action.craft" size={10} />
+        </span>
+      ) : null}
+      <span
+        className={`pointer-events-none absolute -bottom-px -right-px rounded-tl bg-black/75 px-0.5 text-2xs font-black leading-tight tabular-nums ${
+          short ? 'text-hiss' : 'text-white'
+        }`}
+      >
+        {need}
+      </span>
+    </span>
   );
 }

@@ -21,6 +21,12 @@ import {
 import { useT } from '../i18n';
 import { TipHint } from './TipHint';
 import { LOAD_TIP_CLASS, loadModifierLines } from './loadTip';
+import {
+  sheetLinesAsModifiers,
+  sheetRow,
+  sheetSourceLines,
+  useLiveStatSheet,
+} from './StatBonusesPanel';
 
 function pct(n: number): string {
   return `${Math.round(n * 100)}%`;
@@ -70,7 +76,8 @@ function StatCell({ label, value, tip: tipText, modifiers }: StatCellProps) {
 
 /** Live combat and mobility numbers from stats, gear, traits, injuries, and load. */
 export function SurvivorStatsGrid() {
-  const { t } = useT();
+  const { locale, t } = useT();
+  const sheet = useLiveStatSheet();
   const { character, equipment, bodyParts, meters, rounds, items } = useGame(
     useShallow((s) => ({
       character: s.character,
@@ -116,6 +123,23 @@ export function SurvivorStatsGrid() {
   const stealthLabel =
     stealth === 0 ? '±0%' : `${stealth > 0 ? '+' : ''}${Math.round(stealth * 100)}%`;
 
+  const modsFor = (id: string) => {
+    if (!sheet) return undefined;
+    const r = sheetRow(sheet, id);
+    if (!r?.sources.length) return undefined;
+    return sheetLinesAsModifiers(sheetSourceLines(r, t, locale));
+  };
+  const atkRow = sheet ? sheetRow(sheet, 'attack') : undefined;
+  const ddgRow = sheet ? sheetRow(sheet, 'dodge') : undefined;
+  const trvRow = sheet ? sheetRow(sheet, 'travel') : undefined;
+  const encRow = sheet ? sheetRow(sheet, 'encounters') : undefined;
+  const atk = atkRow?.total ?? pStats.attack;
+  const ddg = ddgRow?.total ?? dodge;
+  const trv = trvRow?.total ?? travel;
+  const noise = encRow ? encRow.total : stealth;
+  const noiseLabel =
+    noise === 0 ? '±0%' : `${noise > 0 ? '+' : ''}${Math.round(noise * 100)}%`;
+
   return (
     <div>
       <h4 className="mb-1.5 text-xs uppercase tracking-widest text-white/30">
@@ -125,26 +149,31 @@ export function SurvivorStatsGrid() {
         <StatCell
           label={t('ui.survivor.defence')}
           value={String(pStats.defense)}
+          modifiers={modsFor('defence')}
           tip={t('ui.survivor.defenceTip')}
         />
         <StatCell
           label={t('ui.survivor.dodge')}
-          value={pct(dodge)}
+          value={pct(ddg)}
+          modifiers={modsFor('dodge')}
           tip={t('ui.survivor.dodgeTip')}
         />
         <StatCell
           label={t('ui.survivor.attack')}
-          value={`+${pStats.attack}`}
+          value={`${atk >= 0 ? '+' : ''}${Math.round(atk)}`}
+          modifiers={modsFor('attack')}
           tip={t('ui.survivor.attackTip')}
         />
         <StatCell
           label={t('ui.survivor.hp')}
           value={`${Math.round(totalHp(bodyParts))}/${totalMaxHp(bodyParts) || maxHpFor(character)}`}
+          modifiers={modsFor('maxHp')}
           tip={t('ui.survivor.hpTip')}
         />
         <StatCell
           label={t('ui.survivor.travel')}
-          value={`×${travel.toFixed(2)}`}
+          value={`×${trv.toFixed(2)}`}
+          modifiers={modsFor('travel')}
           tip={t('ui.survivor.travelTip')}
         />
         <StatCell
@@ -154,7 +183,8 @@ export function SurvivorStatsGrid() {
         />
         <StatCell
           label={t('ui.survivor.noise')}
-          value={stealthLabel}
+          value={encRow ? noiseLabel : stealthLabel}
+          modifiers={modsFor('encounters')}
           tip={t('ui.survivor.noiseTip')}
         />
       </div>

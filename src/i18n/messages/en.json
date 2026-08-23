@@ -321,6 +321,10 @@
       "openStatus": "Open status",
       "bleed": "Bleed"
     },
+    "craft": {
+      "needHave": "{name} — need {need}, have {have}",
+      "toolTip": "{name} — stays in the pack (have {have})"
+    },
     "attributes": {
       "strength": "Strength",
       "dexterity": "Dexterity",
@@ -467,6 +471,71 @@
       "curiosityScrap": "scrap / trade",
       "damageOf": "{dmg} (of {base})",
       "restoreOf": "{n} (of {base})"
+    },
+    "sheet": {
+      "group": {
+        "attributes": "Attributes",
+        "combat": "Combat",
+        "mobility": "Mobility",
+        "survival": "Survival",
+        "search": "Search",
+        "other": "Other"
+      },
+      "row": {
+        "strength": "Strength",
+        "dexterity": "Dexterity",
+        "endurance": "Endurance",
+        "perception": "Perception",
+        "wits": "Wits",
+        "attack": "Attack",
+        "defence": "Defence",
+        "dodge": "Dodge",
+        "damage": "Damage",
+        "maxHp": "Max HP",
+        "infectionResist": "Infection resist",
+        "zombieAttack": "Vs undead",
+        "soak": "Soak",
+        "statusResist": "Status resist",
+        "block": "Block",
+        "combatSpeed": "Combat speed",
+        "travel": "Travel",
+        "carry": "Carry",
+        "encounters": "Encounters",
+        "hungerDrain": "Hunger drain",
+        "thirstDrain": "Thirst drain",
+        "energyDrain": "Energy drain",
+        "sleepRestore": "Sleep restore",
+        "healBonus": "Heal bonus",
+        "foodEffect": "Food effect",
+        "searchSpeed": "Search speed",
+        "searchBonus": "Extra searches",
+        "loot": "Loot",
+        "awareness": "Awareness",
+        "checkBonus": "Check bonus",
+        "craftCost": "Craft cost",
+        "gridWidth": "Pack width",
+        "ambush": "Ambush chance",
+        "firstHit": "First hit",
+        "nightVision": "No night aim penalty",
+        "cannotDrop": "Cannot drop items",
+        "bleedNoClot": "Bleeding never clots",
+        "showSearches": "Sees searches left"
+      },
+      "source": {
+        "base": "Base",
+        "weapon": "Weapon",
+        "unarmed": "Unarmed",
+        "arms": "Injured arms",
+        "load": "Load",
+        "energy": "Energy",
+        "night": "Night / dusk",
+        "weather": "Weather",
+        "offHand": "Free hand",
+        "legs": "Injured legs",
+        "bleed": "Bleeding",
+        "gear": "Gear",
+        "outdoors": "Outdoors / heat"
+      }
     },
     "itemKind": {
       "weapon": "Weapon",
