@@ -27,6 +27,7 @@ import { VegetationOverlay } from './UnplayableOverlay';
 import { Icon } from '../icons/Icon';
 import { pointAlongPath } from '../game/route';
 import { useThrottledNumber } from '../hooks/useAnimatedNumber';
+import { tip } from './tips';
 
 // White outline for buildings you can see but haven't identified — stands out
 // against the dark map like the "?" blips do.
@@ -624,7 +625,7 @@ function GameMapInner({
       <button
         onClick={toggleMrt}
         aria-pressed={showMrt}
-        title="Show the MRT & LRT network"
+        {...tip('Show the MRT & LRT network', { label: true })}
         className={`absolute right-2 top-2 z-[500] flex items-center gap-1.5 rounded border px-2 py-1.5 text-xs font-semibold shadow-signage transition-colors ${
           showMrt
             ? 'border-astral/50 bg-astral/20 text-astral'

@@ -8,6 +8,8 @@ import {
   type MrtStation,
 } from '../game/mrt';
 import { estimateTunnelWalk, formatDuration } from '../game/travel';
+import { loadEffectsFor } from '../game/inventory';
+import { sumTraitMod } from '../game/character';
 import { useGame } from '../game/store';
 import { MrtLineLegend, MrtOverlay, useMrtNetwork } from './MrtOverlay';
 import {
@@ -106,6 +108,8 @@ export function MrtRoutePlanner({
   const net = useMrtNetwork(true);
   const destroyedList = useGame((s) => s.destroyedTunnelEdges);
   const character = useGame((s) => s.character);
+  const items = useGame((s) => s.items);
+  const equipment = useGame((s) => s.equipment);
   const energy = useGame((s) => s.meters.energy);
   const hour = useGame((s) => s.hour);
 
@@ -130,6 +134,12 @@ export function MrtRoutePlanner({
 
   const walkHint = useMemo(() => {
     if (!route || !character) return null;
+    const load = loadEffectsFor(
+      items,
+      character.attributes,
+      equipment,
+      sumTraitMod(character.traitIds, 'carryCapacityMod'),
+    );
     return estimateTunnelWalk(
       route.meters,
       character.attributes,
@@ -137,8 +147,9 @@ export function MrtRoutePlanner({
       hour,
       1,
       route.collapsedMeters,
+      load.tunnelTravelMult,
     );
-  }, [route, character, energy, hour]);
+  }, [route, character, items, equipment, energy, hour]);
 
   if (!net || !from) {
     return (

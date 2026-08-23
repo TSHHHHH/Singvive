@@ -109,6 +109,8 @@ function LimbRow({
   const chips = statusChips(partId, part);
   const low = pct < 25;
 
+  const hpText = `${Math.round(part.hp)}/${part.maxHp}`;
+
   return (
     <div
       className={`flex items-center gap-1.5 rounded px-1 py-0.5 transition ${
@@ -120,15 +122,18 @@ function LimbRow({
       <span className="w-9 shrink-0 text-2xs uppercase tracking-wide text-white/45">
         {BODY_PART_LABEL[partId]}
       </span>
-      <div className="relative h-2 min-w-0 flex-1 overflow-hidden rounded bg-black/50 ring-1 ring-white/10">
+      <div
+        className="relative min-h-[1em] min-w-0 flex-1 overflow-hidden rounded bg-black/50 ring-1 ring-white/10"
+        aria-label={`${BODY_PART_LABEL[partId]} ${hpText}`}
+      >
         <div
-          className={`h-full transition-all duration-300 ${low ? 'pulse-danger' : ''}`}
+          className={`absolute inset-y-0 left-0 transition-all duration-300 ${low ? 'pulse-danger' : ''}`}
           style={{ width: `${Math.max(0, Math.min(100, pct))}%`, background: barColor(pct) }}
         />
+        <span className="relative z-[1] flex items-center justify-end px-1.5 py-0.5 text-xs tabular-nums leading-none text-white/80 [text-shadow:0_1px_1px_rgba(0,0,0,0.85)]">
+          {hpText}
+        </span>
       </div>
-      <span className="w-10 shrink-0 text-right text-2xs tabular-nums text-white/60">
-        {Math.round(part.hp)}/{part.maxHp}
-      </span>
       <span className="flex w-8 shrink-0 items-center justify-end gap-0.5">
         {chips.map((c) => (
           <StatusIcon key={c.label} chip={c} />

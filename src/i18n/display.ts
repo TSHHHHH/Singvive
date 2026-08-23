@@ -11,7 +11,7 @@ import {
   standingLabel as standingLabelEn,
 } from '../game/factions';
 import type { DestructionTier, PoiCategory } from '../game/types';
-import { t, type TVars } from './t';
+import { t, tList, type TVars } from './t';
 import type { LocaleId } from './types';
 import { DEFAULT_LOCALE } from './types';
 
@@ -126,6 +126,18 @@ export function traitDescription(id: string, locale: LocaleId = DEFAULT_LOCALE):
   const translated = t(`trait.${id}.description`, undefined, locale);
   if (translated !== `trait.${id}.description`) return translated;
   return getTrait(id)?.description ?? '';
+}
+
+export function traitEffects(id: string, locale: LocaleId = DEFAULT_LOCALE): string[] {
+  const list = tList(`trait.${id}.effects`, locale);
+  if (list.length > 0) return list;
+  return getTrait(id)?.effects ?? [];
+}
+
+export function traitHoverText(id: string, locale: LocaleId = DEFAULT_LOCALE): string {
+  const flavour = traitDescription(id, locale);
+  const fx = traitEffects(id, locale).map((line) => `• ${line}`);
+  return [flavour, ...fx].filter(Boolean).join('\n');
 }
 
 export function settingLabel(key: string, locale: LocaleId = DEFAULT_LOCALE): string {

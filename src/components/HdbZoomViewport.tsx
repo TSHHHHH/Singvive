@@ -11,6 +11,7 @@ import {
   TransformWrapper,
   type ReactZoomPanPinchContentRef,
 } from 'react-zoom-pan-pinch';
+import { tip } from './tips';
 
 const PLAYER_SEL = '[data-hdb-player]';
 const MIN_SCALE = 0.5;
@@ -156,15 +157,15 @@ export function HdbZoomViewport({
           <div className="pointer-events-none absolute right-2 top-2 z-20 flex flex-col gap-1">
             <ZoomBtn
               label="+"
-              title="Zoom in"
+              tip="Zoom in"
               onClick={() => controls.zoomIn(0.25, 180)}
             />
             <ZoomBtn
               label="−"
-              title="Zoom out"
+              tip="Zoom out"
               onClick={() => controls.zoomOut(0.25, 180)}
             />
-            <ZoomBtn label="⊙" title="Recenter on you" onClick={() => recenter()} />
+            <ZoomBtn label="⊙" tip="Recenter on you" onClick={() => recenter()} />
           </div>
           <TransformComponent
             wrapperClass="!h-full !w-full !touch-none"
@@ -182,18 +183,18 @@ export function HdbZoomViewport({
 
 function ZoomBtn({
   label,
-  title,
+  tip: tipText,
   onClick,
 }: {
   label: string;
-  title: string;
+  tip: string;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
-      title={title}
-      aria-label={title}
+      {...tip(tipText, { placement: 'left' })}
+      aria-label={tipText}
       onClick={onClick}
       className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded border border-concrete-500 bg-concrete-900/90 text-sm font-bold text-concrete-100 shadow-md active:bg-concrete-800"
     >

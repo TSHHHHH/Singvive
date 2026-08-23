@@ -36,6 +36,7 @@ import {
 import { useMrtNetwork } from './MrtOverlay';
 import { CrawlPids } from './StationStrip';
 import { msgOr, useT } from '../i18n';
+import { tip } from './tips';
 
 /**
  * One planned crawl. The header is an in-train station strip — next stop,
@@ -860,11 +861,11 @@ function NodePip({
         type="button"
         onClick={() => onSelect(node.id)}
         disabled={!revealed && !isNext}
-        title={
+        {...tip(
           revealed
             ? t('ui.tunnel.metaTitle', { label: metaLabel, name: node.name })
-            : t('ui.tunnel.farAhead')
-        }
+            : t('ui.tunnel.farAhead'),
+        )}
         className={`relative block ${pad} ${selected ? 'outline outline-1 outline-offset-2 outline-concrete-200/40' : ''}`}
       >
         <span

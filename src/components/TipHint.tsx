@@ -1,65 +1,60 @@
-import {
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type ReactNode,
-} from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
+import { placeNear, type Placement } from './tips/clamp';
+import { useCoarsePointer } from './tips/useCoarsePointer';
 
-/** True when the device has no reliable hover (phones / most tablets). */
-export function useCoarsePointer(): boolean {
-  const [coarse, setCoarse] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia('(hover: none), (pointer: coarse)');
-    const update = () => setCoarse(mq.matches);
-    update();
-    mq.addEventListener('change', update);
-    return () => mq.removeEventListener('change', update);
-  }, []);
-  return coarse;
-}
+export { useCoarsePointer };
 
-const VIEW_PAD = 8;
+const GAP = 6;
 
-/** Shift a tip so its box stays inside the visual viewport. */
-function clampIntoView(el: HTMLElement): { x: number; y: number } {
-  const rect = el.getBoundingClientRect();
-  const vv = window.visualViewport;
-  const left = vv?.offsetLeft ?? 0;
-  const top = vv?.offsetTop ?? 0;
-  const right = left + (vv?.width ?? window.innerWidth);
-  const bottom = top + (vv?.height ?? window.innerHeight);
-
-  let x = 0;
-  let y = 0;
-  if (rect.left < left + VIEW_PAD) x = left + VIEW_PAD - rect.left;
-  else if (rect.right > right - VIEW_PAD) x = right - VIEW_PAD - rect.right;
-  if (rect.top < top + VIEW_PAD) y = top + VIEW_PAD - rect.top;
-  else if (rect.bottom > bottom - VIEW_PAD) y = bottom - VIEW_PAD - rect.bottom;
-  return { x, y };
+function placePanel(
+  anchor: HTMLElement,
+  panel: HTMLElement,
+  placement: Placement,
+): { left: number; top: number } {
+  const box = panel.getBoundingClientRect();
+  const next = placeNear(
+    anchor.getBoundingClientRect(),
+    box.width,
+    box.height,
+    placement,
+    GAP,
+  );
+  return { left: next.left, top: next.top };
 }
 
 /**
  * Hover tooltip on fine pointers; tap-to-toggle on coarse / no-hover devices.
- * Tap outside (or tap again) closes. Tips are nudged to stay on-screen.
+ * Tap outside (or tap again) closes.
+ *
+ * The panel is portaled to `document.body` so overflow-y-auto ancestors (the
+ * survivor rail, inventory scrollers) cannot clip it — CSS computes overflow-x
+ * to auto whenever overflow-y is auto, which used to slice tips at the map.
+ *
+ * For **rich ReactNode tips only** — plain-string hover text uses `tip()` from
+ * `components/tips`, which needs no wrapper element and works on touch-free
+ * surfaces this component can't wrap (grid cells, `<th>`, truncating spans).
  */
 export function TipHint({
   tip,
   tipClassName,
+  placement = 'bottom',
   children,
   className = '',
 }: {
   tip: ReactNode;
   tipClassName?: string;
+  /** Preferred side of the trigger. Flips when short on room. */
+  placement?: Placement;
   children: ReactNode;
   className?: string;
 }) {
   const coarse = useCoarsePointer();
   const [open, setOpen] = useState(false);
   const [hover, setHover] = useState(false);
-  const [shift, setShift] = useState({ x: 0, y: 0 });
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
-  const clampRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   const visible = coarse ? open : hover;
 
@@ -76,37 +71,49 @@ export function TipHint({
 
   useLayoutEffect(() => {
     if (!visible) {
-      setShift({ x: 0, y: 0 });
+      setPos(null);
       return;
     }
-    const el = clampRef.current;
-    if (!el) return;
-    // Clear any prior nudge so we measure the natural anchor position.
-    el.style.transform = 'none';
-    const next = clampIntoView(el);
-    el.style.transform = '';
-    setShift(next);
-  }, [visible, tip]);
+    const anchor = rootRef.current;
+    const panel = panelRef.current;
+    if (!anchor || !panel) return;
+    const next = placePanel(anchor, panel, placement);
+    setPos((prev) =>
+      prev && prev.left === next.left && prev.top === next.top ? prev : next,
+    );
+  }, [visible, tip, placement]);
 
   useEffect(() => {
     if (!visible) return;
+    const hide = () => {
+      setHover(false);
+      setOpen(false);
+    };
     const recalc = () => {
-      const el = clampRef.current;
-      if (!el) return;
-      el.style.transform = 'none';
-      const next = clampIntoView(el);
-      el.style.transform = '';
-      setShift(next);
+      const anchor = rootRef.current;
+      const panel = panelRef.current;
+      if (!anchor || !panel) return;
+      const next = placePanel(anchor, panel, placement);
+      setPos((prev) =>
+        prev && prev.left === next.left && prev.top === next.top ? prev : next,
+      );
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') hide();
     };
     window.addEventListener('resize', recalc);
     window.visualViewport?.addEventListener('resize', recalc);
     window.visualViewport?.addEventListener('scroll', recalc);
+    document.addEventListener('scroll', hide, true);
+    document.addEventListener('keydown', onKey);
     return () => {
       window.removeEventListener('resize', recalc);
       window.visualViewport?.removeEventListener('resize', recalc);
       window.visualViewport?.removeEventListener('scroll', recalc);
+      document.removeEventListener('scroll', hide, true);
+      document.removeEventListener('keydown', onKey);
     };
-  }, [visible]);
+  }, [visible, placement]);
 
   return (
     <div
@@ -124,22 +131,23 @@ export function TipHint({
       }
     >
       {children}
-      <div
-        className={`pointer-events-none z-[50] ${tipClassName ?? ''} ${
-          visible ? 'block' : 'hidden'
-        }`}
-      >
-        <div
-          ref={clampRef}
-          style={
-            shift.x || shift.y
-              ? { transform: `translate(${shift.x}px, ${shift.y}px)` }
-              : undefined
-          }
-        >
-          {tip}
-        </div>
-      </div>
+      {visible &&
+        createPortal(
+          <div
+            ref={panelRef}
+            role="tooltip"
+            className={`pointer-events-none z-[3000] ${tipClassName ?? ''}`}
+            style={{
+              position: 'fixed',
+              left: pos?.left ?? -9999,
+              top: pos?.top ?? -9999,
+              opacity: pos ? 1 : 0,
+            }}
+          >
+            {tip}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

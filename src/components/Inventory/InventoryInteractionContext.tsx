@@ -24,6 +24,7 @@ import { tileColor } from '../../game/itemTileColor';
 import type { Container, EquipSlot, ItemInstance } from '../../game/types';
 import { useCoarsePointer } from '../TipHint';
 import { useIsPhoneLayout } from '../HdbZoomViewport';
+import { HOVER_DELAY_MS, LONG_PRESS_MS } from '../tips';
 import { CELL, type DragPreview } from './InventoryGrid';
 import { EQUIP_SLOTS } from './equipSlots';
 import { isConsumableUsable } from './itemStatLines';
@@ -31,6 +32,7 @@ import { ItemHoverCard } from './ItemHoverCard';
 import { ItemContextMenu, type ContextMenuAction } from './ItemContextMenu';
 import { Icon } from '../../icons/Icon';
 import { itemIcon } from './itemIcon';
+import { useT } from '../../i18n';
 
 interface GridDrop {
   type: 'grid';
@@ -60,7 +62,6 @@ interface DragState {
 }
 
 const DRAG_THRESHOLD_PX = 6;
-const HOVER_DELAY_MS = 120;
 
 interface PendingDrag {
   uid: string;
@@ -77,6 +78,8 @@ type HoverTarget = {
   uid: string;
   clientX: number;
   clientY: number;
+  el: HTMLElement | null;
+  pinned: boolean;
 };
 
 type CtxMenu = {
@@ -94,6 +97,7 @@ export type InventoryInteractionApi = {
   hasTempStash: boolean;
   inTunnel: boolean;
   pcShortcuts: boolean;
+  coarse: boolean;
   gridPreview: (container: Container) => DragPreview | null;
   registerGrid: (container: Container, el: HTMLDivElement | null) => void;
   registerSlot: (slot: EquipSlot, el: HTMLDivElement | null) => void;
@@ -129,9 +133,12 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
   const tunnel = useGame((s) => s.tunnel);
   const inCombat = useGame((s) => !!s.combat && !s.combat.over);
 
+  const { t } = useT();
   const isPhone = useIsPhoneLayout();
   const coarse = useCoarsePointer();
   const pcShortcuts = !isPhone && !coarse;
+  /** Coarse + desktop chrome: peek card is the only Use / Equip surface. */
+  const cardActions = coarse && !isPhone;
 
   const [selectedUid, setSelectedUid] = useState<string | null>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
@@ -143,6 +150,15 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
   const dragStartedRef = useRef(false);
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hoverUidRef = useRef<string | null>(null);
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const holdStartRef = useRef(0);
+  const holdPeekRef = useRef<{
+    uid: string;
+    el: HTMLElement;
+    clientX: number;
+    clientY: number;
+  } | null>(null);
+  const peekLockedRef = useRef(false);
 
   const gridRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const slotRefs = useRef<Record<EquipSlot, HTMLDivElement | null>>({
@@ -174,6 +190,8 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
     dropItem,
     inCombat,
     pcShortcuts,
+    coarse,
+    cardActions,
   });
   liveRef.current = {
     items,
@@ -189,6 +207,8 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
     dropItem,
     inCombat,
     pcShortcuts,
+    coarse,
+    cardActions,
   };
 
   const clearHoverTimer = () => {
@@ -198,9 +218,19 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
     }
   };
 
+  const clearHoldTimer = () => {
+    if (holdTimer.current) {
+      clearTimeout(holdTimer.current);
+      holdTimer.current = null;
+    }
+  };
+
   const dismissHover = useCallback(() => {
     clearHoverTimer();
+    clearHoldTimer();
     hoverUidRef.current = null;
+    holdPeekRef.current = null;
+    peekLockedRef.current = false;
     setHover(null);
   }, []);
 
@@ -292,6 +322,9 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
   const beginDrag = (pending: PendingDrag, clientX: number, clientY: number) => {
     pendingDrag.current = null;
     dragStartedRef.current = true;
+    clearHoldTimer();
+    holdPeekRef.current = null;
+    peekLockedRef.current = false;
     dismissHover();
     setCtxMenu(null);
     const inst = liveRef.current.items.find((i) => i.uid === pending.uid);
@@ -356,6 +389,24 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
     dragStartedRef.current = false;
     setSelectedUid(inst.uid);
 
+    if (live.coarse) {
+      dismissHover();
+      peekLockedRef.current = false;
+      const el = e.currentTarget as HTMLElement;
+      const { clientX, clientY } = e;
+      holdStartRef.current = performance.now();
+      holdPeekRef.current = { uid: inst.uid, el, clientX, clientY };
+      holdTimer.current = setTimeout(() => {
+        holdTimer.current = null;
+        const peek = holdPeekRef.current;
+        if (!peek || dragRef.current) return;
+        peekLockedRef.current = true;
+        pendingDrag.current = null;
+        hoverUidRef.current = peek.uid;
+        setHover({ ...peek, pinned: true });
+      }, LONG_PRESS_MS);
+    }
+
     // Equipped items aren't on a grid — select only (no drag from slot chrome).
     const onGrid = live.items.some((i) => i.uid === inst.uid);
     if (!onGrid) return;
@@ -373,7 +424,7 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
       rotated: inst.rotated,
       el: e.currentTarget as HTMLElement,
     };
-  }, []);
+  }, [dismissHover]);
 
   const onItemDoubleClick = useCallback(
     (inst: ItemInstance) => {
@@ -385,9 +436,9 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
   );
 
   const onItemContextMenu = useCallback((e: React.MouseEvent, inst: ItemInstance) => {
-    if (!liveRef.current.pcShortcuts) return;
     e.preventDefault();
     e.stopPropagation();
+    if (!liveRef.current.pcShortcuts) return;
     dismissHover();
     setSelectedUid(inst.uid);
     setCtxMenu({ uid: inst.uid, x: e.clientX, y: e.clientY });
@@ -395,20 +446,23 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
 
   const onItemPointerEnter = useCallback(
     (e: React.PointerEvent, inst: ItemInstance) => {
-      if (!liveRef.current.pcShortcuts) return;
+      if (liveRef.current.coarse) return;
+      if (e.pointerType !== 'mouse') return;
       if (dragRef.current) return;
       clearHoverTimer();
       hoverUidRef.current = inst.uid;
       const { clientX, clientY } = e;
+      const el = e.currentTarget as HTMLElement;
       hoverTimer.current = setTimeout(() => {
         if (hoverUidRef.current !== inst.uid || dragRef.current) return;
-        setHover({ uid: inst.uid, clientX, clientY });
+        setHover({ uid: inst.uid, clientX, clientY, el, pinned: false });
       }, HOVER_DELAY_MS);
     },
     [],
   );
 
   const onItemPointerLeave = useCallback((inst: ItemInstance) => {
+    if (liveRef.current.coarse) return;
     if (hoverUidRef.current === inst.uid) {
       clearHoverTimer();
       hoverUidRef.current = null;
@@ -417,16 +471,21 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
   }, []);
 
   const onItemPointerMove = useCallback((e: React.PointerEvent, inst: ItemInstance) => {
-    if (!liveRef.current.pcShortcuts) return;
-    if (hover?.uid === inst.uid) {
-      setHover({ uid: inst.uid, clientX: e.clientX, clientY: e.clientY });
+    if (liveRef.current.coarse) return;
+    if (hover?.uid === inst.uid && !hover.pinned) {
+      setHover({ uid: inst.uid, clientX: e.clientX, clientY: e.clientY, el: hover.el, pinned: false });
     }
-  }, [hover?.uid]);
+  }, [hover?.uid, hover?.pinned, hover?.el]);
 
   useEffect(() => {
     const onPointerMove = (e: PointerEvent) => {
       const pending = pendingDrag.current;
-      if (pending && pending.pointerId === e.pointerId && !dragRef.current) {
+      if (
+        pending &&
+        pending.pointerId === e.pointerId &&
+        !dragRef.current &&
+        !peekLockedRef.current
+      ) {
         const dx = e.clientX - pending.startX;
         const dy = e.clientY - pending.startY;
         if (dx * dx + dy * dy >= DRAG_THRESHOLD_PX * DRAG_THRESHOLD_PX) {
@@ -453,6 +512,24 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
     };
 
     const onPointerUp = (e: PointerEvent) => {
+      if (pendingDrag.current?.pointerId === e.pointerId) {
+        pendingDrag.current = null;
+      }
+      if (holdTimer.current) {
+        if (performance.now() - holdStartRef.current >= LONG_PRESS_MS) {
+          const peek = holdPeekRef.current;
+          clearHoldTimer();
+          if (peek && !dragRef.current) {
+            peekLockedRef.current = true;
+            pendingDrag.current = null;
+            hoverUidRef.current = peek.uid;
+            setHover({ ...peek, pinned: true });
+          }
+        } else {
+          clearHoldTimer();
+        }
+      }
+      peekLockedRef.current = false;
       endDrag(e.pointerId);
     };
 
@@ -486,6 +563,7 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
       window.removeEventListener('pointercancel', onPointerUp);
       window.removeEventListener('keydown', onKeyDown);
       clearHoverTimer();
+      clearHoldTimer();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -517,6 +595,7 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
       hasTempStash,
       inTunnel: !!tunnel,
       pcShortcuts,
+      coarse,
       gridPreview,
       registerGrid,
       registerSlot,
@@ -536,6 +615,7 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
       hasTempStash,
       tunnel,
       pcShortcuts,
+      coarse,
       gridPreview,
       registerGrid,
       registerSlot,
@@ -561,67 +641,88 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
 
   const hoverInst = hover && !drag ? findInst(hover.uid) : null;
 
-  const ctxInst = ctxMenu ? findInst(ctxMenu.uid) : null;
-  const ctxActions: ContextMenuAction[] = (() => {
-    if (!ctxInst) return [];
+  const itemActionsFor = (target: ItemInstance): ContextMenuAction[] => {
     const live = liveRef.current;
-    const def = itemDef(ctxInst.defId);
-    const slot = equippedSlotOf(ctxInst.uid);
+    const def = itemDef(target.defId);
+    const slot = equippedSlotOf(target.uid);
     const actions: ContextMenuAction[] = [];
     if (slot) {
       actions.push({
         id: 'unequip',
-        label: 'Unequip',
+        label: t('ui.inventory.unequip'),
         onSelect: () => {
           live.unequipItem(slot);
           setSelectedUid(null);
         },
       });
-    } else {
-      if (isConsumableUsable(def)) {
+      return actions;
+    }
+    if (isConsumableUsable(def)) {
+      actions.push({
+        id: 'use',
+        label: t('ui.inventory.use'),
+        disabled: live.inCombat,
+        title: live.inCombat ? t('ui.inventory.cannotUseCombat') : undefined,
+        onSelect: () => live.applyItem(target.uid),
+      });
+    }
+    if (def.slot) {
+      actions.push({
+        id: 'equip',
+        label: t('ui.inventory.equip'),
+        onSelect: () => {
+          live.equipItem(target.uid, def.slot!);
+          setSelectedUid(null);
+        },
+      });
+      if (canEquip(def, 'offHand') && def.slot !== 'offHand') {
+        const blocked = isTwoHandedEquipped(live.equipment);
         actions.push({
-          id: 'use',
-          label: 'Use',
-          disabled: live.inCombat,
-          title: live.inCombat ? 'Cannot use items during combat' : undefined,
-          onSelect: () => live.applyItem(ctxInst.uid),
-        });
-      }
-      if (def.slot) {
-        actions.push({
-          id: 'equip',
-          label: 'Equip',
+          id: 'equipOffHand',
+          label: t('ui.inventory.equipOffHand'),
+          disabled: blocked,
+          title: blocked ? t('ui.inventory.twoHandBlocked') : undefined,
           onSelect: () => {
-            live.equipItem(ctxInst.uid, def.slot!);
+            live.equipItem(target.uid, 'offHand');
             setSelectedUid(null);
           },
         });
       }
-      if (live.stashContainer) {
-        const toStash = ctxInst.container === BACKPACK;
-        actions.push({
-          id: 'transfer',
-          label: toStash ? 'Stash' : 'Pack',
-          onSelect: () =>
-            live.transferItem(
-              ctxInst.uid,
-              toStash ? live.stashContainer! : BACKPACK,
-            ),
-        });
-      }
+    }
+    if (live.stashContainer) {
+      const toStash = target.container === BACKPACK;
       actions.push({
-        id: 'drop',
-        label: 'Drop',
-        danger: true,
-        title: 'Gone for good — but the weight goes with it',
-        onSelect: () => {
-          live.dropItem(ctxInst.uid);
-          setSelectedUid(null);
-        },
+        id: 'transfer',
+        label: toStash ? t('ui.inventory.stash') : t('ui.inventory.pack'),
+        onSelect: () =>
+          live.transferItem(target.uid, toStash ? live.stashContainer! : BACKPACK),
       });
     }
+    actions.push({
+      id: 'drop',
+      label: t('ui.inventory.drop'),
+      danger: true,
+      title: t('ui.inventory.dropGone'),
+      onSelect: () => {
+        live.dropItem(target.uid);
+        setSelectedUid(null);
+      },
+    });
     return actions;
-  })();
+  };
+
+  const ctxInst = ctxMenu ? findInst(ctxMenu.uid) : null;
+  const ctxActions = ctxInst ? itemActionsFor(ctxInst) : [];
+  const peekActions =
+    hoverInst && cardActions
+      ? itemActionsFor(hoverInst).map((a) => ({
+          ...a,
+          onSelect: () => {
+            dismissHover();
+            a.onSelect();
+          },
+        }))
+      : undefined;
 
   return (
     <InventoryInteractionContext.Provider value={api}>
@@ -655,6 +756,10 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
           equipSlot={equippedSlotOf(hoverInst.uid)}
           clientX={hover.clientX}
           clientY={hover.clientY}
+          anchorEl={hover.pinned ? hover.el : null}
+          stacked={isPhone}
+          actions={peekActions}
+          onClose={hover.pinned ? dismissHover : undefined}
         />
       )}
       {ctxMenu && ctxInst && ctxActions.length > 0 && (

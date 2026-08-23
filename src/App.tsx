@@ -12,6 +12,7 @@ import { DevLootBrowser } from './dev/LootBrowser';
 import { DevEnemyBrowser } from './dev/EnemyBrowser';
 import { DevIconBrowser } from './dev/IconBrowser';
 import { DevLocaleEditor } from './dev/LocaleEditor';
+import { TipLayer } from './components/tips';
 
 function FontSizeSync() {
   const fontSize = useSetting('fontSize');
@@ -38,6 +39,7 @@ export default function App() {
     <div className="h-full w-full overflow-hidden">
       <FontSizeSync />
       <LocaleSync />
+      <TipLayer />
       {phase === 'menu' && <Menu />}
       {phase === 'character' && (
         <div className="h-full overflow-y-auto">

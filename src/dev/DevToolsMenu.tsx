@@ -8,6 +8,7 @@ import {
   type DevToolId,
   type DevToolStateDetail,
 } from './devBridge';
+import { tip } from '../components/tips';
 
 const HIDDEN_KEY = 'singvive.devMenuHidden';
 
@@ -131,7 +132,7 @@ export function DevToolsMenu() {
         type="button"
         onClick={() => setPanelOpen((o) => !o)}
         className="rounded border border-signal/40 bg-concrete-900/95 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-signal shadow-lg hover:bg-concrete-800"
-        title="DEV tools (Ctrl+Shift+D to hide)"
+        {...tip('DEV tools (Ctrl+Shift+D to hide)')}
         aria-expanded={panelOpen}
       >
         Dev

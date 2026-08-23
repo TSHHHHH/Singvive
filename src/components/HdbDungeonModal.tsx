@@ -44,6 +44,7 @@ import {
 } from '../game/hdbDungeon';
 import type { AttributeKey, Attributes } from '../game/types';
 import { msgOr, useT, type LocaleId, type TVars } from '../i18n';
+import { tip } from './tips';
 
 type PathLinkDirs = {
   left?: boolean;
@@ -263,11 +264,11 @@ function BlockadeStripe({ block }: { block: HdbBlock }) {
           ? 'bg-hiss shadow-[0_0_10px_rgba(217,45,45,0.65)]'
           : 'bg-concrete-800 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.2)]'
       }`}
-      title={
+      {...tip(
         clearable
           ? t('ui.hdb.clearToPass', { label })
-          : t('ui.hdb.permanent', { label })
-      }
+          : t('ui.hdb.permanent', { label }),
+      )}
       style={
         clearable
           ? undefined
@@ -309,11 +310,11 @@ function StairGateBadge({
           ? 'bg-hiss/90 text-black'
           : 'bg-concrete-700 text-concrete-200'
       }`}
-      title={
+      {...tip(
         clearable
           ? t('ui.hdb.clearToPass', { label })
-          : t('ui.hdb.permanent', { label })
-      }
+          : t('ui.hdb.permanent', { label }),
+      )}
     >
       ✕ {clearable ? label.slice(0, 6) : (
         <Icon name="hdb.collapse" size={10} className="inline-block align-[-0.1em]" />
@@ -619,7 +620,7 @@ function BuildingCutaway({
               style={{ gridTemplateColumns: `${labelCol} ${colTrack}` }}
             >
               <div
-                title={
+                {...tip(
                   seal
                     ? t('ui.hdb.inaccessible', {
                         label: msgOr(
@@ -631,8 +632,8 @@ function BuildingCutaway({
                       })
                     : revealed
                       ? t('ui.hdb.level', { nn: label })
-                      : t('ui.hdb.levelUnexplored', { nn: label })
-                }
+                      : t('ui.hdb.levelUnexplored', { nn: label }),
+                )}
                 className={`flex items-center justify-center border-r border-concrete-700 text-xs font-bold tabular-nums ${
                   hereLevel
                     ? 'bg-signal/20 text-signal'
@@ -671,14 +672,14 @@ function BuildingCutaway({
                       <div
                         key={`seal-s-${col}`}
                         className={`relative flex min-h-[44px] items-center justify-center border-x border-concrete-700/40 bg-concrete-900/50 text-concrete-500 lg:min-h-0 ${dim}`}
-                        title={`${stair.kind === 'side' ? t('ui.hdb.sideStair', { id: stair.id }) : t('ui.hdb.stairwell', { id: stair.id })} · ${t('ui.hdb.inaccessible', {
+                        {...tip(`${stair.kind === 'side' ? t('ui.hdb.sideStair', { id: stair.id }) : t('ui.hdb.stairwell', { id: stair.id })} · ${t('ui.hdb.inaccessible', {
                           label: msgOr(
                             `ui.hdb.sealKind.${seal.kind}.label`,
                             SEAL_META[seal.kind].label,
                             undefined,
                             locale,
                           ),
-                        })}`}
+                        })}`, { follow: true })}
                       >
                         <span
                           className="pointer-events-none absolute inset-0 opacity-35"
@@ -694,15 +695,15 @@ function BuildingCutaway({
                   return (
                     <div
                       key={`seal-${col}`}
-                      className={`relative ${dim}`}
-                      title={t('ui.hdb.inaccessible', {
+                      className={`relative h-full min-h-0 overflow-hidden [container-type:size] ${dim}`}
+                      {...tip(t('ui.hdb.inaccessible', {
                         label: msgOr(
                           `ui.hdb.sealKind.${seal.kind}.label`,
                           SEAL_META[seal.kind].label,
                           undefined,
                           locale,
                         ),
-                      })}
+                      }), { follow: true })}
                     >
                       <span
                         className="absolute inset-0 opacity-55"
@@ -712,10 +713,13 @@ function BuildingCutaway({
                         }}
                       />
                       {col === goneLabelCol && (
-                        <span className="relative z-10 flex h-full items-center justify-center text-concrete-400">
+                        <span
+                          className="relative z-10 flex h-full w-full items-center justify-center text-concrete-200"
+                          style={{ fontSize: 'min(86cqmin, 2.5rem)' }}
+                        >
                           <Icon
                             name={SEAL_ICON[seal.kind]}
-                            size={phone ? 16 : 14}
+                            className="drop-shadow-[0_0_1px_currentColor]"
                             title={msgOr(
                               `ui.hdb.sealKind.${seal.kind}.label`,
                               SEAL_META[seal.kind].label,
@@ -740,14 +744,14 @@ function BuildingCutaway({
                         disabled={!canAttempt}
                         onClick={() => onGo(cell)}
                         {...hoverProps(cell, canAttempt)}
-                        title={cellTravelTitle(
+                        {...tip(cellTravelTitle(
                           hdb,
                           attrs,
                           cell,
                           t('ui.hdb.fogClimb', { id: stair.id }),
                           t,
                           locale,
-                        )}
+                        ), { follow: true })}
                         className={`relative flex min-h-[44px] items-center justify-center border-x border-concrete-700/40 bg-concrete-900/30 disabled:cursor-default lg:min-h-0 ${dim} ${
                           trail
                             ? 'text-concrete-200'
@@ -787,7 +791,7 @@ function BuildingCutaway({
                       disabled={!canAttempt && !atPlayer}
                       onClick={() => onGo(cell)}
                       {...hoverProps(cell, canAttempt && !atPlayer)}
-                      title={cellTravelTitle(hdb, attrs, cell, stairBase, t, locale)}
+                      {...tip(cellTravelTitle(hdb, attrs, cell, stairBase, t, locale), { follow: true })}
                       className={`relative flex min-h-[44px] items-center justify-center border-x disabled:cursor-default lg:min-h-0 ${dim} ${
                         atPlayer
                           ? 'border-concrete-700/40 bg-concrete-900/40 text-concrete-300'
@@ -829,7 +833,7 @@ function BuildingCutaway({
                       disabled={!canAttempt && !atPlayer}
                       onClick={() => onGo(cell)}
                       {...hoverProps(cell, canAttempt && !atPlayer)}
-                      title={cellTravelTitle(hdb, attrs, cell, t('ui.hdb.voidDeck'), t, locale)}
+                      {...tip(cellTravelTitle(hdb, attrs, cell, t('ui.hdb.voidDeck'), t, locale), { follow: true })}
                       className={`relative flex min-h-[44px] items-center justify-center disabled:cursor-default lg:min-h-0 ${dim} ${
                         !trail && reachable
                           ? 'bg-signal/10 ring-1 ring-inset ring-signal/20 hover:bg-white/5'
@@ -859,7 +863,7 @@ function BuildingCutaway({
                       disabled={!canAttempt && !atPlayer}
                       onClick={() => onGo(cell)}
                       {...hoverProps(cell, canAttempt && !atPlayer)}
-                      title={cellTravelTitle(hdb, attrs, cell, t('ui.hdb.corridor'), t, locale)}
+                      {...tip(cellTravelTitle(hdb, attrs, cell, t('ui.hdb.corridor'), t, locale), { follow: true })}
                       className={`relative min-h-[44px] disabled:cursor-default lg:min-h-0 ${dim} ${
                         !trail && reachable
                           ? 'bg-signal/10 ring-1 ring-inset ring-signal/20 hover:bg-white/5'
@@ -1003,7 +1007,7 @@ function CorridorDoor({
     face = (
       <span
         className="text-xs font-bold leading-none text-concrete-500"
-        title={t('ui.hdb.doorBoardedShutTitle')}
+        {...tip(t('ui.hdb.doorBoardedShutTitle'))}
       >
         ✕
       </span>
@@ -1012,7 +1016,7 @@ function CorridorDoor({
     face = (
       <span
         className="text-2xs font-bold leading-none text-concrete-600"
-        title={t('ui.hdb.doorClearedTitle')}
+        {...tip(t('ui.hdb.doorClearedTitle'))}
       >
         ·
       </span>
@@ -1047,7 +1051,7 @@ function CorridorDoor({
     <span className="flex max-w-full flex-col items-center justify-end">
       <span
         className="mb-0.5 max-w-[2.75rem] truncate text-center text-2xs font-bold leading-none tabular-nums text-concrete-200"
-        title={unit.label}
+        {...tip(unit.label)}
       >
         {unitNum}
       </span>
@@ -1072,7 +1076,7 @@ function CorridorDoor({
 
   if (!unit.available) {
     return (
-      <div title={`${unit.label} — ${meta}`} className={sizeCls}>
+      <div {...tip(`${unit.label} — ${meta}`, { follow: true })} className={sizeCls}>
         {door}
       </div>
     );
@@ -1087,7 +1091,7 @@ function CorridorDoor({
       onMouseLeave={onMouseLeave}
       onFocus={onFocus}
       onBlur={onBlur}
-      title={travelTitle ?? `${unit.label} · ${meta}`}
+      {...tip(travelTitle ?? `${unit.label} · ${meta}`, { follow: true })}
       className={`${sizeCls} transition disabled:cursor-default ${
         interactive ? 'hover:brightness-110' : 'opacity-55'
       }`}
@@ -1165,12 +1169,12 @@ function HdbStatusDock({
     <div className="shrink-0 border-b border-concrete-600 bg-concrete-900/60 px-3 py-1.5">
       <div className="flex items-center gap-2">
         <div className="flex min-w-0 flex-1 items-center gap-1.5">
-          <span className="signage truncate text-xs text-signal" title={placeMeta}>
+          <span className="signage truncate text-xs text-signal" {...tip(placeMeta)}>
             {name}
           </span>
           <span
             className="shrink-0 text-2xs tabular-nums text-concrete-500"
-            title={t('ui.hdb.storeysRevealed', { revealed, height })}
+            {...tip(t('ui.hdb.storeysRevealed', { revealed, height }))}
           >
             {revealed}/{height}
           </span>
@@ -1182,7 +1186,7 @@ function HdbStatusDock({
           type="button"
           aria-expanded={detailsOpen}
           aria-label={detailsOpen ? t('ui.hdb.ariaHideDetails') : t('ui.hdb.ariaShowDetails')}
-          title={detailsOpen ? t('ui.hdb.hideDetails') : t('ui.hdb.showDetails')}
+          {...tip(detailsOpen ? t('ui.hdb.hideDetails') : t('ui.hdb.showDetails'))}
           onClick={() => setDetailsOpen((o) => !o)}
           className="shrink-0 rounded border border-concrete-600 px-1.5 py-1 text-2xs text-concrete-400 hover:bg-white/5"
         >
@@ -1192,7 +1196,7 @@ function HdbStatusDock({
           type="button"
           onClick={onLeave}
           disabled={!canLeave}
-          title={leaveTitle}
+          {...tip(leaveTitle)}
           className="shrink-0 rounded border border-concrete-600 px-2.5 py-1 text-xs hover:bg-white/5 disabled:opacity-40"
         >
           {t('ui.hdb.leave')}
@@ -1203,7 +1207,7 @@ function HdbStatusDock({
         type="button"
         onClick={() => setDetailsOpen((o) => !o)}
         className="mt-1 w-full text-left"
-        title={t('ui.hdb.tapDetails')}
+        {...tip(t('ui.hdb.tapDetails'))}
       >
         <div className="mb-0.5 text-xs leading-snug text-concrete-400">
           <span className="signage text-concrete-500">{t('ui.hdb.heat')}</span>{' '}
@@ -1243,7 +1247,7 @@ function HdbStatusDock({
           <HdbSymbolKey />
           <div
             className="flex flex-wrap gap-1.5 text-2xs"
-            title={t('ui.hdb.senseCorridor')}
+            {...tip(t('ui.hdb.senseCorridor'))}
           >
             {senses.map((s) => (
               <span
@@ -1278,7 +1282,7 @@ function HdbSymbolKey() {
     const label = msgOr(`ui.hdb.unit.${id}.label`, m.label, undefined, locale);
     const blurb = msgOr(`ui.hdb.unit.${id}.blurb`, m.blurb, undefined, locale);
     return (
-      <span key={id} className="inline-flex items-center gap-1" title={blurb}>
+      <span key={id} className="inline-flex items-center gap-1" {...tip(blurb)}>
         <Icon
           name={m.icon}
           size={11}

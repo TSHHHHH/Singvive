@@ -25,6 +25,8 @@ export {
   recipeBlurb,
   traitName,
   traitDescription,
+  traitEffects,
+  traitHoverText,
   settingLabel,
   settingDescription,
   settingOptionLabel,

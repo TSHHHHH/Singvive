@@ -12,17 +12,18 @@
     "value": 8,
     "stackable": true,
     "maxStack": 5,
-    "color": "#b5651d"
+    "color": "#b5651d",
+    "icon": "item.canned_food"
   },
   "rice_pack": {
     "id": "rice_pack",
-    "name": "Bag of Rice",
-    "w": 2,
-    "h": 2,
+    "name": "Cooked Rice",
+    "w": 1,
+    "h": 1,
     "weight": 2.5,
     "effect": {
       "kind": "food",
-      "hunger": 44
+      "hunger": 27
     },
     "value": 14,
     "stackable": false,
@@ -79,7 +80,7 @@
   },
   "bak_kwa": {
     "id": "bak_kwa",
-    "name": "Vacuum-Packed Bak Kwa",
+    "name": "Vacuum-Packed Bakkwa",
     "w": 2,
     "h": 1,
     "weight": 0.4,
@@ -91,7 +92,8 @@
     "stackable": true,
     "maxStack": 3,
     "color": "#8c2f28",
-    "scarcity": 0.6
+    "scarcity": 0.6,
+    "icon": "item.bak_kwa"
   },
   "army_ration": {
     "id": "army_ration",
@@ -109,7 +111,8 @@
     "stackable": false,
     "maxStack": 1,
     "color": "#4a5240",
-    "scarcity": 0.35
+    "scarcity": 0.35,
+    "icon": "item.army_ration"
   },
   "milo_tin": {
     "id": "milo_tin",
@@ -126,13 +129,14 @@
     "value": 10,
     "stackable": false,
     "maxStack": 1,
-    "color": "#3c6b3a"
+    "color": "#3c6b3a",
+    "icon": "item.milo_tin"
   },
   "condensed_milk": {
     "id": "condensed_milk",
     "name": "Condensed Milk",
     "w": 1,
-    "h": 1,
+    "h": 2,
     "weight": 0.4,
     "effect": {
       "kind": "food",
@@ -141,7 +145,8 @@
     "value": 7,
     "stackable": true,
     "maxStack": 4,
-    "color": "#d9c9a3"
+    "color": "#d9c9a3",
+    "icon": "item.condensed_milk"
   },
   "kaya_toast": {
     "id": "kaya_toast",
@@ -158,7 +163,8 @@
     "maxStack": 1,
     "color": "#7a5a2a",
     "maxCondition": 100,
-    "perishable": true
+    "perishable": true,
+    "icon": "item.kaya_toast"
   },
   "curry_puff": {
     "id": "curry_puff",
@@ -175,13 +181,14 @@
     "maxStack": 1,
     "color": "#c98a3f",
     "maxCondition": 100,
-    "perishable": true
+    "perishable": true,
+    "icon": "item.curry_puff"
   },
   "nasi_lemak": {
     "id": "nasi_lemak",
     "name": "Packet Nasi Lemak",
     "w": 2,
-    "h": 1,
+    "h": 2,
     "weight": 0.5,
     "effect": {
       "kind": "food",
@@ -193,7 +200,8 @@
     "maxStack": 1,
     "color": "#3f6b4a",
     "maxCondition": 100,
-    "perishable": true
+    "perishable": true,
+    "icon": "item.nasi_lemak"
   },
   "wild_boar_meat": {
     "id": "wild_boar_meat",
@@ -245,7 +253,8 @@
     "color": "#9c8f3a",
     "maxCondition": 100,
     "perishable": true,
-    "scarcity": 0.5
+    "scarcity": 0.5,
+    "icon": "item.durian"
   },
   "water_bottle": {
     "id": "water_bottle",
@@ -1414,7 +1423,9 @@
     "modifiers": {
       "defenseBonus": 4,
       "attackBonus": -1,
-      "dodgeBonus": 0.08
+      "dodgeBonus": 0.08,
+      "blockChance": 0.3,
+      "speedBonus": -1.4
     },
     "exotic": true,
     "scarcity": 0.3
@@ -1714,7 +1725,7 @@
     "slot": "bag",
     "packGrid": {
       "w": 3,
-      "h": 5
+      "h": 4
     },
     "startingItem": true,
     "maxCondition": 80
@@ -1734,72 +1745,24 @@
     "color": "#3a5a7a",
     "slot": "bag",
     "packGrid": {
-      "w": 9,
+      "w": 5,
       "h": 4,
       "blocked": [
         [
           0,
-          1
+          0
         ],
         [
           0,
-          0
-        ],
-        [
-          6,
-          2
-        ],
-        [
-          6,
-          3
-        ],
-        [
-          7,
           1
         ],
         [
-          8,
+          4,
+          0
+        ],
+        [
+          4,
           1
-        ],
-        [
-          8,
-          0
-        ],
-        [
-          7,
-          0
-        ],
-        [
-          6,
-          0
-        ],
-        [
-          6,
-          1
-        ],
-        [
-          2,
-          0
-        ],
-        [
-          1,
-          0
-        ],
-        [
-          1,
-          1
-        ],
-        [
-          2,
-          1
-        ],
-        [
-          2,
-          2
-        ],
-        [
-          2,
-          3
         ]
       ]
     },
@@ -1820,8 +1783,26 @@
     "color": "#6a5a3a",
     "slot": "bag",
     "packGrid": {
-      "w": 8,
-      "h": 5
+      "w": 5,
+      "h": 7,
+      "blocked": [
+        [
+          0,
+          3
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          4,
+          0
+        ],
+        [
+          4,
+          3
+        ]
+      ]
     },
     "maxCondition": 90
   },
@@ -1840,8 +1821,26 @@
     "color": "#4a5a3a",
     "slot": "bag",
     "packGrid": {
-      "w": 9,
-      "h": 5
+      "w": 7,
+      "h": 6,
+      "blocked": [
+        [
+          0,
+          2
+        ],
+        [
+          6,
+          2
+        ],
+        [
+          0,
+          3
+        ],
+        [
+          6,
+          3
+        ]
+      ]
     },
     "modifiers": {
       "weightCapacityBonus": 3
@@ -2023,7 +2022,9 @@
     "slot": "offHand",
     "modifiers": {
       "defenseBonus": 1,
-      "dodgeBonus": 0.03
+      "dodgeBonus": 0.03,
+      "blockChance": 0.12,
+      "speedBonus": -0.4
     }
   },
   "metal_tray": {
@@ -2042,7 +2043,9 @@
     "slot": "offHand",
     "modifiers": {
       "defenseBonus": 2,
-      "dodgeBonus": 0.04
+      "dodgeBonus": 0.04,
+      "blockChance": 0.18,
+      "speedBonus": -0.7
     }
   },
   "traffic_barrier": {
@@ -2062,7 +2065,9 @@
     "modifiers": {
       "defenseBonus": 3,
       "attackBonus": -1,
-      "dodgeBonus": 0.05
+      "dodgeBonus": 0.05,
+      "blockChance": 0.22,
+      "speedBonus": -1
     }
   },
   "bike_helmet": {
@@ -2196,7 +2201,7 @@
     "id": "chicken_rice",
     "name": "Packet Chicken Rice",
     "w": 2,
-    "h": 1,
+    "h": 2,
     "weight": 0.55,
     "effect": {
       "kind": "food",
@@ -2208,7 +2213,8 @@
     "maxStack": 1,
     "color": "#d9c9a3",
     "maxCondition": 100,
-    "perishable": true
+    "perishable": true,
+    "icon": "item.chicken_rice"
   },
   "hardtack": {
     "id": "hardtack",
@@ -2295,7 +2301,8 @@
     "color": "#4a5a3a",
     "maxCondition": 100,
     "perishable": true,
-    "scarcity": 0.35
+    "scarcity": 0.35,
+    "icon": "item.premium_bento"
   },
   "plus_100": {
     "id": "plus_100",
@@ -2445,7 +2452,7 @@
   },
   "cooked_mee": {
     "id": "cooked_mee",
-    "name": "Cooked Maggi",
+    "name": "Maggi Packet",
     "w": 2,
     "h": 1,
     "weight": 0.45,
@@ -2459,7 +2466,8 @@
     "maxStack": 1,
     "color": "#c97a32",
     "maxCondition": 100,
-    "perishable": true
+    "perishable": true,
+    "icon": "item.cooked_mee"
   },
   "milo_dinosaur": {
     "id": "milo_dinosaur",

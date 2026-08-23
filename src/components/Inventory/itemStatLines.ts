@@ -1,5 +1,6 @@
 import { itemDef } from '../../game/loot';
-import { effectiveDamage, equipDefenseBonus } from '../../game/inventory';
+import { effectiveDamage, equipDefenseBonus, scaledRestore } from '../../game/inventory';
+import { weaponSpeedFactor } from '../../game/combat';
 import { packGridUsableCount, resolveItemPackGrid } from '../../game/packGrid';
 import type { Equipment, ItemInstance } from '../../game/types';
 import type { IconName } from '../../icons/keys';
@@ -37,6 +38,7 @@ export const STAT_LINE_ICONS: Record<string, IconName> = {
   acc: 'attr.perception',
   spd: 'attr.dexterity',
   dodge: 'attr.dexterity',
+  block: 'slot.offHand',
   travel: 'action.travel',
   enc: 'combat.encounter',
   carry: 'slot.bag',
@@ -114,6 +116,19 @@ export function itemStatLines(
         theirs !== undefined ? numDelta(dmg, theirs) : undefined,
       ),
     );
+    const mySpd = weaponSpeedFactor(e, !!def.twoHanded);
+    const theirSpd =
+      cmpDef?.effect.kind === 'weapon'
+        ? weaponSpeedFactor(cmpDef.effect, !!cmpDef.twoHanded)
+        : undefined;
+    lines.push(
+      line(
+        'spd',
+        t('ui.stats.speed'),
+        `×${mySpd.toFixed(2)}`,
+        theirSpd !== undefined ? numDelta(mySpd, theirSpd) : undefined,
+      ),
+    );
   }
   if (m.defenseBonus) {
     const v = equipDefenseBonus(inst);
@@ -166,8 +181,18 @@ export function itemStatLines(
       line(
         'spd',
         t('ui.stats.speed'),
-        `+${m.speedBonus.toFixed(1)}`,
+        `${m.speedBonus > 0 ? '+' : ''}${m.speedBonus.toFixed(1)}`,
         numDelta(m.speedBonus, cmpM.speedBonus),
+      ),
+    );
+  }
+  if (m.blockChance) {
+    lines.push(
+      line(
+        'block',
+        t('ui.stats.block'),
+        `${Math.round(m.blockChance * 100)}%`,
+        numDelta(m.blockChance, cmpM.blockChance),
       ),
     );
   }
@@ -242,27 +267,36 @@ export function itemStatLines(
   }
 
   if (lines.length === 0) {
+    // Consumables print what this instance actually gives, with the pristine
+    // figure in brackets when freshness has eaten into it — same shape as a
+    // worn weapon's damage row.
+    const restore = (base: number): string => {
+      const v = scaledRestore(inst, base);
+      return v === base ? `+${v}` : t('ui.stats.restoreOf', { n: `+${v}`, base });
+    };
     switch (e.kind) {
       case 'food':
-        lines.push(line('food', t('ui.stats.hunger'), `+${e.hunger}`));
-        if (e.thirst != null) lines.push(line('thirst', t('ui.stats.thirst'), `+${e.thirst}`));
-        if (e.energy != null) lines.push(line('en', t('ui.stats.energy'), `+${e.energy}`));
+        lines.push(line('food', t('ui.stats.hunger'), restore(e.hunger)));
+        if (e.thirst != null) lines.push(line('thirst', t('ui.stats.thirst'), restore(e.thirst)));
+        if (e.energy != null) lines.push(line('en', t('ui.stats.energy'), restore(e.energy)));
         break;
       case 'water':
-        lines.push(line('thirst', t('ui.stats.thirst'), `+${e.thirst}`));
-        if (e.hunger != null) lines.push(line('food', t('ui.stats.hunger'), `+${e.hunger}`));
-        if (e.energy != null) lines.push(line('en', t('ui.stats.energy'), `+${e.energy}`));
+        lines.push(line('thirst', t('ui.stats.thirst'), restore(e.thirst)));
+        if (e.hunger != null) lines.push(line('food', t('ui.stats.hunger'), restore(e.hunger)));
+        if (e.energy != null) lines.push(line('en', t('ui.stats.energy'), restore(e.energy)));
         break;
       case 'heal':
-        lines.push(line('hp', t('ui.stats.heal'), t('ui.stats.healHp', { n: e.health })));
+        lines.push(
+          line('hp', t('ui.stats.heal'), t('ui.stats.healHp', { n: scaledRestore(inst, e.health) })),
+        );
         break;
       case 'cure':
-        lines.push(line('inf', t('ui.stats.cure'), `−${e.infection}`));
+        lines.push(line('inf', t('ui.stats.cure'), `−${scaledRestore(inst, e.infection)}`));
         break;
       case 'energy':
-        lines.push(line('en', t('ui.stats.energy'), `+${e.energy}`));
-        if (e.hunger != null) lines.push(line('food', t('ui.stats.hunger'), `+${e.hunger}`));
-        if (e.thirst != null) lines.push(line('thirst', t('ui.stats.thirst'), `+${e.thirst}`));
+        lines.push(line('en', t('ui.stats.energy'), restore(e.energy)));
+        if (e.hunger != null) lines.push(line('food', t('ui.stats.hunger'), restore(e.hunger)));
+        if (e.thirst != null) lines.push(line('thirst', t('ui.stats.thirst'), restore(e.thirst)));
         break;
       case 'fuel':
         lines.push(line('fuel', t('ui.stats.fuel'), t('ui.stats.fuelEvac')));

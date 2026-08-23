@@ -1,9 +1,11 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import type React from 'react';
 import type { ItemDef } from '../game/types';
 import type { SearchHighlight } from '../game/searchSession';
 import { conditionBarColor, tileColor } from '../game/itemTileColor';
 import { Icon } from '../icons/Icon';
 import { itemIcon } from './Inventory/itemIcon';
+import { tip } from './tips';
 
 const BURST_ANGLES = [0, 45, 90, 135, 180, 225, 270, 315] as const;
 const BURST_MS = 1000;
@@ -67,9 +69,12 @@ type Props = {
   iconSize?: number;
   className?: string;
   style?: CSSProperties;
-  title?: string;
+  tip?: string;
   onClick?: () => void;
   onMouseEnter?: () => void;
+  onPointerEnter?: (e: React.PointerEvent) => void;
+  onPointerMove?: (e: React.PointerEvent) => void;
+  onPointerLeave?: (e: React.PointerEvent) => void;
   onFocus?: () => void;
   /** When false, show settled ring without pulse/burst. */
   animate?: boolean;
@@ -97,9 +102,12 @@ export function SearchFindRevealCell({
   iconSize = 14,
   className = '',
   style,
-  title,
+  tip: tipText,
   onClick,
   onMouseEnter,
+  onPointerEnter,
+  onPointerMove,
+  onPointerLeave,
   onFocus,
   animate = true,
   forceMotion = false,
@@ -164,15 +172,18 @@ export function SearchFindRevealCell({
         boxShadow: cellBoxShadow(def, highlight),
         ...restStyle,
       }}
-      title={as === 'div' ? title : undefined}
+      {...tip(as === 'div' ? tipText : undefined)}
     >
       {bursting && highlight ? <FindBurst highlight={highlight} runId={runId} /> : null}
       {as === 'button' ? (
         <button
           type="button"
-          title={title}
+          {...tip(tipText)}
           onClick={onClick}
           onMouseEnter={onMouseEnter}
+          onPointerEnter={onPointerEnter}
+          onPointerMove={onPointerMove}
+          onPointerLeave={onPointerLeave}
           onFocus={onFocus}
           className={`absolute inset-0 ${faceClass}`}
         >

@@ -53,6 +53,7 @@ import {
 import { EnemyOverview } from './EnemyOverview';
 import { fetchItemsCatalog } from './lootApi';
 import { validateEnemiesCatalog } from './validateEnemies';
+import { tip } from '../components/tips';
 
 type EnemyTab = 'overview' | 'zombies' | 'humans' | 'animals' | 'spawn';
 type HumanSel =
@@ -205,7 +206,7 @@ function DropPoolEditor({
               type="button"
               className="hover:underline"
               onClick={() => openLootItem(id)}
-              title="Open in Loot editor"
+              {...tip('Open in Loot editor')}
             >
               {id}
             </button>
@@ -213,7 +214,7 @@ function DropPoolEditor({
               type="button"
               className="text-white/40 hover:text-red-300"
               onClick={() => onChange(drops.filter((d) => d !== id))}
-              title="Remove"
+              {...tip('Remove', { label: true })}
             >
               ×
             </button>

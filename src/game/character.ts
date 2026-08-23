@@ -1,4 +1,4 @@
-import type { Attributes, AttributeKey, Character, Equipment, Trait } from './types';
+import type { Attributes, AttributeKey, Character, Equipment, PoiCategory, Trait } from './types';
 import type { IconName } from '../icons/keys';
 import { EMOJI_FALLBACK } from '../icons/keys';
 import { itemDef } from './loot';
@@ -78,8 +78,9 @@ const ATTRIBUTE_MOD_KEYS: Record<AttributeKey, keyof Trait> = {
 };
 
 // ---------- Trait System ----------
-// Start at 0 points. Negatives refund; positives spend. Count is uncapped —
-// a build is legal iff points remaining ≥ 0.
+// Start at 0 points. Negatives refund; positives spend.
+// Caps: max 1 signature (cost ≥ 4), max 1 curse (cost ≤ −3), max 2 negatives.
+// A build is legal iff points remaining ≥ 0 and the caps hold.
 
 export const TRAIT_BUDGET = 0;
 
@@ -88,10 +89,11 @@ export const TRAITS: Trait[] = [
   {
     id: 'ns_combat',
     name: 'Reservist',
-    description:
-      '+1 Strength, +2 attack, +1 defense. Muscle memory from mandatory service drills that never quite left.',
+    description: 'Muscle memory from mandatory service drills that never quite left.',
     category: 'positive',
     cost: 2,
+    icon: 'trait.ns_combat',
+    effects: ['+1 Strength', '+2 attack', '+1 defense'],
     conflicts: ['clumsy'],
     strengthMod: 1,
     attackMod: 2,
@@ -100,10 +102,11 @@ export const TRAITS: Trait[] = [
   {
     id: 'medic',
     name: 'Trained Medic',
-    description:
-      'Healing items restore +5 HP. 35% less infection gain. Clinic shifts taught you triage the hard way.',
+    description: 'Clinic shifts taught you triage the hard way.',
     category: 'positive',
     cost: 2,
+    icon: 'trait.medic',
+    effects: ['Healing items restore +5 HP', '35% less infection gain'],
     conflicts: ['thin_blood'],
     healBonus: 5,
     infectionResist: 0.35,
@@ -111,20 +114,22 @@ export const TRAITS: Trait[] = [
   {
     id: 'hawker_cook',
     name: 'Home Cook',
-    description:
-      'Food items restore 30% more hunger. Years behind a wok — or a home kitchen that worked like one.',
+    description: 'Years behind a wok — or a home kitchen that worked like one.',
     category: 'positive',
     cost: 1,
+    icon: 'trait.hawker_cook',
+    effects: ['Food restores 30% more hunger'],
     conflicts: ['picky_eater', 'weak_stomach'],
     foodEffectMod: 0.3,
   },
   {
     id: 'marathoner',
     name: 'Distance Runner',
-    description:
-      '+1 Endurance, +15 max HP, −10% energy drain. The kind of fitness that used to earn a gold standard.',
+    description: 'The kind of fitness that used to earn a gold standard.',
     category: 'positive',
     cost: 2,
+    icon: 'trait.marathoner',
+    effects: ['+1 Endurance', '+15 max HP', '−10% energy drain'],
     conflicts: ['bad_knees', 'glass_jaw', 'out_of_shape'],
     enduranceMod: 1,
     maxHpBonus: 15,
@@ -133,10 +138,11 @@ export const TRAITS: Trait[] = [
   {
     id: 'karang_guni',
     name: 'Scavenger',
-    description:
-      '+1 loot, +1 extra search per POI, +10% search speed. You already knew which blocks had the good stuff.',
+    description: 'You already knew which blocks had the good stuff.',
     category: 'positive',
     cost: 2,
+    icon: 'trait.karang_guni',
+    effects: ['+1 loot', '+1 extra search per POI', '+10% search speed'],
     conflicts: ['hoarder', 'light_pockets'],
     lootMod: 1,
     searchBonusMod: 1,
@@ -145,10 +151,11 @@ export const TRAITS: Trait[] = [
   {
     id: 'tekong_legs',
     name: 'Trail Legs',
-    description:
-      '+1 Dexterity, +15% travel speed. Route marches forged these calves — island or otherwise.',
+    description: 'Route marches forged these calves — island or otherwise.',
     category: 'positive',
     cost: 1,
+    icon: 'trait.tekong_legs',
+    effects: ['+1 Dexterity', '+15% travel speed'],
     conflicts: ['bad_knees'],
     dexterityMod: 1,
     travelSpeedMod: 0.15,
@@ -156,18 +163,22 @@ export const TRAITS: Trait[] = [
   {
     id: 'night_owl',
     name: 'Night Owl',
-    description: 'No accuracy penalty at night. Years of shift work pay off.',
+    description: 'Years of shift work pay off.',
     category: 'positive',
     cost: 1,
-    conflicts: ['poor_sleep', 'afraid_of_dark'],
+    icon: 'trait.night_owl',
+    effects: ['No accuracy penalty at night'],
+    conflicts: ['poor_sleep', 'afraid_of_dark', 'young_blood'],
     nightAccuracyPenaltyRemoved: true,
   },
   {
     id: 'thick_skin',
     name: 'Thick Skin',
-    description: '30% infection resist, +1 defense. Mosquito-hardened immune system.',
+    description: 'Mosquito-hardened immune system.',
     category: 'positive',
     cost: 2,
+    icon: 'trait.thick_skin',
+    effects: ['30% infection resist', '+1 defense'],
     conflicts: ['hemophilia', 'thin_blood'],
     infectionResist: 0.3,
     defenseMod: 1,
@@ -175,22 +186,23 @@ export const TRAITS: Trait[] = [
   {
     id: 'kiasuism',
     name: 'Opportunist',
-    description:
-      '+1 Wits, +10% loot value, see POI searches remaining. Must. Get. More. — queue culture never dies.',
+    description: 'Must. Get. More. — queue culture never dies.',
     category: 'positive',
     cost: 1,
+    icon: 'trait.kiasuism',
+    effects: ['+1 Wits', '+10% loot value'],
     conflicts: ['squeamish', 'short_fuse'],
     witsMod: 1,
     lootValueMod: 0.1,
-    showSearchesRemaining: true,
   },
   {
     id: 'kampong_spirit',
     name: 'Community Ties',
-    description:
-      'Start Known with the IDTF and the PP Co-op — their counters are open to you from day one. Neighbour bonds transcend the apocalypse.',
+    description: 'Neighbour bonds transcend the apocalypse. Their counters are open from day one.',
     category: 'positive',
     cost: 2,
+    icon: 'trait.kampong_spirit',
+    effects: ['Start Known with the IDTF', 'Start Known with the PP Co-op'],
     conflicts: ['ah_long_debt'],
     factionStandingMod: { idtf: 1, pasir_panjang: 1 },
   },
@@ -201,35 +213,41 @@ export const TRAITS: Trait[] = [
       'Somebody in the 88 Syndicate remembers you. They will not shoot on sight and their court is open — but the IDTF has read the same file.',
     category: 'positive',
     cost: 2,
+    icon: 'trait.ah_long_debt',
+    effects: ['88 Syndicate will not shoot on sight', 'IDTF starts wary of you'],
     conflicts: ['kampong_spirit'],
     factionStandingMod: { syndicate_88: 1, idtf: -1 },
   },
   {
     id: 'water_baby',
     name: 'Strong Swimmer',
-    description: '−20% thirst drain. Weekend reservoir laps paid off.',
+    description: 'Weekend reservoir laps paid off.',
     category: 'positive',
     cost: 1,
+    icon: 'trait.water_baby',
+    effects: ['−20% thirst drain'],
     conflicts: ['aircon_addict', 'dehydrated'],
     thirstDrainMod: -0.2,
   },
   {
     id: 'handyman',
     name: 'Handyman',
-    description:
-      'Craft recipes cost −1 material. Cable ties, scrap, and a flat-repair habit go a long way.',
+    description: 'Cable ties, scrap, and a flat-repair habit go a long way.',
     category: 'positive',
     cost: 1,
-    conflicts: [],
+    icon: 'trait.handyman',
+    effects: ['Craft recipes cost −1 material'],
+    conflicts: ['site_foreman'],
     craftCostMod: -1,
   },
   {
     id: 'sixth_sense',
     name: 'Sixth Sense',
-    description:
-      '+1 Perception, +30% detection radius, ambush chance halved. You feel them before you see them.',
+    description: 'You feel them before you see them.',
     category: 'positive',
-    cost: 3,
+    cost: 4,
+    icon: 'trait.sixth_sense',
+    effects: ['+1 Perception', '+30% detection radius', 'Ambush chance halved', '+2 awareness'],
     conflicts: ['noisy', 'heavy_sleeper'],
     perceptionMod: 1,
     detectRadiusMod: 0.3,
@@ -239,83 +257,100 @@ export const TRAITS: Trait[] = [
   {
     id: 'pack_rat',
     name: 'Pack Rat',
-    description: 'Backpack +1 column. Every pocket has a pocket.',
+    description: 'Every pocket has a pocket.',
     category: 'positive',
     cost: 2,
-    conflicts: ['hoarder', 'light_pockets'],
+    icon: 'trait.pack_rat',
+    effects: ['Backpack +1 column'],
+    conflicts: ['hoarder', 'light_pockets', 'mule'],
     gridWidthBonus: 1,
   },
   {
     id: 'mule',
     name: 'Mule',
-    description: 'Backpack +2 columns. You were built to haul.',
+    description: 'You were built to haul.',
     category: 'positive',
-    cost: 3,
-    conflicts: ['hoarder', 'light_pockets'],
+    cost: 4,
+    icon: 'trait.mule',
+    effects: ['Backpack +2 columns', '+6 kg carry capacity'],
+    conflicts: ['hoarder', 'light_pockets', 'pack_rat'],
     gridWidthBonus: 2,
+    carryCapacityMod: 6,
   },
   {
     id: 'light_pockets',
     name: 'Light Pockets',
-    description: 'Backpack −1 column. Travel light — refunds a trait point.',
+    description: 'Travel light — refunds a trait point.',
     category: 'negative',
     cost: -1,
+    icon: 'trait.light_pockets',
+    effects: ['Backpack −1 column'],
     conflicts: ['pack_rat', 'mule', 'karang_guni'],
     gridWidthBonus: -1,
   },
   {
     id: 'deep_sleeper',
     name: 'Deep Sleeper',
-    description: 'Sleep restores 25% more energy. When you are out, you are out.',
+    description: 'When you are out, you are out.',
     category: 'positive',
     cost: 1,
+    icon: 'trait.deep_sleeper',
+    effects: ['Sleep restores 25% more energy'],
     conflicts: ['poor_sleep', 'heavy_sleeper'],
     sleepRestoreMod: 0.25,
   },
   {
     id: 'quiet_step',
     name: 'Quiet Step',
-    description: '−10% encounter chance when travelling. Soft soles, softer habits.',
+    description: 'Soft soles, softer habits.',
     category: 'positive',
     cost: 1,
+    icon: 'trait.quiet_step',
+    effects: ['−10% encounter chance when travelling'],
     conflicts: ['noisy'],
     encounterChanceMod: -0.1,
   },
   {
     id: 'strong_back',
     name: 'Strong Back',
-    description: '+4 kg carry capacity. Years of hauling crates or laundry bags.',
+    description: 'Years of hauling crates or laundry bags.',
     category: 'positive',
     cost: 1,
+    icon: 'trait.strong_back',
+    effects: ['+4 kg carry capacity'],
     conflicts: [],
     carryCapacityMod: 4,
   },
   {
     id: 'iron_stomach',
     name: 'Iron Stomach',
-    description: '−15% hunger drain. You can eat almost anything and keep moving.',
+    description: 'You can eat almost anything and keep moving.',
     category: 'positive',
     cost: 1,
+    icon: 'trait.iron_stomach',
+    effects: ['−15% hunger drain'],
     conflicts: ['picky_eater', 'weak_stomach'],
     hungerDrainMod: -0.15,
   },
   {
     id: 'heat_hardened',
     name: 'Heat Hardened',
-    description:
-      '−15% energy drain outdoors and in heat. You stopped complaining about the weather years ago.',
+    description: 'You stopped complaining about the weather years ago.',
     category: 'positive',
     cost: 1,
+    icon: 'trait.heat_hardened',
+    effects: ['−15% energy drain outdoors and in heat'],
     conflicts: ['aircon_addict'],
     outdoorEnergyDrainMod: -0.15,
   },
   {
     id: 'silver_tongue',
     name: 'Silver Tongue',
-    description:
-      '+1 Wits, +2 on doorway and dialogue checks. You talk your way through more doors than you kick.',
+    description: 'You talk your way through more doors than you kick.',
     category: 'positive',
     cost: 2,
+    icon: 'trait.silver_tongue',
+    effects: ['+1 Wits', '+2 on doorway and dialogue checks'],
     conflicts: ['short_fuse'],
     witsMod: 1,
     checkBonusMod: 2,
@@ -323,9 +358,11 @@ export const TRAITS: Trait[] = [
   {
     id: 'field_dressing',
     name: 'Field Dressing',
-    description: 'Healing items restore +3 HP. Leg injuries heal 30% faster.',
+    description: 'You keep a roll of gauze in every pocket.',
     category: 'positive',
     cost: 1,
+    icon: 'trait.field_dressing',
+    effects: ['Healing items restore +3 HP', 'Leg injuries heal 30% faster'],
     conflicts: [],
     healBonus: 3,
     legHealMod: 0.3,
@@ -333,18 +370,22 @@ export const TRAITS: Trait[] = [
   {
     id: 'calm_hands',
     name: 'Calm Hands',
-    description: '+4% dodge chance. You flinch less when something lunges.',
+    description: 'You flinch less when something lunges.',
     category: 'positive',
     cost: 1,
+    icon: 'trait.calm_hands',
+    effects: ['+4% dodge chance'],
     conflicts: [],
     dodgeMod: 0.04,
   },
   {
     id: 'frugal',
     name: 'Frugal',
-    description: 'Food restores 15% more hunger. You stretch every packet.',
+    description: 'You stretch every packet.',
     category: 'positive',
     cost: 1,
+    icon: 'trait.frugal',
+    effects: ['Food restores 15% more hunger'],
     conflicts: ['picky_eater'],
     foodEffectMod: 0.15,
   },
@@ -353,28 +394,33 @@ export const TRAITS: Trait[] = [
   {
     id: 'aircon_addict',
     name: 'Soft Living',
-    description:
-      '+20% energy drain outdoors and in heat. Never spent a day without climate control.',
+    description: 'Never spent a day without climate control.',
     category: 'negative',
     cost: -1,
+    icon: 'trait.aircon_addict',
+    effects: ['+20% energy drain outdoors and in heat'],
     conflicts: ['water_baby', 'heat_hardened'],
     outdoorEnergyDrainMod: 0.2,
   },
   {
     id: 'picky_eater',
     name: 'Picky Eater',
-    description: 'Food restores 25% less hunger. Texture and branding still matter somehow.',
+    description: 'Texture and branding still matter somehow.',
     category: 'negative',
     cost: -1,
+    icon: 'trait.picky_eater',
+    effects: ['Food restores 25% less hunger'],
     conflicts: ['hawker_cook', 'iron_stomach', 'frugal'],
     foodEffectMod: -0.25,
   },
   {
     id: 'glass_jaw',
     name: 'Glass Jaw',
-    description: '−1 Endurance, −15 max HP. One hit and it is lights out.',
+    description: 'One hit and it is lights out.',
     category: 'negative',
     cost: -2,
+    icon: 'trait.glass_jaw',
+    effects: ['−1 Endurance', '−15 max HP'],
     conflicts: ['marathoner'],
     enduranceMod: -1,
     maxHpBonus: -15,
@@ -382,9 +428,11 @@ export const TRAITS: Trait[] = [
   {
     id: 'clumsy',
     name: 'Clumsy',
-    description: '−1 Dexterity, −1 attack, +5% ambush chance. Trips over flat ground.',
+    description: 'Trips over flat ground.',
     category: 'negative',
     cost: -1,
+    icon: 'trait.clumsy',
+    effects: ['−1 Dexterity', '−1 attack', '+5% ambush chance'],
     conflicts: ['ns_combat'],
     dexterityMod: -1,
     attackMod: -1,
@@ -393,28 +441,33 @@ export const TRAITS: Trait[] = [
   {
     id: 'hoarder',
     name: 'Hoarder',
-    description: 'Cannot voluntarily drop items — must consume or stash. It might be useful later.',
+    description: 'It might be useful later. You cannot bring yourself to throw anything away.',
     category: 'negative',
     cost: -1,
+    icon: 'trait.hoarder',
+    effects: ['Cannot voluntarily drop items'],
     conflicts: ['karang_guni', 'pack_rat', 'mule'],
     cannotDropItems: true,
   },
   {
     id: 'noisy',
     name: 'Noisy',
-    description: '+15% encounter chance when travelling. Cannot stop talking — or clattering.',
+    description: 'Cannot stop talking — or clattering.',
     category: 'negative',
     cost: -1,
+    icon: 'trait.noisy',
+    effects: ['+15% encounter chance when travelling'],
     conflicts: ['sixth_sense', 'quiet_step'],
     encounterChanceMod: 0.15,
   },
   {
     id: 'bad_knees',
     name: 'Bad Knees',
-    description:
-      '−1 Dexterity, −20% travel speed, leg injuries heal 50% slower. Years of hard floors took their toll.',
+    description: 'Years of hard floors took their toll.',
     category: 'negative',
     cost: -2,
+    icon: 'trait.bad_knees',
+    effects: ['−1 Dexterity', '−20% travel speed', 'Leg injuries heal 50% slower'],
     conflicts: ['marathoner', 'tekong_legs'],
     dexterityMod: -1,
     travelSpeedMod: -0.2,
@@ -423,36 +476,44 @@ export const TRAITS: Trait[] = [
   {
     id: 'hemophilia',
     name: 'Hemophiliac',
-    description: 'Bleeding never self-stops — must treat. Carry bandages or die.',
+    description: 'Carry bandages or die.',
     category: 'negative',
     cost: -2,
+    icon: 'trait.hemophilia',
+    effects: ['Bleeding never self-stops'],
     conflicts: ['thick_skin'],
     bleedingSelfStopDisabled: true,
   },
   {
     id: 'poor_sleep',
     name: 'Light Sleeper',
-    description: 'Sleep restores 30% less energy. Every sound jolts you awake.',
+    description: 'Every sound jolts you awake.',
     category: 'negative',
     cost: -1,
+    icon: 'trait.poor_sleep',
+    effects: ['Sleep restores 30% less energy'],
     conflicts: ['night_owl', 'deep_sleeper'],
     sleepRestoreMod: -0.3,
   },
   {
     id: 'squeamish',
     name: 'Squeamish',
-    description: '−1 attack vs the undead. The rot still makes you gag.',
+    description: 'The rot still makes you gag.',
     category: 'negative',
     cost: -1,
+    icon: 'trait.squeamish',
+    effects: ['−1 attack vs the undead'],
     conflicts: ['kiasuism'],
     zombieAttackMod: -1,
   },
   {
     id: 'out_of_shape',
     name: 'Out of Shape',
-    description: '+15% energy drain, −10% travel speed. Desk years caught up.',
+    description: 'Desk years caught up.',
     category: 'negative',
     cost: -2,
+    icon: 'trait.out_of_shape',
+    effects: ['+15% energy drain', '−10% travel speed'],
     conflicts: ['marathoner'],
     energyDrainMod: 0.15,
     travelSpeedMod: -0.1,
@@ -460,28 +521,33 @@ export const TRAITS: Trait[] = [
   {
     id: 'weak_stomach',
     name: 'Weak Stomach',
-    description: '+20% hunger drain. Meals do not stick around long.',
+    description: 'Meals do not stick around long.',
     category: 'negative',
     cost: -1,
+    icon: 'trait.weak_stomach',
+    effects: ['+20% hunger drain'],
     conflicts: ['iron_stomach', 'hawker_cook'],
     hungerDrainMod: 0.2,
   },
   {
     id: 'dehydrated',
     name: 'Always Thirsty',
-    description: '+20% thirst drain. Your mouth is dry before noon.',
+    description: 'Your mouth is dry before noon.',
     category: 'negative',
     cost: -1,
+    icon: 'trait.dehydrated',
+    effects: ['+20% thirst drain'],
     conflicts: ['water_baby'],
     thirstDrainMod: 0.2,
   },
   {
     id: 'afraid_of_dark',
     name: 'Afraid of the Dark',
-    description:
-      '+10% encounter chance at night, and an extra −1 accuracy after dark. Shadows still win.',
+    description: 'Shadows still win.',
     category: 'negative',
     cost: -1,
+    icon: 'trait.afraid_of_dark',
+    effects: ['+10% encounter chance at night', 'Extra −1 accuracy after dark'],
     conflicts: ['night_owl'],
     nightEncounterChanceMod: 0.1,
     nightAccuracyExtra: -1,
@@ -489,29 +555,271 @@ export const TRAITS: Trait[] = [
   {
     id: 'thin_blood',
     name: 'Thin Blood',
-    description: '−20% infection resistance. Cuts go septic faster than they should.',
+    description: 'Cuts go septic faster than they should.',
     category: 'negative',
     cost: -1,
+    icon: 'trait.thin_blood',
+    effects: ['−20% infection resistance'],
     conflicts: ['thick_skin', 'medic'],
     infectionResist: -0.2,
   },
   {
     id: 'short_fuse',
     name: 'Short Fuse',
-    description: '−1 Wits. Pressure turns into shouting before it turns into plans.',
+    description: 'Pressure turns into shouting before it turns into plans.',
     category: 'negative',
     cost: -1,
+    icon: 'trait.short_fuse',
+    effects: ['−1 Wits'],
     conflicts: ['silver_tongue', 'kiasuism'],
     witsMod: -1,
   },
   {
     id: 'heavy_sleeper',
     name: 'Heavy Sleeper',
-    description: '+10% ambush chance. You do not hear trouble until it is on you.',
+    description: 'You do not hear trouble until it is on you.',
     category: 'negative',
     cost: -1,
+    icon: 'trait.heavy_sleeper',
+    effects: ['+10% ambush chance'],
     conflicts: ['deep_sleeper', 'sixth_sense'],
     ambushChanceMod: 0.1,
+  },
+  {
+    id: 'combat_veteran',
+    name: 'Combat Veteran',
+    description: 'NS, then the real thing. The first blow never lands the way they want it to.',
+    category: 'positive',
+    cost: 5,
+    icon: 'trait.combat_veteran',
+    effects: ['+2 Strength', '+4 attack', '+2 defense', 'First hit each fight is halved'],
+    conflicts: ['ns_combat', 'clumsy'],
+    strengthMod: 2,
+    attackMod: 4,
+    defenseMod: 2,
+    firstHitDamageMult: 0.5,
+  },
+  {
+    id: 'trauma_medic',
+    name: 'Trauma Medic',
+    description: 'A&E nights. You close holes other people would bleed out of.',
+    category: 'positive',
+    cost: 5,
+    icon: 'trait.trauma_medic',
+    effects: ['Healing items restore +12 HP', '55% infection resist', 'Minor bleeds clot much faster'],
+    conflicts: ['medic', 'thin_blood', 'hemophilia'],
+    healBonus: 12,
+    infectionResist: 0.55,
+    bleedStopBonus: 2,
+  },
+  {
+    id: 'hyrox_champion',
+    name: 'Hyrox Champion',
+    description: 'Stadium heats, sandbag lunges, the whole circus. The engine is still there.',
+    category: 'positive',
+    cost: 5,
+    icon: 'trait.hyrox_champion',
+    effects: ['+2 Endurance', '+30 max HP', '+25% travel speed', '−20% energy drain'],
+    conflicts: ['marathoner', 'out_of_shape', 'glass_jaw', 'bad_knees'],
+    enduranceMod: 2,
+    maxHpBonus: 30,
+    travelSpeedMod: 0.25,
+    energyDrainMod: -0.2,
+  },
+  {
+    id: 'young_blood',
+    name: 'Young Blood',
+    description: 'Campus legs, 3am suppers, and a body that has not learned to quit.',
+    category: 'positive',
+    cost: 4,
+    icon: 'trait.young_blood',
+    effects: ['+1 Dexterity', '+1 Endurance', '+15% travel speed', 'No night accuracy penalty', '+1 on checks'],
+    conflicts: ['aircon_addict', 'afraid_of_dark', 'night_owl'],
+    dexterityMod: 1,
+    enduranceMod: 1,
+    travelSpeedMod: 0.15,
+    nightAccuracyPenaltyRemoved: true,
+    checkBonusMod: 1,
+  },
+  {
+    id: 'estate_kitchen',
+    name: 'Estate Kitchen',
+    description: 'Thirty years of service, extra rice, and a stall the whole block still names.',
+    category: 'positive',
+    cost: 4,
+    icon: 'trait.estate_kitchen',
+    effects: ['Food restores 50% more hunger', 'PP Co-op starts Known', 'Richer hawker-centre loot'],
+    conflicts: ['hawker_cook', 'picky_eater', 'weak_stomach'],
+    foodEffectMod: 0.5,
+    factionStandingMod: { pasir_panjang: 1 },
+    poiLootBonus: { foodcourt: 2 },
+  },
+  {
+    id: 'estate_memory',
+    name: 'Estate Memory',
+    description: 'You already knew which blocks had the good stuff — and how many rooms were left.',
+    category: 'positive',
+    cost: 5,
+    icon: 'trait.estate_memory',
+    effects: ['+2 loot', '+2 searches per POI', '+20% search speed', '+2 awareness', 'See remaining searches'],
+    conflicts: ['karang_guni', 'hoarder', 'light_pockets', 'noisy', 'heavy_sleeper'],
+    lootMod: 2,
+    searchBonusMod: 2,
+    searchSpeedMod: 0.2,
+    awarenessMod: 2,
+    showSearchesRemaining: true,
+  },
+  {
+    id: 'operator',
+    name: 'Operator',
+    description: 'Soft hands, sharp elbows, and a bag that always had one more pocket.',
+    category: 'positive',
+    cost: 4,
+    icon: 'trait.operator',
+    effects: ['+2 Wits', '+20% loot value', 'Backpack +1 column', '+1 on checks', 'See remaining searches'],
+    conflicts: ['kiasuism', 'short_fuse', 'squeamish'],
+    witsMod: 2,
+    lootValueMod: 0.2,
+    gridWidthBonus: 1,
+    checkBonusMod: 1,
+    showSearchesRemaining: true,
+  },
+  {
+    id: 'site_foreman',
+    name: 'Site Foreman',
+    description: 'You built these blocks. You know which walls hide what, and which ones come down.',
+    category: 'positive',
+    cost: 5,
+    icon: 'trait.site_foreman',
+    effects: ['+1 Strength', 'Craft recipes cost −2 materials', 'Richer hardware and industrial loot', 'Better HDB corridor reads'],
+    conflicts: ['quiet_step', 'handyman'],
+    strengthMod: 1,
+    craftCostMod: -2,
+    poiLootBonus: { hardware: 2, industrial: 1 },
+    hdbScoutBonus: 0.25,
+  },
+  {
+    id: 'made_man',
+    name: 'Made Man',
+    description: 'They know your face. The void decks are open ground. The checkpoints are not.',
+    category: 'positive',
+    cost: 5,
+    icon: 'trait.made_man',
+    effects: ['88 Syndicate starts Trusted+', 'IDTF starts wary'],
+    conflicts: ['kampong_spirit', 'ah_long_debt'],
+    factionStandingMod: { syndicate_88: 3, idtf: -1 },
+  },
+  {
+    id: 'hypervigilant',
+    name: 'Hypervigilant',
+    description: 'Training never lets you drop the watch. Sleep is a rumour.',
+    category: 'negative',
+    cost: -5,
+    icon: 'trait.hypervigilant',
+    effects: ['Sleep restores 50% less energy', 'Extra encounters at night'],
+    conflicts: ['deep_sleeper', 'night_owl'],
+    sleepRestoreMod: -0.5,
+    nightEncounterChanceMod: 0.2,
+  },
+  {
+    id: 'shift_burnout',
+    name: 'Shift Burnout',
+    description: 'Twelve-hour nights stacked until the tank never fills.',
+    category: 'negative',
+    cost: -5,
+    icon: 'trait.shift_burnout',
+    effects: ['Sleep restores 40% less energy', '+20% energy drain'],
+    conflicts: ['deep_sleeper'],
+    sleepRestoreMod: -0.4,
+    energyDrainMod: 0.2,
+  },
+  {
+    id: 'restlessness',
+    name: 'Restlessness',
+    description: 'Still training for a race that is not coming. You cannot sit still, or quiet.',
+    category: 'negative',
+    cost: -5,
+    icon: 'trait.restlessness',
+    effects: ['Sleep restores 50% less energy', '+15% encounter chance'],
+    conflicts: ['quiet_step', 'deep_sleeper'],
+    sleepRestoreMod: -0.5,
+    encounterChanceMod: 0.15,
+  },
+  {
+    id: 'never_outdoors',
+    name: 'Never Outdoors',
+    description: 'Lecture halls, malls, aircon. The island heat is a foreign country.',
+    category: 'negative',
+    cost: -4,
+    icon: 'trait.never_outdoors',
+    effects: ['+25% energy drain outdoors and in heat', '−1 attack vs the undead', '+15% thirst drain'],
+    conflicts: ['heat_hardened', 'water_baby'],
+    outdoorEnergyDrainMod: 0.25,
+    zombieAttackMod: -1,
+    thirstDrainMod: 0.15,
+  },
+  {
+    id: 'stall_voice',
+    name: 'Stall Voice',
+    description: 'Everyone on the estate knows that voice. So does everything that hunts by sound.',
+    category: 'negative',
+    cost: -4,
+    icon: 'trait.stall_voice',
+    effects: ['+25% encounter chance', '+10% ambush chance'],
+    conflicts: ['quiet_step', 'sixth_sense'],
+    encounterChanceMod: 0.25,
+    ambushChanceMod: 0.1,
+  },
+  {
+    id: 'ruined_knees',
+    name: 'Ruined Knees',
+    description: 'Fourteenth storey, every day, for too many years. The stairs won.',
+    category: 'negative',
+    cost: -5,
+    icon: 'trait.ruined_knees',
+    effects: ['−1 Dexterity', '−30% travel speed', 'Leg injuries heal 70% slower'],
+    conflicts: ['marathoner', 'tekong_legs', 'hyrox_champion'],
+    dexterityMod: -1,
+    travelSpeedMod: -0.3,
+    legHealMod: -0.7,
+  },
+  {
+    id: 'desk_body',
+    name: 'Desk Body',
+    description: 'Four reorgs, a return-to-office mandate, and no bus run since 2019.',
+    category: 'negative',
+    cost: -4,
+    icon: 'trait.desk_body',
+    effects: ['+15% energy drain', '−10% travel speed', '−1 Dexterity', '−1 attack', '+15% outdoor energy drain'],
+    conflicts: ['marathoner', 'hyrox_champion', 'tekong_legs'],
+    energyDrainMod: 0.15,
+    travelSpeedMod: -0.1,
+    dexterityMod: -1,
+    attackMod: -1,
+    outdoorEnergyDrainMod: 0.15,
+  },
+  {
+    id: 'heavy_hands',
+    name: 'Heavy Hands',
+    description: 'You solve things by hitting them. Quiet was never the job.',
+    category: 'negative',
+    cost: -5,
+    icon: 'trait.heavy_hands',
+    effects: ['+25% encounter chance', '+10% ambush chance'],
+    conflicts: ['quiet_step', 'sixth_sense'],
+    encounterChanceMod: 0.25,
+    ambushChanceMod: 0.1,
+  },
+  {
+    id: 'warrant',
+    name: 'Warrant',
+    description: 'The IDTF has a file. It is not flattering. Syndicate love is not free.',
+    category: 'negative',
+    cost: -5,
+    icon: 'trait.warrant',
+    effects: ['IDTF starts Hated'],
+    conflicts: ['kampong_spirit'],
+    factionStandingMod: { idtf: -4 },
   },
 ];
 
@@ -591,21 +899,66 @@ export function traitBudgetRemaining(ids: string[]): number {
   return TRAIT_BUDGET - traitBudgetUsed(ids);
 }
 
+export const SIGNATURE_MIN_COST = 4;
+export const CURSE_MAX_COST = -3;
+export const MAX_SIGNATURES = 1;
+export const MAX_CURSES = 1;
+export const MAX_NEGATIVES = 2;
+
+export function isSignature(t: Trait): boolean {
+  return t.category === 'positive' && t.cost >= SIGNATURE_MIN_COST;
+}
+
+export function isCurse(t: Trait): boolean {
+  return t.category === 'negative' && t.cost <= CURSE_MAX_COST;
+}
+
+export function countSignatures(ids: string[]): number {
+  return getTraits(ids).filter(isSignature).length;
+}
+
+export function countCurses(ids: string[]): number {
+  return getTraits(ids).filter(isCurse).length;
+}
+
+export function countNegatives(ids: string[]): number {
+  return getTraits(ids).filter((t) => t.category === 'negative').length;
+}
+
+/** Why a tile cannot be added, or null if it is legal to pick. */
+export function pickBlockReason(candidateId: string, selectedIds: string[]): string | null {
+  if (selectedIds.includes(candidateId)) return null;
+  if (isIncompatible(candidateId, selectedIds)) return 'conflicts with a picked trait';
+  const candidate = getTrait(candidateId);
+  if (isSignature(candidate) && countSignatures(selectedIds) >= MAX_SIGNATURES) {
+    return 'already have a signature';
+  }
+  if (isCurse(candidate) && countCurses(selectedIds) >= MAX_CURSES) {
+    return 'already have a curse';
+  }
+  if (candidate.category === 'negative' && countNegatives(selectedIds) >= MAX_NEGATIVES) {
+    return 'at most two negatives';
+  }
+  if (candidate.category === 'positive') {
+    if (traitBudgetUsed(selectedIds) + candidate.cost > TRAIT_BUDGET) {
+      return 'not enough points';
+    }
+  }
+  return null;
+}
+
 /** Whether a new trait can be added given the current selection. */
 export function canPickTrait(candidateId: string, selectedIds: string[]): boolean {
   if (selectedIds.includes(candidateId)) return false;
-  if (isIncompatible(candidateId, selectedIds)) return false;
-  const candidate = getTrait(candidateId);
-  // Negatives only help the pool; positives must leave remaining ≥ 0.
-  if (candidate.category === 'positive') {
-    if (traitBudgetUsed(selectedIds) + candidate.cost > TRAIT_BUDGET) return false;
-  }
-  return true;
+  return pickBlockReason(candidateId, selectedIds) === null;
 }
 
 /** Whether a finished build is legal to start / save. */
 export function isLegalTraitBuild(ids: string[]): boolean {
   if (traitBudgetRemaining(ids) < 0) return false;
+  if (countSignatures(ids) > MAX_SIGNATURES) return false;
+  if (countCurses(ids) > MAX_CURSES) return false;
+  if (countNegatives(ids) > MAX_NEGATIVES) return false;
   const seen = new Set<string>();
   for (const id of ids) {
     if (seen.has(id)) return false;
@@ -751,6 +1104,21 @@ export function traitAwarenessMod(traitIds: string[]): number {
 /** Blip-range multiplier from detectRadiusMod traits (1.0 = unchanged). */
 export function traitDetectRadiusMult(traitIds: string[]): number {
   return 1 + sumTraitMod(traitIds, 'detectRadiusMod');
+}
+
+/** Incoming damage multiplier for the first connecting hit of a fight. */
+export function traitFirstHitDamageMult(traitIds: string[]): number {
+  const vals = getTraits(traitIds)
+    .map((t) => t.firstHitDamageMult)
+    .filter((v): v is number => typeof v === 'number');
+  return vals.length ? Math.min(...vals) : 1;
+}
+
+/** Extra loot richness at a POI category. */
+export function traitPoiLootBonus(traitIds: string[], category: PoiCategory): number {
+  let n = 0;
+  for (const t of getTraits(traitIds)) n += t.poiLootBonus?.[category] ?? 0;
+  return n;
 }
 
 /**

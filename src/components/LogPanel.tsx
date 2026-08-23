@@ -5,6 +5,7 @@ import { Icon } from '../icons/Icon';
 import { formatClock } from '../game/survival';
 import { LOG_VIEW_MODES, logViewMode, useClockFormat, useSetting, useSettings } from '../game/settings';
 import { itemIcon } from './Inventory/itemIcon';
+import { tip } from './tips';
 import { EncounterPrompt } from './EncounterPrompt';
 import { SearchSessionNode } from './SearchSessionNode';
 import { PendingEventChoices } from './PendingEventChoices';
@@ -123,7 +124,7 @@ export function LogPanel({
           {onOpenDayLogs && (
             <button
               onClick={onOpenDayLogs}
-              title={t('ui.log.dayLogsTitle')}
+              {...tip(t('ui.log.dayLogsTitle'), { label: true })}
               className={`${CTRL} text-white/40 hover:bg-white/5 hover:text-white/70`}
             >
               <Icon name="action.dayLogs" />
@@ -133,7 +134,7 @@ export function LogPanel({
             <button
               key={m.id}
               onClick={() => setSetting('logView', m.id)}
-              title={t('ui.log.showMode', { mode: m.label.toLowerCase() })}
+              {...tip(t('ui.log.showMode', { mode: m.label.toLowerCase() }))}
               className={`${CTRL} ${
                 viewId === m.id
                   ? 'bg-signal/20 text-signal'
@@ -146,7 +147,7 @@ export function LogPanel({
           {onOpenSettings && (
             <button
               onClick={onOpenSettings}
-              title={t('ui.log.settings')}
+              {...tip(t('ui.log.settings'), { label: true })}
               className={`${CTRL} text-white/40 hover:bg-white/5 hover:text-white/70`}
             >
               <Icon name="action.settings" />

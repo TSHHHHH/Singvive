@@ -1,7 +1,7 @@
 import { Icon } from '../icons/Icon';
 import { GuideInfoButton } from './GuideInfoButton';
 import type { GuideTopic } from '../content/guideContent';
-import type { EvacVibe } from '../game/goal';
+import type { EvacDemandBias, EvacVibe } from '../game/goal';
 import { useT } from '../i18n';
 
 interface Props {
@@ -10,6 +10,12 @@ interface Props {
   atEvac: boolean;
   vibe: EvacVibe;
   vibeLine: string;
+  /** Manifest read at the pad — until then the haul stays a fogged vibe. */
+  manifestRevealed: boolean;
+  evacCurrent: number;
+  evacRequired: number;
+  evacRatio: number;
+  evacBias: EvacDemandBias;
   dayMult: number;
   projectedScore: number;
   projectedEvacBonus: number;
@@ -28,7 +34,14 @@ const VIBE_FILL: Record<EvacVibe, string> = {
   promising: '#7ec8a0',
 };
 
-/** Coarse bar only — never a percent that reverse-engineers demand. */
+const BIAS_KEY: Record<EvacDemandBias, string> = {
+  fuel: 'ui.objective.biasFuel',
+  meds: 'ui.objective.biasMeds',
+  ammo: 'ui.objective.biasAmmo',
+  balanced: 'ui.objective.biasBalanced',
+};
+
+/** Coarse bar only, pre-reveal — never a percent that reverse-engineers demand. */
 const VIBE_WIDTH: Record<EvacVibe, number> = {
   thin: 28,
   maybe: 55,
@@ -45,6 +58,11 @@ export function ObjectivesPanel({
   atEvac,
   vibe,
   vibeLine,
+  manifestRevealed,
+  evacCurrent,
+  evacRequired,
+  evacRatio,
+  evacBias,
   dayMult,
   projectedScore,
   projectedEvacBonus,
@@ -144,19 +162,44 @@ export function ObjectivesPanel({
 
         <div className="mt-3">
           <div className="flex items-center justify-between text-2xs uppercase tracking-wide text-white/40">
-            <span>{t('ui.objective.radioRead')}</span>
-            <span className="normal-case tracking-normal text-white/55">{vibeLine}</span>
+            <span>
+              {manifestRevealed ? t('ui.objective.manifest') : t('ui.objective.radioRead')}
+            </span>
+            <span className="normal-case tracking-normal text-white/55">
+              {manifestRevealed ? (
+                <span className="tabular-nums">
+                  {evacCurrent} / {evacRequired}
+                </span>
+              ) : (
+                vibeLine
+              )}
+            </span>
           </div>
           <div className="mt-1 h-1.5 overflow-hidden rounded bg-black/50">
             <div
               className="h-full transition-all"
               style={{
-                width: `${VIBE_WIDTH[vibe]}%`,
-                background: VIBE_FILL[vibe],
+                width: `${manifestRevealed ? Math.round(evacRatio * 100) : VIBE_WIDTH[vibe]}%`,
+                background: manifestRevealed
+                  ? evacCurrent >= evacRequired
+                    ? VIBE_FILL.promising
+                    : VIBE_FILL.thin
+                  : VIBE_FILL[vibe],
               }}
             />
           </div>
-          <p className="mt-1.5 text-2xs text-white/35">{t('ui.objective.radioBlurb')}</p>
+          <p className="mt-1.5 text-2xs text-white/35">
+            {manifestRevealed
+              ? `${t(BIAS_KEY[evacBias])} · ${
+                  evacCurrent >= evacRequired
+                    ? t('ui.objective.manifestReady')
+                    : t('ui.objective.manifestShort', { n: evacRequired - evacCurrent })
+                }`
+              : t('ui.objective.radioBlurb')}
+          </p>
+          {manifestRevealed && (
+            <p className="mt-1 text-2xs text-white/25">{t('ui.objective.manifestBlurb')}</p>
+          )}
         </div>
 
         {atEvac && (
@@ -164,7 +207,7 @@ export function ObjectivesPanel({
             onClick={onEvac}
             className="mt-3 w-full rounded-lg bg-signal/80 py-2 text-sm font-bold text-black transition hover:bg-signal"
           >
-            {t('ui.game.callEvac')}
+            {t(manifestRevealed ? 'ui.game.callEvac' : 'ui.game.raiseChannel')}
           </button>
         )}
       </section>

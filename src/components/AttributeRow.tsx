@@ -25,17 +25,14 @@ export function AttributeRow() {
 
   return (
     <div className="grid grid-cols-5 gap-1 text-center">
-      {ATTRIBUTE_KEYS.map((k, i) => {
+      {ATTRIBUTE_KEYS.map((k) => {
         const value = character.attributes[k];
         const delta = value - BASE_ATTRIBUTE;
-        // Keep the tooltip inside the rail: edge cells anchor to their side.
-        const anchor =
-          i < 2 ? 'left-0' : i > 2 ? 'right-0' : 'left-1/2 -translate-x-1/2';
         const label = t(`ui.attributes.${k}`);
         return (
           <TipHint
             key={k}
-            tipClassName={`absolute top-full mt-1 w-max min-w-[11rem] max-w-[15rem] rounded-lg border border-white/15 bg-concrete-900 p-2 text-left shadow-signage ${anchor}`}
+            tipClassName="w-max min-w-[11rem] max-w-[min(15rem,calc(100vw-1rem))] break-words rounded-lg border border-white/15 bg-concrete-900 p-2 text-left shadow-signage"
             tip={<AttributeTip attr={k} traitIds={character.traitIds} value={value} />}
           >
             <div className="cursor-help rounded bg-black/30 py-1 transition group-hover:bg-white/5">

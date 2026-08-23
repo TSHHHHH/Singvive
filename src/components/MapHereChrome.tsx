@@ -4,6 +4,7 @@ import { formatClock } from '../game/survival';
 import { useClockFormat } from '../game/settings';
 import { Icon } from '../icons/Icon';
 import type { LocationState } from '../game/types';
+import { tip } from './tips';
 
 const toneClass: Record<string, string> = {
   good: 'text-signal',
@@ -42,9 +43,13 @@ export function MapHereChrome({
   const clock = useClockFormat();
   const entries = log.filter((e) => e.day === day).slice(0, 2);
 
+  const manifestRead = useGame((s) => s.evacManifestRevealed);
+
   const occupied = !!sel?.factionId;
   const primaryTitle = atEvac
-    ? 'Call for evac'
+    ? manifestRead
+      ? 'Call for evac'
+      : 'Raise the channel'
     : occupied
       ? 'Approach the gate'
       : sel?.exhausted
@@ -106,7 +111,7 @@ export function MapHereChrome({
             <button
               type="button"
               onClick={onEvac}
-              title={primaryTitle}
+              {...tip(primaryTitle)}
               aria-label={primaryTitle}
               className={`${ICON_BTN} border-signal/50 bg-signal/80 text-black`}
             >
@@ -118,7 +123,7 @@ export function MapHereChrome({
                 type="button"
                 onClick={onSearch}
                 disabled={!occupied && !!sel.exhausted}
-                title={primaryTitle}
+                {...tip(primaryTitle)}
                 aria-label={primaryTitle}
                 className={`${ICON_BTN} border-signal/50 bg-signal/80 text-black`}
               >
@@ -127,7 +132,7 @@ export function MapHereChrome({
               <button
                 type="button"
                 onClick={onOpenStash}
-                title="Open stash here"
+                {...tip('Open stash here')}
                 aria-label="Open stash here"
                 className={`${ICON_BTN} border-white/15 text-white/80 hover:bg-white/5`}
               >

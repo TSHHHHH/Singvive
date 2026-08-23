@@ -13,13 +13,25 @@ import type {
   TerrainId,
   TerrainModifier,
   WeatherState,
+  WeaponEffect,
   Zombie,
 } from './types';
 import type { Rng } from './rng';
 import { environmentCombatMods } from './weather';
 import { itemDef } from './loot';
 import { hasTraitFlag, sumTraitMod } from './character';
-import { effectiveDamage, equipAccuracyBonus, equipDefenseBonus, isBroken, limbArmorForZone, slotForZone, statusResistForZone, ALL_EQUIP_SLOTS } from './inventory';
+import {
+  effectiveDamage,
+  equipAccuracyBonus,
+  equipDefenseBonus,
+  isBroken,
+  isTwoHandedEquipped,
+  limbArmorForZone,
+  scaledMod,
+  slotForZone,
+  statusResistForZone,
+  ALL_EQUIP_SLOTS,
+} from './inventory';
 import {
   BODY_PART_LABEL,
   energyAttackBonus,
@@ -71,6 +83,14 @@ export interface PlayerCombatStats {
   nightAccuracyExtra: number;
   /** Attack delta applied only vs undead. */
   zombieAttackMod: number;
+  /** Multiplier on gauge fill from the weapon (or fists). */
+  speedFactor: number;
+  /** Main-hand accuracy term, so an off-hand follow-up can swap it. */
+  weaponAccuracy: number;
+  strength: number;
+  dexterity: number;
+  /** Light off-hand weapon, if dual-wielding. */
+  offHand: { damage: number; accuracy: number; name: string; wearRate: number } | null;
 }
 
 // ---------------------------------------------------------------- wear ------
@@ -325,6 +345,7 @@ export function playerCombatStats(
   equipment: Equipment,
   armPenalty = 0,
   rounds = Infinity,
+  loadAttackMod = 0,
 ): PlayerCombatStats {
   const mainHand = equipment.mainHand;
   // A weapon worn through to nothing is a lump of metal — it stops counting as
@@ -351,7 +372,7 @@ export function playerCombatStats(
   }
   atkBonus += equipAccuracyBonus(equipment);
 
-  const attack = attrs.dexterity + (w?.accuracy ?? 0) + atkBonus - armPenalty;
+  const attack = attrs.dexterity + (w?.accuracy ?? 0) + atkBonus - armPenalty + loadAttackMod;
   const defense = 10 + Math.floor(attrs.dexterity / 2) + defBonus;
   let baseDamage = usableWeapon && w ? effectiveDamage(usableWeapon) : 4; // unarmed
   if (dry) baseDamage = Math.max(4, Math.round(baseDamage * 0.28));
@@ -365,6 +386,27 @@ export function playerCombatStats(
     : brokenName
       ? `Fists (${brokenName} broken)`
       : 'Fists';
+
+  // Dry or broken steel is a club — it should not keep the parent weapon's swing tax.
+  const speedFactor =
+    usableWeapon && rawEffect && !dry
+      ? weaponSpeedFactor(rawEffect, !!weaponDef?.twoHanded)
+      : FIST_SPEED_FACTOR;
+
+  let offHand: PlayerCombatStats['offHand'] = null;
+  if (offHandRole(equipment) === 'weapon' && equipment.offHand) {
+    const ohInst = equipment.offHand;
+    const ohDef = itemDef(ohInst.defId);
+    if (ohDef.effect.kind === 'weapon') {
+      offHand = {
+        damage: effectiveDamage(ohInst),
+        accuracy: ohDef.effect.accuracy,
+        name: ohDef.name,
+        wearRate: ohDef.wearRate ?? 1,
+      };
+    }
+  }
+
   return {
     attack,
     defense,
@@ -378,7 +420,32 @@ export function playerCombatStats(
     nightAccuracyPenaltyRemoved: hasTraitFlag(traitIds, 'nightAccuracyPenaltyRemoved'),
     nightAccuracyExtra: sumTraitMod(traitIds, 'nightAccuracyExtra'),
     zombieAttackMod: sumTraitMod(traitIds, 'zombieAttackMod'),
+    speedFactor,
+    weaponAccuracy: w?.accuracy ?? 0,
+    strength: attrs.strength,
+    dexterity: attrs.dexterity,
+    offHand,
   };
+}
+
+export type OffHandRole = 'shield' | 'weapon' | 'empty' | 'utility';
+
+/** What the off-hand slot is actually doing this fight. */
+export function offHandRole(equipment: Equipment): OffHandRole {
+  const inst = equipment.offHand;
+  if (!inst) return 'empty';
+  const def = itemDef(inst.defId);
+  if (!isBroken(inst) && (def.modifiers?.blockChance ?? 0) > 0) return 'shield';
+  if (!isBroken(inst) && def.effect.kind === 'weapon') return 'weapon';
+  return 'utility';
+}
+
+/** Bonuses from a free off-hand — not from iterating equipped items. */
+export function offHandCombatMods(equipment: Equipment): { speed: number; dodge: number } {
+  if (offHandRole(equipment) === 'empty' && !isTwoHandedEquipped(equipment)) {
+    return { speed: 0.6, dodge: 0.03 };
+  }
+  return { speed: 0, dodge: 0 };
 }
 
 // ------------------------------------------------------- initiative track --
@@ -397,10 +464,31 @@ export const GAUGE_FULL = 50;
 /** Playback rates offered by the on-screen controls. */
 export const COMBAT_SPEEDS = [0.5, 1, 2, 4] as const;
 
+function clamp(n: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(hi, n));
+}
+
+/** Unarmed swing rate — a little quicker than a light blade. */
+export const FIST_SPEED_FACTOR = 1.15;
+
+/**
+ * Gauge-fill multiplier from the weapon. Heavy hits land slower; an authored
+ * `speedFactor` wins when the damage-derived value feels wrong.
+ *
+ * knife(10)→1.25, hammer(14)→1.17, crowbar(18)→1.09, parang(20)→1.05,
+ * fire_axe(24,2H)→0.82, pistol(28)→0.89, shotgun(40,2H)→0.55.
+ */
+export function weaponSpeedFactor(e: WeaponEffect | null, twoHanded = false): number {
+  if (!e) return FIST_SPEED_FACTOR;
+  if (e.speedFactor != null) return e.speedFactor;
+  const derived = clamp(1.45 - e.damage * 0.02, 0.65, 1.4);
+  return twoHanded ? derived * 0.85 : derived;
+}
+
 /**
  * How fast the player's marker crawls. Dexterity is the bulk of it; the stance
  * is the part you actually chose, and a mauled leg or an empty tank is the part
- * the run chose for you.
+ * the run chose for you. Weapon speed is a multiplier on the whole rate.
  */
 export function playerSpeed(
   attrs: Attributes,
@@ -408,10 +496,12 @@ export function playerSpeed(
   energy = 50,
   legFactor = 1,
   equipSpeed = 0,
+  weaponFactor = 1,
+  loadSpeedMult = 1,
 ): number {
   const energyMod = energy < 20 ? -2 : energy < 45 ? -1 : 0;
   const base = 6 + attrs.dexterity * 0.8 + stance.speedMod + energyMod + equipSpeed;
-  return Math.max(2, base * Math.max(0.4, legFactor));
+  return Math.max(2, base * Math.max(0.4, legFactor) * weaponFactor * Math.max(0.25, loadSpeedMult));
 }
 
 /** Seconds of track time one action costs at the given speed. */
@@ -435,6 +525,8 @@ export interface PlayerActionResult {
   dangerNoise: number;
   /** Condition the main-hand weapon lost. */
   weaponWear: number;
+  /** Condition the off-hand weapon lost on a follow-up strike. */
+  offHandWear: number;
   /** Ammunition spent — 1 for a shot that actually went off. */
   roundsSpent: number;
 }
@@ -448,6 +540,8 @@ export interface EnemyActionResult {
   /** Slot that should take the brunt of armor wear for this hit. */
   wearSlot: EquipSlot | null;
   dodged: boolean;
+  /** Off-hand shield fully negated this hit. */
+  blocked: boolean;
   hitZone: BodyPartId | null;
   critical: boolean;
   headCritReduction: number;
@@ -463,6 +557,7 @@ export function playerDodgeChance(
   parts: BodyParts,
   stance: StanceDef,
   terrain: TerrainModifier,
+  loadDodgeMod = 0,
 ): number {
   const dexBase = (attrs.dexterity - 5) * 0.02;
   let gearDodge = 0;
@@ -474,14 +569,17 @@ export function playerDodgeChance(
   const traitDodge = sumTraitMod(traitIds, 'dodgeMod');
   const legFactor = legTravelFactor(parts);
   const legPenalty = (legFactor - 1) * 0.1;
+  const ohDodge = offHandCombatMods(equipment).dodge;
   const raw =
     dexBase +
     traitDodge +
     gearDodge +
+    ohDodge +
     stance.dodgeMod +
     terrain.dodgeMod +
     energyDodgeBonus(energy) +
-    legPenalty;
+    legPenalty +
+    loadDodgeMod;
   return Math.max(0, Math.min(0.45, raw));
 }
 
@@ -531,6 +629,7 @@ export function resolvePlayerAction(
   // Swinging costs the weapon something whether or not it connects; landing on
   // armour costs it more.
   let weaponWear = 0;
+  let offHandWear = 0;
   let hit = false;
   let damageDealt = 0;
 
@@ -602,6 +701,58 @@ export function resolvePlayerAction(
     });
   }
 
+  const oh = player.offHand;
+  if (oh && zombieHp > 0) {
+    const followChance = 0.35 + (player.dexterity - 5) * 0.02;
+    if (rng.chance(followChance)) {
+      const ohAtkMod =
+        player.attack -
+        player.weaponAccuracy +
+        oh.accuracy -
+        2 +
+        envAccuracy +
+        stance.attackMod +
+        terrainAccuracy(player, terrain) +
+        energyAttackBonus(energy) +
+        vsUndead;
+      const ohRoll = rng.d20();
+      const ohTotal = ohRoll + ohAtkMod;
+      log.push({
+        round,
+        side: 'player',
+        tone: 'roll',
+        text: `Off-hand · ${oh.name} (d20 ${ohRoll}${fmt(ohAtkMod)} = ${ohTotal} vs ${pTarget})`,
+      });
+      if (ohRoll === 20 || ohTotal >= pTarget) {
+        hit = true;
+        let ohDmg = Math.round(oh.damage * 0.6) + Math.floor(player.strength / 2) + rng.int(0, 3);
+        const ohSoak = stance.ignoresArmor ? 0 : zombie.armor;
+        ohDmg = Math.max(1, ohDmg - ohSoak);
+        damageDealt += ohDmg;
+        zombieHp -= ohDmg;
+        offHandWear = (WEAR_ON_HIT + (zombie.armor > 0 ? WEAR_ARMOR_EXTRA : 0)) * oh.wearRate;
+        log.push({
+          round,
+          side: 'player',
+          tone: 'good',
+          text: combatLine('playerOffHandHit', {
+            weapon: oh.name,
+            dmg: ohDmg,
+            soakNote: soakNote(ohSoak, 'armour'),
+          }),
+        });
+      } else {
+        offHandWear = WEAR_ON_MISS * oh.wearRate;
+        log.push({
+          round,
+          side: 'player',
+          tone: 'info',
+          text: combatLine('playerOffHandMiss', { weapon: oh.name }),
+        });
+      }
+    }
+  }
+
   if (zombieHp <= 0) {
     log.push({
       round,
@@ -621,6 +772,7 @@ export function resolvePlayerAction(
     timeCostHours: stance.timeCostHours,
     dangerNoise,
     weaponWear,
+    offHandWear,
     roundsSpent,
   };
 }
@@ -643,6 +795,7 @@ export function resolveEnemyAction(
   traitIds: string[],
   equipment: Equipment,
   bodyParts: BodyParts,
+  loadDodgeMod = 0,
 ): EnemyActionResult {
   const env = environmentCombatMods(weather);
   const log: CombatLogEntry[] = [];
@@ -650,6 +803,7 @@ export function resolveEnemyAction(
   let infectionGain = 0;
   let armorWear = 0;
   let dodged = false;
+  let blocked = false;
   let hitZone: BodyPartId | null = null;
   let critical = false;
   const defense = effectiveDefense(player, stance, terrain);
@@ -669,7 +823,16 @@ export function resolveEnemyAction(
     text: `${rollVerb} (d20 ${zRoll}${fmt(zombie.attack + env.zombieAttack)} = ${zTotal} vs ${defense})`,
   });
   if (zRoll === 20 || zTotal >= defense) {
-    const dodgeChance = playerDodgeChance(attrs, traitIds, equipment, energy, bodyParts, stance, terrain);
+    const dodgeChance = playerDodgeChance(
+      attrs,
+      traitIds,
+      equipment,
+      energy,
+      bodyParts,
+      stance,
+      terrain,
+      loadDodgeMod,
+    );
     if (dodgeChance > 0 && rng.chance(dodgeChance)) {
       dodged = true;
       log.push({
@@ -683,31 +846,46 @@ export function resolveEnemyAction(
       const forceHead = zRoll === 20;
       hitZone = forceHead ? 'head' : rollHitZone(rng.fork('zone'), headWeightScale);
       critical = hitZone === 'head';
-      const soak = limbArmorForZone(equipment, hitZone);
-      if (soak > 0) dmg = Math.max(1, dmg - soak);
-      playerDamage += dmg;
-      armorWear = 0.5 + dmg * 0.15;
-      const zoneLabel = BODY_PART_LABEL[hitZone].toLowerCase();
-      log.push({
-        round,
-        side: 'enemy',
-        tone: 'bad',
-        text: combatLine(critical ? ek.crit : ek.hit, {
-          zone: zoneLabel,
-          dmg: playerDamage,
-          soakNote: soakNote(soak, 'gear'),
-        }),
-      });
-      const infChance = zombie.infectious * (1 - player.infectionResist);
-      if (rng.chance(infChance)) {
-        const inf = rng.int(8, 18);
-        infectionGain += inf;
+      const ohInst = equipment.offHand;
+      const blockChance =
+        ohInst && offHandRole(equipment) === 'shield' ? scaledMod(ohInst, 'blockChance') : 0;
+      if (ohInst && blockChance > 0 && rng.chance(blockChance)) {
+        blocked = true;
+        playerDamage = 0;
+        armorWear = (0.5 + dmg * 0.15) * 2;
+        log.push({
+          round,
+          side: 'enemy',
+          tone: 'player',
+          text: combatLine('enemyBlocked', { weapon: itemDef(ohInst.defId).name }),
+        });
+      } else {
+        const soak = limbArmorForZone(equipment, hitZone);
+        if (soak > 0) dmg = Math.max(1, dmg - soak);
+        playerDamage += dmg;
+        armorWear = 0.5 + dmg * 0.15;
+        const zoneLabel = BODY_PART_LABEL[hitZone].toLowerCase();
         log.push({
           round,
           side: 'enemy',
           tone: 'bad',
-          text: combatLine('enemyBite', { inf }),
+          text: combatLine(critical ? ek.crit : ek.hit, {
+            zone: zoneLabel,
+            dmg: playerDamage,
+            soakNote: soakNote(soak, 'gear'),
+          }),
         });
+        const infChance = zombie.infectious * (1 - player.infectionResist);
+        if (rng.chance(infChance)) {
+          const inf = rng.int(8, 18);
+          infectionGain += inf;
+          log.push({
+            round,
+            side: 'enemy',
+            tone: 'bad',
+            text: combatLine('enemyBite', { inf }),
+          });
+        }
       }
     }
   } else {
@@ -719,7 +897,11 @@ export function resolveEnemyAction(
     });
   }
 
-  const wearSlot = hitZone ? (slotForZone(hitZone) ?? 'body') : null;
+  const wearSlot = blocked
+    ? 'offHand'
+    : hitZone
+      ? (slotForZone(hitZone) ?? 'body')
+      : null;
   const statusResist = hitZone ? statusResistForZone(equipment, hitZone) : 0;
 
   return {
@@ -730,6 +912,7 @@ export function resolveEnemyAction(
     armorWear,
     wearSlot,
     dodged,
+    blocked,
     hitZone,
     critical,
     headCritReduction: headCritReduce,
@@ -762,6 +945,7 @@ export function attemptFlee(
   stance: StanceDef,
   terrain: TerrainModifier,
   energy = 50,
+  loadFleeDcMod = 0,
 ): FleeResult {
   const log: CombatLogEntry[] = [];
   let playerDamage = 0;
@@ -799,7 +983,7 @@ export function attemptFlee(
   const roll = rng.d20();
   const total = roll + Math.floor((attrs.dexterity + attrs.perception) / 2);
   const target =
-    12 + zombie.attack + terrain.fleeDcMod + stance.fleeDcMod + energyFleeDcModifier(energy);
+    12 + zombie.attack + terrain.fleeDcMod + stance.fleeDcMod + energyFleeDcModifier(energy) + loadFleeDcMod;
   log.push({
     round,
     side: 'player',

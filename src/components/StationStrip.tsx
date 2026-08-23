@@ -7,6 +7,7 @@ import {
 } from '../game/mrt';
 import type { CrawlPlace } from '../game/tunnelRun';
 import { useT, type TVars } from '../i18n';
+import { tip } from './tips';
 
 type StopKind = 'past' | 'here' | 'next' | 'future';
 
@@ -243,7 +244,7 @@ export function StationStrip({
                             ? 'text-signal'
                             : 'text-concrete-400'
                       }`}
-                      title={stop.name}
+                      {...tip(stop.name)}
                     >
                       {stop.name}
                     </div>
@@ -294,7 +295,7 @@ function HopBar({
           : color,
         opacity: walking ? 1 : past ? 0.28 : collapsed ? 0.7 : 0.8,
       }}
-      title={collapsed ? t('ui.stationStrip.collapsedBore') : undefined}
+      {...tip(collapsed ? t('ui.stationStrip.collapsedBore') : undefined)}
       aria-hidden
     />
   );
@@ -322,7 +323,7 @@ function Bead({
         kind === 'past' ? 'opacity-40' : ''
       }`}
       style={{ background: fill }}
-      title={transfer ? t('ui.stationStrip.changeHere') : undefined}
+      {...tip(transfer ? t('ui.stationStrip.changeHere') : undefined)}
     >
       {transfer && (
         <span

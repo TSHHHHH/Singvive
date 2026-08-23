@@ -21,6 +21,7 @@ import { fetchItemIcons, MAX_ICON_BYTES, MAX_ICON_EDGE, uploadItemIcon } from '.
 import { findItemUsage } from './itemUsage';
 import { EFFECT_KINDS, EQUIP_SLOTS } from './validateItems';
 import type { RecipesCatalog } from './validateRecipes';
+import { tip } from '../components/tips';
 
 const MODIFIER_KEYS: (keyof ItemModifiers)[] = [
   'attackBonus',
@@ -34,6 +35,7 @@ const MODIFIER_KEYS: (keyof ItemModifiers)[] = [
   'statusResist',
   'accuracyBonus',
   'speedBonus',
+  'blockChance',
   'travelSpeedBonus',
   'encounterChanceMod',
   'searchSpeedBonus',
@@ -292,7 +294,7 @@ export function LootItemForm({
               const file = e.dataTransfer.files?.[0];
               if (file) void handleUpload(file);
             }}
-            title="Drop PNG/WebP here"
+            {...tip('Drop PNG/WebP here')}
           >
             {previewUrl ? (
               <img src={previewUrl} alt="" className="h-12 w-12 object-contain" />
@@ -428,7 +430,7 @@ export function LootItemForm({
             />
             perishable
           </label>
-          <label className="flex items-center gap-2 text-sm" title="Granted when a new run starts">
+          <label className="flex items-center gap-2 text-sm" {...tip('Granted when a new run starts')}>
             <input
               type="checkbox"
               checked={!!item.startingItem}
@@ -715,6 +717,21 @@ export function LootItemForm({
                   }}
                 />
               </Field>
+              <Field label="speedFactor">
+                <input
+                  type="number"
+                  step="0.01"
+                  className={inputClass}
+                  value={effect.speedFactor ?? ''}
+                  placeholder="derived"
+                  onChange={(e) => {
+                    const next = { ...effect, kind: 'weapon' as const };
+                    if (e.target.value.trim() === '') delete next.speedFactor;
+                    else next.speedFactor = Number(e.target.value);
+                    setEffect(next);
+                  }}
+                />
+              </Field>
               <label className="flex items-center gap-2 self-end pb-1 text-sm">
                 <input
                   type="checkbox"
@@ -812,11 +829,11 @@ export function LootItemForm({
             <button
               type="button"
               disabled={!revealHighlight}
-              title={
+              {...tip(
                 revealHighlight
                   ? 'Replay reveal animation'
-                  : 'Ordinary find — nothing to replay'
-              }
+                  : 'Ordinary find — nothing to replay',
+              )}
               className="rounded border border-white/15 px-2 py-0.5 text-2xs text-white/70 transition hover:border-signal/40 hover:text-signal disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-white/15 disabled:hover:text-white/70"
               onClick={() => setRevealPlayKey((k) => k + 1)}
             >

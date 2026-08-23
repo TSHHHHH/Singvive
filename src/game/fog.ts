@@ -1,5 +1,5 @@
 import type { Attributes, LocationState, LocationMemory, WeatherKind } from './types';
-import { walkSpeed, ENCUMBERED_TRAVEL_MULT } from './travel';
+import { walkSpeed } from './travel';
 import { weatherTravelMult } from './weather';
 
 // ---------------------------------------------------------------------------
@@ -41,21 +41,21 @@ export function awareness(perception: number, equipMod: number, traitMod: number
 /**
  * How far the survivor can comfortably travel right now, in metres.
  * Scales with walking speed (END/DEX + leg injuries), current energy, and is
- * slowed by encumbrance and bad weather — the same factors as real travel time.
+ * slowed by load and bad weather — the same factors as real travel time.
  */
 export function travelableRange(
   attrs: Attributes,
   energy: number,
   legFactor: number,
   weather: WeatherKind,
-  encumbered: boolean,
+  travelMult = 1,
 ): number {
   const speed = walkSpeed(attrs, energy, legFactor); // m/min
   const wMult = weatherTravelMult(weather);
-  const eMult = encumbered ? ENCUMBERED_TRAVEL_MULT : 1;
+  const loadMult = Math.max(1, travelMult);
   // full energy (100) commits ~10 minutes of walking; scales down as you tire
   const commitMinutes = Math.max(0, energy) * MINUTES_PER_10_ENERGY / 10;
-  return Math.round((speed * commitMinutes) / (wMult * eMult));
+  return Math.round((speed * commitMinutes) / (wMult * loadMult));
 }
 
 /** Extra blip-sensing margin beyond the travel ring, from awareness. */

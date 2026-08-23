@@ -133,6 +133,35 @@ select optgroup {
   animation: pulse-danger 1.6s ease-in-out infinite;
 }
 
+/* Take-all refused for lack of space: one-shot red flash + nudge. */
+@keyframes take-all-deny {
+  0%,
+  100% {
+    border-color: rgba(217, 45, 45, 0.4);
+    background: transparent;
+    color: rgb(217, 45, 45);
+    transform: translateX(0);
+  }
+  15%,
+  55% {
+    border-color: rgba(217, 45, 45, 1);
+    background: rgba(217, 45, 45, 0.22);
+    color: rgb(217, 45, 45);
+  }
+  20% {
+    transform: translateX(-3px);
+  }
+  40% {
+    transform: translateX(3px);
+  }
+  70% {
+    transform: translateX(-2px);
+  }
+}
+.take-all-deny {
+  animation: take-all-deny 0.6s ease-out 1;
+}
+
 @keyframes search-find-pulse {
   0% {
     filter: brightness(2.1);
@@ -842,3 +871,35 @@ select optgroup {
 /* Noise rings used to animate here, but the map runs `preferCanvas` — there is
    no SVG path for these rules to bite on. The wave is driven per-frame on its
    own canvas renderer instead; see components/NoiseWaves.tsx. */
+
+/* Long-press peek: stop iOS/Android from opening a native callout on tipped
+   controls (HDB cells, status meters) instead of pinning the in-game tip. */
+[data-tip] {
+  -webkit-touch-callout: none;
+}
+
+/* Leaflet keeps its own tooltip in its own map pane, with map-coordinate
+   anchoring the global TipLayer can't do. Rather than rewrite the MRT station
+   hovers, dress leaflet's tooltip in the same bureau panel as `data-tip`:
+   concrete ground, hard 1px frame, 10px signage type, near-square corners. */
+.leaflet-tooltip {
+  padding: 0.25rem 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+  background: rgba(17, 17, 18, 0.95);
+  color: #e8e5dd;
+  font-size: 10px;
+  line-height: 14px;
+  font-weight: 600;
+  white-space: pre-line;
+  backdrop-filter: blur(2px);
+  box-shadow:
+    0 0 0 1px rgba(232, 229, 221, 0.28),
+    0 8px 24px -10px rgba(0, 0, 0, 0.95);
+}
+
+/* The default tooltip arrow is a CSS triangle that can't pick up the frame, so
+   it reads as a stray light wedge against the panel. Drop it. */
+.leaflet-tooltip::before {
+  display: none;
+}

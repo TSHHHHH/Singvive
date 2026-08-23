@@ -48,18 +48,46 @@ export function ensureDestruction(loc: LocationState, runSeed: string): Location
   return { ...loc, destruction: tier };
 }
 
-/** Condition bias from ruin — long tail still allows rare high rolls at low bias. */
-export function destructionConditionBias(tier: DestructionTier): number {
-  switch (tier) {
-    case 0:
-      return 0.75;
-    case 1:
-      return 0.5;
-    case 2:
-      return 0.3;
-    case 3:
-      return 0.12;
-  }
+/**
+ * Street-loot condition window per ruin. Bands sit on the four wear labels
+ * with a few points of gap so Intact cannot roll Heavily Used and Gutted
+ * cannot roll Slightly Used. Danger / raid / depletion only skew inside the
+ * window — they do not slide a site into the next ruin's range.
+ *
+ *   Intact  76–94  Brand New
+ *   Damaged 52–70  Slightly Used
+ *   Ravaged 28–46  Heavily Used
+ *   Gutted   6–22  Old & Torn
+ */
+export const DESTRUCTION_CONDITION_RANGE: Record<
+  DestructionTier,
+  readonly [number, number]
+> = {
+  0: [76, 94],
+  1: [52, 70],
+  2: [28, 46],
+  3: [6, 22],
+};
+
+/** Skew a ruin window toward its high (positive) or low (negative) end. */
+export function conditionRollForRuin(
+  rng: Rng,
+  defId: string,
+  tier: DestructionTier,
+  skew = 0,
+): number | undefined {
+  const def = ITEMS[defId];
+  if (!def || def.maxCondition === undefined) return undefined;
+  let [lo, hi] = DESTRUCTION_CONDITION_RANGE[tier];
+  const s = Math.max(-1, Math.min(1, skew));
+  const span = hi - lo;
+  if (s > 0) lo += s * span * 0.45;
+  else if (s < 0) hi += s * span * 0.45;
+  const cap = def.maxCondition;
+  lo = Math.min(Math.round(lo), cap);
+  hi = Math.min(Math.round(hi), cap);
+  if (hi < lo) return lo;
+  return rng.int(lo, hi);
 }
 
 /** Typical street haul size by footprint. */
@@ -305,13 +333,11 @@ export function itemDef(id: string): ItemDef {
 }
 
 /**
- * What state a found item turns up in.
- *
- * This is where risk buys reward. `bias` runs 0 (a ransacked shopfront anyone
- * could have walked into) to 1 (a barricaded high-floor unit that cost you
- * twenty-five minutes, a lungful of noise and a fight to open), and it moves
- * the whole window: street first-searches can still land a rare near-new find,
- * while sealed high doors remain the reliable source of gear that works properly.
+ * What state a found item turns up in when the site has no ruin tier (HDB
+ * units, tunnel salvage). `bias` runs 0..1 and slides a wide window:
+ * low bias is a ransacked shopfront, high bias is a barricaded high-floor
+ * unit. Street POIs use `conditionRollForRuin` instead so Intact…Gutted
+ * stay on distinct wear bands.
  *
  * Returns undefined for items that don't wear at all, which `addToGrid` reads
  * as "no condition".

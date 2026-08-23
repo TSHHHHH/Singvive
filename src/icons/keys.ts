@@ -261,7 +261,71 @@ export type IconName =
   | 'item.batteries'
   | 'item.scrap_metal'
   | 'item.toolbox'
-  | 'item.jewellery';
+  | 'item.jewellery'
+  | 'item.chicken_rice'
+  | 'item.premium_bento'
+  // --- traits (create screen / chips; upload via Dev → Icons → trait) ---
+  | 'trait.ns_combat'
+  | 'trait.medic'
+  | 'trait.hawker_cook'
+  | 'trait.marathoner'
+  | 'trait.karang_guni'
+  | 'trait.tekong_legs'
+  | 'trait.night_owl'
+  | 'trait.thick_skin'
+  | 'trait.kiasuism'
+  | 'trait.kampong_spirit'
+  | 'trait.ah_long_debt'
+  | 'trait.water_baby'
+  | 'trait.handyman'
+  | 'trait.sixth_sense'
+  | 'trait.pack_rat'
+  | 'trait.mule'
+  | 'trait.light_pockets'
+  | 'trait.deep_sleeper'
+  | 'trait.quiet_step'
+  | 'trait.strong_back'
+  | 'trait.iron_stomach'
+  | 'trait.heat_hardened'
+  | 'trait.silver_tongue'
+  | 'trait.field_dressing'
+  | 'trait.calm_hands'
+  | 'trait.frugal'
+  | 'trait.aircon_addict'
+  | 'trait.picky_eater'
+  | 'trait.glass_jaw'
+  | 'trait.clumsy'
+  | 'trait.hoarder'
+  | 'trait.noisy'
+  | 'trait.bad_knees'
+  | 'trait.hemophilia'
+  | 'trait.poor_sleep'
+  | 'trait.squeamish'
+  | 'trait.out_of_shape'
+  | 'trait.weak_stomach'
+  | 'trait.dehydrated'
+  | 'trait.afraid_of_dark'
+  | 'trait.thin_blood'
+  | 'trait.short_fuse'
+  | 'trait.heavy_sleeper'
+  | 'trait.combat_veteran'
+  | 'trait.trauma_medic'
+  | 'trait.hyrox_champion'
+  | 'trait.young_blood'
+  | 'trait.estate_kitchen'
+  | 'trait.estate_memory'
+  | 'trait.operator'
+  | 'trait.site_foreman'
+  | 'trait.made_man'
+  | 'trait.hypervigilant'
+  | 'trait.shift_burnout'
+  | 'trait.restlessness'
+  | 'trait.never_outdoors'
+  | 'trait.stall_voice'
+  | 'trait.ruined_knees'
+  | 'trait.desk_body'
+  | 'trait.heavy_hands'
+  | 'trait.warrant';
 
 /**
  * What renders until a real asset is dropped in. Every key must have one, so the
@@ -409,6 +473,68 @@ export const EMOJI_FALLBACK: Record<IconName, string> = {
   'slot.offHand': '🛡️',
   'slot.bag': '🎒',
 
+  'trait.ns_combat': '🪖',
+  'trait.medic': '🩺',
+  'trait.hawker_cook': '🍜',
+  'trait.marathoner': '🏃',
+  'trait.karang_guni': '🔦',
+  'trait.tekong_legs': '🤸',
+  'trait.night_owl': '🦉',
+  'trait.thick_skin': '🦺',
+  'trait.kiasuism': '🧠',
+  'trait.kampong_spirit': '🤝',
+  'trait.ah_long_debt': '🗡️',
+  'trait.water_baby': '💧',
+  'trait.handyman': '🔧',
+  'trait.sixth_sense': '👁️',
+  'trait.pack_rat': '🎒',
+  'trait.mule': '⚖️',
+  'trait.light_pockets': '🪶',
+  'trait.deep_sleeper': '🛏️',
+  'trait.quiet_step': '🚶',
+  'trait.strong_back': '💪',
+  'trait.iron_stomach': '🍖',
+  'trait.heat_hardened': '🥵',
+  'trait.silver_tongue': '🗣️',
+  'trait.field_dressing': '🩹',
+  'trait.calm_hands': '✋',
+  'trait.frugal': '🪙',
+  'trait.aircon_addict': '❄️',
+  'trait.picky_eater': '🍽️',
+  'trait.glass_jaw': '😵',
+  'trait.clumsy': '🤕',
+  'trait.hoarder': '📦',
+  'trait.noisy': '📢',
+  'trait.bad_knees': '🦵',
+  'trait.hemophilia': '🩸',
+  'trait.poor_sleep': '😪',
+  'trait.squeamish': '🤢',
+  'trait.out_of_shape': '😮‍💨',
+  'trait.weak_stomach': '🤮',
+  'trait.dehydrated': '🏜️',
+  'trait.afraid_of_dark': '🌑',
+  'trait.thin_blood': '☣️',
+  'trait.short_fuse': '💥',
+  'trait.heavy_sleeper': '💤',
+  'trait.combat_veteran': '⚔️',
+  'trait.trauma_medic': '🏥',
+  'trait.hyrox_champion': '⚡',
+  'trait.young_blood': '🏫',
+  'trait.estate_kitchen': '🍛',
+  'trait.estate_memory': '🗺️',
+  'trait.operator': '💼',
+  'trait.site_foreman': '🏗️',
+  'trait.made_man': '🕴️',
+  'trait.hypervigilant': '👀',
+  'trait.shift_burnout': '🪫',
+  'trait.restlessness': '😤',
+  'trait.never_outdoors': '🏢',
+  'trait.stall_voice': '📣',
+  'trait.ruined_knees': '🦴',
+  'trait.desk_body': '🖥️',
+  'trait.heavy_hands': '👊',
+  'trait.warrant': '📋',
+
   'item.food': '🥫',
   'item.water': '💧',
   'item.heal': '➕',
@@ -518,4 +644,6 @@ export const EMOJI_FALLBACK: Record<IconName, string> = {
   'item.scrap_metal': '🔩',
   'item.toolbox': '🧰',
   'item.jewellery': '💍',
+  'item.chicken_rice': '📦',
+  'item.premium_bento': '📦',
 };

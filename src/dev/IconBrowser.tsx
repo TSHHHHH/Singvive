@@ -17,6 +17,16 @@ import {
   type CloseDevToolsDetail,
   type OpenIconDetail,
 } from './devBridge';
+import { tip } from '../components/tips';
+import { TRAITS } from '../game/character';
+
+const TRAIT_LABEL: Partial<Record<IconName, string>> = Object.fromEntries(
+  TRAITS.map((t) => [`trait.${t.id}` as IconName, t.name]),
+);
+
+function iconLabel(key: IconName): string {
+  return TRAIT_LABEL[key] ?? key;
+}
 
 type ArtFilter = 'all' | 'missing' | 'has';
 
@@ -83,7 +93,13 @@ export function DevIconBrowser() {
     const q = query.trim().toLowerCase();
     return nonItemKeys.filter((k) => {
       if (nsFilter !== 'all' && namespaceOf(k) !== nsFilter) return false;
-      if (q && !k.toLowerCase().includes(q)) return false;
+      if (
+        q &&
+        !k.toLowerCase().includes(q) &&
+        !(TRAIT_LABEL[k]?.toLowerCase().includes(q) ?? false)
+      ) {
+        return false;
+      }
       const art = hasBundledArt(k, diskKeySet);
       if (artFilter === 'missing' && art) return false;
       if (artFilter === 'has' && !art) return false;
@@ -245,7 +261,7 @@ export function DevIconBrowser() {
             type="button"
             onClick={() => setOpen(false)}
             className="rounded border border-white/15 px-2.5 py-1 text-xs text-white/70 hover:bg-white/5"
-            title="Esc"
+            {...tip('Esc')}
           >
             Close
           </button>
@@ -369,8 +385,13 @@ export function DevIconBrowser() {
                           <Icon name={key} size={28} />
                         </span>
                         <span className="w-full truncate font-mono text-[10px] text-white/70">
-                          {key}
+                          {ns === 'trait' ? iconLabel(key) : key}
                         </span>
+                        {ns === 'trait' && (
+                          <span className="w-full truncate font-mono text-[9px] text-white/30">
+                            {key}
+                          </span>
+                        )}
                         <span
                           className={`text-[9px] uppercase tracking-wide ${
                             art ? 'text-emerald-400/80' : 'text-white/30'
@@ -392,6 +413,9 @@ export function DevIconBrowser() {
             <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3">
               <div>
                 <p className="font-mono text-sm text-signal">{selected}</p>
+                {TRAIT_LABEL[selected] && (
+                  <p className="mt-0.5 text-xs text-white/70">{TRAIT_LABEL[selected]}</p>
+                )}
                 <p className="mt-0.5 text-[11px] text-white/40">
                   emoji fallback · {EMOJI_FALLBACK[selected]}
                 </p>

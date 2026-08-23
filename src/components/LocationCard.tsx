@@ -1,7 +1,11 @@
 import type { ReactNode } from 'react';
 import { useEffect } from 'react';
 import { POI_CONFIG } from '../game/poi';
+import { hasTraitFlag, sumTraitMod } from '../game/character';
 import { Icon } from '../icons/Icon';
+import { tip } from './tips';
+import { TipHint } from './TipHint';
+import { LOAD_TIP_CLASS, LoadTipBody } from './loadTip';
 import {
   FACTION_CONFIG,
   STANDING_BAD,
@@ -18,6 +22,7 @@ import {
   locationServices,
 } from '../game/factions';
 import { isStreetLootPoi } from '../game/loot';
+import { loadEffectsFor } from '../game/inventory';
 import { useGame } from '../game/store';
 import { dangerColor } from './mapIcons';
 import { formatDuration, type estimateExpedition } from '../game/travel';
@@ -320,7 +325,7 @@ function ReputationLadder({ standing, color }: { standing: number; color: string
   return (
     <div
       className="flex items-center justify-center gap-0.5"
-      title={`${label} (${score})`}
+      {...tip(`${label} (${score})`)}
       aria-label={t('ui.location.standingAria', { label })}
     >
       {STANDING_RUNGS.map((rung, idx) => {
@@ -594,6 +599,9 @@ function KnownCard({
 
   const standing = useGame((s) => s.factionStanding);
   const day = useGame((s) => s.day);
+  const items = useGame((s) => s.items);
+  const character = useGame((s) => s.character);
+  const equipment = useGame((s) => s.equipment);
   const raidMode = useGame((s) => s.raidMode);
   const pendingSearch = useGame((s) => s.pendingSearch);
   const abortSearch = useGame((s) => s.abortSearch);
@@ -601,7 +609,18 @@ function KnownCard({
   const forceEnter = useGame((s) => s.forceEnter);
   const raidSearch = useGame((s) => s.raidSearch);
   const ensureSiteRuin = useGame((s) => s.ensureSiteRuin);
+  const seesSearches = useGame((s) =>
+    hasTraitFlag(s.character?.traitIds ?? [], 'showSearchesRemaining'),
+  );
   const gateCleared = occupied && hasFactionClearance(sel, standing, day);
+  const loadFx = character
+    ? loadEffectsFor(
+        items,
+        character.attributes,
+        equipment,
+        sumTraitMod(character.traitIds, 'carryCapacityMod'),
+      )
+    : null;
   const raidingHere = raidMode?.locationId === sel.id;
   const searchingHere =
     !!pendingSearch && pendingSearch.locationId === sel.id && here;
@@ -627,9 +646,11 @@ function KnownCard({
       ? t('ui.location.twelveFloors')
       : exhausted
         ? t('ui.location.pickedClean')
-        : Math.abs(searches - 1) < 0.05
-          ? t('ui.location.searchesLeft', { n: searchesLabel })
-          : t('ui.location.searchesLeftPlural', { n: searchesLabel });
+        : !seesSearches
+          ? t('ui.location.stillHasLoot')
+          : Math.abs(searches - 1) < 0.05
+            ? t('ui.location.searchesLeft', { n: searchesLabel })
+            : t('ui.location.searchesLeftPlural', { n: searchesLabel });
 
   const metaLine = (
     <div className="mt-1 text-xs text-white/45">
@@ -639,14 +660,14 @@ function KnownCard({
       <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5">
         <span
           style={{ color: dangerColor(dngr) }}
-          title={`${t('ui.location.danger')} ${dngr} of 5`}
+          {...tip(`${t('ui.location.danger')} ${dngr} of 5`)}
         >
           {t('ui.location.danger')} {'●'.repeat(dngr)}
           <span className="text-white/15">{'●'.repeat(5 - dngr)}</span>
         </span>
         {!isBlock && destruction !== undefined && (
           <span
-            title={`${t('ui.location.ruin')} — ${destructionDisplayLabel(destruction, locale)}`}
+            {...tip(`${t('ui.location.ruin')} — ${destructionDisplayLabel(destruction, locale)}`)}
           >
             {t('ui.location.ruin')} {destructionDisplayLabel(destruction, locale)}{' '}
             {'●'.repeat(destruction + 1)}
@@ -684,9 +705,11 @@ function KnownCard({
                 : t('ui.location.tearThrough')}
             {!sel.exhausted && (
               <span className="block text-xs font-normal opacity-75">
-                {Math.abs(searches - 1) < 0.05
-                  ? t('ui.location.searchesLeft', { n: searchesLabel })
-                  : t('ui.location.searchesLeftPlural', { n: searchesLabel })}
+                {!seesSearches
+                  ? t('ui.location.stillHasLoot')
+                  : Math.abs(searches - 1) < 0.05
+                    ? t('ui.location.searchesLeft', { n: searchesLabel })
+                    : t('ui.location.searchesLeftPlural', { n: searchesLabel })}
               </span>
             )}
           </button>
@@ -772,7 +795,7 @@ function KnownCard({
           <span className="text-white/50">
             {t('ui.location.metersFromSpawn', { m: Math.round(sel.distanceFromSpawn) })}
           </span>
-          <span style={{ color: dangerColor(dngr) }} title={`${t('ui.location.danger')} ${dngr} of 5`}>
+          <span style={{ color: dangerColor(dngr) }} {...tip(`${t('ui.location.danger')} ${dngr} of 5`)}>
             {t('ui.location.danger')} {'●'.repeat(dngr)}
             <span className="text-white/15">{'●'.repeat(5 - dngr)}</span>
           </span>
@@ -798,18 +821,34 @@ function KnownCard({
           <div className="mt-2 rounded bg-black/30 p-2 text-xs text-white/55">
             <div className="flex justify-between">
               <span><Icon name="action.travel" /> {t('ui.location.travelHere')}</span>
-              <span className="text-white/80">
-                {formatDuration(est.travelMin)}
-                {est.weatherSlowed && (
-                  <span className="text-astral"> · {t('ui.location.rain')}</span>
-                )}
-                {est.encumbered && (
-                  <span className="text-hiss"> · {t('ui.location.heavy')}</span>
-                )}
-                {est.vegetationSlowed && (
-                  <span className="text-white/45"> · {t('ui.location.forest')}</span>
-                )}
-              </span>
+              {est.travelMult > 1 && loadFx ? (
+                <TipHint
+                  className="text-white/80"
+                  placement="top"
+                  tipClassName={LOAD_TIP_CLASS}
+                  tip={<LoadTipBody fx={loadFx} t={t} title={t('ui.location.travelHere')} />}
+                >
+                  <span>
+                    {formatDuration(est.travelMin)}
+                    {est.weatherSlowed && (
+                      <span className="text-astral"> · {t('ui.location.rain')}</span>
+                    )}
+                    {est.vegetationSlowed && (
+                      <span className="text-white/45"> · {t('ui.location.forest')}</span>
+                    )}
+                  </span>
+                </TipHint>
+              ) : (
+                <span className="text-white/80">
+                  {formatDuration(est.travelMin)}
+                  {est.weatherSlowed && (
+                    <span className="text-astral"> · {t('ui.location.rain')}</span>
+                  )}
+                  {est.vegetationSlowed && (
+                    <span className="text-white/45"> · {t('ui.location.forest')}</span>
+                  )}
+                </span>
+              )}
             </div>
             <div className="flex justify-between">
               <span><Icon name="action.search" /> {t('ui.location.searchOnceInside')}</span>

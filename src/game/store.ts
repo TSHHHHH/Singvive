@@ -19,7 +19,17 @@ import type {
 } from './types';
 import { emptyRunStats, normalizeRunStats } from './stats';
 import { Rng, randomSeed } from './rng';
-import { adjustCraftInputs, attrEmoji, ATTRIBUTE_LABELS, hasTraitFlag, maxHpFor, startingStanding, sumTraitMod } from './character';
+import {
+  adjustCraftInputs,
+  attrEmoji,
+  ATTRIBUTE_LABELS,
+  hasTraitFlag,
+  maxHpFor,
+  startingStanding,
+  sumTraitMod,
+  traitFirstHitDamageMult,
+  traitPoiLootBonus,
+} from './character';
 import { fetchOsmPois, haversine, type RawPoi } from './overpass';
 import { bakedPoisNear } from './bakedPois';
 import {
@@ -67,7 +77,7 @@ import {
 import { buildLocations, generateFallbackWorld, makeStationLocation } from './world';
 import {
   conditionRoll,
-  destructionConditionBias,
+  conditionRollForRuin,
   ensureDestruction,
   isStreetLootPoi,
   itemDef,
@@ -80,6 +90,7 @@ import {
 } from './loot';
 import {
   addToGrid,
+  arrangeOverflowClause,
   canPlace,
   canEquip,
   canTearForRags,
@@ -93,10 +104,13 @@ import {
   equipTravelSpeedFactor,
   findSlot,
   footprint,
+  packGridForBag,
+  tryArrangeInGrid,
   isBroken,
-  isEncumbered,
   isTwoHandedEquipped,
   limbArmorForZone,
+  loadEffects,
+  loadEffectsFor,
   newUid,
   OWN_CLOTHES_TEARS,
   TEAR_CONDITION_COST,
@@ -108,6 +122,10 @@ import {
   slotForZone,
   spoil,
   statusResistForZone,
+  conditionFamily,
+  consumableScale,
+  hasCondition,
+  scaledRestore,
   tierLabel,
   tierOf,
   totalLootValue,
@@ -181,6 +199,7 @@ import {
   resolveEnemyAction,
   openingNotes,
   playerSpeed,
+  offHandCombatMods,
   GAUGE_FULL,
   COMBAT_SPEEDS,
   attemptFlee,
@@ -199,6 +218,7 @@ import {
   EVENT_MAX_PER_DAY,
   clampStanding,
   emptyStanding,
+  fieldDoctorEvent,
   isTerminal,
   mrtTollEvent,
   rollCheck,
@@ -312,7 +332,7 @@ import {
   EVAC_SCORE_BONUS,
   HORDE_MAX,
   HORDE_PER_DAY,
-  hasEvacReadiness,
+  evacReadiness,
   hordeIntensity,
   EVAC_ISLAND_RADIUS,
   pickDistantEvacPoi,
@@ -323,6 +343,14 @@ import {
   evacWindowHours,
   type EvacDemandBias,
 } from './goal';
+
+/** How the crew phrases this window's cargo appetite once the channel is up. */
+const BIAS_LOG: Record<EvacDemandBias, string> = {
+  fuel: 'and they are asking for fuel above all.',
+  meds: 'and they are asking for meds above all.',
+  ammo: 'and they are asking for ammo above all.',
+  balanced: 'and they will take it balanced.',
+};
 
 const SCAVENGE_RADIUS = 1500;
 const DANGER_DEPLETE = 0.7;
@@ -359,6 +387,8 @@ interface PendingEvent {
   tunnelTo?: string;
   /** Ordered station ids for the planned route (origin → destination). */
   tunnelStationIds?: string[];
+  /** Set when the event is a holdout counter inside an HDB block. */
+  hdbService?: { level: number; unitId: string };
 }
 
 /** @see GameStore._eventClock */
@@ -445,6 +475,11 @@ interface State {
   evacDemand: number | null;
   /** Soft cargo bias for the current window. */
   evacDemandBias: EvacDemandBias | null;
+  /**
+   * Has the player raised the channel at the pad and read the real manifest?
+   * Scoped to the window, not the run — a fresh bird stages fogged again.
+   */
+  evacManifestRevealed: boolean;
   escaped: boolean; // true on a victory ending
 
   /**
@@ -609,7 +644,8 @@ interface State {
   /** Move one found item from the search grid into the pack (stash overflow). */
   takeSearchItem: (uid: string) => void;
   /** Take every found item still in the search grid. */
-  takeAllFound: () => void;
+  /** Moves every found slot into pack/stash. Returns false if it stopped early for lack of space. */
+  takeAllFound: () => boolean;
   /** Abandon unsearched slots and any unclaimed finds; spend a partial search charge. */
   abortSearch: () => void;
   /** Finish after all slots are searched; abandon unclaimed finds (or abort if fogged remain). */
@@ -773,17 +809,18 @@ export const useGame = create<State>((set, get) => {
   /**
    * Wear gear down after a swing or a connecting hit.
    *
-   * Weapon wear always hits mainHand. Armor wear prefers the piece covering
-   * the hit zone; other wearables take a light scrape so the rest of the kit
-   * still ages in a long fight.
+   * Weapon wear hits mainHand; `offHandWear` hits offHand. Armor wear prefers
+   * the piece covering the hit zone (or the shield, when a block lands);
+   * other wearables take a light scrape so the rest of the kit still ages.
    */
   const applyWear = (
     equipment: Equipment,
     weaponWear: number,
     armorWear: number,
     wearSlot: EquipSlot | null = null,
+    offHandWear = 0,
   ): { equipment: Equipment; notes: string[] } => {
-    if (weaponWear <= 0 && armorWear <= 0) return { equipment, notes: [] };
+    if (weaponWear <= 0 && armorWear <= 0 && offHandWear <= 0) return { equipment, notes: [] };
     const next: Equipment = { ...equipment };
     const notes: string[] = [];
     const wearOne = (slot: EquipSlot, amount: number) => {
@@ -801,6 +838,7 @@ export const useGame = create<State>((set, get) => {
     };
 
     if (weaponWear > 0) wearOne('mainHand', weaponWear);
+    if (offHandWear > 0) wearOne('offHand', offHandWear);
 
     if (armorWear > 0) {
       if (wearSlot && wearSlot !== 'mainHand') {
@@ -828,6 +866,27 @@ export const useGame = create<State>((set, get) => {
     legTravelFactor(s.bodyParts) *
     equipTravelSpeedFactor(s.equipment) *
     (1 + sumTraitMod(s.character?.traitIds ?? [], 'travelSpeedMod'));
+
+  const loadOf = (s: {
+    items: ItemInstance[];
+    character: Character | null;
+    equipment: Equipment;
+  }) =>
+    s.character
+      ? loadEffectsFor(
+          s.items,
+          s.character.attributes,
+          s.equipment,
+          sumTraitMod(s.character.traitIds, 'carryCapacityMod'),
+        )
+      : loadEffects(0);
+
+  let overloadLogDay = -1;
+  const noteOverload = (day: number, ratio: number) => {
+    if (ratio <= 1 || overloadLogDay === day) return;
+    overloadLogDay = day;
+    pushLog('The pack is pulling at every step.', 'info');
+  };
 
   // Set by an en-route roll in travel(); consumed on arrival to spring a road
   // ambush before the site can be searched.
@@ -871,6 +930,7 @@ export const useGame = create<State>((set, get) => {
       evacCooldownUntil: s.evacCooldownUntil,
       evacDemand: s.evacDemand,
       evacDemandBias: s.evacDemandBias,
+      evacManifestRevealed: s.evacManifestRevealed,
       destroyedTunnelEdges: s.destroyedTunnelEdges,
       // Snapshot the block you're standing in too, so a reload keeps it cleared.
       hdbBlocks: s.hdb ? { ...s.hdbBlocks, [s.hdb.locationId]: s.hdb } : s.hdbBlocks,
@@ -982,6 +1042,7 @@ export const useGame = create<State>((set, get) => {
       evacDeadline: null,
       evacDemand: null,
       evacDemandBias: null,
+      evacManifestRevealed: false,
       evacCooldownUntil: totalGameHour(s.day, s.hour) + wait,
     });
     pushLog(
@@ -1011,6 +1072,7 @@ export const useGame = create<State>((set, get) => {
       evacCooldownUntil: null,
       evacDemand: rolled.demand,
       evacDemandBias: rolled.bias,
+      evacManifestRevealed: false,
     });
     const loc = nextId ? s.locations[nextId] : null;
     pushLog(
@@ -1051,6 +1113,7 @@ export const useGame = create<State>((set, get) => {
     restedEnergy?: number,
     sleeping = false,
     skipNightfall = false,
+    extraEnergyMult = 1,
   ): boolean => {
     const s = get();
     const prevBand = timeOfDay(s.hour);
@@ -1067,6 +1130,7 @@ export const useGame = create<State>((set, get) => {
       hasTraitFlag(traitIds, 'bleedingSelfStopDisabled'),
       s.meters.hunger,
       sumTraitMod(traitIds, 'legHealMod'),
+      sumTraitMod(traitIds, 'bleedStopBonus'),
     );
     const partsAfterSystemic = tickSystemicDamage(bodyParts, s.meters, hours);
     const skyNow = weatherKindFor(s.seed, s.day);
@@ -1074,7 +1138,7 @@ export const useGame = create<State>((set, get) => {
     let meters = tickMeters(s.meters, hours, {
       sleeping,
       thirstMult: weatherThirstMult(skyNow),
-      energyMult: weatherEnergyMult(skyNow),
+      energyMult: weatherEnergyMult(skyNow) * (sleeping ? 1 : extraEnergyMult),
       hungerDrainMod: sumTraitMod(traitIds, 'hungerDrainMod'),
       thirstDrainMod: sumTraitMod(traitIds, 'thirstDrainMod'),
       energyDrainMod: sumTraitMod(traitIds, 'energyDrainMod'),
@@ -1392,7 +1456,9 @@ export const useGame = create<State>((set, get) => {
     const lootRng = new Rng(s.seed).fork(
       `loot:${loc.id}:${loc.remainingSearches}:${s.day}:${Math.round(s.hour * 60)}`,
     );
-    const lootMod = sumTraitMod(s.character!.traitIds, 'lootMod');
+    const lootMod =
+      sumTraitMod(s.character!.traitIds, 'lootMod') +
+      traitPoiLootBonus(s.character!.traitIds, loc.category);
     const perceptionBonus = Math.floor((s.character!.attributes.perception - 5) / 2);
     const raiding =
       !!loc.factionId &&
@@ -1427,29 +1493,25 @@ export const useGame = create<State>((set, get) => {
     const maxCharges = loc.size === 'large' ? 3 : loc.size === 'medium' ? 2 : 1;
     const spent = Math.max(0, maxCharges - loc.remainingSearches);
     const deplete = spent / Math.max(1, maxCharges);
-    const ruinBias =
-      street && loc.destruction !== undefined
-        ? destructionConditionBias(loc.destruction)
-        : null;
-    const bias = raiding
-      ? Math.max(
-          ruinBias ?? 0.65,
-          Math.min(1, 0.75 + loc.currentDanger / 12),
-        )
-      : ruinBias != null
-        ? Math.max(
-            0.05,
-            Math.min(
-              1,
-              ruinBias + loc.currentDanger / 20 - deplete * 0.2,
-            ),
-          )
-        : Math.max(
-            // First charge can still whisper "pristine" (~6%); later charges
-            // need danger. HDB sealed doors stay the reliable near-new source.
-            spent === 0 ? 0.5 : 0.2,
-            Math.min(1, loc.currentDanger / 5 - deplete * 0.25),
-          );
+    const ruinTier =
+      street && loc.destruction !== undefined ? loc.destruction : null;
+    const ruinSkew =
+      ruinTier != null
+        ? raiding
+          ? Math.min(1, 0.4 + loc.currentDanger / 16)
+          : Math.max(-1, Math.min(1, loc.currentDanger / 20 - deplete * 0.9))
+        : 0;
+    const bias =
+      ruinTier != null
+        ? 0
+        : raiding
+          ? Math.min(1, 0.4 + loc.currentDanger / 12)
+          : Math.max(
+              // First charge can still whisper "pristine" (~6%); later charges
+              // need danger. HDB sealed doors stay the reliable near-new source.
+              spent === 0 ? 0.5 : 0.2,
+              Math.min(1, loc.currentDanger / 5 - deplete * 0.25),
+            );
 
     // Empty haul: spend a full charge immediately, no session UI.
     if (loot.length === 0) {
@@ -1478,14 +1540,18 @@ export const useGame = create<State>((set, get) => {
     const pieces = loot.map((stack) => ({
       defId: stack.defId,
       count: stack.count,
-      condition: conditionRoll(lootRng, stack.defId, bias),
+      condition:
+        ruinTier != null
+          ? conditionRollForRuin(lootRng, stack.defId, ruinTier, ruinSkew)
+          : conditionRoll(lootRng, stack.defId, bias),
     }));
 
-    const speed = searchSpeedFactor(
-      equipSearchSpeedBonus(s.equipment),
-      s.character!.attributes.perception,
-      sumTraitMod(s.character!.traitIds, 'searchSpeedMod'),
-    );
+    const speed =
+      searchSpeedFactor(
+        equipSearchSpeedBonus(s.equipment),
+        s.character!.attributes.perception,
+        sumTraitMod(s.character!.traitIds, 'searchSpeedMod'),
+      ) * loadOf(s).searchMult;
     const nonce = lootRng.int(1, 1_000_000_000).toString(36);
     const session = ensureSearching(
       buildSearchSession({
@@ -2034,7 +2100,13 @@ export const useGame = create<State>((set, get) => {
     const s = get();
     if (!s.hdb) return;
     const rng = new Rng(s.seed).fork(`sweep:${s.hdb.locationId}:${level}:${s.day}`);
-    const res = scoutFloor(rng, s.character!.attributes, s.hdb, level);
+    const res = scoutFloor(
+      rng,
+      s.character!.attributes,
+      s.hdb,
+      level,
+      sumTraitMod(s.character!.traitIds, 'hdbScoutBonus'),
+    );
     set({ hdb: res.dungeon });
     pushLog(
       res.read === 0
@@ -2086,11 +2158,12 @@ export const useGame = create<State>((set, get) => {
       count: stack.count,
       condition: conditionRoll(rng, stack.defId, bias),
     }));
-    const speed = searchSpeedFactor(
-      equipSearchSpeedBonus(s.equipment),
-      s.character!.attributes.perception,
-      sumTraitMod(s.character!.traitIds, 'searchSpeedMod'),
-    );
+    const speed =
+      searchSpeedFactor(
+        equipSearchSpeedBonus(s.equipment),
+        s.character!.attributes.perception,
+        sumTraitMod(s.character!.traitIds, 'searchSpeedMod'),
+      ) * loadOf(s).searchMult;
     const nonce = rng.int(1, 1_000_000_000).toString(36);
     const session = ensureSearching(
       buildSearchSession({
@@ -2165,7 +2238,7 @@ export const useGame = create<State>((set, get) => {
    * run outright, and the run object must be re-read afterwards either way.
    */
   const tunnelTick = (hours: number): TunnelRun | null =>
-    advanceTime(hours) ? null : get().tunnel;
+    advanceTime(hours, undefined, false, false, loadOf(get()).energyMult) ? null : get().tunnel;
 
   /**
    * Pull the neighbourhood around a point into the world.
@@ -2330,6 +2403,7 @@ export const useGame = create<State>((set, get) => {
         cur.hour,
         moveFactor(cur),
         collapsedMeters,
+        loadOf(cur).tunnelTravelMult,
       );
       const run = generateTunnelRun(
         new Rng(cur.seed).fork(`tunnel:${stations[0].stationId}:${destId}:${seq}`),
@@ -2900,6 +2974,7 @@ export const useGame = create<State>((set, get) => {
     evacCooldownUntil: null,
     evacDemand: null,
     evacDemandBias: null,
+    evacManifestRevealed: false,
     escaped: false,
     destroyedTunnelEdges: [],
     maxHp: 100,
@@ -3099,6 +3174,7 @@ export const useGame = create<State>((set, get) => {
         evacCooldownUntil: null,
         evacDemand: firstDemand.demand,
         evacDemandBias: firstDemand.bias,
+        evacManifestRevealed: false,
         escaped: false,
         destroyedTunnelEdges,
       });
@@ -3205,12 +3281,7 @@ export const useGame = create<State>((set, get) => {
       }
 
       const weather = weatherKindFor(s.seed, s.day);
-      const encumbered = isEncumbered(
-        s.items,
-        s.character!.attributes,
-        s.equipment,
-        sumTraitMod(s.character!.traitIds, 'carryCapacityMod'),
-      );
+      const load = loadOf(s);
 
       const route = routeLandPath(s.currentPos, { lat: loc.lat, lng: loc.lng });
       if (!route) {
@@ -3227,7 +3298,7 @@ export const useGame = create<State>((set, get) => {
         s.meters.energy,
         moveFactor(s),
         weather,
-        encumbered,
+        load.travelMult,
       );
       if (dist > range) {
         pushLog(
@@ -3244,7 +3315,7 @@ export const useGame = create<State>((set, get) => {
         s.meters.energy,
         s.hour,
         weather,
-        encumbered,
+        load.travelMult,
         moveFactor(s),
       );
 
@@ -3252,7 +3323,7 @@ export const useGame = create<State>((set, get) => {
 
       // Advance the in-game clock for the trip up front (search time is spent
       // later, on searching). Bail if the survivor dies en route.
-      if (advanceTime((est.travelMin / 60) * vegOnRoute.travelMult, undefined, false, true)) return;
+      if (advanceTime((est.travelMin / 60) * vegOnRoute.travelMult, undefined, false, true, load.energyMult)) return;
       bumpStats({ distanceM: dist });
 
       // Prefetch the landing cell while the glide runs.
@@ -3276,7 +3347,8 @@ export const useGame = create<State>((set, get) => {
               ? sumTraitMod(now.character!.traitIds, 'nightEncounterChanceMod')
               : 0) +
             equipEncounterChanceMod(now.equipment) +
-            bleedEncounterMod(now.bodyParts),
+            bleedEncounterMod(now.bodyParts) +
+            load.encounterMod,
           safe: now.spawn ?? undefined,
           day: now.day,
         },
@@ -3345,7 +3417,8 @@ export const useGame = create<State>((set, get) => {
       if (vegOnRoute.patches.length > 0) {
         pushLog('Dense forest slows you — nature reserve overgrowth.', 'info');
       }
-      if (applyCrossingOutcome(outcome, vegOnRoute.energyCost, encRng)) return;
+      noteOverload(s.day, load.ratio);
+      if (applyCrossingOutcome(outcome, vegOnRoute.energyCost * load.energyMult, encRng)) return;
       if (roadFindLog) pushLog(roadFindLog.text, roadFindLog.tone);
       set({
         travelAnim: {
@@ -3498,12 +3571,7 @@ export const useGame = create<State>((set, get) => {
       }
 
       const weather = weatherKindFor(s.seed, s.day);
-      const encumbered = isEncumbered(
-        s.items,
-        s.character!.attributes,
-        s.equipment,
-        sumTraitMod(s.character!.traitIds, 'carryCapacityMod'),
-      );
+      const load = loadOf(s);
 
       // Open ground obeys the same one-push limit as everything else — it's an
       // escape hatch from bad geometry, not from the stamina economy.
@@ -3512,7 +3580,7 @@ export const useGame = create<State>((set, get) => {
         s.meters.energy,
         moveFactor(s),
         weather,
-        encumbered,
+        load.travelMult,
       );
       if (dist > range) {
         pushLog(
@@ -3529,11 +3597,11 @@ export const useGame = create<State>((set, get) => {
         s.meters.energy,
         s.hour,
         weather,
-        encumbered,
+        load.travelMult,
         moveFactor(s),
       );
       const veg = vegetationCost(from, { lat, lng }, route.points);
-      if (advanceTime((est.travelMin / 60) * veg.travelMult, undefined, false, true)) return;
+      if (advanceTime((est.travelMin / 60) * veg.travelMult, undefined, false, true, load.energyMult)) return;
       bumpStats({ distanceM: dist });
 
       // Prefetch the landing cell — open ground is how you leave the bubble.
@@ -3555,7 +3623,8 @@ export const useGame = create<State>((set, get) => {
               ? sumTraitMod(now.character!.traitIds, 'nightEncounterChanceMod')
               : 0) +
             equipEncounterChanceMod(now.equipment) +
-            bleedEncounterMod(now.bodyParts),
+            bleedEncounterMod(now.bodyParts) +
+            load.encounterMod,
           safe: now.spawn ?? undefined,
           day: now.day,
         },
@@ -3603,7 +3672,8 @@ export const useGame = create<State>((set, get) => {
       if (veg.patches.length > 0) {
         pushLog('You push through dense forest — every step costs.', 'info');
       }
-      if (applyCrossingOutcome(outcome, veg.energyCost, encRng)) return;
+      noteOverload(s.day, load.ratio);
+      if (applyCrossingOutcome(outcome, veg.energyCost * load.energyMult, encRng)) return;
       set({
         travelAnim: {
           fromLat: from.lat,
@@ -4184,6 +4254,13 @@ export const useGame = create<State>((set, get) => {
       persist();
     },
 
+    /**
+     * Two-step at the pad. The approach stays fogged, but standing on the
+     * ground gets you a real read: the first press raises the channel and the
+     * crew states their manifest in numbers. That read persists for the rest of
+     * the window, so a short haul can be topped up on purpose instead of by
+     * guesswork. A pack that already clears the bar lifts on the same press.
+     */
     callEvac: () => {
       const s = get();
       if (s.combat || s.pendingEvent || s.travelAnim) return;
@@ -4191,11 +4268,21 @@ export const useGame = create<State>((set, get) => {
         pushLog('You need to be at the evac zone to signal for a lift.', 'bad');
         return;
       }
-      if (!hasEvacReadiness(s.items, s.day, s.evacDemand, s.evacDemandBias ?? 'balanced')) {
+      const bias = s.evacDemandBias ?? 'balanced';
+      const read = evacReadiness(s.items, s.day, s.evacDemand, bias);
+      if (!s.evacManifestRevealed) {
+        set({ evacManifestRevealed: true });
         pushLog(
-          'The crew wants a heavier pack — fuel, meds, and ammo count most toward the lift. Try again when the haul looks better.',
+          `Channel up. The crew reads out their manifest: ${read.required} of weighted haul, ${BIAS_LOG[bias]} Your pack scans at ${read.current}.`,
+          'info',
+        );
+      }
+      if (!read.ready) {
+        pushLog(
+          `Still ${read.required - read.current} short of the lift. Fuel, meds, and ammo count most.`,
           'bad',
         );
+        persist();
         return;
       }
       pushLog('You pop the flare. Rotors thunder over the rooftops — they came.', 'good');
@@ -4290,16 +4377,23 @@ export const useGame = create<State>((set, get) => {
     takeAllFound: () => {
       const s = get();
       const session = s.pendingSearch;
-      if (!session) return;
+      if (!session) return true;
       let items = s.items;
       let working = session;
       let stashed = false;
+      // Stop at the first find that fits nowhere rather than destroying it — the
+      // rest stay on the ground until the player makes room.
+      let blocked = false;
       for (const slot of session.slots) {
         if (slot.state !== 'found' || !slot.uid) continue;
         const moved = relocateFoundItem(items, slot.uid, working.stashLocationId);
         if (!moved) continue;
+        if (moved.lost) {
+          blocked = true;
+          break;
+        }
         items = moved.items;
-        if (moved.stashed || moved.lost) stashed = true;
+        if (moved.stashed) stashed = true;
         working = {
           ...working,
           slots: working.slots.map((sl) =>
@@ -4309,11 +4403,13 @@ export const useGame = create<State>((set, get) => {
       }
       set({ items, pendingSearch: working });
       if (stashed) pushLog('Pack full — extras went onto the site stash.', 'info');
+      if (blocked) pushLog('No room left — the rest stays where it lies.', 'bad');
       if (!hasFoggedOrSearching(working) && !working.slots.some((sl) => sl.state === 'found')) {
         closeSearchSession(working, 'complete');
-        return;
+        return !blocked;
       }
       persist();
+      return !blocked;
     },
 
     abortSearch: () => {
@@ -4460,6 +4556,20 @@ export const useGame = create<State>((set, get) => {
               const got = (e.count ?? 1) - r.leftover;
               pushLog(`You come away with ${got}× ${def.name}.`, 'good');
             }
+            return true;
+          }
+          case 'treat': {
+            const cur = get();
+            set({ bodyParts: treatInjuries(cur.bodyParts, e.amount, 'all') });
+            pushLog(e.line, 'good');
+            return true;
+          }
+          case 'service': {
+            const svc = pe.hdbService;
+            const cur = get();
+            if (!svc || !cur.hdb) return true;
+            const hdb = updateUnit(cur.hdb, svc.level, svc.unitId, { state: 'cleared' });
+            set({ hdb, hdbBlocks: { ...cur.hdbBlocks, [hdb.locationId]: hdb } });
             return true;
           }
           case 'intel': {
@@ -4679,6 +4789,10 @@ export const useGame = create<State>((set, get) => {
       if (!inst) return;
       const def = itemDef(inst.defId);
       const healBonus = sumTraitMod(s.character!.traitIds, 'healBonus');
+      // Freshness pays. A wilting packet still feeds, just not as much — and the
+      // log says so, so the player learns to eat the old stuff first.
+      const fresh = (base: number) => scaledRestore(inst, base);
+      const faded = hasCondition(inst) && consumableScale(inst) < 1;
       const foodEffectMod = sumTraitMod(s.character!.traitIds, 'foodEffectMod');
       const m = { ...s.meters };
       let newBodyParts = s.bodyParts;
@@ -4689,20 +4803,23 @@ export const useGame = create<State>((set, get) => {
       switch (def.effect.kind) {
         case 'food': {
           const fx = def.effect;
-          m.hunger = clampMeter(m.hunger + Math.round(fx.hunger * (1 + foodEffectMod)));
-          if (fx.thirst != null) m.thirst = clampMeter(m.thirst + fx.thirst);
-          if (fx.energy != null) m.energy = clampMeter(m.energy + fx.energy);
+          m.hunger = clampMeter(m.hunger + Math.round(fresh(fx.hunger) * (1 + foodEffectMod)));
+          if (fx.thirst != null) m.thirst = clampMeter(m.thirst + fresh(fx.thirst));
+          if (fx.energy != null) m.energy = clampMeter(m.energy + fresh(fx.energy));
           consumed = true;
-          pushLog(`Ate ${def.name}. ${consumableRestoreSummary(fx)}.`, 'good');
+          pushLog(
+            `Ate ${def.name}. ${consumableRestoreSummary(fx)}${freshnessNote(inst)}.`,
+            faded ? 'info' : 'good',
+          );
           break;
         }
         case 'water': {
           const fx = def.effect;
-          m.thirst = clampMeter(m.thirst + fx.thirst);
+          m.thirst = clampMeter(m.thirst + fresh(fx.thirst));
           if (fx.hunger != null) {
-            m.hunger = clampMeter(m.hunger + Math.round(fx.hunger * (1 + foodEffectMod)));
+            m.hunger = clampMeter(m.hunger + Math.round(fresh(fx.hunger) * (1 + foodEffectMod)));
           }
-          if (fx.energy != null) m.energy = clampMeter(m.energy + fx.energy);
+          if (fx.energy != null) m.energy = clampMeter(m.energy + fresh(fx.energy));
           const waterRisk = fx.infectionRisk ?? 0;
           if (waterRisk > 0) {
             const resist = sumTraitMod(s.character!.traitIds, 'infectionResist');
@@ -4712,13 +4829,17 @@ export const useGame = create<State>((set, get) => {
               'bad',
             );
           } else {
-            pushLog(`Drank ${def.name}. ${consumableRestoreSummary(fx)}.`, 'good');
+            pushLog(
+              `Drank ${def.name}. ${consumableRestoreSummary(fx)}${freshnessNote(inst)}.`,
+              faded ? 'info' : 'good',
+            );
           }
           consumed = true;
           break;
         }
         case 'heal': {
-          const healAmt = (def.effect.partHeal ?? 0) + (def.effect.health ?? 0) + healBonus;
+          const healAmt =
+            fresh((def.effect.partHeal ?? 0) + (def.effect.health ?? 0)) + healBonus;
           newBodyParts = treatInjuries(
             s.bodyParts,
             healAmt,
@@ -4744,19 +4865,27 @@ export const useGame = create<State>((set, get) => {
           break;
         }
         case 'cure':
-          m.infection = clampMeter(m.infection - def.effect.infection);
+          m.infection = clampMeter(m.infection - fresh(def.effect.infection));
           consumed = true;
-          pushLog(`Took ${def.name}. Infection pushed back.`, 'good');
+          pushLog(
+            faded
+              ? `Took ${def.name}. Past its date — infection pushed back, but not as hard.`
+              : `Took ${def.name}. Infection pushed back.`,
+            faded ? 'info' : 'good',
+          );
           break;
         case 'energy': {
           const fx = def.effect;
-          m.energy = clampMeter(m.energy + fx.energy);
+          m.energy = clampMeter(m.energy + fresh(fx.energy));
           if (fx.hunger != null) {
-            m.hunger = clampMeter(m.hunger + Math.round(fx.hunger * (1 + foodEffectMod)));
+            m.hunger = clampMeter(m.hunger + Math.round(fresh(fx.hunger) * (1 + foodEffectMod)));
           }
-          if (fx.thirst != null) m.thirst = clampMeter(m.thirst + fx.thirst);
+          if (fx.thirst != null) m.thirst = clampMeter(m.thirst + fresh(fx.thirst));
           consumed = true;
-          pushLog(`Had a ${def.name}. ${consumableRestoreSummary(fx)}.`, 'good');
+          pushLog(
+            `Had a ${def.name}. ${consumableRestoreSummary(fx)}${freshnessNote(inst)}.`,
+            faded ? 'info' : 'good',
+          );
           break;
         }
         case 'ammo': {
@@ -4881,12 +5010,33 @@ export const useGame = create<State>((set, get) => {
         pushLog(`Can't make that — ${check.reason.toLowerCase()}.`, 'bad');
         return;
       }
+      // Check the pack has room for the output *before* burning hours and
+      // inputs — the inputs coming out first is what usually makes the space,
+      // so the dry run has to consume them too.
+      const spendInputs = (from: ItemInstance[]): ItemInstance[] => {
+        let out = from;
+        for (const [defId, need] of Object.entries(inputs)) {
+          for (let n = 0; n < need; n++) out = consumeOneOf(out, defId);
+        }
+        return out;
+      };
+      const dryRun = addToGrid(
+        spendInputs(s.items),
+        'backpack',
+        recipe.outputDefId,
+        recipe.outputCount,
+      );
+      if (dryRun.leftover > 0) {
+        pushLog(
+          `No room in the pack for ${recipe.outputCount}× ${itemDef(recipe.outputDefId).name} — make space first.`,
+          'bad',
+        );
+        return;
+      }
+
       if (advanceTime(recipe.hours)) return;
 
-      let items = get().items;
-      for (const [defId, need] of Object.entries(inputs)) {
-        for (let n = 0; n < need; n++) items = consumeOneOf(items, defId);
-      }
+      let items = spendInputs(get().items);
       const made = addToGrid(items, 'backpack', recipe.outputDefId, recipe.outputCount);
       const outName = itemDef(recipe.outputDefId).name;
       if (made.leftover === recipe.outputCount) {
@@ -5049,6 +5199,7 @@ export const useGame = create<State>((set, get) => {
 
       let nextItems = s.items.filter((i) => i.uid !== uid);
       let nextEquip = { ...s.equipment };
+      const prevBag = slot === 'bag' ? nextEquip.bag : null;
 
       const stow = (prev: ItemInstance | null): boolean => {
         if (!prev) return true;
@@ -5061,11 +5212,14 @@ export const useGame = create<State>((set, get) => {
         return true;
       };
 
-      if (!stow(nextEquip[slot])) {
-        pushLog('No room to stow the currently-equipped item.', 'bad');
-        return;
+      // Bags are packed onto the *new* silhouette below — never stow them on the old mask.
+      if (slot !== 'bag') {
+        if (!stow(nextEquip[slot])) {
+          pushLog('No room to stow the currently-equipped item.', 'bad');
+          return;
+        }
+        nextEquip[slot] = null;
       }
-      nextEquip[slot] = null;
 
       // Two-handers clear the off hand; swapping onto main while 2H frees offHand first.
       if (slot === 'mainHand' && def.twoHanded) {
@@ -5079,24 +5233,24 @@ export const useGame = create<State>((set, get) => {
       const equipped = { ...inst, container: `equip:${slot}`, x: 0, y: 0, rotated: false };
       nextEquip = { ...nextEquip, [slot]: equipped };
 
-      // Bag swaps can shrink the grid — refuse if carried items would no longer fit.
+      const traitW = sumTraitMod(s.character!.traitIds, 'gridWidthBonus');
       if (slot === 'bag') {
-        const traitW = sumTraitMod(s.character!.traitIds, 'gridWidthBonus');
-        syncBackpackBonuses(traitW, nextEquip);
-        const stillFits = nextItems
-          .filter((i) => i.container === 'backpack')
-          .every((i) => {
-            const d = itemDef(i.defId);
-            const { w, h } = footprint(d, i.rotated);
-            return canPlace('backpack', nextItems, { x: i.x, y: i.y, w, h }, i.uid);
-          });
-        if (!stillFits) {
-          syncBackpackBonuses(traitW, s.equipment);
-          pushLog('Too much in the pack to swap to a smaller bag.', 'bad');
+        const grid = packGridForBag(traitW, equipped);
+        const packItems = nextItems.filter((i) => i.container === 'backpack');
+        const rest = nextItems.filter((i) => i.container !== 'backpack');
+        const toPack = prevBag ? [...packItems, prevBag] : packItems;
+        const arranged = tryArrangeInGrid(grid, toPack);
+        if (!arranged.ok) {
+          pushLog(
+            `Too much in the pack to swap to ${def.name}. Drop or stash some items first.${arrangeOverflowClause(arranged.overflow)}`,
+            'bad',
+          );
           return;
         }
+        nextItems = [...rest, ...arranged.items];
+        syncBackpackBonuses(traitW, nextEquip);
       } else {
-        syncBackpackBonuses(sumTraitMod(s.character!.traitIds, 'gridWidthBonus'), nextEquip);
+        syncBackpackBonuses(traitW, nextEquip);
       }
 
       set({ items: nextItems, equipment: nextEquip });
@@ -5111,41 +5265,33 @@ export const useGame = create<State>((set, get) => {
       const s = get();
       const inst = s.equipment[slot];
       if (!inst) return;
+
+      if (slot === 'bag') {
+        const traitW = sumTraitMod(s.character!.traitIds, 'gridWidthBonus');
+        const nextEquip = { ...s.equipment, bag: null };
+        const grid = packGridForBag(traitW, null);
+        const packItems = s.items.filter((i) => i.container === 'backpack');
+        const rest = s.items.filter((i) => i.container !== 'backpack');
+        const arranged = tryArrangeInGrid(grid, [...packItems, inst]);
+        if (!arranged.ok) {
+          pushLog(
+            `Too much in the pack to take the bag off. Drop or stash some items first.${arrangeOverflowClause(arranged.overflow)}`,
+            'bad',
+          );
+          return;
+        }
+        syncBackpackBonuses(traitW, nextEquip);
+        set({ items: [...rest, ...arranged.items], equipment: nextEquip });
+        persist();
+        return;
+      }
+
       const backSlot = findSlot('backpack', s.items, itemDef(inst.defId));
       if (!backSlot) {
         pushLog('Backpack is full.', 'bad');
         return;
       }
       const nextEquip = { ...s.equipment, [slot]: null };
-      if (slot === 'bag') {
-        const traitW = sumTraitMod(s.character!.traitIds, 'gridWidthBonus');
-        syncBackpackBonuses(traitW, nextEquip);
-        const nextItems = [
-          ...s.items,
-          {
-            ...inst,
-            container: 'backpack',
-            x: backSlot.x,
-            y: backSlot.y,
-            rotated: backSlot.rotated,
-          },
-        ];
-        const stillFits = nextItems
-          .filter((i) => i.container === 'backpack')
-          .every((i) => {
-            const d = itemDef(i.defId);
-            const { w, h } = footprint(d, i.rotated);
-            return canPlace('backpack', nextItems, { x: i.x, y: i.y, w, h }, i.uid);
-          });
-        if (!stillFits) {
-          syncBackpackBonuses(traitW, s.equipment);
-          pushLog('Too much in the pack to take the bag off.', 'bad');
-          return;
-        }
-        set({ items: nextItems, equipment: nextEquip });
-        persist();
-        return;
-      }
       set({
         items: [
           ...s.items,
@@ -5154,6 +5300,7 @@ export const useGame = create<State>((set, get) => {
         equipment: nextEquip,
       });
       persist();
+    
     },
 
 
@@ -5276,7 +5423,7 @@ export const useGame = create<State>((set, get) => {
 
     hdbBreach: (unitId) => {
       const s = get();
-      if (!s.hdb || s.combat || s.pendingSearch) return;
+      if (!s.hdb || s.combat || s.pendingSearch || s.pendingEvent) return;
       const level = s.hdb.currentLevel;
       const unit = currentFloor(s.hdb).units.find((u) => u.id === unitId);
       // Boarded doors and finished rooms never open a second time.
@@ -5349,9 +5496,10 @@ export const useGame = create<State>((set, get) => {
 
     hdbGoTo: (target) => {
       const s = get();
-      if (!s.hdb || s.combat || s.pendingSearch) return;
+      if (!s.hdb || s.combat || s.pendingSearch || s.pendingEvent) return;
       if (samePos(s.hdb.pos, target)) return;
       if (!canTargetCell(s.hdb, target)) return;
+      const load = loadOf(s);
 
       const attempt = findPathToward(s.hdb, s.hdb.pos, target);
       if (!attempt) {
@@ -5387,7 +5535,7 @@ export const useGame = create<State>((set, get) => {
           `hunt:${s.hdb.locationId}:${posKey(from)}:${posKey(dest)}:${s.day}:${seq}`,
         );
         if (huntRng.chance(HUNT_ELITE_CHANCE)) {
-          if (advanceTime(STAIR_MINUTES / 60)) return;
+          if (advanceTime((STAIR_MINUTES * load.stairMult) / 60, undefined, false, false, load.energyMult)) return;
           const g = get();
           if (!g.hdb) return;
           pushLog('The stairwell is not empty. It has been waiting.', 'bad');
@@ -5408,13 +5556,13 @@ export const useGame = create<State>((set, get) => {
         const rng = new Rng(s.seed).fork(
           `retreat:${s.hdb.locationId}:${from.level}:${s.day}:${seq}`,
         );
-        const check = retreatCheck(rng, s.character!.attributes, s.hdb);
+        const check = retreatCheck(rng, s.character!.attributes, s.hdb, load.fleeDcMod);
         pushLog(
           `Stairwell descent — ${attrEmoji('dexterity')} ${attrEmoji('endurance')} d20 ${check.roll}+${s.character!.attributes.dexterity + s.character!.attributes.endurance} = ${check.total} vs DC ${check.dc}`,
           check.success ? 'good' : 'bad',
         );
         if (!check.success) {
-          if (advanceTime(STAIR_MINUTES / 60)) return;
+          if (advanceTime((STAIR_MINUTES * load.stairMult) / 60, undefined, false, false, load.energyMult)) return;
           const g = get();
           pushLog('Something comes up the stairs to meet you.', 'bad');
           startZombieCombat(g.hdb!.locationId, false, {
@@ -5427,8 +5575,8 @@ export const useGame = create<State>((set, get) => {
         }
       }
 
-      const minutes = pathMinutes(path);
-      if (advanceTime(minutes / 60)) return;
+      const minutes = pathMinutes(path, load.stairMult);
+      if (advanceTime(minutes / 60, undefined, false, false, load.energyMult)) return;
       const g = get();
       if (!g.hdb) return;
       const wasNew = !g.hdb.revealedLevels.includes(dest.level);
@@ -5448,7 +5596,7 @@ export const useGame = create<State>((set, get) => {
 
     hdbForceBlock: (key) => {
       const s = get();
-      if (!s.hdb || s.combat || s.pendingSearch) return;
+      if (!s.hdb || s.combat || s.pendingSearch || s.pendingEvent) return;
       const adj = adjacentBreakableBlocks(s.hdb).find((a) => a.key === key);
       if (!adj) return;
       if (advanceTime(adj.block.minutes / 60)) return;
@@ -5466,7 +5614,7 @@ export const useGame = create<State>((set, get) => {
 
     hdbUseService: (unitId) => {
       const s = get();
-      if (!s.hdb || s.combat || s.pendingSearch) return;
+      if (!s.hdb || s.combat || s.pendingSearch || s.pendingEvent) return;
       const level = s.hdb.currentLevel;
       const unit = currentFloor(s.hdb).units.find((u) => u.id === unitId);
       if (!unit?.service || !unit.available || unit.state === 'cleared') return;
@@ -5485,16 +5633,17 @@ export const useGame = create<State>((set, get) => {
         if (advanceTime(6, restored, true)) return;
         pushLog('You sleep six hours behind a locked gate. Nothing finds you.', 'good');
       } else if (unit.service === 'field_doctor') {
-        if (!hasBackpackItem('canned_food')) {
-          pushLog('The doctor wants payment in food. You have none to give.', 'bad');
-          return;
-        }
-        consumeBackpackItem('canned_food');
-        if (advanceTime(1)) return;
-        const g = get();
-        const bodyParts = treatInjuries(g.bodyParts, 35, 'all');
-        set({ bodyParts });
-        pushLog('The field doctor patches you up for a tin of food.', 'good');
+        // Treatment is an offer, not a purchase: the prompt names the price
+        // and nothing leaves the pack until the survivor picks. resolveEvent
+        // does the paying, the hour and the dressings.
+        const rng = new Rng(s.seed).fork(`doc:${s.hdb.locationId}:${unitId}:${s.day}`);
+        const event = fieldDoctorEvent(rng, s.hdb.name);
+        pushLog(event.tell, 'info');
+        set({
+          pendingEvent: { locationId: s.hdb.locationId, event, hdbService: { level, unitId } },
+          _eventRng: rng,
+        });
+        return;
       } else {
         if (!hasBackpackItem('jewellery')) {
           pushLog('The trader looks at your pack and shrugs. Nothing they want.', 'info');
@@ -5512,7 +5661,7 @@ export const useGame = create<State>((set, get) => {
 
     hdbLeave: () => {
       const s = get();
-      if (!s.hdb || s.combat) return;
+      if (!s.hdb || s.combat || s.pendingEvent) return;
       if (s.pendingSearch) {
         pushLog('Finish or leave the unit search before you walk out.', 'info');
         return;
@@ -5593,12 +5742,24 @@ export const useGame = create<State>((set, get) => {
       if (!c || c.over || c.awaitingStance || c.paused || !s._combatRng || !s.character) return;
 
       const stance = STANCES[c.selectedStance];
+      const weather = { kind: weatherKindFor(s.seed, s.day), time: timeOfDay(s.hour) };
+      const load = loadOf(s);
+      const pStats = playerCombatStats(
+        s.character.attributes,
+        s.character.traitIds,
+        s.equipment,
+        armCombatPenalty(s.bodyParts),
+        s.rounds,
+        load.attackMod,
+      );
       const pSpeed = playerSpeed(
         s.character.attributes,
         stance,
         s.meters.energy,
         legTravelFactor(s.bodyParts),
-        equipSpeedBonus(s.equipment),
+        equipSpeedBonus(s.equipment) + offHandCombatMods(s.equipment).speed,
+        pStats.speedFactor,
+        load.combatSpeedMult,
       );
       const playerGauge = c.playerGauge + pSpeed * dtSeconds;
       const enemyGauge = c.enemyGauge + c.zombie.speed * dtSeconds;
@@ -5616,14 +5777,6 @@ export const useGame = create<State>((set, get) => {
         (enemyGauge < GAUGE_FULL || playerGauge - enemyGauge >= 0);
 
       const round = c.round + 1;
-      const weather = { kind: weatherKindFor(s.seed, s.day), time: timeOfDay(s.hour) };
-      const pStats = playerCombatStats(
-        s.character.attributes,
-        s.character.traitIds,
-        s.equipment,
-        armCombatPenalty(s.bodyParts),
-        s.rounds,
-      );
 
       if (playerActs) {
         const res = resolvePlayerAction(
@@ -5636,7 +5789,13 @@ export const useGame = create<State>((set, get) => {
           c.terrain,
           s.meters.energy,
         );
-        const { equipment, notes } = applyWear(s.equipment, res.weaponWear, 0);
+        const { equipment, notes } = applyWear(
+          s.equipment,
+          res.weaponWear,
+          0,
+          null,
+          res.offHandWear,
+        );
         const rounds = Math.max(0, s.rounds - res.roundsSpent);
         const zombie = { ...c.zombie, hp: res.zombieHpAfter };
         const log = [
@@ -5714,13 +5873,22 @@ export const useGame = create<State>((set, get) => {
         s.character!.traitIds,
         s.equipment,
         s.bodyParts,
+        load.dodgeMod,
       );
+      const connecting = res.playerDamage > 0 && !res.dodged && !!res.hitZone;
+      let incoming = res.playerDamage;
+      let firstHitTaken = c.firstHitTaken === true;
+      if (connecting && !firstHitTaken) {
+        const mult = traitFirstHitDamageMult(s.character!.traitIds);
+        if (mult < 1) incoming = Math.max(1, Math.round(incoming * mult));
+        firstHitTaken = true;
+      }
       const bodyParts =
-        res.playerDamage > 0 && !res.dodged && res.hitZone
+        incoming > 0 && !res.dodged && res.hitZone
           ? applyPartDamage(
               s.bodyParts,
               res.hitZone,
-              res.playerDamage,
+              incoming,
               s._combatRng.fork(`wound:${round}`),
               {
                 critical: res.critical,
@@ -5742,7 +5910,9 @@ export const useGame = create<State>((set, get) => {
         ? { id: impactId, side: 'player' as const, kind: 'death' as const }
         : res.dodged
           ? { id: impactId, side: 'player' as const, kind: 'dodge' as const }
-          : res.playerDamage > 0
+          : res.blocked
+            ? { id: impactId, side: 'player' as const, kind: 'block' as const }
+            : incoming > 0
             ? {
                 id: impactId,
                 side: 'player' as const,
@@ -5757,6 +5927,7 @@ export const useGame = create<State>((set, get) => {
         enemyGauge: enemyGauge - GAUGE_FULL,
         playerGauge: Math.min(playerGauge, GAUGE_FULL),
         impact,
+        firstHitTaken,
       };
       set({
         meters,
@@ -5769,12 +5940,14 @@ export const useGame = create<State>((set, get) => {
     combatFlee: () => {
       const s = get();
       if (!s.combat || s.combat.over || !s._combatRng) return;
+      const load = loadOf(s);
       const pStats = playerCombatStats(
         s.character!.attributes,
         s.character!.traitIds,
         s.equipment,
         armCombatPenalty(s.bodyParts),
         s.rounds,
+        load.attackMod,
       );
       const round = s.combat.round + 1;
       const stance = STANCES[s.combat.selectedStance];
@@ -5787,15 +5960,23 @@ export const useGame = create<State>((set, get) => {
         stance,
         s.combat.terrain,
         s.meters.energy,
+        load.fleeDcMod,
       );
       let fleeWearSlot: EquipSlot | null = null;
+      let firstHitTaken = s.combat.firstHitTaken === true;
+      let fleeIncoming = res.playerDamage;
+      if (fleeIncoming > 0 && !firstHitTaken) {
+        const mult = traitFirstHitDamageMult(s.character!.traitIds);
+        if (mult < 1) fleeIncoming = Math.max(1, Math.round(fleeIncoming * mult));
+        firstHitTaken = true;
+      }
       const bodyParts =
-        res.playerDamage > 0
+        fleeIncoming > 0
           ? (() => {
               const zone = rollHitZone(s._combatRng!.fork(`flee-zone:${round}`));
               fleeWearSlot = slotForZone(zone) ?? 'body';
               const soak = limbArmorForZone(s.equipment, zone);
-              const dmg = Math.max(1, res.playerDamage - soak);
+              const dmg = Math.max(1, fleeIncoming - soak);
               return applyPartDamage(
                 s.bodyParts,
                 zone,
@@ -5836,7 +6017,7 @@ export const useGame = create<State>((set, get) => {
           meters,
           bodyParts,
           equipment,
-          combat: { ...s.combat, round, log, over: true, outcome: 'flee', impact },
+          combat: { ...s.combat, round, log, over: true, outcome: 'flee', impact, firstHitTaken },
         });
         bumpStats({ fightsFled: 1 });
       } else if (dead) {
@@ -5844,7 +6025,7 @@ export const useGame = create<State>((set, get) => {
           meters,
           bodyParts,
           equipment,
-          combat: { ...s.combat, round, log, over: true, outcome: 'dead', impact },
+          combat: { ...s.combat, round, log, over: true, outcome: 'dead', impact, firstHitTaken },
         });
       } else {
         // Flee failed — fight continues. Drop the disengage profile so the
@@ -5853,7 +6034,7 @@ export const useGame = create<State>((set, get) => {
           meters,
           bodyParts,
           equipment,
-          combat: { ...s.combat, round, log, selectedStance: 'guarded', impact },
+          combat: { ...s.combat, round, log, selectedStance: 'guarded', impact, firstHitTaken },
         });
       }
     },
@@ -5985,6 +6166,7 @@ export const useGame = create<State>((set, get) => {
         evacCooldownUntil: null,
         evacDemand: null,
         evacDemandBias: null,
+        evacManifestRevealed: false,
         escaped: false,
         destroyedTunnelEdges: [],
         combat: null,
@@ -6063,6 +6245,7 @@ export const useGame = create<State>((set, get) => {
         evacDeadline:
           run.evacDeadline ?? totalGameHour(run.day, run.hour) + evacWindowHours(true, run.day),
         evacCooldownUntil: run.evacCooldownUntil ?? null,
+        evacManifestRevealed: run.evacManifestRevealed ?? false,
         ...(() => {
           const validBias = (b: string | null | undefined): EvacDemandBias | null =>
             b === 'fuel' || b === 'meds' || b === 'ammo' || b === 'balanced' ? b : null;
@@ -6162,6 +6345,24 @@ export const useGame = create<State>((set, get) => {
     },
   };
 });
+
+/**
+ * Trailing clause naming why a portion fell short. Only for the bands a player
+ * would notice — a Day-Old packet is close enough to full that saying so every
+ * meal would be noise.
+ */
+function freshnessNote(inst: ItemInstance): string {
+  if (!hasCondition(inst)) return '';
+  const family = conditionFamily(itemDef(inst.defId));
+  const tier = tierOf(inst);
+  if (tier === 'pristine' || tier === 'worn') return '';
+  if (family === 'medicine') {
+    return tier === 'torn' ? ' — well past its date, so less of it landed' : ' — past its date, so less of it landed';
+  }
+  return tier === 'torn'
+    ? ' — it had turned, so it barely counted as a meal'
+    : ' — on the turn, so it went less far';
+}
 
 function consumableRestoreSummary(fx: {
   hunger?: number;

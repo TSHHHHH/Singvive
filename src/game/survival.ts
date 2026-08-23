@@ -574,6 +574,7 @@ export function tickInjuries(
   selfStopDisabled = false,
   hunger = 50,
   legHealMod = 0,
+  bleedStopBonus = 0,
 ): { parts: BodyParts; blocksRegen: boolean } {
   const next = {} as BodyParts;
   let blocksRegen = false;
@@ -592,7 +593,9 @@ export function tickInjuries(
     }
 
     if (p.bleed === 'minor') {
-      const left = selfStopDisabled ? p.bleedHours : Math.max(0, p.bleedHours - hours);
+      const left = selfStopDisabled
+        ? p.bleedHours
+        : Math.max(0, p.bleedHours - hours * (1 + bleedStopBonus));
       const rate = PART_REGEN_PER_HOUR * hours * 0.5 * regenMult * partRegenMult;
       const cap = regenCap(p);
       p = {

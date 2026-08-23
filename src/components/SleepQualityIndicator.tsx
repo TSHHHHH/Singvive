@@ -78,11 +78,7 @@ export function SleepQualityIndicator({ preview }: { preview: RestPreview }) {
   );
 
   return (
-    <TipHint
-      className="inline-flex"
-      tipClassName="absolute right-0 top-full z-[60] mt-1"
-      tip={<SleepTip preview={preview} />}
-    >
+    <TipHint className="inline-flex" tip={<SleepTip preview={preview} />}>
       <div
         className="flex cursor-help items-center gap-1 border-b border-dashed border-white/20 text-xs text-white"
         aria-label={t('ui.sleep.aria', {

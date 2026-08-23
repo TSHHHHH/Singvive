@@ -13,9 +13,11 @@ import { itemIcon } from './Inventory/itemIcon';
 import { formatClock } from '../game/survival';
 import { useClockFormat } from '../game/settings';
 import { SearchFindRevealCell } from './SearchFindRevealCell';
+import { ItemHoverCard } from './Inventory/ItemHoverCard';
 import { GuideInfoButton } from './GuideInfoButton';
 import type { GuideTopic } from '../content/guideContent';
 import { useT } from '../i18n';
+import { tip } from './tips';
 
 /** Match inventory cell size so stash finds read at the same scale. */
 const CELL = 34;
@@ -37,6 +39,8 @@ export function SearchSessionNode({
   onOpenGuide?: (topic: GuideTopic) => void;
 }) {
   const session = useGame((s) => s.pendingSearch);
+  const items = useGame((s) => s.items);
+  const equipment = useGame((s) => s.equipment);
   const hour = useGame((s) => s.hour);
   const tickSearch = useGame((s) => s.tickSearch);
   const prioritizeSearchSlot = useGame((s) => s.prioritizeSearchSlot);
@@ -48,10 +52,20 @@ export function SearchSessionNode({
   const { t } = useT();
   const [now, setNow] = useState(() => Date.now());
   const [hoverSlotId, setHoverSlotId] = useState<string | null>(null);
+  const [hoverPos, setHoverPos] = useState<{ x: number; y: number } | null>(null);
+  // The timeline node only renders on desktop (phone routes live nodes to the
+  // map card), so it follows the inventory convention: a floating ItemHoverCard
+  // on hover. The phone card variant keeps its dedicated detail panel.
+  const floatCard = variant === 'timeline';
   const [whisperHot, setWhisperHot] = useState(false);
+  // Bumped on a refused Take all so the button replays its red flash.
+  const [denyFlash, setDenyFlash] = useState(0);
+  const denyClear = useRef(0);
   const raf = useRef(0);
   const whisperClear = useRef(0);
   const lastWhisperSeen = useRef<string | null>(null);
+
+  useEffect(() => () => window.clearTimeout(denyClear.current), []);
 
   useEffect(() => {
     if (!session) return;
@@ -84,7 +98,10 @@ export function SearchSessionNode({
     const stillThere = session.slots.some(
       (sl) => sl.id === hoverSlotId && sl.state !== 'taken' && sl.state !== 'abandoned',
     );
-    if (!stillThere) setHoverSlotId(null);
+    if (!stillThere) {
+      setHoverSlotId(null);
+      setHoverPos(null);
+    }
   }, [session, hoverSlotId]);
 
   if (!session) return null;
@@ -94,9 +111,18 @@ export function SearchSessionNode({
   const searchingId = session.queue[0] ?? null;
   const stillSearching = hasFoggedOrSearching(session);
   const foundCount = session.slots.filter((s) => s.state === 'found').length;
+  const clearHover = () => {
+    setHoverSlotId(null);
+    setHoverPos(null);
+  };
   const hovered = hoverSlotId
     ? (session.slots.find((sl) => sl.id === hoverSlotId) ?? null)
     : null;
+
+  const hoverInst =
+    hovered?.state === 'found' && hovered.uid
+      ? (items.find((it) => it.uid === hovered.uid) ?? null)
+      : null;
 
   const title = stillSearching
     ? session.hdbUnit
@@ -131,7 +157,7 @@ export function SearchSessionNode({
                 'linear-gradient(#ffffff10 1px, transparent 1px), linear-gradient(90deg, #ffffff10 1px, transparent 1px)',
               backgroundSize: `${CELL}px ${CELL}px`,
             }}
-            onMouseLeave={() => setHoverSlotId(null)}
+            onMouseLeave={clearHover}
           >
             {session.slots.map((slot) => {
               if (slot.state === 'abandoned' || slot.state === 'taken') return null;
@@ -161,8 +187,17 @@ export function SearchSessionNode({
                     animate={!!highlight}
                     forceMotion
                     iconSize={Math.min(w, h) > 1 ? 22 : 18}
-                    title={def.name}
+                    tip={floatCard ? undefined : def.name}
                     onMouseEnter={() => setHoverSlotId(slot.id)}
+                    onPointerEnter={(e) => {
+                      setHoverSlotId(slot.id);
+                      if (floatCard) setHoverPos({ x: e.clientX, y: e.clientY });
+                    }}
+                    onPointerMove={(e) => {
+                      setHoverSlotId(slot.id);
+                      if (floatCard) setHoverPos({ x: e.clientX, y: e.clientY });
+                    }}
+                    onPointerLeave={clearHover}
                     onFocus={() => setHoverSlotId(slot.id)}
                     onClick={() => {
                       if (slot.uid) takeSearchItem(slot.uid);
@@ -180,7 +215,7 @@ export function SearchSessionNode({
                 <button
                   key={slot.id}
                   type="button"
-                  title={t('ui.search.clickNext')}
+                  {...tip(t('ui.search.clickNext'))}
                   onMouseEnter={() => setHoverSlotId(slot.id)}
                   onFocus={() => setHoverSlotId(slot.id)}
                   onClick={() => prioritizeSearchSlot(slot.id)}
@@ -205,15 +240,33 @@ export function SearchSessionNode({
           </div>
         </div>
 
-        <SearchHoverPanel slot={hovered} gridH={dims.h * CELL} />
+        {!floatCard && <SearchHoverPanel slot={hovered} gridH={dims.h * CELL} />}
       </div>
+
+      {floatCard && hoverInst && hoverPos && (
+        <ItemHoverCard
+          inst={hoverInst}
+          equipment={equipment}
+          equipSlot={null}
+          clientX={hoverPos.x}
+          clientY={hoverPos.y}
+        />
+      )}
 
       <div className="mt-2 flex flex-col gap-1.5">
         {foundCount > 0 && (
           <button
             type="button"
-            onClick={() => takeAllFound()}
-            className="flex w-full items-center gap-1.5 rounded border border-signal/40 px-2 py-1 text-left text-xs text-signal transition hover:bg-signal/10"
+            key={`take-all-${denyFlash}`}
+            onClick={() => {
+              if (takeAllFound()) return;
+              setDenyFlash((n) => n + 1);
+              window.clearTimeout(denyClear.current);
+              denyClear.current = window.setTimeout(() => setDenyFlash(0), 700);
+            }}
+            className={`flex w-full items-center gap-1.5 rounded border border-signal/40 px-2 py-1 text-left text-xs text-signal transition hover:bg-signal/10${
+              denyFlash > 0 ? ' take-all-deny' : ''
+            }`}
           >
             <Icon name="action.stash" size={13} className="shrink-0" />
             {t('ui.search.takeAllCount', { count: foundCount })}

@@ -4,6 +4,7 @@ import {
   type ItemTileColors,
   type TileColorKey,
 } from '../game/itemTileColor';
+import { tip } from '../components/tips';
 
 const HEX_RE = /^#[0-9a-fA-F]{6}$/;
 
@@ -47,7 +48,7 @@ export function TileColorsEditor({ colors, onChange }: Props) {
               background: `${colors[key]}66`,
               boxShadow: `inset 0 0 0 1px ${colors[key]}`,
             }}
-            title={TILE_COLOR_LABELS[key]}
+            {...tip(TILE_COLOR_LABELS[key])}
           >
             {key.slice(0, 2)}
           </div>

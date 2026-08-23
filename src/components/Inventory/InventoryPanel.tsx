@@ -6,10 +6,11 @@ import {
   canTearForRags,
   conditionOf,
   conditionPct,
-  containerWeight,
   hasCondition,
-  isEncumbered,
   isTwoHandedEquipped,
+  canEquip,
+  carriedWeight,
+  loadEffectsFor,
   maxCarry,
   TEMP_STASH,
   TEAR_CONDITION_COST,
@@ -33,18 +34,27 @@ import { isConsumableUsable } from './itemStatLines';
 import { ItemInspectBody } from './ItemInspectBody';
 import { useInventoryInteraction } from './InventoryInteractionContext';
 import { TipHint } from '../TipHint';
+import { LOAD_TIP_CLASS, LoadTipBody } from '../loadTip';
 import { useT } from '../../i18n';
+import { tip } from '../tips';
 
 const PC_INVENTORY_HINT_KEYS = [
-  { actionKey: 'ui.inventory.inspect', keys: 'Hover' },
-  { actionKey: 'ui.inventory.useOrEquip', keys: 'Double-click' },
-  { actionKey: 'ui.inventory.stashOrPack', keys: 'Ctrl+click' },
-  { actionKey: 'ui.inventory.quickActions', keys: 'Right-click' },
-  { actionKey: 'ui.inventory.moveRotate', keys: 'Drag · R' },
+  { actionKey: 'ui.inventory.inspect', keysKey: 'ui.inventory.hoverGesture' },
+  { actionKey: 'ui.inventory.useOrEquip', keysKey: 'ui.inventory.doubleClickGesture' },
+  { actionKey: 'ui.inventory.stashOrPack', keysKey: 'ui.inventory.ctrlClickGesture' },
+  { actionKey: 'ui.inventory.quickActions', keysKey: 'ui.inventory.rightClickGesture' },
+  { actionKey: 'ui.inventory.moveRotate', keysKey: 'ui.inventory.dragRotateGesture' },
 ] as const;
 
-function InventoryControlsHint(): ReactNode {
+const TOUCH_INVENTORY_HINT_KEYS = [
+  { actionKey: 'ui.inventory.inspect', keysKey: 'ui.inventory.holdGesture' },
+  { actionKey: 'ui.inventory.selectItem', keysKey: 'ui.inventory.tapGesture' },
+  { actionKey: 'ui.inventory.move', keysKey: 'ui.inventory.dragGesture' },
+] as const;
+
+function InventoryControlsHint({ coarse }: { coarse: boolean }): ReactNode {
   const { t } = useT();
+  const rows = coarse ? TOUCH_INVENTORY_HINT_KEYS : PC_INVENTORY_HINT_KEYS;
   return (
     <TipHint
       tip={
@@ -52,15 +62,15 @@ function InventoryControlsHint(): ReactNode {
           <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-white/35">
             {t('ui.inventory.controls')}
           </div>
-          {PC_INVENTORY_HINT_KEYS.map((row) => (
+          {rows.map((row) => (
             <div key={row.actionKey} className="flex items-baseline justify-between gap-4">
               <span className="text-concrete-200">{t(row.actionKey)}</span>
-              <span className="shrink-0 tabular-nums text-white/45">{row.keys}</span>
+              <span className="shrink-0 tabular-nums text-white/45">{t(row.keysKey)}</span>
             </div>
           ))}
         </div>
       }
-      tipClassName="absolute left-0 top-full z-[60] mt-1 w-max min-w-[12rem] rounded-lg border border-white/15 bg-concrete-900 p-2.5 text-left shadow-signage"
+      tipClassName="w-max min-w-[12rem] rounded-lg border border-white/15 bg-concrete-900 p-2.5 text-left shadow-signage"
       className="inline-flex"
     >
       <button
@@ -110,6 +120,7 @@ export function InventoryPanel({
     hasTempStash,
     inTunnel,
     pcShortcuts,
+    coarse,
     gridPreview,
     registerGrid,
     registerSlot,
@@ -168,20 +179,23 @@ export function InventoryPanel({
 
   const carryMod = character ? sumTraitMod(character.traitIds, 'carryCapacityMod') : 0;
   const carry = character ? maxCarry(character.attributes, equipment, carryMod) : 0;
-  const load = containerWeight(items, BACKPACK);
-  const encumbered = character
-    ? isEncumbered(items, character.attributes, equipment, carryMod)
-    : false;
-  const loadPct = carry > 0 ? (load / carry) * 100 : 0;
+  const loadKg = carriedWeight(items, equipment);
+  const fx = character
+    ? loadEffectsFor(items, character.attributes, equipment, carryMod)
+    : null;
+  const loadPct = carry > 0 ? (loadKg / carry) * 100 : 0;
+  const barClass =
+    !fx || fx.strain <= 0 ? 'bg-signal' : fx.ratio < 1 ? 'bg-amber-400' : 'bg-hiss';
+  const overloaded = !!fx && fx.ratio > 1;
 
   const gridHandlers = {
     onItemPointerDown,
     onItemDoubleClick: pcShortcuts ? onItemDoubleClick : undefined,
-    onItemContextMenu: pcShortcuts ? onItemContextMenu : undefined,
-    onItemPointerEnter: pcShortcuts ? onItemPointerEnter : undefined,
-    onItemPointerLeave: pcShortcuts ? onItemPointerLeave : undefined,
-    onItemPointerMove: pcShortcuts ? onItemPointerMove : undefined,
-    suppressNativeTitle: pcShortcuts,
+    onItemContextMenu,
+    onItemPointerEnter,
+    onItemPointerLeave,
+    onItemPointerMove,
+    suppressTip: true,
   };
 
   return (
@@ -224,7 +238,7 @@ export function InventoryPanel({
                           <button
                             onClick={() => applyItem(inspected.uid)}
                             disabled={inCombat}
-                            title={inCombat ? t('ui.inventory.cannotUseCombat') : undefined}
+                            {...tip(inCombat ? t('ui.inventory.cannotUseCombat') : undefined)}
                             className={`w-full rounded px-1.5 py-1 text-xs font-semibold leading-tight ${
                               inCombat
                                 ? 'cursor-not-allowed bg-white/10 text-white/30'
@@ -245,11 +259,32 @@ export function InventoryPanel({
                             {t('ui.inventory.equip')}
                           </button>
                         )}
+                        {canEquip(def, 'offHand') && def.slot !== 'offHand' && (
+                          <button
+                            onClick={() => {
+                              equipItem(inspected.uid, 'offHand');
+                              setSelectedUid(null);
+                            }}
+                            disabled={isTwoHandedEquipped(equipment)}
+                            {...tip(
+                              isTwoHandedEquipped(equipment)
+                                ? t('ui.inventory.twoHandBlocked')
+                                : undefined,
+                            )}
+                            className={`w-full rounded border px-1.5 py-1 text-xs leading-tight ${
+                              isTwoHandedEquipped(equipment)
+                                ? 'cursor-not-allowed border-white/10 text-white/30'
+                                : 'border-astral/40 bg-astral/10 text-astral hover:bg-astral/20'
+                            }`}
+                          >
+                            {t('ui.inventory.equipOffHand')}
+                          </button>
+                        )}
                         {canRotate && (
                           <button
                             onClick={() => rotateItem(inspected.uid)}
                             className="w-full rounded bg-white/10 px-1.5 py-1 text-xs leading-tight hover:bg-white/20"
-                            title={t('ui.inventory.rotateHint')}
+                            {...tip(t('ui.inventory.rotateHint'))}
                           >
                             {t('ui.inventory.rotate')}
                           </button>
@@ -276,7 +311,7 @@ export function InventoryPanel({
                             setSelectedUid(null);
                           }}
                           className="w-full rounded border border-hiss/40 px-1.5 py-1 text-xs leading-tight text-hiss/80 hover:bg-hiss/10"
-                          title={t('ui.inventory.dropGone')}
+                          {...tip(t('ui.inventory.dropGone'))}
                         >
                           {t('ui.inventory.drop')}
                         </button>
@@ -286,14 +321,14 @@ export function InventoryPanel({
                       <button
                         onClick={() => repairItem(inspected.uid, fieldKit?.defId)}
                         className="w-full rounded border border-amber-300/40 bg-amber-300/10 px-1.5 py-1 text-xs leading-tight text-amber-200 hover:bg-amber-300/20"
-                        title={
+                        {...tip(
                           fieldKit
                             ? t('ui.inventory.usesOne', { name: itemDef(fieldKit.defId).name })
                             : t('ui.inventory.usesInputs', {
                                 inputs: describeInputs(REPAIR_INPUTS),
                                 tool: itemDef(REPAIR_TOOL).name,
-                              })
-                        }
+                              }),
+                        )}
                       >
                         {t('ui.inventory.repair')}
                       </button>
@@ -302,10 +337,10 @@ export function InventoryPanel({
                       <button
                         onClick={() => tearForRags(inspected.uid)}
                         className="w-full rounded bg-white/10 px-1.5 py-1 text-xs leading-tight hover:bg-white/20"
-                        title={t('ui.inventory.tearTitle', {
+                        {...tip(t('ui.inventory.tearTitle', {
                           cost: TEAR_CONDITION_COST,
                           yield: TEAR_RAGS_YIELD,
-                        })}
+                        }))}
                       >
                         {t('ui.inventory.rags')}
                       </button>
@@ -319,7 +354,9 @@ export function InventoryPanel({
               </div>
             </div>
           ) : (
-            <p className="m-auto text-center text-xs text-white/30">{t('ui.inventory.selectHint')}</p>
+            <p className="m-auto text-center text-xs text-white/30">
+              {t(coarse ? 'ui.inventory.selectHintTouch' : 'ui.inventory.selectHint')}
+            </p>
           )}
         </div>
       )}
@@ -333,6 +370,13 @@ export function InventoryPanel({
             const selectedHere = inst != null && selectedUid === inst.uid;
             const twoHandBlocked =
               slot === 'offHand' && isTwoHandedEquipped(equipment) && !inst;
+            const freeHand =
+              slot === 'offHand' && !inst && !isTwoHandedEquipped(equipment);
+            const slotTip = twoHandBlocked
+              ? t('ui.inventory.twoHandBlocked')
+              : freeHand
+                ? t('ui.inventory.freeHandTip')
+                : undefined;
             const cond = inst && hasCondition(inst) ? conditionPct(inst) : null;
             const condWash =
               cond == null
@@ -349,20 +393,21 @@ export function InventoryPanel({
                   if (inst && pcShortcuts) onItemDoubleClick(inst);
                 }}
                 onContextMenu={(e) => {
-                  if (inst && pcShortcuts) onItemContextMenu(e, inst);
+                  if (inst) onItemContextMenu(e, inst);
+                  else e.preventDefault();
                 }}
                 onPointerEnter={(e) => {
-                  if (inst && pcShortcuts) onItemPointerEnter(e, inst);
+                  if (inst) onItemPointerEnter(e, inst);
                   if (showInspect && inst) setHoveredEquipSlot(slot);
                 }}
                 onPointerLeave={() => {
-                  if (inst && pcShortcuts) onItemPointerLeave(inst);
+                  if (inst) onItemPointerLeave(inst);
                   if (showInspect) {
                     setHoveredEquipSlot((cur) => (cur === slot ? null : cur));
                   }
                 }}
                 onPointerMove={(e) => {
-                  if (inst && pcShortcuts) onItemPointerMove(e, inst);
+                  if (inst) onItemPointerMove(e, inst);
                 }}
                 className={`relative flex min-h-[64px] flex-col items-center justify-center gap-0.5 overflow-hidden rounded border p-1.5 text-center ${
                   highlighted
@@ -375,7 +420,7 @@ export function InventoryPanel({
                         ? 'border-white/5 bg-black/20 opacity-50'
                         : 'border-white/10 bg-black/40'
                 } ${inst ? 'cursor-pointer' : ''}`}
-                title={twoHandBlocked ? t('ui.inventory.twoHandBlocked') : undefined}
+                {...tip(slotTip)}
               >
                 {cond != null && condWash && (
                   <div
@@ -391,6 +436,10 @@ export function InventoryPanel({
                   <Icon name={itemIcon(eDef)} size={18} className="relative z-[1]" />
                 ) : twoHandBlocked ? (
                   <span className="relative z-[1] text-2xs text-white/25">2H</span>
+                ) : freeHand ? (
+                  <span className="relative z-[1] text-2xs text-signal/70">
+                    {t('ui.inventory.freeHand')}
+                  </span>
                 ) : (
                   <Icon name={icon} size={24} className="relative z-[1] opacity-20" />
                 )}
@@ -405,7 +454,7 @@ export function InventoryPanel({
           <InventoryGrid
             grid={BACKPACK}
             title={t('ui.inventory.backpack')}
-            titleAccessory={pcShortcuts ? <InventoryControlsHint /> : undefined}
+            titleAccessory={<InventoryControlsHint coarse={coarse} />}
             items={items}
             selectedUid={selectedUid}
             draggingUid={dragUid}
@@ -415,32 +464,36 @@ export function InventoryPanel({
           />
 
           <div className="flex items-center gap-2 text-xs">
-            <span className="shrink-0 uppercase tracking-widest text-white/40">
-              {t('ui.inventory.carry')}
-            </span>
-            <div className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-white/10">
-              <div
-                className={`h-full rounded-full transition-[width] duration-200 ${
-                  encumbered ? 'bg-hiss' : loadPct > 80 ? 'bg-amber-400' : 'bg-signal'
-                }`}
-                style={{ width: `${Math.min(100, loadPct)}%` }}
-              />
-            </div>
-            <span className="flex shrink-0 items-baseline gap-2">
-              {hasFirearm && (
-                <span className={rounds === 0 ? 'font-semibold text-hiss' : 'text-white/50'}>
-                  {t('ui.inventory.rounds', { n: rounds })}
-                </span>
-              )}
-              <span className={encumbered ? 'font-semibold text-hiss' : 'text-white/60'}>
-                {encumbered
-                  ? t('ui.inventory.loadEncumbered', {
-                      load: load.toFixed(1),
-                      carry,
-                    })
-                  : t('ui.inventory.loadKg', { load: load.toFixed(1), carry })}
+            <TipHint
+              className="flex min-w-0 flex-1 items-center gap-2"
+              placement="top"
+              tipClassName={LOAD_TIP_CLASS}
+              tip={
+                fx ? (
+                  <LoadTipBody fx={fx} t={t} title={t('ui.inventory.carry')} />
+                ) : (
+                  t('ui.inventory.carry')
+                )
+              }
+            >
+              <span className="shrink-0 uppercase tracking-widest text-white/40">
+                {t('ui.inventory.carry')}
               </span>
-            </span>
+              <div className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-white/10">
+                <div
+                  className={`h-full rounded-full transition-[width] duration-200 ${barClass}`}
+                  style={{ width: `${Math.min(100, loadPct)}%` }}
+                />
+              </div>
+              <span className={overloaded ? 'font-semibold text-hiss' : 'text-white/60'}>
+                {t('ui.inventory.loadKg', { load: loadKg.toFixed(1), carry })}
+              </span>
+            </TipHint>
+            {hasFirearm && (
+              <span className={rounds === 0 ? 'font-semibold text-hiss' : 'text-white/50'}>
+                {t('ui.inventory.rounds', { n: rounds })}
+              </span>
+            )}
           </div>
         </>
       )}

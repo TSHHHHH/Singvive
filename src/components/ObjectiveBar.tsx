@@ -1,6 +1,7 @@
 import { Icon } from '../icons/Icon';
 import type { EvacVibe } from '../game/goal';
 import { useT } from '../i18n';
+import { tip } from './tips';
 
 interface Props {
   evacZoneName: string | null;
@@ -20,6 +21,12 @@ interface Props {
   dayMult: number;
   vibe: EvacVibe;
   vibeLine: string;
+  /** Once the pad manifest is read, the compact bar tracks the true ratio. */
+  manifestRevealed: boolean;
+  evacRatio: number;
+  evacReady: boolean;
+  evacCurrent: number;
+  evacRequired: number;
   /** Opens the full objectives sheet (checklist, quests, the long version). */
   onOpen: () => void;
 }
@@ -73,15 +80,26 @@ export function ObjectiveBar({
   dayMult,
   vibe,
   vibeLine,
+  manifestRevealed,
+  evacRatio,
+  evacReady,
+  evacCurrent,
+  evacRequired,
   onOpen,
 }: Props) {
   const { t } = useT();
-  const vibeShort =
-    vibe === 'thin'
+  // Post-reveal the strip drops the vibe word for the real fill — the label
+  // and the bar beside it must not disagree about what is known.
+  const vibeShort = manifestRevealed
+    ? `${Math.round(evacRatio * 100)}%`
+    : vibe === 'thin'
       ? t('ui.objective.vibeThin')
       : vibe === 'maybe'
         ? t('ui.objective.vibeMaybe')
         : t('ui.objective.vibeOk');
+  const vibeTip = manifestRevealed
+    ? `${t('ui.objective.manifest')} ${evacCurrent} / ${evacRequired}`
+    : vibeLine;
 
   return (
     <button
@@ -136,15 +154,19 @@ export function ObjectiveBar({
             </div>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="w-10 shrink-0 truncate text-2xs text-white/35" title={vibeLine}>
+            <span className="w-10 shrink-0 truncate text-2xs text-white/35" {...tip(vibeTip)}>
               {vibeShort}
             </span>
             <div className="h-1 flex-1 overflow-hidden rounded bg-black/50">
               <div
                 className="h-full transition-all"
                 style={{
-                  width: `${VIBE_WIDTH[vibe]}%`,
-                  background: VIBE_FILL[vibe],
+                  width: `${manifestRevealed ? Math.round(evacRatio * 100) : VIBE_WIDTH[vibe]}%`,
+                  background: manifestRevealed
+                    ? evacReady
+                      ? VIBE_FILL.promising
+                      : VIBE_FILL.thin
+                    : VIBE_FILL[vibe],
                 }}
               />
             </div>

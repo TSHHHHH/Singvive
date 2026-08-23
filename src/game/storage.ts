@@ -69,6 +69,11 @@ export interface SavedRun {
   evacDemand?: number | null;
   /** Soft cargo bias for the current window. Absent on older saves. */
   evacDemandBias?: 'fuel' | 'meds' | 'ammo' | 'balanced' | null;
+  /**
+   * Whether the pad manifest has been read this window. Absent on older saves —
+   * they resume fogged and the player re-raises the channel for free.
+   */
+  evacManifestRevealed?: boolean;
   /** Explored HDB blocks, so a cleared unit stays cleared between visits. */
   hdbBlocks?: Record<string, HdbDungeon>;
   /**

@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { tip } from '../tips';
+import { clampBox } from '../tips/clamp';
 
 export type ContextMenuAction = {
   id: string;
@@ -42,13 +44,7 @@ export function ItemContextMenu({
     const el = rootRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
-    const vv = window.visualViewport;
-    const right = (vv?.offsetLeft ?? 0) + (vv?.width ?? window.innerWidth) - 8;
-    const bottom = (vv?.offsetTop ?? 0) + (vv?.height ?? window.innerHeight) - 8;
-    let left = x;
-    let top = y;
-    if (rect.right > right) left = Math.max(8, x - (rect.right - right));
-    if (rect.bottom > bottom) top = Math.max(8, y - (rect.bottom - bottom));
+    const { left, top } = clampBox(rect.width, rect.height, x, y);
     el.style.left = `${left}px`;
     el.style.top = `${top}px`;
   }, [x, y, actions]);
@@ -66,7 +62,7 @@ export function ItemContextMenu({
           type="button"
           role="menuitem"
           disabled={a.disabled}
-          title={a.title}
+          {...tip(a.title, { placement: 'right' })}
           onClick={() => {
             if (a.disabled) return;
             a.onSelect();

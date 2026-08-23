@@ -22,6 +22,7 @@ import {
 } from '../components/tileConfig';
 import { Icon } from '../icons/Icon';
 import { useT } from '../i18n';
+import { tip } from '../components/tips';
 
 const bounds = L.latLngBounds(
   [SG_BOUNDS.minLat, SG_BOUNDS.minLng],
@@ -239,7 +240,7 @@ export function SpawnSelect() {
             onClick={useMyLocation}
             disabled={geoBusy || loading}
             className="rounded bg-white/10 px-3 py-1.5 text-sm hover:bg-white/20 disabled:opacity-40"
-            title={t('ui.spawn.myLocationTitle')}
+            {...tip(t('ui.spawn.myLocationTitle'))}
           >
             {geoBusy ? t('ui.spawn.locating') : t('ui.spawn.myLocation')}
           </button>
@@ -298,7 +299,7 @@ export function SpawnSelect() {
         <button
           onClick={toggleMrt}
           aria-pressed={showMrt}
-          title={t('ui.spawn.railMapTitle')}
+          {...tip(t('ui.spawn.railMapTitle'))}
           className={`absolute right-2 top-2 z-[500] flex items-center gap-1.5 rounded border px-2 py-1.5 text-xs font-semibold shadow-signage transition-colors ${
             showMrt
               ? 'border-astral/50 bg-astral/20 text-astral'

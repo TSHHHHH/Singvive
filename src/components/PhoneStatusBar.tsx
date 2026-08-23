@@ -6,6 +6,7 @@ import { useClockFormat } from '../game/settings';
 import { countBleeding, formatClock, totalHp, totalMaxHp } from '../game/survival';
 import { dynamicMeterColor } from './MeterBar';
 import { useT } from '../i18n';
+import { tip } from './tips';
 
 /** Tiny icon + fill used in the phone chrome strip. */
 function MiniMeter({
@@ -29,7 +30,7 @@ function MiniMeter({
   return (
     <span
       className="flex min-w-0 flex-1 items-center gap-1"
-      title={`${Math.round(value)}/${Math.round(max)}`}
+      {...tip(`${Math.round(value)}/${Math.round(max)}`)}
     >
       <span className="shrink-0 text-2xs leading-none">
         <Icon name={icon} size={12} />

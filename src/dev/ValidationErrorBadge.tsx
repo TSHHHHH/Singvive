@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { tip } from '../components/tips';
 
 /**
  * Compact "N errors" chip that opens a click-to-toggle list of validation
@@ -41,7 +42,7 @@ export function ValidationErrorBadge({ errors }: { errors: string[] }) {
         type="button"
         aria-expanded={open}
         aria-haspopup="dialog"
-        title="Show validation errors"
+        {...tip('Show validation errors')}
         onClick={() => setOpen((o) => !o)}
         className="rounded bg-red-500/20 px-2 py-0.5 text-2xs uppercase tracking-wider text-red-300 hover:bg-red-500/30"
       >

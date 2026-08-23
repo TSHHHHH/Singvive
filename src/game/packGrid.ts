@@ -151,16 +151,18 @@ export type StartingKitItemDef = {
   modifiers?: { bagWidthBonus?: number; bagHeightBonus?: number };
 };
 
-type FootprintRect = { x: number; y: number; w: number; h: number };
+export type MaskRect = { x: number; y: number; w: number; h: number };
+export type MaskSlot = MaskRect & { rotated: boolean };
 
 function footprintDims(w: number, h: number, rotated: boolean): { w: number; h: number } {
   return rotated ? { w: h, h: w } : { w, h };
 }
 
-function canPlaceOnMask(
+/** Whether `candidate` sits in-bounds, off holes, and off already-placed rects. */
+export function canPlaceOnMask(
   grid: PackGrid,
-  placed: FootprintRect[],
-  candidate: FootprintRect,
+  placed: MaskRect[],
+  candidate: MaskRect,
 ): boolean {
   if (candidate.x < 0 || candidate.y < 0) return false;
   if (candidate.x + candidate.w > grid.w) return false;
@@ -184,17 +186,18 @@ function canPlaceOnMask(
   return true;
 }
 
-function findSlotOnMask(
+/** First free cell for `def` on `grid`, trying both orientations. Row-major. */
+export function findSlotOnMask(
   grid: PackGrid,
-  placed: FootprintRect[],
+  placed: MaskRect[],
   def: { w: number; h: number },
-): FootprintRect | null {
+): MaskSlot | null {
   for (const rotated of def.w === def.h ? [false] : [false, true]) {
     const { w, h } = footprintDims(def.w, def.h, rotated);
     for (let y = 0; y <= grid.h - h; y++) {
       for (let x = 0; x <= grid.w - w; x++) {
         const candidate = { x, y, w, h };
-        if (canPlaceOnMask(grid, placed, candidate)) return candidate;
+        if (canPlaceOnMask(grid, placed, candidate)) return { ...candidate, rotated };
       }
     }
   }
@@ -231,7 +234,7 @@ export function collectStartingKitFitErrors(
     : { ...DEFAULT_PACK_GRID };
   const grid = applyTraitColumns(base, 0);
 
-  const placed: FootprintRect[] = [];
+  const placed: MaskRect[] = [];
   // Stack state for merge-into-existing behaviour (mirrors addToGrid).
   const stacks = new Map<string, { remaining: number; maxStack: number }[]>();
 

@@ -16,7 +16,10 @@ export interface Trait {
   name: string;
   description: string;
   category: TraitCategory;
-  cost: number; // positive traits: 1..3; negative traits: −1..−2 (refund)
+  cost: number; // positive traits: 1..5; negative traits: −1..−5 (refund)
+  icon: IconName;
+  /** Mechanical bullets for the create UI. Flavour stays in `description`. */
+  effects: string[];
   conflicts: string[]; // trait ids that are mutually exclusive
 
   // --- attributes (traits are now the sole source of stat deltas) ---
@@ -104,6 +107,14 @@ export interface Trait {
   showSearchesRemaining?: boolean; // reveals POI search count
   lootValueMod?: number; // multiplier delta on loot value display/score
   legHealMod?: number; // multiplier delta on leg injury recovery speed
+  /** Extra hours of minor-bleed clotting per hour ticked. */
+  bleedStopBonus?: number;
+  /** Extra loot richness at specific POI categories. */
+  poiLootBonus?: Partial<Record<PoiCategory, number>>;
+  /** Added to HDB corridor sense chance (0..1). */
+  hdbScoutBonus?: number;
+  /** Incoming damage multiplier for the first connecting hit of a fight. */
+  firstHitDamageMult?: number;
 }
 
 export interface Character {
@@ -179,10 +190,14 @@ export type ItemEffect =
       ranged: boolean;
       /** Rounds a single shot burns. Absent ⇒ 1. A shotgun is not cheap to run. */
       roundsPerShot?: number;
+      /** Multiplier on gauge fill rate. Absent ⇒ derived from weight class. */
+      speedFactor?: number;
     }
   | { kind: 'ammo'; rounds: number }
   | { kind: 'fuel' }
   | { kind: 'misc' };
+
+export type WeaponEffect = Extract<ItemEffect, { kind: 'weapon' }>;
 
 export type EquipSlot =
   | 'head'
@@ -223,6 +238,8 @@ export interface ItemModifiers {
   accuracyBonus?: number;
   /** Combat initiative speed (gloves / light footwear). Condition-scaled. */
   speedBonus?: number;
+  /** 0..1 chance to fully negate an incoming hit. Condition-scaled. */
+  blockChance?: number;
   /** Multiplicative travel pace delta, e.g. 0.1 = +10% walk speed (feet). */
   travelSpeedBonus?: number;
   /** Additive encounter risk while travelling (camo negative, noisy boots positive). */
@@ -361,7 +378,8 @@ export type LocationSize = 'small' | 'medium' | 'large';
 
 /**
  * How wrecked a street POI looks on first visit (0 intact … 3 gutted).
- * Absent on HDB blocks and on saves written before ruin existed.
+ * Each tier owns a distinct loot-condition band. Absent on HDB blocks and
+ * on saves written before ruin existed.
  */
 export type DestructionTier = 0 | 1 | 2 | 3;
 
@@ -376,7 +394,7 @@ export interface LocationMemory {
   exhausted: boolean;
   remainingSearches: number;
   cleared: boolean;
-  /** Remembered ruin tier when the site had one. */
+  /** Remembered ruin tier when the site had one (and its condition band). */
   destruction?: DestructionTier;
 }
 
@@ -399,8 +417,9 @@ export interface LocationState {
   cleared: boolean; // visited & searched at least once
   looted: boolean; // convenience: true once fully picked over this visit-cycle
   /**
-   * Street-POI ruin rolled on first discovery. Biases loot condition; shown
-   * instead of category richness. Never set on residential (HDB) blocks.
+   * Street-POI ruin rolled on first discovery. Sets the loot condition band
+   * (Intact = Brand New … Gutted = Old & Torn); shown instead of category
+   * richness. Never set on residential (HDB) blocks.
    */
   destruction?: DestructionTier;
 
@@ -602,7 +621,7 @@ export interface CombatImpact {
   id: number;
   /** Who was hit, or the outcome focus (kill / death). */
   side: 'player' | 'enemy';
-  kind: 'hit' | 'crit' | 'miss' | 'dodge' | 'kill' | 'death' | 'win';
+  kind: 'hit' | 'crit' | 'miss' | 'dodge' | 'block' | 'kill' | 'death' | 'win';
 }
 
 /** What to do once a fight ends (win/flee). */
@@ -650,6 +669,8 @@ export interface CombatState {
   outcome: 'win' | 'flee' | 'dead' | null;
   playerHpSnapshot: number; // HP entering combat (for summary)
   context: CombatContext;
+  /** Combat veteran: the first connecting incoming hit has already been halved. */
+  firstHitTaken?: boolean;
 
   /** Active fight stance — switchable mid-combat; drives the next swing. */
   selectedStance: StanceId;

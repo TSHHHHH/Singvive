@@ -6,6 +6,7 @@ import {
   type OverviewSortKey,
 } from './enemyBalance';
 import type { EnemiesCatalog } from '../game/enemies';
+import { tip } from '../components/tips';
 
 const SORT_COLS: { key: OverviewSortKey; label: string; title?: string }[] = [
   { key: 'name', label: 'Name' },
@@ -93,7 +94,7 @@ export function EnemyOverview({
           <thead className="sticky top-0 bg-concrete-900 text-white/45">
             <tr>
               {SORT_COLS.map((col) => (
-                <th key={col.key} className="px-2 py-2 font-semibold" title={col.title}>
+                <th key={col.key} className="px-2 py-2 font-semibold" {...tip(col.title)}>
                   <button
                     type="button"
                     className={`inline-flex items-center gap-1 hover:text-signal ${

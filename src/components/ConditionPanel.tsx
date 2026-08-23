@@ -61,8 +61,8 @@ export function ConditionPanel({
         </div>
       </div>
 
-      <div className="mb-2.5 grid grid-cols-[auto_minmax(0,1fr)] gap-2">
-        <div className="flex items-center justify-center rounded border border-white/10 bg-black/20 px-2 py-1">
+      <div className="mb-2.5 grid grid-cols-[auto_minmax(0,1fr)] gap-1.5">
+        <div className="flex w-fit items-center justify-center self-stretch rounded border border-white/10 bg-black/20 px-0.5 py-1">
           <BodyDoll
             bodyParts={bodyParts}
             height={dollHeight}

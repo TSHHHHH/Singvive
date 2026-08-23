@@ -1,4 +1,5 @@
 import type { GuideTopic } from '../content/guideContent';
+import { tip } from './tips';
 
 /** Compact `?` control that asks the parent to open a guide topic. */
 export function GuideInfoButton({
@@ -13,7 +14,7 @@ export function GuideInfoButton({
   return (
     <button
       type="button"
-      title={label}
+      {...tip(label)}
       aria-label={label}
       onClick={(e) => {
         e.stopPropagation();

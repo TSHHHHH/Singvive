@@ -10,7 +10,9 @@ import { isWalkable } from './playable';
 // Dual-path spine: linger for a rising score multiplier, or gather weighted
 // evac readiness and call for a lift. Best board score = long survival + late
 // successful extract. No hard item IDs — fuel / meds / ammo count more.
-// Demand is rolled per staging window and never shown as a number to the player.
+// Demand is rolled per staging window and stays fogged for the whole approach.
+// It only resolves into numbers once the player stands at the pad and raises the
+// channel (`evacManifestRevealed`) — see `callEvac` in store.ts.
 
 /** Base extract bonus before the day multiplier. */
 export const EVAC_SCORE_BONUS = 2000;
@@ -144,7 +146,7 @@ export interface EvacReadiness {
   current: number;
   required: number;
   ready: boolean;
-  /** 0..1 true fill — DEV / internal only; UI must not show exact numbers. */
+  /** 0..1 true fill — UI must not show this until the pad manifest is read. */
   ratio: number;
   /** Fogged radio read for the player. */
   vibe: EvacVibe;

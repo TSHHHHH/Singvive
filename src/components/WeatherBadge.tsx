@@ -12,7 +12,7 @@ export function WeatherBadge({ weather }: { weather: WeatherKind }) {
   return (
     <TipHint
       className="inline-flex"
-      tipClassName="absolute left-0 top-full mt-1 w-max min-w-[9rem] rounded-lg border border-white/15 bg-concrete-900 p-2 shadow-signage"
+      tipClassName="w-max min-w-[9rem] rounded-lg border border-white/15 bg-concrete-900 p-2 shadow-signage"
       tip={
         <>
           <div className="mb-1 text-xs font-semibold uppercase tracking-widest text-white/40">

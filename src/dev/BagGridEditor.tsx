@@ -1,5 +1,6 @@
 import type { PackGrid } from '../game/types';
 import { packCellKey, packGridUsableCount } from '../game/packGrid';
+import { tip } from '../components/tips';
 
 const CELL = 22;
 const MAX_EDGE = 16;
@@ -95,7 +96,7 @@ export function BagGridEditor({ grid, onChange }: Props) {
             <button
               key={packCellKey(x, y)}
               type="button"
-              title={hole ? `Blocked ${x},${y}` : `Usable ${x},${y}`}
+              {...tip(hole ? `Blocked ${x},${y}` : `Usable ${x},${y}`, { follow: true })}
               className={`border border-white/10 ${
                 hole
                   ? 'bg-black/70 hover:bg-black/50'

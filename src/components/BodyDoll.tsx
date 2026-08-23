@@ -48,6 +48,11 @@ const PIP: Record<BodyPartId, [number, number]> = {
 
 const ORDER: BodyPartId[] = ['head', 'torso', 'leftArm', 'rightArm', 'leftLeg', 'rightLeg'];
 
+/** Cropped to the silhouette (plus bleed pips) so the doll column stays narrow. */
+const VIEW_X = 10;
+const VIEW_W = 80;
+const VIEW_H = 164;
+
 interface Props {
   bodyParts: BodyParts;
   height?: number;
@@ -57,11 +62,13 @@ interface Props {
 }
 
 export function BodyDoll({ bodyParts, height = 150, selectedPart = null, onHover }: Props) {
+  const width = height * (VIEW_W / VIEW_H);
   return (
     <svg
-      viewBox="0 0 100 164"
-      style={{ height }}
-      className="w-auto select-none"
+      viewBox={`${VIEW_X} 0 ${VIEW_W} ${VIEW_H}`}
+      width={width}
+      height={height}
+      className="block select-none"
       role="img"
       aria-label="Body condition"
     >

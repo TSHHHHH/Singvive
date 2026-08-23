@@ -41,7 +41,10 @@ export type CombatFlavorKey =
   | 'enemyMissHuman'
   | 'enemyMissAnimal'
   | 'enemyDodge'
+  | 'enemyBlocked'
   | 'enemyBite'
+  | 'playerOffHandHit'
+  | 'playerOffHandMiss'
   | 'oppHit'
   | 'oppMiss'
   | 'fleeOk'
@@ -180,6 +183,24 @@ const POOLS: Record<CombatFlavorKey, string[]> = {
     'You step aside at the last beat.',
     'You roll with it and come away clean.',
     'Footwork saves you — the hit never lands.',
+  ],
+  enemyBlocked: [
+    'You catch it on the {weapon} — the hit never lands.',
+    'The {weapon} takes the blow. You stay standing.',
+    'Blocked — the {weapon} eats what was meant for you.',
+    'You raise the {weapon} and the strike dies on it.',
+  ],
+  playerOffHandHit: [
+    'Off-hand {weapon} follows through for {dmg}.{soakNote}',
+    'The {weapon} in your off hand bites for {dmg}.{soakNote}',
+    'A follow-up with the {weapon} — {dmg} more.{soakNote}',
+    'Your off-hand {weapon} lands. {dmg} damage.{soakNote}',
+  ],
+  playerOffHandMiss: [
+    'The off-hand {weapon} finds only air.',
+    'You jab with the {weapon} and miss.',
+    'The follow-up with the {weapon} goes wide.',
+    'Off-hand {weapon} — nothing doing.',
   ],
   enemyBite: [
     'A bite breaks skin — infection +{inf}.',

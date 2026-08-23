@@ -4,7 +4,7 @@ import { t, tList } from '../i18n/t';
 import type { LocaleId } from '../i18n/types';
 import { DEFAULT_LOCALE } from '../i18n/types';
 
-export type GuideTopic = 'survive' | 'loot' | 'evac' | 'score' | 'hdb' | 'tunnels';
+export type GuideTopic = 'survive' | 'fight' | 'loot' | 'evac' | 'score' | 'hdb' | 'tunnels';
 
 export interface GuideSection {
   id: GuideTopic;
@@ -14,6 +14,7 @@ export interface GuideSection {
 
 export const GUIDE_TOPIC_ORDER: readonly GuideTopic[] = [
   'survive',
+  'fight',
   'loot',
   'hdb',
   'tunnels',

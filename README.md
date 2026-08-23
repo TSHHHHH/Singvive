@@ -95,17 +95,21 @@ currency, and the survivor is always moving — the map is explored, not surveye
 | MRT station | Rail / LRT stations | Way into the tunnels (see 3.8); light loot | 3 |
 
 ### 3.2 Survivor — occupations, attributes & traits
-- **Occupations** — nine curated starting builds (College Student, Personal Trainer, Soldier, Nurse,
-  Food Vendor, Scavenger, Office Worker, Contractor, Fixer). Each spends the trait budget exactly and
-  can be opened in **Advanced Mode** and edited.
+- **Occupations** — nine two-trait kits (College Student, Personal Trainer, Soldier, Nurse,
+  Food Vendor, Scavenger, Office Worker, Contractor, Fixer). Each is **one signature + one matching
+  curse**, nets the budget at exactly 0, and can be opened in **Advanced Mode** and edited.
 - **Attributes** are **derived from traits** (base 5 each, clamped 1–12) — Strength, Dexterity,
   Endurance, Perception, Wits. There is no separate point-buy panel; traits *are* the build.
-- **Traits** — budget starts at **0**. Negatives *refund* points; positives *spend* them. Trait count
-  is uncapped; a build is legal iff remaining points ≥ 0. Conflicting traits grey each other out.
-  ~26 positive / ~17 negative, Singapore-flavoured (e.g. *Reservist*, *Medic*, *Karang Guni*,
-  *Tekong Legs*, *Sixth Sense*, *Handyman*, *Glass Jaw*, *Hemophilia*, *Aircon Addict*…).
-- **Trait presets** persist across runs in `localStorage` so Advanced builds can be reused.
-- Trait modifiers feed combat, travel, survival, loot, fog, crafting cost, and faction checks.
+- **Traits** — budget starts at **0**. Negatives *refund* points; positives *spend* them. Remaining
+  points must stay ≥ 0. Caps: **max one signature** (cost ≥ 4), **max one curse** (cost ≤ −3),
+  **max two negatives** total. A 5-cost identity is paid with a curse, not a pile of −1s. Cheap
+  cousins stay for spread builds (*Reservist*, *Medic*, *Karang Guni*, *Home Cook*, *Distance Runner*…).
+  Signatures include *Combat Veteran*, *Trauma Medic*, *Hyrox Champion*, *Estate Memory*, *Made Man*;
+  Advanced-only signatures *Mule* and *Sixth Sense* compete with jobs for the one signature slot.
+- **Trait presets** persist across runs in `localStorage` so Advanced builds can be reused. Old
+  six-flaw presets become illegal and show “needs fixing” in Advanced Mode.
+- Trait modifiers feed combat, travel, survival, loot, fog, crafting cost, faction standing, and
+  unique rules (first hit halved, hawker-centre loot, HDB corridor reads, remaining-search intel).
 
 ### 3.3 Fog of war — blind exploration
 - You have **no knowledge** of any location until you stand in it. Undiscovered places show only as
@@ -123,7 +127,8 @@ currency, and the survivor is always moving — the map is explored, not surveye
 ### 3.4 Time, travel, wilds & the day/night cycle
 - A day is **24 in-game hours**, starting at **08:00**. Travel is **one-way relocation** (nomadic):
   the survivor has a tracked position, and cost = distance(current → target) ÷ walking speed, stretched
-  by **weather** (rain ×1.5, thunderstorm ×1.75), **encumbrance** (×1.5), and vegetation soft-costs.
+  by **weather** (rain ×1.5, thunderstorm ×1.75), a **graduated load tax** (quiet until capacity, brutal
+  past it — hover the carry bar), and vegetation soft-costs.
 - **Open-ground treks** (`game/wilds.ts`): between pins the path crosses seeded ~350 m hazard
   pockets (overlapping discs: horde, patrol, collapse, flood, wildlife). POI travel cards preview
   sensed pockets on the route. Collapse wounds; flood slows and can infect; horde/patrol/wildlife
@@ -216,8 +221,9 @@ hostility, trade, shelter, aid, and intel:
   neighbourhood out of the baked POI set and merges it in. Only if the bake has nothing there does
   `makeStationLocation` stand up a bare platform. This is what makes the network a way to *cross the
   island* rather than a shuttle inside your starting district.
-- What the bore buys you is what it doesn't charge: **no travel-range cap, no weather, no
-  encumbrance**, and none of `URBAN_DECAY_DETOUR` — it's straight, and the streets above it aren't.
+- What the bore buys you is what it doesn't charge: **no travel-range cap, no weather**, and none of
+  `URBAN_DECAY_DETOUR` — it's straight, and the streets above it aren't. Load still taxes the walk
+  (milder than overland) and drains energy the same as the surface, so the MRT is not a dump exploit.
   Time is the real track distance at walking pace. There is no train discount any more.
 - **The run itself is a Slay-the-Spire map** (`game/tunnelRun.ts`, `components/TunnelRunView.tsx`):
   platforms at each station on the route, bore columns between them (capped so long rides stay
@@ -242,14 +248,16 @@ hostility, trade, shelter, aid, and intel:
   (freeing space) and applies its `modifiers` (attack/defense/carry bonuses). Combat reads the weapon
   from mainHand. Armour comes from police/hospital/hardware (riot helmet, kevlar/utility vest, riot
   shield, torch, hard hat).
-- **Weight & encumbrance:** every item has a weight; `maxCarry = Strength×3 + Endurance×2`
-  (+ equipped bonuses). Backpack over **80%** of capacity → **Encumbered**, multiplying travel time by
-  1.5×.
+- **Weight:** every item has a weight; worn gear counts too. `maxCarry = Strength×3 + Endurance×2`
+  (+ equipped bonuses). There is no pickup cap. Below ~55% of capacity load does nothing; it taxes
+  quietly up to 100%, then quadratically. Hover the carry bar or survivor Carry cell for live
+  penalties (travel, energy, combat, stairs, search). The HUD never says Encumbered.
 
 ### 3.10 Search sessions
 - Searching a site is a **real-time fogged grid** (`game/searchSession.ts`), not an instant loot dump.
   Street POIs roll a **destruction tier** on first visit (shown instead of loot richness); haul size
-  scales with footprint (~3–7 finds) and item **condition** tracks how wrecked the place is.
+  scales with footprint (~3–7 finds) and item **condition** sits on that ruin's band (Intact =
+  Brand New … Gutted = Old & Torn).
   Click fogged cells to prioritize them; finds reveal one by one; Take / Take all claim into the pack
   (overflow to on-site stash). **Done** or **Leave** abandons unclaimed finds. Leaving early still
   spends a **partial search charge**.
@@ -299,7 +307,11 @@ hostility, trade, shelter, aid, and intel:
     Each staging window rolls a **seeded demand** (± band around a rising day curve) plus a soft cargo
     bias — the UI never shows the quota; radio vibe is qualitative and only the flare resolves it.
     Miss the window → cooldown → new site + fresh demand; the horde keeps rising either way.
-- **Horde** rises ~8/day; at 100 the city is **overrun** and the run ends.
+- **Horde** rises ~8/day; at 100 the city is **overrun** and the run ends. Long before that it is
+  a live difficulty dial — `hordeIntensity()` (`hordeLevel / 100`) feeds hazard-cell density
+  (20% → 42%), the **horde pocket** share of hazards (~33% → ~45%), a severity bump above 45,
+  pocket radius (up to +40%), trek encounter chance (+18 pts), search encounter chance (+30 pts),
+  and a +1 tunnel danger tier above 50. Later days mean denser, nastier, more frequent contact.
 - Successful extract adds `2000 × dayMult` on top of survival score.
 
 ### 3.17 Ghost survivors

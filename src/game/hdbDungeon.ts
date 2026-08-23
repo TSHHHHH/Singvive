@@ -910,6 +910,7 @@ export function scoutFloor(
   attrs: Attributes,
   dungeon: HdbDungeon,
   level: number,
+  senseBonus = 0,
 ): FloorScout {
   let read = 0;
   let total = 0;
@@ -929,11 +930,11 @@ export function scoutFloor(
         const uRng = rng.fork(unit.id);
         const info: HdbScoutInfo = { threatCount: -1, lootQuality: 'unreadable' };
 
-        if (uRng.chance(senseChance(attrs.perception))) {
+        if (uRng.chance(Math.min(0.95, senseChance(attrs.perception) + senseBonus))) {
           const threat = floorThreat(dungeon, floor.level);
           info.threatCount = Math.max(0, Math.round(threat / 2) + uRng.int(-1, 1));
         }
-        if (uRng.chance(senseChance(attrs.dexterity))) {
+        if (uRng.chance(Math.min(0.95, senseChance(attrs.dexterity) + senseBonus))) {
           info.containerCategory = uRng.pick(CONTAINER_CATEGORIES);
           info.lootQuality =
             unit.type === 'stocked'
@@ -1102,10 +1103,15 @@ export interface RetreatCheck {
  * Heading back down with the block awake. Failure means something cuts you off
  * on the stairs — the store turns that into a fight.
  */
-export function retreatCheck(rng: Rng, attrs: Attributes, dungeon: HdbDungeon): RetreatCheck {
+export function retreatCheck(
+  rng: Rng,
+  attrs: Attributes,
+  dungeon: HdbDungeon,
+  dcMod = 0,
+): RetreatCheck {
   const roll = rng.d20();
   const total = roll + attrs.dexterity + attrs.endurance;
-  const dc = retreatDc(dungeon);
+  const dc = retreatDc(dungeon) + dcMod;
   return { roll, total, dc, success: roll === 20 || total >= dc };
 }
 
@@ -1302,12 +1308,12 @@ export function findPathToward(
   return { path, reached: true, blockedBy: null, blockedKey: null };
 }
 
-export function pathMinutes(path: HdbPos[]): number {
+export function pathMinutes(path: HdbPos[], stairMult = 1): number {
   if (path.length <= 1) return 0;
   let m = 0;
   for (let i = 1; i < path.length; i++) {
     const dLevel = Math.abs(path[i].level - path[i - 1].level);
-    m += dLevel === 0 ? CORRIDOR_MINUTES : STAIR_MINUTES * dLevel;
+    m += dLevel === 0 ? CORRIDOR_MINUTES : STAIR_MINUTES * dLevel * stairMult;
   }
   return m;
 }

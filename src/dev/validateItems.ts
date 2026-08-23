@@ -99,6 +99,11 @@ function validateEffect(effect: unknown, id: string, errors: string[]): void {
       if (effect.roundsPerShot !== undefined && !isNumber(effect.roundsPerShot)) {
         errors.push(`${id}: weapon.roundsPerShot must be a number`);
       }
+      if (effect.speedFactor !== undefined) {
+        if (!isNumber(effect.speedFactor) || effect.speedFactor < 0.4 || effect.speedFactor > 1.6) {
+          errors.push(`${id}: weapon.speedFactor must be a number in [0.4, 1.6]`);
+        }
+      }
       break;
     case 'ammo':
       if (!isNumber(effect.rounds)) errors.push(`${id}: ammo.rounds must be a number`);
@@ -230,6 +235,11 @@ function validateItem(id: string, raw: unknown, errors: string[]): void {
   }
   if (raw.modifiers !== undefined && !isRecord(raw.modifiers)) {
     errors.push(`${id}: modifiers must be an object`);
+  } else if (isRecord(raw.modifiers) && raw.modifiers.blockChance !== undefined) {
+    const bc = raw.modifiers.blockChance;
+    if (!isNumber(bc) || bc < 0 || bc > 0.6) {
+      errors.push(`${id}: modifiers.blockChance must be a number in [0, 0.6]`);
+    }
   }
   validatePackGrid(id, raw, errors);
 

@@ -3,12 +3,15 @@ import { Icon } from '../icons/Icon';
 import { combatantIcon } from '../game/enemies';
 import { armCombatPenalty, formatClock } from '../game/survival';
 import { useClockFormat } from '../game/settings';
+import { sumTraitMod } from '../game/character';
+import { loadEffectsFor } from '../game/inventory';
 import {
   STANCES,
   effectiveDefense,
   playerCombatStats,
 } from '../game/combat';
 import { enemyName, useT } from '../i18n';
+import { tip } from './tips';
 
 type Variant = 'timeline' | 'card';
 
@@ -41,7 +44,9 @@ export function EncounterPrompt({
   const character = useGame((s) => s.character);
   const bodyParts = useGame((s) => s.bodyParts);
   const equipment = useGame((s) => s.equipment);
+  const items = useGame((s) => s.items);
   const hour = useGame((s) => s.hour);
+  const rounds = useGame((s) => s.rounds);
   const combatEngage = useGame((s) => s.combatEngage);
   const combatBreakOff = useGame((s) => s.combatBreakOff);
   const clock = useClockFormat();
@@ -51,11 +56,19 @@ export function EncounterPrompt({
   const z = combat.zombie;
   const zDisplay = enemyName(z.templateId, z.name, locale);
   const terrain = combat.terrain;
+  const load = loadEffectsFor(
+    items,
+    character.attributes,
+    equipment,
+    sumTraitMod(character.traitIds, 'carryCapacityMod'),
+  );
   const stats = playerCombatStats(
     character.attributes,
     character.traitIds,
     equipment,
     armCombatPenalty(bodyParts),
+    rounds,
+    load.attackMod,
   );
 
   const enemyIcon = (
@@ -115,7 +128,7 @@ export function EncounterPrompt({
       <button
         type="button"
         onClick={combatBreakOff}
-        title={STANCES.disengage.description}
+        {...tip(STANCES.disengage.description)}
         className="flex w-full items-center gap-1.5 rounded border border-hiss/50 px-2 py-1 text-left text-xs leading-snug text-hiss transition hover:bg-hiss/10"
       >
         <Icon name={STANCES.disengage.icon} size={13} className="shrink-0" />

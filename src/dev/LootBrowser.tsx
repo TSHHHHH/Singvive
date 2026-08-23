@@ -8,6 +8,7 @@ import {
 import { Icon } from '../icons/Icon';
 import { ICON_ASSETS } from '../icons/registry';
 import { itemIcon } from '../components/Inventory/itemIcon';
+import { weaponSpeedFactor } from '../game/combat';
 import { LootItemForm } from './LootItemForm';
 import { LootTablesEditor } from './LootTablesEditor';
 import { RecipesEditor } from './RecipesEditor';
@@ -39,6 +40,7 @@ import {
 } from './devBridge';
 import { ValidationErrorBadge } from './ValidationErrorBadge';
 import type { RecipesCatalog } from './validateRecipes';
+import { tip } from '../components/tips';
 
 type KindFilter = 'all' | ItemDef['effect']['kind'];
 type SlotFilter = 'all' | 'equipped' | 'none' | NonNullable<ItemDef['slot']>;
@@ -110,12 +112,17 @@ function CompareCard({ def }: { def: ItemDef }) {
         <dd>{def.scarcity ?? '—'}</dd>
         <dt className="text-white/35">starting</dt>
         <dd>{def.startingItem ? `yes${def.startingCount ? ` ×${def.startingCount}` : ''}` : '—'}</dd>
-        {'damage' in def.effect && (
+        {def.effect.kind === 'weapon' && (
           <>
             <dt className="text-white/35">damage</dt>
             <dd>{def.effect.damage}</dd>
             <dt className="text-white/35">accuracy</dt>
             <dd>{def.effect.accuracy}</dd>
+            <dt className="text-white/35">speed</dt>
+            <dd>
+              ×{weaponSpeedFactor(def.effect, !!def.twoHanded).toFixed(2)}
+              {def.effect.speedFactor != null ? '' : ' (derived)'}
+            </dd>
           </>
         )}
       </dl>
@@ -778,7 +785,7 @@ export function DevLootBrowser() {
           disabled={busy || !catalogDirty || !valid}
           onClick={requestSave}
           className="rounded border border-signal/40 px-2.5 py-1 text-xs text-signal disabled:opacity-40"
-          title="Ctrl/Cmd+S"
+          {...tip('Ctrl/Cmd+S')}
         >
           Save
         </button>
@@ -870,7 +877,7 @@ export function DevLootBrowser() {
               disabled={busy || !tileColorsDirty || !tileColorsValid}
               onClick={() => void persistTileColors()}
               className="rounded border border-signal/40 px-2.5 py-1 text-xs text-signal disabled:opacity-40"
-              title="Ctrl/Cmd+S"
+              {...tip('Ctrl/Cmd+S')}
             >
               Save
             </button>
@@ -888,7 +895,7 @@ export function DevLootBrowser() {
           type="button"
           onClick={requestClose}
           className="text-xs text-white/40 hover:text-white/70"
-          title="Esc"
+          {...tip('Esc')}
         >
           ✕ close
         </button>

@@ -186,8 +186,34 @@ function TunnelsDiagram() {
   );
 }
 
+function FightDiagram() {
+  const { t } = useT();
+  return (
+    <div className="space-y-2" aria-hidden>
+      <div className="relative h-3 rounded-sm bg-black/50 ring-1 ring-white/10">
+        <div
+          className="absolute top-0 h-full w-1.5 -translate-x-1/2 rounded-sm bg-astral"
+          style={{ left: '32%' }}
+        />
+        <div
+          className="absolute top-0 h-full w-1.5 -translate-x-1/2 rounded-sm bg-hiss"
+          style={{ left: '68%' }}
+        />
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Chip icon="item.weaponMelee" label={t('ui.guide.diagram.lightFast')} accent />
+        <Chip icon="item.weaponMelee" label={t('ui.guide.diagram.heavyHit')} />
+        <Chip icon="attr.dexterity" label={t('ui.guide.diagram.freeHand')} accent />
+        <Chip icon="slot.offHand" label={t('ui.guide.diagram.shieldBlock')} />
+        <Chip icon="slot.mainHand" label={t('ui.guide.diagram.secondBlade')} />
+      </div>
+    </div>
+  );
+}
+
 const DIAGRAMS: Record<GuideTopic, () => ReactElement> = {
   survive: SurviveDiagram,
+  fight: FightDiagram,
   loot: LootDiagram,
   hdb: HdbDiagram,
   tunnels: TunnelsDiagram,

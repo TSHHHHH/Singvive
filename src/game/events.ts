@@ -52,7 +52,8 @@ export type EventKind =
   | 'block_tout'
   | 'rigged_door'
   | 'quiet_tap'
-  | 'body_in_the_doorway';
+  | 'body_in_the_doorway'
+  | 'field_doctor';
 
 export type ChoiceKind = 'check' | 'pay' | 'fight' | 'leave';
 
@@ -127,7 +128,11 @@ export type EventEffect =
   | { t: 'noise'; radius: number; intensity: number }
   | { t: 'gain'; defId: string; count?: number }
   | { t: 'standing'; delta: number }
-  | { t: 'mark'; mark: DoorwayMark };
+  | { t: 'mark'; mark: DoorwayMark }
+  /** Patch injuries. Used by the shelter field doctor. */
+  | { t: 'treat'; amount: number; line: string }
+  /** Consume a one-shot HDB shelter service (clears the unit). */
+  | { t: 'service' };
 
 const TERMINAL = new Set(['access', 'deny', 'fight', 'zombies', 'trespass', 'raid']);
 export const isTerminal = (e: EventEffect) => TERMINAL.has(e.t);
@@ -153,7 +158,7 @@ export interface GameEvent {
   tell: string;
   text: string;
   choices: EventChoice[];
-  factionId: FactionId;
+  factionId: FactionId | null;
 }
 
 /** Everything the prose and the gating need to know about right now. */
@@ -177,7 +182,7 @@ type Pools = { tell: string[]; text: string[]; night?: string[]; wet?: string[] 
 
 const WET: readonly WeatherKind[] = ['rain', 'thunderstorm'];
 
-const PROSE: Record<Exclude<EventKind, 'mrt_toll'>, Pools> = {
+const PROSE: Record<Exclude<EventKind, 'mrt_toll' | 'field_doctor'>, Pools> = {
   faction_checkpoint: {
     tell: [
       'There\'s a table across the entrance, and someone sitting at it.',
@@ -363,7 +368,7 @@ function fill(tpl: string, vars: Record<string, string>): string {
 /** Pick prose for a kind, weighting in the time-of-day and weather variants. */
 function prose(
   rng: Rng,
-  kind: Exclude<EventKind, 'mrt_toll'>,
+  kind: Exclude<EventKind, 'mrt_toll' | 'field_doctor'>,
   ctx: EventCtx,
   vars: Record<string, string>,
 ): { tell: string; text: string } {
@@ -936,7 +941,7 @@ function buildBody(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
 
 type Builder = (rng: Rng, loc: LocationState, ctx: EventCtx) => GameEvent;
 
-const BUILDERS: Record<Exclude<EventKind, 'mrt_toll'>, Builder> = {
+const BUILDERS: Record<Exclude<EventKind, 'mrt_toll' | 'field_doctor'>, Builder> = {
   faction_shakedown: (rng, loc, ctx) => buildTributeGate(rng, loc, ctx, true),
   faction_checkpoint: buildFeeGate,
   locked_door: buildLockedDoor,
@@ -983,7 +988,7 @@ export function rollPreScavengeEvent(
   if (loc.factionId) return null;
 
   const cat = loc.category;
-  const cands: [Exclude<EventKind, 'mrt_toll'>, number][] = [];
+  const cands: [Exclude<EventKind, 'mrt_toll' | 'field_doctor'>, number][] = [];
 
   if (!loc.doorForced) {
     if (LOCKED_AT.includes(cat)) cands.push(['locked_door', 20]);
@@ -1035,6 +1040,63 @@ export function mrtTollEvent(): GameEvent {
         kind: 'leave',
         label: 'Take the surface instead',
         onSuccess: [{ t: 'deny', line: 'You take the surface instead.' }],
+      },
+    ],
+  };
+}
+
+/** What the doctor in a shelter holdout will treat you for, best first. */
+export const FIELD_DOCTOR_FEES = ['canned_food', 'army_ration', 'rice_pack', 'instant_noodles'];
+
+/** Hours the doctor keeps you on the mat, and how much each part recovers. */
+export const FIELD_DOCTOR_HOURS = 1;
+export const FIELD_DOCTOR_HEAL = 35;
+
+/**
+ * The doctor behind a shelter door — an offer, not a transaction. Nothing is
+ * spent until a choice is made, and walking away costs nothing but the walk.
+ */
+export function fieldDoctorEvent(rng: Rng, blockName: string): GameEvent {
+  const text = rng.pick([
+    'A woman in a stained polo waves you onto a camp mat. "I can clean and pack that. ' +
+      "I don't take money — I take food. One tin, one meal, whatever you have.\"",
+    'The unit smells of iodine. "Sit," says the man sorting gauze by the window. ' +
+      "\"An hour of my time for something to eat. That's the whole price list.\"",
+    'Someone has taped a red cross to the gate of this unit. "Food first," they say, ' +
+      "without looking up. \"Then I'll look at you.\"",
+  ]);
+  return {
+    kind: 'field_doctor',
+    factionId: null,
+    title: 'Field Doctor',
+    tell: `Someone is running a clinic out of a unit in ${blockName}.`,
+    text,
+    choices: [
+      {
+        id: 'pay',
+        kind: 'pay',
+        itemIds: FIELD_DOCTOR_FEES,
+        label: `Get patched up — ${priceList(FIELD_DOCTOR_FEES)}, 1 hour`,
+        onSuccess: [
+          { t: 'time', hours: FIELD_DOCTOR_HOURS, line: 'You lie still while they work.' },
+          {
+            t: 'treat',
+            amount: FIELD_DOCTOR_HEAL,
+            line: 'The field doctor patches you up. Clean dressings, tight and even.',
+          },
+          { t: 'service' },
+        ],
+        onFailure: [
+          { t: 'deny', line: 'The doctor wants payment in food. You have none to give.' },
+        ],
+      },
+      {
+        id: 'leave',
+        kind: 'leave',
+        label: 'Leave it — keep the food',
+        onSuccess: [
+          { t: 'deny', line: 'You keep your food and your wounds. The gate closes behind you.' },
+        ],
       },
     ],
   };

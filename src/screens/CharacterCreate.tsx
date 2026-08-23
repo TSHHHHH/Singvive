@@ -9,11 +9,13 @@ import {
   TRAIT_BUDGET,
   canPickTrait,
   getTrait,
+  isCurse,
   isIncompatible,
   isLegalTraitBuild,
+  isSignature,
+  pickBlockReason,
   traitBudgetUsed,
   attributesFromTraits,
-  withAttrEmojis,
 } from '../game/character';
 import { OCCUPATIONS, getOccupation } from '../game/occupations';
 import {
@@ -27,7 +29,9 @@ import {
 import { randomSurvivorName, SURVIVOR_NAME_MAX } from '../game/randomNames';
 import type { Occupation, Trait } from '../game/types';
 import { Icon } from '../icons/Icon';
-import { traitDescription, traitName, useT } from '../i18n';
+import { AttrText } from '../components/AttrIcon';
+import { traitDescription, traitEffects, traitHoverText, traitName, useT } from '../i18n';
+import { tip } from '../components/tips';
 
 type Side = 'positive' | 'negative';
 type Step = 'occupation' | 'custom';
@@ -35,6 +39,26 @@ type Step = 'occupation' | 'custom';
 /** Same set, order-insensitive — an edited build is no longer that occupation. */
 function sameTraits(a: string[], b: string[]): boolean {
   return a.length === b.length && a.every((id) => b.includes(id));
+}
+
+function TraitEffectList({
+  id,
+  locale,
+}: {
+  id: string;
+  locale: Parameters<typeof traitEffects>[1];
+}) {
+  const lines = traitEffects(id, locale);
+  if (lines.length === 0) return null;
+  return (
+    <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs text-white/70">
+      {lines.map((line) => (
+        <li key={line}>
+          <AttrText text={line} />
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 export function CharacterCreate() {
@@ -93,7 +117,7 @@ export function CharacterCreate() {
         <button
           type="button"
           onClick={() => setName(randomSurvivorName(name))}
-          title="Roll a Singapore-style full name"
+          {...tip('Roll a Singapore-style full name')}
           className="rounded border border-white/15 bg-white/10 px-2.5 py-1.5 text-2xs font-semibold uppercase tracking-wide text-white/70 transition hover:border-signal/50 hover:bg-signal/10 hover:text-signal"
         >
           Random
@@ -180,7 +204,22 @@ export function CharacterCreate() {
         }`}
       >
         <span className="text-sm font-bold uppercase tracking-wide">{o.name}</span>
-        <span className="mt-1 text-2xs leading-relaxed text-white/50">{o.tagline}</span>
+        <span className="mt-1.5 flex flex-wrap items-center gap-x-3.5 gap-y-0.5">
+          {o.traitIds.map((id) => {
+            const tr = getTrait(id);
+            return (
+              <span
+                key={id}
+                className={`inline-flex items-center gap-1.5 whitespace-nowrap text-xs ${
+                  tr.category === 'positive' ? 'text-signal' : 'text-hiss'
+                }`}
+              >
+                <Icon name={tr.icon} size={16} className="shrink-0" />
+                {traitName(id, locale)}
+              </span>
+            );
+          })}
+        </span>
       </button>
     );
   };
@@ -193,13 +232,14 @@ export function CharacterCreate() {
       return (
         <span
           key={id}
-          title={withAttrEmojis(traitDescription(id, locale))}
-          className={`rounded border px-1.5 py-0.5 text-2xs ${
+          {...tip(traitHoverText(id, locale))}
+          className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-2xs ${
             trait.category === 'positive'
               ? 'border-signal/30 bg-signal/10 text-signal'
               : 'border-hiss/30 bg-hiss/10 text-hiss'
           }`}
         >
+          <Icon name={trait.icon} size={11} />
           {traitName(id, locale)}
         </span>
       );
@@ -258,7 +298,39 @@ export function CharacterCreate() {
         </div>
       </div>
 
-      {renderTraitChips(o.traitIds)}
+      <div className="mt-3 space-y-3 border-t border-white/10 pt-2.5">
+        {o.traitIds.map((id) => {
+          const tr = getTrait(id);
+          const you = tr.category === 'positive';
+          return (
+            <div key={id}>
+              <span
+                className={`mb-1 block text-2xs uppercase tracking-widest ${
+                  you ? 'text-signal/70' : 'text-hiss/70'
+                }`}
+              >
+                {you ? 'You are' : 'It cost you'}
+              </span>
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="inline-flex min-w-0 items-center gap-1.5 text-sm font-bold uppercase tracking-wide">
+                  <Icon name={tr.icon} size={14} />
+                  {traitName(id, locale)}
+                </span>
+                <span
+                  className={`shrink-0 text-xs tabular-nums ${you ? 'text-signal' : 'text-hiss'}`}
+                >
+                  {you ? '−' : '+'}
+                  {Math.abs(tr.cost)} pt
+                </span>
+              </div>
+              <p className="mt-1 text-xs leading-relaxed text-white/70">
+                <AttrText text={traitDescription(id, locale)} />
+              </p>
+              <TraitEffectList id={id} locale={locale} />
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 
@@ -321,9 +393,9 @@ export function CharacterCreate() {
           Before It Fell
         </h2>
         <p className="mt-1 text-xs leading-relaxed text-white/45">
-          Pick a starting preset — or open Advanced Mode to choose traits freely.
+          Pick a job — one signature, one matching curse — or open Advanced Mode.
           <br />
-          Negatives earn points; positives spend them. You start at 0.
+          A 5-cost signature needs a curse, not a pile of −1s. You start at 0.
         </p>
         <div className="mt-3 flex justify-center">{nameField}</div>
       </div>
@@ -494,41 +566,47 @@ export function CharacterCreate() {
     const accent = side === 'positive' ? 'text-signal' : 'text-hiss';
     const sign = side === 'positive' ? '−' : '+';
 
-    return (
-      <div
-        key={t.id}
-        onMouseEnter={() => setHovered((h) => ({ ...h, [side]: t.id }))}
-        onMouseLeave={() => setHovered((h) => (h[side] === t.id ? { ...h, [side]: null } : h))}
-        className={`relative flex flex-col rounded border px-2.5 py-2 transition ${tileClass(t)} ${
-          isLocked ? 'ring-1 ring-white/50' : ''
-        }`}
-      >
-        <button
-          onClick={() => toggleTrait(t.id)}
-          disabled={!selected && !canPickTrait(t.id, traitIds)}
-          className="flex flex-1 items-start gap-2 text-left disabled:cursor-not-allowed"
-        >
-          <span
-            className={`mt-0.5 grid h-3.5 w-3.5 shrink-0 place-items-center border text-2xs leading-none ${
-              selected ? `border-white/70 ${accent}` : 'border-white/25 text-transparent'
+        const blocked = !selected && !canPickTrait(t.id, traitIds);
+        const why = blocked ? pickBlockReason(t.id, traitIds) : null;
+
+        return (
+          <div
+            key={t.id}
+            onMouseEnter={() => setHovered((h) => ({ ...h, [side]: t.id }))}
+            onMouseLeave={() => setHovered((h) => (h[side] === t.id ? { ...h, [side]: null } : h))}
+            title={why ?? undefined}
+            className={`relative flex flex-col rounded border px-2.5 py-2 transition ${tileClass(t)} ${
+              isLocked ? 'ring-1 ring-white/50' : ''
             }`}
           >
-            ✕
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-xs font-semibold uppercase tracking-wide">
-              {traitName(t.id, locale)}
-            </span>
-            <span className={`text-2xs tabular-nums ${accent}`}>
-              {sign}
-              {Math.abs(t.cost)} pt
-            </span>
-          </span>
-        </button>
+            <button
+              onClick={() => toggleTrait(t.id)}
+              disabled={blocked}
+              className="flex flex-1 items-start gap-2 text-left disabled:cursor-not-allowed"
+            >
+              <span
+                className={`mt-0.5 grid h-3.5 w-3.5 shrink-0 place-items-center border text-2xs leading-none ${
+                  selected ? `border-white/70 ${accent}` : 'border-white/25 text-transparent'
+                }`}
+              >
+                ✕
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center gap-1 truncate text-xs font-semibold uppercase tracking-wide">
+                  <Icon name={t.icon} size={13} className="shrink-0" />
+                  <span className="truncate">{traitName(t.id, locale)}</span>
+                </span>
+                <span className={`text-2xs tabular-nums ${accent}`}>
+                  {sign}
+                  {Math.abs(t.cost)} pt
+                </span>
+                {why && <span className="mt-0.5 block text-2xs leading-snug text-white/45">{why}</span>}
+              </span>
+            </button>
 
         <button
           onClick={() => toggleLock(side, t.id)}
-          title={isLocked ? 'Unpin details' : 'Pin details'}
+          {...tip(isLocked ? 'Unpin details' : 'Pin details', { label: true })}
           className={`absolute right-1 top-1 text-2xs leading-none transition ${
             isLocked ? 'text-white' : 'text-white/25 hover:text-white/70'
           }`}
@@ -550,7 +628,8 @@ export function CharacterCreate() {
         {trait ? (
           <>
             <div className="flex items-baseline justify-between gap-2">
-              <span className="text-sm font-bold uppercase tracking-wide">
+              <span className="inline-flex min-w-0 items-center gap-1.5 text-sm font-bold uppercase tracking-wide">
+                <Icon name={trait.icon} size={14} />
                 {traitName(trait.id, locale)}
               </span>
               <span className={`shrink-0 text-xs tabular-nums ${accent}`}>
@@ -559,8 +638,9 @@ export function CharacterCreate() {
               </span>
             </div>
             <p className="mt-1 text-xs leading-relaxed text-white/70">
-              {withAttrEmojis(traitDescription(trait.id, locale))}
+              <AttrText text={traitDescription(trait.id, locale)} />
             </p>
+            <TraitEffectList id={trait.id} locale={locale} />
             {trait.conflicts.length > 0 && (
               <p className="mt-1.5 text-2xs text-white/40">
                 Conflicts:{' '}
@@ -588,6 +668,19 @@ export function CharacterCreate() {
   const renderColumn = (side: Side) => {
     const isPos = side === 'positive';
     const list = isPos ? positiveTraits : negativeTraits;
+    const groups = isPos
+      ? [
+          { label: 'Signature', items: list.filter(isSignature) },
+          {
+            label: 'Notable',
+            items: list.filter((t) => !isSignature(t) && t.cost >= 2),
+          },
+          { label: 'Minor', items: list.filter((t) => t.cost === 1) },
+        ]
+      : [
+          { label: 'Curses', items: list.filter(isCurse) },
+          { label: 'Flaws', items: list.filter((t) => !isCurse(t)) },
+        ];
     return (
       <div className="flex min-w-0 flex-col">
         <div className="mb-2 flex items-baseline justify-between border-b border-white/10 pb-1">
@@ -600,8 +693,19 @@ export function CharacterCreate() {
             {isPos ? 'Spend' : 'Earn'} · {isPos ? positiveCount : negativeCount} picked
           </span>
         </div>
-        <div className="grid grid-cols-2 gap-1.5 xl:grid-cols-3">
-          {list.map((t) => renderTile(t, side))}
+        <div className="flex flex-col gap-3">
+          {groups.map((g) =>
+            g.items.length === 0 ? null : (
+              <div key={g.label}>
+                <span className="mb-1 block text-2xs uppercase tracking-widest text-white/35">
+                  {g.label}
+                </span>
+                <div className="grid grid-cols-2 gap-1.5 xl:grid-cols-3">
+                  {g.items.map((t) => renderTile(t, side))}
+                </div>
+              </div>
+            ),
+          )}
         </div>
         {renderDetail(side)}
       </div>
@@ -619,6 +723,8 @@ export function CharacterCreate() {
             <>
               Starting from <span className="text-white/70">{picked.name}</span>. Negatives earn
               points; positives spend them. Points left must stay at 0 or higher.
+              <br />
+              A 5-cost signature needs a curse, not a pile of −1s.
             </>
           ) : selectedMyPreset ? (
             <>
@@ -627,9 +733,10 @@ export function CharacterCreate() {
             </>
           ) : (
             <>
-              Build freely. You start at 0 points — take negatives to afford positives.
+              Build freely. You start at 0 — take a curse (or two small flaws) to afford a
+              signature.
               <br />
-              Trait count is uncapped; remaining points must stay ≥ 0.
+              Max one signature, one curse, two negatives. A 5-cost needs a curse, not six −1s.
             </>
           )}
         </p>
@@ -711,7 +818,7 @@ export function CharacterCreate() {
 
       <button
         onClick={start}
-        disabled={budgetRemaining < 0}
+        disabled={!isLegalTraitBuild(traitIds)}
         className="mx-auto mt-6 block w-full max-w-sm rounded-lg bg-signal/80 px-6 py-3 font-bold uppercase tracking-widest text-black transition hover:bg-signal disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/30"
       >
         Next →

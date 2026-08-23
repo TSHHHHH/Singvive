@@ -22,6 +22,7 @@ import {
 } from '../game/hdbDungeon';
 import { msgOr, useT } from '../i18n';
 import { useIsPhoneLayout } from './HdbZoomViewport';
+import { tip } from './tips';
 
 const CONTAINER_ICON: Record<string, IconName> = {
   Medical: 'meter.infection',
@@ -40,18 +41,18 @@ export function unitUnderfoot(hdb: HdbDungeon): HdbUnitNode | null {
 
 function ScoutTile({
   label,
-  title,
+  tip: tipText,
   unread,
   children,
 }: {
   label: string;
-  title: string;
+  tip: string;
   unread?: boolean;
   children: ReactNode;
 }) {
   return (
     <div
-      title={title}
+      {...tip(tipText)}
       className={`flex w-full min-h-[3.25rem] flex-col items-center justify-center gap-0.5 rounded border px-2 py-1.5 text-center ${
         unread
           ? 'border-concrete-700/80 bg-concrete-950/40 text-concrete-500'
@@ -115,7 +116,7 @@ export function HdbContextPanel({
             type="button"
             onClick={() => hdbLeave()}
             disabled={!canLeave}
-            title={leaveTitle}
+            {...tip(leaveTitle)}
             className="rounded border border-white/15 px-2.5 py-1 text-xs text-concrete-300 hover:bg-white/5 disabled:opacity-40"
           >
             {t('ui.hdb.leaveBlock')}
@@ -173,7 +174,7 @@ export function HdbContextPanel({
         return (
           <span
             key={c.key}
-            title={blockBlurb}
+            {...tip(blockBlurb)}
             className="min-h-[44px] w-full rounded border border-concrete-600 bg-concrete-900/80 px-3 py-2 text-xs text-concrete-300 lg:min-h-0 lg:py-1.5"
           >
             {t('ui.hdb.noWayThrough', { label: blockLabel })}
@@ -264,7 +265,7 @@ export function HdbContextPanel({
       {encounter && (
         <ScoutTile
           label={t('ui.hdb.scoutEncounter')}
-          title={
+          tip={
             encounter.exact
               ? t('ui.hdb.scoutEncounterExact')
               : t('ui.hdb.scoutEncounterEstimate')
@@ -276,7 +277,7 @@ export function HdbContextPanel({
         </ScoutTile>
       )}
 
-      <ScoutTile label={t('ui.hdb.scoutRoom')} title={unitBlurb}>
+      <ScoutTile label={t('ui.hdb.scoutRoom')} tip={unitBlurb}>
         <span className="inline-flex max-w-full items-center gap-0.5 text-xs text-concrete-200">
           <Icon name={UNIT_META[sel.type].icon} size={12} />
           <span className="truncate">{unitLabel}</span>
@@ -285,7 +286,7 @@ export function HdbContextPanel({
 
       <ScoutTile
         label={t('ui.hdb.scoutContainers')}
-        title={
+        tip={
           sel.scoutedInfo?.containerCategory
             ? `${msgOr(
                 `ui.hdb.container.${sel.scoutedInfo.containerCategory}`,
@@ -323,7 +324,7 @@ export function HdbContextPanel({
     <div className="flex w-[7.5rem] shrink-0 flex-col items-center justify-center gap-1.5 self-stretch sm:w-[8.5rem]">
       <ScoutTile
         label={t('ui.hdb.scoutDescent')}
-        title={
+        tip={
           descentChecked
             ? t('ui.hdb.scoutDescentWatched', { n: descentFailPct })
             : t('ui.hdb.scoutDescentClear')
@@ -336,7 +337,7 @@ export function HdbContextPanel({
 
       <ScoutTile
         label={t('ui.hdb.scoutLanding')}
-        title={t('ui.hdb.storey', { nn: String(hdb.currentLevel).padStart(2, '0') })}
+        tip={t('ui.hdb.storey', { nn: String(hdb.currentLevel).padStart(2, '0') })}
       >
         <span className="tabular-nums text-concrete-100">
           #{String(hdb.currentLevel).padStart(2, '0')}
@@ -345,7 +346,7 @@ export function HdbContextPanel({
 
       <ScoutTile
         label={t('ui.hdb.scoutShaft')}
-        title={
+        tip={
           stair.kind === 'side' ? t('ui.hdb.sideStairTitle') : t('ui.hdb.internalWell')
         }
       >

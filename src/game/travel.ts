@@ -5,7 +5,9 @@ import { HOURS_PER_DAY, travelSpeedMultiplier } from './survival';
 
 // Cautious on-foot pace through a ruined city.
 const BASE_SPEED_M_PER_MIN = 72; // ~4.3 km/h
+/** @deprecated Binary cliff — loadEffects().travelMult is the live multiplier. */
 export const ENCUMBERED_TRAVEL_MULT = 1.5;
+
 
 // Straight-line distance badly understates a real trek through a collapsed city
 // — blocked roads, rubble, detours around the dead. Stretch overland travel time
@@ -43,7 +45,8 @@ export interface TravelEstimate {
   doneHour: number; // clock hour you'd finish searching
   arrivalAtNight: boolean;
   doneAtNight: boolean;
-  encumbered: boolean;
+  /** Continuous load tax baked into travelMin (1 = none). */
+  travelMult: number;
   weatherSlowed: boolean;
   /** True when the land route cuts through baked forest / nature reserve. */
   vegetationSlowed: boolean;
@@ -51,7 +54,7 @@ export interface TravelEstimate {
 
 /**
  * One-way relocation estimate: travel from the current position to a target
- * `distanceM` away, then search it. Weather and encumbrance stretch travel time
+ * `distanceM` away, then search it. Weather and load stretch travel time
  * (but never the search itself, and never the loot yield).
  */
 export function estimateExpedition(
@@ -61,13 +64,13 @@ export function estimateExpedition(
   energy: number,
   currentHour: number,
   weather: WeatherKind,
-  encumbered: boolean,
+  travelMult = 1,
   legFactor = 1,
 ): TravelEstimate {
   const speed = walkSpeed(attrs, energy, legFactor);
   const wMult = weatherTravelMult(weather);
-  const eMult = encumbered ? ENCUMBERED_TRAVEL_MULT : 1;
-  const travelMin = Math.round((distanceM / speed) * wMult * eMult * URBAN_DECAY_DETOUR);
+  const loadMult = Math.max(1, travelMult);
+  const travelMin = Math.round((distanceM / speed) * wMult * loadMult * URBAN_DECAY_DETOUR);
   const searchMin = searchMinutes(category);
   const totalMin = travelMin + searchMin;
   const arrivalHour = (currentHour + travelMin / 60) % HOURS_PER_DAY;
@@ -81,7 +84,7 @@ export function estimateExpedition(
     doneHour,
     arrivalAtNight: timeOfDay(arrivalHour) !== 'day',
     doneAtNight: timeOfDay(doneHour) !== 'day',
-    encumbered,
+    travelMult: loadMult,
     weatherSlowed: wMult > 1,
     vegetationSlowed: false,
   };
@@ -119,9 +122,10 @@ export function withVegetationTravel(
  *
  * No train, so no discount — `distanceM` is the real distance along the bore
  * and you cover it on foot. What the tunnel buys you is what it *doesn't*
- * charge: no weather, no encumbrance penalty, and none of URBAN_DECAY_DETOUR,
- * because a bore is straight and the streets above it are not. Collapsed hops
- * still cost extra — you crawl the rubble, you do not walk the invert.
+ * charge: no weather, and none of URBAN_DECAY_DETOUR, because a bore is straight
+ * and the streets above it are not. Load still taxes the walk (milder than
+ * overland) so the MRT is not a weight-dump exploit. Collapsed hops still cost
+ * extra — you crawl the rubble, you do not walk the invert.
  */
 /** Collapsed bore metres count this much heavier than intact track. */
 export const COLLAPSED_BORE_PACE = 1.8;
@@ -134,11 +138,12 @@ export function estimateTunnelWalk(
   legFactor = 1,
   /** Track metres that run through a collapsed bore — crawled, not walked. */
   collapsedMeters = 0,
+  travelMult = 1,
 ): { travelMin: number; totalHours: number; arrivalHour: number } {
   const speed = walkSpeed(attrs, energy, legFactor);
   const rubble = Math.max(0, Math.min(collapsedMeters, distanceM));
   const effective = distanceM - rubble + rubble * COLLAPSED_BORE_PACE;
-  const travelMin = Math.max(4, Math.round(effective / speed));
+  const travelMin = Math.max(4, Math.round((effective / speed) * Math.max(1, travelMult)));
   return {
     travelMin,
     totalHours: travelMin / 60,

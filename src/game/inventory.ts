@@ -13,9 +13,12 @@ import { itemDef } from './loot';
 import {
   applyTraitColumns,
   blockedSet,
+  canPlaceOnMask,
   DEFAULT_PACK_GRID,
+  findSlotOnMask,
   packCellKey,
   resolveItemPackGrid,
+  type MaskRect,
 } from './packGrid';
 
 /** Every wearable / weapon slot, in UI order. */
@@ -34,7 +37,7 @@ export const BACKPACK = 'backpack';
 /** Base pack without an equipped bag — pockets only. Traits append columns; bags set the silhouette. */
 export const BACKPACK_DIMS = { w: DEFAULT_PACK_GRID.w, h: DEFAULT_PACK_GRID.h };
 /** On-site POI stash — tight so surplus hauls force triage. */
-export const STASH_DIMS = { w: 4, h: 4 };
+export const STASH_DIMS = { w: 3, h: 3 };
 /** Compact grid for an in-progress sequential search (timeline stash). */
 export const SEARCH_DIMS = { w: 8, h: 5 };
 /** Transient overflow while crawling a tunnel — not a location stash. */
@@ -53,16 +56,23 @@ const EMPTY_BLOCKED: ReadonlySet<string> = new Set();
  */
 let backpackMask: PackGrid = { ...DEFAULT_PACK_GRID };
 
+/** Pack silhouette for an equipped bag (or pockets) plus trait columns. Does not touch `backpackMask`. */
+export function packGridForBag(
+  traitWidthBonus: number,
+  bag: ItemInstance | null,
+): PackGrid {
+  const base = bag
+    ? (resolveItemPackGrid(itemDef(bag.defId)) ?? { ...DEFAULT_PACK_GRID })
+    : { ...DEFAULT_PACK_GRID };
+  return applyTraitColumns(base, traitWidthBonus);
+}
+
 /** Recompute pack silhouette from the equipped bag + trait column bonus. */
 export function syncBackpackBonuses(
   traitWidthBonus: number,
   equipment: Equipment,
 ): void {
-  const bag = equipment.bag;
-  const base = bag
-    ? (resolveItemPackGrid(itemDef(bag.defId)) ?? { ...DEFAULT_PACK_GRID })
-    : { ...DEFAULT_PACK_GRID };
-  backpackMask = applyTraitColumns(base, traitWidthBonus);
+  backpackMask = packGridForBag(traitWidthBonus, equipment.bag);
 }
 
 /** Grid dimensions for a container: backpack bounding box follows the bag mask. */
@@ -201,6 +211,142 @@ export function addToGrid(
   return { items: next, leftover: remaining };
 }
 
+export type ArrangeResult =
+  | { ok: true; items: ItemInstance[] }
+  | { ok: false; overflow: ItemInstance[] };
+
+function packArea(inst: ItemInstance): number {
+  const def = itemDef(inst.defId);
+  return def.w * def.h;
+}
+
+function packLongerSide(inst: ItemInstance): number {
+  const def = itemDef(inst.defId);
+  return Math.max(def.w, def.h);
+}
+
+function byGreedyPackOrder(a: ItemInstance, b: ItemInstance): number {
+  const area = packArea(b) - packArea(a);
+  if (area !== 0) return area;
+  return packLongerSide(b) - packLongerSide(a);
+}
+
+function placeOnMask(
+  grid: PackGrid,
+  placed: MaskRect[],
+  inst: ItemInstance,
+): ItemInstance | null {
+  const def = itemDef(inst.defId);
+  const slot = findSlotOnMask(grid, placed, def);
+  if (!slot) return null;
+  placed.push(slot);
+  return {
+    ...inst,
+    container: BACKPACK,
+    x: slot.x,
+    y: slot.y,
+    rotated: slot.rotated,
+  };
+}
+
+function packKeepThenSlot(grid: PackGrid, instances: ItemInstance[]): ArrangeResult {
+  const placed: MaskRect[] = [];
+  const kept: ItemInstance[] = [];
+  const displaced: ItemInstance[] = [];
+
+  for (const inst of instances) {
+    if (inst.container !== BACKPACK) {
+      displaced.push(inst);
+      continue;
+    }
+    const def = itemDef(inst.defId);
+    const { w, h } = footprint(def, inst.rotated);
+    const candidate = { x: inst.x, y: inst.y, w, h };
+    if (canPlaceOnMask(grid, placed, candidate)) {
+      placed.push(candidate);
+      kept.push({ ...inst, container: BACKPACK });
+    } else {
+      displaced.push(inst);
+    }
+  }
+
+  displaced.sort(byGreedyPackOrder);
+  const packed = [...kept];
+  for (const inst of displaced) {
+    const next = placeOnMask(grid, placed, inst);
+    if (!next) return { ok: false, overflow: [inst] };
+    packed.push(next);
+  }
+  return { ok: true, items: packed };
+}
+
+function packGreedy(grid: PackGrid, instances: ItemInstance[]): ArrangeResult {
+  const placed: MaskRect[] = [];
+  const packed: ItemInstance[] = [];
+  const overflow: ItemInstance[] = [];
+  const ordered = [...instances].sort(byGreedyPackOrder);
+  for (const inst of ordered) {
+    const next = placeOnMask(grid, placed, inst);
+    if (!next) overflow.push(inst);
+    else packed.push(next);
+  }
+  if (overflow.length) return { ok: false, overflow };
+  return { ok: true, items: packed };
+}
+
+/**
+ * Pack `instances` onto `grid` without touching module `backpackMask`.
+ * Pass 1 keeps cells that still fit; pass 2 is largest-first greedy.
+ */
+export function tryArrangeInGrid(
+  grid: PackGrid,
+  instances: ItemInstance[],
+): ArrangeResult {
+  if (instances.length === 0) return { ok: true, items: [] };
+  const stable = packKeepThenSlot(grid, instances);
+  if (stable.ok) return stable;
+  return packGreedy(grid, instances);
+}
+
+/** English fragment for refuse logs — names of items the greedy pack could not place. */
+export function arrangeOverflowClause(overflow: ItemInstance[]): string {
+  const names = overflow.map((i) => itemDef(i.defId).name);
+  if (names.length === 0) return '';
+  if (names.length === 1) return ` No room for ${names[0]}.`;
+  if (names.length === 2) return ` No room for ${names[0]} and ${names[1]}.`;
+  return ` No room for ${names[0]}, ${names[1]}, and ${names.length - 2} more.`;
+}
+
+/** Dry-run: can this bag be equipped over the current haul (plus the worn bag, if any)? */
+export function bagSwapFits(
+  items: ItemInstance[],
+  equipment: Equipment,
+  candidate: ItemInstance,
+  traitWidthBonus: number,
+): boolean {
+  if (equipment.bag?.uid === candidate.uid) {
+    return bagUnequipFits(items, equipment, traitWidthBonus);
+  }
+  const grid = packGridForBag(traitWidthBonus, candidate);
+  const backpack = items.filter((i) => i.container === BACKPACK && i.uid !== candidate.uid);
+  const prev = equipment.bag;
+  const candidates = prev ? [...backpack, prev] : backpack;
+  return tryArrangeInGrid(grid, candidates).ok;
+}
+
+/** Dry-run: can the worn bag come off onto the default (trait-adjusted) pack? */
+export function bagUnequipFits(
+  items: ItemInstance[],
+  equipment: Equipment,
+  traitWidthBonus: number,
+): boolean {
+  const bag = equipment.bag;
+  if (!bag) return true;
+  const grid = packGridForBag(traitWidthBonus, null);
+  const backpack = items.filter((i) => i.container === BACKPACK);
+  return tryArrangeInGrid(grid, [...backpack, bag]).ok;
+}
+
 /** Items currently held in a given container. */
 export function itemsIn(items: ItemInstance[], container: Container): ItemInstance[] {
   return items.filter((i) => i.container === container);
@@ -218,12 +364,49 @@ export function conditionOf(inst: ItemInstance): number {
   return inst.condition ?? 100;
 }
 
-const TIER_LABELS: Record<ConditionTier, string> = {
-  torn: 'Old & Torn',
-  used: 'Heavily Used',
-  worn: 'Slightly Used',
-  pristine: 'Brand New',
+/**
+ * Wear reads differently depending on what the thing is. A parang gets blunt, a
+ * packet of nasi lemak goes off, and a blister pack passes its expiry — the same
+ * 40% needs three different sentences. The tier maths is shared; only the words
+ * change.
+ */
+export type ConditionFamily = 'perishable' | 'medicine' | 'gear';
+
+const TIER_LABELS: Record<ConditionFamily, Record<ConditionTier, string>> = {
+  gear: {
+    torn: 'Old & Torn',
+    used: 'Heavily Used',
+    worn: 'Slightly Used',
+    pristine: 'Brand New',
+  },
+  perishable: {
+    torn: 'Spoiled',
+    used: 'On the Turn',
+    worn: 'Day-Old',
+    pristine: 'Fresh',
+  },
+  medicine: {
+    torn: 'Expired',
+    used: 'Long Past Date',
+    worn: 'Near Expiry',
+    pristine: 'Sealed',
+  },
 };
+
+/** Which vocabulary of wear a def speaks. */
+export function conditionFamily(def: ItemDef): ConditionFamily {
+  switch (def.effect.kind) {
+    case 'food':
+    case 'water':
+      return 'perishable';
+    case 'heal':
+    case 'cure':
+    case 'energy':
+      return 'medicine';
+    default:
+      return 'gear';
+  }
+}
 
 /** The wear band an instance falls in — what the player actually sees. */
 export function tierOf(inst: ItemInstance): ConditionTier {
@@ -234,8 +417,13 @@ export function tierOf(inst: ItemInstance): ConditionTier {
   return 'pristine';
 }
 
-export function tierLabel(tier: ConditionTier): string {
-  return TIER_LABELS[tier];
+export function tierLabel(tier: ConditionTier, family: ConditionFamily = 'gear'): string {
+  return TIER_LABELS[family][tier];
+}
+
+/** Label for an instance, in the vocabulary its def calls for. */
+export function instanceTierLabel(inst: ItemInstance): string {
+  return tierLabel(tierOf(inst), conditionFamily(itemDef(inst.defId)));
 }
 
 /** Whether this item wears out at all. */
@@ -256,6 +444,24 @@ export function hasCondition(inst: ItemInstance): boolean {
 export function conditionScale(inst: ItemInstance): number {
   if (!hasCondition(inst)) return 1;
   return 0.75 + 0.25 * (conditionOf(inst) / 100);
+}
+
+/**
+ * How much of its printed restore a consumable still delivers. Steeper than
+ * gear wear (floor 0.5, not 0.75): a tin that has sat in a hot bag for two days
+ * is genuinely less of a meal, and freshness should be worth crossing a carpark
+ * for. Never zero — spoiled food still feeds you, it just charges infection for
+ * the privilege (see `applyItem`).
+ */
+export function consumableScale(inst: ItemInstance): number {
+  if (!hasCondition(inst)) return 1;
+  return 0.5 + 0.5 * (conditionOf(inst) / 100);
+}
+
+/** A restore amount after freshness. A positive gain never rounds away to 0. */
+export function scaledRestore(inst: ItemInstance, base: number): number {
+  const v = Math.round(base * consumableScale(inst));
+  return base > 0 ? Math.max(1, v) : v;
 }
 
 /** Damage of an equipped weapon after wear. */
@@ -291,7 +497,7 @@ export function slotForZone(zone: BodyPartId): EquipSlot | null {
   }
 }
 
-function scaledMod(
+export function scaledMod(
   inst: ItemInstance,
   key:
     | 'limbArmor'
@@ -302,7 +508,8 @@ function scaledMod(
     | 'dodgeBonus'
     | 'attackBonus'
     | 'encounterChanceMod'
-    | 'searchSpeedBonus',
+    | 'searchSpeedBonus'
+    | 'blockChance',
 ): number {
   if (isBroken(inst)) return 0;
   const base = itemDef(inst.defId).modifiers?.[key] ?? 0;
@@ -505,22 +712,99 @@ export function maxCarry(attrs: Attributes, equipment: Equipment, carryCapacityM
   return base;
 }
 
-export const ENCUMBER_FRACTION = 0.8;
+/** Pack ratio at and below which load does nothing. ~14 kg on a 25 kg character. */
+export const LOAD_COMFORT = 0.55;
 
-/** Encumbered once the backpack exceeds 80% of max carrying capacity. */
-export function isEncumbered(
+/**
+ * Weight on the survivor: backpack contents plus worn gear (bag empty-weight,
+ * armour, weapons). Equipped items leave the grid, so they would otherwise be free.
+ */
+export function carriedWeight(items: ItemInstance[], equipment: Equipment): number {
+  let kg = containerWeight(items, BACKPACK);
+  for (const slot of ALL_EQUIP_SLOTS) {
+    const inst = equipment[slot];
+    if (inst) kg += itemWeight(inst);
+  }
+  return kg;
+}
+
+export function loadRatio(
   items: ItemInstance[],
   attrs: Attributes,
   equipment: Equipment,
   carryCapacityMod = 0,
-): boolean {
-  return containerWeight(items, BACKPACK) > maxCarry(attrs, equipment, carryCapacityMod) * ENCUMBER_FRACTION;
+): number {
+  const cap = maxCarry(attrs, equipment, carryCapacityMod);
+  if (cap <= 0) return carriedWeight(items, equipment) > 0 ? 99 : 0;
+  return carriedWeight(items, equipment) / cap;
+}
+
+/**
+ * 0 below comfort, linear up to capacity (quiet), then quadratic.
+ * At 80% travel is ~×1.24; at 150% ~×2 / energy ~×2.2 / combat speed ~half.
+ */
+export function loadStrain(ratio: number): number {
+  if (!Number.isFinite(ratio) || ratio <= LOAD_COMFORT) return 0;
+  if (ratio <= 1) return (0.35 * (ratio - LOAD_COMFORT)) / (1 - LOAD_COMFORT);
+  return 0.35 + (ratio - 1) ** 2 * 1.8;
+}
+
+export interface LoadEffects {
+  ratio: number;
+  strain: number;
+  /** Walk time and inverse of travelable range. */
+  travelMult: number;
+  /** Extra meter drain while moving. The silent killer. */
+  energyMult: number;
+  /** Initiative gauge fill rate. */
+  combatSpeedMult: number;
+  attackMod: number;
+  dodgeMod: number;
+  fleeDcMod: number;
+  /** Additive encounter chance. */
+  encounterMod: number;
+  /** Search duration multiplier (higher = slower rummage). */
+  searchMult: number;
+  /** HDB stair-step time. */
+  stairMult: number;
+  /** Tunnel walk time — 40% of overland extra so the MRT is not a dump exploit. */
+  tunnelTravelMult: number;
+}
+
+export function loadEffects(ratio: number): LoadEffects {
+  const strain = loadStrain(ratio);
+  const travelMult = 1 + 1.25 * strain;
+  return {
+    ratio,
+    strain,
+    travelMult,
+    energyMult: 1 + 1.5 * strain,
+    combatSpeedMult: 1 / (1 + 1.25 * strain),
+    attackMod: -Math.round(2 * strain),
+    dodgeMod: Math.max(-0.4, -0.2 * strain),
+    fleeDcMod: Math.round(5 * strain),
+    encounterMod: 0.15 * strain,
+    searchMult: 1 + 0.5 * strain,
+    stairMult: 1 + strain,
+    tunnelTravelMult: 1 + 0.4 * (travelMult - 1),
+  };
+}
+
+export function loadEffectsFor(
+  items: ItemInstance[],
+  attrs: Attributes,
+  equipment: Equipment,
+  carryCapacityMod = 0,
+): LoadEffects {
+  return loadEffects(loadRatio(items, attrs, equipment, carryCapacityMod));
 }
 
 // ---------- Equipment ----------
 
 export function canEquip(def: ItemDef, slot: EquipSlot): boolean {
-  return def.slot === slot;
+  if (def.slot === slot) return true;
+  // One-handed main-hand weapons can dual-wield in the off hand.
+  return slot === 'offHand' && def.slot === 'mainHand' && !def.twoHanded;
 }
 
 /** True when a two-handed weapon is occupying the main hand. */

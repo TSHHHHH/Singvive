@@ -43,6 +43,7 @@ import {
   type RecipesCatalog,
 } from './validateRecipes';
 import { ValidationErrorBadge } from './ValidationErrorBadge';
+import { tip } from '../components/tips';
 
 type PlaceFilter = 'all' | 'field' | 'shelter';
 type Pane = 'edit' | 'overview';
@@ -898,7 +899,7 @@ export function RecipesEditor({
             disabled={busy || !dirty || !valid}
             onClick={requestSave}
             className="rounded border border-signal/40 px-2.5 py-1 text-xs text-signal disabled:opacity-40"
-            title="Ctrl/Cmd+S"
+            {...tip('Ctrl/Cmd+S')}
           >
             Save recipes
           </button>
@@ -930,7 +931,7 @@ export function RecipesEditor({
             disabled={!selected || Object.keys(selected.inputs).length === 0}
             onClick={openFamily}
             className="rounded border border-white/15 px-2.5 py-1 text-xs text-white/70 disabled:opacity-40"
-            title="Copy and swap one ingredient"
+            {...tip('Copy and swap one ingredient')}
           >
             Family…
           </button>

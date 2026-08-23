@@ -14,8 +14,11 @@ import { Icon } from '../../icons/Icon';
 import { itemName, useLocale } from '../../i18n';
 import { itemIcon } from './itemIcon';
 import type { ReactNode } from 'react';
+import { tip } from '../tips';
 
 export const CELL = 34;
+/** Extra px taken off the scaled icon so art doesn't sit on the cell border. */
+const ICON_INSET = 16;
 
 export interface DragPreview {
   grid: Container;
@@ -42,8 +45,8 @@ interface Props {
   onItemPointerEnter?: (e: React.PointerEvent, inst: ItemInstance) => void;
   onItemPointerLeave?: (inst: ItemInstance) => void;
   onItemPointerMove?: (e: React.PointerEvent, inst: ItemInstance) => void;
-  /** Hide native browser tooltips when a custom hover card is active. */
-  suppressNativeTitle?: boolean;
+  /** Skip the plain hover tip when the richer ItemHoverCard is doing the job. */
+  suppressTip?: boolean;
 }
 
 /** Presentational Tetris grid. Drag state is owned by the parent panel so
@@ -63,7 +66,7 @@ export function InventoryGrid({
   onItemPointerEnter,
   onItemPointerLeave,
   onItemPointerMove,
-  suppressNativeTitle = false,
+  suppressTip = false,
 }: Props) {
   const locale = useLocale();
   const dims = dimsFor(grid);
@@ -168,17 +171,17 @@ export function InventoryGrid({
                   opacity: isDragging ? 0.25 : 1,
                   zIndex: selected ? 10 : 5,
                 }}
-                title={
-                  suppressNativeTitle
+                {...tip(
+                  suppressTip
                     ? undefined
                     : wears
                       ? `${displayName} — ${cond}%`
-                      : displayName
-                }
+                      : displayName,
+                )}
               >
                 <Icon
                   name={itemIcon(def)}
-                  size={Math.min(w, h) > 1 ? 26 : 18}
+                  size={Math.min(w, h) * CELL - ICON_INSET}
                   className="drop-shadow"
                 />
                 {def.stackable && inst.stack > 1 && (

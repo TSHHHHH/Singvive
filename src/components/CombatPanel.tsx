@@ -1,15 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
 import { useGame } from '../game/store';
+import { tip } from './tips';
 import { Icon } from '../icons/Icon';
 import type { IconName } from '../icons/keys';
 import { armCombatPenalty, legTravelFactor, totalHp, totalMaxHp } from '../game/survival';
-import { equipSpeedBonus } from '../game/inventory';
+import { sumTraitMod } from '../game/character';
+import { equipSpeedBonus, loadEffectsFor } from '../game/inventory';
 import {
   COMBAT_SPEEDS,
   FIGHT_STANCE_ORDER,
   GAUGE_FULL,
   STANCES,
   effectiveDefense,
+  offHandCombatMods,
   playerCombatStats,
   playerSpeed,
   secondsPerAction,
@@ -17,6 +20,8 @@ import {
 import { combatantIcon } from '../game/enemies';
 import type { CombatImpact, CombatLogEntry, Enemy, StanceId } from '../game/types';
 import { enemyName, useT } from '../i18n';
+import { GuideInfoButton } from './GuideInfoButton';
+import type { GuideTopic } from '../content/guideContent';
 
 const TONE_CLASS: Record<CombatLogEntry['tone'], string> = {
   player: 'text-astral',
@@ -45,13 +50,19 @@ const HP_PUNCH_KINDS = new Set<CombatImpact['kind']>(['hit', 'crit', 'kill', 'de
  * next swing uses the new profile. Break off flees on the disengage profile.
  * Items stay in the pack until the fight is over.
  */
-export function CombatPanel() {
+export function CombatPanel({
+  onOpenGuide,
+}: {
+  onOpenGuide?: (topic: GuideTopic) => void;
+}) {
   const { locale, t } = useT();
   const combat = useGame((s) => s.combat);
   const meters = useGame((s) => s.meters);
   const bodyParts = useGame((s) => s.bodyParts);
   const equipment = useGame((s) => s.equipment);
   const character = useGame((s) => s.character);
+  const items = useGame((s) => s.items);
+  const rounds = useGame((s) => s.rounds);
   const combatBreakOff = useGame((s) => s.combatBreakOff);
   const combatContinue = useGame((s) => s.combatContinue);
   const combatTick = useGame((s) => s.combatTick);
@@ -114,11 +125,19 @@ export function CombatPanel() {
   const z = combat.zombie;
   const zPct = Math.max(0, (z.hp / z.maxHp) * 100);
   const hpPct = maxHp > 0 ? Math.max(0, (currentHp / maxHp) * 100) : 0;
+  const load = loadEffectsFor(
+    items,
+    character.attributes,
+    equipment,
+    sumTraitMod(character.traitIds, 'carryCapacityMod'),
+  );
   const stats = playerCombatStats(
     character.attributes,
     character.traitIds,
     equipment,
     armCombatPenalty(bodyParts),
+    rounds,
+    load.attackMod,
   );
   const stance = STANCES[combat.selectedStance];
   const terrain = combat.terrain;
@@ -127,7 +146,9 @@ export function CombatPanel() {
     stance,
     meters.energy,
     legTravelFactor(bodyParts),
-    equipSpeedBonus(equipment),
+    equipSpeedBonus(equipment) + offHandCombatMods(equipment).speed,
+    stats.speedFactor,
+    load.combatSpeedMult,
   );
 
   const groups = groupLog(combat.log);
@@ -158,6 +179,7 @@ export function CombatPanel() {
           dmgLabel={t('ui.combat.dmg')}
           defLabel={t('ui.combat.def')}
           spdLabel={t('ui.combat.spd')}
+          spdTip={t('ui.combat.spdTip')}
           punchToken={playerPunch}
           lowHpPulse={lowHp}
         />
@@ -187,6 +209,7 @@ export function CombatPanel() {
           dmgLabel={t('ui.combat.dmg')}
           defLabel={t('ui.combat.def')}
           spdLabel={t('ui.combat.spd')}
+          spdTip={t('ui.combat.spdTipEnemy')}
           mirrored
           punchToken={enemyPunch}
         />
@@ -199,6 +222,9 @@ export function CombatPanel() {
         <span>
           {terrain.name} · T{combat.round}
         </span>
+        {onOpenGuide && (
+          <GuideInfoButton topic="fight" onOpen={onOpenGuide} label={t('ui.combat.guide')} />
+        )}
       </div>
 
       {/* ---- log: one bubble per action ----
@@ -263,7 +289,7 @@ export function CombatPanel() {
         <div className="flex shrink-0 items-center gap-1">
           <button
             onClick={combatTogglePause}
-            title={combat.paused ? t('ui.combat.resume') : t('ui.combat.pause')}
+            {...tip(combat.paused ? t('ui.combat.resume') : t('ui.combat.pause'), { label: true })}
             className={`h-6 w-10 rounded border text-xs font-bold transition ${
               combat.paused
                 ? 'border-signal/60 bg-signal/15 text-signal'
@@ -302,7 +328,7 @@ export function CombatPanel() {
           <StanceSwitcher selected={combat.selectedStance} onSelect={combatSetStance} />
           <button
             onClick={combatBreakOff}
-            title={t('ui.combat.breakOffTitle')}
+            {...tip(t('ui.combat.breakOffTitle'))}
             className="h-7 shrink-0 rounded border border-hiss/50 px-2 text-xs font-bold uppercase tracking-wide text-hiss hover:bg-hiss/10"
           >
             {t('ui.combat.breakOff')}
@@ -330,7 +356,7 @@ function StanceSwitcher({
           <button
             key={id}
             onClick={() => onSelect(id)}
-            title={s.description}
+            {...tip(s.description)}
             className={`h-7 min-w-0 flex-1 truncate rounded border px-1 text-xs font-bold uppercase tracking-wide transition ${
               on
                 ? 'border-astral/70 bg-astral/20 text-astral'
@@ -371,8 +397,8 @@ function SpeedTrack({
   return (
     <div className="shrink-0 space-y-0.5">
       <div className="flex justify-between text-2xs tabular-nums text-white/30">
-        <span title="Seconds per your action at current Speed">you {pSec.toFixed(1)}s</span>
-        <span title="Seconds per their action">them {eSec.toFixed(1)}s</span>
+        <span {...tip('Seconds per your action at current Speed')}>you {pSec.toFixed(1)}s</span>
+        <span {...tip('Seconds per their action')}>them {eSec.toFixed(1)}s</span>
       </div>
       <div className="relative h-3 rounded-sm bg-black/50 ring-1 ring-white/10">
         <div
@@ -421,7 +447,7 @@ function enemyWeaponLabel(kind: Enemy['kind'], t: (key: string) => string): stri
 
 function portraitHitClass(impact: CombatImpact | null | undefined): string {
   if (!impact) return '';
-  if (impact.kind === 'dodge') return 'combat-portrait-dodge';
+  if (impact.kind === 'dodge' || impact.kind === 'block') return 'combat-portrait-dodge';
   if (impact.kind === 'miss') return '';
   if (impact.side === 'player' && (impact.kind === 'hit' || impact.kind === 'crit' || impact.kind === 'death')) {
     return impact.kind === 'crit' || impact.kind === 'death'
@@ -454,7 +480,7 @@ function Portrait({
         flash ? 'ring-white/50' : 'ring-white/10'
       } ${hitClass}`}
     >
-      <span className="truncate px-0.5 pt-0.5 text-center text-2xs leading-tight text-white/70" title={name}>
+      <span className="truncate px-0.5 pt-0.5 text-center text-2xs leading-tight text-white/70" {...tip(name)}>
         {name}
       </span>
       <div className="flex min-h-0 flex-1 items-center justify-center">
@@ -480,6 +506,7 @@ function FighterColumn({
   dmgLabel,
   defLabel,
   spdLabel,
+  spdTip,
   mirrored,
   punchToken = 0,
   lowHpPulse = false,
@@ -495,6 +522,7 @@ function FighterColumn({
   dmgLabel: string;
   defLabel: string;
   spdLabel: string;
+  spdTip?: string;
   /** Enemy side: HP count and weapon to the left. */
   mirrored?: boolean;
   /** Non-zero when this side just took a damaging impact — restarts HP punch FX. */
@@ -527,13 +555,13 @@ function FighterColumn({
           mirrored ? 'justify-end' : ''
         }`}
       >
-        <span title="Damage per hit">
+        <span {...tip('Damage per hit')}>
           <span className="text-white/25">{dmgLabel}</span> {Math.round(damage)}
         </span>
-        <span title="What the other side has to beat">
+        <span {...tip('What the other side has to beat')}>
           <span className="text-white/25">{defLabel}</span> {defense}
         </span>
-        <span title="Gauge units per second on the track">
+        <span {...tip(spdTip ?? 'Gauge units per second on the track')}>
           <span className="text-white/25">{spdLabel}</span> {speed.toFixed(0)}
         </span>
       </div>

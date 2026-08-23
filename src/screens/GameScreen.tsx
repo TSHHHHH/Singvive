@@ -35,6 +35,7 @@ import { WeatherBadge } from '../components/WeatherBadge';
 import { SleepQualityIndicator } from '../components/SleepQualityIndicator';
 import { ObjectiveBar } from '../components/ObjectiveBar';
 import { ObjectivesPanel } from '../components/ObjectivesPanel';
+import { tip } from '../components/tips';
 import { DayLogsModal } from '../components/DayLogsModal';
 import { GuideModal } from '../components/GuideModal';
 import { HowToPlayModal } from '../components/HowToPlayModal';
@@ -60,13 +61,18 @@ import {
 import {
   equipEncounterChanceMod,
   equipTravelSpeedFactor,
-  isEncumbered,
+  loadEffectsFor,
   totalLootValue,
 } from '../game/inventory';
 import { haversine } from '../game/overpass';
 import { rollWeather, timeOfDay, weatherEncounterMod } from '../game/weather';
 import { awareness, blipMargin, travelableRange } from '../game/fog';
-import { equipAwarenessMod, sumTraitMod, traitAwarenessMod } from '../game/character';
+import {
+  equipAwarenessMod,
+  sumTraitMod,
+  traitAwarenessMod,
+  traitDetectRadiusMult,
+} from '../game/character';
 import {
   EVAC_SCORE_BONUS,
   evacReadiness,
@@ -207,6 +213,7 @@ export function GameScreen() {
     evacCooldownUntil,
     evacDemand,
     evacDemandBias,
+    evacManifestRevealed,
     callEvac,
     travel,
     enter,
@@ -251,6 +258,7 @@ export function GameScreen() {
       evacCooldownUntil: s.evacCooldownUntil,
       evacDemand: s.evacDemand,
       evacDemandBias: s.evacDemandBias,
+      evacManifestRevealed: s.evacManifestRevealed,
       callEvac: s.callEvac,
       travel: s.travel,
       enter: s.enter,
@@ -483,8 +491,16 @@ export function GameScreen() {
 
   const weather = useMemo(() => rollWeather(new Rng(seed), day), [seed, day]);
   const time = timeOfDay(hour);
-  const encumbered = useMemo(
-    () => (character ? isEncumbered(items, character.attributes, equipment) : false),
+  const load = useMemo(
+    () =>
+      character
+        ? loadEffectsFor(
+            items,
+            character.attributes,
+            equipment,
+            sumTraitMod(character.traitIds, 'carryCapacityMod'),
+          )
+        : null,
     [character, items, equipment],
   );
 
@@ -495,9 +511,15 @@ export function GameScreen() {
   const travelRange = useMemo(
     () =>
       character
-        ? travelableRange(character.attributes, meters.energy, legFactor, weather, encumbered)
+        ? travelableRange(
+            character.attributes,
+            meters.energy,
+            legFactor,
+            weather,
+            load?.travelMult ?? 1,
+          )
         : 400,
-    [character, meters.energy, legFactor, weather, encumbered],
+    [character, meters.energy, legFactor, weather, load],
   );
   // Fog + planning ring: hold setout range for the whole glide, then ease to
   // the post-trip range on arrival (energy already spent at departure).
@@ -511,8 +533,9 @@ export function GameScreen() {
         traitAwarenessMod(character.traitIds),
       )
     : 0;
-  const blipRange = travelRange + blipMargin(awarenessValue);
-  const mapBlipRange = mapTravelRange + blipMargin(awarenessValue);
+  const detectMult = character ? traitDetectRadiusMult(character.traitIds) : 1;
+  const blipRange = travelRange + blipMargin(awarenessValue) * detectMult;
+  const mapBlipRange = mapTravelRange + blipMargin(awarenessValue) * detectMult;
 
   // Hazards densify as the horde climbs — early map is sparse, late map contested.
   const hazardPressure = hordeIntensity(hordeLevel);
@@ -555,7 +578,7 @@ export function GameScreen() {
         meters.energy,
         hour,
         weather,
-        encumbered,
+        load?.travelMult ?? 1,
         legFactor,
       );
       const veg = vegetationCost(currentPos, { lat: sel.lat, lng: sel.lng }, via);
@@ -570,7 +593,7 @@ export function GameScreen() {
       meters.energy,
       hour,
       weather,
-      encumbered,
+      load,
       legFactor,
     ],
   );
@@ -589,7 +612,7 @@ export function GameScreen() {
         meters.energy,
         hour,
         weather,
-        encumbered,
+        load?.travelMult ?? 1,
         legFactor,
       );
       const veg = vegetationCost(currentPos, trekTarget, via);
@@ -605,7 +628,7 @@ export function GameScreen() {
       meters.energy,
       hour,
       weather,
-      encumbered,
+      load,
       legFactor,
       currentPos,
       previewRoute,
@@ -902,7 +925,8 @@ export function GameScreen() {
           onClick={callEvac}
           className="mt-2 w-full rounded-lg bg-signal/80 py-2 text-sm font-bold text-black transition hover:bg-signal"
         >
-          <Icon name="action.evac" /> {t('ui.game.callEvac')}
+          <Icon name="action.evac" />{' '}
+          {t(evacManifestRevealed ? 'ui.game.callEvac' : 'ui.game.raiseChannel')}
         </button>
       )}
     </>
@@ -1016,7 +1040,7 @@ export function GameScreen() {
               <button
                 onClick={rest}
                 className="rounded border border-white/15 px-2.5 py-1 text-xs transition hover:bg-white/5"
-                title={sleepPreview.conditions.summary}
+                {...tip(sleepPreview.conditions.summary)}
               >
                 <Icon name="action.sleep" /> {t('ui.game.rest')}
               </button>
@@ -1040,6 +1064,11 @@ export function GameScreen() {
               dayMult={dayMult}
               vibe={readiness.vibe}
               vibeLine={readiness.vibeLine}
+              manifestRevealed={evacManifestRevealed}
+              evacRatio={readiness.ratio}
+              evacReady={readiness.ready}
+              evacCurrent={readiness.current}
+              evacRequired={readiness.required}
               onOpen={() => setSidePanel((p) => (p === 'objective' ? null : 'objective'))}
             />
 
@@ -1127,6 +1156,11 @@ export function GameScreen() {
                 atEvac={atEvac}
                 vibe={readiness.vibe}
                 vibeLine={readiness.vibeLine}
+                manifestRevealed={evacManifestRevealed}
+                evacCurrent={readiness.current}
+                evacRequired={readiness.required}
+                evacRatio={readiness.ratio}
+                evacBias={evacDemandBias ?? 'balanced'}
                 dayMult={dayMult}
                 projectedScore={projectedScore}
                 projectedEvacBonus={projectedEvacBonus}
@@ -1155,7 +1189,7 @@ export function GameScreen() {
         {/* Phone active fight: CombatPanel owns the Map tab (no map peek). */}
         {phoneFight && (
           <div className="flex h-full min-h-0 flex-1 flex-col p-2 lg:hidden">
-            <CombatPanel />
+            <CombatPanel onOpenGuide={setGuideTopic} />
           </div>
         )}
         <div
@@ -1245,7 +1279,7 @@ export function GameScreen() {
              Phone: Map owns CombatPanel — Log stays history + settings. */}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
           {combat && !contactGate && !isPhone ? (
-            <CombatPanel />
+            <CombatPanel onOpenGuide={setGuideTopic} />
           ) : (
             <div className="flex min-h-0 flex-1 flex-col">
               <LogPanel
