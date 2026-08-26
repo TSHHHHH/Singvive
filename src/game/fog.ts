@@ -19,6 +19,11 @@ const MINUTES_PER_10_ENERGY = 1;
 // Metres of blip-sensing range added per awareness point above baseline.
 export const AWARENESS_RANGE_PER_POINT = 60;
 
+import { haversine } from './overpass';
+
+/** Radius of the lit spot left behind at a visited location. */
+export const VISITED_LIGHT_RADIUS = 140;
+
 /** Explored area entry — a lit spot on the fog canvas (somewhere you've been). */
 export interface ExploredCircle {
   lat: number;
@@ -26,8 +31,50 @@ export interface ExploredCircle {
   radius: number; // metres
 }
 
-/** Radius of the lit spot left behind at a visited location. */
-export const VISITED_LIGHT_RADIUS = 140;
+/**
+ * Collapse fog discs so tile paint stays O(tiles), not O(visits × tiles).
+ * Contained circles are dropped (exact). Heavily overlapping neighbours merge
+ * into a covering disc once the list is long enough that paint cost matters.
+ */
+export function mergeExploredCircles(circles: ExploredCircle[]): ExploredCircle[] {
+  if (circles.length < 2) return circles;
+  const remaining: ExploredCircle[] = circles.slice();
+  const mergeOverlap = remaining.length >= 48;
+  let changed = true;
+  while (changed) {
+    changed = false;
+    outer: for (let i = 0; i < remaining.length; i++) {
+      for (let j = i + 1; j < remaining.length; j++) {
+        const a = remaining[i]!;
+        const b = remaining[j]!;
+        const d = haversine(a.lat, a.lng, b.lat, b.lng);
+        if (d + b.radius <= a.radius + 0.5) {
+          remaining.splice(j, 1);
+          changed = true;
+          break outer;
+        }
+        if (d + a.radius <= b.radius + 0.5) {
+          remaining.splice(i, 1);
+          changed = true;
+          break outer;
+        }
+        if (mergeOverlap && d < (a.radius + b.radius) * 0.55) {
+          const R = (d + a.radius + b.radius) / 2;
+          const t = d < 1e-6 ? 0 : (R - a.radius) / d;
+          remaining[i] = {
+            lat: a.lat + t * (b.lat - a.lat),
+            lng: a.lng + t * (b.lng - a.lng),
+            radius: R,
+          };
+          remaining.splice(j, 1);
+          changed = true;
+          break outer;
+        }
+      }
+    }
+  }
+  return remaining.length === circles.length ? circles : remaining;
+}
 
 /**
  * Derive awareness from Perception + equipment/trait modifiers.

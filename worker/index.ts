@@ -67,15 +67,19 @@ async function listScores(url: URL, db: D1Database): Promise<Response> {
     .bind(limit)
     .all<ScoreRow>();
 
-  return json({
-    scores: (results ?? []).map((row) => ({
-      id: row.id,
-      name: row.name,
-      days: row.days,
-      score: row.score,
-      escaped: row.escaped === 1,
-    })),
-  });
+  return json(
+    {
+      scores: (results ?? []).map((row) => ({
+        id: row.id,
+        name: row.name,
+        days: row.days,
+        score: row.score,
+        escaped: row.escaped === 1,
+      })),
+    },
+    200,
+    { 'Cache-Control': 'public, max-age=30' },
+  );
 }
 
 async function submitScore(request: Request, db: D1Database): Promise<Response> {
@@ -112,8 +116,9 @@ async function submitScore(request: Request, db: D1Database): Promise<Response> 
     )
     .first<{ id: number }>();
 
-  if (!insert) return json({ error: 'Insert failed' }, 500);
+  if (!insert) return json({ error: 'Insert failed' }, 500, { 'Cache-Control': 'no-store' });
 
+  // Rank is a COUNT of rows strictly ahead — fine until the table is huge.
   const rankRow = await db
     .prepare(
       `SELECT COUNT(*) + 1 AS rank
@@ -123,7 +128,9 @@ async function submitScore(request: Request, db: D1Database): Promise<Response> 
     .bind(parsed.score, parsed.score, createdAt, createdAt, insert.id)
     .first<{ rank: number }>();
 
-  return json({ id: insert.id, rank: rankRow?.rank ?? 1 });
+  return json({ id: insert.id, rank: rankRow?.rank ?? 1 }, 200, {
+    'Cache-Control': 'no-store',
+  });
 }
 
 function parseSubmit(
@@ -216,6 +223,9 @@ async function rateLimit(db: D1Database, ipHash: string): Promise<boolean> {
     .bind(ipHash, now, hourBucket)
     .run();
 
+  // Drop rows that have not been touched in a day so the table cannot grow unbounded.
+  await db.prepare(`DELETE FROM rate_limits WHERE last_at < ?`).bind(now - 24 * HOUR_MS).run();
+
   return false;
 }
 
@@ -224,9 +234,9 @@ async function hashIp(ip: string): Promise<string> {
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-function json(body: unknown, status = 200): Response {
+function json(body: unknown, status = 200, extra: HeadersInit = {}): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...extra },
   });
 }

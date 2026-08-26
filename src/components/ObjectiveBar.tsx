@@ -18,6 +18,9 @@ interface Props {
   doom: number;
   doomColor: string;
   doomLabel: string;
+  /** Neighbourhood you are standing in — omitted on legacy runs with no town field. */
+  townName: string | null;
+  townTier: 'stirring' | 'restless' | 'massing' | 'fallen' | 'lost' | null;
   dayMult: number;
   vibe: EvacVibe;
   vibeLine: string;
@@ -77,6 +80,8 @@ export function ObjectiveBar({
   doom,
   doomColor,
   doomLabel,
+  townName,
+  townTier,
   dayMult,
   vibe,
   vibeLine,
@@ -138,6 +143,11 @@ export function ObjectiveBar({
           </span>
         )}
       </div>
+      {townName && townTier && (
+        <div className="mt-0.5 truncate text-2xs text-white/40">
+          {t('ui.town.here', { name: townName, tier: t(`ui.town.${townTier}`) })}
+        </div>
+      )}
 
       <div className="mt-1.5 flex items-center gap-2">
         <div className="flex min-w-0 flex-1 flex-col gap-1">

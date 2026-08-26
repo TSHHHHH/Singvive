@@ -32,6 +32,11 @@ export interface FlavorCtx {
 export type FlavorKey =
   | 'wake'
   | 'wakeOffline'
+  | 'wakeTownStirring'
+  | 'wakeTownRestless'
+  | 'wakeTownMassing'
+  | 'wakeTownFallen'
+  | 'wakeTownLost'
   | 'setout'
   | 'arrive'
   | 'atDoor'
@@ -176,6 +181,21 @@ const POOLS: Record<FlavorKey, string[]> = {
     'You come to somewhere near {name}. The maps are down — you\'ll have to trust your feet.',
     'You wake up close to {name}. No signal, no grid. Just you and the ruins.',
     'You sit up near {name} with no pins on the map. Guesswork from here.',
+  ],
+  wakeTownStirring: [
+    '{name} is still holding. You can hear it in the empty streets — not safe, just not gone yet.',
+  ],
+  wakeTownRestless: [
+    '{name} has been uneasy for a while. Something is moving through the estates.',
+  ],
+  wakeTownMassing: [
+    '{name} is massing. You woke up on the wrong side of a city that is already folding.',
+  ],
+  wakeTownFallen: [
+    '{name} has fallen. The blocks are still standing. The neighbourhood is not.',
+  ],
+  wakeTownLost: [
+    '{name} has not been quiet for a long time. The streets here already belong to them.',
   ],
   setout: [
     'You shoulder your pack and move out toward {name}.',

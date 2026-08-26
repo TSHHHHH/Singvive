@@ -24,6 +24,8 @@ interface Props {
   doom: number;
   doomColor: string;
   doomLabel: string;
+  townName: string | null;
+  townTier: 'stirring' | 'restless' | 'massing' | 'fallen' | 'lost' | null;
   onEvac: () => void;
   onOpenGuide?: (topic: GuideTopic) => void;
 }
@@ -71,6 +73,8 @@ export function ObjectivesPanel({
   doom,
   doomColor,
   doomLabel,
+  townName,
+  townTier,
   onEvac,
   onOpenGuide,
 }: Props) {
@@ -225,6 +229,11 @@ export function ObjectivesPanel({
           />
         </div>
         <p className="mt-1.5 text-2xs text-white/30">{t('ui.objective.hordeBlurb')}</p>
+        {townName && townTier && (
+          <p className="mt-1 text-2xs text-white/40">
+            {t('ui.town.here', { name: townName, tier: t(`ui.town.${townTier}`) })}
+          </p>
+        )}
       </section>
     </div>
   );

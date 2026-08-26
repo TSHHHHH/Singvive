@@ -162,8 +162,8 @@
       "damagePerDanger": 2,
       "drops": ["parang", "jewellery", "painkillers"]
     },
-    "idtf": {
-      "name": "IDTF Deserter",
+    "muster": {
+      "name": "Muster Patrol",
       "armor": 4,
       "baseHp": 34,
       "hpPerDanger": 7,
@@ -171,10 +171,10 @@
       "baseDamage": 10,
       "damagePerDanger": 3,
       "baseSpeed": 10,
-      "drops": ["ammo_box", "kevlar_vest", "bandage"]
+      "drops": ["bandage", "army_ration", "batteries"]
     },
-    "pasir_panjang": {
-      "name": "Co-op Enforcer",
+    "gotong": {
+      "name": "Gotong Volunteer",
       "armor": 2,
       "baseHp": 36,
       "hpPerDanger": 6,

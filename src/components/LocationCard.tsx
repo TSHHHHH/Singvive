@@ -13,6 +13,10 @@ import {
   STANDING_KIN,
   STANDING_KNOWN,
   STANDING_TRUSTED,
+  canKinSearch88Deck,
+  escortCandidates,
+  factionEscorts,
+  factionFeeds,
   factionOffersAid,
   factionSharesIntel,
   factionShelters,
@@ -27,6 +31,7 @@ import { useGame } from '../game/store';
 import { dangerColor } from './mapIcons';
 import { formatDuration, type estimateExpedition } from '../game/travel';
 import { remainingSearchMinutes } from '../game/searchSession';
+import { haversine } from '../game/overpass';
 import { displayLine, getMrtNetwork, linesAt, type MrtSegment } from '../game/mrt';
 import type { FactionService, LocationState } from '../game/types';
 import type { IconName } from '../icons/keys';
@@ -424,7 +429,7 @@ const SERVICE_META: Record<
   { icon: IconName; labelKey: string; hintKey: string; lockedKey: string }
 > = {
   trade: {
-    icon: 'faction.idtf',
+    icon: 'action.search',
     labelKey: 'ui.location.trade',
     hintKey: 'ui.location.tradeHint',
     lockedKey: 'ui.location.noDealStrangers',
@@ -447,6 +452,18 @@ const SERVICE_META: Record<
     hintKey: 'ui.location.intelHint',
     lockedKey: 'ui.location.noBriefStrangers',
   },
+  feed: {
+    icon: 'poi.foodcourt',
+    labelKey: 'ui.location.canteen',
+    hintKey: 'ui.location.canteenHint',
+    lockedKey: 'ui.location.canteenLocked',
+  },
+  escort: {
+    icon: 'poi.waypoint',
+    labelKey: 'ui.location.escort',
+    hintKey: 'ui.location.escortHint',
+    lockedKey: 'ui.location.escortLocked',
+  },
 };
 
 /** NPC services on occupied ground — never scavenging. Hidden while raiding. */
@@ -460,18 +477,28 @@ function FactionHubActions({ sel }: { sel: LocationState }) {
   const outpostRest = useGame((s) => s.outpostRest);
   const factionAid = useGame((s) => s.factionAid);
   const factionIntel = useGame((s) => s.factionIntel);
+  const factionFeed = useGame((s) => s.factionFeed);
+  const factionEscort = useGame((s) => s.factionEscort);
+  const searchKinDeck = useGame((s) => s.searchKinDeck);
+  const escort = useGame((s) => s.escort);
+  const locations = useGame((s) => s.locations);
   if (!sel.factionId) return null;
   if (raidMode?.locationId === sel.id) return null;
 
   const cfg = FACTION_CONFIG[sel.factionId];
   const services = locationServices(sel, outposts);
-  if (!services.length) return null;
   const cleared = hasFactionClearance(sel, standing, day);
+  if (!services.length && !(canKinSearch88Deck(sel, standing) && cleared)) return null;
 
   const canTrade = factionTrades(sel.factionId, standing);
   const canRest = factionShelters(sel.factionId, standing);
   const canAid = factionOffersAid(sel.factionId, standing);
   const canIntel = factionSharesIntel(sel.factionId, standing);
+  const canFeed = factionFeeds(sel.factionId, standing);
+  const canEscort = factionEscorts(sel.factionId, standing);
+  const kinDeck = canKinSearch88Deck(sel, standing);
+  const escortDests = services.includes('escort') ? escortCandidates(sel, locations).slice(0, 5) : [];
+  const escortDest = escort?.toId ? locations[escort.toId] : null;
 
   return (
     <>
@@ -490,12 +517,17 @@ function FactionHubActions({ sel }: { sel: LocationState }) {
               className="w-full rounded border px-2 py-2 text-sm leading-tight hover:brightness-125 disabled:opacity-30"
               style={{ borderColor: `${cfg.color}66`, background: `${cfg.color}1a`, color: cfg.color }}
             >
-              <Icon name={cfg.icon} /> {t(SERVICE_META.trade.labelKey)}
+              <Icon name={cfg.icon} />{' '}
+              {sel.factionId === 'syndicate_88'
+                ? t('ui.location.fence')
+                : t(SERVICE_META.trade.labelKey)}
               <span className="block text-xs font-normal opacity-75">
                 {!cleared
                   ? t('ui.location.gateFirst')
                   : canTrade
-                    ? t(SERVICE_META.trade.hintKey)
+                    ? sel.factionId === 'syndicate_88'
+                      ? t('ui.location.fenceHint')
+                      : t(SERVICE_META.trade.hintKey)
                     : t(SERVICE_META.trade.lockedKey)}
               </span>
             </button>
@@ -549,6 +581,77 @@ function FactionHubActions({ sel }: { sel: LocationState }) {
                     : canIntel
                       ? t(SERVICE_META.intel.hintKey)
                       : t(SERVICE_META.intel.lockedKey)}
+              </span>
+            </button>
+          )}
+          {services.includes('feed') && (
+            <button
+              disabled={!cleared || !canFeed || (sel.feedUsedDay ?? -1) >= day}
+              onClick={factionFeed}
+              className="w-full rounded border px-2 py-2 text-sm leading-tight hover:brightness-125 disabled:opacity-30"
+              style={{ borderColor: `${cfg.color}66`, background: `${cfg.color}1a`, color: cfg.color }}
+            >
+              <Icon name={SERVICE_META.feed.icon} /> {t(SERVICE_META.feed.labelKey)}
+              <span className="block text-xs font-normal opacity-75">
+                {!cleared
+                  ? t('ui.location.gateFirst')
+                  : (sel.feedUsedDay ?? -1) >= day
+                    ? t('ui.location.alreadyUsedToday')
+                    : canFeed
+                      ? t(SERVICE_META.feed.hintKey)
+                      : t(SERVICE_META.feed.lockedKey)}
+              </span>
+            </button>
+          )}
+          {services.includes('escort') && (
+            <div className="rounded border border-white/15 px-2 py-2">
+              <div className="text-sm leading-tight">
+                <Icon name={SERVICE_META.escort.icon} /> {t(SERVICE_META.escort.labelKey)}
+              </div>
+              <p className="mt-0.5 text-xs opacity-60">
+                {!cleared
+                  ? t('ui.location.gateFirst')
+                  : !canEscort
+                    ? t(SERVICE_META.escort.lockedKey)
+                    : escortDest
+                      ? t('ui.location.escortBooked', { name: escortDest.name })
+                      : t(SERVICE_META.escort.hintKey)}
+              </p>
+              {cleared && canEscort && !escortDest && (
+                <div className="mt-1.5 flex flex-col gap-1">
+                  {escortDests.length === 0 ? (
+                    <p className="text-xs text-white/45">{t('ui.location.escortNoDest')}</p>
+                  ) : (
+                    escortDests.map((d) => (
+                      <button
+                        key={d.id}
+                        onClick={() => factionEscort(d.id)}
+                        className="w-full rounded border border-white/10 px-2 py-1 text-left text-xs hover:bg-white/5"
+                      >
+                        {d.name}
+                        <span className="ml-1 opacity-50">
+                          {Math.round(haversine(sel.lat, sel.lng, d.lat, d.lng))} m
+                        </span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+          {kinDeck && (
+            <button
+              disabled={!cleared}
+              onClick={searchKinDeck}
+              className="w-full rounded border border-white/15 px-2 py-2 text-sm leading-tight hover:bg-white/5 disabled:opacity-30"
+            >
+              <Icon name="hdb.enterBlock" /> {t('ui.location.walkTheDecks')}
+              <span className="block text-xs font-normal opacity-60">
+                {!cleared
+                  ? t('ui.location.gateFirst')
+                  : sel.kinDeckUsed
+                    ? t('ui.location.walkTheDecksAgain')
+                    : t('ui.location.walkTheDecksHint')}
               </span>
             </button>
           )}

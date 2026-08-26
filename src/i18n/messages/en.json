@@ -176,6 +176,19 @@
       "fieldAid": "Field aid",
       "askIntel": "Ask for intel",
       "trade": "Trade at the counter",
+      "fence": "The fence",
+      "fenceHint": "Illicit board — today's swaps",
+      "canteen": "Sit down and eat",
+      "canteenHint": "Once per day — no pack item",
+      "canteenLocked": "The table is for people they know",
+      "escort": "Ask for an escort",
+      "escortHint": "They walk you to a place you can name",
+      "escortLocked": "They do not walk strangers",
+      "escortBooked": "Booked to {name}",
+      "escortNoDest": "Walk somewhere first — they only escort to a place you can name.",
+      "walkTheDecks": "Walk the decks",
+      "walkTheDecksHint": "Kin — this block is yours, once",
+      "walkTheDecksAgain": "The block still knows you",
       "leaveBlock": "Leave the block",
       "route": "Route",
       "planTunnels": "Plan this tunnel",
@@ -206,7 +219,7 @@
       "metersFromSpawn": "{m} m from spawn",
       "danger": "Danger",
       "ruin": "Ruin",
-      "factionOutpost": "Faction outpost — full services, no scavenging.",
+      "factionOutpost": "Faction outpost — full kit, no scavenging.",
       "factionTerritory": "Faction territory — NPC hub, no scavenging.",
       "insideUnseen": "Inside unseen — their stores, if you stay quiet.",
       "forcedEntry": "Forced entry — rich stores, every search draws a fight.",
@@ -390,7 +403,16 @@
       "biasBalanced": "This bird takes it balanced",
       "radioBlurb": "Fuel, meds, and ammo count most; sealed water a little; food and scrap barely. Burning fuel to boil water hurts the haul. Raise the channel once you are standing on the pad and the crew names real numbers.",
       "horde": "Horde · {label}",
-      "hordeBlurb": "The horde climbs every day. The higher it gets, the more hazard pockets appear, the nastier they get, and the more often something finds you. At 100% the city is overrun and the run ends."
+      "hordeBlurb": "The island clock climbs every day, and every neighbourhood gets worse with it. Where you stand is a front — Stirring streets are not Lost ones. Lost ground is still walkable, just brutal. At 100% the city is overrun and the run ends."
+    },
+    "town": {
+      "here": "{name} · {tier}",
+      "legendTitle": "Island front",
+      "stirring": "Stirring",
+      "restless": "Restless",
+      "massing": "Massing",
+      "fallen": "Fallen",
+      "lost": "Lost"
     },
     "horde": {
       "stirring": "Stirring",
@@ -1103,7 +1125,7 @@
         "Health is the sum of your six limbs. Bleeding blocks regen; infection at 100 ends the run.",
         "Night (after dusk) is more dangerous. Get inside before dark — the streets fill with a night swarm. Rest shows recovery and ambush chance; sleep still drains hunger and thirst (reduced).",
         "Hazard pockets sit between pins (horde, patrols, collapse, flood). Sense them inside your ring, route around when you can — each kind bites differently if you cross.",
-        "The horde meter climbs every day and everything scales with it: more pockets, bigger and meaner ones, and more encounters both on the road and mid-search — a route that was quiet on day 2 is not quiet on day 8.",
+        "The horde meter is the island clock, not the street under your feet. It climbs every day and every neighbourhood gets worse with it — but a Stirring town is not a Lost one. Ground zero is already Fallen or worse when you wake; distant estates may still be holding. Lost streets stay walkable, they just cost more: denser pockets, dusk-rate swarms in daylight, harder searches. Zoom out until the island fits and the map becomes a status overlay; street zoom stays clear. At 100% the city is overrun and the run ends.",
         "Infected animals share the combat loop and can infect on a hit. Otters and monitors claim inland water, macaques and boars the catchment, dogs/cats/rats the streets.",
         "Fights run on a shared track — whoever fills it swings. Light weapons and a free off-hand fill faster; a shield or a second blade is a real choice."
       ]
@@ -1121,7 +1143,7 @@
       "bullets": [
         "At a place, start a search: a fogged grid reveals finds one by one in real time. Street sites usually turn up a handful of items — condition tracks how wrecked the place looks.",
         "First visit sizes up the footprint and ruin (Intact → Gutted). Ruin sets the condition band: Intact is Brand New, Damaged is Slightly Used, Ravaged is Heavily Used, Gutted is Old & Torn. A hot site does not turn junk into mint gear.",
-        "Click a fogged cell to search it next. Click found items (or Take all) into your pack; overflow goes to the tiny on-site stash (4×4).",
+        "Click a fogged cell to search it next. Click found items (or Take all) into your pack; overflow goes to the tiny on-site stash (3×3).",
         "Equipped bags change the pack's cell shape, not just its size — holes cannot hold loot. A smaller or hole-punched bag only equips if the current haul can be rearranged into it.",
         "Worn kit counts toward load. Hover the carry bar — a heavy pack never stops a pickup, it just makes travel, fights, and searches cost more.",
         "Each site has limited searches. Leaving early still spends a partial charge. Take what you want — Done or Leave abandons the rest."
@@ -1147,8 +1169,8 @@
     "evac": {
       "title": "Evac",
       "bullets": [
-        "A map beacon marks the staging zone. Reach it during the timed window with a haul in your backpack (not stash or equipped), then pop the flare.",
-        "Fuel counts most, then meds and ammo; sealed water a little; food and scrap barely; weapons barely count as cargo. The bird never names a quota — each window has its own appetite, and only the flare tells you if it was enough. Boiling water burns fuel.",
+        "A map beacon marks the staging zone. Reach it during the timed window with a haul in your backpack (not stash or equipped). First press at the pad raises the channel — the crew reads this window's demand in numbers, and that read stays for the rest of the window. If the pack already clears, the same press pops the flare.",
+        "Fuel counts most, then meds and ammo; sealed water a little; food and scrap barely; weapons barely count as cargo. On the approach the radio vibe stays qualitative; only the pad channel names the quota. Boiling water burns fuel.",
         "Miss the window and a new site opens after a cooldown — the horde keeps rising either way. Collapsed tunnels often force a detour toward the first beacon, or a high-risk crawl through the rubble."
       ]
     },
@@ -1157,7 +1179,7 @@
       "bullets": [
         "Score = (kills × 25 + carried loot value + days × 50) × day multiplier. Day 1 is ×1.0; each further day adds ×0.1.",
         "A successful extract adds 2000 × the same day multiplier. Linger to climb the mult, then lift out late for the best board score.",
-        "Death still posts a score on this device, and to the worldwide board when you are online. Each extra day is worth more, but the horde is heavier too — and when it tops out at 100%, the city is overrun and the run ends."
+        "Death still posts a score on this device, and to the worldwide board when you are online. Each extra day is worth more, but the horde front is heavier too — and when the island clock tops out at 100%, the city is overrun and the run ends."
       ]
     }
   },
@@ -1318,8 +1340,8 @@
     "rat": "Drain Rat",
     "human": {
       "syndicate_88": "88 Syndicate Runner",
-      "idtf": "IDTF Deserter",
-      "pasir_panjang": "Co-op Enforcer",
+      "muster": "Muster Patrol",
+      "gotong": "Gotong Volunteer",
       "sta": "STA Tunnel Marshal"
     },
     "loner": {
@@ -1386,11 +1408,12 @@
   "trait": {
     "ns_combat": {
       "name": "Reservist",
-      "description": "Muscle memory from mandatory service drills that never quite left.",
+      "description": "Muscle memory from mandatory service drills that never quite left. The Muster still counts you as one of theirs.",
       "effects": [
         "+1 Strength",
         "+2 attack",
-        "+1 defense"
+        "+1 defense",
+        "Start Known with the Muster"
       ]
     },
     "medic": {
@@ -1461,16 +1484,16 @@
       "name": "Community Ties",
       "description": "Neighbour bonds transcend the apocalypse. Their counters are open from day one.",
       "effects": [
-        "Start Known with the IDTF",
-        "Start Known with the PP Co-op"
+        "Start Known with the Muster",
+        "Start Known with Gotong"
       ]
     },
     "ah_long_debt": {
       "name": "Underworld Contact",
-      "description": "Somebody in the 88 Syndicate remembers you. They will not shoot on sight and their court is open — but the IDTF has read the same file.",
+      "description": "Somebody in the 88 Syndicate remembers you. They will not shoot on sight and their court is open — but the Muster has read the same file.",
       "effects": [
         "88 Syndicate will not shoot on sight",
-        "IDTF starts wary of you"
+        "Muster starts wary of you"
       ]
     },
     "water_baby": {
@@ -1712,12 +1735,13 @@
     },
     "combat_veteran": {
       "name": "Combat Veteran",
-      "description": "NS, then the real thing. The first blow never lands the way they want it to.",
+      "description": "NS, then the real thing. The first blow never lands the way they want it to. The Muster still has your name on a roster.",
       "effects": [
         "+2 Strength",
         "+4 attack",
         "+2 defense",
-        "First hit each fight is halved"
+        "First hit each fight is halved",
+        "Start Known with the Muster"
       ]
     },
     "trauma_medic": {
@@ -1755,7 +1779,7 @@
       "description": "Thirty years of service, extra rice, and a stall the whole block still names.",
       "effects": [
         "Food restores 50% more hunger",
-        "PP Co-op starts Known",
+        "Gotong starts Known",
         "Richer hawker-centre loot"
       ]
     },
@@ -1796,7 +1820,7 @@
       "description": "They know your face. The void decks are open ground. The checkpoints are not.",
       "effects": [
         "88 Syndicate starts Trusted+",
-        "IDTF starts wary"
+        "Muster starts wary"
       ]
     },
     "hypervigilant": {
@@ -1870,9 +1894,9 @@
     },
     "warrant": {
       "name": "Warrant",
-      "description": "The IDTF has a file. It is not flattering. Syndicate love is not free.",
+      "description": "The Muster has a file. It is not flattering. Syndicate love is not free.",
       "effects": [
-        "IDTF starts Hated"
+        "Muster starts Hated"
       ]
     }
   }

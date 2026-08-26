@@ -3,7 +3,6 @@ import { Rng } from './rng';
 import { itemDef } from './loot';
 import { conditionScale } from './inventory';
 import { haversine } from './overpass';
-import { inSingapore } from './singapore';
 import { isWalkable } from './playable';
 
 // ---------- Extraction goal ----------
@@ -205,7 +204,8 @@ export function evacWindowHours(isFirst: boolean, day: number): number {
 }
 
 /**
- * Choose the first extraction zone out of an island-wide POI set.
+ * Choose the first extraction zone out of an evac-eligible POI set
+ * (`bakedEvacPois` — not a 30 km scan of the whole island bake).
  */
 export function pickDistantEvacPoi<
   T extends { name?: string; lat: number; lng: number; category?: string },
@@ -213,7 +213,6 @@ export function pickDistantEvacPoi<
   const scored = pois
     .filter((p) => p.category !== 'waypoint')
     .filter((p) => (p.name ?? '').trim().length >= 3)
-    .filter((p) => inSingapore(p.lat, p.lng))
     .filter((p) => isWalkable(p.lat, p.lng))
     .map((p) => ({ poi: p, d: haversine(spawn.lat, spawn.lng, p.lat, p.lng) }))
     .filter((s) => s.d >= MIN_FIRST_EVAC_DIST)

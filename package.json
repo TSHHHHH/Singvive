@@ -10,6 +10,7 @@
     "bake:pois": "node --experimental-strip-types scripts/bake-pois.mjs",
     "bake:mrt": "node scripts/bake-mrt.mjs",
     "bake:zones": "node --experimental-strip-types scripts/bake-zones.mjs",
+    "bake:towns": "node --experimental-strip-types scripts/bake-towns.mjs",
     "preview": "vite preview",
     "deploy": "npm run build && wrangler deploy",
     "db:migrate": "wrangler d1 migrations apply singvive-scores --remote",

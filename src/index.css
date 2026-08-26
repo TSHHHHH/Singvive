@@ -903,3 +903,28 @@ select optgroup {
 .leaflet-tooltip::before {
   display: none;
 }
+
+/* Island neighbourhood wash — fade with Leaflet's zoom animation. Opacity is
+   set on the pane from `zoomanim`; keep this duration in sync with FADE_MS. */
+.leaflet-pane.leaflet-singvive-towns-pane {
+  pointer-events: none;
+  /* filter:opacity groups Leaflet's zoom-transformed canvas; opacity alone
+     leaves those compositor layers painted. Keep duration in sync with FADE_MS. */
+  transition:
+    filter 250ms cubic-bezier(0, 0, 0.25, 1),
+    opacity 250ms cubic-bezier(0, 0, 0.25, 1);
+}
+.leaflet-pane.leaflet-singvive-towns-pane.is-wash-off {
+  filter: opacity(0);
+  opacity: 0;
+}
+.leaflet-pane.leaflet-singvive-towns-pane.is-wash-instant {
+  transition: none;
+}
+/* During tile zoom, Leaflet sets transition:transform only on zoom-animated
+   children — add opacity so canvas/labels ease with the pane. */
+.leaflet-zoom-anim .leaflet-singvive-towns-pane .leaflet-zoom-animated {
+  transition:
+    transform 0.25s cubic-bezier(0, 0, 0.25, 1),
+    opacity 0.25s cubic-bezier(0, 0, 0.25, 1) !important;
+}

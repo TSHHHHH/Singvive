@@ -1,7 +1,7 @@
 /** Shared enemies-catalog validation for the DEV enemy API and browser UI. */
 
 const ELITE_IDS = ['hulk', 'stalker'] as const;
-const FACTION_KEYS = ['idtf', 'pasir_panjang', 'syndicate_88', 'sta'] as const;
+const FACTION_KEYS = ['muster', 'gotong', 'syndicate_88', 'sta'] as const;
 const LONER_KINDS = ['scavenger', 'survivor', 'raider', 'tout'] as const;
 
 export type EliteId = (typeof ELITE_IDS)[number];

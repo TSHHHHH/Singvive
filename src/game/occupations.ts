@@ -33,7 +33,7 @@ export const OCCUPATIONS: Occupation[] = [
     name: 'Soldier',
     tagline: 'NS, then the real thing. The first blow never lands clean.',
     blurb:
-      'You were on duty when the order stopped coming. The training holds. The sleep does not — every hour of it is one ear open, and it shows by day three.',
+      'You were on duty when the order stopped coming. The training holds. The sleep does not — every hour of it is one ear open, and it shows by day three. The Muster is who kept showing up.',
     traitIds: ['combat_veteran', 'hypervigilant'],
     goodAt: ['Fighting', 'Soaking the first hit'],
     strugglesWith: ['Sleep', 'Night travel'],
@@ -53,9 +53,9 @@ export const OCCUPATIONS: Occupation[] = [
     name: 'Food Vendor',
     tagline: 'Thirty years of service. Extra rice. A voice the whole block knows.',
     blurb:
-      'You fed half the estate and knew all of it by name. Food goes further in your hands, and the co-op still counts you as one of theirs. So does everything that hunts by sound.',
+      'You fed half the estate and knew all of it by name. Food goes further in your hands, and Gotong still counts you as one of theirs. So does everything that hunts by sound.',
     traitIds: ['estate_kitchen', 'stall_voice'],
-    goodAt: ['Food', 'PP Co-op', 'Hawker-centre loot'],
+    goodAt: ['Food', 'Gotong', 'Hawker-centre loot'],
     strugglesWith: ['Stealth', 'Ambushes'],
   },
   {
@@ -93,10 +93,10 @@ export const OCCUPATIONS: Occupation[] = [
     name: 'Fixer',
     tagline: 'They know your face. The void decks are open. The checkpoints are not.',
     blurb:
-      'Collections, mostly. Nothing you would put on a resume. The 88 Syndicate still counts you as one of theirs. The IDTF has a file, and it is not flattering.',
+      'Collections, mostly. Nothing you would put on a resume. The 88 Syndicate still counts you as one of theirs. The Muster has a file, and it is not flattering.',
     traitIds: ['made_man', 'warrant'],
     goodAt: ['88 Syndicate territory', 'Void-deck access'],
-    strugglesWith: ['The IDTF', 'Checkpoints'],
+    strugglesWith: ['The Muster', 'Checkpoints'],
   },
 ];
 

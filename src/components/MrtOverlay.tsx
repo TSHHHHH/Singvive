@@ -254,6 +254,14 @@ export function MrtOverlay({
     if (s.id === fromStationId || s.id === toStationId) return true;
     return zoom >= labelZoom;
   });
+  const labelledIds = useMemo(() => new Set(labelled.map((s) => s.id)), [labelled]);
+  const pad = bounds.pad(0.2);
+  const stations = net.stations.filter(
+    (s) =>
+      s.id === fromStationId ||
+      s.id === toStationId ||
+      (!!routeIndex?.has(s.id) || pad.contains([s.lat, s.lng])),
+  );
 
   return (
     <>
@@ -275,7 +283,7 @@ export function MrtOverlay({
         />
       ))}
 
-      {net.stations.map((s) => {
+      {stations.map((s) => {
         const color = stationColor(net, s);
         const interchange = s.codes.length > 1;
         const isFrom = s.id === fromStationId;
@@ -316,7 +324,7 @@ export function MrtOverlay({
                 {s.codes.join(' · ')} — {linesAt(net, s).map((l) => l.name).join(', ')}
               </Tooltip>
             </CircleMarker>
-            {labelled.includes(s) && (
+            {labelledIds.has(s.id) && (
               <Marker
                 position={[s.lat, s.lng]}
                 icon={labelIcon(s, isFrom ? '#2bc4d9' : isTo ? '#e8c547' : color)}

@@ -25,7 +25,7 @@ export const POI_CONFIG: Record<PoiCategory, PoiCategoryConfig> = {
   fuel: { label: 'Petrol Station', richness: 2, baseDanger: 3, color: '#b7b3a9', icon: 'poi.fuel', blurb: 'Fuel & roadside snacks.' },
   police: { label: 'Police Station', richness: 2, baseDanger: 5, color: '#9c9890', icon: 'poi.police', blurb: 'Firearms & ammo. Extremely dangerous.' },
   residential: { label: 'HDB Void Deck', richness: 2, baseDanger: 2, color: '#8a867e', icon: 'poi.residential', blurb: 'Void deck & flats — common household loot. The 88 Syndicate works these estates.' },
-  foodcourt: { label: 'Hawker Centre', richness: 1, baseDanger: 2, color: '#cfccc4', icon: 'poi.foodcourt', blurb: 'Food stalls.' },
+  foodcourt: { label: 'Hawker Centre', richness: 1, baseDanger: 2, color: '#cfccc4', icon: 'poi.foodcourt', blurb: 'Food stalls. Gotong Royong still cooks here when the estate holds.' },
   mrt: { label: 'MRT Station', richness: 1, baseDanger: 3, color: '#2bc4d9', icon: 'poi.mrt', blurb: 'Nothing runs. The platform is a way into the tunnels, and the STA works the turnstiles.' },
   industrial: { label: 'Industrial Unit', richness: 3, baseDanger: 3, color: '#a8863f', icon: 'poi.industrial', blurb: 'Warehouse floor & loading bay. Tools, fuel and materials — and a lot of dark corners.' },
   school: { label: 'School', richness: 2, baseDanger: 3, color: '#7fa8b2', icon: 'poi.school', blurb: 'Canteen, sick bay, workshop. They were used as shelters, which is exactly the problem.' },

@@ -1,5 +1,5 @@
 import { MapContainer, TileLayer, Marker, Circle, Polygon, Polyline, useMap, useMapEvents } from 'react-leaflet';
-import { Fragment, memo, useEffect, useRef, useState } from 'react';
+import { Fragment, memo, useEffect, useMemo, useRef, useState } from 'react';
 import type L from 'leaflet';
 import type { Poi, TimeOfDay, WeatherKind } from '../game/types';
 import { WeatherFx } from './WeatherFx';
@@ -24,9 +24,10 @@ import { NoiseWaves } from './NoiseWaves';
 import { trekTargetIcon } from './mapIcons';
 import { MrtOverlay, MrtLineLegend, useMrtNetwork } from './MrtOverlay';
 import { VegetationOverlay } from './UnplayableOverlay';
+import { NeighbourhoodWash } from './NeighbourhoodWash';
 import { Icon } from '../icons/Icon';
 import { pointAlongPath } from '../game/route';
-import { useThrottledNumber } from '../hooks/useAnimatedNumber';
+import { useAnimatedNumber, useThrottledNumber } from '../hooks/useAnimatedNumber';
 import { tip } from './tips';
 
 // White outline for buildings you can see but haven't identified — stands out
@@ -43,10 +44,40 @@ const FOLLOW_MARGIN = 0.28;
 // so moving around never snaps it back.
 const ZOOM_KEY = 'singvive.mapZoom';
 const DEFAULT_ZOOM = 15;
+const MIN_ZOOM = 10;
+
+/** Viewport pad + debounce: hidden/off-screen POIs must not become Leaflet layers. */
+const VIEWPORT_PAD = 0.2;
+const VIEWPORT_DEBOUNCE_MS = 100;
+/** Steering budget. Dense HDB downtown may exceed it — keep nearest to centre. */
+const MAX_POIS_ON_SCREEN = 450;
+
+function usePaddedBounds() {
+  const map = useMap();
+  const [bounds, setBounds] = useState(() => map.getBounds().pad(VIEWPORT_PAD));
+  useEffect(() => {
+    let t: ReturnType<typeof setTimeout> | null = null;
+    const update = () => {
+      if (t != null) clearTimeout(t);
+      t = setTimeout(() => {
+        t = null;
+        setBounds(map.getBounds().pad(VIEWPORT_PAD));
+      }, VIEWPORT_DEBOUNCE_MS);
+    };
+    map.on('moveend', update);
+    map.on('zoomend', update);
+    return () => {
+      map.off('moveend', update);
+      map.off('zoomend', update);
+      if (t != null) clearTimeout(t);
+    };
+  }, [map]);
+  return bounds;
+}
 
 function loadZoom(): number {
   const raw = Number(localStorage.getItem(ZOOM_KEY));
-  return Number.isFinite(raw) && raw >= 11 && raw <= 20 ? raw : DEFAULT_ZOOM;
+  return Number.isFinite(raw) && raw >= MIN_ZOOM && raw <= 20 ? raw : DEFAULT_ZOOM;
 }
 
 function saveZoom(zoom: number): void {
@@ -400,12 +431,29 @@ function poiLooksSame(a: Poi, b: Poi): boolean {
 
 const PoiLayer = memo(
   function PoiLayer({ pois, home, blipRange, selectedId, hereId, onSelect }: PoiLayerProps) {
+    const bounds = usePaddedBounds();
+    const drawn = useMemo(() => {
+      const inView: Poi[] = [];
+      for (const poi of pois) {
+        if (!bounds.contains([poi.lat, poi.lng])) continue;
+        const d = haversine(home.lat, home.lng, poi.lat, poi.lng);
+        if (visibilityOf(poi, d, blipRange) === 'hidden') continue;
+        inView.push(poi);
+      }
+      if (inView.length <= MAX_POIS_ON_SCREEN) return inView;
+      const c = bounds.getCenter();
+      return inView
+        .map((p) => ({ p, d: haversine(c.lat, c.lng, p.lat, p.lng) }))
+        .sort((a, b) => a.d - b.d)
+        .slice(0, MAX_POIS_ON_SCREEN)
+        .map((x) => x.p);
+    }, [pois, bounds, home.lat, home.lng, blipRange]);
+
     return (
       <>
-        {pois.map((poi) => {
+        {drawn.map((poi) => {
           const d = haversine(home.lat, home.lng, poi.lat, poi.lng);
           const vis = visibilityOf(poi, d, blipRange);
-          if (vis === 'hidden') return null;
 
           const selected = selectedId === poi.id;
 
@@ -485,11 +533,10 @@ const PoiLayer = memo(
 );
 
 /**
- * Rendering the map means handing react-leaflet a Marker and a Polygon for
- * every visible POI, so a re-render is never cheap — it is memoised, and every
- * prop it takes is kept identity-stable by the caller where it can be. Where it
- * can't (`pois` is rebuilt whenever any location's bookkeeping changes, which
- * combat does constantly), the layers below compare on what they actually draw.
+ * Viewport-cull + `poiLooksSame`: hidden and off-screen POIs must not become
+ * Leaflet layers. Mapping the whole `locations` dict does not scale with an
+ * island crossing. `blipRange` is the stable sensing radius — do not pass the
+ * travel-ring tween in here or every marker rememos for 600 ms after a walk.
  */
 function GameMapInner({
   home,
@@ -515,9 +562,10 @@ function GameMapInner({
   onPickGround,
 }: Props) {
   const evacPoi = evacZoneId ? pois.find((p) => p.id === evacZoneId) : null;
-  // Planning ring stays on the smooth tween; fog canvas repaints are throttled
-  // so a 600ms range ease does not full-refresh every tile every frame.
-  const fogRevealRadius = useThrottledNumber(travelRange, 80);
+  // Tween lives here so GameScreen does not re-render at 60 fps after travel.
+  const ringRange = useAnimatedNumber(travelRange, 600);
+  const fogRevealRadius = useThrottledNumber(ringRange, 80);
+  const pathIdSet = useMemo(() => new Set(pathHazardIds), [pathHazardIds]);
 
   // The rail network is a separate file, fetched the first time the player asks
   // to see it (or already in memory, if the world build got there first).
@@ -537,6 +585,7 @@ function GameMapInner({
     <MapContainer
       center={[home.lat, home.lng]}
       zoom={loadZoom()}
+      minZoom={MIN_ZOOM}
       preferCanvas
       className="h-full w-full"
       style={{ background: '#08080a' }}
@@ -561,15 +610,16 @@ function GameMapInner({
         currentRevealCenter={home}
         currentRevealRadius={fogRevealRadius}
       />
+      <NeighbourhoodWash />
 
       {/* Travelable range — a planning ring, not vision. Must stay
           non-interactive: its fill covers everywhere you can actually walk, so
           a hit-testable ring would swallow every ground-pick inside your own
           range and leave only out-of-range taps working. */}
-      <RangeRing home={home} travelRange={travelRange} />
+      <RangeRing home={home} travelRange={ringRange} />
 
       {/* Drawn under the pins — ground, not a destination. */}
-      <HazardRings hazards={hazards} pathIds={new Set(pathHazardIds)} />
+      <HazardRings hazards={hazards} pathIds={pathIdSet} />
 
       {travelPath && travelPath.length >= 2 && (
         <Polyline

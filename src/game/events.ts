@@ -22,6 +22,8 @@ export {
   clampStanding,
   emptyStanding,
   factionIsHostile,
+  factionEscorts,
+  factionFeeds,
   factionOffersAid,
   factionSharesIntel,
   factionShelters,
@@ -361,6 +363,101 @@ const PROSE: Record<Exclude<EventKind, 'mrt_toll' | 'field_doctor'>, Pools> = {
   },
 };
 
+const FACTION_GATE: Partial<
+  Record<Exclude<FactionId, null>, Partial<Record<'faction_checkpoint' | 'faction_shakedown', Pools>>>
+> = {
+  muster: {
+    faction_checkpoint: {
+      tell: [
+        'A folding table, a ledger, and someone who still stands like they\'re on duty.',
+        'A clipboard comes up as you approach — not a rifle. A clipboard.',
+        'They\'ve chalked a queue line on the ground in front of {name}.',
+      ],
+      text: [
+        'The Muster keeps a book at {name}. "Name in the right column. One {tribute}. Then we know you."',
+        'An NSman in mixed kit looks you over. "Managed order. One {tribute} for the register."',
+        '"Have you served?" The ledger is already open. "One {tribute} either way."',
+      ],
+      night: [
+        'A lamp over the ledger at {name}. "Muster. One {tribute} and you\'re on the list."',
+      ],
+      wet: [
+        'They\'ve pulled the table under the school porch. "{tribute} and you can come in out of this."',
+      ],
+    },
+  },
+  gotong: {
+    faction_checkpoint: {
+      tell: [
+        'Steam, a queue, and someone with a ladle who is also the gate.',
+        'A plastic stool in the doorway of {name}. The auntie on it is not moving.',
+        'They\'ve strung a rope across the wet-market entrance. People are waiting anyway.',
+      ],
+      text: [
+        'Gotong Royong holds {name}. "Eat first, then we talk. One {tribute} for the pot."',
+        'A stallholder wipes her hands. "We pool what we have. One {tribute} and you can come in."',
+        '"This is neighbours\' food. One {tribute}. Don\'t bring trouble to the table."',
+      ],
+      night: [
+        'A pot still going at {name}. "Gotong. One {tribute} and you\'re fed after."',
+      ],
+      wet: [
+        'They\'ve pulled the queue under the tarpaulin. "{tribute} and you can come in out of this."',
+      ],
+    },
+  },
+  sta: {
+    faction_checkpoint: {
+      tell: [
+        'A chain at waist height across the unpaid side of the gate.',
+        'Someone in a high-vis vest that used to mean something is sitting on the turnstile.',
+        'The barrier at {name} is down. A marshal is the only thing moving.',
+      ],
+      text: [
+        'STA has the gate at {name} chained. "Tunnel\'s not free. One {tribute}."',
+        'A marshal taps the turnstile. "Fare. One {tribute}. Then you can go down."',
+        '"Platform\'s manned. One {tribute} and you\'re through."',
+      ],
+      night: [
+        'A torch beam off the tiles at {name}. "STA. One {tribute} and you can go down."',
+      ],
+      wet: [
+        'Rain drums the concourse. "{tribute} and you can come in out of this — the stairs stay dry."',
+      ],
+    },
+  },
+  syndicate_88: {
+    faction_checkpoint: {
+      tell: [
+        'The whistle is friendlier than last time. Still a whistle.',
+        'Someone at {name} nods you toward the stool.',
+      ],
+      text: [
+        'The 88 have a book of their own at {name}. "You\'re on it. One {tribute} anyway."',
+        'A runner at the void deck of {name} holds out a palm. "Known is not free. One {tribute}."',
+      ],
+    },
+    faction_shakedown: {
+      tell: [
+        'A whistle from the void deck. Not a bird.',
+        'Someone peels off a pillar at {name}, unhurried.',
+        'There\'s a mark sprayed by the door, still tacky.',
+      ],
+      text: [
+        '88 blockers fill the doorway of {name}. "Tribute. One {tribute}. Then maybe we talk."',
+        'Two of the Syndicate are already inside {name}. "One {tribute} — for the damage."',
+        'A lookout drops down off the ledge, hand out. "You owe the decks. One {tribute}."',
+      ],
+      night: [
+        'A torch beam pins you in the doorway of {name}. "88. One {tribute}, and lower your hands."',
+      ],
+      wet: [
+        'They\'ve tarped the entrance. "Dry inside. One {tribute}."',
+      ],
+    },
+  },
+};
+
 function fill(tpl: string, vars: Record<string, string>): string {
   return tpl.replace(/\{(\w+)\}/g, (m, k) => vars[k] ?? m);
 }
@@ -371,10 +468,15 @@ function prose(
   kind: Exclude<EventKind, 'mrt_toll' | 'field_doctor'>,
   ctx: EventCtx,
   vars: Record<string, string>,
+  factionId?: FactionId,
 ): { tell: string; text: string } {
-  const p = PROSE[kind];
+  const overlay =
+    factionId && (kind === 'faction_checkpoint' || kind === 'faction_shakedown')
+      ? FACTION_GATE[factionId]?.[kind]
+      : undefined;
+  const p = overlay ?? PROSE[kind];
   const pool = [...p.text];
-  if (ctx.time === 'night' && p.night) pool.push(...p.night, ...p.night); // twice as likely after dark
+  if (ctx.time === 'night' && p.night) pool.push(...p.night, ...p.night);
   if (p.wet && WET.includes(ctx.weather)) pool.push(...p.wet, ...p.wet);
   return { tell: fill(rng.pick(p.tell), vars), text: fill(rng.pick(pool), vars) };
 }
@@ -425,7 +527,7 @@ function buildFeeGate(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
     faction: cfg.name,
     short: cfg.shortName,
     tribute: tribute.name,
-  });
+  }, faction);
   return {
     kind: 'faction_checkpoint',
     factionId: faction,
@@ -470,7 +572,7 @@ function buildTributeGate(rng: Rng, loc: LocationState, ctx: EventCtx, terrible:
     faction: cfg.name,
     short: cfg.shortName,
     tribute: tribute.name,
-  });
+  }, faction);
   const choices: EventChoice[] = [
     {
       id: 'pay',

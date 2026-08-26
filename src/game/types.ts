@@ -4,6 +4,19 @@ import type { IconName } from '../icons/keys';
 // Combat no longer has its own phase — it renders as a panel inside 'game'.
 export type GamePhase = 'menu' | 'character' | 'spawn' | 'game' | 'death';
 
+/** Doorway-event rate limiter. Lives here so storage.ts does not import store.ts. */
+export interface EventClock {
+  /** Absolute in-game hour of the last doorway event, or null if none yet. */
+  lastAt: number | null;
+  /** The day `count` refers to. */
+  day: number;
+  count: number;
+}
+
+export function freshEventClock(): EventClock {
+  return { lastAt: null, day: 1, count: 0 };
+}
+
 // ---------- Character ----------
 export type AttributeKey = 'strength' | 'dexterity' | 'endurance' | 'perception' | 'wits';
 
@@ -373,7 +386,7 @@ export type PoiCategory =
   /** Synthetic connective tissue inserted by the world builder — see world.ts. */
   | 'waypoint';
 
-export type FactionId = 'idtf' | 'pasir_panjang' | 'syndicate_88' | 'sta' | null;
+export type FactionId = 'muster' | 'gotong' | 'syndicate_88' | 'sta' | null;
 export type LocationSize = 'small' | 'medium' | 'large';
 
 /**
@@ -384,7 +397,7 @@ export type LocationSize = 'small' | 'medium' | 'large';
 export type DestructionTier = 0 | 1 | 2 | 3;
 
 /** NPC services available on faction-held ground (never scavenging). */
-export type FactionService = 'trade' | 'rest' | 'aid' | 'intel';
+export type FactionService = 'trade' | 'rest' | 'aid' | 'intel' | 'feed' | 'escort';
 
 /** Last-known snapshot of a discovered location (fog-of-war memory). */
 export interface LocationMemory {
@@ -426,10 +439,17 @@ export interface LocationState {
   factionId: FactionId;
   isFactionRevealed: boolean;
   /**
-   * Services this occupied site offers. Outposts always have all four; ordinary
-   * territory seeds a random 1–3. Absent / empty on unclaimed ground.
+   * Services this occupied site offers. Outposts get that faction's full kit;
+   * ordinary territory seeds a lesser subset. Absent / empty on unclaimed ground.
    */
   factionServices?: FactionService[];
+  /** Day the Gotong canteen was used here (once per day). */
+  feedUsedDay?: number;
+  /**
+   * 88 Kin already walked this occupied residential. The grant is the block,
+   * not a single unit — re-entry continues the same HDB crawl.
+   */
+  kinDeckUsed?: boolean;
   /** True when this site is one of the faction's marked outposts. */
   isFactionOutpost?: boolean;
   /** One-time standing penalty for trespass already applied at this doorway. */

@@ -14,12 +14,14 @@ import type { ExploredCircle } from './fog';
 import type { HdbDungeon } from './hdbDungeon';
 import { migrateHdbDungeon } from './hdbDungeon';
 import type { TunnelRun } from './tunnelRun';
-import type { EventClock } from './store';
+import type { EventClock } from './types';
 import type { FactionStanding } from './events';
 import {
   applyFactionServices,
   migrateFactionId,
   migrateOutposts,
+  migrateStanding,
+  migrateTraderTaken,
   pickOutposts,
   type OutpostIds,
 } from './factions';
@@ -57,6 +59,11 @@ export interface SavedRun {
    * (merge skips existing location ids).
    */
   expandedCells?: string[];
+  /**
+   * Neighbourhood that went first. Absent on saves from before the town field —
+   * resume leaves it null so the old global horde clock stays in charge.
+   */
+  groundZeroId?: string | null;
   hordeLevel: number;
   evacZoneId: string | null;
   evacDeadline: number | null;
@@ -97,6 +104,8 @@ export interface SavedRun {
   outposts?: OutpostIds | Partial<Record<string, string | string[]>>;
   /** Swaps already taken today, keyed `factionId:day`. */
   traderTaken?: Record<string, string[]>;
+  /** One-shot Muster escort destination. */
+  escort?: { toId: string } | null;
   /** Display-only run counters. Absent on saves written before they existed. */
   stats?: RunStats;
   /**
@@ -107,11 +116,26 @@ export interface SavedRun {
   log?: GameLogEntry[];
 }
 
-export function saveRun(run: SavedRun): void {
+export type SaveResult = 'ok' | 'quota' | 'unavailable';
+
+/**
+ * Geometry belongs in pois.json, not here. Quota is ~5 MB; a long island
+ * crossing with outlines will hit it. Callers must surface `'quota'` — swallowing
+ * it leaves the player on a silently stale save.
+ */
+export function saveRun(run: SavedRun): SaveResult {
   try {
     localStorage.setItem(RUN_KEY, JSON.stringify(run));
-  } catch {
-    /* storage full / unavailable — non-fatal */
+    return 'ok';
+  } catch (err: unknown) {
+    const quota =
+      (err instanceof DOMException &&
+        (err.name === 'QuotaExceededError' || err.name === 'NS_ERROR_DOM_QUOTA_REACHED')) ||
+      (typeof err === 'object' &&
+        err !== null &&
+        'code' in err &&
+        (err as { code: number }).code === 22);
+    return quota ? 'quota' : 'unavailable';
   }
 }
 
@@ -141,10 +165,12 @@ export function loadRun(): SavedRun | null {
         delete legacy.bleeding;
       }
     }
-    // Migration: factions were renamed to their Singaporean institutional ids
+    // Migration: factions were renamed (SAF→IDTF→Muster, hawker→PP Co-op→Gotong).
     for (const loc of Object.values(parsed.locations ?? {})) {
       loc.factionId = migrateFactionId(loc.factionId);
     }
+    parsed.factionStanding = migrateStanding(parsed.factionStanding);
+    parsed.traderTaken = migrateTraderTaken(parsed.traderTaken);
     // Migration: outposts went from one id per faction to an array (up to 4).
     parsed.outposts = migrateOutposts(parsed.outposts);
     if (!Object.keys(parsed.outposts).length && parsed.locations) {

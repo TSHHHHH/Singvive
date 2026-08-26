@@ -11,6 +11,7 @@ import {
   walkabilityOf,
   type ZonesData,
 } from '../game/playable';
+import { prefetchBake } from '../game/bakedPois';
 import { playerIcon } from '../components/mapIcons';
 import { UnplayableLegend, UnplayableOverlay } from '../components/UnplayableOverlay';
 import { MrtLineLegend, MrtOverlay, useMrtNetwork } from '../components/MrtOverlay';
@@ -114,6 +115,7 @@ export function SpawnSelect() {
   };
 
   useEffect(() => {
+    prefetchBake();
     let cancelled = false;
     void ensureZonesLoaded()
       .then((z) => {

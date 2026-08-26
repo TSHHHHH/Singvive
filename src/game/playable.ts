@@ -40,7 +40,52 @@ let landIdx: RingIndex[] = [];
 let waterIdx: RingIndex[] = [];
 let restrictedIdx: RingIndex[] = [];
 let vegetationIdx: RingIndex[] = [];
+let landGrid: Map<number, number[]> | null = null;
+let waterGrid: Map<number, number[]> | null = null;
+let restrictedGrid: Map<number, number[]> | null = null;
+let vegetationGrid: Map<number, number[]> | null = null;
 let pending: Promise<ZonesData> | null = null;
+
+/** ~1.1 km cells — A* tests thousands of points; a linear scan of 709 water rings is the cost. */
+const GRID_DEG = 0.01;
+
+function gridKey(ix: number, iy: number): number {
+  return iy * 4096 + ix;
+}
+
+function buildRingGrid(indexed: RingIndex[]): Map<number, number[]> {
+  const grid = new Map<number, number[]>();
+  for (let i = 0; i < indexed.length; i++) {
+    const r = indexed[i]!;
+    const ix0 = Math.floor((r.minLng - SG_BOUNDS.minLng) / GRID_DEG);
+    const ix1 = Math.floor((r.maxLng - SG_BOUNDS.minLng) / GRID_DEG);
+    const iy0 = Math.floor((r.minLat - SG_BOUNDS.minLat) / GRID_DEG);
+    const iy1 = Math.floor((r.maxLat - SG_BOUNDS.minLat) / GRID_DEG);
+    for (let iy = iy0; iy <= iy1; iy++) {
+      for (let ix = ix0; ix <= ix1; ix++) {
+        const k = gridKey(ix, iy);
+        const list = grid.get(k);
+        if (list) list.push(i);
+        else grid.set(k, [i]);
+      }
+    }
+  }
+  return grid;
+}
+
+function ringsInCell(
+  lat: number,
+  lng: number,
+  indexed: RingIndex[],
+  grid: Map<number, number[]> | null,
+): RingIndex[] | null {
+  if (!grid) return indexed;
+  const ix = Math.floor((lng - SG_BOUNDS.minLng) / GRID_DEG);
+  const iy = Math.floor((lat - SG_BOUNDS.minLat) / GRID_DEG);
+  const list = grid.get(gridKey(ix, iy));
+  if (!list) return null;
+  return list.map((i) => indexed[i]!);
+}
 
 function indexRings(rings: ZoneRing[]): RingIndex[] {
   return rings.map((ring) => {
@@ -91,8 +136,15 @@ function ringAreaM2(ring: ZoneRing): number {
   return Math.abs(area) / 2;
 }
 
-function inAny(lat: number, lng: number, indexed: RingIndex[]): boolean {
-  for (const r of indexed) {
+function inAny(
+  lat: number,
+  lng: number,
+  indexed: RingIndex[],
+  grid: Map<number, number[]> | null,
+): boolean {
+  const subset = ringsInCell(lat, lng, indexed, grid);
+  if (!subset) return false;
+  for (const r of subset) {
     if (lat < r.minLat || lat > r.maxLat || lng < r.minLng || lng > r.maxLng) continue;
     if (inPolygon(lat, lng, r.ring)) return true;
   }
@@ -105,6 +157,10 @@ function applyZones(data: ZonesData): ZonesData {
   waterIdx = indexRings(data.water);
   restrictedIdx = indexRings(data.restricted);
   vegetationIdx = indexRings(data.vegetation);
+  landGrid = buildRingGrid(landIdx);
+  waterGrid = buildRingGrid(waterIdx);
+  restrictedGrid = buildRingGrid(restrictedIdx);
+  vegetationGrid = buildRingGrid(vegetationIdx);
   return data;
 }
 
@@ -169,9 +225,9 @@ export function walkabilityOf(lat: number, lng: number): Walkability {
     return 'ok';
   }
 
-  if (inAny(lat, lng, restrictedIdx)) return 'restricted';
-  if (!inAny(lat, lng, landIdx)) return 'water';
-  if (inAny(lat, lng, waterIdx)) return 'water';
+  if (inAny(lat, lng, restrictedIdx, restrictedGrid)) return 'restricted';
+  if (!inAny(lat, lng, landIdx, landGrid)) return 'water';
+  if (inAny(lat, lng, waterIdx, waterGrid)) return 'water';
   return 'ok';
 }
 
@@ -182,7 +238,7 @@ export function isWalkable(lat: number, lng: number): boolean {
 /** True when the point sits inside a baked inland water polygon (not open sea). */
 export function inInlandWater(lat: number, lng: number): boolean {
   if (!zones || waterIdx.length === 0) return false;
-  return inAny(lat, lng, waterIdx);
+  return inAny(lat, lng, waterIdx, waterGrid);
 }
 
 export interface InlandWaterFeature {
@@ -228,7 +284,7 @@ export function inlandWaterFeaturesNear(
 /** True when the point sits inside a baked forest / nature-reserve polygon. */
 export function inVegetation(lat: number, lng: number): boolean {
   if (!zones || vegetationIdx.length === 0) return false;
-  return inAny(lat, lng, vegetationIdx);
+  return inAny(lat, lng, vegetationIdx, vegetationGrid);
 }
 
 /** Indexed vegetation rings for path sampling (empty until zones load). */

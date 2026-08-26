@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useGame } from '../game/store';
-import { useAnimatedNumber } from '../hooks/useAnimatedNumber';
 import { GameMap } from '../components/GameMap';
 import { TargetDock } from '../components/TargetDock';
 import { useMrtNetwork } from '../components/MrtOverlay';
@@ -80,6 +79,7 @@ import {
   hordeTier,
 } from '../game/goal';
 import { Rng } from '../game/rng';
+import { makePressureAt, nearestTown, townTierAt } from '../game/townField';
 import {
   hazardsOnPath,
   hazardsAtPoint,
@@ -190,6 +190,10 @@ export function GameScreen() {
   // Subscribing to the whole store meant every write re-rendered this screen —
   // including the log, which grows on almost every action and which nothing
   // here reads. Naming the slice keeps re-renders to changes that matter.
+  //
+  // Do not add `combat`, `log`, or per-frame search progress to this slice.
+  // Gauge ticks rewrite `combat` at 20 Hz — select booleans below; CombatPanel
+  // owns the combat object.
   const {
     spawn,
     locations,
@@ -199,7 +203,6 @@ export function GameScreen() {
     worldError,
     travelAnim,
     pendingEvent,
-    combat,
     pendingSearch,
     hdb,
     hdbEnter,
@@ -208,6 +211,7 @@ export function GameScreen() {
     declineGhostTrade,
     noisePulses,
     hordeLevel,
+    groundZeroId,
     evacZoneId,
     evacDeadline,
     evacCooldownUntil,
@@ -244,7 +248,6 @@ export function GameScreen() {
       worldError: s.worldError,
       travelAnim: s.travelAnim,
       pendingEvent: s.pendingEvent,
-      combat: s.combat,
       pendingSearch: s.pendingSearch,
       hdb: s.hdb,
       hdbEnter: s.hdbEnter,
@@ -253,6 +256,7 @@ export function GameScreen() {
       declineGhostTrade: s.declineGhostTrade,
       noisePulses: s.noisePulses,
       hordeLevel: s.hordeLevel,
+      groundZeroId: s.groundZeroId,
       evacZoneId: s.evacZoneId,
       evacDeadline: s.evacDeadline,
       evacCooldownUntil: s.evacCooldownUntil,
@@ -281,6 +285,8 @@ export function GameScreen() {
       kills: s.kills,
     })),
   );
+  const inCombat = useGame((s) => s.combat !== null);
+  const awaitingStance = useGame((s) => s.combat?.awaitingStance ?? false);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // A spot on bare map the player is considering walking to. Mutually exclusive
@@ -380,8 +386,8 @@ export function GameScreen() {
         ? `event:${pendingEvent.locationId}`
         : pendingSearch
           ? `search:${pendingSearch.nonce}`
-          : combat
-            ? `combat:${combat.awaitingStance ? 'contact' : 'fight'}`
+          : inCombat
+            ? `combat:${awaitingStance ? 'contact' : 'fight'}`
             : null;
   const seenInterruptId = useRef<string | null>(null);
   useEffect(() => {
@@ -524,7 +530,6 @@ export function GameScreen() {
   // Fog + planning ring: hold setout range for the whole glide, then ease to
   // the post-trip range on arrival (energy already spent at departure).
   const mapRangeTarget = travelAnim ? travelAnim.departRange : travelRange;
-  const mapTravelRange = useAnimatedNumber(mapRangeTarget, 600);
 
   const awarenessValue = character
     ? awareness(
@@ -535,10 +540,13 @@ export function GameScreen() {
     : 0;
   const detectMult = character ? traitDetectRadiusMult(character.traitIds) : 1;
   const blipRange = travelRange + blipMargin(awarenessValue) * detectMult;
-  const mapBlipRange = mapTravelRange + blipMargin(awarenessValue) * detectMult;
 
-  // Hazards densify as the horde climbs — early map is sparse, late map contested.
+  // Hazards densify with local neighbourhood pressure — a Lost town is not a Stirring one.
   const hazardPressure = hordeIntensity(hordeLevel);
+  const pressureAt = useMemo(
+    () => makePressureAt(seed, groundZeroId, hordeLevel),
+    [seed, groundZeroId, hordeLevel],
+  );
   const sensedHazards = useMemo(
     () =>
       sensedHazardField(
@@ -550,8 +558,9 @@ export function GameScreen() {
         hazardPressure,
         time,
         day,
+        pressureAt,
       ),
-    [seed, currentPos.lat, currentPos.lng, blipRange, spawn, hazardPressure, time, day],
+    [seed, currentPos.lat, currentPos.lng, blipRange, spawn, hazardPressure, time, day, pressureAt],
   );
 
   const trekDist = trekTarget
@@ -649,7 +658,7 @@ export function GameScreen() {
       spawn ?? undefined,
       hazardPressure,
       via,
-      { band: time, day },
+      { band: time, day, pressureAt },
     );
     const known = onPath.filter((z) => sensedIds.has(z.id));
     return {
@@ -660,6 +669,7 @@ export function GameScreen() {
         {
           band: time,
           hordeIntensity: hordeIntensity(hordeLevel),
+          pressureAt,
           weatherEncounterMod: weatherEncounterMod(weather),
           traitEncounterMod:
             sumTraitMod(character.traitIds, 'encounterChanceMod') +
@@ -690,6 +700,7 @@ export function GameScreen() {
     hazardPressure,
     previewRoute,
     day,
+    pressureAt,
   ]);
 
   const poiRouteInfo = useMemo(() => {
@@ -706,7 +717,7 @@ export function GameScreen() {
       spawn ?? undefined,
       hazardPressure,
       via,
-      { band: time, day },
+      { band: time, day, pressureAt },
     );
     const known = onPath.filter((z) => sensedIds.has(z.id));
     const dist =
@@ -721,6 +732,7 @@ export function GameScreen() {
         {
           band: time,
           hordeIntensity: hordeIntensity(hordeLevel),
+          pressureAt,
           weatherEncounterMod: weatherEncounterMod(weather),
           traitEncounterMod:
             sumTraitMod(character.traitIds, 'encounterChanceMod') +
@@ -751,6 +763,7 @@ export function GameScreen() {
     bodyParts,
     blipRange,
     currentPositionId,
+    pressureAt,
   ]);
 
   // Held only so the ride card re-renders once the network arrives; the routing
@@ -859,6 +872,12 @@ export function GameScreen() {
     return d > 0 ? t('ui.game.windowDh', { d, h: hr }) : t('ui.game.windowH', { h: hr });
   };
   const doomLabel = t(`ui.horde.${hordeTier(doom)}`);
+  const hereTown = groundZeroId
+    ? nearestTown(currentPos.lat, currentPos.lng)
+    : null;
+  const hereTownTier = groundZeroId
+    ? townTierAt(seed, groundZeroId, hordeLevel, currentPos.lat, currentPos.lng)
+    : null;
   const evacUrgent = evacHoursLeft != null && evacHoursLeft <= 8;
   const windowText = evacHoursLeft != null ? fmtWindow(evacHoursLeft) : null;
   const evacCooldownHours =
@@ -868,7 +887,7 @@ export function GameScreen() {
   // mobile floating dock so the markup only exists once -------------------
   // A fight owns the moment — nothing to decide about crossing until it's over.
   const targetSlot: { title: ReactNode; body: ReactNode; onClose?: () => void } | null =
-    trekTarget && trekInfo && trekEst && !combat
+    trekTarget && trekInfo && trekEst && !inCombat
       ? {
           title: travelAnim ? (
             <><Icon name="action.travel" /> {t('ui.game.enRoute')}</>
@@ -976,10 +995,10 @@ export function GameScreen() {
    * until Fight or Flee is chosen. The moment it is, the world comes back up —
    * Fight hands the column to CombatPanel; Flee resolves the break-away.
    */
-  const contactGate = !!combat?.awaitingStance;
-  const phoneFight = isPhone && !!combat && !contactGate;
+  const contactGate = awaitingStance;
+  const phoneFight = isPhone && inCombat && !contactGate;
   const phoneOwnsLive =
-    isPhone && (!!combat || !!pendingEvent || !!pendingSearch);
+    isPhone && (inCombat || !!pendingEvent || !!pendingSearch);
   const phoneInterruptKind: 'contact' | 'event' | 'search' | null = contactGate
     ? 'contact'
     : pendingEvent
@@ -1061,6 +1080,8 @@ export function GameScreen() {
               doom={doom}
               doomColor={doomColor}
               doomLabel={doomLabel}
+              townName={hereTown?.name ?? null}
+              townTier={hereTownTier}
               dayMult={dayMult}
               vibe={readiness.vibe}
               vibeLine={readiness.vibeLine}
@@ -1168,9 +1189,11 @@ export function GameScreen() {
                 urgent={evacUrgent}
                 doom={doom}
                 doomColor={doomColor}
-              doomLabel={doomLabel}
-              onEvac={callEvac}
-              onOpenGuide={setGuideTopic}
+                doomLabel={doomLabel}
+                townName={hereTown?.name ?? null}
+                townTier={hereTownTier}
+                onEvac={callEvac}
+                onOpenGuide={setGuideTopic}
             />
             )}
           </div>
@@ -1220,8 +1243,8 @@ export function GameScreen() {
                 pois={locationList}
                 selectedId={sel?.id ?? null}
                 hereId={currentPositionId}
-                travelRange={mapTravelRange}
-                blipRange={mapBlipRange}
+                travelRange={mapRangeTarget}
+                blipRange={blipRange}
                 exploredArea={exploredArea}
                 travelAnim={travelAnim}
                 evacZoneId={evacZoneId}
@@ -1270,7 +1293,7 @@ export function GameScreen() {
           contactGate && !isPhone
             ? // Desktop: the one lit thing on the screen while the decision is open.
               'relative z-[760] ring-2 ring-inset ring-hiss shadow-[0_0_60px_-5px_rgba(217,45,45,0.55)]'
-            : combat && !isPhone
+            : inCombat && !isPhone
               ? 'ring-1 ring-inset ring-hiss/50'
               : ''
         }`}
@@ -1278,7 +1301,7 @@ export function GameScreen() {
         {/* Desktop: fight replaces the timeline once Fight is chosen.
              Phone: Map owns CombatPanel — Log stays history + settings. */}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
-          {combat && !contactGate && !isPhone ? (
+          {inCombat && !contactGate && !isPhone ? (
             <CombatPanel onOpenGuide={setGuideTopic} />
           ) : (
             <div className="flex min-h-0 flex-1 flex-col">
@@ -1382,7 +1405,7 @@ export function GameScreen() {
           active={phoneOnMap}
           onClick={() => goToPhoneTab('map')}
           pulse={
-            !!(pendingEvent || pendingSearch || combat) &&
+            !!(pendingEvent || pendingSearch || inCombat) &&
             !phoneOnMap &&
             !hdb &&
             !tunnel

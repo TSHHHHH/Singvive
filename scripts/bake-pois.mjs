@@ -614,7 +614,11 @@ async function main() {
   for (const p of kept) byCategory[p.category] = (byCategory[p.category] ?? 0) + 1;
 
   mkdirSync(dirname(OUT_FILE), { recursive: true });
-  const json = JSON.stringify({ generated: new Date().toISOString(), pois: kept });
+  const EVAC_CATS = new Set(['mrt', 'school', 'police']);
+  const evacIds = kept
+    .filter((p) => EVAC_CATS.has(p.category) && String(p.name ?? '').trim().length >= 3)
+    .map((p) => p.osmId);
+  const json = JSON.stringify({ generated: new Date().toISOString(), pois: kept, evacIds });
   writeFileSync(OUT_FILE, json);
 
   const bytes = statSync(OUT_FILE).size;

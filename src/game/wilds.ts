@@ -9,6 +9,7 @@ import {
   isWalkable,
   isZonesLoaded,
 } from './playable';
+import { LOST_PRESSURE } from './townField';
 
 // ---------------------------------------------------------------------------
 // The wilds — the ground *between* the pins.
@@ -437,6 +438,8 @@ function suppressed(z: HazardZone, safe?: SafeAnchor): boolean {
 export interface HazardFieldOpts {
   band?: TimeOfDay;
   day?: number;
+  /** Local 0..1 intensity. When set, each cell uses this instead of the scalar. */
+  pressureAt?: (lat: number, lng: number) => number;
 }
 
 /**
@@ -457,13 +460,17 @@ export function hazardZonesNear(
 ): HazardZone[] {
   const band = field?.band ?? 'day';
   const day = field?.day ?? 1;
-  const reach = radiusM + 500 + pressure * 80;
+  const pressureHere = field?.pressureAt ? field.pressureAt(lat, lng) : pressure;
+  const reach = radiusM + 500 + pressureHere * 80;
   const spanX = Math.ceil(reach / CELL_M);
   const spanY = Math.ceil(reach / CELL_M);
   const cx0 = cellX(lng);
   const cy0 = cellY(lat);
   const out: HazardZone[] = [];
   const seen = new Set<string>();
+
+  const pAt = (clat: number, clng: number): number =>
+    field?.pressureAt ? field.pressureAt(clat, clng) : pressure;
 
   const push = (z: HazardZone | null) => {
     if (!z || suppressed(z, safe) || seen.has(z.id)) return;
@@ -475,21 +482,32 @@ export function hazardZonesNear(
 
   for (let dy = -spanY; dy <= spanY; dy++) {
     for (let dx = -spanX; dx <= spanX; dx++) {
-      push(zoneForCell(seed, cx0 + dx, cy0 + dy, pressure));
+      const cx = cx0 + dx;
+      const cy = cy0 + dy;
+      const clat = ((cy + 0.5) * CELL_M) / M_PER_DEG_LAT;
+      const clng = ((cx + 0.5) * CELL_M) / M_PER_DEG_LNG;
+      push(zoneForCell(seed, cx, cy, pAt(clat, clng)));
     }
   }
-  for (const z of waterWildlifeZonesNear(seed, lat, lng, radiusM, pressure)) {
+  for (const z of waterWildlifeZonesNear(seed, lat, lng, radiusM, pressureHere)) {
     push(z);
   }
 
-  if (nightSwarmRate(band) > 0) {
-    const nSpan = Math.ceil(reach / CELL_NIGHT_M);
-    const nx0 = cellX(lng, CELL_NIGHT_M);
-    const ny0 = cellY(lat, CELL_NIGHT_M);
-    for (let dy = -nSpan; dy <= nSpan; dy++) {
-      for (let dx = -nSpan; dx <= nSpan; dx++) {
-        push(nightSwarmForCell(seed, day, nx0 + dx, ny0 + dy, pressure, band));
-      }
+  const nSpan = Math.ceil(reach / CELL_NIGHT_M);
+  const nx0 = cellX(lng, CELL_NIGHT_M);
+  const ny0 = cellY(lat, CELL_NIGHT_M);
+  for (let dy = -nSpan; dy <= nSpan; dy++) {
+    for (let dx = -nSpan; dx <= nSpan; dx++) {
+      const nx = nx0 + dx;
+      const ny = ny0 + dy;
+      const nlat = ((ny + 0.5) * CELL_NIGHT_M) / M_PER_DEG_LAT;
+      const nlng = ((nx + 0.5) * CELL_NIGHT_M) / M_PER_DEG_LNG;
+      const localP = pAt(nlat, nlng);
+      // Lost neighbourhoods run a dusk swarm in daylight — still walkable, not a wall.
+      const swarmBand: TimeOfDay =
+        band === 'day' && localP >= LOST_PRESSURE / 100 ? 'dusk' : band;
+      if (nightSwarmRate(swarmBand) <= 0) continue;
+      push(nightSwarmForCell(seed, day, nx, ny, localP, swarmBand));
     }
   }
 
@@ -509,10 +527,12 @@ export function sensedHazardField(
   pressure: number,
   band: TimeOfDay,
   day: number,
+  pressureAt?: (lat: number, lng: number) => number,
 ): HazardZone[] {
   const dayZones = hazardZonesNear(seed, lat, lng, dayRadiusM, safe, pressure, {
     band: 'day',
     day,
+    pressureAt,
   });
   if (band === 'day') return dayZones;
   const swarm = hazardZonesNear(
@@ -522,7 +542,7 @@ export function sensedHazardField(
     NIGHT_SWARM_SENSE_M,
     undefined,
     pressure,
-    { band, day },
+    { band, day, pressureAt },
   ).filter((z) => z.kind === 'night_swarm');
   const seen = new Set(dayZones.map((z) => z.id));
   const out = [...dayZones];
@@ -624,6 +644,7 @@ export function trekRisk(
     traitEncounterMod: number;
     safe?: SafeAnchor;
     day?: number;
+    pressureAt?: (lat: number, lng: number) => number;
   },
   hazardsOverride?: HazardZone[],
   via?: { lat: number; lng: number }[],
@@ -636,15 +657,23 @@ export function trekRisk(
           0,
         )
       : haversine(from.lat, from.lng, to.lat, to.lng);
-  const field: HazardFieldOpts = { band: opts.band, day: opts.day };
+  const pathPressure = opts.pressureAt
+    ? Math.max(opts.pressureAt(from.lat, from.lng), opts.pressureAt(to.lat, to.lng))
+    : opts.hordeIntensity;
+  const field: HazardFieldOpts = {
+    band: opts.band,
+    day: opts.day,
+    pressureAt: opts.pressureAt,
+  };
   const hazards =
     hazardsOverride ??
-    hazardsOnPath(seed, from, to, opts.safe, opts.hordeIntensity, via, field);
+    hazardsOnPath(seed, from, to, opts.safe, pathPressure, via, field);
 
   let p = (dist / 100) * 0.018 * OPEN_GROUND_ENCOUNTER_MULT;
   if (opts.band === 'night') p += 0.14;
   else if (opts.band === 'dusk') p += 0.07;
-  p += opts.hordeIntensity * 0.18;
+  else if (pathPressure >= LOST_PRESSURE / 100) p += 0.1;
+  p += pathPressure * 0.18;
   p += opts.traitEncounterMod;
   p += opts.weatherEncounterMod;
 

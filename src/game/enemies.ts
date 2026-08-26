@@ -126,8 +126,8 @@ export interface EnemiesCatalog {
 }
 
 export const FACTION_KEYS: readonly FactionKey[] = [
-  'idtf',
-  'pasir_panjang',
+  'muster',
+  'gotong',
   'syndicate_88',
   'sta',
 ] as const;

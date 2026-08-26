@@ -47,6 +47,9 @@ type FogLayer = L.GridLayer & {
  * Paint (or repaint) a single fog canvas. Keeps the DOM tile in place so
  * Leaflet never removes/fades tiles when energy/travel-range ticks — that
  * redraw path was the fog flicker on every action.
+ *
+ * Tiled canvas GridLayer on purpose. Do not remount tiles on energy ticks or
+ * replace this with one fullscreen canvas.
  */
 function paintFogTile(this: FogLayer, canvas: HTMLCanvasElement, coords: L.Coords): void {
   const tileSize = this.getTileSize();
@@ -79,19 +82,11 @@ function paintFogTile(this: FogLayer, canvas: HTMLCanvasElement, coords: L.Coord
 
   const { exploredArea, currentRevealCenter, currentRevealRadius } = this._fogProps;
   const tileOrigin = coords.scaleBy(tileSize);
-  const allCircles: ExploredCircle[] = [
-    ...exploredArea,
-    {
-      lat: currentRevealCenter.lat,
-      lng: currentRevealCenter.lng,
-      radius: currentRevealRadius,
-    },
-  ];
 
   const map = this._map;
   if (!map) return;
 
-  for (const circle of allCircles) {
+  const punch = (circle: ExploredCircle) => {
     const pixelCoords = map.project(L.latLng(circle.lat, circle.lng), coords.z);
     const px = pixelCoords.x - tileOrigin.x;
     const py = pixelCoords.y - tileOrigin.y;
@@ -103,13 +98,20 @@ function paintFogTile(this: FogLayer, canvas: HTMLCanvasElement, coords: L.Coord
       py + pixelRadius < 0 ||
       py - pixelRadius > cssH
     ) {
-      continue;
+      return;
     }
 
     ctx.beginPath();
     ctx.arc(px, py, pixelRadius, 0, Math.PI * 2);
     ctx.fill();
-  }
+  };
+
+  for (const circle of exploredArea) punch(circle);
+  punch({
+    lat: currentRevealCenter.lat,
+    lng: currentRevealCenter.lng,
+    radius: currentRevealRadius,
+  });
 }
 
 /**

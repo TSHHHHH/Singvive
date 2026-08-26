@@ -68,10 +68,18 @@ function markup(standing: number): number {
   return Math.max(1, 2.1 - 0.35 * standing);
 }
 
-/**
- * Pick `n` distinct entries out of `pool`, seeded. Falls back to fewer than `n`
- * rather than repeating — a board with the same line twice reads like a bug.
- */
+/** Whether this def is allowed on this faction's board. */
+function stockAllowed(
+  cfg: (typeof FACTION_CONFIG)[Exclude<FactionId, null>],
+  defId: string,
+): boolean {
+  const def = itemDef(defId);
+  if (!def) return false;
+  if (def.effect.kind === 'ammo' && !cfg.sellsAmmo) return false;
+  if (def.effect.kind === 'weapon' && def.effect.ranged && !cfg.sellsFirearms) return false;
+  return true;
+}
+
 function sample<T>(rng: Rng, pool: T[], n: number): T[] {
   const rest = [...pool];
   const out: T[] = [];
@@ -153,13 +161,14 @@ export function traderBoard(
   // least one line of it is *guaranteed*. Merging the two lists and sampling
   // meant reaching KIN could produce a board with no reserved stock on it at
   // all, which makes the top of the ladder feel like it did nothing.
-  const catalogue: string[] =
+  const catalogueRaw: string[] =
     isOutpost && rep >= STANDING_KIN
       ? [
           ...sample(rng, cfg.exclusiveStock, Math.min(2, size)),
           ...sample(rng, cfg.stock, Math.max(0, size - Math.min(2, size))),
         ]
       : sample(rng, cfg.stock, size);
+  const catalogue = catalogueRaw.filter((id) => stockAllowed(cfg, id));
 
   const offers: TradeOffer[] = [];
   for (const giveDefId of catalogue) {
@@ -187,6 +196,11 @@ export function traderBoard(
 /** One line of prose for the board's header — who you're dealing with today. */
 export function traderGreeting(factionId: Exclude<FactionId, null>, rep: number): string {
   const cfg = FACTION_CONFIG[factionId];
+  if (factionId === 'syndicate_88') {
+    if (rep >= STANDING_KIN) return 'The fence comes out from under the tarp. The 88 counts you as theirs.';
+    if (rep >= STANDING_TRUSTED) return 'The void-deck court is open. Nobody watches your hands — they already know what you brought.';
+    return 'They\'ll move it. They\'ll also count everything twice.';
+  }
   if (rep >= STANDING_KIN) return `They pull out the good stuff without being asked. ${cfg.shortName} counts you as theirs.`;
   if (rep >= STANDING_TRUSTED) return 'The counter is open and nobody watches your hands.';
   return 'They\'ll deal with you. They\'ll also count everything twice.';

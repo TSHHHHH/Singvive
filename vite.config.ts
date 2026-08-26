@@ -8,4 +8,15 @@ export default defineConfig({
   plugins: [react(), lootDevApi(), cloudflare()],
   // Honour PORT so two dev servers can run side by side; 5190 stays the default.
   server: { port: Number(process.env.PORT) || 5190 },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules/leaflet') || id.includes('react-leaflet')) {
+            return 'leaflet';
+          }
+        },
+      },
+    },
+  },
 })

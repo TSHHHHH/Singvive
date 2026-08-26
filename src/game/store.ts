@@ -5,6 +5,7 @@ import type {
   CombatState,
   Equipment,
   EquipSlot,
+  EventClock,
   FactionId,
   GameLogEntry,
   GamePhase,
@@ -17,6 +18,7 @@ import type {
   TerrainId,
   Enemy,
 } from './types';
+import { freshEventClock } from './types';
 import { emptyRunStats, normalizeRunStats } from './stats';
 import { Rng, randomSeed } from './rng';
 import {
@@ -31,7 +33,7 @@ import {
   traitPoiLootBonus,
 } from './character';
 import { fetchOsmPois, haversine, type RawPoi } from './overpass';
-import { bakedPoisNear } from './bakedPois';
+import { bakedEvacPois, bakedPoisNear, ensureBakeLoaded } from './bakedPois';
 import {
   ensureZonesLoaded,
   filterWalkablePois,
@@ -184,7 +186,7 @@ import {
   weatherEnergyMult,
   weatherThirstMult,
 } from './weather';
-import { snapshot, travelableRange, VISITED_LIGHT_RADIUS, type ExploredCircle } from './fog';
+import { mergeExploredCircles, snapshot, travelableRange, VISITED_LIGHT_RADIUS, type ExploredCircle } from './fog';
 import { estimateExpedition, estimateTunnelWalk, searchMinutes } from './travel';
 import {
   makeAnimalById,
@@ -236,13 +238,18 @@ import {
   clearRun,
   loadHighScores,
   loadRun,
-  saveRun,
   type SavedRun,
 } from './storage';
+import { cancelPersist, flushPersist, rehydrateLocationOutlines, schedulePersist, writeSavedRun } from './persistRun';
+import { tickLocationClock } from './locationClock';
 import { POI_CONFIG } from './poi';
 import {
   FACTION_CONFIG,
   applyFactionServices,
+  canKinSearch88Deck,
+  escortCandidates,
+  factionEscorts,
+  factionFeeds,
   factionOffersAid,
   factionSharesIntel,
   factionShelters,
@@ -251,8 +258,15 @@ import {
   isOutpostSite,
   locationServices,
   migrateOutposts,
+  migrateStanding,
+  migrateTraderTaken,
   pickOutposts,
   standingLabel,
+  CANTEEN_HUNGER,
+  CANTEEN_THIRST,
+  ESCORT_ENCOUNTER_MOD,
+  ESCORT_RANGE_M,
+  INTEL_CATEGORIES,
   STANDING_KNOWN,
   type OutpostIds,
 } from './factions';
@@ -313,7 +327,6 @@ import {
 } from './hdbDungeon';
 import {
   applyPulse,
-  decayBoosts,
   effectiveDanger,
   emitNoisePulse,
   prunePulses,
@@ -329,12 +342,21 @@ import {
   saveLegacyRun,
 } from './ghostSurvivor';
 import {
+  makePressureAt,
+  nearestRoofedShelter,
+  nearestTown,
+  pickGroundZero,
+  townDangerMod,
+  townTierAt,
+  TOWN_FIELD_START_HORDE,
+} from './townField';
+import type { TownTier } from './townField';
+import {
   EVAC_SCORE_BONUS,
   HORDE_MAX,
   HORDE_PER_DAY,
   evacReadiness,
   hordeIntensity,
-  EVAC_ISLAND_RADIUS,
   pickDistantEvacPoi,
   pickEvacZone,
   rollEvacCooldown,
@@ -354,7 +376,6 @@ const BIAS_LOG: Record<EvacDemandBias, string> = {
 
 const SCAVENGE_RADIUS = 1500;
 const DANGER_DEPLETE = 0.7;
-const REGEN_PER_DAY = { small: 0.6, medium: 1.2, large: 2.4 };
 
 /**
  * ~1 km cells for on-demand world expansion. Smaller than SCAVENGE_RADIUS so
@@ -390,17 +411,6 @@ interface PendingEvent {
   /** Set when the event is a holdout counter inside an HDB block. */
   hdbService?: { level: number; unitId: string };
 }
-
-/** @see GameStore._eventClock */
-export interface EventClock {
-  /** Absolute in-game hour of the last doorway event, or null if none yet. */
-  lastAt: number | null;
-  /** The day `count` refers to. */
-  day: number;
-  count: number;
-}
-
-const freshEventClock = (): EventClock => ({ lastAt: null, day: 1, count: 0 });
 
 /**
  * A saved tunnel run is only worth resuming if it still has a graph. Anything
@@ -461,6 +471,12 @@ interface State {
    * pulled in; persisted so a reload doesn't redo the same work.
    */
   expandedCells: string[];
+
+  /**
+   * Neighbourhood that went first this run. Null on saves from before the town
+   * field existed — those keep the old global horde intensity.
+   */
+  groundZeroId: string | null;
 
   // extraction goal + doom clock
   hordeLevel: number; // 0..HORDE_MAX; rises each day
@@ -561,7 +577,7 @@ interface State {
   /**
    * Which site is each faction's outpost — the one place of theirs that is a
    * destination rather than a door. Fixed at world-build and saved with the
-   * run, because "walk two kilometres to the Co-op market" is only a plan if
+   * run, because "walk two kilometres to the Gotong kitchen" is only a plan if
    * the market is still there after a reload.
    */
   outposts: OutpostIds;
@@ -573,6 +589,11 @@ interface State {
    * chalked lines are the day's stock, not a shop's shelves.
    */
   traderTaken: Record<string, string[]>;
+  /**
+   * One-shot Muster escort: the next travel to `toId` is walked with a patrol.
+   * Runtime + save — a reload mid-walk should not refund the tribute.
+   */
+  escort: { toId: string } | null;
 
   log: GameLogEntry[];
   /**
@@ -636,6 +657,12 @@ interface State {
   factionAid: () => void;
   /** Intel / rumor at a site that offers it (Known+). Once per day. */
   factionIntel: () => void;
+  /** Gotong canteen — eat/drink on site. Once per day. Known+. */
+  factionFeed: () => void;
+  /** Muster escort to a discovered site within range. Known+. One-shot. */
+  factionEscort: (destinationId: string) => void;
+  /** 88 Kin: walk an occupied residential block (once per site). */
+  searchKinDeck: () => void;
   resolveEvent: (choiceId: string) => void;
   /** Advance the active sequential search (RAF from the timeline UI). */
   tickSearch: () => void;
@@ -734,6 +761,12 @@ function totalGameHour(day: number, hour: number): number {
   return (day - 1) * HOURS_PER_DAY + hour;
 }
 
+/**
+ * Zustand façade over the pure modules in this folder. New systems belong in
+ * `src/game/<system>.ts` and hook `advanceTime` / `persist` — do not grow a
+ * second gameplay store. Persist mapping lives in persistRun.ts; hour ticks
+ * on locations live in locationClock.ts.
+ */
 export const useGame = create<State>((set, get) => {
   const pushLog = (
     text: string,
@@ -899,57 +932,76 @@ export const useGame = create<State>((set, get) => {
     floodwater: boolean;
   } | null = null;
 
+  /**
+   * Snapshot the run. Call sites stay `persist()` so actions stay explicit.
+   * The write is debounced (≥5 s) and OSM outlines are stripped — see persistRun.ts.
+   */
   const persist = () => {
+    schedulePersist(() => {
+      const s = get();
+      if (!s.character || !s.spawn || s.phase === 'menu') return;
+      const run: SavedRun = {
+        character: s.character,
+        seed: s.seed,
+        spawn: s.spawn,
+        locations: s.locations,
+        currentPositionId: s.currentPositionId,
+        currentPos: s.currentPos,
+        equipment: s.equipment,
+        bodyParts: s.bodyParts,
+        meters: s.meters,
+        maxHp: s.maxHp,
+        day: s.day,
+        hour: s.hour,
+        items: s.items,
+        rounds: s.rounds,
+        clothingTears: s.clothingTears,
+        kills: s.kills,
+        stats: s.stats,
+        log: s.log,
+        usedFallback: s.usedFallback,
+        exploredArea: s.exploredArea,
+        expandedCells: s.expandedCells,
+        groundZeroId: s.groundZeroId,
+        hordeLevel: s.hordeLevel,
+        evacZoneId: s.evacZoneId,
+        evacDeadline: s.evacDeadline,
+        evacCooldownUntil: s.evacCooldownUntil,
+        evacDemand: s.evacDemand,
+        evacDemandBias: s.evacDemandBias,
+        evacManifestRevealed: s.evacManifestRevealed,
+        destroyedTunnelEdges: s.destroyedTunnelEdges,
+        hdbBlocks: s.hdb ? { ...s.hdbBlocks, [s.hdb.locationId]: s.hdb } : s.hdbBlocks,
+        tunnel: s.tunnel,
+        tunnelSeq: s.tunnelSeq,
+        eventClock: s._eventClock,
+        factionStanding: s.factionStanding,
+        outposts: s.outposts,
+        traderTaken: s.traderTaken,
+        escort: s.escort,
+      };
+      const result = writeSavedRun(run);
+      if (result === 'quota') {
+        pushLog('Save failed — storage is full. Drop weight or the next reload may forget this run.', 'bad');
+      }
+    });
+  };
+
+  const pressureFn = () => {
     const s = get();
-    if (!s.character || !s.spawn || s.phase === 'menu') return;
-    const run: SavedRun = {
-      character: s.character,
-      seed: s.seed,
-      spawn: s.spawn,
-      locations: s.locations,
-      currentPositionId: s.currentPositionId,
-      currentPos: s.currentPos,
-      equipment: s.equipment,
-      bodyParts: s.bodyParts,
-      meters: s.meters,
-      maxHp: s.maxHp,
-      day: s.day,
-      hour: s.hour,
-      items: s.items,
-      rounds: s.rounds,
-      clothingTears: s.clothingTears,
-      kills: s.kills,
-      stats: s.stats,
-      log: s.log,
-      usedFallback: s.usedFallback,
-      exploredArea: s.exploredArea,
-      expandedCells: s.expandedCells,
-      hordeLevel: s.hordeLevel,
-      evacZoneId: s.evacZoneId,
-      evacDeadline: s.evacDeadline,
-      evacCooldownUntil: s.evacCooldownUntil,
-      evacDemand: s.evacDemand,
-      evacDemandBias: s.evacDemandBias,
-      evacManifestRevealed: s.evacManifestRevealed,
-      destroyedTunnelEdges: s.destroyedTunnelEdges,
-      // Snapshot the block you're standing in too, so a reload keeps it cleared.
-      hdbBlocks: s.hdb ? { ...s.hdbBlocks, [s.hdb.locationId]: s.hdb } : s.hdbBlocks,
-      // The tunnel is saved live, not as a cache: you are mid-walk, and a
-      // reload has to put you back on the same node.
-      tunnel: s.tunnel,
-      tunnelSeq: s.tunnelSeq,
-      // Otherwise a reload would be a free way to reset the doorway cooldown.
-      eventClock: s._eventClock,
-      factionStanding: s.factionStanding,
-      outposts: s.outposts,
-      // Not the open counter — the counter is a screen, not a place you can be
-      // mid-action. Only which of today's swaps are already spent.
-      traderTaken: s.traderTaken,
-    };
-    saveRun(run);
+    return makePressureAt(s.seed, s.groundZeroId, s.hordeLevel);
+  };
+
+  const doomDanger = (loc: LocationState) => {
+    const s = get();
+    const base = effectiveDanger(loc);
+    if (!s.groundZeroId) return base;
+    const tier = townTierAt(s.seed, s.groundZeroId, s.hordeLevel, loc.lat, loc.lng);
+    return Math.max(0, Math.min(5, base + townDangerMod(tier)));
   };
 
   const endRun = (cause: Exclude<DeathCause, null>) => {
+    cancelPersist();
     const s = get();
     const score = computeScore(
       s.day,
@@ -1001,6 +1053,7 @@ export const useGame = create<State>((set, get) => {
 
   // Successful extraction — the one and only victory ending.
   const winRun = () => {
+    cancelPersist();
     const s = get();
     const loot = Math.round(totalLootValue(s.items) * (1 + lootValueMod()));
     const score = computeScore(s.day, s.kills, loot) + computeEvacBonus(s.day, EVAC_SCORE_BONUS);
@@ -1108,6 +1161,8 @@ export const useGame = create<State>((set, get) => {
   };
 
   // Advance clock by `hours`: passive meter drain + location danger regen.
+  // Untouched sites keep their previous object identity — a new locations dict
+  // on every hour would re-render the map HUD.
   const advanceTime = (
     hours: number,
     restedEnergy?: number,
@@ -1149,19 +1204,7 @@ export const useGame = create<State>((set, get) => {
     if (restedEnergy != null) meters = { ...meters, energy: restedEnergy };
 
     // danger creeps back toward baseDanger, faster for larger locations
-    const decayed = decayBoosts(s.locations, hours);
-    const locations: Record<string, LocationState> = {};
-    for (const [id, loc] of Object.entries(decayed)) {
-      if (loc.exhausted || loc.currentDanger >= loc.baseDanger) {
-        locations[id] = loc;
-        continue;
-      }
-      const creep = (REGEN_PER_DAY[loc.size] / HOURS_PER_DAY) * hours;
-      locations[id] = {
-        ...loc,
-        currentDanger: Math.min(loc.baseDanger, loc.currentDanger + creep),
-      };
-    }
+    const locations = tickLocationClock(s.locations, hours, HOURS_PER_DAY);
 
     // The horde swells each day the clock rolls past midnight.
     const daysElapsed = day - s.day;
@@ -1226,7 +1269,7 @@ export const useGame = create<State>((set, get) => {
         g.currentPos.lng,
         g.spawn ?? undefined,
         hordeIntensity(g.hordeLevel),
-        { band: newBand, day },
+        { band: newBand, day, pressureAt: pressureFn() },
       );
       const swarm = pockets.find((z) => z.kind === 'night_swarm');
       pushLog(
@@ -1287,7 +1330,10 @@ export const useGame = create<State>((set, get) => {
     set((st) => ({
       locations: { ...st.locations, [locationId]: updated },
       exploredArea: wasNew
-        ? [...st.exploredArea, { lat: loc.lat, lng: loc.lng, radius: VISITED_LIGHT_RADIUS }]
+        ? mergeExploredCircles([
+            ...st.exploredArea,
+            { lat: loc.lat, lng: loc.lng, radius: VISITED_LIGHT_RADIUS },
+          ])
         : st.exploredArea,
     }));
     if (wasNew) {
@@ -1356,7 +1402,7 @@ export const useGame = create<State>((set, get) => {
       s.currentPos.lng,
       s.spawn ?? undefined,
       hordeIntensity(s.hordeLevel),
-      { band: 'night', day: s.day },
+      { band: 'night', day: s.day, pressureAt: pressureFn() },
     );
     const conditions = applySleepOccupancy(
       evaluateSleepConditions(sleepContextFromState()),
@@ -1368,6 +1414,7 @@ export const useGame = create<State>((set, get) => {
     const risk = trekRisk(s.seed, s.currentPos, s.currentPos, {
       band: 'night',
       hordeIntensity: hordeIntensity(s.hordeLevel),
+      pressureAt: pressureFn(),
       weatherEncounterMod: 0,
       traitEncounterMod:
         sumTraitMod(s.character.traitIds, 'encounterChanceMod') +
@@ -1794,7 +1841,7 @@ export const useGame = create<State>((set, get) => {
     const encRng = new Rng(s.seed).fork(
       `enc:${loc.id}:${s.day}:${loc.remainingSearches}:${opts.key ?? ''}`,
     );
-    const danger = Math.round(opts.danger ?? effectiveDanger(loc));
+    const danger = Math.round(opts.danger ?? doomDanger(loc));
     const zombie = opts.enemy ?? makeZombie(encRng, danger, loc.category);
     const combat: CombatState = {
       locationId,
@@ -1900,7 +1947,11 @@ export const useGame = create<State>((set, get) => {
   const illicitStandingHit = (locationId: string) => {
     const loc = get().locations[locationId];
     if (!loc?.factionId) return;
-    shiftStanding(loc.factionId, -1);
+    const id = loc.factionId;
+    shiftStanding(id, -1);
+    // Cross-tension: going against the Muster is a gift to the 88, and vice versa.
+    if (id === 'muster') shiftStanding('syndicate_88', 1);
+    else if (id === 'syndicate_88') shiftStanding('muster', 1);
   };
 
   const enterRaid = (locationId: string, mode: 'sneak' | 'force') => {
@@ -2070,12 +2121,12 @@ export const useGame = create<State>((set, get) => {
     }
     const encRng = new Rng(s.seed).fork(`encroll:${loc.id}:${s.day}:${loc.remainingSearches}`);
     const band = timeOfDay(s.hour);
-    let encChance = 0.08 + loc.currentDanger * 0.12;
+    let encChance = 0.08 + doomDanger(loc) * 0.12;
     if (band === 'night') encChance += 0.2;
     else if (band === 'dusk') encChance += 0.08;
     encChance += weatherEncounterMod(weatherKindFor(s.seed, s.day));
-    // A swelling horde makes every search deadlier as the days drag on.
-    encChance += hordeIntensity(s.hordeLevel) * 0.3;
+    // Local neighbourhood pressure — a Fallen town is not a Stirring one.
+    encChance += pressureFn()(loc.lat, loc.lng) * 0.3;
     encChance += sumTraitMod(s.character!.traitIds, 'encounterChanceMod');
     if (band === 'night' || band === 'dusk') {
       encChance += sumTraitMod(s.character!.traitIds, 'nightEncounterChanceMod');
@@ -2269,6 +2320,7 @@ export const useGame = create<State>((set, get) => {
     });
     const merged = { ...get().locations };
     let added = 0;
+    const newIds: string[] = [];
     for (const loc of built) {
       // Synthetic bridge waypoints are numbered per build, so they'd collide
       // across expansions and silently lose their connective tissue.
@@ -2276,12 +2328,13 @@ export const useGame = create<State>((set, get) => {
       // Anything already in the world keeps whatever state it has earned.
       if (merged[id]) continue;
       merged[id] = { ...loc, id };
+      newIds.push(id);
       added += 1;
     }
     if (added > 0) {
       const outposts = get().outposts;
       set({
-        locations: applyFactionServices(merged, outposts, get().seed),
+        locations: applyFactionServices(merged, outposts, get().seed, newIds),
       });
       persist();
     }
@@ -2905,7 +2958,10 @@ export const useGame = create<State>((set, get) => {
       currentPos: { lat, lng },
       currentPositionId: null,
       raidMode: null,
-      exploredArea: [...st.exploredArea, { lat, lng, radius: TREK_LIGHT_RADIUS }],
+      exploredArea: mergeExploredCircles([
+        ...st.exploredArea,
+        { lat, lng, radius: TREK_LIGHT_RADIUS },
+      ]),
     }));
     pushLog(flavor('trekArrive'), 'info');
 
@@ -2968,6 +3024,7 @@ export const useGame = create<State>((set, get) => {
     usedFallback: false,
     travelAnim: null,
     expandedCells: [],
+    groundZeroId: null,
     hordeLevel: 0,
     evacZoneId: null,
     evacDeadline: null,
@@ -3007,6 +3064,7 @@ export const useGame = create<State>((set, get) => {
     outposts: {},
     trader: null,
     traderTaken: {},
+    escort: null,
     log: [],
     inventoryOpenToken: 0,
     deathCause: null,
@@ -3040,6 +3098,7 @@ export const useGame = create<State>((set, get) => {
     setSpawn: async (spawn) => {
       const seed = randomSeed();
       const rng = new Rng(seed);
+      const groundZero = pickGroundZero(rng);
 
       try {
         await ensureZonesLoaded();
@@ -3098,11 +3157,29 @@ export const useGame = create<State>((set, get) => {
         // Opening bubble is already materialised — mark its cell so the first
         // trek doesn't rebuild the same 1.5 km from the bake.
         expandedCells: [expandCellKey(spawn.lat, spawn.lng)],
+        groundZeroId: groundZero.id,
+        hordeLevel: TOWN_FIELD_START_HORDE,
       });
       pushLog(
         flavor(usedFallback ? 'wakeOffline' : 'wake', { name: spawn.name }),
         'info',
       );
+      const wakeTown = nearestTown(spawn.lat, spawn.lng);
+      const wakeTier = townTierAt(
+        seed,
+        groundZero.id,
+        TOWN_FIELD_START_HORDE,
+        spawn.lat,
+        spawn.lng,
+      );
+      const wakeKey: Record<TownTier, 'wakeTownStirring' | 'wakeTownRestless' | 'wakeTownMassing' | 'wakeTownFallen' | 'wakeTownLost'> = {
+        stirring: 'wakeTownStirring',
+        restless: 'wakeTownRestless',
+        massing: 'wakeTownMassing',
+        fallen: 'wakeTownFallen',
+        lost: 'wakeTownLost',
+      };
+      pushLog(flavor(wakeKey[wakeTier], { name: wakeTown.name }), wakeTier === 'stirring' ? 'info' : 'bad');
 
       // A scavenger by trade gets more out of every site than the search budget
       // allows anyone else.
@@ -3123,9 +3200,7 @@ export const useGame = create<State>((set, get) => {
       // around it (and the corridor toward it) fills in as the player nears.
       let evacZoneId: string | null = null;
       try {
-        const island = filterWalkablePois(
-          await bakedPoisNear(spawn.lat, spawn.lng, EVAC_ISLAND_RADIUS),
-        );
+        const island = filterWalkablePois(await bakedEvacPois());
         const far = pickDistantEvacPoi(island, spawn, rng.fork('evac'));
         if (far) {
           // Take the site *by id*, never `[0]`. `buildLocations` ends in
@@ -3168,7 +3243,8 @@ export const useGame = create<State>((set, get) => {
       }
 
       set({
-        hordeLevel: 0,
+        hordeLevel: TOWN_FIELD_START_HORDE,
+        groundZeroId: groundZero.id,
         evacZoneId,
         evacDeadline,
         evacCooldownUntil: null,
@@ -3255,6 +3331,8 @@ export const useGame = create<State>((set, get) => {
         // build can start owing somebody a favour, or having been somebody's
         // neighbour.
         factionStanding: startingStanding(get().character!.traitIds),
+        escort: null,
+        traderTaken: {},
       });
       for (const [fid, ids] of Object.entries(outposts)) {
         const cfg = FACTION_CONFIG[fid as Exclude<FactionId, null>];
@@ -3264,6 +3342,21 @@ export const useGame = create<State>((set, get) => {
           pushLog(
             `Word is ${cfg.shortName} run a ${cfg.outpostName.toLowerCase()} out of ${loc.name}, ${loc.distanceFromSpawn} m off — full services if they know you.`,
             'info',
+          );
+        }
+      }
+
+      if (wakeTier === 'lost') {
+        const shelter = nearestRoofedShelter(Object.values(withServices), spawn);
+        if (shelter) {
+          discoverLocation(shelter.id);
+          set({
+            currentPositionId: shelter.id,
+            currentPos: { lat: shelter.lat, lng: shelter.lng },
+          });
+          pushLog(
+            `You come to inside ${shelter.name}. The street out there is not empty.`,
+            'bad',
           );
         }
       }
@@ -3340,6 +3433,7 @@ export const useGame = create<State>((set, get) => {
         {
           band,
           hordeIntensity: hordeIntensity(now.hordeLevel),
+          pressureAt: pressureFn(),
           weatherEncounterMod: weatherEncounterMod(weather),
           traitEncounterMod:
             sumTraitMod(now.character!.traitIds, 'encounterChanceMod') +
@@ -3348,7 +3442,8 @@ export const useGame = create<State>((set, get) => {
               : 0) +
             equipEncounterChanceMod(now.equipment) +
             bleedEncounterMod(now.bodyParts) +
-            load.encounterMod,
+            load.encounterMod +
+            (now.escort?.toId === loc.id ? ESCORT_ENCOUNTER_MOD : 0),
           safe: now.spawn ?? undefined,
           day: now.day,
         },
@@ -3418,6 +3513,13 @@ export const useGame = create<State>((set, get) => {
         pushLog('Dense forest slows you — nature reserve overgrowth.', 'info');
       }
       noteOverload(s.day, load.ratio);
+      if (get().escort?.toId === loc.id) {
+        set({ escort: null });
+        pushLog(
+          `Two of the Muster walk you as far as ${loc.name}. They peel off at the door.`,
+          'good',
+        );
+      }
       if (applyCrossingOutcome(outcome, vegOnRoute.energyCost * load.energyMult, encRng)) return;
       if (roadFindLog) pushLog(roadFindLog.text, roadFindLog.tone);
       set({
@@ -3616,6 +3718,7 @@ export const useGame = create<State>((set, get) => {
         {
           band: trekBand,
           hordeIntensity: hordeIntensity(now.hordeLevel),
+          pressureAt: pressureFn(),
           weatherEncounterMod: weatherEncounterMod(weather),
           traitEncounterMod:
             sumTraitMod(now.character!.traitIds, 'encounterChanceMod') +
@@ -4202,18 +4305,24 @@ export const useGame = create<State>((set, get) => {
       const locs = { ...get().locations };
       locs[loc.id] = { ...locs[loc.id], intelUsedDay: s.day };
 
-      // Prefer revealing a nearby undiscovered POI; else tip an outpost.
+      // Prefer revealing a nearby undiscovered POI that this faction would
+      // actually know about; else any nearby; else tip an outpost.
       const nearby = Object.values(locs)
         .filter((l) => l.id !== loc.id && !l.discovered)
         .map((l) => ({
           l,
           d: haversine(loc.lat, loc.lng, l.lat, l.lng),
         }))
-        .filter((x) => x.d <= 1200)
-        .sort((a, b) => a.d - b.d);
+        .filter((x) => x.d <= 1200);
+      const bias = INTEL_CATEGORIES[loc.factionId];
+      const preferred =
+        bias === 'danger'
+          ? [...nearby].sort((a, b) => b.l.currentDanger - a.l.currentDanger || a.d - b.d)
+          : nearby.filter((x) => bias.includes(x.l.category)).sort((a, b) => a.d - b.d);
+      const pool = (preferred.length ? preferred : [...nearby].sort((a, b) => a.d - b.d));
 
-      if (nearby.length) {
-        const pick = nearby[rng.int(0, Math.min(4, nearby.length) - 1)].l;
+      if (pool.length) {
+        const pick = pool[rng.int(0, Math.min(4, pool.length) - 1)].l;
         const revealed: LocationState = {
           ...pick,
           discovered: true,
@@ -4252,6 +4361,124 @@ export const useGame = create<State>((set, get) => {
         }
       }
       persist();
+    },
+
+    factionFeed: () => {
+      const s = get();
+      if (s.combat || s.pendingEvent || s.travelAnim) return;
+      const posId = s.currentPositionId;
+      const loc = posId ? s.locations[posId] : null;
+      if (!loc?.factionId) return;
+      if (!locationServices(loc, s.outposts).includes('feed')) {
+        pushLog('Nobody is cooking here.', 'info');
+        return;
+      }
+      if (!hasFactionClearance(loc, s.factionStanding, s.day)) {
+        pushLog('You are not on their grounds yet. Approach the gate first.', 'bad');
+        return;
+      }
+      if (!factionFeeds(loc.factionId, s.factionStanding)) {
+        pushLog(
+          `${FACTION_CONFIG[loc.factionId].shortName} feed their own. Earn a place at the table.`,
+          'bad',
+        );
+        return;
+      }
+      if ((loc.feedUsedDay ?? -1) >= s.day) {
+        pushLog('The pot is empty until tomorrow. Come back then.', 'info');
+        return;
+      }
+      if (advanceTime(0.5)) return;
+      const foodEffectMod = sumTraitMod(get().character!.traitIds, 'foodEffectMod');
+      const meters = { ...get().meters };
+      meters.hunger = clampMeter(meters.hunger + Math.round(CANTEEN_HUNGER * (1 + foodEffectMod)));
+      meters.thirst = clampMeter(meters.thirst + CANTEEN_THIRST);
+      set({
+        meters,
+        locations: {
+          ...get().locations,
+          [loc.id]: { ...get().locations[loc.id], feedUsedDay: s.day },
+        },
+      });
+      pushLog(
+        'Gotong sits you down. Hot rice, a mug of something boiled, and a few minutes that are not the street.',
+        'good',
+      );
+      persist();
+    },
+
+    factionEscort: (destinationId) => {
+      const s = get();
+      if (s.combat || s.pendingEvent || s.travelAnim) return;
+      const posId = s.currentPositionId;
+      const loc = posId ? s.locations[posId] : null;
+      if (!loc?.factionId) return;
+      if (!locationServices(loc, s.outposts).includes('escort')) {
+        pushLog('No patrol is leaving from here.', 'info');
+        return;
+      }
+      if (!hasFactionClearance(loc, s.factionStanding, s.day)) {
+        pushLog('You are not on their grounds yet. Approach the gate first.', 'bad');
+        return;
+      }
+      if (!factionEscorts(loc.factionId, s.factionStanding)) {
+        pushLog(
+          `${FACTION_CONFIG[loc.factionId].shortName} do not walk strangers. Earn a name in the book.`,
+          'bad',
+        );
+        return;
+      }
+      const dest = s.locations[destinationId];
+      if (!dest?.discovered) {
+        pushLog('Name a place they know. Walk it yourself first.', 'bad');
+        return;
+      }
+      if (!escortCandidates(loc, s.locations).some((c) => c.id === dest.id)) {
+        pushLog(
+          `${dest.name} is outside their neighbourhood walk (${ESCORT_RANGE_M} m).`,
+          'bad',
+        );
+        return;
+      }
+      const tributeId = FACTION_CONFIG.muster.tribute.find((id) =>
+        s.items.some((i) => i.container === 'backpack' && i.defId === id && i.stack > 0),
+      );
+      if (!tributeId) {
+        pushLog(
+          `They want a tin, cells, or a wrap for the road. ${FACTION_CONFIG.muster.tribute.map((id) => itemDef(id).name).join(' / ')}.`,
+          'bad',
+        );
+        return;
+      }
+      if (advanceTime(0.25)) return;
+      set({
+        items: consumeOneOf(get().items, tributeId),
+        escort: { toId: dest.id },
+      });
+      pushLog(
+        `The Muster take ${itemDef(tributeId).name} and fall in. They will walk you to ${dest.name}.`,
+        'good',
+      );
+      persist();
+    },
+
+    searchKinDeck: () => {
+      const s = get();
+      if (s.combat || s.pendingEvent || s.pendingSearch || s.travelAnim || s.hdb) return;
+      const loc = s.currentPositionId ? s.locations[s.currentPositionId] : null;
+      if (!loc?.factionId) return;
+      if (!hasFactionClearance(loc, s.factionStanding, s.day)) {
+        pushLog('You are not on their grounds yet. Approach the gate first.', 'bad');
+        return;
+      }
+      if (!canKinSearch88Deck(loc, s.factionStanding)) {
+        pushLog('The decks are not yours. Not yet.', 'bad');
+        return;
+      }
+      if (!loc.kinDeckUsed) {
+        pushLog('They know your face. The decks are yours — this once.', 'good');
+      }
+      get().hdbEnter();
     },
 
     /**
@@ -4668,7 +4895,7 @@ export const useGame = create<State>((set, get) => {
         s.currentPos.lng,
         s.spawn ?? undefined,
         hordeIntensity(s.hordeLevel),
-        { band: 'night', day: s.day },
+        { band: 'night', day: s.day, pressureAt: pressureFn() },
       );
       const conditions = applySleepOccupancy(
         evaluateSleepConditions(sleepContextFromState()),
@@ -4703,6 +4930,7 @@ export const useGame = create<State>((set, get) => {
       const risk = trekRisk(g.seed, g.currentPos, g.currentPos, {
         band: 'night',
         hordeIntensity: hordeIntensity(g.hordeLevel),
+        pressureAt: pressureFn(),
         weatherEncounterMod: 0,
         traitEncounterMod:
           sumTraitMod(g.character!.traitIds, 'encounterChanceMod') +
@@ -5374,11 +5602,24 @@ export const useGame = create<State>((set, get) => {
       const loc = s.currentPositionId ? s.locations[s.currentPositionId] : null;
       if (!loc || s.combat || s.pendingEvent || s.pendingSearch || s.hdb) return;
       if (loc.factionId) {
-        pushLog(
-          `${FACTION_CONFIG[loc.factionId].shortName} hold this block. You deal with them at the void deck — you don't crawl the stairs.`,
-          'info',
-        );
-        return;
+        const kin =
+          canKinSearch88Deck(loc, s.factionStanding) &&
+          hasFactionClearance(loc, s.factionStanding, s.day);
+        if (!kin) {
+          pushLog(
+            `${FACTION_CONFIG[loc.factionId].shortName} hold this block. You deal with them at the void deck — you don't crawl the stairs.`,
+            'info',
+          );
+          return;
+        }
+        if (!loc.kinDeckUsed) {
+          set({
+            locations: {
+              ...s.locations,
+              [loc.id]: { ...loc, kinDeckUsed: true },
+            },
+          });
+        }
       }
       // A block you've already worked keeps its state — cleared units stay cleared.
       // Blocks saved before the cutaway strip topology have nothing safe to restore,
@@ -6152,6 +6393,7 @@ export const useGame = create<State>((set, get) => {
     },
 
     resetToMenu: () => {
+      flushPersist();
       set({
         phase: 'menu',
         character: null,
@@ -6160,6 +6402,7 @@ export const useGame = create<State>((set, get) => {
         currentPositionId: null,
         travelAnim: null,
         expandedCells: [],
+        groundZeroId: null,
         hordeLevel: 0,
         evacZoneId: null,
         evacDeadline: null,
@@ -6184,6 +6427,7 @@ export const useGame = create<State>((set, get) => {
         _eventClock: freshEventClock(),
         factionStanding: emptyStanding(),
         raidMode: null,
+        escort: null,
         log: [],
         stats: emptyRunStats(),
         hasSavedRun: !!loadRun(),
@@ -6199,6 +6443,16 @@ export const useGame = create<State>((set, get) => {
       void ensureZonesLoaded().catch(() => {
         /* trek/spawn degrade to country clip */
       });
+      void ensureBakeLoaded()
+        .then(() => {
+          const s = get();
+          if (s.phase !== 'game' || s.seed !== run.seed) return;
+          const next = rehydrateLocationOutlines(s.locations);
+          if (next !== s.locations) set({ locations: next });
+        })
+        .catch(() => {
+          /* outlines stay missing for fallback worlds */
+        });
       // Stations were bound to the network when the run was created; get it
       // back in memory so the tunnels still route — and so old saves can
       // re-roll destroyed edges from seed before play resumes.
@@ -6223,7 +6477,7 @@ export const useGame = create<State>((set, get) => {
         character: run.character,
         seed: run.seed,
         spawn: run.spawn,
-        locations: run.locations,
+        locations: rehydrateLocationOutlines(run.locations),
         currentPositionId: run.currentPositionId,
         currentPos: run.currentPos,
         equipment: coerceEquipment(run.equipment),
@@ -6238,8 +6492,9 @@ export const useGame = create<State>((set, get) => {
         kills: run.kills,
         stats: normalizeRunStats(run.stats),
         usedFallback: run.usedFallback,
-        exploredArea: run.exploredArea ?? [],
+        exploredArea: mergeExploredCircles(run.exploredArea ?? []),
         expandedCells: run.expandedCells ?? [],
+        groundZeroId: run.groundZeroId ?? null,
         hordeLevel: run.hordeLevel ?? 0,
         evacZoneId: run.evacZoneId ?? pickEvacZone(Object.values(run.locations)),
         evacDeadline:
@@ -6282,7 +6537,7 @@ export const useGame = create<State>((set, get) => {
         pendingSearch: null,
         _eventRng: null,
         _eventClock: run.eventClock ?? { ...freshEventClock(), day: run.day },
-        factionStanding: { ...emptyStanding(), ...(run.factionStanding ?? {}) },
+        factionStanding: migrateStanding(run.factionStanding),
         raidMode: null,
         // A save written before outposts existed has none. Rather than leave
         // that run permanently without markets, re-derive them from the world
@@ -6296,7 +6551,8 @@ export const useGame = create<State>((set, get) => {
             : pickOutposts(Object.values(run.locations ?? {}));
         })(),
         trader: null,
-        traderTaken: run.traderTaken ?? {},
+        traderTaken: migrateTraderTaken(run.traderTaken),
+        escort: run.escort?.toId ? { toId: run.escort.toId } : null,
         // The timeline is the run's memory — a resumed run keeps every day of it.
         log: run.log ?? [],
       });

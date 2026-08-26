@@ -23,8 +23,8 @@ export type IconName =
   | 'poi.waypoint'
   | 'poi.unknown'
   // --- factions ---
-  | 'faction.idtf'
-  | 'faction.pasir_panjang'
+  | 'faction.muster'
+  | 'faction.gotong'
   | 'faction.syndicate_88'
   | 'faction.sta'
   // --- survival meters ---
@@ -347,8 +347,8 @@ export const EMOJI_FALLBACK: Record<IconName, string> = {
   'poi.waypoint': '🛣️',
   'poi.unknown': '❓',
 
-  'faction.idtf': '🎖️',
-  'faction.pasir_panjang': '🍜',
+  'faction.muster': '🎖️',
+  'faction.gotong': '🍜',
   'faction.syndicate_88': '🗡️',
   'faction.sta': '🚉',
 
