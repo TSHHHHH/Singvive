@@ -6,6 +6,7 @@ import {
   type OnlineScore,
 } from '../api/scores';
 import { ScoreBoard } from '../components/ScoreBoard';
+import { useShallow } from 'zustand/react/shallow';
 import { useGame } from '../game/store';
 import { DEATH_TEXT, scoreDayMult } from '../game/survival';
 import { useT } from '../i18n';
@@ -24,7 +25,19 @@ export function DeathScreen() {
     escaped,
     seed,
     resetToMenu,
-  } = useGame();
+  } = useGame(
+    useShallow((s) => ({
+      deathCause: s.deathCause,
+      finalScore: s.finalScore,
+      day: s.day,
+      kills: s.kills,
+      highScores: s.highScores,
+      character: s.character,
+      escaped: s.escaped,
+      seed: s.seed,
+      resetToMenu: s.resetToMenu,
+    })),
+  );
   const { t } = useT();
   const mult = scoreDayMult(day);
   const [world, setWorld] = useState<OnlineScore[] | null | undefined>(undefined);

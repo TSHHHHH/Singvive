@@ -11,6 +11,7 @@ import {
 import { createPortal } from 'react-dom';
 import { useGame } from '../../game/store';
 import { itemDef } from '../../game/loot';
+import { normalizeAmmoDefId } from '../../game/firearms';
 import {
   BACKPACK,
   canEquip,
@@ -130,6 +131,9 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
   const equipItem = useGame((s) => s.equipItem);
   const unequipItem = useGame((s) => s.unequipItem);
   const dropItem = useGame((s) => s.dropItem);
+  const refillMagazine = useGame((s) => s.refillMagazine);
+  const loadGunFromMagazine = useGame((s) => s.loadGunFromMagazine);
+  const refillFirearm = useGame((s) => s.refillFirearm);
   const tunnel = useGame((s) => s.tunnel);
   const inCombat = useGame((s) => !!s.combat && !s.combat.over);
 
@@ -170,6 +174,7 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
     bag: null,
     mainHand: null,
     offHand: null,
+    firearm: null,
   });
 
   const hereLoc = currentPositionId ? locations[currentPositionId] : null;
@@ -188,6 +193,9 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
     unequipItem,
     transferItem,
     dropItem,
+    refillMagazine,
+    loadGunFromMagazine,
+    refillFirearm,
     inCombat,
     pcShortcuts,
     coarse,
@@ -205,6 +213,9 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
     unequipItem,
     transferItem,
     dropItem,
+    refillMagazine,
+    loadGunFromMagazine,
+    refillFirearm,
     inCombat,
     pcShortcuts,
     coarse,
@@ -647,6 +658,21 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
     const slot = equippedSlotOf(target.uid);
     const actions: ContextMenuAction[] = [];
     if (slot) {
+      if (slot === 'firearm' && def.effect.kind === 'weapon' && def.effect.ranged && !def.effect.usesMagazine && !live.inCombat) {
+        const gunCaliber = def.effect.caliber;
+        const ammo = live.items.find((i) => {
+          if (i.container !== BACKPACK) return false;
+          const aDef = itemDef(normalizeAmmoDefId(i.defId));
+          return aDef.effect.kind === 'ammo' && gunCaliber && aDef.effect.caliber === gunCaliber;
+        });
+        if (ammo) {
+          actions.push({
+            id: 'refillGun',
+            label: t('ui.inventory.refillGun'),
+            onSelect: () => live.refillFirearm(ammo.uid),
+          });
+        }
+      }
       actions.push({
         id: 'unequip',
         label: t('ui.inventory.unequip'),
@@ -660,11 +686,57 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
     if (isConsumableUsable(def)) {
       actions.push({
         id: 'use',
-        label: t('ui.inventory.use'),
+        label: def.effect.kind === 'intel' ? t('ui.inventory.decipher') : t('ui.inventory.use'),
         disabled: live.inCombat,
         title: live.inCombat ? t('ui.inventory.cannotUseCombat') : undefined,
         onSelect: () => live.applyItem(target.uid),
       });
+    }
+    if (def.effect.kind === 'magazine' && !live.inCombat) {
+      const ammo = live.items.find((i) => {
+        if (i.container !== BACKPACK) return false;
+        const aDef = itemDef(normalizeAmmoDefId(i.defId));
+        return aDef.effect.kind === 'ammo' && def.effect.kind === 'magazine' && aDef.effect.caliber === def.effect.caliber;
+      });
+      if (ammo) {
+        actions.unshift({
+          id: 'refillMag',
+          label: t('ui.inventory.refillMag'),
+          onSelect: () => live.refillMagazine(target.uid, ammo.uid),
+        });
+      }
+    }
+    if (def.effect.kind === 'weapon' && def.effect.ranged && def.slot === 'firearm') {
+      const holstered = live.equipment.firearm?.uid === target.uid;
+      if (holstered && !def.effect.usesMagazine && !live.inCombat) {
+        const ammo = live.items.find((i) => {
+          if (i.container !== BACKPACK) return false;
+          const aDef = itemDef(normalizeAmmoDefId(i.defId));
+          return aDef.effect.kind === 'ammo' && def.effect.kind === 'magazine' && aDef.effect.caliber === def.effect.caliber;
+        });
+        if (ammo) {
+          actions.unshift({
+            id: 'refillGun',
+            label: t('ui.inventory.refillGun'),
+            onSelect: () => live.refillFirearm(ammo.uid),
+          });
+        }
+      }
+    }
+    if (def.effect.kind === 'magazine' && live.equipment.firearm && !live.inCombat) {
+      const gunDef = itemDef(live.equipment.firearm.defId);
+      if (
+        gunDef.effect.kind === 'weapon' &&
+        gunDef.effect.ranged &&
+        def.effect.kind === 'magazine' &&
+        gunDef.effect.caliber === def.effect.caliber
+      ) {
+        actions.unshift({
+          id: 'loadGun',
+          label: t('ui.inventory.loadMag'),
+          onSelect: () => live.loadGunFromMagazine(target.uid),
+        });
+      }
     }
     if (def.slot) {
       actions.push({

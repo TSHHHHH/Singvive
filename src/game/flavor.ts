@@ -58,6 +58,9 @@ export type FlavorKey =
   | 'roadAmbush'
   | 'roadHazard'
   | 'roadFind'
+  | 'trekFind'
+  | 'travelDetour'
+  | 'weatherDrain'
   | 'rest'
   | 'trekOut'
   | 'trekArrive'
@@ -318,6 +321,24 @@ const POOLS: Record<FlavorKey, string[]> = {
     'A dropped go-bag on the road to {name}. Finders keepers.',
     'You spot a cache tucked in the debris en route to {name}. Grab and go.',
   ],
+  trekFind: [
+    'Crossing open ground you stumble on a half-buried pack — someone never came back for it.',
+    'A cache in the lallang, still dry enough to be worth opening.',
+    'Something glints in the drain cover you stepped over. Finders keepers.',
+    'Abandoned kit under a tarp in the open. Grab and go before something else does.',
+  ],
+  travelDetour: [
+    'A blocked lane forces a long detour. The clock does not care.',
+    'Razor wire and stalled cars send you the long way round.',
+    'The straight line is gone — you pick a slower route and eat the time.',
+    'Someone chained the underpass shut. You backtrack and find another way.',
+  ],
+  weatherDrain: [
+    'Rain hammers you the whole way. Every step costs double.',
+    'The heat sits on your shoulders like a wet blanket. You are spent before you arrive.',
+    'Monsoon wind cuts through soaked cloth. Your legs give up early.',
+    'Thunder and sheets of rain — you arrive wrung out.',
+  ],
   rest: [
     'You barricade the door and grab what sleep you can.',
     'You hunker down till first light, one ear open.',
@@ -440,6 +461,8 @@ const HAZARD_POOLS: Record<HazardKind, Partial<Record<HazardBeat, string[]>>> = 
       'You cross claimed ground. Eyes on you the whole way. It takes it out of you.',
       'Someone still patrols this stretch. You do not linger — and it still costs you.',
       'Patrolled ground. You keep your head down and burn the energy to get off it.',
+      'A whistle from a side lane — not for you, but you walk faster anyway.',
+      'Claimed stretch. You do not stop to find out who claims it.',
     ],
   },
   collapse: {
@@ -481,6 +504,8 @@ const HAZARD_POOLS: Record<HazardKind, Partial<Record<HazardBeat, string[]>>> = 
     cross: [
       'Strays own this block. You cut through their stretch, and it wears you down.',
       'Infested ground. You keep moving. They let you — for a price in energy.',
+      'Something watches from a void deck as you pass. You do not slow down.',
+      'Claws on concrete somewhere behind you. You walk faster until the block ends.',
     ],
   },
   night_swarm: {
@@ -488,6 +513,8 @@ const HAZARD_POOLS: Record<HazardKind, Partial<Record<HazardBeat, string[]>>> = 
       'The street is theirs. Crossing it in the dark is a mistake you feel in your legs.',
       'Night swarm in the open. You run the gauntlet. It takes everything you have.',
       'They own the dark. You cross anyway. Your body knows it was a bad call.',
+      'Every shadow could move. You cross the block without breathing until it ends.',
+      'The moaning starts two streets over and follows you halfway across.',
     ],
   },
 };

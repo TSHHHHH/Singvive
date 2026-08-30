@@ -184,11 +184,18 @@ export const useSettings = create<SettingsState>((set, get) => ({
   },
 }));
 
+/**
+ * Schema defaults by key. Built once — the linear `find` this replaces ran
+ * *inside* the zustand selector, so it re-executed on every store evaluation
+ * for every `useSetting` call site in the tree.
+ */
+const SETTING_DEFAULT: ReadonlyMap<string, string> = new Map(
+  SETTINGS_SCHEMA.map((d) => [d.key, d.default]),
+);
+
 /** Read a single setting's current value (falling back to its schema default). */
 export function useSetting(key: string): string {
-  return useSettings(
-    (s) => s.values[key] ?? SETTINGS_SCHEMA.find((d) => d.key === key)?.default ?? '',
-  );
+  return useSettings((s) => s.values[key] ?? SETTING_DEFAULT.get(key) ?? '');
 }
 
 /**

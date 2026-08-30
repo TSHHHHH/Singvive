@@ -145,7 +145,15 @@
       "guarded": "Guarded",
       "precision": "Precision",
       "disengage": "Disengage",
-      "guide": "How fighting works"
+      "guide": "How fighting works",
+      "fire": "Fire",
+      "reload": "Reload",
+      "fireTip": "Semi-auto — gauge resets, then one shot",
+      "reloadTip": "Swap in a loaded magazine or shells from your pack",
+      "noAmmo": "No loaded magazine or shells in pack",
+      "fireBroken": "Broken — fire blocked; bash still works",
+      "magCount": "{n}/{cap} in holster",
+      "holstered": "{n} in holster"
     },
     "location": {
       "search": "Search",
@@ -243,6 +251,7 @@
       "equipOffHand": "Off-hand",
       "unequip": "Unequip",
       "use": "Use",
+      "decipher": "Decipher",
       "drop": "Drop",
       "stash": "Stash",
       "pack": "Pack",
@@ -276,6 +285,10 @@
       "loadKg": "{load} / {carry} kg",
       "loadEncumbered": "{load} / {carry} kg · Encumbered",
       "rounds": "{n} rounds",
+      "holstered": "Holster {n}/{cap}",
+      "refillMag": "Refill magazine",
+      "refillGun": "Refill from shells",
+      "loadMag": "Load into holstered gun",
       "confirmAbandon": "Confirm — abandon leftover & continue",
       "stashLocked": "Location stash locked while in the tunnels.",
       "stashNamed": "Stash · {name}",
@@ -320,7 +333,8 @@
       "feet": "Feet",
       "bag": "Bag",
       "mainHand": "Main",
-      "offHand": "Off"
+      "offHand": "Off",
+      "firearm": "Holster"
     },
     "phone": {
       "map": "Map",
@@ -403,7 +417,12 @@
       "biasBalanced": "This bird takes it balanced",
       "radioBlurb": "Fuel, meds, and ammo count most; sealed water a little; food and scrap barely. Burning fuel to boil water hurts the haul. Raise the channel once you are standing on the pad and the crew names real numbers.",
       "horde": "Horde · {label}",
-      "hordeBlurb": "The island clock climbs every day, and every neighbourhood gets worse with it. Where you stand is a front — Stirring streets are not Lost ones. Lost ground is still walkable, just brutal. At 100% the city is overrun and the run ends."
+      "hordeBlurb": "The island clock climbs every day, and every neighbourhood gets worse with it. Where you stand is a front — Stirring streets are not Lost ones. Lost ground is still walkable, just brutal. At 100% the city is overrun and the run ends.",
+      "leadsNotes": "{count, plural, one {# map note to decipher} other {# map notes to decipher}}",
+      "leadsRumours": "{count, plural, one {# rumoured site marked} other {# rumoured sites marked}}",
+      "leadsBoth": "{notes} note(s) to read · {rumours} rumour(s) on map",
+      "leadsTitle": "Leads",
+      "leadsBlurb": "Decipher map notes from your pack (Use). Faction-held sites show a coloured ring once you know who runs them; outposts use the faction emblem."
     },
     "town": {
       "here": "{name} · {tier}",
@@ -493,6 +512,8 @@
       "fuelEvac": "Evac weight",
       "curiosity": "Curiosity",
       "curiosityScrap": "scrap / trade",
+      "intelReveal": "Marks hidden sites on your map",
+      "intelRumour": "Marks a fuzzy rumoured site",
       "damageOf": "{dmg} (of {base})",
       "restoreOf": "{n} (of {base})"
     },
@@ -571,6 +592,7 @@
       "stimulant": "Stimulant",
       "fuel": "Fuel",
       "ammo": "Ammo",
+      "intel": "Map note",
       "misc": "Misc"
     },
     "search": {
@@ -613,7 +635,15 @@
       "entry": "{n} entry",
       "entries": "{n} entries",
       "hauls": "{n} hauls",
-      "bad": "{n} bad"
+      "bad": "{n} bad",
+      "sectionBlock": "{name}",
+      "sectionCorridor": "Level {level} · corridor",
+      "sectionUnit": "{label}",
+      "sectionTunnelRun": "{label}",
+      "sectionTunnelNode": "{label}",
+      "sectionSite": "{name}",
+      "sectionExpand": "Expand section",
+      "sectionCollapse": "Collapse section"
     },
     "error": {
       "signalLost": "SIGNAL LOST",
@@ -1170,8 +1200,8 @@
       "title": "Fight",
       "bullets": [
         "Both markers race one track. First to the end swings. Speed is how fast you fill it — stance, weapon weight, and a free off-hand all count. Switch Aggressive / Guarded / Precision any time; Break off is the flee.",
-        "Heavy weapons hit harder but fill slower. Hover two weapons in the pack: Speed × versus Damage is the tradeoff. An empty gun clubs as fast as fists.",
-        "Off-hand is a fork, not leftover space. Empty: faster and easier dodge. A lid or shield can fully stop a hit (and slows you). A second one-hander sometimes follows through. A torch only helps you see and search."
+        "Holster a pistol or shotgun to shoot — Fire is a separate gauge from melee. Empty + Fire reloads from a loaded magazine (pistol) or 12g shells in pack (shotgun). Wield the gun in main hand to bash; gunshots on the surface draw danger.",
+        "Out of combat: right-click a magazine + ammo box to refill, then load it into the holstered pistol. Shotguns take shells directly on the holstered gun. Typed ammo only — no global round pool."
       ]
     },
     "loot": {
@@ -1182,7 +1212,9 @@
         "Click a fogged cell to search it next. Click found items (or Take all) into your pack; overflow goes to the tiny on-site stash (3×3).",
         "Equipped bags change the pack's cell shape, not just its size — holes cannot hold loot. A smaller or hole-punched bag only equips if the current haul can be rearranged into it.",
         "Worn kit counts toward load. Hover the carry bar — a heavy pack never stops a pickup, it just makes travel, fights, and searches cost more.",
-        "Each site has limited searches. Leaving early still spends a partial charge. Take what you want — Done or Leave abandons the rest."
+        "Each site has limited searches. Leaving early still spends a partial charge. Take what you want — Done or Leave abandons the rest.",
+        "Map notes turn up in searches — decipher them from the pack to mark hidden sites. Faction outposts also offer daily intel when you are Known; notes are portable and one-shot.",
+        "Faction-held ground shows a coloured ring on the map once you have learned who runs it (outposts use the faction emblem)."
       ]
     },
     "hdb": {
@@ -1275,6 +1307,9 @@
     "shotgun": "Shotgun",
     "ammo_box": "Box of Ammo",
     "ammo_shell": "Loose Shells",
+    "mag_pistol": "Pistol Magazine",
+    "ammo_9mm_box": "9mm Ammunition Box",
+    "ammo_12g_box": "12g Shells",
     "n95_mask": "N95 Mask",
     "hard_hat": "Hard Hat",
     "motorcycle_helmet": "Motorcycle Helmet",
@@ -1322,8 +1357,6 @@
     "hiking_pack": "Hiking Pack",
     "military_rucksack": "Military Rucksack",
     "box_cutter": "Box Cutter",
-    "rotan_cane": "Rotan Cane",
-    "bamboo_pole": "Bamboo Pole",
     "pipe_wrench": "Pipe Wrench",
     "tire_iron": "Tire Iron",
     "police_baton": "Police Baton",
@@ -1354,7 +1387,12 @@
     "ez_link_knife": "EZ-Link Knife",
     "kopi_c": "Kopi C",
     "cooked_mee": "Cooked Maggi",
-    "milo_dinosaur": "Milo Dinosaur"
+    "milo_dinosaur": "Milo Dinosaur",
+    "intel_scavenger_sketch": "Scavenger's Sketch",
+    "intel_ration_slip": "Ration Slip",
+    "intel_turf_fragment": "Turf Fragment",
+    "intel_outpost_whisper": "Outpost Whisper",
+    "intel_smudged_map": "Smudged Survivor Map"
   },
   "enemy": {
     "shambler": "Shambler",

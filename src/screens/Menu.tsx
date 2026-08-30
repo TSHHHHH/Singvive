@@ -1,12 +1,20 @@
 import { useEffect, useState } from 'react';
 import { fetchOnlineScores, type OnlineScore } from '../api/scores';
 import { ScoreBoard, ScoreBoardTabs } from '../components/ScoreBoard';
+import { useShallow } from 'zustand/react/shallow';
 import { useGame } from '../game/store';
 import { useSettings } from '../game/settings';
 import { LOCALES, useLocale, useT } from '../i18n';
 
 export function Menu() {
-  const { goToCharacter, continueRun, hasSavedRun, highScores } = useGame();
+  const { goToCharacter, continueRun, hasSavedRun, highScores } = useGame(
+    useShallow((s) => ({
+      goToCharacter: s.goToCharacter,
+      continueRun: s.continueRun,
+      hasSavedRun: s.hasSavedRun,
+      highScores: s.highScores,
+    })),
+  );
   const { t } = useT();
   const locale = useLocale();
   const setSetting = useSettings((s) => s.setSetting);

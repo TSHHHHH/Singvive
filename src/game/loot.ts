@@ -7,6 +7,7 @@ import type {
   PoiCategory,
 } from './types';
 import { Rng } from './rng';
+import { companionLootForGun } from './firearms';
 import itemsCatalog from './data/items.json' with { type: 'json' };
 import lootTablesCatalog from './data/lootTables.json' with { type: 'json' };
 import { FACTION_CONFIG } from './factions';
@@ -197,7 +198,9 @@ function rollQuantity(rng: Rng, maxStack: number): number {
 
 /** A table entry that isn't gated — what a failed scarcity roll falls back to. */
 function commonAlternative(rng: Rng, table: LootEntry[]): string | null {
-  const plain = table.filter(([id]) => (ITEMS[id]?.scarcity ?? 1) >= 1);
+  // `ITEMS[id]` guards against a table entry whose item no longer exists: an
+  // unknown id reports scarcity 1 and would otherwise pass as "plain".
+  const plain = table.filter(([id]) => ITEMS[id] && (ITEMS[id]?.scarcity ?? 1) >= 1);
   return plain.length ? rng.weighted(plain) : null;
 }
 
@@ -240,10 +243,24 @@ export function rollLoot(
     }
 
     const def = ITEMS[id];
+    // A table entry whose item was deleted from the catalog: skip the roll
+    // rather than throw. `rollStreetLoot` and the raid pull already do this.
+    if (!def) continue;
     const qty = def.stackable ? rollQuantity(rng, def.maxStack) : 1;
     out.set(id, (out.get(id) ?? 0) + qty);
   }
-  return [...out.entries()].map(([defId, count]) => ({ defId, count }));
+  const stacks = [...out.entries()].map(([defId, count]) => ({ defId, count }));
+  return attachGunCompanions(rng, stacks);
+}
+
+/** High chance to drop a magazine / shells alongside a firearm find. */
+export function attachGunCompanions(rng: Rng, stacks: LootStack[]): LootStack[] {
+  const extra: LootStack[] = [];
+  for (const s of stacks) {
+    const comp = companionLootForGun(rng, s.defId);
+    if (comp) extra.push({ defId: comp, count: 1 });
+  }
+  return extra.length ? [...stacks, ...extra] : stacks;
 }
 
 /**
@@ -328,7 +345,28 @@ export function rollFactionRaidLoot(
   return [...merged.entries()].map(([defId, count]) => ({ defId, count }));
 }
 
+/**
+ * Look up an item definition.
+ *
+ * The catalog is loaded through an `as unknown as Record<string, ItemDef>`
+ * cast, so TypeScript cannot see that an unknown id yields `undefined`. That
+ * made the old signature a lie: every one of the ~147 call sites dereferences
+ * the result immediately, and a stale id surfaced as a bare
+ * "Cannot read properties of undefined" somewhere far from the cause.
+ *
+ * Throwing keeps the signature honest and names the culprit. Ids come from
+ * the committed catalogs (guarded by `src/dev/catalogs.test.ts`) or from a
+ * save file (sanitised on load), so this should be unreachable — if it does
+ * fire, the id is the bug. Use `itemDefOrNull` where a miss is expected.
+ */
 export function itemDef(id: string): ItemDef {
+  const def = ITEMS[id];
+  if (!def) throw new Error(`Unknown item id: "${id}"`);
+  return def;
+}
+
+/** Lookup that tolerates a missing definition (save migration, DEV tools). */
+export function itemDefOrNull(id: string): ItemDef | undefined {
   return ITEMS[id];
 }
 

@@ -7,6 +7,7 @@ import type {
   HighScore,
   ItemInstance,
   LocationState,
+  MapAnnotation,
   Meters,
   RunStats,
 } from './types';
@@ -26,6 +27,9 @@ import {
   type OutpostIds,
 } from './factions';
 import { coerceEquipment } from './inventory';
+import { fullEquipment } from './equipmentSlots';
+import { magazineSizeFor, normalizeAmmoDefId } from './firearms';
+import { itemDefOrNull } from './loot';
 import { migrateBodyParts, migrateMeters } from './survival';
 import { normalizeRunStats } from './stats';
 
@@ -108,6 +112,7 @@ export interface SavedRun {
   escort?: { toId: string } | null;
   /** Display-only run counters. Absent on saves written before they existed. */
   stats?: RunStats;
+  mapAnnotations?: MapAnnotation[];
   /**
    * The whole timeline, every day of it. The Timeline column only renders the
    * current day; Day Logs reads the rest out of here, so it has to survive a
@@ -136,6 +141,53 @@ export function saveRun(run: SavedRun): SaveResult {
         'code' in err &&
         (err as { code: number }).code === 22);
     return quota ? 'quota' : 'unavailable';
+  }
+}
+
+
+function migrateFirearmSave(parsed: SavedRun): void {
+  parsed.items = (parsed.items ?? []).map((inst) => {
+    const defId = normalizeAmmoDefId(inst.defId);
+    return defId === inst.defId ? inst : { ...inst, defId };
+  });
+  let eq = fullEquipment(coerceEquipment(parsed.equipment));
+  const legacyRounds = parsed.rounds ?? 0;
+  if (eq.mainHand) {
+    const def = itemDefOrNull(eq.mainHand.defId);
+    if (def?.effect.kind === 'weapon' && def.effect.ranged && !eq.firearm) {
+      eq = { ...eq, firearm: eq.mainHand, mainHand: null };
+    }
+  }
+  if (legacyRounds > 0 && eq.firearm) {
+    const def = itemDefOrNull(eq.firearm.defId);
+    const cap = def ? magazineSizeFor(def) : 0;
+    eq = {
+      ...eq,
+      firearm: { ...eq.firearm, loadedRounds: Math.min(legacyRounds, cap) },
+    };
+  }
+  parsed.equipment = eq;
+  delete parsed.rounds;
+}
+
+/**
+ * Migration: an item can leave the catalog between sessions — the DEV loot
+ * browser deletes by id, and nothing rewrites existing saves. A run still
+ * holding one used to throw inside a later migration, and the outer catch in
+ * `loadRun` turned that into "no save at all": the player silently lost the
+ * whole run. Drop what no longer exists and keep the rest.
+ */
+function dropUnknownItems(parsed: SavedRun): void {
+  if (Array.isArray(parsed.items)) {
+    parsed.items = parsed.items.filter(
+      (inst): inst is ItemInstance => !!inst && !!itemDefOrNull(inst.defId),
+    );
+  }
+  const eq = parsed.equipment as Record<string, ItemInstance | null> | undefined;
+  if (eq && typeof eq === 'object') {
+    for (const [slot, inst] of Object.entries(eq)) {
+      if (inst && !itemDefOrNull(inst.defId)) eq[slot] = null;
+    }
   }
 }
 
@@ -193,6 +245,9 @@ export function loadRun(): SavedRun | null {
     if (!parsed.log) parsed.log = [];
     parsed.meters = migrateMeters(parsed.meters as Meters & { health?: number });
     parsed.bodyParts = migrateBodyParts(parsed.bodyParts, parsed.maxHp ?? 84);
+    // Must run before anything that dereferences an item definition.
+    dropUnknownItems(parsed);
+    migrateFirearmSave(parsed);
     // Migration: body-zone slots (hands/legs/feet) added after v6; old saves omit them.
     parsed.equipment = coerceEquipment(parsed.equipment);
     // Migration: HDB unit types renamed (residential→flat, …).

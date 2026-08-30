@@ -86,14 +86,13 @@ export function useLiveStatSheet(): StatSheet | null {
       items: s.items,
       meters: s.meters,
       bodyParts: s.bodyParts,
-      rounds: s.rounds,
       hour: s.hour,
       day: s.day,
       seed: s.seed,
     })),
   );
   return useMemo(() => {
-    const { character, equipment, items, meters, bodyParts, rounds, hour, day, seed } = snap;
+    const { character, equipment, items, meters, bodyParts, hour, day, seed } = snap;
     if (!character) return null;
     return buildStatSheet({
       character,
@@ -101,7 +100,6 @@ export function useLiveStatSheet(): StatSheet | null {
       items,
       meters,
       bodyParts,
-      rounds,
       weather: { kind: rollWeather(new Rng(seed), day), time: timeOfDay(hour) },
     });
   }, [snap]);

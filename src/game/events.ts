@@ -55,6 +55,12 @@ export type EventKind =
   | 'rigged_door'
   | 'quiet_tap'
   | 'body_in_the_doorway'
+  | 'looters_fleeing'
+  | 'smoke_block'
+  | 'distress_beacon'
+  | 'nomad_trader'
+  | 'car_blockade'
+  | 'flooded_entry'
   | 'field_doctor';
 
 export type ChoiceKind = 'check' | 'pay' | 'fight' | 'leave';
@@ -361,6 +367,117 @@ const PROSE: Record<Exclude<EventKind, 'mrt_toll' | 'field_doctor'>, Pools> = {
       'A body lies in the flooded entrance to {name}, pack half-submerged. The water has not been kind.',
     ],
   },
+  looters_fleeing: {
+    tell: [
+      'Someone bursts out of the entrance — wrong way, wrong speed.',
+      'A crash inside, then footsteps coming at you.',
+      'The door swings open and someone nearly runs you down.',
+      'You hear a bag hit the floor, then someone cursing their way out.',
+    ],
+    text: [
+      'A scavenger bolts out of {name} with both arms full and nearly bowls you over. Whatever they grabbed is still in the building.',
+      'Someone tears past you out of {name}, kit bouncing. The back rooms might still have something.',
+      'A figure stumbles out of {name} clutching a duffel — they saw you too late to stop.',
+      'Wrong-way traffic at {name}: someone exits at a sprint, leaving the place open behind them.',
+    ],
+    night: [
+      'A torch beam swings out of {name} and someone runs without looking. The door stays open.',
+    ],
+  },
+  smoke_block: {
+    tell: [
+      'Smoke curls out from under the door.',
+      'The air at the entrance tastes of burnt plastic.',
+      'Something inside is still smouldering.',
+      'You cough before you reach the handle.',
+    ],
+    text: [
+      'Smoke pours from the entrance to {name}. Something burned in there and never quite stopped.',
+      'The doorway of {name} is hazy with smoke — not a bonfire, a kitchen or a stall gone wrong.',
+      'You can barely see the frame of {name} through the smoke. It might clear. It might not.',
+      'Burnt oil and charred plastic hang in the air at {name}. Going in blind is a bad idea.',
+    ],
+    night: [
+      'An orange glow flickers behind the smoke at {name}. Still hot in there.',
+    ],
+    wet: [
+      'Rain damps the smoke at {name} but the air inside is still wrong.',
+    ],
+  },
+  distress_beacon: {
+    tell: [
+      'A radio crackles somewhere inside — on a loop.',
+      'You hear a recorded message, tinny and repeating.',
+      'Someone left a beacon running. It hasn\'t been switched off.',
+      'A siren wails once, then a voice on a speaker.',
+    ],
+    text: [
+      'A distress beacon is still broadcasting from inside {name}. "…anyone receiving… coordinates…"',
+      'A PA system at {name} loops a pre-recorded SOS. Someone wanted to be found.',
+      'The radio desk at {name} is still transmitting. Static, then a voice, then static again.',
+      'An emergency beacon at {name} hasn\'t given up yet. The message repeats every thirty seconds.',
+    ],
+    night: [
+      'In the dark the beacon at {name} is the only thing still working.',
+    ],
+    wet: [
+      'Rain drums the roof while the beacon at {name} keeps calling.',
+    ],
+  },
+  nomad_trader: {
+    tell: [
+      'Someone has set up a mat by the entrance — not scavenging, trading.',
+      'A pack is open on the step. Someone is counting stock.',
+      'There\'s a handwritten price list taped to the doorframe.',
+      'You smell cooking oil and hear someone haggling with nobody.',
+    ],
+    text: [
+      'A travelling merchant has camped the entrance to {name}. "Trade only. I don\'t bite unless you do."',
+      'Someone has turned the doorway of {name} into a stall — small stock, fair prices, no questions.',
+      'A nomad trader spreads goods on a tarp at {name}. "Food for medicine. Batteries for tins. You pick."',
+      'The entrance to {name} smells of someone else\'s cooking. They\'ve got a mat, a scale, and a smile that doesn\'t reach their eyes.',
+    ],
+    night: [
+      'A lamp over a travelling trader at {name}. "Night rate\'s the same. Food talks."',
+    ],
+  },
+  car_blockade: {
+    tell: [
+      'Abandoned cars choke the entrance.',
+      'Someone lined vehicles across the way in — bumper to bumper.',
+      'The driveway is a parking lot nobody can leave.',
+      'Tyres and metal block the only way in.',
+    ],
+    text: [
+      'Abandoned cars barricade the entrance to {name} — bumper to bumper, keys gone, doors locked.',
+      'Someone pushed three vehicles across the way into {name} and walked away.',
+      'The forecourt of {name} is a junk barrier of stalled cars. There might be a gap if you look.',
+      'A barricade of abandoned vehicles blocks {name}. Thorough. Not impassable.',
+    ],
+    night: [
+      'In the dark the car barricade at {name} is just shapes and metal.',
+    ],
+    wet: [
+      'Rain slicks the bonnets blocking {name}. Every surface is slippery.',
+    ],
+  },
+  flooded_entry: {
+    tell: [
+      'Water pours out when you push the door.',
+      'The entrance is ankle-deep and rising.',
+      'Someone\'s sandbags didn\'t hold.',
+      'You hear water moving inside before you see it.',
+    ],
+    text: [
+      'The entrance to {name} is knee-deep in floodwater — drain runoff, or something worse backed up inside.',
+      'Monsoon water has pooled at {name} and nobody drained it. The way in is a wade.',
+      'A blocked drain turned the doorway of {name} into a wading pool. The shelves might still be dry.',
+      'Floodwater fills the lobby of {name}. Whatever\'s worth taking is above the waterline — if you can reach it.',
+    ],
+    wet: [
+      'The rain hasn\'t stopped and neither has the water at {name}. It\'s worse than yesterday.',
+    ],
+  },
 };
 
 const FACTION_GATE: Partial<
@@ -502,6 +619,14 @@ const TOUT_AT: PoiCategory[] = [
 // were the designated shelters when it fell.
 const TAP_AT: PoiCategory[] = ['supermarket', 'foodcourt', 'convenience', 'school'];
 const BODY_AT: PoiCategory[] = ['hospital', 'clinic', 'police', 'mrt', 'school'];
+const LOOTERS_AT: PoiCategory[] = [
+  'supermarket', 'convenience', 'pharmacy', 'hardware', 'foodcourt',
+];
+const SMOKE_AT: PoiCategory[] = ['foodcourt', 'industrial', 'fuel', 'pharmacy', 'hospital'];
+const BEACON_AT: PoiCategory[] = ['police', 'hospital', 'mrt', 'school', 'clinic', 'pharmacy'];
+const TRADER_AT: PoiCategory[] = ['convenience', 'foodcourt', 'mrt', 'fuel', 'school'];
+const BARRICADE_AT: PoiCategory[] = ['fuel', 'police', 'industrial', 'hospital'];
+const FLOODED_AT: PoiCategory[] = ['mrt', 'industrial', 'school'];
 
 /** Odds that *something* is waiting, given anything is eligible at all. */
 function doorwayChance(loc: LocationState, ctx: EventCtx): number {
@@ -1037,6 +1162,291 @@ function buildBody(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
   };
 }
 
+function buildLooters(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
+  const dc = dcFor(loc.currentDanger);
+  const { tell, text } = prose(rng, 'looters_fleeing', ctx, { name: loc.name });
+  const prize = rng.pick(['medkit', 'ammo_box', 'canned_food', 'painkillers', 'antibiotics', 'fuel_can']);
+  return {
+    kind: 'looters_fleeing',
+    factionId: null,
+    title: 'Wrong-Way Traffic',
+    tell,
+    text,
+    choices: [
+      {
+        id: 'chase',
+        kind: 'check',
+        attr: 'dexterity',
+        dc,
+        label: 'Chase them — grab what they dropped',
+        onSuccess: [{ t: 'gain', defId: prize }, { t: 'access' }],
+        onFailure: [
+          { t: 'energy', amount: 6, line: 'They know the floor better. You arrive winded and empty-handed.' },
+          { t: 'access' },
+        ],
+      },
+      {
+        id: 'read',
+        kind: 'check',
+        attr: 'perception',
+        dc,
+        label: 'Watch where they came from',
+        onSuccess: [
+          { t: 'time', hours: 0.2, line: 'You clock the route they took and what they skipped.' },
+          { t: 'intel' },
+          { t: 'access' },
+        ],
+        onFailure: [
+          { t: 'time', hours: 0.2, line: 'They\'re gone before you learn anything useful.' },
+          { t: 'access' },
+        ],
+      },
+      {
+        id: 'let',
+        kind: 'leave',
+        label: 'Let them go — get inside',
+        onSuccess: [{ t: 'access' }],
+      },
+    ],
+  };
+}
+
+function buildSmoke(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
+  const dc = dcFor(loc.currentDanger);
+  const { tell, text } = prose(rng, 'smoke_block', ctx, { name: loc.name });
+  return {
+    kind: 'smoke_block',
+    factionId: null,
+    title: 'Smoke Under the Door',
+    tell,
+    text,
+    choices: [
+      {
+        id: 'side',
+        kind: 'check',
+        attr: 'perception',
+        dc,
+        label: 'Find a side entry out of the smoke',
+        onSuccess: [
+          { t: 'time', hours: 0.3, line: 'You circle to a service door where the air is clear enough.' },
+          { t: 'access' },
+        ],
+        onFailure: [
+          { t: 'time', hours: 0.3, line: 'Every way in is the same haze.' },
+          { t: 'deny', line: 'Not worth coughing your lungs out today.' },
+        ],
+      },
+      {
+        id: 'push',
+        kind: 'check',
+        attr: 'strength',
+        dc,
+        label: 'Push through the smoke',
+        onSuccess: [{ t: 'access' }],
+        onFailure: [
+          { t: 'wound', amount: 8, line: 'You stumble in the haze and catch something sharp on the way down.' },
+          { t: 'deny', line: 'You back out coughing blood and ash.' },
+        ],
+      },
+      {
+        id: 'wait',
+        kind: 'leave',
+        label: 'Wait for it to clear',
+        onSuccess: [
+          { t: 'time', hours: 0.8, line: 'You wait downwind until the smoke thins enough to breathe.' },
+          { t: 'access' },
+        ],
+      },
+      {
+        id: 'leave',
+        kind: 'leave',
+        label: 'Not today',
+        onSuccess: [{ t: 'deny', line: 'You leave the smoke to its work.' }],
+      },
+    ],
+  };
+}
+
+function buildBeacon(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
+  const dc = dcFor(loc.currentDanger);
+  const { tell, text } = prose(rng, 'distress_beacon', ctx, { name: loc.name });
+  return {
+    kind: 'distress_beacon',
+    factionId: null,
+    title: 'Still Broadcasting',
+    tell,
+    text,
+    choices: [
+      {
+        id: 'trace',
+        kind: 'check',
+        attr: 'wits',
+        dc,
+        label: 'Trace the signal — read the place',
+        onSuccess: [
+          { t: 'time', hours: 0.3, line: 'The message tells you more about the building than the broadcaster meant.' },
+          { t: 'intel' },
+          { t: 'access' },
+        ],
+        onFailure: [
+          { t: 'time', hours: 0.3, line: 'Static and repetition. You learn nothing but the clock.' },
+          { t: 'access' },
+        ],
+      },
+      {
+        id: 'rush',
+        kind: 'leave',
+        label: 'Follow the voice inside',
+        onSuccess: [
+          { t: 'noise', radius: 100, intensity: 2 },
+          { t: 'zombies', line: 'The beacon was bait — or the dead answered it first.' },
+        ],
+      },
+      {
+        id: 'ignore',
+        kind: 'leave',
+        label: 'Ignore it and go in quiet',
+        onSuccess: [{ t: 'access' }],
+      },
+    ],
+  };
+}
+
+function buildTrader(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
+  const { tell, text } = prose(rng, 'nomad_trader', ctx, { name: loc.name });
+  const stock = rng.pick(['medkit', 'ammo_box', 'batteries', 'bandage', 'painkillers']);
+  return {
+    kind: 'nomad_trader',
+    factionId: null,
+    title: 'Travelling Merchant',
+    tell,
+    text,
+    choices: [
+      {
+        id: 'trade',
+        kind: 'pay',
+        itemIds: ['canned_food', 'snacks', 'hawker_meal', 'instant_noodles'],
+        label: 'Trade food for supplies',
+        onSuccess: [{ t: 'gain', defId: stock }, { t: 'access' }],
+        onFailure: [
+          { t: 'deny', line: 'No food, no trade. They fold the mat and let you pass anyway.' },
+          { t: 'access' },
+        ],
+      },
+      {
+        id: 'leave',
+        kind: 'leave',
+        label: 'No deal — move on',
+        onSuccess: [{ t: 'deny', line: 'You leave the trader to their stock.' }],
+      },
+    ],
+  };
+}
+
+function buildBarricade(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
+  const dc = dcFor(loc.currentDanger);
+  const { tell, text } = prose(rng, 'car_blockade', ctx, { name: loc.name });
+  const opened: EventEffect[] = [{ t: 'mark', mark: { door: true } }, { t: 'access' }];
+  return {
+    kind: 'car_blockade',
+    factionId: null,
+    title: 'Abandoned Barricade',
+    tell,
+    text,
+    choices: [
+      {
+        id: 'shift',
+        kind: 'check',
+        attr: 'strength',
+        dc,
+        label: 'Shift a car enough to squeeze through',
+        onSuccess: [
+          { t: 'energy', amount: 10, line: 'Metal groans and your shoulders pay for every inch.' },
+          ...opened,
+        ],
+        onFailure: [
+          { t: 'energy', amount: 10, line: 'The car doesn\'t budge. Your arms do, and not in a good way.' },
+          { t: 'deny', line: 'The barricade wins.' },
+        ],
+      },
+      {
+        id: 'gap',
+        kind: 'check',
+        attr: 'perception',
+        dc,
+        label: 'Find a gap between the wrecks',
+        onSuccess: opened,
+        onFailure: [
+          { t: 'time', hours: 0.3, line: 'You walk the whole barricade looking for a seam.' },
+          { t: 'deny', line: 'No gap wide enough.' },
+        ],
+      },
+      {
+        id: 'long',
+        kind: 'leave',
+        label: 'Go the long way round',
+        onSuccess: [
+          { t: 'time', hours: 0.9, line: 'You circle the block and come in through the loading bay.' },
+          { t: 'energy', amount: 12, line: 'The long way round leaves you winded — but in.' },
+          { t: 'access' },
+        ],
+      },
+      {
+        id: 'leave',
+        kind: 'leave',
+        label: 'Not worth the trouble',
+        onSuccess: [{ t: 'deny', line: 'You leave the barricade where it is.' }],
+      },
+    ],
+  };
+}
+
+function buildFlooded(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
+  const dc = dcFor(loc.currentDanger);
+  const { tell, text } = prose(rng, 'flooded_entry', ctx, { name: loc.name });
+  return {
+    kind: 'flooded_entry',
+    factionId: null,
+    title: 'Knee-Deep at the Door',
+    tell,
+    text,
+    choices: [
+      {
+        id: 'wade',
+        kind: 'check',
+        attr: 'perception',
+        dc,
+        label: 'Wade in carefully',
+        onSuccess: [
+          { t: 'time', hours: 0.3, line: 'You pick a line where the footing is still there under the water.' },
+          { t: 'access' },
+        ],
+        onFailure: [
+          { t: 'time', hours: 0.3, line: 'The water hides a step and you go in hard.' },
+          { t: 'wound', amount: 7, line: 'Something sharp under the water finds your leg.' },
+          { t: 'access' },
+        ],
+      },
+      {
+        id: 'rush',
+        kind: 'leave',
+        label: 'Plough through',
+        onSuccess: [
+          { t: 'energy', amount: 10, line: 'Cold water to the knee and every step a fight.' },
+          { t: 'wound', amount: 5, line: 'You misstep on something that used to be a floor tile.' },
+          { t: 'access' },
+        ],
+      },
+      {
+        id: 'back',
+        kind: 'leave',
+        label: 'Back off',
+        onSuccess: [{ t: 'deny', line: 'You leave the flood to settle.' }],
+      },
+    ],
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Rolling
 // ---------------------------------------------------------------------------
@@ -1054,6 +1464,12 @@ const BUILDERS: Record<Exclude<EventKind, 'mrt_toll' | 'field_doctor'>, Builder>
   rigged_door: buildRigged,
   quiet_tap: buildTap,
   body_in_the_doorway: buildBody,
+  looters_fleeing: buildLooters,
+  smoke_block: buildSmoke,
+  distress_beacon: buildBeacon,
+  nomad_trader: buildTrader,
+  car_blockade: buildBarricade,
+  flooded_entry: buildFlooded,
 };
 
 /**
@@ -1101,6 +1517,14 @@ export function rollPreScavengeEvent(
   if (TOUT_AT.includes(cat)) cands.push(['block_tout', 11]);
   if (TAP_AT.includes(cat)) cands.push(['quiet_tap', 11]);
   if (BODY_AT.includes(cat)) cands.push(['body_in_the_doorway', 12]);
+  if (LOOTERS_AT.includes(cat)) cands.push(['looters_fleeing', 13]);
+  if (SMOKE_AT.includes(cat)) cands.push(['smoke_block', 11]);
+  if (BEACON_AT.includes(cat)) cands.push(['distress_beacon', 11]);
+  if (TRADER_AT.includes(cat)) cands.push(['nomad_trader', 6]);
+  if (BARRICADE_AT.includes(cat)) cands.push(['car_blockade', 12]);
+  if (WET.includes(ctx.weather) && FLOODED_AT.includes(cat)) {
+    cands.push(['flooded_entry', 10]);
+  }
 
   const settled = loc.survivorSettledDay ?? -Infinity;
   if (ctx.day - settled >= SURVIVOR_MEMORY_DAYS) cands.push(['desperate_survivor', 10]);

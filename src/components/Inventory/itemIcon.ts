@@ -15,7 +15,9 @@ const EFFECT_ICON: Record<ItemEffect['kind'], IconName> = {
   energy: 'item.energy',
   weapon: 'item.weaponMelee', // overridden below for ranged
   ammo: 'item.ammo',
+  magazine: 'item.ammo',
   fuel: 'item.fuel',
+  intel: 'action.map',
   misc: 'item.misc',
 };
 

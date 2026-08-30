@@ -301,6 +301,15 @@ export function itemStatLines(
       case 'fuel':
         lines.push(line('fuel', t('ui.stats.fuel'), t('ui.stats.fuelEvac')));
         break;
+      case 'intel':
+        lines.push(
+          line(
+            'val',
+            t('ui.itemKind.intel'),
+            e.mode === 'rumour' ? t('ui.stats.intelRumour') : t('ui.stats.intelReveal'),
+          ),
+        );
+        break;
       default:
         lines.push(line('val', t('ui.stats.curiosity'), t('ui.stats.curiosityScrap')));
     }

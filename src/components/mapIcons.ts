@@ -21,34 +21,63 @@ export function poiIcon(poi: Poi): L.DivIcon {
   const danger = Math.round(poi.currentDanger);
   const ring = dangerColor(danger);
   const outpost = !!poi.isFactionOutpost && !!poi.factionId;
+  const held =
+    !outpost && !!poi.factionId && poi.isFactionRevealed;
   const factionColor =
-    outpost && poi.factionId ? FACTION_CONFIG[poi.factionId].color : null;
+    outpost && poi.factionId
+      ? FACTION_CONFIG[poi.factionId].color
+      : held && poi.factionId
+        ? FACTION_CONFIG[poi.factionId].color
+        : null;
   const glyph =
     outpost && poi.factionId
       ? iconMarkup(FACTION_CONFIG[poi.factionId].icon, { size: 15, color: '#08080a' })
       : iconMarkup(cfg.icon, { size: 15, color: '#08080a' });
+  const badge =
+    held && poi.factionId
+      ? iconMarkup(FACTION_CONFIG[poi.factionId].icon, { size: 9, color: factionColor! })
+      : '';
 
-  const key = `${poi.category}|${danger}|${dim ? 1 : 0}|${outpost ? poi.factionId : 0}`;
+  const key = `${poi.category}|${danger}|${dim ? 1 : 0}|${outpost ? poi.factionId : 0}|${held ? poi.factionId : 0}`;
   const cached = poiIconCache.get(key);
   if (cached) return cached;
 
+  const borderColor = outpost ? '#f0ead8' : held ? factionColor! : ring;
   const icon = L.divIcon({
     className: '',
-    html: `<div style="
-      width:${outpost ? 34 : 30}px;height:${outpost ? 34 : 30}px;border-radius:50%;
-      display:flex;align-items:center;justify-content:center;
-      font-size:15px;line-height:1;
-      background:${factionColor ?? cfg.color};
-      border:${outpost ? 3 : 2}px solid ${outpost ? '#f0ead8' : ring};
-      ${outpost ? `outline:2px solid ${factionColor};outline-offset:1px;` : ''}
-      opacity:${dim ? 0.4 : 1};
-    ">${glyph}</div>`,
+    html: `<div style="position:relative;width:${outpost ? 34 : 30}px;height:${outpost ? 34 : 30}px;">
+      <div style="
+        width:100%;height:100%;border-radius:50%;
+        display:flex;align-items:center;justify-content:center;
+        font-size:15px;line-height:1;
+        background:${outpost ? factionColor : cfg.color};
+        border:${outpost ? 3 : 2}px solid ${borderColor};
+        ${outpost ? `outline:2px solid ${factionColor};outline-offset:1px;` : ''}
+        opacity:${dim ? 0.4 : 1};
+        box-sizing:border-box;
+      ">${glyph}</div>
+      ${badge ? `<div style="position:absolute;right:-1px;bottom:-1px;width:14px;height:14px;border-radius:50%;background:#08080a;border:1.5px solid ${factionColor};display:flex;align-items:center;justify-content:center;line-height:1;">${badge}</div>` : ''}
+    </div>`,
     iconSize: outpost ? [34, 34] : [30, 30],
     iconAnchor: outpost ? [17, 17] : [15, 15],
   });
   poiIconCache.set(key, icon);
   return icon;
 }
+
+/** Rumoured site from a smudged map note — fuzzy, not a real POI pin yet. */
+const RUMOUR_ICON = L.divIcon({
+  className: '',
+  html: `<div style="
+    width:26px;height:26px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    font-size:13px;font-weight:700;color:#e8e5dd;cursor:pointer;
+    background:rgba(20,26,30,.85);border:2px dashed #c4b07a;opacity:.9;
+  ">~</div>`,
+  iconSize: [26, 26],
+  iconAnchor: [13, 13],
+});
+export const rumourIcon = (): L.DivIcon => RUMOUR_ICON;
 
 /** Anonymous "?" blip — something is there, but you must go find out what.
  *  White + glow so it stands out against the dark map. */

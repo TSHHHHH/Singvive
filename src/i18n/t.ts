@@ -1,28 +1,87 @@
 import type { LocaleId, MessageNode, MessageTree } from './types';
 import { DEFAULT_LOCALE, isLocaleId } from './types';
 import en from './messages/en.json' with { type: 'json' };
-import zhHans from './messages/zh-Hans.json' with { type: 'json' };
 
-const CATALOGS: Record<LocaleId, MessageTree> = {
-  en: en as MessageTree,
-  'zh-Hans': zhHans as MessageTree,
+/**
+ * English is bundled: it is the universal fallback, and `t()` has to resolve
+ * synchronously. Every other locale is fetched on demand.
+ *
+ * Importing all catalogs statically put both files (~141 KB of JSON) in the
+ * entry chunk for every player regardless of language, and made each new locale
+ * a download tax on people who would never read it. Because `t()` already
+ * falls through to English for any missing key, a not-yet-loaded catalog
+ * degrades to English rather than breaking.
+ */
+const EN = en as MessageTree;
+
+const LOADERS: Partial<Record<LocaleId, () => Promise<{ default: unknown }>>> = {
+  'zh-Hans': () => import('./messages/zh-Hans.json'),
 };
+
+const CATALOGS: Partial<Record<LocaleId, MessageTree>> = { en: EN };
 
 /** Mutable overlay for DEV locale editor (zh-Hans only until saved). */
 let zhOverlay: MessageTree | null = null;
 
+/**
+ * Bumped when a catalog arrives, so `useT` can re-render the tree once a
+ * lazily-loaded locale is actually available.
+ */
+let catalogVersion = 0;
+const listeners = new Set<() => void>();
+const inflight = new Map<LocaleId, Promise<void>>();
+
+export function localeVersion(): number {
+  return catalogVersion;
+}
+
+export function subscribeLocale(fn: () => void): () => void {
+  listeners.add(fn);
+  return () => {
+    listeners.delete(fn);
+  };
+}
+
+function announce(): void {
+  catalogVersion += 1;
+  for (const fn of listeners) fn();
+}
+
+/** Load a locale's catalog if it is not bundled and not already loaded. */
+export function ensureLocale(locale: LocaleId): Promise<void> {
+  if (CATALOGS[locale]) return Promise.resolve();
+  const existing = inflight.get(locale);
+  if (existing) return existing;
+  const loader = LOADERS[locale];
+  if (!loader) return Promise.resolve();
+  const task = loader()
+    .then((mod) => {
+      CATALOGS[locale] = mod.default as MessageTree;
+      announce();
+    })
+    .catch(() => {
+      /* stay on English — a failed catalog must not break the UI */
+    })
+    .finally(() => {
+      inflight.delete(locale);
+    });
+  inflight.set(locale, task);
+  return task;
+}
+
 export function getCatalog(locale: LocaleId): MessageTree {
   if (locale === 'zh-Hans' && zhOverlay) return zhOverlay;
-  return CATALOGS[locale] ?? CATALOGS.en;
+  return CATALOGS[locale] ?? EN;
 }
 
 export function getEnglishCatalog(): MessageTree {
-  return CATALOGS.en;
+  return EN;
 }
 
-/** Snapshot of the bundled zh-Hans overlay (for the DEV locale editor). */
-export function getZhHansCatalog(): MessageTree {
-  return structuredClone(CATALOGS['zh-Hans']) as MessageTree;
+/** Snapshot of the zh-Hans catalog (for the DEV locale editor). */
+export async function getZhHansCatalog(): Promise<MessageTree> {
+  await ensureLocale('zh-Hans');
+  return structuredClone(CATALOGS['zh-Hans'] ?? EN) as MessageTree;
 }
 
 /** DEV: preview unsaved zh-Hans edits without writing disk. */
@@ -66,7 +125,7 @@ export function t(key: string, vars?: TVars, locale: LocaleId = DEFAULT_LOCALE):
     raw = asString(lookupNode(getCatalog(lang), key));
   }
   if (raw == null) {
-    raw = asString(lookupNode(CATALOGS.en, key));
+    raw = asString(lookupNode(EN, key));
   }
   if (raw == null) return key;
   return interpolate(raw, vars);

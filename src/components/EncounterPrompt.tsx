@@ -5,6 +5,8 @@ import { armCombatPenalty, formatClock } from '../game/survival';
 import { useClockFormat } from '../game/settings';
 import { sumTraitMod } from '../game/character';
 import { loadEffectsFor } from '../game/inventory';
+import { loadedRoundsOf, holsteredFirearm } from '../game/firearms';
+import { fullEquipment } from '../game/equipmentSlots';
 import {
   STANCES,
   effectiveDefense,
@@ -46,7 +48,6 @@ export function EncounterPrompt({
   const equipment = useGame((s) => s.equipment);
   const items = useGame((s) => s.items);
   const hour = useGame((s) => s.hour);
-  const rounds = useGame((s) => s.rounds);
   const combatEngage = useGame((s) => s.combatEngage);
   const combatBreakOff = useGame((s) => s.combatBreakOff);
   const clock = useClockFormat();
@@ -62,14 +63,16 @@ export function EncounterPrompt({
     equipment,
     sumTraitMod(character.traitIds, 'carryCapacityMod'),
   );
+  const eq = fullEquipment(equipment);
+  const holstered = holsteredFirearm(eq);
   const stats = playerCombatStats(
     character.attributes,
     character.traitIds,
-    equipment,
+    eq,
     armCombatPenalty(bodyParts),
-    rounds,
     load.attackMod,
   );
+  const holsterRounds = holstered ? loadedRoundsOf(holstered) : null;
 
   const enemyIcon = (
     <Icon
@@ -109,6 +112,12 @@ export function EncounterPrompt({
       It moves at <span className="text-hiss">{z.speed.toFixed(0)}</span> · {t('ui.combat.def')}{' '}
       {effectiveDefense(stats, STANCES.guarded, terrain)}–
       {effectiveDefense(stats, STANCES.aggressive, terrain)} · {stats.weaponName}
+      {holsterRounds != null && (
+        <>
+          {' '}
+          · {t('ui.combat.holstered', { n: holsterRounds })}
+        </>
+      )}
     </>
   );
 

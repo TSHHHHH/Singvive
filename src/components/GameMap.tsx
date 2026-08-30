@@ -1,10 +1,10 @@
 import { MapContainer, TileLayer, Marker, Circle, Polygon, Polyline, useMap, useMapEvents } from 'react-leaflet';
 import { Fragment, memo, useEffect, useMemo, useRef, useState } from 'react';
 import type L from 'leaflet';
-import type { Poi, TimeOfDay, WeatherKind } from '../game/types';
+import type { Poi, TimeOfDay, WeatherKind, MapAnnotation } from '../game/types';
 import { WeatherFx } from './WeatherFx';
 import { TimeOfDayFx } from './TimeOfDayFx';
-import { poiIcon, playerIcon, unknownIcon, evacIcon, dangerColor } from './mapIcons';
+import { poiIcon, playerIcon, unknownIcon, evacIcon, dangerColor, rumourIcon } from './mapIcons';
 import {
   TILE_ATTRIBUTION,
   TILE_MAX_NATIVE_ZOOM,
@@ -12,6 +12,7 @@ import {
   TILE_URL,
 } from './tileConfig';
 import { POI_CONFIG } from '../game/poi';
+import { FACTION_CONFIG } from '../game/factions';
 import { haversine } from '../game/overpass';
 import { visibilityOf } from '../game/fog';
 import { FogOverlay } from './FogOverlay';
@@ -291,6 +292,8 @@ interface Props {
   travelPathBlocked?: boolean;
   /** External camera nudge (e.g. stash logbook "Show on map"). Token forces re-pan. */
   focusTarget?: { lat: number; lng: number; token: number } | null;
+  /** Smudged-map rumoured sites — fuzzy pins until the target POI is found. */
+  mapAnnotations?: MapAnnotation[];
   onSelect: (poi: Poi) => void;
   onPickGround: (lat: number, lng: number) => void;
 }
@@ -422,6 +425,7 @@ function poiLooksSame(a: Poi, b: Poi): boolean {
       a.exhausted === b.exhausted &&
       a.isFactionOutpost === b.isFactionOutpost &&
       a.factionId === b.factionId &&
+      a.isFactionRevealed === b.isFactionRevealed &&
       // Compared at both `here` settings so the memo holds regardless of which
       // one this location is rendered at.
       Math.round(ringDanger(a, true)) === Math.round(ringDanger(b, true)) &&
@@ -493,8 +497,20 @@ const PoiLayer = memo(
           const mem = poi.lastSeen;
           const danger = ringDanger(poi, here);
           const exhausted = here ? poi.exhausted : mem?.exhausted ?? poi.exhausted;
-          const display: Poi = { ...poi, currentDanger: danger, exhausted };
-          const ring = exhausted ? '#555' : dangerColor(Math.round(danger));
+          const factionRevealed = here
+            ? poi.isFactionRevealed
+            : mem?.isFactionRevealed ?? poi.isFactionRevealed;
+          const display: Poi = {
+            ...poi,
+            currentDanger: danger,
+            exhausted,
+            isFactionRevealed: factionRevealed,
+          };
+          const heldRing =
+            factionRevealed && poi.factionId && !poi.isFactionOutpost
+              ? FACTION_CONFIG[poi.factionId].color
+              : null;
+          const ring = exhausted ? '#555' : heldRing ?? dangerColor(Math.round(danger));
 
           return (
             <Fragment key={poi.id}>
@@ -504,10 +520,10 @@ const PoiLayer = memo(
                   eventHandlers={{ click: () => onSelect(poi) }}
                   pathOptions={{
                     color: ring,
-                    weight: selected ? 2.5 : 1,
+                    weight: selected ? 2.5 : heldRing ? 2 : 1,
                     fillColor: POI_CONFIG[poi.category].color,
                     fillOpacity: exhausted ? 0.1 : selected ? 0.5 : here ? 0.35 : 0.18,
-                    opacity: here ? 1 : 0.65,
+                    opacity: here ? 1 : heldRing ? 0.75 : 0.65,
                   }}
                 />
               )}
@@ -532,6 +548,37 @@ const PoiLayer = memo(
     prev.pois.length === next.pois.length &&
     prev.pois.every((p, i) => poiLooksSame(p, next.pois[i])),
 );
+
+const RumourLayer = memo(function RumourLayer({
+  annotations,
+}: {
+  annotations: MapAnnotation[];
+}) {
+  const bounds = usePaddedBounds();
+  const drawn = useMemo(() => {
+    const inView: MapAnnotation[] = [];
+    for (const ann of annotations) {
+      if (!bounds.contains([ann.lat, ann.lng])) continue;
+      inView.push(ann);
+    }
+    return inView;
+  }, [annotations, bounds]);
+
+  return (
+    <>
+      {drawn.map((ann) => (
+        <Marker
+          key={ann.id}
+          position={[ann.lat, ann.lng]}
+          icon={rumourIcon()}
+          zIndexOffset={650}
+          interactive={false}
+          opacity={0.9}
+        />
+      ))}
+    </>
+  );
+});
 
 /**
  * Viewport-cull + `poiLooksSame`: hidden and off-screen POIs must not become
@@ -559,6 +606,7 @@ function GameMapInner({
   travelPath,
   travelPathBlocked,
   focusTarget,
+  mapAnnotations = [],
   onSelect,
   onPickGround,
 }: Props) {
@@ -654,6 +702,10 @@ function GameMapInner({
         hereId={hereId}
         onSelect={onSelect}
       />
+
+      {mapAnnotations.length > 0 && (
+        <RumourLayer annotations={mapAnnotations} />
+      )}
 
       {/* extraction beacon — always visible so the goal is never lost */}
       {evacPoi && (

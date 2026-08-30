@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
+import { useShallow } from 'zustand/react/shallow';
 import { useGame } from '../game/store';
 import { NEIGHBOURHOODS, SG_BOUNDS, SG_CENTER } from '../game/singapore';
 import {
@@ -97,7 +98,9 @@ function FocusSpawn({ lat, lng }: { lat: number; lng: number }) {
 const RANDOM_TRIES = 24;
 
 export function SpawnSelect() {
-  const { setSpawn, resetToMenu } = useGame();
+  const { setSpawn, resetToMenu } = useGame(
+    useShallow((s) => ({ setSpawn: s.setSpawn, resetToMenu: s.resetToMenu })),
+  );
   const { t } = useT();
   const [picked, setPicked] = useState<Picked | null>(null);
   const [loading, setLoading] = useState(false);

@@ -1,33 +1,19 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useGame } from '../game/store';
-import { itemDef } from '../game/loot';
 import { Icon } from '../icons/Icon';
-import { formatClock } from '../game/survival';
 import { LOG_VIEW_MODES, logViewMode, useClockFormat, useSetting, useSettings } from '../game/settings';
-import { itemIcon } from './Inventory/itemIcon';
 import { tip } from './tips';
 import { EncounterPrompt } from './EncounterPrompt';
 import { SearchSessionNode } from './SearchSessionNode';
 import { PendingEventChoices } from './PendingEventChoices';
-import { highlightLogText } from './logHighlight';
 import type { GuideTopic } from '../content/guideContent';
-import { itemName, useT } from '../i18n';
-
-const toneClass: Record<string, string> = {
-  good: 'text-signal',
-  bad: 'text-hiss',
-  info: 'text-white/60',
-};
+import { useT } from '../i18n';
+import { GroupedLogList, useActiveLogScopeKey } from './logTimeline';
+import { formatClock } from '../game/survival';
 
 /** Every control in the timeline header shares one box, so the row reads even. */
 const CTRL =
   'flex h-6 w-8 shrink-0 items-center justify-center rounded border border-white/10 text-2xs leading-none transition';
-
-const dotClass: Record<string, string> = {
-  good: 'bg-signal',
-  bad: 'bg-hiss',
-  info: 'bg-white/30',
-};
 
 /**
  * Where live interactive nodes (event / contact / search) should render.
@@ -62,8 +48,14 @@ export function LogPanel({
   const log = useGame((s) => s.log);
   const day = useGame((s) => s.day);
   const pending = useGame((s) => s.pendingEvent);
+  const pendingSearch = useGame((s) => s.pendingSearch);
+  const hdb = useGame((s) => s.hdb);
+  const tunnel = useGame((s) => s.tunnel);
+  const locations = useGame((s) => s.locations);
+  const traveling = useGame((s) => !!s.travelAnim);
+  const combatContext = useGame((s) => s.combat?.context ?? null);
   // Identity of the live search only — slot ticks must not re-pin scroll.
-  const pendingSearchNonce = useGame((s) => s.pendingSearch?.nonce ?? null);
+  const pendingSearchNonce = pendingSearch?.nonce ?? null;
   // A fight waiting on a stance is a live node at the foot of the timeline,
   // exactly like a pending event — see EncounterPrompt.
   const awaitingStance = useGame((s) => !!s.combat?.awaitingStance);
@@ -83,9 +75,14 @@ export function LogPanel({
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const earlierDays = log.some((e) => e.day < day);
+  // `log` is capped at 4000 entries, so both passes are re-derived on every
+  // render otherwise — and this panel re-renders on any store write.
+  const earlierDays = useMemo(() => log.some((e) => e.day < day), [log, day]);
   // stored newest-first; show chronologically, and only what happened today
-  const chronological = log.filter((e) => e.day === day).reverse();
+  const chronological = useMemo(
+    () => log.filter((e) => e.day === day).reverse(),
+    [log, day],
+  );
   const total = chronological.length;
   const shown =
     mode.count === Infinity ? chronological : chronological.slice(Math.max(0, total - mode.count));
@@ -101,6 +98,16 @@ export function LogPanel({
     shown.length > 0
       ? shown[shown.length - 1].id
       : null;
+
+  const activeKey = useActiveLogScopeKey({
+    pendingSearch,
+    pendingEvent: pending ? { locationId: pending.locationId } : null,
+    combat: combatContext ? { context: combatContext } : null,
+    hdb,
+    tunnel,
+    locations,
+    traveling,
+  });
 
   // Pin to the newest entry when the day/view changes or a live node appears —
   // not on every in-progress search tick (those rewrite pendingSearch often).
@@ -181,80 +188,17 @@ export function LogPanel({
               </li>
             )}
 
-            {shown.map((e) => {
-              const isLatest = e.id === latestId;
-              return (
-                <li
-                  key={e.id}
-                  className={`relative flex gap-2 py-1 pl-6 ${
-                    isLatest ? 'rounded bg-white/[0.07]' : ''
-                  }`}
-                >
-                  <span
-                    className={`absolute left-0 top-[7px] h-[11px] w-[11px] rounded-full border-2 border-concrete-900 ${
-                      dotClass[e.tone] ?? 'bg-white/30'
-                    } ${isLatest ? 'ring-2 ring-signal/60' : ''}`}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p
-                      style={hang}
-                      className={`whitespace-normal break-words text-xs leading-snug ${
-                        toneClass[e.tone] ?? 'text-white/60'
-                      }`}
-                    >
-                      <span
-                        className="inline-block font-mono text-2xs tabular-nums text-white/25"
-                        style={{ width: timeW, textIndent: 0 }}
-                      >
-                        {formatClock(e.hour, clock)}
-                      </span>
-                      {highlightLogText(e.text)}
-                    </p>
-                    {e.focus && onFocusMap && (
-                      <div style={{ paddingLeft: timeW }} className="mt-1">
-                        <button
-                          type="button"
-                          onClick={() => onFocusMap(e.focus!.lat, e.focus!.lng)}
-                          className="rounded border border-signal/40 bg-signal/10 px-2 py-0.5 text-2xs text-signal hover:bg-signal/20"
-                        >
-                          {e.focus.label
-                            ? t('ui.log.showOnMapLabel', { label: e.focus.label })
-                            : t('ui.log.showOnMap')}
-                        </button>
-                      </div>
-                    )}
-                    {e.loot && e.loot.length > 0 && (
-                      <ul className="mt-1 flex flex-col gap-px" style={{ paddingLeft: timeW }}>
-                        {e.loot.map((s, i) => {
-                          const def = itemDef(s.defId);
-                          return (
-                            <li
-                              key={i}
-                              className="flex items-center gap-1.5 border-l border-white/15 bg-white/[0.04] px-2 py-0.5 text-xs"
-                            >
-                              <Icon name={itemIcon(def)} size={13} className="shrink-0" />
-                              <span className="min-w-0 flex-1 truncate text-concrete-200">
-                                {itemName(s.defId, locale)}
-                              </span>
-                              <span className="shrink-0 tabular-nums text-signal">×{s.count}</span>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    )}
-                    {e.leftover && e.leftover.length > 0 && (
-                      <div className="mt-1 text-2xs text-hiss" style={{ paddingLeft: timeW }}>
-                        {t('ui.log.packFull', {
-                          items: e.leftover
-                            .map((s) => `${itemName(s.defId, locale)} ×${s.count}`)
-                            .join(', '),
-                        })}
-                      </div>
-                    )}
-                  </div>
-                </li>
-              );
-            })}
+            <GroupedLogList
+              entries={shown}
+              locale={locale}
+              clock={clock}
+              timeW={timeW}
+              hang={hang}
+              latestId={latestId}
+              onFocusMap={onFocusMap}
+              tr={t}
+              activeKey={activeKey}
+            />
 
             {showLive && ev && (
               <li className="relative flex gap-2 rounded bg-white/[0.07] py-1 pl-6">

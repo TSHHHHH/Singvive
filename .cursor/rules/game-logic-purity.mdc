@@ -1,0 +1,39 @@
+---
+description: Pure game logic constraints for src/game — seeded RNG, no React/DOM
+globs: src/game/**
+alwaysApply: false
+---
+
+# Game logic purity (`src/game/`)
+
+All modules under `src/game/` are **pure, seed-driven game logic**. Follow these rules on every edit:
+
+## Forbidden
+
+- React / DOM imports (`react`, `react-dom`, `document`, `window`)
+- Gameplay `Math.random()` — use the seeded `Rng` class (`rng.ts`)
+- `any` types
+- Live `fetch` for gameplay (static bake JSON via `bakedPois.ts` / `playable.ts` is the allowed exception)
+
+## Required patterns
+
+- Functions take explicit params and return new values (immutable updates)
+- Randomness: `rng.fork('subsystem:key')` so unrelated systems don't share sequence state
+- New mechanics → new module `src/game/<system>.ts`, wire through `store.ts` / `advanceTime` — do not grow a second Zustand store
+
+## Allowed exceptions
+
+- `randomSeed()` in `rng.ts` may use `Math.random()` to mint a fresh run seed string
+- Cosmetic flavour helpers (`combatFlavor.ts`, `flavor.ts`) may use `Math.random()`
+- Score HTTP lives in `src/api/` and `worker/`, not here
+
+## Example
+
+```typescript
+// BAD — non-deterministic combat
+const roll = Math.floor(Math.random() * 20) + 1;
+
+// GOOD — seeded fork per encounter
+const combatRng = rng.fork(`combat:${locationId}:${round}`);
+const roll = combatRng.d20();
+```

@@ -6,11 +6,13 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "lint": "oxlint",
+    "lint": "oxlint --max-warnings=27",
+    "test": "vitest run",
     "bake:pois": "node --experimental-strip-types scripts/bake-pois.mjs",
     "bake:mrt": "node scripts/bake-mrt.mjs",
     "bake:zones": "node --experimental-strip-types scripts/bake-zones.mjs",
     "bake:towns": "node --experimental-strip-types scripts/bake-towns.mjs",
+    "gen:rain-tile": "node scripts/gen-rain-tile.mjs",
     "preview": "vite preview",
     "deploy": "npm run build && wrangler deploy",
     "db:migrate": "wrangler d1 migrations apply singvive-scores --remote",
@@ -39,6 +41,7 @@
     "postcss": "^8.5.16",
     "tailwindcss": "^3.4.19",
     "typescript": "~6.0.2",
+    "vitest": "^3.2.4",
     "vite": "^8.1.1",
     "wrangler": "^4.123.0"
   }

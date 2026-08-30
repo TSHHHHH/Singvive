@@ -207,16 +207,49 @@ export type ItemEffect =
       damage: number;
       accuracy: number;
       ranged: boolean;
-      /** Rounds a single shot burns. Absent ⇒ 1. A shotgun is not cheap to run. */
+      /** @deprecated Semi-auto only — always 1 round per shot. */
       roundsPerShot?: number;
       /** Multiplier on gauge fill rate. Absent ⇒ derived from weight class. */
       speedFactor?: number;
+      /** Firearm only — matches typed ammo / magazines. */
+      caliber?: FirearmCaliber;
+      /** Rounds the holstered gun holds when fully loaded. */
+      magazineSize?: number;
+      /** Pistol loads from mag items; shotgun loads from 12g boxes directly. */
+      usesMagazine?: boolean;
+      /** Gauge fill multiplier while reloading in combat. */
+      reloadSpeedFactor?: number;
     }
-  | { kind: 'ammo'; rounds: number }
+  | { kind: 'ammo'; caliber: FirearmCaliber; rounds: number }
+  | { kind: 'magazine'; caliber: FirearmCaliber; capacity: number }
   | { kind: 'fuel' }
+  | {
+      kind: 'intel';
+      mode: 'precise' | 'rumour';
+      /** What pool to pick from — mirrors faction intel categories. */
+      bias: IntelBias;
+      /** Rumour offset radius in metres (mode rumour only). */
+      fuzzM?: number;
+    }
   | { kind: 'misc' };
 
+/** Bias for map-note intel rolls and faction briefings. */
+export type IntelBias = 'danger' | 'outpost' | 'faction' | 'any' | readonly PoiCategory[];
+
+/** Player-placed rumoured site from a smudged map note. */
+export interface MapAnnotation {
+  id: string;
+  lat: number;
+  lng: number;
+  label: string;
+  /** True POI — removed from map once discovered. */
+  targetId: string;
+  createdDay: number;
+}
+
 export type WeaponEffect = Extract<ItemEffect, { kind: 'weapon' }>;
+
+export type FirearmCaliber = '9mm' | '12g';
 
 export type EquipSlot =
   | 'head'
@@ -226,7 +259,9 @@ export type EquipSlot =
   | 'feet'
   | 'bag'
   | 'mainHand'
-  | 'offHand';
+  | 'offHand'
+  /** Holstered firearm — required for the Fire action in combat. */
+  | 'firearm';
 
 /**
  * How beaten-up an instance is. Derived from its `condition`, never stored —
@@ -370,6 +405,8 @@ export interface ItemInstance {
    * in a save written before conditions existed deserializes to.
    */
   condition?: number;
+  /** Rounds in a magazine item or loaded holstered firearm. */
+  loadedRounds?: number;
 }
 
 export type Equipment = Record<EquipSlot, ItemInstance | null>;
@@ -716,6 +753,11 @@ export interface CombatState {
   speedIndex: number;
   /** Last swing/outcome cue for the combat panel; null between events. */
   impact: CombatImpact | null;
+
+  /** Next player gauge fill shoots from the holster instead of melee. */
+  firePrepared?: boolean;
+  /** Next player gauge fill reloads the holstered gun from the backpack. */
+  reloadPrepared?: boolean;
 }
 
 // ---------- Run statistics ----------
@@ -744,6 +786,15 @@ export interface LootStackRef {
   count: number;
 }
 
+/** Groups consecutive timeline lines under a location header (HDB room, tunnel node, street site, …). */
+export type LogScope =
+  | { kind: 'hdb_block'; blockId: string; label: string }
+  | { kind: 'hdb_floor'; blockId: string; level: number }
+  | { kind: 'hdb_unit'; blockId: string; level: number; unitId: string; label: string }
+  | { kind: 'tunnel_run'; runId: string; label: string }
+  | { kind: 'tunnel_node'; runId: string; nodeId: string; label: string }
+  | { kind: 'site'; locationId: string; label: string };
+
 /** One line of the run's timeline, stamped with the in-game moment it happened. */
 export interface GameLogEntry {
   id: number;
@@ -757,6 +808,8 @@ export interface GameLogEntry {
   leftover?: LootStackRef[];
   /** Optional map focus — e.g. outpost intel tip. */
   focus?: { lat: number; lng: number; label?: string };
+  /** When set, UI collapses consecutive same-scope lines under one header. */
+  scope?: LogScope;
 }
 
 // ---------- Scores ----------

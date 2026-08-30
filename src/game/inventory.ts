@@ -31,6 +31,7 @@ export const ALL_EQUIP_SLOTS: EquipSlot[] = [
   'bag',
   'mainHand',
   'offHand',
+  'firearm',
 ];
 
 export const BACKPACK = 'backpack';
@@ -802,6 +803,12 @@ export function loadEffectsFor(
 // ---------- Equipment ----------
 
 export function canEquip(def: ItemDef, slot: EquipSlot): boolean {
+  if (def.effect.kind === 'weapon' && def.effect.ranged) {
+    if (slot === 'firearm') return true;
+    if (slot === 'mainHand') return true;
+    return false;
+  }
+  if (slot === 'firearm') return false;
   if (def.slot === slot) return true;
   // One-handed main-hand weapons can dual-wield in the off hand.
   return slot === 'offHand' && def.slot === 'mainHand' && !def.twoHanded;
@@ -824,6 +831,7 @@ export function emptyEquipment(): Equipment {
     bag: null,
     mainHand: null,
     offHand: null,
+    firearm: null,
   };
 }
 
@@ -838,6 +846,7 @@ export function bestWeapon(items: ItemInstance[]): ItemDef | null {
   for (const inst of items) {
     const def = itemDef(inst.defId);
     if (def.effect.kind !== 'weapon' || isBroken(inst)) continue;
+    if (def.effect.ranged) continue;
     const dmg = effectiveDamage(inst);
     if (dmg > bestDmg) {
       best = def;
