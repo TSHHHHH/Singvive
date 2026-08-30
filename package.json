@@ -7,6 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "bake:pois": "node --experimental-strip-types scripts/bake-pois.mjs",
     "bake:mrt": "node scripts/bake-mrt.mjs",
     "bake:zones": "node --experimental-strip-types scripts/bake-zones.mjs",
@@ -40,6 +42,7 @@
     "tailwindcss": "^3.4.19",
     "typescript": "~6.0.2",
     "vite": "^8.1.1",
+    "vitest": "^4.1.11",
     "wrangler": "^4.123.0"
   }
 }
