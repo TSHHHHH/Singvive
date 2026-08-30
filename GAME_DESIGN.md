@@ -181,6 +181,13 @@ currency, and the survivor is always moving — the map is explored, not surveye
   (+ stance).
 - **Enemy attack:** `d20 + attack + environment` vs. `10 + Dexterity/2 + trait/armour defense + stance`.
   Worn **limb armour** soaks the body zone it covers. Zombie hits can infect; the hit wounds a body part.
+- **Armour has a ceiling.** Gear contributes at most **+6** defence in total (`MAX_EQUIP_DEFENSE`);
+  traits sit outside the cap. Defence is a d20 target, so a point of it is a flat 5% off every
+  incoming swing — uncapped, a full riot kit reached +13 and was hit only on a natural 20. Past the
+  cap armour earns its keep through soak, status resist and blocking, not evasion. A swing the kit
+  turns — one that would have landed on a bare survivor — **scuffs the armour that stopped it**, so
+  good gear pays upkeep instead of being free to own. Protective stats also fade faster with wear
+  than a weapon's edge does (floor 40%, vs 75%), and heavy plate costs **combat speed and carry**.
 - **Environment:** night/dusk and rain/storm/haze shift odds toward the enemy.
 - **Same loop for humans:** hostile-faction/event combat reuses the zombie loop with a **human
   stat block** (`kind: 'human'`, no infection, higher defense; drops gear on death).

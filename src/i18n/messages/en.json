@@ -579,7 +579,8 @@
         "legs": "Injured legs",
         "bleed": "Bleeding",
         "gear": "Gear",
-        "outdoors": "Outdoors / heat"
+        "outdoors": "Outdoors / heat",
+        "capped": "Armour cap"
       }
     },
     "itemKind": {

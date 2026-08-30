@@ -66,11 +66,37 @@ describe('groupLogEntries', () => {
     expect(groups[0]).toMatchObject({ type: 'section', key: 'site:shop1', entries: [a, b] });
   });
 
-  it('breaks sections on unscoped entries', () => {
+  it('absorbs unscoped lines into a still-open visit', () => {
     const scope: LogScope = { kind: 'hdb_floor', blockId: 'blk', level: 2 };
-    const groups = groupLogEntries([entry(1, scope), entry(2), entry(3, scope)]);
+    const a = entry(1, scope);
+    const mid = entry(2);
+    const b = entry(3, scope);
+    const groups = groupLogEntries([a, mid, b]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]).toMatchObject({ type: 'section', key: 'hdb_floor:blk:L2', entries: [a, mid, b] });
+  });
+
+  it('absorbs trailing unscoped lines into the last visit', () => {
+    const scope: LogScope = { kind: 'site', locationId: 'spc', label: 'SPC' };
+    const a = entry(1, scope);
+    const drink = entry(2);
+    const groups = groupLogEntries([a, drink]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]).toMatchObject({ type: 'section', key: 'site:spc', entries: [a, drink] });
+  });
+
+  it('keeps unscoped lines flat between two different places', () => {
+    const spc: LogScope = { kind: 'site', locationId: 'spc', label: 'SPC' };
+    const shop: LogScope = { kind: 'site', locationId: 'shop1', label: 'FairPrice' };
+    const groups = groupLogEntries([entry(1, spc), entry(2), entry(3, shop)]);
     expect(groups).toHaveLength(3);
     expect(groups.map((g) => g.type)).toEqual(['section', 'flat', 'section']);
+  });
+
+  it('leaves leading unscoped lines flat', () => {
+    const scope: LogScope = { kind: 'site', locationId: 'spc', label: 'SPC' };
+    const groups = groupLogEntries([entry(1), entry(2, scope)]);
+    expect(groups.map((g) => g.type)).toEqual(['flat', 'section']);
   });
 });
 

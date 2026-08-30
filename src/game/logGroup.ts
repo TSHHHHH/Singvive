@@ -22,16 +22,41 @@ export function scopeKey(scope: LogScope): string {
   }
 }
 
-/** Merge consecutive entries that share the same scope into collapsible sections. */
+/**
+ * Merge entries that share a place into one collapsible section.
+ *
+ * Unscoped lines (consume, skill-check aftermath, ambient) stay inside the
+ * visit when the next scoped line is still that place — or when nothing else
+ * has been scoped yet (still standing there). They stay on the spine when the
+ * next scoped line is a different place, so travel between sites does not get
+ * swallowed.
+ */
 export function groupLogEntries(entries: GameLogEntry[]): LogGroup[] {
+  const n = entries.length;
+  const nextScoped: (string | null)[] = new Array(n);
+  let ahead: string | null = null;
+  for (let i = n - 1; i >= 0; i--) {
+    nextScoped[i] = ahead;
+    const scope = entries[i]?.scope;
+    if (scope) ahead = scopeKey(scope);
+  }
+
   const out: LogGroup[] = [];
-  for (const entry of entries) {
+  for (let i = 0; i < n; i++) {
+    const entry = entries[i]!;
+    const last = out[out.length - 1];
     if (!entry.scope) {
+      if (last?.type === 'section') {
+        const nxt = nextScoped[i];
+        if (nxt === null || nxt === last.key) {
+          last.entries.push(entry);
+          continue;
+        }
+      }
       out.push({ type: 'flat', entry });
       continue;
     }
     const key = scopeKey(entry.scope);
-    const last = out[out.length - 1];
     if (last?.type === 'section' && last.key === key) {
       last.entries.push(entry);
     } else {

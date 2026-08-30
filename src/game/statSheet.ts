@@ -387,7 +387,12 @@ function combatRows(args: {
   push(def, keySrc('base', 10));
   push(def, attrSrc('dexterity', Math.floor(attributes.dexterity / 2)));
   push(def, traitSources(traits, 'defenseMod'));
-  push(def, itemSources(equipment, (inst) => equipDefenseBonus(inst)));
+  const defItems = itemSources(equipment, (inst) => equipDefenseBonus(inst));
+  push(def, defItems);
+  // Gear defence is capped (see MAX_EQUIP_DEFENSE). List the shortfall rather
+  // than trimming the per-item lines: the player should see which pieces are
+  // pulling and that the kit has stopped paying for more.
+  push(def, keySrc('capped', pStats.gearDefense - sumOf(defItems)));
   rows.push(row('defence', 'combat', 'flat', def, true, { total: pStats.defense }));
 
   const ddg: SheetSource[] = [];
@@ -395,7 +400,7 @@ function combatRows(args: {
   push(ddg, traitSources(traits, 'dodgeMod'));
   push(
     ddg,
-    itemSources(equipment, (inst) => itemDef(inst.defId).modifiers?.dodgeBonus ?? 0),
+    itemSources(equipment, (inst) => scaledMod(inst, 'dodgeBonus')),
   );
   push(ddg, keySrc('offHand', oh.dodge));
   push(ddg, keySrc('energy', energyDodgeBonus(energy)));

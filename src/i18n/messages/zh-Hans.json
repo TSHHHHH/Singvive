@@ -571,7 +571,8 @@
         "legs": "腿部受伤",
         "bleed": "流血",
         "gear": "装备",
-        "outdoors": "户外 / 炎热"
+        "outdoors": "户外 / 炎热",
+        "capped": "护甲上限"
       }
     },
     "itemKind": {

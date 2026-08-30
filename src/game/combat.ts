@@ -22,6 +22,7 @@ import { environmentCombatMods } from './weather';
 import { itemDef } from './loot';
 import { hasTraitFlag, sumTraitMod } from './character';
 import {
+  armorScaledMod,
   effectiveDamage,
   equipAccuracyBonus,
   equipDefenseBonus,
@@ -79,6 +80,9 @@ const EQUIP_SLOTS = ALL_EQUIP_SLOTS;
 export interface PlayerCombatStats {
   attack: number; // added to d20 attack roll
   defense: number; // target number enemies must beat
+  /** The gear-only slice of `defense`, post-cap — how much of the target
+   *  number the kit is holding up. Drives deflection wear. */
+  gearDefense: number;
   damage: number; // damage on a hit
   infectionResist: number; // 0..1
   weaponName: string;
@@ -120,6 +124,28 @@ const WEAR_ON_HIT = 0.5;
 /** Extra on top of a hit when the target is armoured. */
 const WEAR_ARMOR_EXTRA = 0.4;
 const WEAR_ON_MISS = 0.2;
+
+/**
+ * What a turned blow costs the kit that turned it.
+ *
+ * Armour used to wear only when something got through, which is exactly
+ * backwards: the better the loadout, the fewer hits landed, the less it aged.
+ * The strongest kits in the game were the ones that never paid upkeep. A swing
+ * that would have connected against a bare survivor and didn't now scuffs the
+ * armour that stopped it — lighter than a real hit, but it accumulates.
+ */
+const WEAR_ON_DEFLECT = 0.6;
+
+/**
+ * Ceiling on the gear contribution to defence.
+ *
+ * Defence is a d20 target number, so a point of it is a flat 5% off every
+ * incoming attack — linear on the stat sheet, runaway in play. Uncapped, a full
+ * riot kit reached +13 and left an Abomination hitting on a natural 20 and
+ * nothing else. Six points is the most a kit may buy (30%); past that armour
+ * has to justify itself through soak and status resist, not evasion.
+ */
+const MAX_EQUIP_DEFENSE = 6;
 
 // ---------------------------------------------------------------- stances --
 // Accuracy modifiers everywhere are expressed in d20 roll points (1 point ≈ 5%).
@@ -368,15 +394,19 @@ export function playerCombatStats(
   const w = rawEffect && !gunClub ? rawEffect : gunClub && rawEffect ? rawEffect : null;
 
   let atkBonus = sumTraitMod(traitIds, 'attackMod');
-  let defBonus = sumTraitMod(traitIds, 'defenseMod');
+  let gearDef = 0;
   for (const slot of EQUIP_SLOTS) {
     const inst = eq[slot];
     if (!inst) continue;
     const mods = itemDef(inst.defId).modifiers;
     atkBonus += mods?.attackBonus ?? 0;
-    defBonus += equipDefenseBonus(inst);
+    gearDef += equipDefenseBonus(inst);
   }
   atkBonus += equipAccuracyBonus(eq);
+  // Traits sit outside the cap — it is a rail on what a loadout can buy, not on
+  // who the survivor is.
+  const gearDefense = Math.min(MAX_EQUIP_DEFENSE, gearDef);
+  const defBonus = sumTraitMod(traitIds, 'defenseMod') + gearDefense;
 
   let weaponAcc = w?.accuracy ?? 0;
   let baseDamage = usableWeapon && w ? effectiveDamage(usableWeapon) : 4;
@@ -424,6 +454,7 @@ export function playerCombatStats(
   return {
     attack,
     defense,
+    gearDefense,
     damage,
     infectionResist: Math.min(1, Math.max(-0.5, infectionResist)),
     weaponName,
@@ -578,7 +609,7 @@ export function playerDodgeChance(
   for (const slot of EQUIP_SLOTS) {
     const inst = equipment[slot];
     if (!inst) continue;
-    gearDodge += itemDef(inst.defId).modifiers?.dodgeBonus ?? 0;
+    gearDodge += scaledMod(inst, 'dodgeBonus');
   }
   const traitDodge = sumTraitMod(traitIds, 'dodgeMod');
   const legFactor = legTravelFactor(parts);
@@ -958,6 +989,8 @@ export function resolveEnemyAction(
   let dodged = false;
   let blocked = false;
   let hitZone: BodyPartId | null = null;
+  /** Zone a turned blow scuffed — wear only, no damage and no hit. */
+  let deflectZone: BodyPartId | null = null;
   let critical = false;
   const defense = effectiveDefense(player, stance, terrain);
 
@@ -1001,7 +1034,7 @@ export function resolveEnemyAction(
       critical = hitZone === 'head';
       const ohInst = equipment.offHand;
       const blockChance =
-        ohInst && offHandRole(equipment) === 'shield' ? scaledMod(ohInst, 'blockChance') : 0;
+        ohInst && offHandRole(equipment) === 'shield' ? armorScaledMod(ohInst, 'blockChance') : 0;
       if (ohInst && blockChance > 0 && rng.chance(blockChance)) {
         blocked = true;
         playerDamage = 0;
@@ -1042,6 +1075,19 @@ export function resolveEnemyAction(
       }
     }
   } else {
+    // The blow that armour turned is the blow that wears it. If this swing
+    // would have landed on the same survivor without their kit, the kit is what
+    // stopped it — and it takes a scuff for the trouble. Without this, gear got
+    // *cheaper* to own the better it was, because good gear is never hit.
+    //
+    // The scuff lands on a rolled zone like a real hit would, so the piece that
+    // did the work pays for it. Charging every slot in full instead made a full
+    // riot kit wear out faster than a leather jacket — five pieces each paying
+    // the price of one — which is precisely the wrong incentive.
+    if (zTotal >= defense - player.gearDefense) {
+      armorWear = WEAR_ON_DEFLECT;
+      deflectZone = rollHitZone(rng.fork('deflect'), headWeightScale);
+    }
     log.push({
       round,
       side: 'enemy',
@@ -1050,10 +1096,11 @@ export function resolveEnemyAction(
     });
   }
 
+  const wearZone = hitZone ?? deflectZone;
   const wearSlot = blocked
     ? 'offHand'
-    : hitZone
-      ? (slotForZone(hitZone) ?? 'body')
+    : wearZone
+      ? (slotForZone(wearZone) ?? 'body')
       : null;
   const statusResist = hitZone ? statusResistForZone(equipment, hitZone) : 0;
 
