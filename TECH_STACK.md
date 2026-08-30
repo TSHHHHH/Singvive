@@ -295,7 +295,19 @@ npx wrangler d1 create singvive-scores
 npm run db:migrate
 ```
 
-Then `npm run deploy` (`tsc -b && vite build && wrangler deploy`).
+Local / one-shot: `npm run deploy` (`tsc -b && vite build && wrangler deploy`).
+
+**Workers Builds** (Git-connected CI on the `singvive` Worker) already deploys on push. Preferred
+settings under **Workers → singvive → Settings → Builds**:
+
+| Setting | Value | Why |
+|---|---|---|
+| Build command | *(leave empty)* | Avoid a double `vite build` |
+| Deploy command | `npm run deploy` | Matches `package.json` (`build` + `wrangler deploy`) |
+| Preview deploy | `npx wrangler versions upload` | Default non-production path |
+
+Bake `VITE_CARTO_API_KEY` as a **Workers Builds → Build variables and secrets** entry (same name as
+`.env.local`). Vite inlines it at build time; a Worker runtime secret will not clear CARTO watermarks.
 
 The worldwide board is an honor list: the client posts the score; the Worker sanitizes names and
 rate-limits by IP. Personal top-10 stays in `localStorage` and is not bulk-uploaded.
@@ -313,8 +325,9 @@ rate-limits by IP. Personal top-10 stays in `localStorage` and is not bulk-uploa
 | Lint | `npm run lint` | oxlint with `--max-warnings=27` |
 | Tests | `npm run test` | Vitest, `environment: 'node'` |
 
-CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs `lint` → `test` → `build` on push
-and PR to `main`. There is no deploy step; `npm run deploy` is manual.
+GitHub CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs `lint` → `test` → `build` on
+push/PR to `main` (no deploy). Production deploys are **Workers Builds** on the Cloudflare Worker
+(`npm run deploy`) plus optional local `npm run deploy`.
 
 ### Test coverage — know what is *not* covered
 
