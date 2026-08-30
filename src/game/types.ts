@@ -126,6 +126,12 @@ export interface Trait {
   poiLootBonus?: Partial<Record<PoiCategory, number>>;
   /** Added to HDB corridor sense chance (0..1). */
   hdbScoutBonus?: number;
+  /** Multiplier delta on HDB door / debris heat (e.g. −0.25 = 25% quieter). */
+  hdbDoorHeatMult?: number;
+  /** Flat bonus on HDB lockpick d20. */
+  hdbPickMod?: number;
+  /** Multiplier delta on HDB Force / Break minutes. */
+  hdbBreachMinutesMult?: number;
   /** Incoming damage multiplier for the first connecting hit of a fight. */
   firstHitDamageMult?: number;
 }

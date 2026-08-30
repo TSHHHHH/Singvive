@@ -16,6 +16,7 @@ import type { IconName } from '../icons/keys';
 import { itemName, traitName, useT } from '../i18n';
 import type { LocaleId, TVars } from '../i18n';
 import { STAT_LINE_ICONS } from './Inventory/itemStatLines';
+import { StatCard, useStatFold } from './statFold';
 
 const ROW_ICONS: Record<string, IconName> = {
   strength: ATTRIBUTE_ICONS.strength,
@@ -132,71 +133,91 @@ export function sheetLinesAsModifiers(lines: SheetLine[]): MeterModifier[] {
   }));
 }
 
+/** Value + chevron columns stay the same width on every line so totals line up with breakdowns. */
+const VALUE_COL = 'w-[4.75rem] shrink-0 text-right tabular-nums whitespace-nowrap';
+const CHEVRON_COL = 'w-3 shrink-0 text-center text-xs text-white/30';
+
+function SheetStatRow({ row }: { row: SheetRow }) {
+  const { locale, t } = useT();
+  const fold = useStatFold();
+  const icon = ROW_ICONS[row.id];
+  const total = formatSheetTotal(row);
+  const totalClass =
+    row.good === true ? 'text-signal' : row.good === false ? 'text-hiss' : 'text-concrete-50';
+  const lines = sheetSourceLines(row, t, locale);
+  const foldable = lines.length > 0;
+  const foldId = `row:${row.id}`;
+  const open = foldable ? fold.isOpen(foldId) : false;
+
+  const head = (
+    <>
+      <span className="w-6 shrink-0 text-center text-white/40">
+        {icon ? <Icon name={icon} size={16} /> : null}
+      </span>
+      <span className="min-w-0 flex-1 truncate text-xs text-white/55">
+        {t(`ui.sheet.row.${row.id}`)}
+      </span>
+      <span className={`${VALUE_COL} text-sm font-bold ${totalClass}`}>{total}</span>
+      <span className={CHEVRON_COL} aria-hidden>
+        {foldable ? (open ? '▴' : '▾') : ''}
+      </span>
+    </>
+  );
+
+  return (
+    <li>
+      {foldable ? (
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={() => fold.toggle(foldId)}
+          className="flex w-full items-center gap-2 rounded py-0.5 text-left hover:bg-white/5"
+        >
+          {head}
+        </button>
+      ) : (
+        <div className="flex items-center gap-2">{head}</div>
+      )}
+      {open && (
+        <ul className="mt-0.5 flex flex-col gap-px">
+          {lines.map((line) => (
+            <li
+              key={`${line.label}-${line.amount}`}
+              className={`flex items-center gap-2 text-xs ${
+                line.good ? 'text-signal/80' : 'text-hiss/90'
+              }`}
+            >
+              <span className="w-6 shrink-0" />
+              <span className="min-w-0 flex-1 truncate">{line.label}</span>
+              <span className={VALUE_COL}>{line.amount}</span>
+              <span className={CHEVRON_COL} />
+            </li>
+          ))}
+        </ul>
+      )}
+    </li>
+  );
+}
+
 /**
  * Live bonuses and penalties on the Stats tab: each derived number and the
  * traits, gear, load, injuries, meters, and weather currently moving it.
  */
 export function StatBonusesPanel() {
-  const { locale, t } = useT();
+  const { t } = useT();
   const sheet = useLiveStatSheet();
   if (!sheet) return null;
 
   return (
     <>
       {sheet.groups.map((group) => (
-        <section
-          key={group.id}
-          className="rounded-lg border border-white/15 bg-concrete-900/80 p-3"
-        >
-          <h4 className="mb-2 text-xs uppercase tracking-widest text-white/30">
-            {t(`ui.sheet.group.${group.id}`)}
-          </h4>
+        <StatCard key={group.id} title={t(`ui.sheet.group.${group.id}`)} foldable>
           <ul className="flex flex-col gap-2">
-            {group.rows.map((r) => {
-              const icon = ROW_ICONS[r.id];
-              const total = formatSheetTotal(r);
-              const totalClass =
-                r.good === true
-                  ? 'text-signal'
-                  : r.good === false
-                    ? 'text-hiss'
-                    : 'text-concrete-50';
-              const lines = sheetSourceLines(r, t, locale);
-              return (
-                <li key={r.id}>
-                  <div className="flex items-baseline gap-2">
-                    {icon ? (
-                      <span className="w-5 shrink-0 text-center text-white/40">
-                        <Icon name={icon} size={12} />
-                      </span>
-                    ) : (
-                      <span className="w-5 shrink-0" />
-                    )}
-                    <span className="min-w-0 flex-1 truncate text-xs text-white/55">
-                      {t(`ui.sheet.row.${r.id}`)}
-                    </span>
-                    {total !== '' && (
-                      <span className={`shrink-0 text-xs tabular-nums ${totalClass}`}>{total}</span>
-                    )}
-                  </div>
-                  <ul className="mt-0.5 flex flex-col gap-px pl-7">
-                    {lines.map((line) => (
-                      <li
-                        key={`${line.label}-${line.amount}`}
-                        className={`flex justify-between gap-2 text-2xs tabular-nums ${
-                          line.good ? 'text-signal/80' : 'text-hiss/90'
-                        }`}
-                      >
-                        <span className="min-w-0 truncate">{line.label}</span>
-                        {line.amount !== '' && <span className="shrink-0">{line.amount}</span>}
-                      </li>
-                    ))}
-                  </ul>
-                </li>
-              );
-            })}
+            {group.rows.map((r) => (
+              <SheetStatRow key={r.id} row={r} />
+            ))}
           </ul>
-        </section>
+        </StatCard>
       ))}
     </>
   );

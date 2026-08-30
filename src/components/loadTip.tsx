@@ -41,7 +41,7 @@ export function loadModifierLines(fx: LoadEffects, t: TFn): MeterModifier[] {
 }
 
 export const LOAD_TIP_CLASS =
-  'w-max max-w-[220px] rounded border border-white/15 bg-black/90 px-2 py-1.5 text-2xs leading-relaxed shadow-signage';
+  'w-max max-w-[220px] rounded border border-white/15 bg-black/90 px-2 py-1.5 text-xs leading-relaxed shadow-signage';
 
 export function LoadTipBody({
   fx,

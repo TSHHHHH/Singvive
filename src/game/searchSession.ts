@@ -52,7 +52,7 @@ export interface SearchSession {
   /** Charge + danger already applied. */
   settled: boolean;
   /** When set, this session is looting an HDB unit (no site search charge). */
-  hdbUnit?: { level: number; unitId: string; label: string };
+  hdbUnit?: { level: number; unitId: string; label: string; searchHp?: number };
 }
 
 export function qualityMult(def: ItemDef, condition?: number): number {
@@ -159,7 +159,7 @@ export function buildSearchSession(opts: {
   speedFactor: number;
   spendCharges?: boolean;
   chargeBudget?: number;
-  hdbUnit?: { level: number; unitId: string; label: string };
+  hdbUnit?: { level: number; unitId: string; label: string; searchHp?: number };
 }): SearchSession {
   const dims = SEARCH_DIMS;
   const occupied = new Set<string>();

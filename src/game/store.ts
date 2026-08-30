@@ -294,6 +294,7 @@ import { habitatAt, rollWildsEncounter, FLOODWATER_ANIMAL_CHANCE } from './wilds
 import type { AnimalHabitat } from './enemies';
 import {
   addHeat,
+  dropHeat,
   scoutFloor,
   breachOutcome,
   currentFloor,
@@ -303,9 +304,9 @@ import {
   isHunting,
   retreatCheck,
   findPathToward,
-  pathMinutes,
-  pathDescends,
-  pathUsesStairs,
+  hopMinutes,
+  hopWalkMs,
+  hopStoreysDropped,
   moveTo,
   canTargetCell,
   samePos,
@@ -316,14 +317,25 @@ import {
   FIGHT_HEAT,
   HAZARD_HEAT,
   HUNT_ELITE_CHANCE,
-  STAIR_MINUTES,
   updateUnit,
   hasStripTopology,
   UNIT_META,
+  LOCKPICK_ID,
+  PICK_MINUTES,
+  FOB_MINUTES,
+  SHELTER_HEAT_DROP,
+  SHELTER_HOURS,
+  scaleDoorCost,
+  pickCheck,
+  grantFob,
+  hasFob,
   migrateHdbDungeon,
+  type BreachOutcome,
   type HdbArchetype,
   type HdbDungeon,
+  type HdbEntry,
   type HdbPos,
+  type HdbBlock,
 } from './hdbDungeon';
 import {
   applyPulse,
@@ -451,6 +463,18 @@ export interface TravelAnim {
   departRange: number;
 }
 
+/** In-flight HDB cutaway walk. Runtime-only — not persisted. */
+export interface HdbWalk {
+  path: HdbPos[];
+  /** Standing on path[index]; animating toward path[index + 1]. */
+  index: number;
+  startedAt: number;
+  stepMs: number;
+  blockedBy: HdbBlock | null;
+  /** False when the path stops short of a corridor / stair block. */
+  reached: boolean;
+}
+
 interface State {
   phase: GamePhase;
 
@@ -533,6 +557,8 @@ interface State {
   hdb: HdbDungeon | null;
   /** Every block you've been inside, keyed by location — cleared stays cleared. */
   hdbBlocks: Record<string, HdbDungeon>;
+  /** Pin walking a cutaway path. Runtime-only. */
+  hdbWalk: HdbWalk | null;
 
   /**
    * The tunnel segment you're currently walking, if any. Deliberately NOT
@@ -734,11 +760,17 @@ interface State {
   // --- HDB vertical dungeon ---
   hdbEnter: () => void;
   hdbBreach: (unitId: string) => void;
+  hdbPick: (unitId: string) => void;
   /** Auto-path to a cutaway cell (maze + fog rules). */
   hdbGoTo: (pos: HdbPos) => void;
+  /** Advance one hop of an in-flight cutaway walk. */
+  hdbWalkStep: () => void;
   /** Clear a breakable corridor / stair block underfoot. */
   hdbForceBlock: (key: string) => void;
+  hdbUnlockGate: (key: string) => void;
   hdbUseService: (unitId: string) => void;
+  hdbUseShelter: (unitId: string) => void;
+  hdbReadNotice: (unitId: string) => void;
   hdbLeave: () => void;
 
   // --- noise & legacy ---
@@ -1043,6 +1075,7 @@ export const useGame = create<State>((set, get) => {
       pendingEvent: null,
       pendingSearch: null,
       raidMode: null,
+      hdbWalk: null,
       // Dying underground still ends on the death screen, not behind a map of
       // the tunnel you didn't finish.
       tunnel: null,
@@ -1076,6 +1109,7 @@ export const useGame = create<State>((set, get) => {
       _combatRng: null,
       pendingEvent: null,
       pendingSearch: null,
+      hdbWalk: null,
       hasSavedRun: false,
     });
   };
@@ -1310,6 +1344,15 @@ export const useGame = create<State>((set, get) => {
           _combatRng: fightRng.fork('fight'),
         });
         return true;
+      }
+    } else if (prevBand !== newBand) {
+      const sheltered = !!(g.currentPositionId || g.hdb || g.tunnel);
+      if (newBand === 'dusk') {
+        pushLog(flavor(sheltered ? 'duskFallsInside' : 'duskFalls'), sheltered ? 'info' : 'bad');
+      } else if (newBand === 'night') {
+        pushLog(flavor(sheltered ? 'nightFallsInside' : 'nightFalls'), sheltered ? 'info' : 'bad');
+      } else {
+        pushLog(flavor('dawnBreaks'), 'info');
       }
     }
     return false;
@@ -2172,16 +2215,46 @@ export const useGame = create<State>((set, get) => {
    * after the fight that came out of the doorway — either way the room is spent.
    * Loot opens a sequential search session (same timeline grid as outdoor sites).
    */
-  const clearHdbUnit = (level: number, unitId: string, lootMod: number, rng: Rng) => {
+  const markHdbUnitCleared = (hdb: HdbDungeon, level: number, unitId: string): HdbDungeon => {
+    const unit = hdb.floors[level - 1]?.units.find((u) => u.id === unitId);
+    let next = updateUnit(hdb, level, unitId, { state: 'cleared' });
+    if (unit?.holdsKey) {
+      const had = hasFob(next, unit.holdsKey);
+      next = grantFob(next, unit.holdsKey);
+      if (!had) pushLog('A fob on a lanyard. The stair grate might take it.', 'good');
+    }
+    return next;
+  };
+
+  const hdbForceOpts = () => {
+    const s = get();
+    return {
+      heatMult: sumTraitMod(s.character!.traitIds, 'hdbDoorHeatMult'),
+      minutesMult: sumTraitMod(s.character!.traitIds, 'hdbBreachMinutesMult'),
+      crowbar: s.items.some((i) => i.container === 'backpack' && i.defId === 'crowbar'),
+    };
+  };
+
+  const hdbBusy = (allowWalk = false) => {
+    const s = get();
+    return !s.hdb || !!s.combat || !!s.pendingSearch || !!s.pendingEvent || (!allowWalk && !!s.hdbWalk);
+  };
+
+  const clearHdbUnit = (
+    level: number,
+    unitId: string,
+    lootMod: number,
+    rng: Rng,
+    searchHp = 0,
+  ) => {
     const s = get();
     if (!s.hdb || s.pendingSearch) return;
     const unit = s.hdb.floors[level - 1]?.units.find((u) => u.id === unitId);
     const label = unit?.label ?? 'the unit';
     const table = unit ? UNIT_META[unit.type].lootTable : 'residential';
     if (!table) {
-      // Holdouts are cleared via hdbUseService — never search-loot them.
       bumpStats({ hdbUnitsCleared: 1 });
-      const hdb = updateUnit(s.hdb, level, unitId, { state: 'cleared' });
+      const hdb = markHdbUnitCleared(s.hdb, level, unitId);
       set({ hdb, hdbBlocks: { ...s.hdbBlocks, [hdb.locationId]: hdb } });
       pushLog(`${label} is spoken for — nothing left to take.`, 'info');
       persist();
@@ -2194,7 +2267,7 @@ export const useGame = create<State>((set, get) => {
     // is still in working order. This is the payoff for the noise and the time.
     const bias = Math.max(0, Math.min(1, lootMod / 5));
 
-    const hdb = updateUnit(s.hdb, level, unitId, { state: 'cleared' });
+    const hdb = markHdbUnitCleared(s.hdb, level, unitId);
     set({ hdb, hdbBlocks: { ...s.hdbBlocks, [hdb.locationId]: hdb } });
 
     if (loot.length === 0) {
@@ -2228,13 +2301,116 @@ export const useGame = create<State>((set, get) => {
         speedFactor: speed,
         spendCharges: false,
         chargeBudget: 1,
-        hdbUnit: { level, unitId, label },
+        hdbUnit: {
+          level,
+          unitId,
+          label,
+          ...(searchHp > 0 ? { searchHp } : {}),
+        },
       }),
       Date.now(),
     );
 
     set({ pendingSearch: session });
     pushLog(flavor('searchStart', { name: label }), 'info');
+    persist();
+  };
+
+  const resolveHdbDoor = (
+    unitId: string,
+    outcome: BreachOutcome,
+    entry: HdbEntry,
+    opts: { skipTime?: boolean } = {},
+  ) => {
+    const s = get();
+    if (!s.hdb) return;
+    const level = s.hdb.currentLevel;
+    const unit = currentFloor(s.hdb).units.find((u) => u.id === unitId);
+    if (!unit) return;
+    const verb = UNIT_META[unit.type].verb;
+    const smash = entry === 'locked' || entry === 'barricaded';
+    let minutes = outcome.minutes;
+    let heat = verb === 'fight' ? 0 : outcome.heat;
+    let noise = verb === 'fight' ? 0 : outcome.noise;
+    if (smash) {
+      const scaled = scaleDoorCost(outcome.minutes, outcome.heat, hdbForceOpts());
+      minutes = scaled.minutes;
+      if (verb !== 'fight') heat = scaled.heat;
+    }
+    if (!opts.skipTime && advanceTime(minutes / 60)) return;
+    const g = get();
+    if (!g.hdb) return;
+    const rng = new Rng(g.seed).fork(`breach:${g.hdb.locationId}:${unitId}`);
+    let next = updateUnit(g.hdb, level, unitId, { state: 'breached' });
+    if (heat > 0) next = addHeat(next, heat, level);
+    set({ hdb: next });
+    if (noise > 0) {
+      get().emitNoise(g.currentPos.lat, g.currentPos.lng, noise, outcome.dangerBoost);
+      pushLog(`You force ${unit.label}. The sound carries.`, 'bad');
+    } else {
+      pushLog(`You slip into ${unit.label} without touching the frame.`, 'info');
+    }
+
+    if (outcome.trapped && rng.chance(0.35)) {
+      const dmg = rng.int(4, 12);
+      const bodyParts = applyWound(get().bodyParts, dmg, rng);
+      const hot = get().hdb;
+      set({ bodyParts, ...(hot ? { hdb: addHeat(hot, HAZARD_HEAT, level) } : {}) });
+      pushLog(`Something by the door — it costs you ${dmg} health.`, 'bad');
+      const cause = checkDeath(get().meters, bodyParts);
+      if (cause) {
+        endRun(cause);
+        return;
+      }
+    }
+
+    const hot = get().hdb;
+    if (!hot) return;
+    const hdbUnit = { level, unitId, lootMod: outcome.lootMod };
+
+    if (verb === 'fight') {
+      const elite = !!UNIT_META[unit.type].fightElite;
+      startZombieCombat(hot.locationId, false, {
+        terrainOverride: 'hdb_corridor',
+        ...(elite
+          ? { enemy: makeHulk(rng, floorThreat(hot, level)) }
+          : { danger: floorThreat(hot, level) }),
+        intro: elite
+          ? `Something huge has claimed ${unit.label}.`
+          : `A pack fills ${unit.label}.`,
+        hdbUnit,
+      });
+      return;
+    }
+
+    if (verb === 'rest') {
+      persist();
+      return;
+    }
+
+    // Swarm hunt rewrites ordinary loot doors, never Nest / Den (those returned above).
+    if (isHunting(hot)) {
+      if (rng.chance(HUNT_ELITE_CHANCE)) {
+        startZombieCombat(hot.locationId, false, {
+          terrainOverride: 'hdb_corridor',
+          enemy: makeHulk(rng, floorThreat(hot, level)),
+          intro: `The corridor behind you fills. Whatever ${unit.label} held, it isn't the problem now.`,
+          hdbUnit,
+        });
+        return;
+      }
+      pushLog('Something heavy passes the corridor mouth and moves on.', 'info');
+    } else if (rng.chance(outcome.encounterChance)) {
+      startZombieCombat(hot.locationId, false, {
+        terrainOverride: 'hdb_corridor',
+        danger: floorThreat(hot, level),
+        intro: `Something was waiting inside ${unit.label}.`,
+        hdbUnit,
+      });
+      return;
+    }
+
+    clearHdbUnit(level, unitId, outcome.lootMod, rng.fork('loot'), outcome.searchHp);
     persist();
   };
 
@@ -3050,6 +3226,7 @@ export const useGame = create<State>((set, get) => {
     _combatRng: null,
     hdb: null,
     hdbBlocks: {},
+    hdbWalk: null,
     tunnel: null,
     tunnelSeq: 0,
     tunnelOffer: null,
@@ -4562,6 +4739,20 @@ export const useGame = create<State>((set, get) => {
         pendingSearch: result.session,
         items: [...get().items, inst],
       });
+      const burnHp = current.hdbUnit?.searchHp;
+      if (burnHp && burnHp > 0) {
+        const burnRng = new Rng(get().seed).fork(
+          `burn:${current.nonce}:${result.session.revealedCount}`,
+        );
+        const bodyParts = applyWound(get().bodyParts, burnHp, burnRng);
+        set({ bodyParts });
+        pushLog(`The unit is still burning — it costs you ${burnHp} health.`, 'bad');
+        const cause = checkDeath(get().meters, bodyParts);
+        if (cause) {
+          endRun(cause);
+          return;
+        }
+      }
       if (result.minutes > 0) {
         if (advanceTime(result.minutes / 60)) return;
       }
@@ -4795,7 +4986,7 @@ export const useGame = create<State>((set, get) => {
             const svc = pe.hdbService;
             const cur = get();
             if (!svc || !cur.hdb) return true;
-            const hdb = updateUnit(cur.hdb, svc.level, svc.unitId, { state: 'cleared' });
+            const hdb = markHdbUnitCleared(cur.hdb, svc.level, svc.unitId);
             set({ hdb, hdbBlocks: { ...cur.hdbBlocks, [hdb.locationId]: hdb } });
             return true;
           }
@@ -5632,6 +5823,7 @@ export const useGame = create<State>((set, get) => {
         // Re-enter at the void deck / lobby — fog memory stays in revealedLevels.
         const pos = { level: 1, column: saved.pos?.column ?? 0 };
         set({
+          hdbWalk: null,
           hdb: {
             ...saved,
             pos,
@@ -5650,7 +5842,7 @@ export const useGame = create<State>((set, get) => {
       }
       const archetype: HdbArchetype = loc.cleared && loc.factionId ? 'shelter' : 'estate';
       const rng = new Rng(s.seed).fork(`hdb:${loc.id}`);
-      set({ hdb: generateDungeon(rng, loc, archetype) });
+      set({ hdbWalk: null, hdb: generateDungeon(rng, loc, archetype) });
       pushLog(
         archetype === 'shelter'
           ? `You climb into ${loc.name}. Someone has made this block liveable.`
@@ -5664,83 +5856,71 @@ export const useGame = create<State>((set, get) => {
 
     hdbBreach: (unitId) => {
       const s = get();
-      if (!s.hdb || s.combat || s.pendingSearch || s.pendingEvent) return;
+      if (hdbBusy() || !s.hdb) return;
       const level = s.hdb.currentLevel;
       const unit = currentFloor(s.hdb).units.find((u) => u.id === unitId);
-      // Boarded doors and finished rooms never open a second time.
-      // Maze: you have to be standing on that door's cell.
-      if (!unit || !unit.available || unit.state === 'cleared') return;
+      if (!unit || !unit.available || unit.state === 'cleared' || unit.state === 'breached') return;
       if (s.hdb.pos.column !== unit.column || s.hdb.pos.level !== level) {
         pushLog('You need to walk to that door first.', 'info');
         return;
       }
-
-      const outcome = breachOutcome(s.hdb, unit, level);
-      if (advanceTime(outcome.minutes / 60)) return;
-
-      const g = get();
-      if (!g.hdb) return;
-      const rng = new Rng(g.seed).fork(`breach:${g.hdb.locationId}:${unitId}`);
-      set({ hdb: addHeat(updateUnit(g.hdb, level, unitId, { state: 'breached' }), outcome.heat, level) });
-      if (outcome.noise > 0) {
-        // Forcing a door is loud — the block hears it, and so does the street.
-        get().emitNoise(g.currentPos.lat, g.currentPos.lng, outcome.noise, outcome.dangerBoost);
-        pushLog(`You force ${unit.label}. The sound carries.`, 'bad');
-      } else {
-        pushLog(`You slip into ${unit.label} without touching the frame.`, 'info');
-      }
-
-      if (outcome.trapped && rng.chance(0.35)) {
-        const dmg = rng.int(4, 12);
-        const bodyParts = applyWound(get().bodyParts, dmg, rng);
-        const hot = get().hdb;
-        set({ bodyParts, ...(hot ? { hdb: addHeat(hot, HAZARD_HEAT, level) } : {}) });
-        pushLog(`Something by the door — it costs you ${dmg} health.`, 'bad');
-        const cause = checkDeath(get().meters, bodyParts);
-        if (cause) {
-          endRun(cause);
-          return;
-        }
-      }
-
-      // Re-read: the heat this breach added is what the roll has to answer to.
-      const hot = get().hdb;
-      if (!hot) return;
-      const hdbUnit = { level, unitId, lootMod: outcome.lootMod };
-
-      // A pinned block isn't guarding doors any more — it's hunting the floor.
-      if (isHunting(hot)) {
-        if (rng.chance(HUNT_ELITE_CHANCE)) {
-          startZombieCombat(hot.locationId, false, {
-            terrainOverride: 'hdb_corridor',
-            enemy: makeHulk(rng, floorThreat(hot, level)),
-            intro: `The corridor behind you fills. Whatever ${unit.label} held, it isn't the problem now.`,
-            hdbUnit,
-          });
-          return;
-        }
-        pushLog('Something heavy passes the corridor mouth and moves on.', 'info');
-      } else if (rng.chance(outcome.encounterChance)) {
-        startZombieCombat(hot.locationId, false, {
-          terrainOverride: 'hdb_corridor',
-          danger: floorThreat(hot, level),
-          intro: `Something was waiting inside ${unit.label}.`,
-          hdbUnit,
-        });
+      const verb = UNIT_META[unit.type].verb;
+      if (verb === 'service' || verb === 'intel') {
+        pushLog('That door is already hanging. Use what is inside.', 'info');
         return;
       }
+      resolveHdbDoor(unitId, breachOutcome(s.hdb, unit, level), unit.entry);
+    },
 
-      // Clean entry — take the room.
-      clearHdbUnit(level, unitId, outcome.lootMod, rng.fork('loot'));
-      persist();
+    hdbPick: (unitId) => {
+      const s = get();
+      if (hdbBusy() || !s.hdb || !s.character) return;
+      const level = s.hdb.currentLevel;
+      const unit = currentFloor(s.hdb).units.find((u) => u.id === unitId);
+      if (!unit || !unit.available || unit.state === 'cleared' || unit.state === 'breached') return;
+      if (s.hdb.pos.column !== unit.column || s.hdb.pos.level !== level) {
+        pushLog('You need to walk to that door first.', 'info');
+        return;
+      }
+      if (unit.entry !== 'locked') {
+        pushLog(
+          unit.entry === 'barricaded'
+            ? 'A barricade does not take a pick. Force it or walk away.'
+            : 'That door is not locked.',
+          'info',
+        );
+        return;
+      }
+      if (!hasBackpackItem(LOCKPICK_ID)) {
+        pushLog('You need a lockpick in the pack.', 'info');
+        return;
+      }
+      consumeBackpackItem(LOCKPICK_ID);
+      if (advanceTime(PICK_MINUTES / 60)) return;
+      const g = get();
+      if (!g.hdb || !g.character) return;
+      const pickMod = sumTraitMod(g.character.traitIds, 'hdbPickMod');
+      const rng = new Rng(g.seed).fork(`pick:${g.hdb.locationId}:${unitId}:${g.day}:${g.hdb.moveSeq}`);
+      const check = pickCheck(rng, g.character.attributes.dexterity, pickMod);
+      pushLog(
+        `Pick the lock — ${attrEmoji('dexterity')} d20 ${check.roll}+${g.character.attributes.dexterity}${pickMod ? `+${pickMod}` : ''} = ${check.total} vs DC ${check.dc}`,
+        check.success ? 'good' : 'bad',
+      );
+      if (!check.success) {
+        pushLog('The lock holds. The pick snaps in the cylinder.', 'bad');
+        persist();
+        return;
+      }
+      pushLog('The lock turns without a sound.', 'good');
+      const quiet = { ...unit, entry: 'ajar' as const };
+      resolveHdbDoor(unitId, breachOutcome(g.hdb, quiet, level), 'ajar', { skipTime: true });
     },
 
     hdbGoTo: (target) => {
       const s = get();
-      if (!s.hdb || s.combat || s.pendingSearch || s.pendingEvent) return;
+      if (hdbBusy() || !s.hdb) return;
       if (samePos(s.hdb.pos, target)) return;
       if (!canTargetCell(s.hdb, target)) return;
-      const load = loadOf(s);
 
       const attempt = findPathToward(s.hdb, s.hdb.pos, target);
       if (!attempt) {
@@ -5763,99 +5943,154 @@ export const useGame = create<State>((set, get) => {
       }
 
       const path = attempt.path;
-      const dest = path[path.length - 1];
-      const from = s.hdb.pos;
-      const descending = pathDescends(path);
-      const onStairs = pathUsesStairs(path);
-
       const seq = (s.hdb.moveSeq ?? 0) + 1;
-      set({ hdb: { ...s.hdb, moveSeq: seq } });
+      set({
+        hdb: { ...s.hdb, moveSeq: seq },
+        hdbWalk: {
+          path,
+          index: 0,
+          startedAt: Date.now(),
+          stepMs: hopWalkMs(path[0], path[1]),
+          blockedBy: attempt.reached ? null : attempt.blockedBy,
+          reached: attempt.reached,
+        },
+      });
+    },
 
-      if (onStairs && isHunting(s.hdb)) {
-        const huntRng = new Rng(s.seed).fork(
-          `hunt:${s.hdb.locationId}:${posKey(from)}:${posKey(dest)}:${s.day}:${seq}`,
+    hdbWalkStep: () => {
+      const s = get();
+      if (!s.hdb || !s.hdbWalk || s.combat || s.pendingSearch || s.pendingEvent || !s.character) {
+        return;
+      }
+      const walk = s.hdbWalk;
+      const from = walk.path[walk.index];
+      const to = walk.path[walk.index + 1];
+      if (!from || !to) {
+        set({ hdbWalk: null });
+        return;
+      }
+      if (Date.now() - walk.startedAt < walk.stepMs - 16) return;
+
+      const load = loadOf(s);
+      const minutes = hopMinutes(from, to, load.stairMult);
+      if (advanceTime(minutes / 60, undefined, false, false, load.energyMult)) {
+        set({ hdbWalk: null });
+        return;
+      }
+      const g = get();
+      if (!g.hdb || !g.hdbWalk || !g.character) return;
+
+      const seq = g.hdb.moveSeq ?? 0;
+      const stairHop = from.level !== to.level;
+
+      if (stairHop && isHunting(g.hdb)) {
+        const huntRng = new Rng(g.seed).fork(
+          `hunt:${g.hdb.locationId}:${posKey(from)}:${posKey(to)}:${g.day}:${seq}:${walk.index}`,
         );
         if (huntRng.chance(HUNT_ELITE_CHANCE)) {
-          if (advanceTime((STAIR_MINUTES * load.stairMult) / 60, undefined, false, false, load.energyMult)) return;
-          const g = get();
-          if (!g.hdb) return;
+          set({ hdbWalk: null });
           pushLog('The stairwell is not empty. It has been waiting.', 'bad');
           startZombieCombat(g.hdb.locationId, false, {
             terrainOverride: 'hdb_corridor',
             enemy: makeHulk(huntRng, floorThreat(g.hdb, from.level)),
             intro: 'It fills the landing shoulder to shoulder.',
-            // Resume the interrupted hop after the fight — staying put re-arms
-            // the same stair check and hard-locks the floor.
-            hdbStairs: { dest },
+            hdbStairs: { dest: to },
           });
           return;
         }
         pushLog('You take the stairs in silence. Nothing follows — this time.', 'info');
       }
 
-      if (descending && descentIsChecked(s.hdb)) {
-        const rng = new Rng(s.seed).fork(
-          `retreat:${s.hdb.locationId}:${from.level}:${s.day}:${seq}`,
+      const dropped = hopStoreysDropped(from, to);
+      if (dropped > 0 && descentIsChecked(g.hdb)) {
+        const rng = new Rng(g.seed).fork(
+          `retreat:${g.hdb.locationId}:${from.level}:${to.level}:${g.day}:${seq}:${walk.index}`,
         );
-        const check = retreatCheck(rng, s.character!.attributes, s.hdb, load.fleeDcMod);
-        pushLog(
-          `Stairwell descent — ${attrEmoji('dexterity')} ${attrEmoji('endurance')} d20 ${check.roll}+${s.character!.attributes.dexterity + s.character!.attributes.endurance} = ${check.total} vs DC ${check.dc}`,
-          check.success ? 'good' : 'bad',
-        );
-        if (!check.success) {
-          if (advanceTime((STAIR_MINUTES * load.stairMult) / 60, undefined, false, false, load.energyMult)) return;
-          const g = get();
-          pushLog('Something comes up the stairs to meet you.', 'bad');
-          startZombieCombat(g.hdb!.locationId, false, {
-            terrainOverride: 'hdb_corridor',
-            danger: floorThreat(g.hdb!, from.level),
-            intro: 'Cut off on the landing.',
-            hdbStairs: { dest },
-          });
-          return;
+        for (let i = 0; i < dropped; i++) {
+          const check = retreatCheck(rng, g.character.attributes, g.hdb, load.fleeDcMod);
+          pushLog(
+            `Storey descent (${i + 1}/${dropped}) — ${attrEmoji('dexterity')} ${attrEmoji('endurance')} d20 ${check.roll}+${g.character.attributes.dexterity + g.character.attributes.endurance} = ${check.total} vs DC ${check.dc}`,
+            check.success ? 'good' : 'bad',
+          );
+          if (!check.success) {
+            set({ hdbWalk: null });
+            pushLog('Something comes up the stairs to meet you.', 'bad');
+            startZombieCombat(g.hdb.locationId, false, {
+              terrainOverride: 'hdb_corridor',
+              danger: floorThreat(g.hdb, from.level),
+              intro: 'Cut off on the landing.',
+              hdbStairs: { dest: to },
+            });
+            return;
+          }
         }
       }
 
-      const minutes = pathMinutes(path, load.stairMult);
-      if (advanceTime(minutes / 60, undefined, false, false, load.energyMult)) return;
-      const g = get();
-      if (!g.hdb) return;
-      const wasNew = !g.hdb.revealedLevels.includes(dest.level);
-      set({ hdb: moveTo(g.hdb, dest) });
-      if (wasNew) sweepFloor(dest.level);
-
-      if (!attempt.reached && attempt.blockedBy) {
-        const label = BLOCK_META[attempt.blockedBy.kind].label.toLowerCase();
-        pushLog(
-          attempt.blockedBy.breakable
-            ? `You stop short of a ${label}. Clear it to keep going.`
-            : `You stop short of a ${label}. That way is gone.`,
-          'info',
-        );
+      const wasNew = !g.hdb.revealedLevels.includes(to.level);
+      const moved = moveTo(g.hdb, to);
+      const nextIndex = walk.index + 1;
+      const more = nextIndex < walk.path.length - 1;
+      if (more) {
+        const nxt = walk.path[nextIndex + 1];
+        set({
+          hdb: moved,
+          hdbWalk: {
+            ...walk,
+            index: nextIndex,
+            startedAt: Date.now(),
+            stepMs: hopWalkMs(to, nxt),
+          },
+        });
+      } else {
+        set({ hdb: moved, hdbWalk: null });
+        if (!walk.reached && walk.blockedBy) {
+          const label = BLOCK_META[walk.blockedBy.kind].label.toLowerCase();
+          pushLog(
+            walk.blockedBy.breakable
+              ? `You stop short of a ${label}. Clear it to keep going.`
+              : `You stop short of a ${label}. That way is gone.`,
+            'info',
+          );
+        }
       }
+      if (wasNew) sweepFloor(to.level);
     },
 
     hdbForceBlock: (key) => {
       const s = get();
-      if (!s.hdb || s.combat || s.pendingSearch || s.pendingEvent) return;
+      if (hdbBusy() || !s.hdb) return;
       const adj = adjacentBreakableBlocks(s.hdb).find((a) => a.key === key);
       if (!adj) return;
-      if (advanceTime(adj.block.minutes / 60)) return;
+      const scaled = scaleDoorCost(adj.block.minutes, adj.block.heat, hdbForceOpts());
+      if (advanceTime(scaled.minutes / 60)) return;
       const g = get();
       if (!g.hdb) return;
-      const cleared = addHeat(clearBlock(g.hdb, key), adj.block.heat, g.hdb.pos.level);
+      const cleared = addHeat(clearBlock(g.hdb, key), scaled.heat, g.hdb.pos.level);
       set({ hdb: cleared });
       get().emitNoise(g.currentPos.lat, g.currentPos.lng, 280, 1);
       pushLog(
-        `You clear the ${BLOCK_META[adj.block.kind].label.toLowerCase()}. ${adj.block.minutes} min, loud.`,
+        `You clear the ${BLOCK_META[adj.block.kind].label.toLowerCase()}. ${Math.round(scaled.minutes)} min, loud.`,
         'bad',
       );
       persist();
     },
 
+    hdbUnlockGate: (key) => {
+      const s = get();
+      if (hdbBusy() || !s.hdb) return;
+      const adj = adjacentBreakableBlocks(s.hdb).find((a) => a.key === key);
+      if (!adj || adj.block.kind !== 'stair_gate' || !hasFob(s.hdb, adj.block.keyId)) return;
+      if (advanceTime(FOB_MINUTES / 60)) return;
+      const g = get();
+      if (!g.hdb) return;
+      set({ hdb: clearBlock(g.hdb, key) });
+      pushLog('The fob clicks. The grate swings.', 'good');
+      persist();
+    },
+
     hdbUseService: (unitId) => {
       const s = get();
-      if (!s.hdb || s.combat || s.pendingSearch || s.pendingEvent) return;
+      if (hdbBusy() || !s.hdb) return;
       const level = s.hdb.currentLevel;
       const unit = currentFloor(s.hdb).units.find((u) => u.id === unitId);
       if (!unit?.service || !unit.available || unit.state === 'cleared') return;
@@ -5874,9 +6109,6 @@ export const useGame = create<State>((set, get) => {
         if (advanceTime(6, restored, true)) return;
         pushLog('You sleep six hours behind a locked gate. Nothing finds you.', 'good');
       } else if (unit.service === 'field_doctor') {
-        // Treatment is an offer, not a purchase: the prompt names the price
-        // and nothing leaves the pack until the survivor picks. resolveEvent
-        // does the paying, the hour and the dressings.
         const rng = new Rng(s.seed).fork(`doc:${s.hdb.locationId}:${unitId}:${s.day}`);
         const event = fieldDoctorEvent(rng, s.hdb.name);
         pushLog(event.tell, 'info');
@@ -5895,14 +6127,96 @@ export const useGame = create<State>((set, get) => {
         set({ items: r.items });
         pushLog('You trade jewellery for a medkit. Gold is worth less every day.', 'good');
       }
-      const hdb = updateUnit(get().hdb!, level, unitId, { state: 'cleared' });
+      const hdb = markHdbUnitCleared(get().hdb!, level, unitId);
       set({ hdb, hdbBlocks: { ...get().hdbBlocks, [hdb.locationId]: hdb } });
+      persist();
+    },
+
+    hdbUseShelter: (unitId) => {
+      const s = get();
+      if (hdbBusy() || !s.hdb || !s.character) return;
+      const level = s.hdb.currentLevel;
+      const unit = currentFloor(s.hdb).units.find((u) => u.id === unitId);
+      if (!unit || unit.type !== 'shelter' || !unit.available || unit.state === 'cleared') return;
+      if (unit.state !== 'breached') {
+        pushLog('Force the steel door first.', 'info');
+        return;
+      }
+      if (s.hdb.pos.column !== unit.column || s.hdb.pos.level !== level) {
+        pushLog('You need to walk to that door first.', 'info');
+        return;
+      }
+      const restored = sleepRestore(
+        s.meters.energy,
+        SHELTER_HOURS,
+        s.meters,
+        sumTraitMod(s.character.traitIds, 'sleepRestoreMod'),
+      );
+      if (advanceTime(SHELTER_HOURS, restored, true)) return;
+      const g = get();
+      if (!g.hdb) return;
+      const cooled = dropHeat(g.hdb, SHELTER_HEAT_DROP, level);
+      const hdb = markHdbUnitCleared(cooled, level, unitId);
+      set({ hdb, hdbBlocks: { ...g.hdbBlocks, [hdb.locationId]: hdb } });
+      bumpStats({ hdbUnitsCleared: 1 });
+      pushLog(
+        `You hole up for ${SHELTER_HOURS} hours. The stairwell forgets you a little (−${SHELTER_HEAT_DROP} heat).`,
+        'good',
+      );
+      persist();
+    },
+
+    hdbReadNotice: (unitId) => {
+      const s = get();
+      if (hdbBusy() || !s.hdb) return;
+      const level = s.hdb.currentLevel;
+      const unit = currentFloor(s.hdb).units.find((u) => u.id === unitId);
+      if (!unit || unit.type !== 'notice' || !unit.available || unit.state === 'cleared') return;
+      if (s.hdb.pos.column !== unit.column || s.hdb.pos.level !== level) {
+        pushLog('You need to walk to that door first.', 'info');
+        return;
+      }
+      if (advanceTime(0.25)) return;
+      const g = get();
+      if (!g.hdb) return;
+      const loc = g.locations[g.hdb.locationId];
+      const rng = new Rng(g.seed).fork(`notice:${g.hdb.locationId}:${unitId}`);
+      const locs = { ...g.locations };
+      if (loc) {
+        const nearby = Object.values(locs)
+          .filter((l) => l.id !== loc.id && !l.discovered)
+          .map((l) => ({ l, d: haversine(loc.lat, loc.lng, l.lat, l.lng) }))
+          .filter((x) => x.d <= 1200)
+          .sort((a, b) => a.d - b.d);
+        if (nearby.length) {
+          const pick = nearby[rng.int(0, Math.min(4, nearby.length) - 1)].l;
+          const revealed: LocationState = {
+            ...pick,
+            discovered: true,
+            isFactionRevealed: pick.factionId ? true : pick.isFactionRevealed,
+          };
+          revealed.lastSeen = snapshot(revealed);
+          locs[pick.id] = revealed;
+          set({ locations: locs });
+          pushLog(
+            `The board still names ${pick.name} (${POI_CONFIG[pick.category].label}) about ${Math.round(haversine(loc.lat, loc.lng, pick.lat, pick.lng))} m out. Marked on your map.`,
+            'good',
+            undefined,
+            { lat: pick.lat, lng: pick.lng, label: pick.name },
+          );
+        } else {
+          pushLog('The board is rain-pulled blank. Nothing left to mark.', 'info');
+        }
+      }
+      const hdb = markHdbUnitCleared(get().hdb!, level, unitId);
+      set({ hdb, hdbBlocks: { ...get().hdbBlocks, [hdb.locationId]: hdb } });
+      bumpStats({ hdbUnitsCleared: 1 });
       persist();
     },
 
     hdbLeave: () => {
       const s = get();
-      if (!s.hdb || s.combat || s.pendingEvent) return;
+      if (!s.hdb || s.combat || s.pendingEvent || s.hdbWalk) return;
       if (s.pendingSearch) {
         pushLog('Finish or leave the unit search before you walk out.', 'info');
         return;
@@ -5915,6 +6229,7 @@ export const useGame = create<State>((set, get) => {
       const g = get();
       set({
         hdb: null,
+        hdbWalk: null,
         hdbBlocks: g.hdb ? { ...g.hdbBlocks, [blockId]: g.hdb } : g.hdbBlocks,
       });
       pushLog('You step back out onto the void deck.', 'info');
@@ -6339,9 +6654,16 @@ export const useGame = create<State>((set, get) => {
         const g = get();
         if (outcome === 'win' && g.hdb) {
           const rng = new Rng(g.seed).fork(`hdbloot:${g.hdb.locationId}:${unitId}`);
-          clearHdbUnit(level, unitId, lootMod, rng);
+          const unit = g.hdb.floors[level - 1]?.units.find((u) => u.id === unitId);
+          clearHdbUnit(
+            level,
+            unitId,
+            lootMod,
+            rng,
+            unit ? (UNIT_META[unit.type].searchHp ?? 0) : 0,
+          );
         } else if (g.hdb) {
-          const hdb = updateUnit(g.hdb, level, unitId, { state: 'cleared' });
+          const hdb = markHdbUnitCleared(g.hdb, level, unitId);
           set({ hdb, hdbBlocks: { ...g.hdbBlocks, [hdb.locationId]: hdb } });
           pushLog('You back out of the doorway and leave that unit behind.', 'info');
         }
@@ -6416,6 +6738,7 @@ export const useGame = create<State>((set, get) => {
         _combatRng: null,
         hdb: null,
         hdbBlocks: {},
+        hdbWalk: null,
         tunnel: null,
         tunnelSeq: 0,
         tunnelOffer: null,
@@ -6525,6 +6848,7 @@ export const useGame = create<State>((set, get) => {
         _combatRng: null,
         hdb: null,
         hdbBlocks: run.hdbBlocks ?? {},
+        hdbWalk: null,
         // Unlike a block, a tunnel run resumes exactly where it stopped. The
         // player's position only moves on arrival, so ejecting them here would
         // refund every node they hadn't walked yet.

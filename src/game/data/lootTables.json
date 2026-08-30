@@ -435,6 +435,10 @@
       8
     ],
     [
+      "lockpick",
+      6
+    ],
+    [
       "batteries",
       5
     ],
@@ -595,6 +599,10 @@
       4.2
     ],
     [
+      "lockpick",
+      6
+    ],
+    [
       "bandage",
       5.2
     ],
@@ -739,6 +747,10 @@
     [
       "scrap_metal",
       3
+    ],
+    [
+      "lockpick",
+      2
     ],
     [
       "hammer",
@@ -1029,6 +1041,10 @@
     [
       "scrap_metal",
       10
+    ],
+    [
+      "lockpick",
+      5
     ],
     [
       "duct_tape",

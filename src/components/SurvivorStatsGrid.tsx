@@ -43,7 +43,7 @@ function StatCell({ label, value, tip: tipText, modifiers }: StatCellProps) {
   const inner = (
     <>
       <div className="text-sm font-bold tabular-nums text-signal">{value}</div>
-      <div className="text-2xs uppercase text-white/40">{label}</div>
+      <div className="text-xs uppercase tracking-wide text-white/40">{label}</div>
     </>
   );
   if (modifiers?.length) {

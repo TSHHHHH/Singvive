@@ -60,6 +60,11 @@ export type IconName =
   | 'hdb.stairwell'
   | 'hdb.service'
   | 'hdb.hazard'
+  | 'hdb.nest'
+  | 'hdb.den'
+  | 'hdb.burning'
+  | 'hdb.shelter'
+  | 'hdb.notice'
   | 'hdb.unavailable'
   | 'hdb.sealedCollapsed'
   | 'hdb.sealedFlooded'
@@ -229,6 +234,7 @@ export type IconName =
   | 'item.kitchen_knife'
   | 'item.hammer'
   | 'item.crowbar'
+  | 'item.lockpick'
   | 'item.fire_axe'
   | 'item.parang'
   | 'item.pistol'
@@ -384,6 +390,11 @@ export const EMOJI_FALLBACK: Record<IconName, string> = {
   'hdb.stairwell': '🪜',
   'hdb.service': '🤝',
   'hdb.hazard': '☢️',
+  'hdb.nest': '🧟',
+  'hdb.den': '💀',
+  'hdb.burning': '🔥',
+  'hdb.shelter': '🛡️',
+  'hdb.notice': '📋',
   'hdb.unavailable': '✕',
   'hdb.sealedCollapsed': '🧱',
   'hdb.sealedFlooded': '🌊',
@@ -611,6 +622,7 @@ export const EMOJI_FALLBACK: Record<IconName, string> = {
   'item.kitchen_knife': '🔪',
   'item.hammer': '🔨',
   'item.crowbar': '🪓',
+  'item.lockpick': '🗝️',
   'item.fire_axe': '🪓',
   'item.parang': '🗡️',
   'item.pistol': '🔫',

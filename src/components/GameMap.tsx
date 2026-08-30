@@ -3,6 +3,7 @@ import { Fragment, memo, useEffect, useMemo, useRef, useState } from 'react';
 import type L from 'leaflet';
 import type { Poi, TimeOfDay, WeatherKind } from '../game/types';
 import { WeatherFx } from './WeatherFx';
+import { TimeOfDayFx } from './TimeOfDayFx';
 import { poiIcon, playerIcon, unknownIcon, evacIcon, dangerColor } from './mapIcons';
 import {
   TILE_ATTRIBUTION,
@@ -693,6 +694,7 @@ function GameMapInner({
 
       {/* ---- the sky, over everything on the map but under the chrome ---- */}
       <WeatherFx kind={weather} time={time} />
+      <TimeOfDayFx time={time} />
 
       {/* ---- diegetic vignettes: the frame tells you how bad it is ---- */}
       {vitals.infected && (

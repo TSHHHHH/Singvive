@@ -1506,6 +1506,20 @@
     "maxStack": 4,
     "color": "#6b7075"
   },
+  "lockpick": {
+    "id": "lockpick",
+    "name": "Lockpick",
+    "w": 1,
+    "h": 1,
+    "weight": 0.05,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 8,
+    "stackable": true,
+    "maxStack": 4,
+    "color": "#8a9096"
+  },
   "toolbox": {
     "id": "toolbox",
     "name": "Toolbox",

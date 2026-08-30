@@ -10,7 +10,7 @@ Standard commands live in `package.json` (`dev`, `build`, `lint`, `preview`, `de
 - **`npm run dev` uses the Cloudflare Vite plugin.** Local D1 is automatic (no extra process). First-time local schema: `npm run db:migrate:local`.
 - **`npm run build` runs `tsc -b` first**, so it is also the typecheck gate. There is no separate test suite in this repo.
 - **Deploy** is Workers + Assets + D1 (`npm run deploy`), not Cloudflare Pages. One-time: `npx wrangler d1 create singvive-scores`, put the id in `wrangler.jsonc`, then `npm run db:migrate`.
-- **Map basemap tiles:** active provider is **CARTO Dark Matter** (keyless everywhere, retina `{r}`, native z20). Stadia / Esri URLs live in `src/components/tileConfig.ts` as alternatives only.
+- **Map basemap tiles:** active provider is **CARTO Dark Matter** (retina `{r}`, native z20). Raster tiles need `VITE_CARTO_API_KEY` in `.env.local` (baked in at Vite build) or CARTO watermarks them. Stadia / Esri URLs live in `src/components/tileConfig.ts` as alternatives only.
 - **`window.__game`** exposes the live Zustand store in the browser console for DEV inspection.
 - The `bake:pois` / `bake:mrt` / `bake:zones` / `bake:towns` scripts re-fetch map data (Overpass or data.gov.sg) and are **manual, committed steps** — they are intentionally NOT part of `npm run build`. Do not run them during environment setup.
 - Everything under `src/game/` is pure and seed-driven (see `.kiro/hooks/game-logic-guard.kiro.hook`): no React/DOM imports, no `fetch`, no gameplay `Math.random()` (use the seeded `Rng`), no `any`. Cosmetic flavour helpers may use `Math.random`; `rng.ts` may use it only to mint a fresh seed string. Score HTTP lives in `src/api/` and `worker/`.

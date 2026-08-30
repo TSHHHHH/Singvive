@@ -312,13 +312,14 @@ hostility, trade, shelter, aid, and intel:
 ### 3.14 HDB dungeons
 - Void decks open a **vertical push-your-luck cutaway** (`game/hdbDungeon.ts`, zoom/pan via
   `react-zoom-pan-pinch`): stair columns, units, block **heat**, noise, and tiered loot.
-  Door faces show **room type** (Flat / Stocked / Trapped / Storeroom / Pantry / Holdout);
-  locked/ajar state and encounter odds live on the location card (hover Room for the type
-  blurb). Sealed storeys are **permanently gone**. Stairs stay visible for orientation.
-  Auto-path stops at corridor/stair **blockades** — clear them to open the maze. Door
-  **encounter chance** tracks heat + entry type; higher storeys pay better loot. Heat can
-  force a Dex+End check (or hunt) when descending. **Leave only from level 01.**
-  Estate vs shelter archetypes change holdout rates.
+  Door faces show **room type** (search, hazard, burn, fight, rest, intel, service);
+  locked / half-open / barricaded state and encounter odds live on the location card
+  (hover Room for the type blurb). Most loot doors must be Forced or Picked (lockpick,
+  consumed). The pin **walks hop-by-hop**; every downward storey is a Dex+End check
+  and a fight stops you on that landing. Sealed storeys are **permanently gone**.
+  Stairs stay visible for orientation. Auto-path stops at corridor/stair **blockades**
+  — smash them or use a **fob**. The **roof** is a short gated deck with extra loot.
+  **Leave only from level 01.** Estate vs shelter archetypes change holdout rates.
 
 ### 3.15 Noise
 - Actions emit spatial **noise pulses** (`game/noise.ts`) that temporarily boost nearby POI danger
@@ -394,7 +395,7 @@ hostility, trade, shelter, aid, and intel:
 | Concern | Choice |
 |---|---|
 | Framework | React 19 + TypeScript 6 + Vite 8 |
-| Map | Leaflet + react-leaflet, **CARTO "Dark Matter"** tiles (keyless, retina `{r}` / `@2x`, native z20; Stadia + Esri kept in `tileConfig.ts` as alternatives), canvas renderer + custom fog overlay |
+| Map | Leaflet + react-leaflet, **CARTO "Dark Matter"** tiles (`VITE_CARTO_API_KEY`, retina `{r}` / `@2x`, native z20; Stadia + Esri kept in `tileConfig.ts` as alternatives), canvas renderer + custom fog overlay |
 | Real data | OpenStreetMap → `public/pois.json` (`bake:pois`), `public/mrt.json` (`bake:mrt`), `public/zones.json` (`bake:zones`); URA planning areas → `public/towns.json` (`bake:towns`); live Overpass as POI runtime fallback |
 | State | Zustand 5 (single store); `window.__game` in DEV |
 | Inventory DnD | Custom pointer-drag over a cell grid (backpack ↔ stash ↔ equipment) |
@@ -434,10 +435,11 @@ seed, forked per-system (`rng.fork('loot'|'faction'|'event'|'human'|'wound'…)`
 the DOM. Exceptions: cosmetic flavour helpers may use `Math.random` (non-gameplay), and `rng.ts`
 itself uses it only to mint a fresh seed string.
 
-**Note on tiles:** Active basemap is **CARTO Dark Matter** (keyless everywhere, `{r}` retina, native
-z20). Stadia is sharper but keyless only on `localhost`; Esri is a last-resort fallback (no `@2x`,
-caps at z16). **Any replacement must support both `{r}` and native z20**, or the map goes soft —
-`TILE_MAX_NATIVE_ZOOM` must match what the provider actually serves.
+**Note on tiles:** Active basemap is **CARTO Dark Matter** (`{r}` retina, native z20). Raster tiles
+need `VITE_CARTO_API_KEY` in `.env.local` (copy from `.env.example`; baked in at `vite build`) or
+CARTO watermarks them. Stadia is sharper but keyless only on `localhost`; Esri is a last-resort
+fallback (no `@2x`, caps at z16). **Any replacement must support both `{r}` and native z20**, or
+the map goes soft — `TILE_MAX_NATIVE_ZOOM` must match what the provider actually serves.
 
 ### DEV tooling stack (reuse this)
 
@@ -539,6 +541,7 @@ running client.
 
 ```bash
 npm install
+# copy .env.example → .env.local and set VITE_CARTO_API_KEY (CARTO raster watermark otherwise)
 npm run dev       # http://localhost:5190  (PORT env overrides; see vite.config.ts)
 npm run build     # typecheck (tsc -b) + production build
 npm run lint      # oxlint
@@ -756,6 +759,7 @@ Generic survival add-ons. Fine later; they do not answer “why this game.”
   snapshot: new shops in OSM won't appear until the next bake.
 - Many Singapore shops are mapped as **point nodes**, not buildings, so not every POI has a drawable
   outline — those render as a category badge instead.
-- The active basemap is CARTO Dark Matter (keyless). Stadia needs an API key off-localhost; Esri
-  looks soft (no `@2x`, no z20). **Any replacement must support both `{r}` (retina) and native z20**,
-  or Leaflet upscales and the map goes soft — set `TILE_MAX_NATIVE_ZOOM` to what the provider serves.
+- The active basemap is CARTO Dark Matter (`VITE_CARTO_API_KEY` in `.env.local`). Stadia needs an
+  API key off-localhost; Esri looks soft (no `@2x`, no z20). **Any replacement must support both
+  `{r}` (retina) and native z20**, or Leaflet upscales and the map goes soft — set
+  `TILE_MAX_NATIVE_ZOOM` to what the provider serves.

@@ -1,8 +1,17 @@
+import type { CSSProperties } from 'react';
 import { Icon } from '../icons/Icon';
 import type { IconName } from '../icons/keys';
 import { TIME_LABEL } from '../game/weather';
 import { useClockFormat } from '../game/settings';
+import { formatDuration } from '../game/travel';
 import type { TimeOfDay } from '../game/types';
+import { useClockAdvance } from './useClockAdvance';
+
+const BAND_COLOR: Record<TimeOfDay, string> = {
+  day: '#e8e5dd',
+  dusk: '#e0a04a',
+  night: '#2bc4d9',
+};
 
 /**
  * Prominent LCD-style clock. Time drives danger, encounters and survival, so it
@@ -18,6 +27,7 @@ export function DigitalClock({
   band: TimeOfDay;
 }) {
   const clock = useClockFormat();
+  const fx = useClockAdvance(day, hour);
   const h24 = ((Math.floor(hour) % 24) + 24) % 24;
   const m = Math.floor((hour - Math.floor(hour)) * 60);
   const twelve = clock === '12';
@@ -29,21 +39,33 @@ export function DigitalClock({
   const night = band === 'night';
   const dusk = band === 'dusk';
   const icon: IconName = night ? 'time.night' : dusk ? 'time.dusk' : 'time.day';
-  // amber at dusk, cold blue at night, signal green by day
-  const color = night ? '#2bc4d9' : dusk ? '#cfccc4' : '#e8e5dd';
+  const color = BAND_COLOR[band];
+  const pulse = fx ? (fx.kind === 'band' ? 'clock-pulse-band' : 'clock-pulse-tick') : '';
 
   return (
     <div
-      className="flex items-center justify-between rounded-lg border border-white/15 bg-concrete-900/80 px-3 py-2"
-      style={{ boxShadow: 'inset 0 0 12px rgba(0,0,0,.6)' }}
+      key={fx?.nonce ?? 'idle'}
+      className={`relative flex items-center justify-between overflow-visible rounded-lg border border-white/15 bg-concrete-900/80 px-3 py-2 ${pulse}`}
+      style={
+        {
+          boxShadow: 'inset 0 0 12px rgba(0,0,0,.6)',
+          '--clock-accent': color,
+        } as CSSProperties
+      }
     >
       <div className="flex flex-col leading-none">
-        <span className="text-2xs uppercase tracking-[0.2em] text-white/35">Day {day}</span>
-        <span className="mt-0.5 text-xs uppercase tracking-widest text-white/45">
+        <span
+          className={`text-2xs uppercase tracking-[0.2em] text-white/35 ${fx?.dayChanged ? 'clock-label-flash' : ''}`}
+        >
+          Day {day}
+        </span>
+        <span
+          className={`mt-0.5 text-xs uppercase tracking-widest text-white/45 ${fx?.kind === 'band' ? 'clock-label-flash' : ''}`}
+        >
           {TIME_LABEL[band]}
         </span>
       </div>
-      <div className="flex items-baseline gap-1.5">
+      <div className="relative flex items-baseline gap-1.5">
         <Icon name={icon} size={18} className="leading-none" />
         <span
           className="font-mono text-3xl font-bold leading-none tabular-nums"
@@ -56,6 +78,11 @@ export function DigitalClock({
         {meridiem && (
           <span className="text-xs font-bold uppercase tracking-wide" style={{ color }}>
             {meridiem}
+          </span>
+        )}
+        {fx && (
+          <span className="clock-delta-chip pointer-events-none absolute -top-1.5 right-0" aria-hidden>
+            +{formatDuration(Math.round(fx.deltaHours * 60))}
           </span>
         )}
       </div>

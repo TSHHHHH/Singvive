@@ -68,7 +68,12 @@ export type FlavorKey =
   | 'sortHaul'
   | 'sortHaulSurface'
   | 'packSpill'
-  | 'packLost';
+  | 'packLost'
+  | 'duskFalls'
+  | 'duskFallsInside'
+  | 'nightFalls'
+  | 'nightFallsInside'
+  | 'dawnBreaks';
 
 /** Frames for first-visit street surveys — filled with size + ruin clauses. */
 const SITE_SURVEY_FRAMES: string[] = [
@@ -377,6 +382,32 @@ const POOLS: Record<FlavorKey, string[]> = {
     'No room left even in the spill — some finds stay behind.',
     'You leave finds on the ground. Nowhere left to put them.',
     'Overflow full. Whatever you couldn\'t hold is gone.',
+  ],
+  duskFalls: [
+    'The light goes thin. Dusk. They\'ll be moving soon.',
+    'Sky turns the colour of rust. Dusk is here.',
+    'The heat starts to drop. So does the light.',
+  ],
+  duskFallsInside: [
+    'The windows go amber. Dusk outside. You\'re still behind a door.',
+    'Light dies on the glass. Dusk. The street will get worse.',
+    'It\'s dusk out there. In here you can still hear it coming.',
+  ],
+  nightFalls: [
+    'Night takes the street. Keep to cover or don\'t stay out.',
+    'The last of the light goes. This is their hours now.',
+    'Dark. The city sounds different already.',
+  ],
+  nightFallsInside: [
+    'Night on the other side of the wall. The street is theirs.',
+    'Full dark outside. You\'re glad of the door.',
+    'Night falls on the block. In here it\'s just quieter, and worse.',
+  ],
+  dawnBreaks: [
+    'Daylight. The streets thin out.',
+    'Morning. The swarm pulls back into the shade.',
+    'The dark lets go. You can see the road again.',
+    'Dawn. They don\'t like the light — not all of them, anyway.',
   ],
 };
 
