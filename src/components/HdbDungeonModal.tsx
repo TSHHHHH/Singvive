@@ -1,8 +1,8 @@
-import { useState, type ReactElement } from 'react';
+import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { Icon } from '../icons/Icon';
 import type { IconName } from '../icons/keys';
 import { ATTRIBUTE_ICONS, ATTRIBUTE_LABELS } from '../game/character';
-import { useGame } from '../game/store';
+import { useGame, type HdbWalk } from '../game/store';
 import type { GuideTopic } from '../content/guideContent';
 import { PlayerPin } from './PlayerPin';
 import { GuideInfoButton } from './GuideInfoButton';
@@ -22,8 +22,10 @@ import {
   HUNT_ELITE_CHANCE,
   isHunting,
   isLevelRevealed,
+  isRoofFloor,
   isVoidDeckFloor,
   pathMinutes,
+  pathStoreysDropped,
   posKey,
   attemptableCells,
   reachableCells,
@@ -40,6 +42,7 @@ import {
   type HdbDungeon,
   type HdbPos,
   type HdbUnitNode,
+  type HdbUnitType,
   type SealKind,
 } from '../game/hdbDungeon';
 import type { AttributeKey, Attributes } from '../game/types';
@@ -88,7 +91,76 @@ function buildPathLinks(path: HdbPos[]): Map<string, PathLinkDirs> {
   return links;
 }
 
-/** Dual-stroke segment: soft halo under a crisp core (map-route look). */
+function unitFaceClass(type: HdbUnitType): string {
+  if (type === 'trapped' || type === 'den') return 'text-hiss';
+  if (type === 'burning' || type === 'nest') return 'text-amber-400';
+  if (type === 'holdout' || type === 'shelter') return 'text-astral';
+  if (type === 'notice') return 'text-signal';
+  return 'text-concrete-100';
+}
+
+function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
+}
+
+/** Interpolated pin while a hop is in flight; drives hdbWalkStep when the hop clock elapses. */
+function HdbWalkOverlay({
+  root,
+  walk,
+}: {
+  root: HTMLElement | null;
+  walk: HdbWalk | null;
+}) {
+  const pinRef = useRef<HTMLDivElement>(null);
+  const hdbWalkStep = useGame((s) => s.hdbWalkStep);
+
+  useEffect(() => {
+    if (!walk || !root) return;
+    const from = walk.path[walk.index];
+    const to = walk.path[walk.index + 1];
+    if (!from || !to) return;
+    let raf = 0;
+    let fired = false;
+    const tick = () => {
+      const elapsed = Date.now() - walk.startedAt;
+      const t = Math.min(1, elapsed / Math.max(1, walk.stepMs));
+      const a = root.querySelector(`[data-hdb-cell="${posKey(from)}"]`);
+      const b = root.querySelector(`[data-hdb-cell="${posKey(to)}"]`);
+      const pin = pinRef.current;
+      if (a instanceof HTMLElement && b instanceof HTMLElement && pin) {
+        const rootRect = root.getBoundingClientRect();
+        const ar = a.getBoundingClientRect();
+        const br = b.getBoundingClientRect();
+        const scale = root.offsetWidth > 0 ? rootRect.width / root.offsetWidth : 1;
+        const x =
+          (lerp(ar.left + ar.width / 2, br.left + br.width / 2, t) - rootRect.left) / scale;
+        const y = (lerp(ar.bottom, br.bottom, t) - rootRect.top) / scale;
+        pin.style.left = `${x}px`;
+        pin.style.top = `${y}px`;
+      }
+      if (elapsed >= walk.stepMs) {
+        if (!fired) {
+          fired = true;
+          hdbWalkStep();
+        }
+      } else raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [walk, root, hdbWalkStep]);
+
+  if (!walk) return null;
+  return (
+    <div
+      ref={pinRef}
+      data-hdb-player
+      className="pointer-events-none absolute z-40 -translate-x-1/2 -translate-y-full"
+      style={{ left: 0, top: 0 }}
+    >
+      <PlayerPin size="sm" />
+    </div>
+  );
+}
 function RouteSeg({
   className,
   blocked,
@@ -338,6 +410,7 @@ export function HdbDungeonModal({
   const hdbGoTo = useGame((s) => s.hdbGoTo);
   const hdbLeave = useGame((s) => s.hdbLeave);
   const pendingSearch = useGame((s) => s.pendingSearch);
+  const hdbWalk = useGame((s) => s.hdbWalk);
   const isPhone = useIsPhoneLayout();
 
   if (!hdb || !character) return null;
@@ -352,12 +425,14 @@ export function HdbDungeonModal({
   const unitHere = unitUnderfoot(hdb);
   const hasEdgeBlock = adjacentEdgeBlocks(hdb).length > 0;
   const dockExpanded = !isPhone || !!unitHere || hasEdgeBlock;
-  const canLeave = hdb.currentLevel === 1 && !pendingSearch;
+  const canLeave = hdb.currentLevel === 1 && !pendingSearch && !hdbWalk;
   const leaveTitle = pendingSearch
     ? t('ui.hdb.leaveNeedSearch')
-    : hdb.currentLevel !== 1
-      ? t('ui.hdb.leaveNeedVoidDeck')
-      : undefined;
+    : hdbWalk
+      ? t('ui.hdb.leaveNeedWalk')
+      : hdb.currentLevel !== 1
+        ? t('ui.hdb.leaveNeedVoidDeck')
+        : undefined;
   const placeMeta = `${
     hdb.archetype === 'shelter' ? t('ui.hdb.shelter') : t('ui.hdb.residential')
   } · ${floor.layoutType === 'slab' ? t('ui.hdb.slab') : t('ui.hdb.point')} · ${msgOr(
@@ -368,7 +443,7 @@ export function HdbDungeonModal({
   )} · ${t('ui.hdb.storeys', { n: hdb.height })}`;
 
   const go = (target: HdbPos) => {
-    if (pendingSearch) return;
+    if (pendingSearch || hdbWalk) return;
     if (samePos(hdb.pos, target)) return;
     if (!canTargetCell(hdb, target)) return;
     if (!attempt.has(posKey(target))) return;
@@ -384,6 +459,7 @@ export function HdbDungeonModal({
       reach={reach}
       attempt={attempt}
       phone={isPhone}
+      walk={hdbWalk}
       onGo={go}
     />
   );
@@ -393,7 +469,7 @@ export function HdbDungeonModal({
       <div className="min-h-0 flex-1 overflow-hidden">
         {isPhone ? (
           <HdbZoomViewport
-            followKey={posKey(hdb.pos)}
+            followKey={hdbWalk ? `walk:${hdbWalk.index}:${hdbWalk.startedAt}` : posKey(hdb.pos)}
             layoutKey={dockExpanded ? 'dock' : 'map'}
           >
             <div className="p-1.5">{cutaway}</div>
@@ -465,14 +541,19 @@ function cellTravelTitle(
     bits.push(shown);
   }
   const riskBits: string[] = [];
-  if (pathUsesStairs(toward.path)) {
+    if (pathUsesStairs(toward.path)) {
     if (isHunting(hdb)) {
       riskBits.push(t('ui.hdb.huntOnStairs', { n: Math.round(HUNT_ELITE_CHANCE * 100) }));
     }
-    if (pathDescends(toward.path) && descentIsChecked(hdb)) {
+    const dropped = pathStoreysDropped(toward.path);
+    if (dropped > 0 && descentIsChecked(hdb)) {
       const failPct = Math.round(retreatFailChance(attrs, hdb) * 100);
       riskBits.push(
-        t('ui.hdb.descentNeed', { dc: retreatDc(hdb), n: failPct }),
+        t('ui.hdb.descentPerStorey', {
+          n: dropped,
+          dc: retreatDc(hdb),
+          pct: failPct,
+        }),
       );
     } else if (!isHunting(hdb) && !pathDescends(toward.path)) {
       riskBits.push(t('ui.hdb.climbFree'));
@@ -501,6 +582,7 @@ function BuildingCutaway({
   reach,
   attempt,
   phone,
+  walk,
   onGo,
 }: {
   hdb: HdbDungeon;
@@ -508,10 +590,12 @@ function BuildingCutaway({
   reach: Set<string>;
   attempt: Set<string>;
   phone: boolean;
+  walk: HdbWalk | null;
   onGo: (pos: HdbPos) => void;
 }) {
   const { locale, t } = useT();
   const [hoverTarget, setHoverTarget] = useState<HdbPos | null>(null);
+  const [root, setRoot] = useState<HTMLElement | null>(null);
   const stairAt = new Map(hdb.stairs.map((s) => [s.column, s]));
   const levels = Array.from({ length: hdb.height }, (_, i) => hdb.height - i);
   const goneLabelCol =
@@ -590,10 +674,11 @@ function BuildingCutaway({
       }
     >
       <div
+        ref={setRoot}
         className={
           phone
-            ? 'flex w-max min-w-full flex-col rounded-sm border border-concrete-600 bg-concrete-950'
-            : 'flex min-h-0 flex-1 flex-col overflow-hidden rounded-sm border border-concrete-600 bg-concrete-950'
+            ? 'relative flex w-max min-w-full flex-col rounded-sm border border-concrete-600 bg-concrete-950'
+            : 'relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-sm border border-concrete-600 bg-concrete-950'
         }
         onMouseLeave={() => setHoverTarget(null)}
       >
@@ -613,9 +698,11 @@ function BuildingCutaway({
               className={`${rowCls} ${last ? '' : 'border-b border-concrete-700/80'} ${
                 hereLevel
                   ? 'bg-signal/10'
-                  : revealed
-                    ? 'bg-concrete-900/40'
-                    : 'bg-concrete-950'
+                  : isRoofFloor(f)
+                    ? 'bg-[#1a2836]'
+                    : revealed
+                      ? 'bg-concrete-900/40'
+                      : 'bg-concrete-950'
               }`}
               style={{ gridTemplateColumns: `${labelCol} ${colTrack}` }}
             >
@@ -630,9 +717,11 @@ function BuildingCutaway({
                           locale,
                         ),
                       })
-                    : revealed
-                      ? t('ui.hdb.level', { nn: label })
-                      : t('ui.hdb.levelUnexplored', { nn: label }),
+                      : isRoofFloor(f)
+                        ? t('ui.hdb.roofDeck')
+                        : revealed
+                          ? t('ui.hdb.level', { nn: label })
+                          : t('ui.hdb.levelUnexplored', { nn: label }),
                 )}
                 className={`flex items-center justify-center border-r border-concrete-700 text-xs font-bold tabular-nums ${
                   hereLevel
@@ -645,7 +734,11 @@ function BuildingCutaway({
                 }`}
               >
                 <span className="flex flex-col items-center leading-none">
-                  {revealed || hereLevel ? label : '·'}
+                  {isRoofFloor(f)
+                    ? t('ui.hdb.roofShort')
+                    : revealed || hereLevel
+                      ? label
+                      : '·'}
                 </span>
               </div>
 
@@ -671,6 +764,7 @@ function BuildingCutaway({
                     return (
                       <div
                         key={`seal-s-${col}`}
+                        data-hdb-cell={cellKey}
                         className={`relative flex min-h-[44px] items-center justify-center border-x border-concrete-700/40 bg-concrete-900/50 text-concrete-500 lg:min-h-0 ${dim}`}
                         {...tip(`${stair.kind === 'side' ? t('ui.hdb.sideStair', { id: stair.id }) : t('ui.hdb.stairwell', { id: stair.id })} · ${t('ui.hdb.inaccessible', {
                           label: msgOr(
@@ -695,6 +789,7 @@ function BuildingCutaway({
                   return (
                     <div
                       key={`seal-${col}`}
+                      data-hdb-cell={cellKey}
                       className={`relative h-full min-h-0 overflow-hidden [container-type:size] ${dim}`}
                       {...tip(t('ui.hdb.inaccessible', {
                         label: msgOr(
@@ -740,6 +835,7 @@ function BuildingCutaway({
                     return (
                       <button
                         key={`fog-s-${col}`}
+                        data-hdb-cell={cellKey}
                         type="button"
                         disabled={!canAttempt}
                         onClick={() => onGo(cell)}
@@ -764,13 +860,14 @@ function BuildingCutaway({
                       >
                         {trail}
                         <Icon name="hdb.stairwell" size={12} className="relative z-[6]" />
-                        {atPlayer && <HdbPlayerMarker />}
+                        {atPlayer && !walk && <HdbPlayerMarker />}
                       </button>
                     );
                   }
                   return (
                     <div
                       key={`fog-${col}`}
+                      data-hdb-cell={cellKey}
                       className={`relative bg-concrete-950/80 ${dim}`}
                     >
                       {trail}
@@ -787,6 +884,7 @@ function BuildingCutaway({
                   return (
                     <button
                       key={`s-${col}`}
+                      data-hdb-cell={cellKey}
                       type="button"
                       disabled={!canAttempt && !atPlayer}
                       onClick={() => onGo(cell)}
@@ -818,7 +916,7 @@ function BuildingCutaway({
                           edge={g.edge}
                         />
                       ))}
-                      {atPlayer && <HdbPlayerMarker />}
+                      {atPlayer && !walk && <HdbPlayerMarker />}
                     </button>
                   );
                 }
@@ -850,7 +948,7 @@ function BuildingCutaway({
                       >
                         <span className="w-full rounded-[2px] border border-concrete-400/35 bg-gradient-to-b from-concrete-300/45 via-concrete-500/35 to-concrete-700/55 shadow-[inset_1px_0_0_rgba(255,255,255,0.12),inset_-1px_0_0_rgba(0,0,0,0.35)]" />
                       </span>
-                      {atPlayer && <HdbPlayerMarker />}
+                      {atPlayer && !walk && <HdbPlayerMarker />}
                     </button>
                   );
                 }
@@ -859,6 +957,7 @@ function BuildingCutaway({
                   return (
                     <button
                       key={`e-${col}`}
+                      data-hdb-cell={cellKey}
                       type="button"
                       disabled={!canAttempt && !atPlayer}
                       onClick={() => onGo(cell)}
@@ -874,7 +973,7 @@ function BuildingCutaway({
                     >
                       {trail}
                       {blockLeft && <BlockadeStripe block={blockLeft} />}
-                      {atPlayer && <HdbPlayerMarker />}
+                      {atPlayer && !walk && <HdbPlayerMarker />}
                     </button>
                   );
                 }
@@ -882,6 +981,7 @@ function BuildingCutaway({
                 return (
                   <div
                     key={unit.id}
+                    data-hdb-cell={cellKey}
                     className={`relative flex min-h-[44px] items-end justify-center px-0.5 pb-0 lg:min-h-0 ${dim} ${
                       !trail && reachable && !atPlayer
                         ? 'bg-signal/10 ring-1 ring-inset ring-signal/20'
@@ -918,13 +1018,14 @@ function BuildingCutaway({
                       onClick={() => onGo(cell)}
                       {...hoverProps(cell, canAttempt && !atPlayer)}
                     />
-                    {atPlayer && <HdbPlayerMarker />}
+                    {atPlayer && !walk && <HdbPlayerMarker />}
                   </div>
                 );
               })}
             </div>
           );
         })}
+        <HdbWalkOverlay root={root} walk={walk} />
       </div>
     </div>
   );
@@ -990,7 +1091,7 @@ function CorridorDoor({
     : t('ui.hdb.doorBoardedShut');
 
   /**
-   * Door face = room type only. Entry (locked / ajar / …) and encounter odds
+   * Door face = room type only. Entry (locked / half-open / …) and encounter odds
    * live on the bottom-right location card.
    */
   const panel =
@@ -1034,13 +1135,7 @@ function CorridorDoor({
         name={typeMeta.icon}
         size={phone ? 12 : 13}
         title={typeLabel}
-        className={
-          typeMeta.trapped
-            ? 'text-hiss'
-            : unit.type === 'holdout'
-              ? 'text-astral'
-              : 'text-concrete-100'
-        }
+        className={unitFaceClass(unit.type)}
       />
     );
   }
@@ -1153,10 +1248,7 @@ function HdbStatusDock({
     locale,
   );
   const bandNote = msgOr(`ui.hdb.heatBand.${band.label}.note`, band.note, undefined, locale);
-  const descentBit =
-    band.dcStep > 0
-      ? t('ui.hdb.descentNeedsAttrs', { dc })
-      : t('ui.hdb.stairsClearDown');
+  const descentBit = t('ui.hdb.descentNeedsAttrs', { dc });
   const nextBit =
     !hunting && next
       ? t('ui.hdb.nextBand', {
@@ -1286,9 +1378,7 @@ function HdbSymbolKey() {
         <Icon
           name={m.icon}
           size={11}
-          className={
-            m.trapped ? 'text-hiss' : id === 'holdout' ? 'text-astral' : 'text-concrete-200'
-          }
+          className={unitFaceClass(id)}
         />
         {label.toLowerCase()}
       </span>

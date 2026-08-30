@@ -1,0 +1,33 @@
+---
+description: Run persistence — schema version, debounce, outline stripping
+globs: src/game/persistRun.ts,src/game/store.ts,src/game/storage.ts
+alwaysApply: false
+---
+
+# Run persistence
+
+Active schema key: **`singvive.run.v6`** (extraction + horde). Do not invent a new key without a migration path.
+
+## Debounce
+
+- `persist()` must stay **debounced** (≥5 s via `PERSIST_DEBOUNCE_MS` + flush on hide)
+- `cancelPersist()` on death/extract so a delayed write cannot resurrect a continue slot
+- Flush on `visibilitychange` / unload (wired from `App.tsx`)
+
+## Outlines
+
+- **Never** stringify OSM `outline` rings for bake-known sites — `locationsForSave()` strips them
+- Rehydrate from the bake on `continueRun` via `rehydrateLocationOutlines()`
+- If the bake is not loaded yet, leave outlines in the save (safe before spawn-prefetch)
+
+## Do not
+
+- Stringify the full run on every inventory cell move
+- Bump `RUN_KEY` without a load-time migration in `storage.ts`
+
+## Example
+
+```typescript
+// persistRun.ts — schedule, don't write synchronously on every action
+schedulePersist(() => writeSavedRun(snapshot));
+```

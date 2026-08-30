@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [
+      {
+        "type": "prompt",
+        "matcher": "Write",
+        "prompt": "You are about to write a file. If the path is under src/game/, verify: (1) no React or DOM imports, (2) no Math.random() in gameplay — use seeded Rng, (3) no any types, (4) pure functions with explicit params. If the path matches src/screens/GameScreen*, verify store subscriptions select scalars/booleans only — never the whole combat object. Otherwise proceed normally. Hook input: $ARGUMENTS"
+      }
+    ],
+    "beforeShellExecution": [
+      {
+        "command": "node .cursor/hooks/block-bake.mjs"
+      }
+    ],
+    "afterFileEdit": [
+      {
+        "command": "node .cursor/hooks/lint-after-edit.mjs"
+      }
+    ],
+    "stop": [
+      {
+        "command": "npx tsc -b --noEmit"
+      }
+    ]
+  }
+}

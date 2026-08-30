@@ -10,4 +10,5 @@ export const EQUIP_SLOTS: { slot: EquipSlot; label: string; icon: IconName }[] =
   { slot: 'bag', label: 'Bag', icon: 'slot.bag' },
   { slot: 'mainHand', label: 'Main', icon: 'slot.mainHand' },
   { slot: 'offHand', label: 'Off', icon: 'slot.offHand' },
+  { slot: 'firearm', label: 'Holster', icon: 'slot.mainHand' },
 ];

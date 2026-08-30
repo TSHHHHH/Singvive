@@ -23,11 +23,25 @@ export type HdbUnitType =
   | 'trapped'
   | 'storeroom'
   | 'pantry'
-  | 'holdout';
+  | 'holdout'
+  | 'burning'
+  | 'nest'
+  | 'den'
+  | 'shelter'
+  | 'notice';
+
+export type HdbUnitVerb =
+  | 'search'
+  | 'hazard'
+  | 'burn'
+  | 'fight'
+  | 'service'
+  | 'rest'
+  | 'intel';
 
 export type HdbUnitState = 'unexplored' | 'scouted' | 'breached' | 'cleared';
 
-/** How the door stands. Most of a dead block is simply hanging open. */
+/** How the door stands. Player-facing English for `ajar` is "half-open". */
 export type HdbEntry = 'open' | 'ajar' | 'locked' | 'barricaded';
 
 export interface HdbUnitMeta {
@@ -35,12 +49,19 @@ export interface HdbUnitMeta {
   /** One-sentence effect — shown on Room-tile hover. */
   blurb: string;
   icon: IconName;
-  /** Loot table for a search clear; null = holdout (service instead). */
+  verb: HdbUnitVerb;
+  /** Loot table for a search clear; null = service / rest / intel. */
   lootTable: PoiCategory | null;
   /** Added to entry + height loot mods. */
   lootMod: number;
   /** Breach may wound before the fight/loot roll. */
   trapped: boolean;
+  /** Multiplier on heat-based door encounter odds. */
+  encounterMod?: number;
+  /** HP charged on each sequential search reveal. */
+  searchHp?: number;
+  /** Fight doors: guaranteed elite instead of a pack. */
+  fightElite?: boolean;
 }
 
 export const UNIT_META: Record<HdbUnitType, HdbUnitMeta> = {
@@ -48,6 +69,7 @@ export const UNIT_META: Record<HdbUnitType, HdbUnitMeta> = {
     label: 'Flat',
     blurb: 'Ordinary household scrap.',
     icon: 'hdb.unit',
+    verb: 'search',
     lootTable: 'residential',
     lootMod: 0,
     trapped: false,
@@ -56,6 +78,7 @@ export const UNIT_META: Record<HdbUnitType, HdbUnitMeta> = {
     label: 'Stocked',
     blurb: 'Still has something worth taking.',
     icon: 'hdb.stocked',
+    verb: 'search',
     lootTable: 'residential',
     lootMod: 2,
     trapped: false,
@@ -64,6 +87,7 @@ export const UNIT_META: Record<HdbUnitType, HdbUnitMeta> = {
     label: 'Trapped',
     blurb: 'Something nasty by the door — risk a wound to loot.',
     icon: 'hdb.hazard',
+    verb: 'hazard',
     lootTable: 'residential',
     lootMod: 1,
     trapped: true,
@@ -72,6 +96,7 @@ export const UNIT_META: Record<HdbUnitType, HdbUnitMeta> = {
     label: 'Storeroom',
     blurb: 'Tools and parts.',
     icon: 'hdb.storeroom',
+    verb: 'search',
     lootTable: 'hardware',
     lootMod: 0,
     trapped: false,
@@ -80,6 +105,7 @@ export const UNIT_META: Record<HdbUnitType, HdbUnitMeta> = {
     label: 'Pantry',
     blurb: 'Food and water.',
     icon: 'hdb.pantry',
+    verb: 'search',
     lootTable: 'convenience',
     lootMod: 0,
     trapped: false,
@@ -88,11 +114,71 @@ export const UNIT_META: Record<HdbUnitType, HdbUnitMeta> = {
     label: 'Holdout',
     blurb: 'Survivors still use this unit — one service, then done.',
     icon: 'hdb.service',
+    verb: 'service',
+    lootTable: null,
+    lootMod: 0,
+    trapped: false,
+  },
+  burning: {
+    label: 'Burning',
+    blurb: 'Each find costs health — leave when you cannot take more.',
+    icon: 'hdb.burning',
+    verb: 'burn',
+    lootTable: 'residential',
+    lootMod: 1,
+    trapped: false,
+    encounterMod: 0.45,
+    searchHp: 4,
+  },
+  nest: {
+    label: 'Nest',
+    blurb: 'A pack is in there. Fight, then a thin haul.',
+    icon: 'hdb.nest',
+    verb: 'fight',
+    lootTable: 'residential',
+    lootMod: 0,
+    trapped: false,
+  },
+  den: {
+    label: 'Den',
+    blurb: 'Something bigger nested here. Fight it for a fat haul.',
+    icon: 'hdb.den',
+    verb: 'fight',
+    lootTable: 'residential',
+    lootMod: 3,
+    trapped: false,
+    fightElite: true,
+  },
+  shelter: {
+    label: 'Shelter',
+    blurb: 'Empty household shelter — hole up and the block cools a little.',
+    icon: 'hdb.shelter',
+    verb: 'rest',
+    lootTable: null,
+    lootMod: 0,
+    trapped: false,
+  },
+  notice: {
+    label: 'Notice',
+    blurb: 'RC board — read it for a nearby site.',
+    icon: 'hdb.notice',
+    verb: 'intel',
     lootTable: null,
     lootMod: 0,
     trapped: false,
   },
 };
+
+export const LOCKPICK_ID = 'lockpick';
+export const PICK_DC = 12;
+export const PICK_MINUTES = 8;
+export const FOB_MINUTES = 1;
+export const SHELTER_HEAT_DROP = 20;
+export const SHELTER_HOURS = 4;
+export const BURNING_SEARCH_HP = 4;
+export const CROWBAR_FORCE_MULT = 0.7;
+export const CORRIDOR_WALK_MS = 250;
+export const STAIR_WALK_MS = 450;
 
 /** Old save strings → current unit types. */
 const LEGACY_UNIT_TYPE: Record<string, HdbUnitType> = {
@@ -163,7 +249,7 @@ export const ENTRY_META: Record<HdbEntry, HdbEntryMeta> = {
     lootMod: -1,
   },
   ajar: {
-    label: 'ajar',
+    label: 'half-open',
     verb: 'Push it open',
     minutes: 8,
     heat: 0,
@@ -232,6 +318,8 @@ export interface HdbUnitNode {
   entry: HdbEntry;
   /** Set on holdouts — the service this unit runs. */
   service?: ShelterService;
+  /** Stair-gate fob found when this unit is cleared. */
+  holdsKey?: string;
   scoutedInfo?: HdbScoutInfo;
 }
 
@@ -273,6 +361,8 @@ export interface HdbFloor {
    * (or mixed with) flat doors — classic Singapore HDB.
    */
   groundKind?: HdbGroundKind;
+  /** Top storey deck — water tanks, drying, illegal hut. */
+  roof?: boolean;
 }
 
 /**
@@ -322,6 +412,8 @@ export interface HdbDungeon {
    * stranded on the origin floor when heat kept failing the check.
    */
   moveSeq: number;
+  /** Stair-gate fobs collected this crawl (block keys, not pack items). */
+  keys?: string[];
 }
 
 /** Cell in the building cutaway. */
@@ -338,6 +430,8 @@ export interface HdbBlock {
   breakable: boolean;
   heat: number;
   minutes: number;
+  /** When set, a matching unit `holdsKey` opens this gate quietly. */
+  keyId?: string;
 }
 
 export const BLOCK_META: Record<
@@ -406,6 +500,13 @@ export interface HeatBand {
   threatBonus: number;
   /** Steps above the base descent DC; 0 means no check at all. */
   dcStep: number;
+}
+
+/** If adding `heat` would cross into a higher band, that band; else null. */
+export function heatBandAfter(heat: number, add: number): HeatBand | null {
+  const before = heatBand(heat);
+  const after = heatBand(heat + add);
+  return after.at > before.at ? after : null;
 }
 
 /** The one table the model and the HUD both read. */
@@ -482,18 +583,97 @@ export const SERVICE_ICON: Record<ShelterService, IconName> = {
   safe_bunk: 'hdb.bunk',
 };
 
-/** Same weights for every column — bay ends are not special. */
-function unitTypeWeights(archetype: HdbArchetype): readonly (readonly [HdbUnitType, number])[] {
-  // Shelter blocks skew toward holdouts; estates still get a few.
-  const holdout = archetype === 'shelter' ? 28 : 5;
+type FloorKind = 'ground' | 'normal' | 'roof';
+
+const WALK_IN: ReadonlySet<HdbUnitType> = new Set(['holdout', 'notice', 'nest']);
+const MUST_BREACH: ReadonlySet<HdbUnitType> = new Set([
+  'stocked',
+  'storeroom',
+  'trapped',
+  'burning',
+  'shelter',
+  'den',
+]);
+
+function unitTypeWeights(
+  archetype: HdbArchetype,
+  kind: FloorKind,
+): readonly (readonly [HdbUnitType, number])[] {
+  if (kind === 'roof') {
+    return [
+      ['storeroom', 40],
+      ['nest', 22],
+      ['stocked', 14],
+      ['burning', 10],
+      ['trapped', 8],
+      ['den', 6],
+    ] as const;
+  }
+  if (archetype === 'shelter') {
+    if (kind === 'ground') {
+      return [
+        ['holdout', 24],
+        ['flat', 18],
+        ['notice', 14],
+        ['storeroom', 10],
+        ['pantry', 8],
+        ['shelter', 8],
+        ['trapped', 6],
+        ['burning', 4],
+        ['nest', 4],
+        ['stocked', 3],
+        ['den', 1],
+      ] as const;
+    }
+    return [
+      ['holdout', 24],
+      ['flat', 22],
+      ['storeroom', 10],
+      ['shelter', 8],
+      ['pantry', 8],
+      ['trapped', 8],
+      ['burning', 6],
+      ['nest', 5],
+      ['stocked', 3],
+      ['den', 2],
+      ['notice', 2],
+    ] as const;
+  }
+  if (kind === 'ground') {
+    return [
+      ['flat', 24],
+      ['notice', 14],
+      ['trapped', 12],
+      ['storeroom', 10],
+      ['burning', 8],
+      ['shelter', 8],
+      ['pantry', 6],
+      ['nest', 6],
+      ['holdout', 4],
+      ['stocked', 4],
+      ['den', 4],
+    ] as const;
+  }
   return [
-    ['flat', 50],
-    ['stocked', 12],
+    ['flat', 30],
     ['trapped', 12],
-    ['storeroom', 8],
-    ['pantry', 8],
-    ['holdout', holdout],
+    ['storeroom', 10],
+    ['burning', 10],
+    ['shelter', 8],
+    ['nest', 7],
+    ['pantry', 6],
+    ['holdout', 4],
+    ['notice', 2],
+    ['stocked', 4],
+    ['den', 4],
   ] as const;
+}
+
+function roofUnitColumns(rng: Rng, unitColumns: number[]): number[] {
+  if (unitColumns.length <= 2) return unitColumns;
+  const keep = rng.int(2, Math.min(4, unitColumns.length));
+  const start = rng.int(0, unitColumns.length - keep);
+  return unitColumns.slice(start, start + keep);
 }
 
 interface StripLayout {
@@ -616,20 +796,25 @@ export function generateDungeon(
   const groundKind = rollGroundKind(rng.fork('ground'));
   const groundCols = groundUnitColumns(rng.fork('groundCols'), groundKind, strip.unitColumns);
 
-  // Lobby / void deck is always open; fill out to a handful of walkable landings.
+  // Lobby and roof are always open; fill mid storeys up to a handful of landings.
   const oRng = rng.fork('open');
-  const open = new Set<number>([1]);
+  const open = new Set<number>([1, height]);
   const openCount = oRng.int(MIN_OPEN_FLOORS, MAX_OPEN_FLOORS);
-  const candidates = oRng.shuffle(
-    Array.from({ length: height - 1 }, (_, i) => i + 2),
+  const mid = oRng.shuffle(
+    Array.from({ length: Math.max(0, height - 2) }, (_, i) => i + 2),
   );
-  for (const l of candidates.slice(0, openCount - 1)) open.add(l);
+  for (const l of mid) {
+    if (open.size >= openCount) break;
+    open.add(l);
+  }
 
   const floors: HdbFloor[] = [];
+  const roofCols = roofUnitColumns(rng.fork('roofCols'), strip.unitColumns);
 
   for (let level = 1; level <= height; level++) {
     const fRng = rng.fork(`floor:${level}`);
     const isOpenFloor = open.has(level);
+    const isRoof = level === height;
     let sealed: HdbSeal | null = null;
     if (!isOpenFloor) {
       // Flavour only — sealed storeys never open. Maze gates live in `blocks`.
@@ -641,8 +826,10 @@ export function generateDungeon(
 
     let units: HdbUnitNode[] = [];
     if (isOpenFloor) {
-      const cols = level === 1 ? groundCols : strip.unitColumns;
-      units = cols.length ? buildUnits(fRng, level, archetype, cols) : [];
+      const kind: FloorKind = level === 1 ? 'ground' : isRoof ? 'roof' : 'normal';
+      const cols =
+        level === 1 ? groundCols : isRoof ? roofCols : strip.unitColumns;
+      units = cols.length ? buildUnits(fRng, level, archetype, cols, kind) : [];
     }
 
     floors.push({
@@ -652,6 +839,7 @@ export function generateDungeon(
       sealed,
       units,
       ...(level === 1 ? { groundKind } : {}),
+      ...(isRoof && isOpenFloor ? { roof: true } : {}),
     });
   }
 
@@ -674,6 +862,7 @@ export function generateDungeon(
     blockHeat: 0,
     visited: [1],
     moveSeq: 0,
+    keys: [],
   };
 
   draft.blocks = buildMazeBlocks(rng.fork('blocks'), draft, open);
@@ -707,7 +896,8 @@ function buildMazeBlocks(
         }
       }
       if (!clear) continue;
-      if (rng.chance(0.42)) {
+      const toRoof = b === dungeon.height;
+      if (toRoof || rng.chance(0.42)) {
         blocks[vertKey(col, a, b)] = {
           kind: 'stair_gate',
           breakable: true,
@@ -752,7 +942,51 @@ function buildMazeBlocks(
     delete blocks[pick];
   }
 
+  // Roof is optional extra loot — every shaft up stays gated even if peel opened the rest.
+  for (const col of stairCols) {
+    for (let i = 0; i + 1 < openLevels.length; i++) {
+      const a = openLevels[i];
+      const b = openLevels[i + 1];
+      if (b !== dungeon.height) continue;
+      const key = vertKey(col, a, b);
+      if (!blocks[key]) {
+        blocks[key] = {
+          kind: 'stair_gate',
+          breakable: true,
+          heat: BLOCK_HEAT,
+          minutes: BLOCK_MINUTES,
+        };
+      }
+    }
+  }
+
+  assignGateFobs(rng, dungeon, blocks);
   return blocks;
+}
+
+/**
+ * About half the remaining stair gates get a fob on the lower landing.
+ * The key unit is always on the approach side from the void deck.
+ */
+function assignGateFobs(
+  rng: Rng,
+  dungeon: HdbDungeon,
+  blocks: Record<string, HdbBlock>,
+): void {
+  for (const [key, block] of Object.entries(blocks)) {
+    if (block.kind !== 'stair_gate' || !block.breakable) continue;
+    if (!rng.chance(0.5)) continue;
+    const m = /^v:\d+:(\d+)-(\d+)$/.exec(key);
+    if (!m) continue;
+    const lo = Number(m[1]);
+    const floor = dungeon.floors[lo - 1];
+    const candidates = floor?.units.filter((u) => u.available && !u.holdsKey) ?? [];
+    if (candidates.length === 0) continue;
+    const unit = candidates[rng.int(0, candidates.length - 1)];
+    const keyId = `fob:${key}`;
+    block.keyId = keyId;
+    unit.holdsKey = keyId;
+  }
 }
 
 export function posKey(p: HdbPos): string {
@@ -798,34 +1032,34 @@ export function edgeBlock(
 }
 
 /**
- * Most doors in an abandoned block were kicked in long before you got here.
- * Stocked and trapped rooms are more often still sealed — those make noise.
+ * Walk-in types hang open; must-breach types never do; estate flats/pantries
+ * are mixed but usually locked.
  */
 function rollEntry(rng: Rng, type: HdbUnitType, archetype: HdbArchetype): HdbEntry {
-  if (type === 'holdout') return 'open';
-  const r = rng.next();
-  if (type === 'stocked') {
-    if (r < 0.25) return 'ajar';
-    if (r < 0.7) return 'locked';
-    return 'barricaded';
+  if (WALK_IN.has(type)) {
+    return rng.chance(0.65) ? 'open' : 'ajar';
   }
-  if (type === 'trapped' || type === 'storeroom') {
-    if (r < 0.45) return 'ajar';
+  const r = rng.next();
+  if (MUST_BREACH.has(type)) {
+    return r < 0.6 ? 'locked' : 'barricaded';
+  }
+  // Flat / pantry: lived-in shelter blocks keep a few more doors hanging.
+  if (archetype === 'shelter') {
+    if (r < 0.4) return 'open';
+    if (r < 0.6) return 'ajar';
     if (r < 0.85) return 'locked';
     return 'barricaded';
   }
-  // Flat / pantry: a lived-in shelter keeps more doors usable than a dead estate.
-  const openCut = archetype === 'shelter' ? 0.6 : 0.5;
-  if (r < openCut) return 'open';
-  if (r < openCut + 0.28) return 'ajar';
-  if (r < openCut + 0.45) return 'locked';
+  if (r < 0.2) return 'open';
+  if (r < 0.35) return 'ajar';
+  if (r < 0.75) return 'locked';
   return 'barricaded';
 }
 
 function rollAvailable(rng: Rng, type: HdbUnitType): boolean {
-  if (type === 'holdout') return true;
-  if (type === 'stocked' || type === 'trapped') return rng.chance(0.75);
-  return rng.chance(0.65);
+  if (type === 'holdout' || type === 'notice') return true;
+  if (MUST_BREACH.has(type)) return rng.chance(0.85);
+  return rng.chance(0.8);
 }
 
 function buildUnits(
@@ -833,15 +1067,14 @@ function buildUnits(
   level: number,
   archetype: HdbArchetype,
   unitColumns: number[],
+  kind: FloorKind,
 ): HdbUnitNode[] {
   const units: HdbUnitNode[] = [];
   const n = unitColumns.length;
-  // Real unit numbers are `#<storey>-<unit>`, and the unit half doesn't restart
-  // at 01 on every floor — each landing gets its own run of numbers.
   const stack = rng.int(1, 6) * 100;
   const base = stack + rng.int(1, 40);
   const storey = String(level).padStart(2, '0');
-  const weights = unitTypeWeights(archetype);
+  const weights = unitTypeWeights(archetype, kind);
 
   for (let i = 0; i < n; i++) {
     const column = unitColumns[i];
@@ -935,7 +1168,11 @@ export function scoutFloor(
           info.threatCount = Math.max(0, Math.round(threat / 2) + uRng.int(-1, 1));
         }
         if (uRng.chance(Math.min(0.95, senseChance(attrs.dexterity) + senseBonus))) {
-          info.containerCategory = uRng.pick(CONTAINER_CATEGORIES);
+          if (unit.holdsKey) {
+            info.containerCategory = 'Fob';
+          } else {
+            info.containerCategory = uRng.pick(CONTAINER_CATEGORIES);
+          }
           info.lootQuality =
             unit.type === 'stocked'
               ? LOOT_QUALITY[Math.min(3, 2 + uRng.int(0, 1))]
@@ -971,6 +1208,8 @@ export interface BreachOutcome {
   minutes: number;
   /** True when the unit type risks a wound on entry. */
   trapped: boolean;
+  /** Sequential-search HP tax (burning rooms). */
+  searchHp: number;
 }
 
 /** What getting through this door is likely to cost and yield. */
@@ -982,14 +1221,15 @@ export function breachOutcome(
   const meta = ENTRY_META[unit.entry];
   const unitMeta = UNIT_META[unit.type];
   const known = unit.scoutedInfo;
-  // Encounter odds track heat + door type. Height only sweetens loot.
-  const base = heatEncounterBase(dungeon) * meta.encounterMod;
+  const typeEnc = unitMeta.encounterMod ?? 1;
+  const base = heatEncounterBase(dungeon) * meta.encounterMod * typeEnc;
   const encounterChance = Math.max(
     0.02,
     Math.min(0.9, known && known.threatCount === 0 ? base * 0.35 : base),
   );
+  const roofBonus = dungeon.floors[level - 1]?.roof ? 2 : 0;
   const lootMod =
-    unitMeta.lootMod + meta.lootMod + Math.floor((level - 1) / 2);
+    unitMeta.lootMod + meta.lootMod + Math.floor((level - 1) / 2) + roofBonus;
   return {
     encounterChance,
     lootMod,
@@ -998,7 +1238,34 @@ export function breachOutcome(
     dangerBoost: meta.dangerBoost,
     minutes: meta.minutes,
     trapped: unitMeta.trapped,
+    searchHp: unitMeta.searchHp ?? 0,
   };
+}
+
+/** Trait + crowbar adjustments for a loud door or corridor smash. */
+export function scaleDoorCost(
+  minutes: number,
+  heat: number,
+  opts: { heatMult: number; minutesMult: number; crowbar: boolean },
+): { minutes: number; heat: number } {
+  let m = minutes * (1 + opts.minutesMult);
+  let h = heat * (1 + opts.heatMult);
+  if (opts.crowbar) {
+    m *= CROWBAR_FORCE_MULT;
+    if (heat > 0) h *= CROWBAR_FORCE_MULT;
+  }
+  return { minutes: Math.max(1, m), heat: Math.max(0, Math.round(h)) };
+}
+
+export function pickCheck(
+  rng: Rng,
+  dexterity: number,
+  pickMod: number,
+): { roll: number; total: number; dc: number; success: boolean } {
+  const roll = rng.d20();
+  const total = roll + dexterity + pickMod;
+  const dc = PICK_DC;
+  return { roll, total, dc, success: roll === 20 || total >= dc };
 }
 
 /** True once Perception read the doorway well enough to pin encounter odds. */
@@ -1036,12 +1303,12 @@ export function encounterChanceReadout(
 
 /** The DC for walking back down. Exported so the HUD can show it before you commit. */
 export function retreatDc(dungeon: HdbDungeon): number {
-  return 10 + heatBand(dungeon.blockHeat).dcStep * 2;
+  return 8 + heatBand(dungeon.blockHeat).dcStep * 2;
 }
 
-/** Below Stirring the stairs are simply stairs — no roll. */
-export function descentIsChecked(dungeon: HdbDungeon): boolean {
-  return heatBand(dungeon.blockHeat).dcStep > 0;
+/** Every downward storey is checked — Quiet is DC 8, not a free drop. */
+export function descentIsChecked(_dungeon: HdbDungeon): boolean {
+  return true;
 }
 
 /** The parts that add up to floorThreat, for a HUD that has to explain itself. */
@@ -1083,9 +1350,12 @@ export function stairTravelHint(
   if (isHunting(dungeon)) {
     bits.push(`${Math.round(HUNT_ELITE_CHANCE * 100)}% hunt on the stairs`);
   }
-  if (pathDescends(path) && descentIsChecked(dungeon)) {
+  const dropped = pathStoreysDropped(path);
+  if (dropped > 0 && descentIsChecked(dungeon)) {
     const failPct = Math.round(retreatFailChance(attrs, dungeon) * 100);
-    bits.push(`going down · need ${retreatDc(dungeon)}+ · ~${failPct}% fail`);
+    bits.push(
+      `down ${dropped} · need ${retreatDc(dungeon)}+ each · ~${failPct}% fail`,
+    );
   } else if (!isHunting(dungeon) && !pathDescends(path)) {
     bits.push('climb free');
   }
@@ -1312,10 +1582,28 @@ export function pathMinutes(path: HdbPos[], stairMult = 1): number {
   if (path.length <= 1) return 0;
   let m = 0;
   for (let i = 1; i < path.length; i++) {
-    const dLevel = Math.abs(path[i].level - path[i - 1].level);
-    m += dLevel === 0 ? CORRIDOR_MINUTES : STAIR_MINUTES * dLevel * stairMult;
+    m += hopMinutes(path[i - 1], path[i], stairMult);
   }
   return m;
+}
+
+export function hopMinutes(from: HdbPos, to: HdbPos, stairMult = 1): number {
+  const dLevel = Math.abs(to.level - from.level);
+  return dLevel === 0 ? CORRIDOR_MINUTES : STAIR_MINUTES * dLevel * stairMult;
+}
+
+export function hopWalkMs(from: HdbPos, to: HdbPos): number {
+  return from.level !== to.level ? STAIR_WALK_MS : CORRIDOR_WALK_MS;
+}
+
+export function hopStoreysDropped(from: HdbPos, to: HdbPos): number {
+  return Math.max(0, from.level - to.level);
+}
+
+export function pathStoreysDropped(path: HdbPos[]): number {
+  let n = 0;
+  for (let i = 1; i < path.length; i++) n += hopStoreysDropped(path[i - 1], path[i]);
+  return n;
 }
 
 /** True when the path includes at least one downward stair step. */
@@ -1511,6 +1799,29 @@ export function addHeat(dungeon: HdbDungeon, amount: number, level: number): Hdb
   };
 }
 
+/** Lower the block's heat (shelter rest). Floor 0. */
+export function dropHeat(dungeon: HdbDungeon, amount: number, level: number): HdbDungeon {
+  if (amount <= 0) return dungeon;
+  const next = Math.max(0, dungeon.blockHeat - amount);
+  const dropped = dungeon.blockHeat - next;
+  return {
+    ...dungeon,
+    blockHeat: next,
+    floors: dungeon.floors.map((f) =>
+      f.level === level ? { ...f, heatLevel: Math.max(0, f.heatLevel - dropped) } : f,
+    ),
+  };
+}
+
+export function hasFob(dungeon: HdbDungeon, keyId: string | undefined): boolean {
+  return !!keyId && (dungeon.keys ?? []).includes(keyId);
+}
+
+export function grantFob(dungeon: HdbDungeon, keyId: string): HdbDungeon {
+  if ((dungeon.keys ?? []).includes(keyId)) return dungeon;
+  return { ...dungeon, keys: [...(dungeon.keys ?? []), keyId] };
+}
+
 /** True when a persisted block has the maze cutaway topology. */
 export function hasStripTopology(dungeon: HdbDungeon | null | undefined): boolean {
   return (
@@ -1529,6 +1840,10 @@ export function hasStripTopology(dungeon: HdbDungeon | null | undefined): boolea
 /** Ground storey with open pillar bays (full or partial void deck). */
 export function isVoidDeckFloor(floor: HdbFloor): boolean {
   return floor.level === 1 && (floor.groundKind === 'void_open' || floor.groundKind === 'void_partial');
+}
+
+export function isRoofFloor(floor: HdbFloor): boolean {
+  return !!floor.roof;
 }
 
 /** Clickable fog rule: door cells only when the floor is revealed. */

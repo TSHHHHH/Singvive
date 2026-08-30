@@ -172,5 +172,17 @@
     "hours": 0.5,
     "needsShelter": false,
     "blurb": "The whole tin, extra powder on top, and whatever water you can spare. Heavy tin, light cup."
+  },
+  {
+    "id": "lockpick",
+    "name": "Bend a Lockpick",
+    "inputs": {
+      "scrap_metal": 2
+    },
+    "outputDefId": "lockpick",
+    "outputCount": 1,
+    "hours": 0.5,
+    "needsShelter": false,
+    "blurb": "Two scraps bent into a rake and a tensioner. One door, maybe."
   }
 ]

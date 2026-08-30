@@ -1,5 +1,6 @@
 import type {
   Attributes,
+  CombatContext,
   CombatLogEntry,
   Enemy,
   Equipment,
@@ -49,6 +50,17 @@ import {
   soakNote,
 } from './combatFlavor';
 import {
+  gunClubAccuracy,
+  gunClubDamageMult,
+  gunClubSpeed,
+  GUN_CLUB_WEAR_MULT,
+  gunshotDangerApplies,
+  gunshotNoiseIntensity,
+  isRangedWeaponEffect,
+  reloadSpeedFor,
+} from './firearms';
+import { fullEquipment } from './equipmentSlots';
+import {
   ENEMIES,
   rollElite,
   rollHuman,
@@ -70,10 +82,11 @@ export interface PlayerCombatStats {
   damage: number; // damage on a hit
   infectionResist: number; // 0..1
   weaponName: string;
+  /** Swinging a holstered gun from mainHand as a club. */
+  gunClub?: boolean;
+  /** @deprecated Melee track never shoots; kept for test compat. */
   ranged: boolean;
-  /** A firearm being swung as a club because there are no rounds left. */
-  dry?: boolean;
-  /** Rounds one shot burns; 0 for anything that isn't currently a firearm. */
+  /** @deprecated Always 0 on melee track. */
   roundsPerShot: number;
   /** The equipped weapon's `wearRate` — see ItemDef. 1 when unarmed. */
   wearRate: number;
@@ -338,66 +351,67 @@ export function makeAnimalById(rng: Rng, id: string, danger: number): Enemy {
 }
 
 /** Derive the player's combat stats from attributes, traits and equipped gear.
- *  `armPenalty` reflects injured arms lowering accuracy. */
+ *  Melee track only — holstered firearms use resolvePlayerFireAction. */
 export function playerCombatStats(
   attrs: Attributes,
   traitIds: string[],
   equipment: Equipment,
   armPenalty = 0,
-  rounds = Infinity,
   loadAttackMod = 0,
 ): PlayerCombatStats {
-  const mainHand = equipment.mainHand;
-  // A weapon worn through to nothing is a lump of metal — it stops counting as
-  // a weapon entirely rather than quietly dealing reduced damage forever.
+  const eq = fullEquipment(equipment);
+  const mainHand = eq.mainHand;
   const usableWeapon = mainHand && !isBroken(mainHand) ? mainHand : null;
   const weaponDef = usableWeapon ? itemDef(usableWeapon.defId) : null;
   const rawEffect = weaponDef && weaponDef.effect.kind === 'weapon' ? weaponDef.effect : null;
-
-  // Out of ammo: the gun is still the best club you own. It keeps its weight
-  // and its slot, loses its range, its accuracy and most of its damage — which
-  // is what makes a box of ammo worth carrying rather than worth selling.
-  const perShot = rawEffect?.ranged ? (rawEffect.roundsPerShot ?? 1) : 0;
-  const dry = rawEffect?.ranged === true && rounds < perShot;
-  const w = rawEffect && dry ? { ...rawEffect, accuracy: 0, ranged: false } : rawEffect;
+  const gunClub = !!(rawEffect && isRangedWeaponEffect(rawEffect));
+  const w = rawEffect && !gunClub ? rawEffect : gunClub && rawEffect ? rawEffect : null;
 
   let atkBonus = sumTraitMod(traitIds, 'attackMod');
   let defBonus = sumTraitMod(traitIds, 'defenseMod');
   for (const slot of EQUIP_SLOTS) {
-    const inst = equipment[slot];
+    const inst = eq[slot];
     if (!inst) continue;
     const mods = itemDef(inst.defId).modifiers;
     atkBonus += mods?.attackBonus ?? 0;
     defBonus += equipDefenseBonus(inst);
   }
-  atkBonus += equipAccuracyBonus(equipment);
+  atkBonus += equipAccuracyBonus(eq);
 
-  const attack = attrs.dexterity + (w?.accuracy ?? 0) + atkBonus - armPenalty + loadAttackMod;
+  let weaponAcc = w?.accuracy ?? 0;
+  let baseDamage = usableWeapon && w ? effectiveDamage(usableWeapon) : 4;
+  let wearRate = weaponDef?.wearRate ?? 1;
+  let speedFactor =
+    usableWeapon && w ? weaponSpeedFactor(w, !!weaponDef?.twoHanded) : FIST_SPEED_FACTOR;
+
+  if (gunClub && usableWeapon && rawEffect) {
+    weaponAcc += gunClubAccuracy(usableWeapon.defId);
+    baseDamage = Math.max(
+      4,
+      Math.round(effectiveDamage(usableWeapon) * gunClubDamageMult(usableWeapon.defId)),
+    );
+    wearRate *= GUN_CLUB_WEAR_MULT;
+    speedFactor = gunClubSpeed(usableWeapon.defId);
+  }
+
+  const attack = attrs.dexterity + weaponAcc + atkBonus - armPenalty + loadAttackMod;
   const defense = 10 + Math.floor(attrs.dexterity / 2) + defBonus;
-  let baseDamage = usableWeapon && w ? effectiveDamage(usableWeapon) : 4; // unarmed
-  if (dry) baseDamage = Math.max(4, Math.round(baseDamage * 0.28));
   const damage = baseDamage + Math.floor(attrs.strength / 2);
   const infectionResist = sumTraitMod(traitIds, 'infectionResist');
   const brokenName = mainHand && isBroken(mainHand) ? itemDef(mainHand.defId).name : null;
   const weaponName = weaponDef
-    ? dry
-      ? `${weaponDef.name} (empty)`
+    ? gunClub
+      ? `${weaponDef.name} (bashing)`
       : weaponDef.name
     : brokenName
       ? `Fists (${brokenName} broken)`
       : 'Fists';
 
-  // Dry or broken steel is a club — it should not keep the parent weapon's swing tax.
-  const speedFactor =
-    usableWeapon && rawEffect && !dry
-      ? weaponSpeedFactor(rawEffect, !!weaponDef?.twoHanded)
-      : FIST_SPEED_FACTOR;
-
   let offHand: PlayerCombatStats['offHand'] = null;
-  if (offHandRole(equipment) === 'weapon' && equipment.offHand) {
-    const ohInst = equipment.offHand;
+  if (offHandRole(eq) === 'weapon' && eq.offHand) {
+    const ohInst = eq.offHand;
     const ohDef = itemDef(ohInst.defId);
-    if (ohDef.effect.kind === 'weapon') {
+    if (ohDef.effect.kind === 'weapon' && !ohDef.effect.ranged) {
       offHand = {
         damage: effectiveDamage(ohInst),
         accuracy: ohDef.effect.accuracy,
@@ -413,15 +427,15 @@ export function playerCombatStats(
     damage,
     infectionResist: Math.min(1, Math.max(-0.5, infectionResist)),
     weaponName,
-    ranged: w?.ranged ?? false,
-    dry,
-    roundsPerShot: dry ? 0 : perShot,
-    wearRate: weaponDef?.wearRate ?? 1,
+    gunClub,
+    ranged: false,
+    roundsPerShot: 0,
+    wearRate,
     nightAccuracyPenaltyRemoved: hasTraitFlag(traitIds, 'nightAccuracyPenaltyRemoved'),
     nightAccuracyExtra: sumTraitMod(traitIds, 'nightAccuracyExtra'),
     zombieAttackMod: sumTraitMod(traitIds, 'zombieAttackMod'),
     speedFactor,
-    weaponAccuracy: w?.accuracy ?? 0,
+    weaponAccuracy: weaponAcc,
     strength: attrs.strength,
     dexterity: attrs.dexterity,
     offHand,
@@ -593,8 +607,16 @@ export function effectiveDefense(
 }
 
 /** Terrain accuracy bonus that applies to the equipped weapon type. */
-function terrainAccuracy(player: PlayerCombatStats, terrain: TerrainModifier): number {
-  return player.ranged ? terrain.rangedAccuracyMod : terrain.meleeAccuracyMod;
+function terrainAccuracyMelee(terrain: TerrainModifier): number {
+  return terrain.meleeAccuracyMod;
+}
+
+function fireAccuracyMod(enemy: Enemy, terrain: TerrainModifier): number {
+  let mod = terrain.rangedAccuracyMod;
+  if (enemy.kind === 'zombie') mod -= 1;
+  else if (enemy.kind === 'human') mod += 2;
+  else if (enemy.kind === 'animal') mod -= 1;
+  return mod;
 }
 
 /**
@@ -622,10 +644,8 @@ export function resolvePlayerAction(
   }
   const log: CombatLogEntry[] = [];
   let zombieHp = zombie.hp;
-  const dangerNoise = player.ranged ? terrain.gunshotDangerMod : 0;
-  // A shot leaves the barrel every time you fight with a loaded firearm —
-  // there is no "aiming" turn that costs nothing.
-  const roundsSpent = player.ranged ? player.roundsPerShot : 0;
+  const dangerNoise = 0;
+  const roundsSpent = 0;
   // Swinging costs the weapon something whether or not it connects; landing on
   // armour costs it more.
   let weaponWear = 0;
@@ -638,7 +658,7 @@ export function resolvePlayerAction(
     player.attack +
     envAccuracy +
     stance.attackMod +
-    terrainAccuracy(player, terrain) +
+    terrainAccuracyMelee(terrain) +
     energyAttackBonus(energy) +
     vsUndead;
   const pRoll = rng.d20();
@@ -671,7 +691,7 @@ export function resolvePlayerAction(
       round,
       side: 'player',
       tone: 'good',
-      text: combatLine(playerOutcomeKey(crit ? 'crit' : 'hit', player.ranged), hitCtx),
+      text: combatLine(playerOutcomeKey(crit ? 'crit' : 'hit', false), hitCtx),
     });
     if (stance.ignoresArmor && zombie.armor > 0) {
       log.push({
@@ -687,7 +707,7 @@ export function resolvePlayerAction(
       round,
       side: 'player',
       tone: 'info',
-      text: combatLine(playerOutcomeKey('miss', player.ranged), {
+      text: combatLine(playerOutcomeKey('miss', false), {
         weapon: player.weaponName,
       }),
     });
@@ -712,7 +732,7 @@ export function resolvePlayerAction(
         2 +
         envAccuracy +
         stance.attackMod +
-        terrainAccuracy(player, terrain) +
+        terrainAccuracyMelee(terrain) +
         energyAttackBonus(energy) +
         vsUndead;
       const ohRoll = rng.d20();
@@ -775,6 +795,139 @@ export function resolvePlayerAction(
     offHandWear,
     roundsSpent,
   };
+}
+
+export interface FireActionResult extends Omit<PlayerActionResult, 'offHandWear'> {
+  offHandWear: 0;
+  applyGunshotDanger: boolean;
+  gunshotIntensity: number;
+}
+
+/** One shot from a holstered firearm — separate from the melee initiative track. */
+export function resolvePlayerFireAction(
+  rng: Rng,
+  gunDefId: string,
+  gunDamage: number,
+  gunAccuracy: number,
+  gunWearRate: number,
+  enemy: Enemy,
+  weather: WeatherState,
+  round: number,
+  terrain: TerrainModifier,
+  context: CombatContext,
+  energy = 50,
+  traitAttack = 0,
+  envAccuracyExtra = 0,
+  zombieAttackMod = 0,
+): FireActionResult {
+  const env = environmentCombatMods(weather);
+  let envAccuracy = env.playerAccuracy + envAccuracyExtra;
+  const log: CombatLogEntry[] = [];
+  let zombieHp = enemy.hp;
+  let weaponWear = 0;
+  let hit = false;
+  let damageDealt = 0;
+
+  const pAtkMod =
+    gunAccuracy +
+    2 +
+    traitAttack +
+    envAccuracy +
+    fireAccuracyMod(enemy, terrain) +
+    energyAttackBonus(energy) +
+    (enemy.kind === 'zombie' ? zombieAttackMod : 0);
+  const pRoll = rng.d20();
+  const pTotal = pRoll + pAtkMod;
+  const pTarget = 10 + enemy.defense;
+  const crit = pRoll >= 17;
+  const weaponName = itemDef(gunDefId).name;
+
+  log.push({
+    round,
+    side: 'player',
+    tone: 'roll',
+    text: `You fire · ${weaponName} (d20 ${pRoll}${fmt(pAtkMod)} = ${pTotal} vs ${pTarget})`,
+  });
+
+  if (crit || pTotal >= pTarget) {
+    hit = true;
+    let dmg = gunDamage + rng.int(0, 3);
+    if (crit) dmg = Math.round(dmg * 1.75);
+    if (enemy.kind === 'human' && enemy.armor > 0) dmg += 1;
+    const soak = enemy.armor;
+    dmg = Math.max(1, dmg - soak);
+    damageDealt = dmg;
+    zombieHp -= dmg;
+    weaponWear = (WEAR_ON_HIT + (enemy.armor > 0 ? WEAR_ARMOR_EXTRA : 0)) * gunWearRate * 0.5;
+    log.push({
+      round,
+      side: 'player',
+      tone: 'good',
+      text: combatLine(playerOutcomeKey(crit ? 'crit' : 'hit', true), {
+        weapon: weaponName,
+        dmg,
+        soakNote: soakNote(soak, 'armour'),
+      }),
+    });
+  } else {
+    weaponWear = WEAR_ON_MISS * gunWearRate * 0.5;
+    log.push({
+      round,
+      side: 'player',
+      tone: 'info',
+      text: combatLine(playerOutcomeKey('miss', true), { weapon: weaponName }),
+    });
+  }
+
+  const applyGunshotDanger = gunshotDangerApplies(context, terrain.id);
+  const gunshotIntensity = applyGunshotDanger ? gunshotNoiseIntensity(gunDefId) : 0;
+  if (applyGunshotDanger) {
+    log.push({
+      round,
+      tone: 'bad',
+      text: combatLine('gunshotEcho', { place: terrain.name.toLowerCase() }),
+    });
+  }
+
+  if (zombieHp <= 0) {
+    log.push({
+      round,
+      side: 'player',
+      tone: 'good',
+      text: combatLine('playerKill', { enemy: enemy.name }),
+    });
+  }
+
+  return {
+    zombieHpAfter: Math.max(0, zombieHp),
+    log,
+    zombieDead: zombieHp <= 0,
+    hit,
+    critical: hit && crit,
+    damageDealt,
+    timeCostHours: 0.05,
+    dangerNoise: gunshotIntensity,
+    weaponWear,
+    offHandWear: 0,
+    roundsSpent: 1,
+    applyGunshotDanger,
+    gunshotIntensity,
+  };
+}
+
+/** Gauge speed while reloading — uses weapon reload profile. */
+export function playerReloadSpeed(
+  attrs: Attributes,
+  stance: StanceDef,
+  gunDefId: string,
+  energy = 50,
+  legFactor = 1,
+  equipSpeed = 0,
+  loadSpeedMult = 1,
+): number {
+  const gunDef = itemDef(gunDefId);
+  const factor = reloadSpeedFor(gunDef);
+  return playerSpeed(attrs, stance, energy, legFactor, equipSpeed, factor, loadSpeedMult);
 }
 
 /**

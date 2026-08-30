@@ -60,6 +60,11 @@ export type IconName =
   | 'hdb.stairwell'
   | 'hdb.service'
   | 'hdb.hazard'
+  | 'hdb.nest'
+  | 'hdb.den'
+  | 'hdb.burning'
+  | 'hdb.shelter'
+  | 'hdb.notice'
   | 'hdb.unavailable'
   | 'hdb.sealedCollapsed'
   | 'hdb.sealedFlooded'
@@ -229,6 +234,7 @@ export type IconName =
   | 'item.kitchen_knife'
   | 'item.hammer'
   | 'item.crowbar'
+  | 'item.lockpick'
   | 'item.fire_axe'
   | 'item.parang'
   | 'item.pistol'
@@ -264,6 +270,19 @@ export type IconName =
   | 'item.jewellery'
   | 'item.chicken_rice'
   | 'item.premium_bento'
+  | 'item.bandung'
+  | 'item.bike_helmet'
+  | 'item.cricket_bat'
+  | 'item.daypack'
+  | 'item.hiking_pack'
+  | 'item.military_rucksack'
+  | 'item.school_bag'
+  | 'item.box_cutter'
+  | 'item.pipe_wrench'
+  | 'item.police_baton'
+  | 'item.welding_mask'
+  | 'item.football_pads'
+  | 'item.security_vest'
   // --- traits (create screen / chips; upload via Dev → Icons → trait) ---
   | 'trait.ns_combat'
   | 'trait.medic'
@@ -384,6 +403,11 @@ export const EMOJI_FALLBACK: Record<IconName, string> = {
   'hdb.stairwell': '🪜',
   'hdb.service': '🤝',
   'hdb.hazard': '☢️',
+  'hdb.nest': '🧟',
+  'hdb.den': '💀',
+  'hdb.burning': '🔥',
+  'hdb.shelter': '🛡️',
+  'hdb.notice': '📋',
   'hdb.unavailable': '✕',
   'hdb.sealedCollapsed': '🧱',
   'hdb.sealedFlooded': '🌊',
@@ -611,6 +635,7 @@ export const EMOJI_FALLBACK: Record<IconName, string> = {
   'item.kitchen_knife': '🔪',
   'item.hammer': '🔨',
   'item.crowbar': '🪓',
+  'item.lockpick': '🗝️',
   'item.fire_axe': '🪓',
   'item.parang': '🗡️',
   'item.pistol': '🔫',
@@ -646,4 +671,17 @@ export const EMOJI_FALLBACK: Record<IconName, string> = {
   'item.jewellery': '💍',
   'item.chicken_rice': '📦',
   'item.premium_bento': '📦',
+  'item.bandung': '📦',
+  'item.bike_helmet': '📦',
+  'item.cricket_bat': '📦',
+  'item.daypack': '📦',
+  'item.hiking_pack': '📦',
+  'item.military_rucksack': '📦',
+  'item.school_bag': '📦',
+  'item.box_cutter': '📦',
+  'item.pipe_wrench': '📦',
+  'item.police_baton': '📦',
+  'item.welding_mask': '📦',
+  'item.football_pads': '📦',
+  'item.security_vest': '📦',
 };

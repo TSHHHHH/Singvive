@@ -16,6 +16,8 @@ import {
   TEAR_CONDITION_COST,
   TEAR_RAGS_YIELD,
 } from '../../game/inventory';
+import { holsteredFirearm, loadedRoundsOf, magazineSizeFor } from '../../game/firearms';
+import { fullEquipment } from '../../game/equipmentSlots';
 import { conditionBarColor } from '../../game/itemTileColor';
 import type { EquipSlot } from '../../game/types';
 import { sumTraitMod } from '../../game/character';
@@ -107,7 +109,6 @@ export function InventoryPanel({
   const dropItem = useGame((s) => s.dropItem);
   const repairItem = useGame((s) => s.repairItem);
   const tearForRags = useGame((s) => s.tearForRags);
-  const rounds = useGame((s) => s.rounds);
   const confirmTempStash = useGame((s) => s.confirmTempStash);
   const inCombat = useGame((s) => !!s.combat && !s.combat.over);
 
@@ -173,9 +174,10 @@ export function InventoryPanel({
     canTearForRags(def) &&
     conditionOf(inspected) >= TEAR_CONDITION_COST;
 
-  const hasFirearm = !!(
-    equipment.mainHand && (itemDef(equipment.mainHand.defId).effect as { ranged?: boolean }).ranged
-  );
+  const eq = fullEquipment(equipment);
+  const holstered = holsteredFirearm(eq);
+  const holsterLoaded = holstered ? loadedRoundsOf(holstered) : 0;
+  const holsterCap = holstered ? magazineSizeFor(itemDef(holstered.defId)) : 0;
 
   const carryMod = character ? sumTraitMod(character.traitIds, 'carryCapacityMod') : 0;
   const carry = character ? maxCarry(character.attributes, equipment, carryMod) : 0;
@@ -489,9 +491,9 @@ export function InventoryPanel({
                 {t('ui.inventory.loadKg', { load: loadKg.toFixed(1), carry })}
               </span>
             </TipHint>
-            {hasFirearm && (
-              <span className={rounds === 0 ? 'font-semibold text-hiss' : 'text-white/50'}>
-                {t('ui.inventory.rounds', { n: rounds })}
+            {holstered && (
+              <span className={holsterLoaded === 0 ? 'font-semibold text-hiss' : 'text-white/50'}>
+                {t('ui.inventory.holstered', { n: holsterLoaded, cap: holsterCap })}
               </span>
             )}
           </div>

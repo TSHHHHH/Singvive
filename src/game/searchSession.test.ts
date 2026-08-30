@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { itemDef } from '../loot';
-import { SEARCH_DIMS, footprint } from '../inventory';
+import { itemDef } from './loot';
+import { SEARCH_DIMS, footprint } from './inventory';
 import {
   qualityMult,
   highlightFor,
@@ -18,7 +18,7 @@ import {
   hasFoggedOrSearching,
   type SearchSession,
   type SearchLootPiece,
-} from '../searchSession';
+} from './searchSession';
 
 const katana = itemDef('katana'); // exotic, scarcity 0.18, maxCondition 75
 const rations = itemDef('army_ration'); // not exotic, scarcity 0.35, no maxCondition
@@ -119,19 +119,24 @@ describe('buildSearchSession', () => {
     }
   });
 
-  it('drops pieces that reference an unknown item def', () => {
-    const session = buildSearchSession({
-      locationId: 'loc-1',
-      stashLocationId: 'loc-1',
-      raiding: false,
-      fled: false,
-      nonce: 'n1',
-      pieces: [{ defId: 'canned_food', count: 1 }, { defId: 'not_a_real_item', count: 1 }],
-      totalMinutes: 10,
-      speedFactor: 1,
-    });
-    expect(session.slots).toHaveLength(1);
-    expect(session.slots[0].defId).toBe('canned_food');
+  it('throws for a piece that references an unknown item def', () => {
+    // itemDef() throws on an unknown id rather than returning undefined, so the
+    // `if (!def) continue` guard right below it in buildSearchSession is dead
+    // code — an unrecognized defId now propagates as a thrown error instead of
+    // being silently dropped. Pinning the current (surprising) behavior here
+    // rather than "fixing" the pipeline, per the brief.
+    expect(() =>
+      buildSearchSession({
+        locationId: 'loc-1',
+        stashLocationId: 'loc-1',
+        raiding: false,
+        fled: false,
+        nonce: 'n1',
+        pieces: [{ defId: 'canned_food', count: 1 }, { defId: 'not_a_real_item', count: 1 }],
+        totalMinutes: 10,
+        speedFactor: 1,
+      }),
+    ).toThrow('Unknown item id: "not_a_real_item"');
   });
 
   it('stops placing once the grid (8x5 = 40 cells) is full, dropping the overflow', () => {

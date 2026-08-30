@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import type { ItemInstance, LocationState } from '../types';
-import { Rng } from '../rng';
+import type { ItemInstance, LocationState } from './types';
+import { Rng } from './rng';
 import {
   evacWeightMult,
   backpackEvacValue,
@@ -26,7 +26,7 @@ import {
   FIRST_EVAC_WINDOW_HOURS,
   NEXT_EVAC_WINDOW_HOURS,
   HORDE_MAX,
-} from '../goal';
+} from './goal';
 
 function inst(defId: string, container: string, stack = 1, overrides: Partial<ItemInstance> = {}): ItemInstance {
   return { uid: `${defId}-${container}`, defId, container, x: 0, y: 0, rotated: false, stack, ...overrides };

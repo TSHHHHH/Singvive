@@ -482,8 +482,8 @@
   "antiseptic": {
     "id": "antiseptic",
     "name": "Antiseptic",
-    "w": 1,
-    "h": 1,
+    "w": 2,
+    "h": 2,
     "weight": 0.2,
     "effect": {
       "kind": "cure",
@@ -492,7 +492,8 @@
     "value": 15,
     "stackable": true,
     "maxStack": 3,
-    "color": "#8fcf7b"
+    "color": "#8fcf7b",
+    "icon": "item.antiseptic"
   },
   "tiger_balm": {
     "id": "tiger_balm",
@@ -638,7 +639,8 @@
     "maxStack": 1,
     "color": "#8a8f94",
     "slot": "mainHand",
-    "wearRate": 0.8
+    "wearRate": 0.8,
+    "icon": "item.hammer"
   },
   "crowbar": {
     "id": "crowbar",
@@ -716,7 +718,8 @@
     "color": "#8a6f4a",
     "slot": "mainHand",
     "wearRate": 1.6,
-    "maxCondition": 60
+    "maxCondition": 60,
+    "icon": "item.wooden_stick"
   },
   "meat_cleaver": {
     "id": "meat_cleaver",
@@ -741,7 +744,7 @@
     "id": "golf_club",
     "name": "Golf Club",
     "w": 1,
-    "h": 3,
+    "h": 4,
     "weight": 0.9,
     "effect": {
       "kind": "weapon",
@@ -840,7 +843,8 @@
     "color": "#9aa0a6",
     "slot": "mainHand",
     "twoHanded": true,
-    "wearRate": 1.4
+    "wearRate": 1.4,
+    "icon": "item.spear_knife"
   },
   "spear_cleaver": {
     "id": "spear_cleaver",
@@ -892,13 +896,17 @@
       "kind": "weapon",
       "damage": 28,
       "accuracy": 3,
-      "ranged": true
+      "ranged": true,
+      "caliber": "9mm",
+      "magazineSize": 8,
+      "usesMagazine": true,
+      "reloadSpeedFactor": 0.75
     },
     "value": 24,
     "stackable": false,
     "maxStack": 1,
     "color": "#4a4f55",
-    "slot": "mainHand",
+    "slot": "firearm",
     "wearRate": 0.5,
     "exotic": true,
     "scarcity": 0.6
@@ -914,26 +922,80 @@
       "damage": 40,
       "accuracy": 2,
       "ranged": true,
-      "roundsPerShot": 2
+      "caliber": "12g",
+      "magazineSize": 4,
+      "usesMagazine": false,
+      "reloadSpeedFactor": 1.35
     },
     "value": 32,
     "stackable": false,
     "maxStack": 1,
     "color": "#5a3a1d",
-    "slot": "mainHand",
+    "slot": "firearm",
     "twoHanded": true,
     "wearRate": 0.5,
     "exotic": true,
     "scarcity": 0.3
   },
-  "ammo_box": {
-    "id": "ammo_box",
-    "name": "Box of Ammo",
+  "mag_pistol": {
+    "id": "mag_pistol",
+    "name": "Pistol Magazine",
+    "w": 1,
+    "h": 1,
+    "weight": 0.2,
+    "effect": {
+      "kind": "magazine",
+      "caliber": "9mm",
+      "capacity": 8
+    },
+    "value": 8,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#4a4f55"
+  },
+  "ammo_9mm_box": {
+    "id": "ammo_9mm_box",
+    "name": "9mm Ammunition Box",
     "w": 1,
     "h": 1,
     "weight": 0.8,
     "effect": {
       "kind": "ammo",
+      "caliber": "9mm",
+      "rounds": 12
+    },
+    "value": 22,
+    "stackable": true,
+    "maxStack": 5,
+    "color": "#c9a441",
+    "icon": "item.ammo_box"
+  },
+  "ammo_12g_box": {
+    "id": "ammo_12g_box",
+    "name": "12g Shells",
+    "w": 1,
+    "h": 1,
+    "weight": 0.3,
+    "effect": {
+      "kind": "ammo",
+      "caliber": "12g",
+      "rounds": 4
+    },
+    "value": 10,
+    "stackable": true,
+    "maxStack": 6,
+    "color": "#a8862f",
+    "icon": "item.ammo_shell"
+  },
+  "ammo_box": {
+    "id": "ammo_box",
+    "name": "9mm Ammunition Box",
+    "w": 1,
+    "h": 1,
+    "weight": 0.8,
+    "effect": {
+      "kind": "ammo",
+      "caliber": "9mm",
       "rounds": 12
     },
     "value": 22,
@@ -944,12 +1006,13 @@
   },
   "ammo_shell": {
     "id": "ammo_shell",
-    "name": "Loose Shells",
+    "name": "12g Shells",
     "w": 1,
     "h": 1,
     "weight": 0.3,
     "effect": {
       "kind": "ammo",
+      "caliber": "12g",
       "rounds": 4
     },
     "value": 10,
@@ -975,13 +1038,14 @@
       "defenseBonus": 1,
       "limbArmor": 1,
       "statusResist": 0.05
-    }
+    },
+    "icon": "item.n95_mask"
   },
   "hard_hat": {
     "id": "hard_hat",
     "name": "Hard Hat",
-    "w": 1,
-    "h": 1,
+    "w": 2,
+    "h": 2,
     "weight": 0.4,
     "effect": {
       "kind": "misc"
@@ -998,7 +1062,8 @@
       "dodgeBonus": -0.02,
       "headTargetReduction": 0.35,
       "headCritReduction": 0.25
-    }
+    },
+    "icon": "item.hard_hat"
   },
   "motorcycle_helmet": {
     "id": "motorcycle_helmet",
@@ -1021,7 +1086,8 @@
       "dodgeBonus": -0.04,
       "headTargetReduction": 0.38,
       "headCritReduction": 0.3
-    }
+    },
+    "icon": "item.motorcycle_helmet"
   },
   "riot_helmet": {
     "id": "riot_helmet",
@@ -1044,7 +1110,8 @@
       "dodgeBonus": -0.06,
       "headTargetReduction": 0.4,
       "headCritReduction": 0.4
-    }
+    },
+    "icon": "item.riot_helmet"
   },
   "leather_jacket": {
     "id": "leather_jacket",
@@ -1066,7 +1133,8 @@
       "statusResist": 0.1,
       "dodgeBonus": 0.02
     },
-    "startingItem": true
+    "startingItem": true,
+    "icon": "item.leather_jacket"
   },
   "work_vest": {
     "id": "work_vest",
@@ -1111,7 +1179,8 @@
       "awarenessMod": 1
     },
     "exotic": true,
-    "scarcity": 0.35
+    "scarcity": 0.35,
+    "icon": "item.army_uniform"
   },
   "kevlar_vest": {
     "id": "kevlar_vest",
@@ -1134,7 +1203,8 @@
       "dodgeBonus": -0.05
     },
     "exotic": true,
-    "scarcity": 0.25
+    "scarcity": 0.25,
+    "icon": "item.kevlar_vest"
   },
   "sbo_vest": {
     "id": "sbo_vest",
@@ -1157,7 +1227,8 @@
       "weightCapacityBonus": 10
     },
     "exotic": true,
-    "scarcity": 0.3
+    "scarcity": 0.3,
+    "icon": "item.sbo_vest"
   },
   "work_gloves": {
     "id": "work_gloves",
@@ -1301,7 +1372,8 @@
       "dodgeBonus": 0.03,
       "encounterChanceMod": -0.05
     },
-    "scarcity": 0.4
+    "scarcity": 0.4,
+    "icon": "item.camo_pants"
   },
   "riot_pads": {
     "id": "riot_pads",
@@ -1389,7 +1461,7 @@
     "id": "combat_boots",
     "name": "Combat Boots",
     "w": 2,
-    "h": 1,
+    "h": 2,
     "weight": 1.5,
     "effect": {
       "kind": "misc"
@@ -1404,7 +1476,8 @@
       "encounterChanceMod": 0.03,
       "speedBonus": 0.3
     },
-    "scarcity": 0.45
+    "scarcity": 0.45,
+    "icon": "item.combat_boots"
   },
   "riot_shield": {
     "id": "riot_shield",
@@ -1490,7 +1563,8 @@
     "value": 7,
     "stackable": true,
     "maxStack": 5,
-    "color": "#3a5a40"
+    "color": "#3a5a40",
+    "icon": "item.batteries"
   },
   "scrap_metal": {
     "id": "scrap_metal",
@@ -1505,6 +1579,20 @@
     "stackable": true,
     "maxStack": 4,
     "color": "#6b7075"
+  },
+  "lockpick": {
+    "id": "lockpick",
+    "name": "Lockpick",
+    "w": 1,
+    "h": 1,
+    "weight": 0.05,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 8,
+    "stackable": true,
+    "maxStack": 4,
+    "color": "#8a9096"
   },
   "toolbox": {
     "id": "toolbox",
@@ -1728,7 +1816,8 @@
       "h": 4
     },
     "startingItem": true,
-    "maxCondition": 80
+    "maxCondition": 80,
+    "icon": "item.daypack"
   },
   "school_bag": {
     "id": "school_bag",
@@ -1766,7 +1855,8 @@
         ]
       ]
     },
-    "maxCondition": 70
+    "maxCondition": 70,
+    "icon": "item.school_bag"
   },
   "hiking_pack": {
     "id": "hiking_pack",
@@ -1804,7 +1894,8 @@
         ]
       ]
     },
-    "maxCondition": 90
+    "maxCondition": 90,
+    "icon": "item.hiking_pack"
   },
   "military_rucksack": {
     "id": "military_rucksack",
@@ -1847,7 +1938,8 @@
     },
     "exotic": true,
     "scarcity": 0.35,
-    "maxCondition": 100
+    "maxCondition": 100,
+    "icon": "item.military_rucksack"
   },
   "box_cutter": {
     "id": "box_cutter",
@@ -1867,47 +1959,8 @@
     "color": "#9aa0a6",
     "slot": "mainHand",
     "wearRate": 1.8,
-    "maxCondition": 60
-  },
-  "rotan_cane": {
-    "id": "rotan_cane",
-    "name": "Rotan Cane",
-    "w": 1,
-    "h": 3,
-    "weight": 0.4,
-    "effect": {
-      "kind": "weapon",
-      "damage": 11,
-      "accuracy": 2,
-      "ranged": false
-    },
-    "value": 8,
-    "stackable": false,
-    "maxStack": 1,
-    "color": "#a8804a",
-    "slot": "mainHand",
-    "wearRate": 1.4
-  },
-  "bamboo_pole": {
-    "id": "bamboo_pole",
-    "name": "Bamboo Pole",
-    "w": 1,
-    "h": 4,
-    "weight": 0.7,
-    "effect": {
-      "kind": "weapon",
-      "damage": 12,
-      "accuracy": 1,
-      "ranged": false
-    },
-    "value": 5,
-    "stackable": false,
-    "maxStack": 1,
-    "color": "#8a9a4a",
-    "slot": "mainHand",
-    "twoHanded": true,
-    "wearRate": 1.5,
-    "maxCondition": 70
+    "maxCondition": 60,
+    "icon": "item.box_cutter"
   },
   "pipe_wrench": {
     "id": "pipe_wrench",
@@ -1926,7 +1979,8 @@
     "maxStack": 1,
     "color": "#7a8088",
     "slot": "mainHand",
-    "wearRate": 0.65
+    "wearRate": 0.65,
+    "icon": "item.pipe_wrench"
   },
   "tire_iron": {
     "id": "tire_iron",
@@ -1964,7 +2018,8 @@
     "maxStack": 1,
     "color": "#2a2e34",
     "slot": "mainHand",
-    "wearRate": 0.85
+    "wearRate": 0.85,
+    "icon": "item.police_baton"
   },
   "rebar": {
     "id": "rebar",
@@ -1988,7 +2043,7 @@
   "cricket_bat": {
     "id": "cricket_bat",
     "name": "Cricket Bat",
-    "w": 1,
+    "w": 2,
     "h": 3,
     "weight": 1.3,
     "effect": {
@@ -2004,7 +2059,8 @@
     "slot": "mainHand",
     "twoHanded": true,
     "wearRate": 1,
-    "scarcity": 0.7
+    "scarcity": 0.7,
+    "icon": "item.cricket_bat"
   },
   "pot_lid": {
     "id": "pot_lid",
@@ -2074,7 +2130,7 @@
     "id": "bike_helmet",
     "name": "Bicycle Helmet",
     "w": 2,
-    "h": 1,
+    "h": 2,
     "weight": 0.4,
     "effect": {
       "kind": "misc"
@@ -2091,7 +2147,8 @@
       "dodgeBonus": -0.02,
       "headTargetReduction": 0.25,
       "headCritReduction": 0.2
-    }
+    },
+    "icon": "item.bike_helmet"
   },
   "welding_mask": {
     "id": "welding_mask",
@@ -2113,8 +2170,10 @@
       "statusResist": 0.18,
       "dodgeBonus": -0.07,
       "headTargetReduction": 0.32,
-      "headCritReduction": 0.28
-    }
+      "headCritReduction": 0.28,
+      "accuracyBonus": -2
+    },
+    "icon": "item.welding_mask"
   },
   "security_vest": {
     "id": "security_vest",
@@ -2136,13 +2195,14 @@
       "statusResist": 0.15,
       "dodgeBonus": -0.03
     },
-    "scarcity": 0.55
+    "scarcity": 0.55,
+    "icon": "item.security_vest"
   },
   "football_pads": {
     "id": "football_pads",
     "name": "Football Pads",
-    "w": 2,
-    "h": 3,
+    "w": 3,
+    "h": 2,
     "weight": 2.8,
     "effect": {
       "kind": "misc"
@@ -2157,7 +2217,8 @@
       "limbArmor": 4,
       "statusResist": 0.14,
       "dodgeBonus": -0.04
-    }
+    },
+    "icon": "item.football_pads"
   },
   "knee_pads": {
     "id": "knee_pads",
@@ -2233,7 +2294,7 @@
   },
   "bandung": {
     "id": "bandung",
-    "name": "Bottle of Bandung",
+    "name": "Cup of Bandung",
     "w": 1,
     "h": 2,
     "weight": 0.5,
@@ -2245,7 +2306,8 @@
     "value": 5,
     "stackable": true,
     "maxStack": 3,
-    "color": "#c45a8a"
+    "color": "#c45a8a",
+    "icon": "item.bandung"
   },
   "soya_bean": {
     "id": "soya_bean",
@@ -2487,5 +2549,102 @@
     "color": "#5a3a28",
     "maxCondition": 100,
     "perishable": true
+  },
+  "intel_scavenger_sketch": {
+    "id": "intel_scavenger_sketch",
+    "name": "Scavenger's Sketch",
+    "w": 1,
+    "h": 1,
+    "weight": 0.05,
+    "effect": {
+      "kind": "intel",
+      "mode": "precise",
+      "bias": "danger"
+    },
+    "value": 12,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#c4b07a",
+    "scarcity": 0.28,
+    "icon": "action.map"
+  },
+  "intel_ration_slip": {
+    "id": "intel_ration_slip",
+    "name": "Ration Slip",
+    "w": 1,
+    "h": 1,
+    "weight": 0.02,
+    "effect": {
+      "kind": "intel",
+      "mode": "precise",
+      "bias": [
+        "foodcourt",
+        "supermarket",
+        "convenience"
+      ]
+    },
+    "value": 8,
+    "stackable": true,
+    "maxStack": 3,
+    "color": "#d4c4a8",
+    "scarcity": 0.32,
+    "icon": "action.map"
+  },
+  "intel_turf_fragment": {
+    "id": "intel_turf_fragment",
+    "name": "Turf Fragment",
+    "w": 1,
+    "h": 2,
+    "weight": 0.04,
+    "effect": {
+      "kind": "intel",
+      "mode": "precise",
+      "bias": "faction"
+    },
+    "value": 14,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#d92d2d",
+    "scarcity": 0.22,
+    "icon": "action.map"
+  },
+  "intel_outpost_whisper": {
+    "id": "intel_outpost_whisper",
+    "name": "Outpost Whisper",
+    "w": 1,
+    "h": 1,
+    "weight": 0.03,
+    "effect": {
+      "kind": "intel",
+      "mode": "precise",
+      "bias": "outpost"
+    },
+    "value": 18,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#2bc4d9",
+    "scarcity": 0.15,
+    "exotic": true,
+    "icon": "action.map"
+  },
+  "intel_smudged_map": {
+    "id": "intel_smudged_map",
+    "name": "Smudged Survivor Map",
+    "w": 2,
+    "h": 2,
+    "weight": 0.08,
+    "effect": {
+      "kind": "intel",
+      "mode": "rumour",
+      "bias": "danger",
+      "fuzzM": 250
+    },
+    "value": 22,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#8f9498",
+    "scarcity": 0.12,
+    "exotic": true,
+    "icon": "action.map"
   }
 }

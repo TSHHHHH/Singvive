@@ -5,6 +5,7 @@ export {
   tList,
   flattenMessages,
   setMessageLeaf,
+  ensureLocale,
   getCatalog,
   getEnglishCatalog,
   getZhHansCatalog,

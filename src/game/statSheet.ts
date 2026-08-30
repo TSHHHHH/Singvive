@@ -92,7 +92,6 @@ export interface StatSheetInput {
   items: ItemInstance[];
   meters: Meters;
   bodyParts: BodyParts;
-  rounds: number;
   weather: WeatherState;
 }
 
@@ -210,7 +209,7 @@ function isNightBand(weather: WeatherState): boolean {
  * Live derived stats with every non-zero contributor. Pure — no React, no RNG.
  */
 export function buildStatSheet(input: StatSheetInput): StatSheet {
-  const { character, equipment, items, meters, bodyParts, rounds, weather } = input;
+  const { character, equipment, items, meters, bodyParts, weather } = input;
   const { attributes, traitIds } = character;
   const traits = getTraits(traitIds);
   const carryMod = sumTraitMod(traitIds, 'carryCapacityMod');
@@ -221,7 +220,6 @@ export function buildStatSheet(input: StatSheetInput): StatSheet {
     traitIds,
     equipment,
     armPen,
-    rounds,
     fx.attackMod,
   );
   const energyAtk = energyAttackBonus(meters.energy);

@@ -53,6 +53,8 @@ export function evacWeightMult(effect: ItemEffect): number {
       return 2.5;
     case 'ammo':
       return 2.5;
+    case 'magazine':
+      return 2.5;
     case 'weapon':
       return effect.ranged ? 0.7 : 0.45;
     case 'energy':
@@ -63,6 +65,8 @@ export function evacWeightMult(effect: ItemEffect): number {
       return 0.4;
     case 'misc':
       return 0.35;
+    case 'intel':
+      return 0;
   }
 }
 
@@ -70,7 +74,7 @@ function biasMultFor(effect: ItemEffect, bias: EvacDemandBias): number {
   if (bias === 'balanced') return 1;
   if (bias === 'fuel' && effect.kind === 'fuel') return BIAS_MULT;
   if (bias === 'meds' && (effect.kind === 'heal' || effect.kind === 'cure')) return BIAS_MULT;
-  if (bias === 'ammo' && effect.kind === 'ammo') return BIAS_MULT;
+  if (bias === 'ammo' && (effect.kind === 'ammo' || effect.kind === 'magazine')) return BIAS_MULT;
   return 1;
 }
 
@@ -83,6 +87,17 @@ export function backpackEvacValue(
   for (const inst of items) {
     if (inst.container !== 'backpack') continue;
     const def = itemDef(inst.defId);
+    if (def.effect.kind === 'magazine') {
+      const cap = def.effect.capacity;
+      const fill = inst.loadedRounds ?? 0;
+      if (fill <= 0 || cap <= 0) continue;
+      total +=
+        def.value *
+        (fill / cap) *
+        evacWeightMult(def.effect) *
+        biasMultFor(def.effect, bias);
+      continue;
+    }
     total +=
       def.value *
       conditionScale(inst) *

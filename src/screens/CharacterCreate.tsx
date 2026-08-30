@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useGame } from '../game/store';
 import {
   ATTRIBUTE_BLURB,
@@ -62,7 +63,9 @@ function TraitEffectList({
 }
 
 export function CharacterCreate() {
-  const { commitCharacter, resetToMenu } = useGame();
+  const { commitCharacter, resetToMenu } = useGame(
+    useShallow((s) => ({ commitCharacter: s.commitCharacter, resetToMenu: s.resetToMenu })),
+  );
   const { locale, t } = useT();
   const [name, setName] = useState('');
   const [step, setStep] = useState<Step>('occupation');

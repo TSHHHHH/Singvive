@@ -362,6 +362,165 @@ select optgroup {
   animation: combat-outcome-dead 0.55s ease-out 1;
 }
 
+/* Clock spent-time cue. One-shot; remount via nonce. Accent comes from --clock-accent. */
+@keyframes clock-pulse-tick {
+  0% {
+    border-color: color-mix(in srgb, var(--clock-accent, #e8e5dd) 70%, transparent);
+    box-shadow:
+      inset 0 0 12px rgba(0, 0, 0, 0.6),
+      0 0 14px color-mix(in srgb, var(--clock-accent, #e8e5dd) 45%, transparent);
+    transform: scale(1.02);
+  }
+  100% {
+    border-color: rgba(255, 255, 255, 0.15);
+    box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.6);
+    transform: scale(1);
+  }
+}
+.clock-pulse-tick {
+  animation: clock-pulse-tick 0.55s ease-out 1;
+}
+
+@keyframes clock-pulse-band {
+  0% {
+    border-color: color-mix(in srgb, var(--clock-accent, #e8e5dd) 90%, transparent);
+    box-shadow:
+      inset 0 0 12px rgba(0, 0, 0, 0.6),
+      0 0 22px color-mix(in srgb, var(--clock-accent, #e8e5dd) 55%, transparent);
+    transform: scale(1.04);
+  }
+  100% {
+    border-color: rgba(255, 255, 255, 0.15);
+    box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.6);
+    transform: scale(1);
+  }
+}
+.clock-pulse-band {
+  animation: clock-pulse-band 0.9s ease-out 1;
+}
+
+@keyframes clock-pulse-phone-tick {
+  0% {
+    filter: brightness(1.85);
+    text-shadow: 0 0 10px var(--clock-accent, #e8e5dd);
+  }
+  100% {
+    filter: brightness(1);
+    text-shadow: none;
+  }
+}
+@keyframes clock-pulse-phone-band {
+  0% {
+    filter: brightness(2.1);
+    text-shadow: 0 0 14px var(--clock-accent, #e8e5dd);
+  }
+  100% {
+    filter: brightness(1);
+    text-shadow: none;
+  }
+}
+.clock-pulse-phone.clock-pulse-tick {
+  animation: clock-pulse-phone-tick 0.55s ease-out 1;
+  border-color: transparent;
+  box-shadow: none;
+  transform: none;
+}
+.clock-pulse-phone.clock-pulse-band {
+  animation: clock-pulse-phone-band 0.9s ease-out 1;
+  border-color: transparent;
+  box-shadow: none;
+  transform: none;
+}
+
+@keyframes clock-delta {
+  0% {
+    opacity: 1;
+    transform: translateY(2px);
+  }
+  55% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+.clock-delta-chip {
+  animation: clock-delta 1.6s ease-out 1 forwards;
+  background: rgba(8, 8, 10, 0.82);
+  border-radius: 2px;
+  color: var(--clock-accent, #e8e5dd);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  padding: 0.12rem 0.28rem;
+  text-shadow: 0 0 8px color-mix(in srgb, var(--clock-accent, #e8e5dd) 50%, transparent);
+  white-space: nowrap;
+}
+
+@keyframes clock-label-flash {
+  0% {
+    color: var(--clock-accent, #e8e5dd);
+    opacity: 1;
+  }
+  100% {
+    color: rgba(255, 255, 255, 0.45);
+    opacity: 1;
+  }
+}
+.clock-label-flash {
+  animation: clock-label-flash 0.9s ease-out 1;
+}
+
+@keyframes clock-pulse-tick-still {
+  0%,
+  40% {
+    border-color: color-mix(in srgb, var(--clock-accent, #e8e5dd) 70%, transparent);
+    box-shadow:
+      inset 0 0 12px rgba(0, 0, 0, 0.6),
+      0 0 10px color-mix(in srgb, var(--clock-accent, #e8e5dd) 40%, transparent);
+  }
+  100% {
+    border-color: rgba(255, 255, 255, 0.15);
+    box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.6);
+  }
+}
+@keyframes clock-pulse-band-still {
+  0%,
+  45% {
+    border-color: color-mix(in srgb, var(--clock-accent, #e8e5dd) 85%, transparent);
+    box-shadow:
+      inset 0 0 12px rgba(0, 0, 0, 0.6),
+      0 0 14px color-mix(in srgb, var(--clock-accent, #e8e5dd) 50%, transparent);
+  }
+  100% {
+    border-color: rgba(255, 255, 255, 0.15);
+    box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.6);
+  }
+}
+@keyframes clock-pulse-phone-still {
+  0%,
+  45% {
+    filter: brightness(1.45);
+    text-shadow: 0 0 8px var(--clock-accent, #e8e5dd);
+  }
+  100% {
+    filter: brightness(1);
+    text-shadow: none;
+  }
+}
+@keyframes clock-delta-still {
+  0%,
+  60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .pulse-danger {
     animation: none;
@@ -397,6 +556,30 @@ select optgroup {
   .combat-outcome-dead {
     animation: none;
     box-shadow: inset 0 0 0 1px rgba(217, 45, 45, 0.55);
+  }
+  .clock-pulse-tick {
+    animation: clock-pulse-tick-still 1.2s ease-out 1 forwards;
+    transform: none;
+  }
+  .clock-pulse-band {
+    animation: clock-pulse-band-still 1.6s ease-out 1 forwards;
+    transform: none;
+  }
+  .clock-pulse-phone.clock-pulse-tick,
+  .clock-pulse-phone.clock-pulse-band {
+    animation: clock-pulse-phone-still 1.2s ease-out 1 forwards;
+    transform: none;
+  }
+  .clock-delta-chip {
+    animation: clock-delta-still 1.6s ease-out 1 forwards;
+  }
+  .clock-label-flash {
+    animation: none;
+    color: var(--clock-accent, #e8e5dd);
+  }
+  .tod-flash {
+    animation: none;
+    opacity: 0.28;
   }
   /*
    * Gameplay reveal FX opts in via .search-find-fx--force-motion (live search +
@@ -657,17 +840,14 @@ select optgroup {
   will-change: opacity;
 }
 
-/* Rain: one (or, on subtle-only paths, a spare front) sheet of discrete streaks.
-   Built from two crossed gradients, because one alone can only draw unbroken
-   pinstripes — a hatch, not rain:
-     · background = evenly spaced vertical lines (the columns rain falls in)
-     · mask       = tapered horizontal dashes (which slice those lines into
-                    individual streaks with soft ends)
-   The slant is a `rotate` on the layer itself, NOT a gradient angle, so the
-   background stays perfectly vertical in local space. That matters: a vertical
-   line pattern is unchanged by a vertical shift, so only the mask's period has
-   to be travelled for a seamless loop — and there is no angled tile left to
-   leave horizontal seams across the frame.
+/* Rain: one tileable SVG sheet of scattered vertical streaks (see scripts/gen-rain-tile.mjs).
+   Repeating CSS gradients cross into a grid — every column lights up on the same
+   horizontal band, which reads as rows, not rain. The SVG places each streak at
+   an independent (x, y) with wrap copies for a seamless 168px loop.
+
+   Slant comes from `rotate` on the layer, not from the tile, so vertical streaks
+   in local space stay unchanged under a vertical shift — only the tile height has
+   to match the animation travel distance.
 
    Full mode pairs a single sheet with a static wet tint (see WeatherFx) so we
    never stack two oversized rain layers. */
@@ -697,23 +877,9 @@ select optgroup {
 .wx-rain-back {
   animation-name: wx-fall-back;
   animation-duration: 0.95s;
-  background-image: repeating-linear-gradient(
-    to right,
-    rgba(196, 218, 228, 0.16) 0 1px,
-    transparent 1px 38px
-  );
-  mask-image: repeating-linear-gradient(
-    to bottom,
-    transparent 0 8px,
-    rgba(0, 0, 0, 0.55) 18px 32px,
-    transparent 48px 168px
-  );
-  -webkit-mask-image: repeating-linear-gradient(
-    to bottom,
-    transparent 0 8px,
-    rgba(0, 0, 0, 0.55) 18px 32px,
-    transparent 48px 168px
-  );
+  background-image: url(/weather/rain-sheet.svg);
+  background-repeat: repeat;
+  background-size: 192px 168px;
 }
 
 /* Spare sheet (subtle storm / legacy): longer gaps, still soft */
@@ -866,6 +1032,49 @@ select optgroup {
    mood under Full rain (one animated sheet + this tint). */
 .wx-wet-still {
   background: linear-gradient(to bottom, rgba(120, 148, 168, 0.12), rgba(70, 92, 112, 0.16));
+}
+
+/* Time-of-day wash over the map. Static viewport tints — no oversized sheets,
+   no tile filter. Flash is a one-shot opacity fade remounted on band change. */
+.tod-root {
+  contain: strict;
+}
+.tod-root > div {
+  position: absolute;
+  inset: 0;
+}
+.tod-dusk {
+  background: linear-gradient(
+    to top,
+    rgba(170, 78, 22, 0.28),
+    rgba(255, 150, 60, 0.1) 42%,
+    rgba(18, 14, 10, 0.14)
+  );
+}
+.tod-night {
+  background:
+    linear-gradient(to bottom, rgba(6, 12, 26, 0.42), rgba(4, 10, 22, 0.24) 52%, rgba(2, 6, 16, 0.36)),
+    radial-gradient(ellipse 70% 42% at 16% 0%, rgba(70, 100, 160, 0.14), transparent 62%);
+}
+@keyframes tod-flash {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.tod-flash {
+  animation: tod-flash 0.7s ease-out 1 forwards;
+}
+.tod-flash-dusk {
+  background: rgba(255, 148, 56, 0.28);
+}
+.tod-flash-night {
+  background: rgba(16, 36, 72, 0.4);
+}
+.tod-flash-day {
+  background: rgba(255, 228, 176, 0.18);
 }
 
 /* Noise rings used to animate here, but the map runs `preferCanvas` — there is

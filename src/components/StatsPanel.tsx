@@ -4,9 +4,8 @@ import { Icon } from '../icons/Icon';
 import { STAT_GROUPS } from '../game/stats';
 import { getTraits } from '../game/character';
 import { getOccupation } from '../game/occupations';
-import { SurvivorStatsGrid } from './SurvivorStatsGrid';
 import { StatBonusesPanel } from './StatBonusesPanel';
-import { useIsPhoneLayout } from './HdbZoomViewport';
+import { StatCard } from './statFold';
 import { traitHoverText, traitName, useT } from '../i18n';
 import { tip } from './tips';
 
@@ -15,13 +14,12 @@ function sameTraits(a: string[], b: string[]): boolean {
 }
 
 /**
- * Who they are (traits) above what they've done (counters that only ever go
- * up). Attributes live on the Condition rail — no need to repeat them here.
- * Desktop also hosts live combat/mobility stats (phone keeps those on Condition).
+ * Who they are (traits) above live derived stats (sheet cards) and what
+ * they've done (counters that only ever go up). Compact combat/mobility
+ * tiles live on the Condition rail on phone; desktop reads them here.
  */
 export function StatsPanel() {
   const { locale, t } = useT();
-  const isPhone = useIsPhoneLayout();
   const { character, stats, day } = useGame(
     useShallow((s) => ({ character: s.character, stats: s.stats, day: s.day })),
   );
@@ -44,7 +42,7 @@ export function StatsPanel() {
             <span className="shrink-0 text-xs text-white/40">{t('ui.stats.day', { day })}</span>
           </div>
           {occupationMatches && occupation && (
-            <div className="mt-0.5 text-2xs uppercase tracking-wide text-white/40">
+            <div className="mt-0.5 text-xs uppercase tracking-wide text-white/40">
               {occupation.name}
             </div>
           )}
@@ -75,39 +73,28 @@ export function StatsPanel() {
         </section>
       )}
 
-      {!isPhone && (
-        <section className="rounded-lg border border-white/15 bg-concrete-900/80 p-3">
-          <SurvivorStatsGrid />
-        </section>
-      )}
-
       <StatBonusesPanel />
 
       {STAT_GROUPS.map((group) => (
-        <section
-          key={group.titleKey}
-          className="rounded-lg border border-white/15 bg-concrete-900/80 p-3"
-        >
-          <h4 className="mb-2 text-xs uppercase tracking-widest text-white/30">
-            {t(group.titleKey)}
-          </h4>
+        <StatCard key={group.titleKey} title={t(group.titleKey)}>
           <dl className="flex flex-col gap-1">
             {group.rows.map((row) => {
               const raw = stats[row.key];
               return (
                 <div key={row.key} className="flex items-center gap-2 text-xs">
-                  <span className="w-5 shrink-0 text-center text-white/40">
-                    <Icon name={row.icon} />
+                  <span className="w-6 shrink-0 text-center text-white/40">
+                    <Icon name={row.icon} size={16} />
                   </span>
                   <dt className="min-w-0 flex-1 truncate text-white/50">{t(row.labelKey)}</dt>
-                  <dd className="shrink-0 tabular-nums text-concrete-50">
+                  <dd className="w-[4.75rem] shrink-0 text-right tabular-nums text-concrete-50">
                     {row.format ? row.format(raw) : Math.round(raw)}
                   </dd>
+                  <span className="w-3 shrink-0" />
                 </div>
               );
             })}
           </dl>
-        </section>
+        </StatCard>
       ))}
     </div>
   );

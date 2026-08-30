@@ -1,10 +1,19 @@
 // Shared basemap config so GameMap and SpawnSelect stay in sync.
 //
-// ACTIVE: CARTO "Dark Matter". Keyless on any domain, native tiles to z20, and
-// serves @2x variants — the `{r}` placeholder is what Leaflet expands to "@2x"
-// on high-DPI displays. Dropping `{r}` (or using a provider without @2x tiles)
-// makes the whole map look soft on a retina screen at every zoom level.
-export const TILE_URL = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+// ACTIVE: CARTO "Dark Matter". Native tiles to z20, and serves @2x variants —
+// the `{r}` placeholder is what Leaflet expands to "@2x" on high-DPI displays.
+// Dropping `{r}` (or using a provider without @2x tiles) makes the whole map
+// look soft on a retina screen at every zoom level.
+//
+// Raster tiles watermark "API KEY REQUIRED" unless `VITE_CARTO_API_KEY` is set
+// (`.env.local`; baked in at Vite build). Free key: carto.com/basemaps/apikey
+const CARTO_DARK_URL =
+  'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+const CARTO_KEY = import.meta.env.VITE_CARTO_API_KEY?.trim();
+
+export const TILE_URL = CARTO_KEY
+  ? `${CARTO_DARK_URL}?key=${encodeURIComponent(CARTO_KEY)}`
+  : CARTO_DARK_URL;
 
 // CARTO's terms require attributing both them and OpenStreetMap.
 export const TILE_ATTRIBUTION = '&copy; OpenStreetMap contributors &copy; CARTO';

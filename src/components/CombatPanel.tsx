@@ -17,6 +17,10 @@ import {
   playerSpeed,
   secondsPerAction,
 } from '../game/combat';
+import { canCombatReload, holsteredFirearm, isGunClubMainHand, loadedRoundsOf, magazineSizeFor } from '../game/firearms';
+import { fullEquipment } from '../game/equipmentSlots';
+import { conditionOf } from '../game/inventory';
+import { itemDef } from '../game/loot';
 import { combatantIcon } from '../game/enemies';
 import type { CombatImpact, CombatLogEntry, Enemy, StanceId } from '../game/types';
 import { enemyName, useT } from '../i18n';
@@ -62,7 +66,7 @@ export function CombatPanel({
   const equipment = useGame((s) => s.equipment);
   const character = useGame((s) => s.character);
   const items = useGame((s) => s.items);
-  const rounds = useGame((s) => s.rounds);
+  const combatPrepareFire = useGame((s) => s.combatPrepareFire);
   const combatBreakOff = useGame((s) => s.combatBreakOff);
   const combatContinue = useGame((s) => s.combatContinue);
   const combatTick = useGame((s) => s.combatTick);
@@ -131,12 +135,28 @@ export function CombatPanel({
     equipment,
     sumTraitMod(character.traitIds, 'carryCapacityMod'),
   );
+  const eq = fullEquipment(equipment);
+  const holstered = holsteredFirearm(eq);
+  const holsterDef = holstered ? itemDef(holstered.defId) : null;
+  const holsterLoaded = holstered ? loadedRoundsOf(holstered) : 0;
+  const holsterCap = holsterDef ? magazineSizeFor(holsterDef) : 0;
+  const gunClub = isGunClubMainHand(eq);
+  const canFire =
+    !!holstered &&
+    conditionOf(holstered) > 0 &&
+    !gunClub &&
+    (holsterLoaded > 0 || canCombatReload(eq, items));
+  const fireLabel =
+    holsterLoaded > 0
+      ? t('ui.combat.fire')
+      : holsterLoaded === 0 && holstered && canCombatReload(eq, items)
+        ? t('ui.combat.reload')
+        : t('ui.combat.fire');
   const stats = playerCombatStats(
     character.attributes,
     character.traitIds,
-    equipment,
+    eq,
     armCombatPenalty(bodyParts),
-    rounds,
     load.attackMod,
   );
   const stance = STANCES[combat.selectedStance];
@@ -218,6 +238,11 @@ export function CombatPanel({
       <div className="flex shrink-0 items-center justify-end gap-2 border-b border-white/10 pb-1 text-xs text-white/30">
         {meters.infection > 0 && (
           <span className="text-astral">☣ {Math.round(meters.infection)}</span>
+        )}
+        {holstered && (
+          <span className={holsterLoaded === 0 ? 'text-hiss' : 'text-white/45'}>
+            {t('ui.combat.magCount', { n: holsterLoaded, cap: holsterCap })}
+          </span>
         )}
         <span>
           {terrain.name} · T{combat.round}
@@ -324,15 +349,40 @@ export function CombatPanel({
           {combat.outcome === 'dead' ? t('ui.combat.seeResults') : t('ui.combat.continue')}
         </button>
       ) : (
-        <div className="flex shrink-0 items-stretch gap-1">
-          <StanceSwitcher selected={combat.selectedStance} onSelect={combatSetStance} />
-          <button
-            onClick={combatBreakOff}
-            {...tip(t('ui.combat.breakOffTitle'))}
-            className="h-7 shrink-0 rounded border border-hiss/50 px-2 text-xs font-bold uppercase tracking-wide text-hiss hover:bg-hiss/10"
-          >
-            {t('ui.combat.breakOff')}
-          </button>
+        <div className="flex shrink-0 flex-col gap-1">
+          <div className="flex items-stretch gap-1">
+            <StanceSwitcher selected={combat.selectedStance} onSelect={combatSetStance} />
+            {holstered && !gunClub && (
+              <button
+                type="button"
+                onClick={combatPrepareFire}
+                disabled={!canFire || combat.firePrepared || combat.reloadPrepared}
+                {...tip(
+                  conditionOf(holstered) <= 0
+                    ? t('ui.combat.fireBroken')
+                    : holsterLoaded > 0
+                      ? t('ui.combat.fireTip')
+                      : canCombatReload(eq, items)
+                        ? t('ui.combat.reloadTip')
+                        : t('ui.combat.noAmmo'),
+                )}
+                className={`h-7 shrink-0 rounded border px-2 text-xs font-bold uppercase tracking-wide transition ${
+                  canFire && !combat.firePrepared && !combat.reloadPrepared
+                    ? 'border-signal/60 text-signal hover:bg-signal/10'
+                    : 'border-white/15 text-white/30'
+                }`}
+              >
+                {fireLabel}
+              </button>
+            )}
+            <button
+              onClick={combatBreakOff}
+              {...tip(t('ui.combat.breakOffTitle'))}
+              className="h-7 shrink-0 rounded border border-hiss/50 px-2 text-xs font-bold uppercase tracking-wide text-hiss hover:bg-hiss/10"
+            >
+              {t('ui.combat.breakOff')}
+            </button>
+          </div>
         </div>
       )}
     </div>

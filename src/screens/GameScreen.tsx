@@ -194,6 +194,24 @@ export function GameScreen() {
   // Do not add `combat`, `log`, or per-frame search progress to this slice.
   // Gauge ticks rewrite `combat` at 20 Hz — select booleans below; CombatPanel
   // owns the combat object.
+  // Action identities are created once in the store factory and never replaced
+  // by `set()`, so they do not belong in the reactive selector — keeping them
+  // there rebuilt an 11-key object and ran 11 comparisons on every one of the
+  // store's ~187 writes, for values that cannot change.
+  const {
+    hdbEnter,
+    acceptGhostTrade,
+    declineGhostTrade,
+    callEvac,
+    travel,
+    enter,
+    trek,
+    tunnelEnterRoute,
+    rest,
+    peekRestPreview,
+    notify,
+  } = useGame.getState();
+
   const {
     spawn,
     locations,
@@ -205,10 +223,7 @@ export function GameScreen() {
     pendingEvent,
     pendingSearch,
     hdb,
-    hdbEnter,
     ghostOffer,
-    acceptGhostTrade,
-    declineGhostTrade,
     noisePulses,
     hordeLevel,
     groundZeroId,
@@ -218,16 +233,8 @@ export function GameScreen() {
     evacDemand,
     evacDemandBias,
     evacManifestRevealed,
-    callEvac,
-    travel,
-    enter,
-    trek,
-    tunnelEnterRoute,
     tunnel,
     destroyedTunnelEdges,
-    rest,
-    peekRestPreview,
-    notify,
     meters,
     character,
     hour,
@@ -250,10 +257,7 @@ export function GameScreen() {
       pendingEvent: s.pendingEvent,
       pendingSearch: s.pendingSearch,
       hdb: s.hdb,
-      hdbEnter: s.hdbEnter,
       ghostOffer: s.ghostOffer,
-      acceptGhostTrade: s.acceptGhostTrade,
-      declineGhostTrade: s.declineGhostTrade,
       noisePulses: s.noisePulses,
       hordeLevel: s.hordeLevel,
       groundZeroId: s.groundZeroId,
@@ -263,16 +267,8 @@ export function GameScreen() {
       evacDemand: s.evacDemand,
       evacDemandBias: s.evacDemandBias,
       evacManifestRevealed: s.evacManifestRevealed,
-      callEvac: s.callEvac,
-      travel: s.travel,
-      enter: s.enter,
-      trek: s.trek,
-      tunnelEnterRoute: s.tunnelEnterRoute,
       tunnel: s.tunnel,
       destroyedTunnelEdges: s.destroyedTunnelEdges,
-      rest: s.rest,
-      peekRestPreview: s.peekRestPreview,
-      notify: s.notify,
       meters: s.meters,
       character: s.character,
       hour: s.hour,
@@ -287,6 +283,12 @@ export function GameScreen() {
   );
   const inCombat = useGame((s) => s.combat !== null);
   const awaitingStance = useGame((s) => s.combat?.awaitingStance ?? false);
+  const mapAnnotations = useGame((s) => s.mapAnnotations);
+  const intelNoteCount = useMemo(
+    () => items.filter((i) => itemDef(i.defId).effect.kind === 'intel').length,
+    [items],
+  );
+  const rumourCount = mapAnnotations.length;
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // A spot on bare map the player is considering walking to. Mutually exclusive
@@ -1091,6 +1093,8 @@ export function GameScreen() {
               evacCurrent={readiness.current}
               evacRequired={readiness.required}
               onOpen={() => setSidePanel((p) => (p === 'objective' ? null : 'objective'))}
+              intelNoteCount={intelNoteCount}
+              rumourCount={rumourCount}
             />
 
             <ConditionPanel
@@ -1194,6 +1198,8 @@ export function GameScreen() {
                 townTier={hereTownTier}
                 onEvac={callEvac}
                 onOpenGuide={setGuideTopic}
+                intelNoteCount={intelNoteCount}
+                rumourCount={rumourCount}
             />
             )}
           </div>
@@ -1260,6 +1266,7 @@ export function GameScreen() {
                 travelPath={travelPath}
                 travelPathBlocked={travelPathBlocked}
                 focusTarget={mapFocus}
+                mapAnnotations={mapAnnotations}
                 onSelect={selectPoi}
                 onPickGround={pickGround}
               />

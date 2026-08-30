@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { tip } from './tips';
 import { useGame } from '../game/store';
@@ -43,7 +44,7 @@ function StatCell({ label, value, tip: tipText, modifiers }: StatCellProps) {
   const inner = (
     <>
       <div className="text-sm font-bold tabular-nums text-signal">{value}</div>
-      <div className="text-2xs uppercase text-white/40">{label}</div>
+      <div className="text-xs uppercase tracking-wide text-white/40">{label}</div>
     </>
   );
   if (modifiers?.length) {
@@ -78,48 +79,56 @@ function StatCell({ label, value, tip: tipText, modifiers }: StatCellProps) {
 export function SurvivorStatsGrid() {
   const { locale, t } = useT();
   const sheet = useLiveStatSheet();
-  const { character, equipment, bodyParts, meters, rounds, items } = useGame(
+  const { character, equipment, bodyParts, meters, items } = useGame(
     useShallow((s) => ({
       character: s.character,
       equipment: s.equipment,
       bodyParts: s.bodyParts,
       meters: s.meters,
-      rounds: s.rounds,
       items: s.items,
     })),
   );
-  if (!character) return null;
+  // Two full `items` walks plus the whole derived combat block. This panel is
+  // subscribed to items/meters/bodyParts, so without the memo every hunger or
+  // HP tick re-ran all of it. Hook sits above the `character` guard so the hook
+  // order stays stable (oxlint react/rules-of-hooks).
+  const derived = useMemo(() => {
+    if (!character) return null;
+    const carryMod = sumTraitMod(character.traitIds, 'carryCapacityMod');
+    const fx = loadEffectsFor(items, character.attributes, equipment, carryMod);
+    const armPen = armCombatPenalty(bodyParts);
+    const pStats = playerCombatStats(
+      character.attributes,
+      character.traitIds,
+      equipment,
+      armPen,
+      fx.attackMod,
+    );
+    const dodge = playerDodgeChance(
+      character.attributes,
+      character.traitIds,
+      equipment,
+      meters.energy,
+      bodyParts,
+      STANCES.guarded,
+      TERRAIN.open_ground,
+      fx.dodgeMod,
+    );
+    const travel =
+      (travelSpeedMultiplier(meters.energy) *
+        legTravelFactor(bodyParts) *
+        equipTravelSpeedFactor(equipment) *
+        (1 + sumTraitMod(character.traitIds, 'travelSpeedMod'))) /
+      fx.travelMult;
+    const carry = maxCarry(character.attributes, equipment, carryMod);
+    const loadKg = carriedWeight(items, equipment);
+    const stealth = equipEncounterChanceMod(equipment);
+    return { carryMod, fx, armPen, pStats, dodge, travel, carry, loadKg, stealth };
+  }, [character, items, equipment, bodyParts, meters.energy]);
 
-  const carryMod = sumTraitMod(character.traitIds, 'carryCapacityMod');
-  const fx = loadEffectsFor(items, character.attributes, equipment, carryMod);
-  const armPen = armCombatPenalty(bodyParts);
-  const pStats = playerCombatStats(
-    character.attributes,
-    character.traitIds,
-    equipment,
-    armPen,
-    rounds,
-    fx.attackMod,
-  );
-  const dodge = playerDodgeChance(
-    character.attributes,
-    character.traitIds,
-    equipment,
-    meters.energy,
-    bodyParts,
-    STANCES.guarded,
-    TERRAIN.open_ground,
-    fx.dodgeMod,
-  );
-  const travel =
-    (travelSpeedMultiplier(meters.energy) *
-      legTravelFactor(bodyParts) *
-      equipTravelSpeedFactor(equipment) *
-      (1 + sumTraitMod(character.traitIds, 'travelSpeedMod'))) /
-    fx.travelMult;
-  const carry = maxCarry(character.attributes, equipment, carryMod);
-  const loadKg = carriedWeight(items, equipment);
-  const stealth = equipEncounterChanceMod(equipment);
+  if (!character || !derived) return null;
+
+  const { fx, pStats, dodge, travel, carry, loadKg, stealth } = derived;
   const stealthLabel =
     stealth === 0 ? '±0%' : `${stealth > 0 ? '+' : ''}${Math.round(stealth * 100)}%`;
 

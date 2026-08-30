@@ -1,0 +1,23 @@
+---
+description: Keep player-facing guide copy aligned with GAME_DESIGN.md score/evac/survival rules
+globs: src/content/**,src/i18n/**
+alwaysApply: false
+---
+
+# Guide copy sync
+
+Player-facing primer copy lives in `src/i18n/messages/*.json` (`guide.*` keys). `src/content/guideContent.ts` only orders those topics.
+
+## When to update
+
+If you change any of these systems, update **both** the i18n guide keys **and** `GAME_DESIGN.md` § score / evac / survival:
+
+- Day multiplier or extraction scoring
+- Evac beacon timing, horde clock, cargo kit rules
+- Survival meters, injury model, or death conditions
+- Combat stances, flee DC, or noise mechanics described in the guide
+
+## Do not
+
+- Duplicate long rule text in `guideContent.ts` — keep prose in i18n JSON
+- Ship gameplay rule changes without checking the in-game guide still matches

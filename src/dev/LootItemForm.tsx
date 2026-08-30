@@ -57,9 +57,13 @@ function defaultEffect(kind: ItemEffect['kind']): ItemEffect {
     case 'weapon':
       return { kind: 'weapon', damage: 10, accuracy: 0, ranged: false };
     case 'ammo':
-      return { kind: 'ammo', rounds: 6 };
+      return { kind: 'ammo', caliber: '9mm', rounds: 6 };
+    case 'magazine':
+      return { kind: 'magazine', caliber: '9mm', capacity: 8 };
     case 'fuel':
       return { kind: 'fuel' };
+    case 'intel':
+      return { kind: 'intel', mode: 'precise', bias: 'danger' };
     case 'misc':
       return { kind: 'misc' };
   }
@@ -95,6 +99,8 @@ type Props = {
   recipesDraft?: RecipesCatalog | null;
   /** Live tile-color draft from the Tile colors tab. */
   tileColors?: ItemTileColors;
+  /** When false, the form is mounted but hidden (e.g. another Loot tab is active). */
+  active?: boolean;
 };
 
 export function LootItemForm({
@@ -105,6 +111,7 @@ export function LootItemForm({
   onOpenRecipe,
   recipesDraft,
   tileColors = ITEM_TILE_COLORS,
+  active = true,
 }: Props) {
   const patch = (partial: Partial<ItemDef>) => onChange({ ...item, ...partial });
   const fileRef = useRef<HTMLInputElement>(null);
@@ -136,6 +143,30 @@ export function LootItemForm({
       if (previewUrl) URL.revokeObjectURL(previewUrl);
     };
   }, [previewUrl]);
+
+  const clearPreview = () => {
+    setPreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+  };
+
+  // Drop upload blob preview when leaving Items or switching selection.
+  useEffect(() => {
+    if (!active) {
+      setPreviewUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+    }
+  }, [active]);
+
+  useEffect(() => {
+    setPreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+  }, [item.id]);
 
   const knownIconKeys = useMemo(() => {
     const keys = new Set<string>();
@@ -344,10 +375,7 @@ export function LootItemForm({
                 type="button"
                 onClick={() => {
                   setIcon('');
-                  if (previewUrl) {
-                    URL.revokeObjectURL(previewUrl);
-                    setPreviewUrl(null);
-                  }
+                  clearPreview();
                 }}
                 className="rounded border border-white/15 px-2.5 py-1.5 text-xs text-white/70"
               >
@@ -430,6 +458,19 @@ export function LootItemForm({
               }}
             />
             perishable
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={!!item.twoHanded}
+              onChange={(e) => {
+                const next = { ...item };
+                if (e.target.checked) next.twoHanded = true;
+                else delete next.twoHanded;
+                onChange(next);
+              }}
+            />
+            twoHanded
           </label>
           <label className="flex items-center gap-2 text-sm" {...tip('Granted when a new run starts')}>
             <input
@@ -615,14 +656,68 @@ export function LootItemForm({
             </Field>
           )}
           {effect.kind === 'ammo' && (
-            <Field label="rounds">
-              <input
-                type="number"
-                className={inputClass}
-                value={effect.rounds}
-                onChange={(e) => setEffect({ kind: 'ammo', rounds: Number(e.target.value) })}
-              />
-            </Field>
+            <>
+              <Field label="caliber">
+                <select
+                  className={inputClass}
+                  value={effect.caliber}
+                  onChange={(e) =>
+                    setEffect({
+                      kind: 'ammo',
+                      caliber: e.target.value as '9mm' | '12g',
+                      rounds: effect.rounds,
+                    })
+                  }
+                >
+                  <option value="9mm">9mm</option>
+                  <option value="12g">12g</option>
+                </select>
+              </Field>
+              <Field label="rounds">
+                <input
+                  type="number"
+                  className={inputClass}
+                  value={effect.rounds}
+                  onChange={(e) =>
+                    setEffect({ kind: 'ammo', caliber: effect.caliber, rounds: Number(e.target.value) })
+                  }
+                />
+              </Field>
+            </>
+          )}
+          {effect.kind === 'magazine' && (
+            <>
+              <Field label="caliber">
+                <select
+                  className={inputClass}
+                  value={effect.caliber}
+                  onChange={(e) =>
+                    setEffect({
+                      kind: 'magazine',
+                      caliber: e.target.value as '9mm' | '12g',
+                      capacity: effect.capacity,
+                    })
+                  }
+                >
+                  <option value="9mm">9mm</option>
+                  <option value="12g">12g</option>
+                </select>
+              </Field>
+              <Field label="capacity">
+                <input
+                  type="number"
+                  className={inputClass}
+                  value={effect.capacity}
+                  onChange={(e) =>
+                    setEffect({
+                      kind: 'magazine',
+                      caliber: effect.caliber,
+                      capacity: Number(e.target.value),
+                    })
+                  }
+                />
+              </Field>
+            </>
           )}
           {effect.kind === 'heal' && (
             <>
@@ -743,6 +838,68 @@ export function LootItemForm({
                 />
                 ranged
               </label>
+              {effect.ranged && (
+                <>
+                  <Field label="caliber">
+                    <select
+                      className={inputClass}
+                      value={effect.caliber ?? ''}
+                      onChange={(e) => {
+                        const next = { ...effect, kind: 'weapon' as const };
+                        if (!e.target.value) delete next.caliber;
+                        else next.caliber = e.target.value as '9mm' | '12g';
+                        setEffect(next);
+                      }}
+                    >
+                      <option value="">—</option>
+                      <option value="9mm">9mm</option>
+                      <option value="12g">12g</option>
+                    </select>
+                  </Field>
+                  <Field label="magazineSize">
+                    <input
+                      type="number"
+                      className={inputClass}
+                      value={effect.magazineSize ?? ''}
+                      placeholder="derived"
+                      onChange={(e) => {
+                        const next = { ...effect, kind: 'weapon' as const };
+                        if (e.target.value.trim() === '') delete next.magazineSize;
+                        else next.magazineSize = Number(e.target.value);
+                        setEffect(next);
+                      }}
+                    />
+                  </Field>
+                  <Field label="reloadSpeedFactor">
+                    <input
+                      type="number"
+                      step="0.05"
+                      className={inputClass}
+                      value={effect.reloadSpeedFactor ?? ''}
+                      placeholder="—"
+                      onChange={(e) => {
+                        const next = { ...effect, kind: 'weapon' as const };
+                        if (e.target.value.trim() === '') delete next.reloadSpeedFactor;
+                        else next.reloadSpeedFactor = Number(e.target.value);
+                        setEffect(next);
+                      }}
+                    />
+                  </Field>
+                  <label className="flex items-center gap-2 self-end pb-1 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={!!effect.usesMagazine}
+                      onChange={(e) => {
+                        const next = { ...effect, kind: 'weapon' as const };
+                        if (e.target.checked) next.usesMagazine = true;
+                        else delete next.usesMagazine;
+                        setEffect(next);
+                      }}
+                    />
+                    usesMagazine
+                  </label>
+                </>
+              )}
             </>
           )}
         </div>

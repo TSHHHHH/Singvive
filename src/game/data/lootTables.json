@@ -99,6 +99,10 @@
     [
       "camp_pillow",
       2
+    ],
+    [
+      "intel_ration_slip",
+      2.5
     ]
   ],
   "convenience": [
@@ -317,6 +321,10 @@
     [
       "oral_rehydration",
       4
+    ],
+    [
+      "intel_scavenger_sketch",
+      2
     ]
   ],
   "clinic": [
@@ -433,6 +441,10 @@
     [
       "scrap_metal",
       8
+    ],
+    [
+      "lockpick",
+      6
     ],
     [
       "batteries",
@@ -595,6 +607,10 @@
       4.2
     ],
     [
+      "lockpick",
+      6
+    ],
+    [
       "bandage",
       5.2
     ],
@@ -661,6 +677,10 @@
     [
       "security_vest",
       3
+    ],
+    [
+      "intel_scavenger_sketch",
+      2.5
     ]
   ],
   "residential": [
@@ -741,6 +761,10 @@
       3
     ],
     [
+      "lockpick",
+      2
+    ],
+    [
       "hammer",
       2
     ],
@@ -805,14 +829,6 @@
       3
     ],
     [
-      "rotan_cane",
-      3
-    ],
-    [
-      "bamboo_pole",
-      3
-    ],
-    [
       "cricket_bat",
       2
     ],
@@ -863,6 +879,10 @@
     [
       "school_bag",
       6
+    ],
+    [
+      "intel_turf_fragment",
+      2.5
     ]
   ],
   "foodcourt": [
@@ -961,6 +981,10 @@
     [
       "premium_bento",
       2
+    ],
+    [
+      "intel_ration_slip",
+      3
     ]
   ],
   "mrt": [
@@ -1023,12 +1047,24 @@
     [
       "emergency_blanket",
       2
+    ],
+    [
+      "intel_outpost_whisper",
+      1.5
+    ],
+    [
+      "intel_smudged_map",
+      0.8
     ]
   ],
   "industrial": [
     [
       "scrap_metal",
       10
+    ],
+    [
+      "lockpick",
+      5
     ],
     [
       "duct_tape",
@@ -1165,6 +1201,14 @@
     [
       "hiking_pack",
       3
+    ],
+    [
+      "intel_turf_fragment",
+      2
+    ],
+    [
+      "intel_scavenger_sketch",
+      1.5
     ]
   ],
   "school": [
@@ -1294,14 +1338,6 @@
     ],
     [
       "daypack",
-      3
-    ],
-    [
-      "rotan_cane",
-      4
-    ],
-    [
-      "bamboo_pole",
       3
     ],
     [

@@ -1,0 +1,45 @@
+---
+description: Leaflet map and React performance rules for components and GameScreen
+globs: src/components/**,src/screens/**
+alwaysApply: false
+---
+
+# Map & UI performance
+
+Client-side scale pressure is Leaflet DOM, `pois.json` parse, and localStorage — not combat resolution.
+
+## Store subscriptions
+
+- **Do not** subscribe `GameScreen` (or any map parent) to the whole `combat` object — gauge ticks rewrite it at 20 Hz
+- Select booleans/scalars only; let `CombatPanel` own combat state
+- Do not add `log` or per-frame search progress to a slice the map subscribes to
+
+## POI layers
+
+- **Viewport-cull** POIs: `getBounds().pad(0.2)` — never map every `locations` entry to a Marker/Polygon
+- Hidden POIs must not become Leaflet layers
+
+## Code splitting
+
+- Keep Leaflet out of the menu chunk — `React.lazy` for spawn/game/create/death screens
+- Do not add a second mapping library
+
+## State updates
+
+- `advanceTime` / noise / faction expand must **preserve location identity** for untouched sites
+- Cloning the whole `locations` record re-renders the map HUD — patch only changed ids
+
+## Fog
+
+- Fog is a tiled canvas GridLayer with in-place tile refresh
+- Do not remount tiles on energy ticks or replace with one fullscreen canvas
+
+## Example
+
+```typescript
+// BAD — re-renders map at 20 Hz
+const combat = useGameStore((s) => s.combat);
+
+// GOOD — scalar selectors
+const inCombat = useGameStore((s) => s.combat !== null);
+```

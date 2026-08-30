@@ -1,13 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import type { ItemInstance } from '../types';
-import { itemDef } from '../loot';
+import type { ItemInstance } from './types';
+import { itemDef } from './loot';
 import {
   RECIPES,
   canCraft,
   countOf,
   describeInputs,
   type Recipe,
-} from '../crafting';
+} from './crafting';
 
 function findRecipe(id: string): Recipe {
   const r = RECIPES.find((r) => r.id === id);

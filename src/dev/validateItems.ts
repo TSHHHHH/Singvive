@@ -13,7 +13,9 @@ const EFFECT_KINDS = new Set([
   'energy',
   'weapon',
   'ammo',
+  'magazine',
   'fuel',
+  'intel',
   'misc',
 ]);
 
@@ -26,6 +28,7 @@ const EQUIP_SLOTS = new Set([
   'bag',
   'mainHand',
   'offHand',
+  'firearm',
 ]);
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -104,9 +107,30 @@ function validateEffect(effect: unknown, id: string, errors: string[]): void {
           errors.push(`${id}: weapon.speedFactor must be a number in [0.4, 1.6]`);
         }
       }
+      if (effect.caliber !== undefined && effect.caliber !== '9mm' && effect.caliber !== '12g') {
+        errors.push(`${id}: weapon.caliber must be 9mm or 12g`);
+      }
+      if (effect.magazineSize !== undefined && !isNumber(effect.magazineSize)) {
+        errors.push(`${id}: weapon.magazineSize must be a number`);
+      }
+      if (effect.usesMagazine !== undefined && typeof effect.usesMagazine !== 'boolean') {
+        errors.push(`${id}: weapon.usesMagazine must be a boolean`);
+      }
+      if (effect.reloadSpeedFactor !== undefined && !isNumber(effect.reloadSpeedFactor)) {
+        errors.push(`${id}: weapon.reloadSpeedFactor must be a number`);
+      }
       break;
     case 'ammo':
+      if (effect.caliber !== '9mm' && effect.caliber !== '12g') {
+        errors.push(`${id}: ammo.caliber must be 9mm or 12g`);
+      }
       if (!isNumber(effect.rounds)) errors.push(`${id}: ammo.rounds must be a number`);
+      break;
+    case 'magazine':
+      if (effect.caliber !== '9mm' && effect.caliber !== '12g') {
+        errors.push(`${id}: magazine.caliber must be 9mm or 12g`);
+      }
+      if (!isNumber(effect.capacity)) errors.push(`${id}: magazine.capacity must be a number`);
       break;
     case 'fuel':
     case 'misc':

@@ -28,6 +28,10 @@ interface Props {
   townTier: 'stirring' | 'restless' | 'massing' | 'fallen' | 'lost' | null;
   onEvac: () => void;
   onOpenGuide?: (topic: GuideTopic) => void;
+  /** Map notes in the backpack waiting to be deciphered. */
+  intelNoteCount?: number;
+  /** Active rumoured pins on the map. */
+  rumourCount?: number;
 }
 
 const VIBE_FILL: Record<EvacVibe, string> = {
@@ -77,6 +81,8 @@ export function ObjectivesPanel({
   townTier,
   onEvac,
   onOpenGuide,
+  intelNoteCount = 0,
+  rumourCount = 0,
 }: Props) {
   const { t } = useT();
 
@@ -215,6 +221,22 @@ export function ObjectivesPanel({
           </button>
         )}
       </section>
+
+      {(intelNoteCount > 0 || rumourCount > 0) && (
+        <section className="rounded-lg border border-[#c4b07a]/30 bg-[#c4b07a]/[0.06] p-3">
+          <p className="text-2xs font-semibold uppercase tracking-wide text-[#c4b07a]/80">
+            {t('ui.objective.leadsTitle')}
+          </p>
+          <p className="mt-1 text-sm text-white/70">
+            {intelNoteCount > 0 && rumourCount > 0
+              ? t('ui.objective.leadsBoth', { notes: intelNoteCount, rumours: rumourCount })
+              : intelNoteCount > 0
+                ? t('ui.objective.leadsNotes', { count: intelNoteCount })
+                : t('ui.objective.leadsRumours', { count: rumourCount })}
+          </p>
+          <p className="mt-1.5 text-2xs text-white/35">{t('ui.objective.leadsBlurb')}</p>
+        </section>
+      )}
 
       {/* ---- Doom clock ---- */}
       <section className="rounded-lg border border-white/15 bg-concrete-900/80 p-3">

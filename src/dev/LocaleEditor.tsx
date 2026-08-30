@@ -88,7 +88,7 @@ export function DevLocaleEditor() {
       // Prefer bundled catalogs — avoids SPA HTML when the Vite middleware
       // hasn't been registered yet (e.g. server started before locale routes).
       const en = structuredClone(getEnglishCatalog()) as MessageTree;
-      const zh = getZhHansCatalog();
+      const zh = await getZhHansCatalog();
       setEnTree(en);
       setZhTree(zh);
       setZhHansOverlay(zh);

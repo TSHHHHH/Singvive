@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import type { LocationState } from '../types';
-import { haversine } from '../overpass';
+import type { LocationState } from './types';
+import { haversine } from './overpass';
 import {
   emitNoisePulse,
   locationsInPulse,
@@ -11,7 +11,7 @@ import {
   DANGER_DECAY_PER_HOUR,
   PULSE_MS,
   type NoisePulse,
-} from '../noise';
+} from './noise';
 
 function makeLocation(id: string, lat: number, lng: number, overrides: Partial<LocationState> = {}): LocationState {
   return {

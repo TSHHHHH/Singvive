@@ -32,6 +32,10 @@ interface Props {
   evacRequired: number;
   /** Opens the full objectives sheet (checklist, quests, the long version). */
   onOpen: () => void;
+  /** Map notes in the backpack waiting to be deciphered. */
+  intelNoteCount?: number;
+  /** Active rumoured pins on the map. */
+  rumourCount?: number;
 }
 
 const VIBE_FILL: Record<EvacVibe, string> = {
@@ -91,6 +95,8 @@ export function ObjectiveBar({
   evacCurrent,
   evacRequired,
   onOpen,
+  intelNoteCount = 0,
+  rumourCount = 0,
 }: Props) {
   const { t } = useT();
   // Post-reveal the strip drops the vibe word for the real fill — the label
@@ -146,6 +152,15 @@ export function ObjectiveBar({
       {townName && townTier && (
         <div className="mt-0.5 truncate text-2xs text-white/40">
           {t('ui.town.here', { name: townName, tier: t(`ui.town.${townTier}`) })}
+        </div>
+      )}
+      {(intelNoteCount > 0 || rumourCount > 0) && (
+        <div className="mt-0.5 truncate text-2xs text-[#c4b07a]/90">
+          {intelNoteCount > 0 && rumourCount > 0
+            ? t('ui.objective.leadsBoth', { notes: intelNoteCount, rumours: rumourCount })
+            : intelNoteCount > 0
+              ? t('ui.objective.leadsNotes', { count: intelNoteCount })
+              : t('ui.objective.leadsRumours', { count: rumourCount })}
         </div>
       )}
 

@@ -1,7 +1,8 @@
-import type { TimeOfDay } from './types';
+import type { TimeOfDay, WeatherKind } from './types';
 import { Rng } from './rng';
 import { haversine } from './overpass';
 import { flavorHazard } from './flavor';
+import type { AnimalHabitat } from './enemies';
 import {
   inInlandWater,
   inVegetation,
@@ -722,11 +723,111 @@ export interface CrossingOutcome {
   infectionDelta: number;
   ambush: { hazard: HazardKind; danger: number } | null;
   logs: { text: string; tone: 'info' | 'bad' }[];
-  /** Quiet road loot — only when the path hit no pockets. */
-  roadFind: boolean;
+  /** Quiet-path scavenging — road or cross-country. */
+  travelFind?: 'road' | 'trek' | null;
+  /** Non-combat delay on an otherwise clear route. */
+  travelDetour?: boolean;
+  /** Extra energy burned by weather on the move. */
+  weatherDrain?: number;
 }
 
+const WET_WEATHER: readonly WeatherKind[] = ['rain', 'thunderstorm'];
+
+const TRAVEL_DETOUR_LINES = [
+  'A blocked lane forces a long detour. The clock does not care.',
+  'Razor wire and stalled cars send you the long way round.',
+  'The straight line is gone — you pick a slower route and eat the time.',
+  'Someone chained the underpass shut. You backtrack and find another way.',
+];
+
+const WEATHER_DRAIN_LINES = [
+  'Rain hammers you the whole way. Every step costs double.',
+  'The heat sits on your shoulders like a wet blanket. You are spent before you arrive.',
+  'Monsoon wind cuts through soaked cloth. Your legs give up early.',
+  'Thunder and sheets of rain — you arrive wrung out.',
+];
+
 const WOUND_CAP = 18;
+
+/** Ambush hazard when a quiet path still rolls an encounter. */
+export function quietPathAmbush(
+  rng: Rng,
+  ctx: {
+    band: TimeOfDay;
+    habitat: AnimalHabitat | null;
+    pressure: number;
+    mode: 'road' | 'trek';
+    forest: boolean;
+  },
+): HazardKind {
+  const weights: [HazardKind, number][] = [
+    ['horde_pocket', 40],
+    ['gang_patrol', 16 + Math.round(Math.max(0, ctx.pressure) * 12)],
+  ];
+  if (ctx.habitat === 'urban') weights.push(['wildlife_urban', 14]);
+  if (ctx.band === 'night') weights.push(['night_swarm', 22]);
+  else if (ctx.band === 'dusk') weights.push(['night_swarm', 10]);
+  if (ctx.mode === 'trek' && ctx.forest) weights.push(['wildlife_forest', 18]);
+  return rng.weighted(weights);
+}
+
+type QuietPathPick = 'find' | 'detour' | 'weather' | 'ambush' | 'nothing';
+
+function rollQuietPath(
+  rng: Rng,
+  risk: TrekRisk,
+  opts: {
+    mode: 'road' | 'trek';
+    siteDanger?: number;
+    band: TimeOfDay;
+    habitat: AnimalHabitat | null;
+    pressure: number;
+    forest: boolean;
+    weather?: WeatherKind;
+  },
+): Pick<CrossingOutcome, 'ambush' | 'travelFind' | 'travelDetour' | 'weatherDrain' | 'extraHours' | 'logs'> {
+  const wet = opts.weather !== undefined && WET_WEATHER.includes(opts.weather);
+  const weights: [QuietPathPick, number][] = [
+    ['find', 18],
+    ['detour', 12],
+    ['weather', wet ? 10 : 0],
+    ['ambush', 45],
+    ['nothing', wet ? 15 : 25],
+  ];
+  const pick = rng.weighted(weights.filter(([, w]) => w > 0));
+
+  if (pick === 'find') {
+    return { travelFind: opts.mode === 'road' ? 'road' : 'trek', ambush: null, extraHours: 0, logs: [] };
+  }
+  if (pick === 'detour') {
+    return {
+      travelDetour: true,
+      extraHours: 0.15 + rng.next() * 0.15,
+      logs: [{ text: rng.pick(TRAVEL_DETOUR_LINES), tone: 'info' }],
+      ambush: null,
+    };
+  }
+  if (pick === 'weather') {
+    return {
+      weatherDrain: 8 + Math.round(rng.next() * 6),
+      logs: [{ text: rng.pick(WEATHER_DRAIN_LINES), tone: 'bad' }],
+      ambush: null,
+      extraHours: 0,
+    };
+  }
+  if (pick === 'ambush') {
+    const hazard = quietPathAmbush(rng, opts);
+    return {
+      ambush: {
+        hazard,
+        danger: Math.max(1, opts.siteDanger ?? risk.combatDanger),
+      },
+      extraHours: 0,
+      logs: [],
+    };
+  }
+  return { ambush: null, extraHours: 0, logs: [] };
+}
 
 /**
  * Kind-specific bite for a priced crossing. Terrain (collapse / flood) always
@@ -740,6 +841,11 @@ export function resolveCrossing(
     siteDanger?: number;
     dexterity: number;
     checkBonus: number;
+    band?: TimeOfDay;
+    habitat?: AnimalHabitat | null;
+    pressure?: number;
+    forest?: boolean;
+    weather?: WeatherKind;
   },
 ): CrossingOutcome {
   const logs: { text: string; tone: 'info' | 'bad' }[] = [];
@@ -748,6 +854,9 @@ export function resolveCrossing(
   let woundPreferLeg = false;
   let infectionDelta = 0;
   let ambush: CrossingOutcome['ambush'] = null;
+  let travelFind: CrossingOutcome['travelFind'] = null;
+  let travelDetour = false;
+  let weatherDrain = 0;
 
   const byId = new Map<string, HazardZone>();
   for (const z of risk.hazards) byId.set(z.id, z);
@@ -797,35 +906,39 @@ export function resolveCrossing(
       hazard: combatBest.kind,
       danger: Math.min(5, danger + swarmBump),
     };
-  } else if (unique.length === 0 && opts.mode === 'road' && rng.chance(risk.encounterChance)) {
-    if (rng.chance(0.22)) {
-      return {
-        energyCost: risk.energyCost,
-        extraHours: 0,
-        woundHp: 0,
-        woundPreferLeg: false,
-        infectionDelta: 0,
-        ambush: null,
-        logs,
-        roadFind: true,
-      };
-    }
-    if (rng.chance(0.55)) {
-      ambush = { hazard: 'horde_pocket', danger: Math.max(1, opts.siteDanger ?? risk.combatDanger) };
-    }
-  } else if (unique.length === 0 && opts.mode === 'trek' && rng.chance(risk.encounterChance)) {
-    ambush = { hazard: 'horde_pocket', danger: risk.combatDanger };
+  } else if (
+    unique.length === 0 &&
+    (opts.mode === 'road' || opts.mode === 'trek') &&
+    rng.chance(risk.encounterChance)
+  ) {
+    const quiet = rollQuietPath(rng, risk, {
+      mode: opts.mode,
+      siteDanger: opts.siteDanger,
+      band: opts.band ?? 'day',
+      habitat: opts.habitat ?? null,
+      pressure: opts.pressure ?? 0,
+      forest: opts.forest ?? false,
+      weather: opts.weather,
+    });
+    if (quiet.ambush) ambush = quiet.ambush;
+    if (quiet.extraHours) extraHours += quiet.extraHours;
+    if (quiet.logs) logs.push(...quiet.logs);
+    if (quiet.travelFind) travelFind = quiet.travelFind;
+    if (quiet.travelDetour) travelDetour = true;
+    if (quiet.weatherDrain) weatherDrain = quiet.weatherDrain;
   }
 
   return {
-    energyCost: risk.energyCost,
+    energyCost: risk.energyCost + weatherDrain,
     extraHours,
     woundHp: Math.min(WOUND_CAP, woundHp),
     woundPreferLeg,
     infectionDelta,
     ambush,
     logs,
-    roadFind: false,
+    travelFind,
+    travelDetour: travelDetour || undefined,
+    weatherDrain: weatherDrain || undefined,
   };
 }
 

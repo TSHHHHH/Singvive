@@ -145,7 +145,15 @@
       "guarded": "Guarded",
       "precision": "Precision",
       "disengage": "Disengage",
-      "guide": "How fighting works"
+      "guide": "How fighting works",
+      "fire": "Fire",
+      "reload": "Reload",
+      "fireTip": "Semi-auto — gauge resets, then one shot",
+      "reloadTip": "Swap in a loaded magazine or shells from your pack",
+      "noAmmo": "No loaded magazine or shells in pack",
+      "fireBroken": "Broken — fire blocked; bash still works",
+      "magCount": "{n}/{cap} in holster",
+      "holstered": "{n} in holster"
     },
     "location": {
       "search": "Search",
@@ -243,6 +251,7 @@
       "equipOffHand": "Off-hand",
       "unequip": "Unequip",
       "use": "Use",
+      "decipher": "Decipher",
       "drop": "Drop",
       "stash": "Stash",
       "pack": "Pack",
@@ -276,6 +285,10 @@
       "loadKg": "{load} / {carry} kg",
       "loadEncumbered": "{load} / {carry} kg · Encumbered",
       "rounds": "{n} rounds",
+      "holstered": "Holster {n}/{cap}",
+      "refillMag": "Refill magazine",
+      "refillGun": "Refill from shells",
+      "loadMag": "Load into holstered gun",
       "confirmAbandon": "Confirm — abandon leftover & continue",
       "stashLocked": "Location stash locked while in the tunnels.",
       "stashNamed": "Stash · {name}",
@@ -320,7 +333,8 @@
       "feet": "Feet",
       "bag": "Bag",
       "mainHand": "Main",
-      "offHand": "Off"
+      "offHand": "Off",
+      "firearm": "Holster"
     },
     "phone": {
       "map": "Map",
@@ -403,7 +417,12 @@
       "biasBalanced": "This bird takes it balanced",
       "radioBlurb": "Fuel, meds, and ammo count most; sealed water a little; food and scrap barely. Burning fuel to boil water hurts the haul. Raise the channel once you are standing on the pad and the crew names real numbers.",
       "horde": "Horde · {label}",
-      "hordeBlurb": "The island clock climbs every day, and every neighbourhood gets worse with it. Where you stand is a front — Stirring streets are not Lost ones. Lost ground is still walkable, just brutal. At 100% the city is overrun and the run ends."
+      "hordeBlurb": "The island clock climbs every day, and every neighbourhood gets worse with it. Where you stand is a front — Stirring streets are not Lost ones. Lost ground is still walkable, just brutal. At 100% the city is overrun and the run ends.",
+      "leadsNotes": "{count, plural, one {# map note to decipher} other {# map notes to decipher}}",
+      "leadsRumours": "{count, plural, one {# rumoured site marked} other {# rumoured sites marked}}",
+      "leadsBoth": "{notes} note(s) to read · {rumours} rumour(s) on map",
+      "leadsTitle": "Leads",
+      "leadsBlurb": "Decipher map notes from your pack (Use). Faction-held sites show a coloured ring once you know who runs them; outposts use the faction emblem."
     },
     "town": {
       "here": "{name} · {tier}",
@@ -453,6 +472,8 @@
     "stats": {
       "survivor": "Survivor",
       "day": "day {day}",
+      "collapseAll": "Collapse all",
+      "expandAll": "Expand all",
       "combat": "Combat",
       "exploration": "Exploration",
       "survival": "Survival",
@@ -491,6 +512,8 @@
       "fuelEvac": "Evac weight",
       "curiosity": "Curiosity",
       "curiosityScrap": "scrap / trade",
+      "intelReveal": "Marks hidden sites on your map",
+      "intelRumour": "Marks a fuzzy rumoured site",
       "damageOf": "{dmg} (of {base})",
       "restoreOf": "{n} (of {base})"
     },
@@ -569,6 +592,7 @@
       "stimulant": "Stimulant",
       "fuel": "Fuel",
       "ammo": "Ammo",
+      "intel": "Map note",
       "misc": "Misc"
     },
     "search": {
@@ -611,7 +635,15 @@
       "entry": "{n} entry",
       "entries": "{n} entries",
       "hauls": "{n} hauls",
-      "bad": "{n} bad"
+      "bad": "{n} bad",
+      "sectionBlock": "{name}",
+      "sectionCorridor": "Level {level} · corridor",
+      "sectionUnit": "{label}",
+      "sectionTunnelRun": "{label}",
+      "sectionTunnelNode": "{label}",
+      "sectionSite": "{name}",
+      "sectionExpand": "Expand section",
+      "sectionCollapse": "Collapse section"
     },
     "error": {
       "signalLost": "SIGNAL LOST",
@@ -660,6 +692,7 @@
       "leave": "✕ Leave",
       "leaveBlock": "Leave the block",
       "leaveNeedSearch": "Finish the unit search in the timeline first",
+      "leaveNeedWalk": "Wait until you finish walking",
       "leaveNeedVoidDeck": "Climb down to level 01 (void deck) to leave",
       "heat": "Heat",
       "guide": "Inside the block",
@@ -697,6 +730,7 @@
       "stopsBlocked": "stops at {label} — no way through",
       "huntOnStairs": "{n}% hunt on the stairs",
       "descentNeed": "going down · need {dc}+ · ~{n}% fail",
+      "descentPerStorey": "down {n} storeys · {pct}% fail each (need {dc}+)",
       "climbFree": "climb free",
       "descentNeedsAttrs": "Going down needs Dexterity + Endurance (need {dc}+).",
       "stairsClearDown": "Stairs are clear to climb down.",
@@ -727,9 +761,20 @@
       "scoutEncounterExact": "Perception read — exact chance a fight starts when you breach",
       "scoutEncounterEstimate": "Estimate from heat + door type — raise Perception to pin the exact %",
       "scoutContainersUnread": "Containers unread — raise Dexterity to scout from the corridor",
-      "scoutDescentWatched": "Going down is watched — about {n}% chance to fail",
+      "scoutDescentWatched": "Each storey down is a check — about {n}% chance to fail",
       "scoutDescentClear": "Stairs are clear — no check at this heat",
+      "scoutFight": "Fight",
+      "scoutNestFight": "A pack is already in there — opening the door starts the fight",
+      "scoutDenFight": "Something bigger nested here — force the door, then a Hulk",
       "breachLine": "{verb} · {min} min · {heat}",
+      "heatCross": " — {note}",
+      "pickLine": "Pick it · {min} min · quiet",
+      "pickNeed": "Pick it — need a lockpick",
+      "fobAction": "Use the fob · {min} min · quiet",
+      "readNotice": "Read the board · {min} min",
+      "restShelter": "Hole up · {h} h · −{heat} heat",
+      "roofDeck": "Roof deck",
+      "roofShort": "RF",
       "unitClearedBlurb": "You've already been through this one. Nothing left in it.",
       "compactHint": "Actions stay on the cutaway. Clear units floor by floor, then leave from the void deck.",
       "voidHint": "Walk the pillars to a stair, then climb into the fog.",
@@ -767,6 +812,26 @@
         "holdout": {
           "label": "Holdout",
           "blurb": "Survivors still use this unit — one service, then done."
+        },
+        "burning": {
+          "label": "Burning",
+          "blurb": "Each find costs health — leave when you cannot take more."
+        },
+        "nest": {
+          "label": "Nest",
+          "blurb": "A pack is in there. Fight, then a thin haul."
+        },
+        "den": {
+          "label": "Den",
+          "blurb": "Something bigger nested here. Fight it for a fat haul."
+        },
+        "shelter": {
+          "label": "Shelter",
+          "blurb": "Empty household shelter — hole up and the block cools a little."
+        },
+        "notice": {
+          "label": "Notice",
+          "blurb": "RC board — read it for a nearby site."
         }
       },
       "entry": {
@@ -775,7 +840,7 @@
           "verb": "Step inside"
         },
         "ajar": {
-          "label": "ajar",
+          "label": "half-open",
           "verb": "Push it open"
         },
         "locked": {
@@ -802,7 +867,7 @@
         },
         "stair_gate": {
           "label": "Stair gate",
-          "blurb": "A welded grate across the shaft. It can be forced."
+          "blurb": "A welded grate across the shaft. Force it, or use a fob if you found one."
         }
       },
       "sealKind": {
@@ -855,7 +920,8 @@
         "Medical": "Medical",
         "Food": "Food",
         "Tool": "Tool",
-        "Valuables": "Valuables"
+        "Valuables": "Valuables",
+        "Fob": "Fob"
       }
     },
     "tunnel": {
@@ -1134,8 +1200,8 @@
       "title": "Fight",
       "bullets": [
         "Both markers race one track. First to the end swings. Speed is how fast you fill it — stance, weapon weight, and a free off-hand all count. Switch Aggressive / Guarded / Precision any time; Break off is the flee.",
-        "Heavy weapons hit harder but fill slower. Hover two weapons in the pack: Speed × versus Damage is the tradeoff. An empty gun clubs as fast as fists.",
-        "Off-hand is a fork, not leftover space. Empty: faster and easier dodge. A lid or shield can fully stop a hit (and slows you). A second one-hander sometimes follows through. A torch only helps you see and search."
+        "Holster a pistol or shotgun to shoot — Fire is a separate gauge from melee. Empty + Fire reloads from a loaded magazine (pistol) or 12g shells in pack (shotgun). Wield the gun in main hand to bash; gunshots on the surface draw danger.",
+        "Out of combat: right-click a magazine + ammo box to refill, then load it into the holstered pistol. Shotguns take shells directly on the holstered gun. Typed ammo only — no global round pool."
       ]
     },
     "loot": {
@@ -1146,15 +1212,17 @@
         "Click a fogged cell to search it next. Click found items (or Take all) into your pack; overflow goes to the tiny on-site stash (3×3).",
         "Equipped bags change the pack's cell shape, not just its size — holes cannot hold loot. A smaller or hole-punched bag only equips if the current haul can be rearranged into it.",
         "Worn kit counts toward load. Hover the carry bar — a heavy pack never stops a pickup, it just makes travel, fights, and searches cost more.",
-        "Each site has limited searches. Leaving early still spends a partial charge. Take what you want — Done or Leave abandons the rest."
+        "Each site has limited searches. Leaving early still spends a partial charge. Take what you want — Done or Leave abandons the rest.",
+        "Map notes turn up in searches — decipher them from the pack to mark hidden sites. Faction outposts also offer daily intel when you are Known; notes are portable and one-shot.",
+        "Faction-held ground shows a coloured ring on the map once you have learned who runs it (outposts use the faction emblem)."
       ]
     },
     "hdb": {
       "title": "Inside the block",
       "bullets": [
-        "Void decks open a side-elevation cutaway. Stairs stay visible even on sealed storeys; hover a reachable stair or door to preview the auto-path, then click to walk it. Unvisited open floors stay fogged until you climb in.",
-        "Sealed landings are gone for good. Corridor debris, barricades, and stair gates can be cleared (heat + time). Collapses are permanent — find another route.",
-        "Higher storeys pay better loot. Cutaway doors show room type (Flat, Stocked, Trapped, Storeroom, Pantry, Holdout) — hover the Room tile on the door card for what each means. Encounter chance tracks heat + how the door stands (Perception pins the exact %; otherwise a range). Entry and encounter live on that card, not on the door face. Heat on the bottom dock shows stair difficulty; expand it for the symbol key and sense-check odds. Going down can need Dexterity + Endurance (hover a stair to preview). Leave only from level 01."
+        "Void decks open a side-elevation cutaway. Stairs stay visible even on sealed storeys; hover a reachable stair or door to preview the auto-path, then click — the pin walks hop by hop. Unvisited open floors stay fogged until you climb in. The roof is a short gated deck with extra loot; coming down checks every storey.",
+        "Sealed landings are gone for good. Corridor debris, barricades, and stair gates can be cleared (heat + time). A fob on a lanyard opens a matching grate quietly. Collapses are permanent — find another route.",
+        "Most loot doors are locked or barricaded. Pick a lock if you have a lockpick (quiet, consumed on the try); otherwise Force it and raise heat. Crowbar cheapens a smash. Room types each do one thing: search, a door trap, a live fire that burns per find, a nest or den fight, an empty shelter that dumps heat, a notice board, or a holdout service. Going down rolls Dexterity + Endurance once per storey — a fight stops you on that landing. Leave only from level 01."
       ]
     },
     "tunnels": {
@@ -1239,6 +1307,9 @@
     "shotgun": "Shotgun",
     "ammo_box": "Box of Ammo",
     "ammo_shell": "Loose Shells",
+    "mag_pistol": "Pistol Magazine",
+    "ammo_9mm_box": "9mm Ammunition Box",
+    "ammo_12g_box": "12g Shells",
     "n95_mask": "N95 Mask",
     "hard_hat": "Hard Hat",
     "motorcycle_helmet": "Motorcycle Helmet",
@@ -1266,6 +1337,7 @@
     "duct_tape": "Duct Tape",
     "batteries": "Batteries",
     "scrap_metal": "Scrap Metal",
+    "lockpick": "Lockpick",
     "toolbox": "Toolbox",
     "jewellery": "Jewellery",
     "ez_link_card": "EZ-Link Card",
@@ -1285,8 +1357,6 @@
     "hiking_pack": "Hiking Pack",
     "military_rucksack": "Military Rucksack",
     "box_cutter": "Box Cutter",
-    "rotan_cane": "Rotan Cane",
-    "bamboo_pole": "Bamboo Pole",
     "pipe_wrench": "Pipe Wrench",
     "tire_iron": "Tire Iron",
     "police_baton": "Police Baton",
@@ -1317,7 +1387,12 @@
     "ez_link_knife": "EZ-Link Knife",
     "kopi_c": "Kopi C",
     "cooked_mee": "Cooked Maggi",
-    "milo_dinosaur": "Milo Dinosaur"
+    "milo_dinosaur": "Milo Dinosaur",
+    "intel_scavenger_sketch": "Scavenger's Sketch",
+    "intel_ration_slip": "Ration Slip",
+    "intel_turf_fragment": "Turf Fragment",
+    "intel_outpost_whisper": "Outpost Whisper",
+    "intel_smudged_map": "Smudged Survivor Map"
   },
   "enemy": {
     "shambler": "Shambler",
@@ -1403,6 +1478,10 @@
     "milo_dinosaur": {
       "name": "Mix a Milo Dinosaur",
       "blurb": "The whole tin, extra powder on top, and whatever water you can spare. Heavy tin, light cup."
+    },
+    "lockpick": {
+      "name": "Bend a Lockpick",
+      "blurb": "Two scraps bent into a rake and a tensioner. One door, maybe."
     }
   },
   "trait": {
@@ -1507,7 +1586,9 @@
       "name": "Handyman",
       "description": "Cable ties, scrap, and a flat-repair habit go a long way.",
       "effects": [
-        "Craft recipes cost −1 material"
+        "Craft recipes cost −1 material",
+        "HDB picks +2",
+        "HDB Force 20% faster"
       ]
     },
     "sixth_sense": {
@@ -1553,7 +1634,9 @@
       "name": "Quiet Step",
       "description": "Soft soles, softer habits.",
       "effects": [
-        "−10% encounter chance when travelling"
+        "−10% encounter chance when travelling",
+        "HDB door heat −25%",
+        "HDB picks +2"
       ]
     },
     "strong_back": {
@@ -1649,7 +1732,8 @@
       "name": "Noisy",
       "description": "Cannot stop talking — or clattering.",
       "effects": [
-        "+15% encounter chance when travelling"
+        "+15% encounter chance when travelling",
+        "HDB door heat +25%"
       ]
     },
     "bad_knees": {
@@ -1812,7 +1896,10 @@
         "+1 Strength",
         "Craft recipes cost −2 materials",
         "Richer hardware and industrial loot",
-        "Better HDB corridor reads"
+        "Better HDB corridor reads",
+        "HDB picks +1",
+        "HDB Force 20% faster",
+        "HDB door heat −15%"
       ]
     },
     "made_man": {

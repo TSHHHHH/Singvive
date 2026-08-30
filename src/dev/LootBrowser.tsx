@@ -8,7 +8,16 @@ import {
 import { Icon } from '../icons/Icon';
 import { ICON_ASSETS } from '../icons/registry';
 import { itemIcon } from '../components/Inventory/itemIcon';
-import { weaponSpeedFactor } from '../game/combat';
+import {
+  compareItemsBySort,
+  formatItemSortMetric,
+  ITEM_SORT_GROUPS,
+  itemSortLabel,
+  itemSortModesForGroup,
+  type ItemSortMode,
+} from './itemSortMetrics';
+import { buildQuickCompareCategories, mergeCompareIds } from './itemCompareCategories';
+import { ItemComparePanel } from './ItemComparePanel';
 import { LootItemForm } from './LootItemForm';
 import { LootTablesEditor } from './LootTablesEditor';
 import { RecipesEditor } from './RecipesEditor';
@@ -38,13 +47,14 @@ import {
   type CloseDevToolsDetail,
   type OpenLootDetail,
 } from './devBridge';
+import { findItemUsage } from './itemUsage';
 import { ValidationErrorBadge } from './ValidationErrorBadge';
 import type { RecipesCatalog } from './validateRecipes';
 import { tip } from '../components/tips';
 
 type KindFilter = 'all' | ItemDef['effect']['kind'];
 type SlotFilter = 'all' | 'equipped' | 'none' | NonNullable<ItemDef['slot']>;
-type SortMode = 'id' | 'name' | 'kind' | 'slot';
+type ItemsViewMode = 'edit' | 'compare';
 type LootTab = 'items' | 'tables' | 'recipes' | 'tiles';
 
 type PendingNav =
@@ -78,58 +88,6 @@ function DialogShell({
   );
 }
 
-function CompareCard({ def }: { def: ItemDef }) {
-  return (
-    <div className="rounded border border-white/10 bg-black/25 p-3 text-sm">
-      <div className="mb-2 font-semibold text-signal">{def.name}</div>
-      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 font-mono text-xs text-white/65">
-        <dt className="text-white/35">id</dt>
-        <dd>{def.id}</dd>
-        <dt className="text-white/35">kind</dt>
-        <dd>{def.effect.kind}</dd>
-        <dt className="text-white/35">value</dt>
-        <dd>{def.value}</dd>
-        <dt className="text-white/35">weight</dt>
-        <dd>{def.weight}</dd>
-        <dt className="text-white/35">size</dt>
-        <dd>
-          {def.w}×{def.h}
-        </dd>
-        <dt className="text-white/35">slot</dt>
-        <dd>{def.slot ?? '—'}</dd>
-        {def.packGrid && (
-          <>
-            <dt className="text-white/35">pack</dt>
-            <dd>
-              {def.packGrid.w}×{def.packGrid.h}
-              {def.packGrid.blocked?.length
-                ? ` · ${def.packGrid.w * def.packGrid.h - def.packGrid.blocked.length} cells`
-                : ''}
-            </dd>
-          </>
-        )}
-        <dt className="text-white/35">scarcity</dt>
-        <dd>{def.scarcity ?? '—'}</dd>
-        <dt className="text-white/35">starting</dt>
-        <dd>{def.startingItem ? `yes${def.startingCount ? ` ×${def.startingCount}` : ''}` : '—'}</dd>
-        {def.effect.kind === 'weapon' && (
-          <>
-            <dt className="text-white/35">damage</dt>
-            <dd>{def.effect.damage}</dd>
-            <dt className="text-white/35">accuracy</dt>
-            <dd>{def.effect.accuracy}</dd>
-            <dt className="text-white/35">speed</dt>
-            <dd>
-              ×{weaponSpeedFactor(def.effect, !!def.twoHanded).toFixed(2)}
-              {def.effect.speedFactor != null ? '' : ' (derived)'}
-            </dd>
-          </>
-        )}
-      </dl>
-    </div>
-  );
-}
-
 /**
  * DEV-only floating loot catalog browser / editor.
  * Persists items, loot tables, and recipes via `/__dev/*`.
@@ -154,8 +112,11 @@ export function DevLootBrowser() {
   const [exoticOnly, setExoticOnly] = useState(false);
   const [startingOnly, setStartingOnly] = useState(false);
   const [missingArtOnly, setMissingArtOnly] = useState(false);
-  const [sortMode, setSortMode] = useState<SortMode>('id');
+  const [sortMode, setSortMode] = useState<ItemSortMode>('id');
   const [groupByKind, setGroupByKind] = useState(false);
+  const [itemsViewMode, setItemsViewMode] = useState<ItemsViewMode>('edit');
+  const [compareIds, setCompareIds] = useState<string[]>([]);
+  const [compareBaselineId, setCompareBaselineId] = useState<string | null>(null);
   const [assetKeys, setAssetKeys] = useState<Set<string>>(new Set());
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -164,8 +125,6 @@ export function DevLootBrowser() {
   const [saveSuccessOpen, setSaveSuccessOpen] = useState(false);
   const [diffOpen, setDiffOpen] = useState(false);
   const [pendingDiff, setPendingDiff] = useState<CatalogDiff | null>(null);
-  const [compareId, setCompareId] = useState<string | null>(null);
-  const [pickCompare, setPickCompare] = useState(false);
   const [closeAfterSuccess, setCloseAfterSuccess] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
@@ -286,16 +245,7 @@ export function DevLootBrowser() {
       );
     });
 
-    list = [...list].sort((a, b) => {
-      if (sortMode === 'name') return a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
-      if (sortMode === 'kind') {
-        return a.effect.kind.localeCompare(b.effect.kind) || a.id.localeCompare(b.id);
-      }
-      if (sortMode === 'slot') {
-        return (a.slot ?? '').localeCompare(b.slot ?? '') || a.id.localeCompare(b.id);
-      }
-      return a.id.localeCompare(b.id);
-    });
+    list = [...list].sort((a, b) => compareItemsBySort(a, b, sortMode));
 
     return list.map((i) => i.id);
   }, [
@@ -325,7 +275,10 @@ export function DevLootBrowser() {
   }, [groupByKind, ids, catalog]);
 
   const selected = selectedId ? catalog[selectedId] : null;
-  const compareDef = compareId ? catalog[compareId] : null;
+  const quickCompareCategories = useMemo(
+    () => buildQuickCompareCategories(catalog, ids),
+    [catalog, ids],
+  );
   const validationErrors = useMemo(() => validateItemsCatalog(catalog), [catalog]);
   const valid = validationErrors.length === 0;
 
@@ -353,7 +306,27 @@ export function DevLootBrowser() {
     setSelectedId(id);
     setCreating(false);
     setError(null);
-    setPickCompare(false);
+  };
+
+  const openItemEditor = (id: string) => {
+    applySelect(id);
+    setItemsViewMode('edit');
+    setStatus(`Editing · ${id}`);
+  };
+
+  const toggleCompareMode = () => {
+    setItemsViewMode((mode) => {
+      if (mode === 'compare') {
+        setStatus(selectedId ? `Editing · ${selectedId}` : null);
+        return 'edit';
+      }
+      if (selectedId) {
+        setCompareIds((prev) => mergeCompareIds(prev, [selectedId]));
+        setCompareBaselineId((prev) => prev ?? selectedId);
+      }
+      setStatus('Compare mode — use Quick add to load a category');
+      return 'compare';
+    });
   };
 
   const applyNew = () => {
@@ -454,12 +427,6 @@ export function DevLootBrowser() {
   };
 
   const requestSelect = (id: string) => {
-    if (pickCompare) {
-      setCompareId(id);
-      setPickCompare(false);
-      setStatus(`Comparing with ${id}`);
-      return;
-    }
     if (id === selectedId) return;
     if (selectedDirty) {
       setPendingNav({ kind: 'select', id });
@@ -615,8 +582,30 @@ export function DevLootBrowser() {
 
   const handleDelete = () => {
     if (!selectedId) return;
-    if (!confirm(`Delete "${selectedId}" from the catalog draft?`)) return;
     const removed = selectedId;
+    /*
+     * Deleting an item does not cascade: loot tables, recipes, faction stock
+     * and the locale catalogs all reference items by bare string id. A delete
+     * that left those dangling used to be silent, and a stale loot-table entry
+     * then crashed every roll for that category. Show what still points here
+     * so the choice is informed, and name the follow-up work.
+     */
+    const usage = findItemUsage(removed, catalog[removed], recipesDraft);
+    const lines = usage.slice(0, 8).map((u) => `  - ${u.label}`);
+    if (usage.length > 8) lines.push(`  - ...and ${usage.length - 8} more`);
+    const warning = usage.length
+      ? [
+          '',
+          `Still referenced in ${usage.length} place${usage.length === 1 ? '' : 's'}:`,
+          ...lines,
+          '',
+          'Deleting leaves these dangling. Clear them in the Tables / Recipes tabs,',
+          `and drop the "item.${removed}" name from the locale catalogs.`,
+          '',
+          '(Saved tables only - unsaved Tables-tab edits are not counted here.)',
+        ].join('\n')
+      : '';
+    if (!confirm(`Delete "${removed}" from the catalog draft?${warning}`)) return;
     setCatalog((prev) => {
       const copy = { ...prev };
       delete copy[removed];
@@ -624,7 +613,11 @@ export function DevLootBrowser() {
     });
     setCreating(false);
     setSelectedId(null);
-    if (compareId === removed) setCompareId(null);
+    setCompareIds((prev) => {
+      const next = prev.filter((x) => x !== removed);
+      setCompareBaselineId((baseline) => (baseline === removed ? (next[0] ?? null) : baseline));
+      return next;
+    });
     setStatus(`Removed ${removed} from draft`);
   };
 
@@ -822,26 +815,20 @@ export function DevLootBrowser() {
         </button>
         <button
           type="button"
-          onClick={() => {
-            setPickCompare(true);
-            setStatus('Click an item in the list to compare against the current selection');
-          }}
+          onClick={toggleCompareMode}
           className={`rounded border px-2.5 py-1 text-xs ${
-            pickCompare
-              ? 'border-signal/50 text-signal'
+            itemsViewMode === 'compare'
+              ? 'border-signal/50 bg-signal/15 text-signal'
               : 'border-white/15 text-white/70'
           }`}
+          {...tip('Compare items side-by-side with bar charts')}
         >
-          Compare…
+          {itemsViewMode === 'compare' ? 'Edit item' : 'Compare'}
         </button>
-        {compareId && (
-          <button
-            type="button"
-            onClick={() => setCompareId(null)}
-            className="rounded border border-white/15 px-2.5 py-1 text-xs text-white/50"
-          >
-            Clear compare
-          </button>
+        {itemsViewMode === 'compare' && compareIds.length > 0 && (
+          <span className="rounded bg-signal/10 px-2 py-0.5 text-2xs text-signal/90">
+            {compareIds.length} in compare
+          </span>
         )}
         <button
           type="button"
@@ -948,16 +935,22 @@ export function DevLootBrowser() {
               <option value="bag">bag</option>
               <option value="mainHand">mainHand</option>
               <option value="offHand">offHand</option>
+              <option value="firearm">firearm</option>
             </select>
             <select
               value={sortMode}
-              onChange={(e) => setSortMode(e.target.value as SortMode)}
+              onChange={(e) => setSortMode(e.target.value as ItemSortMode)}
               className="rounded border border-white/10 bg-black/40 px-2 py-1.5 text-xs text-white outline-none"
             >
-              <option value="id">Sort by id</option>
-              <option value="name">Sort by name</option>
-              <option value="kind">Sort by kind</option>
-              <option value="slot">Sort by slot</option>
+              {ITEM_SORT_GROUPS.map((group) => (
+                <optgroup key={group} label={group}>
+                  {itemSortModesForGroup(group).map((mode) => (
+                    <option key={mode} value={mode}>
+                      {itemSortLabel(mode)}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
             </select>
             <label className="flex items-center gap-2 text-xs text-white/50">
               <input
@@ -1008,7 +1001,8 @@ export function DevLootBrowser() {
                     const item = catalog[id];
                     const active = id === selectedId;
                     const dirty = isItemDirty(id);
-                    const comparing = id === compareId;
+                    const inCompare = compareIds.includes(id);
+                    const sortMetric = formatItemSortMetric(item, sortMode);
                     return (
                       <li key={id}>
                         <button
@@ -1017,8 +1011,8 @@ export function DevLootBrowser() {
                           className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition ${
                             active
                               ? 'text-signal ring-1 ring-inset ring-signal/40'
-                              : comparing
-                                ? 'text-amber-200'
+                              : inCompare
+                                ? 'text-amber-100/90'
                                 : 'text-white/85 hover:brightness-110'
                           }`}
                           style={{
@@ -1034,10 +1028,12 @@ export function DevLootBrowser() {
                             <span className="block truncate font-medium">
                               {item.name}
                               {dirty ? ' •' : ''}
+                              {inCompare ? ' ◆' : ''}
                               {item.startingItem ? ' ★' : ''}
                             </span>
                             <span className="block truncate font-mono text-2xs text-white/45">
                               {id} · {item.effect.kind}
+                              {sortMetric ? ` · ${sortMetric}` : ''}
                               {!hasArt(id) ? ' · no art' : ''}
                             </span>
                           </span>
@@ -1051,12 +1047,26 @@ export function DevLootBrowser() {
           </ul>
         </aside>
 
-        <main className="min-h-0 flex-1 overflow-y-auto p-6 lg:px-10 lg:py-8">
-          {selected ? (
-            <div className={compareDef ? 'grid gap-6 lg:grid-cols-2' : undefined}>
+        <main className="min-h-0 flex-1 overflow-hidden">
+          {itemsViewMode === 'compare' ? (
+            <ItemComparePanel
+              catalog={catalog}
+              compareIds={compareIds}
+              baselineId={compareBaselineId}
+              tileColors={tileColors}
+              categories={quickCompareCategories}
+              selectedId={selectedId}
+              isItemDirty={isItemDirty}
+              onCompareIdsChange={setCompareIds}
+              onBaselineChange={setCompareBaselineId}
+              onEdit={openItemEditor}
+            />
+          ) : selected ? (
+            <div className="h-full overflow-y-auto p-6 lg:px-10 lg:py-8">
               <LootItemForm
                 item={selected}
                 idLocked={!creating}
+                active={tab === 'items'}
                 onChange={updateSelected}
                 tileColors={tileColors}
                 onOpenRecipe={(recipeId) => {
@@ -1075,26 +1085,9 @@ export function DevLootBrowser() {
                   }
                 }}
               />
-              {compareDef && (
-                <div>
-                  <h4 className="mb-3 text-2xs uppercase tracking-widest text-white/30">
-                    Compare · {compareDef.id}
-                  </h4>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div>
-                      <div className="mb-1 text-2xs text-white/35">Current</div>
-                      <CompareCard def={selected} />
-                    </div>
-                    <div>
-                      <div className="mb-1 text-2xs text-white/35">Other</div>
-                      <CompareCard def={compareDef} />
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           ) : (
-            <p className="text-sm text-white/40">Select an item or create a new one.</p>
+            <p className="p-6 text-sm text-white/40">Select an item or create a new one.</p>
           )}
         </main>
       </div>
@@ -1112,8 +1105,8 @@ export function DevLootBrowser() {
           }}
           onOpenItem={(id) => {
             setTab('items');
+            setItemsViewMode('edit');
             applySelect(id);
-            setCompareId(null);
             setStatus(`Opened ${id} from tables`);
           }}
           onDirtyChange={setTablesDirty}
@@ -1136,8 +1129,8 @@ export function DevLootBrowser() {
           }}
           onOpenItem={(id) => {
             setTab('items');
+            setItemsViewMode('edit');
             applySelect(id);
-            setCompareId(null);
             setStatus(`Opened ${id} from recipes`);
           }}
           onDraftChange={setRecipesDraft}

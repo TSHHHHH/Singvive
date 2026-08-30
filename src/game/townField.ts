@@ -80,7 +80,29 @@ export function pickGroundZero(rng: Rng): TownDef {
   return TOWNS[rng.fork('townField').int(0, TOWNS.length - 1)];
 }
 
+/**
+ * Memo caches. Every entry below is a pure function of immutable module data
+ * (`TOWNS`) plus its arguments, so caching cannot change a result — it only
+ * stops `hazardZonesNear` re-running ~250 cells x 20 haversines on every
+ * energy tick. Caps are generous; a run touches a few thousand keys at most.
+ */
+const NEAREST_CACHE = new Map<string, TownDef>();
+const MAX_DIST_CACHE = new Map<string, number>();
+const OFFSET_CACHE = new Map<string, number>();
+const CACHE_CAP = 20000;
+
+function capped<K, V>(cache: Map<K, V>, key: K, value: V): V {
+  if (cache.size >= CACHE_CAP) cache.clear();
+  cache.set(key, value);
+  return value;
+}
+
 export function nearestTown(lat: number, lng: number): TownDef {
+  // Exact-coordinate key: the hazard scan feeds deterministic cell centres, so
+  // this hits without quantising (which would shift town borders).
+  const key = `${lat},${lng}`;
+  const hit = NEAREST_CACHE.get(key);
+  if (hit) return hit;
   let best = TOWNS[0];
   let bestD = Infinity;
   for (const t of TOWNS) {
@@ -90,24 +112,31 @@ export function nearestTown(lat: number, lng: number): TownDef {
       best = t;
     }
   }
-  return best;
+  return capped(NEAREST_CACHE, key, best);
 }
 
 function maxDistFrom(gz: TownDef): number {
+  const hit = MAX_DIST_CACHE.get(gz.id);
+  if (hit !== undefined) return hit;
   let max = 1;
   for (const t of TOWNS) {
     const d = haversine(gz.lat, gz.lng, t.lat, t.lng);
     if (d > max) max = d;
   }
-  return max;
+  return capped(MAX_DIST_CACHE, gz.id, max);
 }
 
 function townOffset(seed: string, gz: TownDef, town: TownDef): number {
+  // Pure in (seed, gz, town) — and the uncached path mints a fresh seedrandom
+  // instance, which is the costly half.
+  const key = `${seed}|${gz.id}|${town.id}`;
+  const hit = OFFSET_CACHE.get(key);
+  if (hit !== undefined) return hit;
   const maxD = maxDistFrom(gz);
   const t = haversine(gz.lat, gz.lng, town.lat, town.lng) / maxD;
   const base = OFFSET_GZ + t * (-OFFSET_FAR - OFFSET_GZ);
   const jitter = (new Rng(seed).fork(`townOffset:${town.id}`).next() * 2 - 1) * OFFSET_JITTER;
-  return base + jitter;
+  return capped(OFFSET_CACHE, key, base + jitter);
 }
 
 /** 0..100 neighbourhood pressure. Island mean tracks `hordeLevel`. */
