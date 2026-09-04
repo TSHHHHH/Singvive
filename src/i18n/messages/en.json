@@ -76,7 +76,25 @@
         "heavyHit": "heavy hit",
         "freeHand": "free hand",
         "shieldBlock": "shield",
-        "secondBlade": "2nd blade"
+        "secondBlade": "2nd blade",
+        "legsTravel": "legs → travel",
+        "rightArmHit": "R arm → hit",
+        "leftArmBlock": "L arm → block",
+        "headSearch": "head → search",
+        "torsoEnergy": "torso → energy"
+      },
+      "limbCoach": {
+        "title": "You're hurt",
+        "blurb": "Open Condition to see the body doll. Bandage bleeds; splint fractures. Bad limbs change how you move and fight.",
+        "openGuide": "Open Body guide",
+        "effect": {
+          "head": "Head wound — aim, search, and awareness suffer.",
+          "torso": "Torso wound — you tire faster and carry less.",
+          "leftArm": "Left arm — guard and free-hand tempo suffer.",
+          "rightArm": "Right arm — weapon accuracy suffers.",
+          "leftLeg": "Left leg — you're limping on the map (not in the fight gauge).",
+          "rightLeg": "Right leg — you're limping on the map (not in the fight gauge)."
+        }
       }
     },
     "death": {
@@ -462,7 +480,7 @@
       "carry": "Carry",
       "noise": "Noise",
       "defenceTip": "Attack roll target",
-      "dodgeTip": "Chance to slip a connecting hit",
+      "dodgeTip": "Chance to slip a connecting hit (costs energy; never vs a natural 20)",
       "attackTip": "To-hit modifier",
       "hpTip": "Total limb vitality",
       "travelTip": "Movement speed (energy, legs, footwear, traits)",
@@ -571,6 +589,8 @@
         "weapon": "Weapon",
         "unarmed": "Unarmed",
         "arms": "Injured arms",
+        "head": "Head wound",
+        "torso": "Torso wound",
         "load": "Load",
         "energy": "Energy",
         "night": "Night / dusk",
@@ -1189,12 +1209,23 @@
       "title": "Survive",
       "bullets": [
         "Hunger, thirst, energy, and infection tick with every hour. Keep them up — empty hunger or thirst below 20 starts eating limb HP.",
-        "Health is the sum of your six limbs. Bleeding blocks regen; infection at 100 ends the run.",
+        "Health is the sum of your six limbs — see the Body topic for how each injury changes travel, aim, and stamina. Major bleeds block regen until bandaged; infection at 100 ends the run.",
+        "Before a run, pick a job seed or build traits on the same screen — negatives earn points, positives spend them. A full signature + curse spends the whole pool; swap to free a point for another trait.",
         "Night (after dusk) is more dangerous. Get inside before dark — the streets fill with a night swarm. Rest shows recovery and ambush chance; sleep still drains hunger and thirst (reduced).",
         "Hazard pockets sit between pins (horde, patrols, collapse, flood). Sense them inside your ring, route around when you can — each kind bites differently if you cross.",
         "The horde meter is the island clock, not the street under your feet. It climbs every day and every neighbourhood gets worse with it — but a Stirring town is not a Lost one. Ground zero is already Fallen or worse when you wake; distant estates may still be holding. Lost streets stay walkable, they just cost more: denser pockets, dusk-rate swarms in daylight, harder searches. Zoom out until the island fits and the map becomes a status overlay; street zoom stays clear. At 100% the city is overrun and the run ends.",
         "Infected animals share the combat loop and can infect on a hit. Otters and monitors claim inland water, macaques and boars the catchment, dogs/cats/rats the streets.",
         "Fights run on a shared track — whoever fills it swings. Light weapons and a free off-hand fill faster; a shield or a second blade is a real choice."
+      ]
+    },
+    "body": {
+      "title": "Body",
+      "bullets": [
+        "Six limbs share one health pool. A hit lands on a part — bandage bleeds, splint fractures, and don't let a limb hit zero untreated (crippled heals only up to 70%).",
+        "Bad legs slow travel on the map. One wrecked leg is a limp; both wrecked is a crawl. Legs do not throttle how fast you fill the combat gauge.",
+        "Right arm is your weapon arm (accuracy). Left arm is guard — shields and a free off-hand lose tempo when it's mauled.",
+        "Head wounds tax aim, rummage speed, and awareness. Torso wounds raise energy drain and cut how much you can carry.",
+        "Open Condition anytime for the body doll. The first time you're hurt, a short coach points you there."
       ]
     },
     "fight": {
@@ -1290,6 +1321,25 @@
     "mosquito_coil": "Mosquito Coil",
     "coffee": "Kopi Packet",
     "energy_drink": "Energy Drink",
+    "gas_mask": "Gas Mask",
+    "headlamp": "Headlamp",
+    "turnout_coat": "Turnout Coat",
+    "rubber_gloves": "Rubber Gloves",
+    "welding_gloves": "Welding Gloves",
+    "cargo_shorts": "Cargo Shorts",
+    "riding_pants": "Riding Pants",
+    "rubber_boots": "Rubber Boots",
+    "safety_boots": "Steel-Toe Boots",
+    "duffel_bag": "Duffel Bag",
+    "hatchet": "Hatchet",
+    "sledgehammer": "Sledgehammer",
+    "nail_bat": "Nail Bat",
+    "cloth_wraps": "Cloth Hand Wraps",
+    "scrap_helm": "Scrap Helm",
+    "scrap_armour": "Scrap Plate Vest",
+    "padded_vest": "Padded Mat Vest",
+    "shin_guards": "Scrap Shin Guards",
+    "scrap_shield": "Lashed Scrap Shield",
     "kitchen_knife": "Kitchen Knife",
     "hammer": "Claw Hammer",
     "crowbar": "Crowbar",
@@ -1389,6 +1439,21 @@
     "kopi_c": "Kopi C",
     "cooked_mee": "Cooked Maggi",
     "milo_dinosaur": "Milo Dinosaur",
+    "kopi_o": "Kopi O",
+    "kopi_sachet_drink": "Kopi Sachet Drink",
+    "milo_drink": "Milo Drink",
+    "canned_luncheon_meat": "Canned Luncheon Meat",
+    "canned_sardines": "Canned Sardines",
+    "bread_loaf": "Bread Loaf",
+    "kopi_sachets": "Kopi Sachets",
+    "large_water_bottle": "1.5L Water Bottle",
+    "hand_sanitiser": "Hand Sanitiser",
+    "insect_repellent": "Insect Repellent",
+    "rain_poncho": "Disposable Rain Poncho",
+    "zip_ties": "Zip Ties",
+    "phone_charging_cable": "Phone Charging Cable",
+    "bicycle_repair_kit": "Bicycle Repair Kit",
+    "grocery_tote": "Reusable Grocery Tote",
     "intel_scavenger_sketch": "Scavenger's Sketch",
     "intel_ration_slip": "Ration Slip",
     "intel_turf_fragment": "Turf Fragment",
@@ -1428,6 +1493,18 @@
     }
   },
   "recipe": {
+    "kopi_o": {
+      "name": "Brew Kopi O",
+      "blurb": "Coffee powder and water. It is plain, hot, and enough to keep moving."
+    },
+    "kopi_sachet_drink": {
+      "name": "Mix Kopi Sachet",
+      "blurb": "One sachet and whatever water is safe enough to spare."
+    },
+    "milo_drink": {
+      "name": "Mix Milo",
+      "blurb": "Milo powder and water. Not fancy, but it puts something useful in you."
+    },
     "purify": {
       "name": "Purify Water",
       "blurb": "Tablets and twenty minutes turn a bottle of murk into something safe."
@@ -1447,6 +1524,42 @@
     "spear_cleaver": {
       "name": "Lash a Cleaver Spear",
       "blurb": "Heavier at the tip than a knife spear, and it bites deeper for it."
+    },
+    "nail_bat": {
+      "name": "Drive Nails Through a Bat",
+      "blurb": "Ugly, loud, and it tears more than it hits. The nails bend after a while."
+    },
+    "cloth_wraps": {
+      "name": "Wrap Your Hands",
+      "blurb": "Rag and tape over the knuckles. It is barely anything, and it is better than nothing."
+    },
+    "shin_guards": {
+      "name": "Lash Shin Guards",
+      "blurb": "Flat scrap padded with rag and taped to the shins. Legs are what they go for low."
+    },
+    "scrap_shield": {
+      "name": "Lash a Scrap Shield",
+      "blurb": "Two sheets, a zip-tied handle, and an arm that will ache by evening."
+    },
+    "padded_vest": {
+      "name": "Cut a Padded Vest",
+      "blurb": "Foam soaks a bite better than it soaks a blade. You will miss it at bedtime."
+    },
+    "scrap_helm": {
+      "name": "Beat Out a Scrap Helm",
+      "blurb": "A bucket of hammered plate with rag inside. You will not hear much coming."
+    },
+    "scrap_armour": {
+      "name": "Rivet a Scrap Plate Vest",
+      "blurb": "Plate over rag over you. It stops teeth. It also announces every step you take."
+    },
+    "tarp_poncho": {
+      "name": "Cut a Tarp Poncho",
+      "blurb": "A head hole and taped seams. Dry and drab — but that tarp was your roof."
+    },
+    "headlamp": {
+      "name": "Strap the Torch to Your Head",
+      "blurb": "The same light, and your off hand back. Worth an hour of fiddling with zip ties."
     },
     "spear_parang": {
       "name": "Lash a Parang Spear",
@@ -1985,6 +2098,86 @@
       "description": "The Muster has a file. It is not flattering. Syndicate love is not free.",
       "effects": [
         "Muster starts Hated"
+      ]
+    },
+    "shadow_habit": {
+      "name": "Shadow Habit",
+      "description": "You learned which corridors stay quiet after midnight.",
+      "effects": [
+        "−15% encounter chance when travelling",
+        "−20% ambush chance"
+      ]
+    },
+    "umbrella_city": {
+      "name": "Umbrella City",
+      "description": "You grew up walking through squalls with a folding umbrella and a dry bag.",
+      "effects": [
+        "−10% outdoor / heat energy drain",
+        "+5% travel speed",
+        "−5% thirst drain"
+      ]
+    },
+    "haze_mask": {
+      "name": "Haze Habit",
+      "description": "PSI days taught you to keep a mask and keep walking.",
+      "effects": [
+        "−15% outdoor / heat energy drain",
+        "10% infection resist"
+      ]
+    },
+    "void_deck_chat": {
+      "name": "Void Deck Chat",
+      "description": "You know how to open a conversation under fluorescent tubes.",
+      "effects": [
+        "+1 on doorway and dialogue checks",
+        "Start Known with Gotong"
+      ]
+    },
+    "train_memory": {
+      "name": "Train Memory",
+      "description": "Every interchange is still in your feet. The tunnels feel like a second street.",
+      "effects": [
+        "+10% travel speed",
+        "+1 awareness",
+        "Richer MRT loot"
+      ]
+    },
+    "sharp_eye": {
+      "name": "Sharp Eye",
+      "description": "You notice the wrong shadow before it notices you.",
+      "effects": [
+        "+1 Perception",
+        "+1 awareness"
+      ]
+    },
+    "mall_rat": {
+      "name": "Mall Rat",
+      "description": "Aircon atriums were your outdoors. Real weather still feels wrong.",
+      "effects": [
+        "+15% outdoor / heat energy drain",
+        "+10% thirst drain"
+      ]
+    },
+    "tone_deaf": {
+      "name": "Tone Deaf",
+      "description": "You say the wrong thing at the wrong door.",
+      "effects": [
+        "−1 on doorway and dialogue checks"
+      ]
+    },
+    "loud_soles": {
+      "name": "Loud Soles",
+      "description": "Hard heels, hard habits. Everything hears you coming.",
+      "effects": [
+        "+15% encounter chance when travelling"
+      ]
+    },
+    "lost_without_maps": {
+      "name": "Lost Without Maps",
+      "description": "Without a pin on your phone you still turn the wrong way at every junction.",
+      "effects": [
+        "−10% travel speed",
+        "−1 awareness"
       ]
     }
   }

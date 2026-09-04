@@ -344,7 +344,17 @@ export type IconName =
   | 'trait.ruined_knees'
   | 'trait.desk_body'
   | 'trait.heavy_hands'
-  | 'trait.warrant';
+  | 'trait.warrant'
+  | 'trait.shadow_habit'
+  | 'trait.umbrella_city'
+  | 'trait.haze_mask'
+  | 'trait.void_deck_chat'
+  | 'trait.train_memory'
+  | 'trait.sharp_eye'
+  | 'trait.mall_rat'
+  | 'trait.tone_deaf'
+  | 'trait.loud_soles'
+  | 'trait.lost_without_maps';
 
 /**
  * What renders until a real asset is dropped in. Every key must have one, so the
@@ -558,6 +568,16 @@ export const EMOJI_FALLBACK: Record<IconName, string> = {
   'trait.desk_body': '🖥️',
   'trait.heavy_hands': '👊',
   'trait.warrant': '📋',
+  'trait.shadow_habit': '🌑',
+  'trait.umbrella_city': '☔',
+  'trait.haze_mask': '😷',
+  'trait.void_deck_chat': '🗨️',
+  'trait.train_memory': '🚇',
+  'trait.sharp_eye': '🔎',
+  'trait.mall_rat': '🏬',
+  'trait.tone_deaf': '😬',
+  'trait.loud_soles': '👟',
+  'trait.lost_without_maps': '🧭',
 
   'item.food': '🥫',
   'item.water': '💧',

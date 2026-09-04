@@ -25,6 +25,8 @@ export interface Recipe {
   name: string;
   /** What it consumes, as defId → count. */
   inputs: Record<string, number>;
+  /** Optional water input. The player can use any carried water source. */
+  waterInput?: number;
   outputDefId: string;
   outputCount: number;
   /** In-game hours it burns. Crafting is never free. */
@@ -38,6 +40,17 @@ export interface Recipe {
 
 export const RECIPES: Recipe[] = structuredClone(recipesCatalog) as unknown as Recipe[];
 
+/** Water sources that can be poured into a recipe, clean or unsafe. */
+export const WATER_INPUT_IDS = [
+  'water_bottle',
+  'newater',
+  'large_water_bottle',
+  'dirty_water',
+] as const;
+
+/** Infection added when a drink is mixed with murky water. */
+export const DIRTY_WATER_DRINK_INFECTION = 8;
+
 if (import.meta.env.DEV) {
   const seen = new Set<string>();
   for (const recipe of RECIPES) {
@@ -48,6 +61,9 @@ if (import.meta.env.DEV) {
     }
     if (!(recipe.outputCount > 0)) {
       console.error(`[crafting] ${recipe.id} has non-positive outputCount`);
+    }
+    if (recipe.waterInput !== undefined && (!Number.isInteger(recipe.waterInput) || recipe.waterInput <= 0)) {
+      console.error(`[crafting] ${recipe.id} has invalid waterInput ${recipe.waterInput}`);
     }
     if (!ITEMS[recipe.outputDefId]) {
       console.error(`[crafting] ${recipe.id} outputs unknown item "${recipe.outputDefId}"`);
@@ -117,7 +133,18 @@ export function canCraft(
       return { ok: false, reason: `Needs ${need}× ${itemDef(defId).name} (have ${have})` };
     }
   }
+  if (recipe.waterInput !== undefined) {
+    const waterProvided = WATER_INPUT_IDS.some((id) => (needMap[id] ?? 0) >= recipe.waterInput!);
+    if (!waterProvided && !waterInputFor(items, recipe.waterInput)) {
+      return { ok: false, reason: `Needs ${recipe.waterInput}× water` };
+    }
+  }
   return { ok: true, reason: '' };
+}
+
+/** Choose clean water first; murky water is accepted only as a last resort. */
+export function waterInputFor(items: ItemInstance[], count: number): string | null {
+  return WATER_INPUT_IDS.find((id) => countOf(items, id) >= count) ?? null;
 }
 
 /** A short "2× Scrap Metal · 1× Duct Tape" line for the UI. */

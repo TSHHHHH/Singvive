@@ -174,6 +174,7 @@ export function addToGrid(
   defId: string,
   count: number,
   condition?: number,
+  contaminationRisk?: number,
 ): { items: ItemInstance[]; leftover: number } {
   const def = itemDef(defId);
   let remaining = count;
@@ -205,6 +206,7 @@ export function addToGrid(
       ...(def.maxCondition !== undefined
         ? { condition: Math.round(condition ?? def.maxCondition) }
         : {}),
+      ...(contaminationRisk !== undefined ? { contaminationRisk } : {}),
     });
     remaining -= put;
   }
@@ -736,7 +738,12 @@ export function containerWeight(items: ItemInstance[], container: Container = BA
 }
 
 /** Max carrying capacity from build + any equipped weightCapacityBonus. */
-export function maxCarry(attrs: Attributes, equipment: Equipment, carryCapacityMod = 0): number {
+export function maxCarry(
+  attrs: Attributes,
+  equipment: Equipment,
+  carryCapacityMod = 0,
+  carryMult = 1,
+): number {
   let base = attrs.strength * 3 + attrs.endurance * 2 + carryCapacityMod;
   for (const slot of Object.keys(equipment) as EquipSlot[]) {
     const inst = equipment[slot];
@@ -744,7 +751,7 @@ export function maxCarry(attrs: Attributes, equipment: Equipment, carryCapacityM
     const bonus = itemDef(inst.defId).modifiers?.weightCapacityBonus ?? 0;
     if (bonus) base += Math.round(bonus * conditionScale(inst));
   }
-  return base;
+  return Math.max(1, Math.round(base * Math.max(0.25, carryMult)));
 }
 
 /** Pack ratio at and below which load does nothing. ~14 kg on a 25 kg character. */
@@ -768,8 +775,9 @@ export function loadRatio(
   attrs: Attributes,
   equipment: Equipment,
   carryCapacityMod = 0,
+  carryMult = 1,
 ): number {
-  const cap = maxCarry(attrs, equipment, carryCapacityMod);
+  const cap = maxCarry(attrs, equipment, carryCapacityMod, carryMult);
   if (cap <= 0) return carriedWeight(items, equipment) > 0 ? 99 : 0;
   return carriedWeight(items, equipment) / cap;
 }
@@ -830,8 +838,9 @@ export function loadEffectsFor(
   attrs: Attributes,
   equipment: Equipment,
   carryCapacityMod = 0,
+  carryMult = 1,
 ): LoadEffects {
-  return loadEffects(loadRatio(items, attrs, equipment, carryCapacityMod));
+  return loadEffects(loadRatio(items, attrs, equipment, carryCapacityMod, carryMult));
 }
 
 // ---------- Equipment ----------

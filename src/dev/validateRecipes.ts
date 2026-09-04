@@ -4,6 +4,7 @@ export type RecipeRecord = {
   id: string;
   name: string;
   inputs: Record<string, number>;
+  waterInput?: number;
   outputDefId: string;
   outputCount: number;
   hours: number;
@@ -19,6 +20,7 @@ const ALLOWED_KEYS = new Set([
   'id',
   'name',
   'inputs',
+  'waterInput',
   'outputDefId',
   'outputCount',
   'hours',
@@ -91,6 +93,9 @@ export function validateRecipesCatalog(
     if (!isPositiveInt(row.outputCount)) {
       errors.push(`${label}: outputCount must be an integer > 0`);
     }
+    if (row.waterInput !== undefined && !isPositiveInt(row.waterInput)) {
+      errors.push(`${label}: waterInput must be an integer > 0`);
+    }
 
     const outputDefId = row.outputDefId;
     if (typeof outputDefId !== 'string' || !RECIPE_ID_RE.test(outputDefId)) {
@@ -157,6 +162,7 @@ export function normalizeRecipe(recipe: RecipeRecord): RecipeRecord {
     needsShelter: recipe.needsShelter,
     blurb: recipe.blurb,
   };
+  if (recipe.waterInput !== undefined) next.waterInput = recipe.waterInput;
   if (recipe.tool) next.tool = recipe.tool;
   return next;
 }

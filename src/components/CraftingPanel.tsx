@@ -3,7 +3,14 @@ import { useShallow } from 'zustand/react/shallow';
 import { useGame } from '../game/store';
 import { itemDef, ITEMS } from '../game/loot';
 import { TEAR_HOURS } from '../game/inventory';
-import { canCraft, countOf, RECIPES, type Recipe } from '../game/crafting';
+import {
+  canCraft,
+  countOf,
+  RECIPES,
+  WATER_INPUT_IDS,
+  waterInputFor,
+  type Recipe,
+} from '../game/crafting';
 import { adjustCraftInputs } from '../game/character';
 import type { ItemDef, ItemInstance } from '../game/types';
 import { itemIcon } from './Inventory/itemIcon';
@@ -141,6 +148,12 @@ function RecipeGroup({
       <div className="flex flex-col gap-2">
         {recipes.map((recipe) => {
           const inputs = adjustCraftInputs(recipe.inputs, traitIds);
+          const waterId = recipe.waterInput
+            ? waterInputFor(items, recipe.waterInput)
+            : null;
+          const waterHave = recipe.waterInput
+            ? WATER_INPUT_IDS.reduce((total, id) => total + countOf(items, id), 0)
+            : 0;
           const check = canCraft(recipe, items, atShelter, inputs);
           const out = itemDef(recipe.outputDefId);
           const baseBlurb = recipeBlurb(recipe.id, locale);
@@ -167,6 +180,17 @@ function RecipeGroup({
                     need={1}
                     have={countOf(items, recipe.tool)}
                     role="tool"
+                  />,
+                ]
+              : []),
+            ...(recipe.waterInput
+              ? [
+                  <RecipeInputChip
+                    key="water-input"
+                    defId={waterId ?? 'water_bottle'}
+                    need={recipe.waterInput}
+                    have={waterHave}
+                    nameOverride="Any Water"
                   />,
                 ]
               : []),
@@ -267,18 +291,20 @@ export function RecipeInputChip({
   have,
   role = 'input',
   def,
+  nameOverride,
 }: {
   defId: string;
   need: number;
   have: number;
   role?: 'input' | 'tool';
   def?: ItemDef;
+  nameOverride?: string;
 }) {
   const { t, locale } = useT();
   const resolved = def ?? ITEMS[defId];
   if (!resolved) return null;
 
-  const name = itemName(defId, locale);
+  const name = nameOverride ?? itemName(defId, locale);
   const short = have < need;
   const text =
     role === 'tool'

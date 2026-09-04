@@ -41,7 +41,8 @@ import {
   energyFleeDcModifier,
   headCritReductionFromGear,
   headTargetReductionFromGear,
-  legTravelFactor,
+  guardArmFactor,
+  legDodgePenalty,
   rollHitZone,
 } from './survival';
 import {
@@ -155,12 +156,12 @@ export const STANCES: Record<StanceId, StanceDef> = {
     id: 'aggressive',
     name: 'Aggressive',
     icon: 'stance.aggressive',
-    description: 'All forward pressure. +2 to hit, +2 damage, −3 defence, −3% dodge.',
+    description: 'All forward pressure. +2 to hit, +2 damage, −3 defence, −2% dodge.',
     attackMod: 2,
     damageMod: 2,
     defenseMod: -3,
     limbDamageMult: 1,
-    dodgeMod: -0.03,
+    dodgeMod: -0.02,
     critChanceBonus: 0,
     ignoresArmor: false,
     timeCostHours: 0,
@@ -173,12 +174,12 @@ export const STANCES: Record<StanceId, StanceDef> = {
     id: 'guarded',
     name: 'Guarded',
     icon: 'stance.guarded',
-    description: 'Cover up. +3 defence, +5% dodge, −2 to hit, limb damage taken ×0.75.',
+    description: 'Cover up. +3 defence, +2% dodge, −2 to hit, limb damage taken ×0.75.',
     attackMod: -2,
     damageMod: 0,
     defenseMod: 3,
     limbDamageMult: 0.75,
-    dodgeMod: 0.05,
+    dodgeMod: 0.02,
     critChanceBonus: 0,
     ignoresArmor: false,
     timeCostHours: 0,
@@ -486,9 +487,13 @@ export function offHandRole(equipment: Equipment): OffHandRole {
 }
 
 /** Bonuses from a free off-hand — not from iterating equipped items. */
-export function offHandCombatMods(equipment: Equipment): { speed: number; dodge: number } {
+export function offHandCombatMods(
+  equipment: Equipment,
+  guardFactor = 1,
+): { speed: number; dodge: number } {
   if (offHandRole(equipment) === 'empty' && !isTwoHandedEquipped(equipment)) {
-    return { speed: 0.6, dodge: 0.03 };
+    const g = Math.max(0.15, Math.min(1, guardFactor));
+    return { speed: 0.6 * g, dodge: 0.015 * g };
   }
   return { speed: 0, dodge: 0 };
 }
@@ -532,21 +537,21 @@ export function weaponSpeedFactor(e: WeaponEffect | null, twoHanded = false): nu
 
 /**
  * How fast the player's marker crawls. Dexterity is the bulk of it; the stance
- * is the part you actually chose, and a mauled leg or an empty tank is the part
- * the run chose for you. Weapon speed is a multiplier on the whole rate.
+ * is the part you actually chose, and an empty tank is the part the run chose
+ * for you. Leg injuries slow travel on the map, not this gauge.
  */
 export function playerSpeed(
   attrs: Attributes,
   stance: StanceDef,
   energy = 50,
-  legFactor = 1,
+  _legFactorUnused = 1,
   equipSpeed = 0,
   weaponFactor = 1,
   loadSpeedMult = 1,
 ): number {
   const energyMod = energy < 20 ? -2 : energy < 45 ? -1 : 0;
   const base = 6 + attrs.dexterity * 0.8 + stance.speedMod + energyMod + equipSpeed;
-  return Math.max(2, base * Math.max(0.4, legFactor) * weaponFactor * Math.max(0.25, loadSpeedMult));
+  return Math.max(2, base * weaponFactor * Math.max(0.25, loadSpeedMult));
 }
 
 /** Seconds of track time one action costs at the given speed. */
@@ -591,9 +596,25 @@ export interface EnemyActionResult {
   critical: boolean;
   headCritReduction: number;
   statusResist: number;
+  /** Energy spent slipping the blow — 0 when the hit landed or was blocked. */
+  energyCost: number;
 }
 
-/** Dodge chance when an attack roll already beat defence — 0..0.45 cap. */
+/**
+ * Hard cap on dodge chance after an attack already beat defence.
+ * Secondary evasion used to stack to 45% and erase half of connecting hits;
+ * 28% keeps light/dex fantasy without a second AC.
+ */
+export const MAX_DODGE_CHANCE = 0.28;
+
+/**
+ * Meter burn for a successful dodge. Flat so the sheet stays readable: each
+ * slip costs the same, and the energy→dodge feedback loop does the rest.
+ * Nat 20s cannot be dodged, so they never charge this.
+ */
+export const DODGE_ENERGY_COST = 3;
+
+/** Dodge chance when an attack roll already beat defence — 0..MAX_DODGE_CHANCE. */
 export function playerDodgeChance(
   attrs: Attributes,
   traitIds: string[],
@@ -612,9 +633,8 @@ export function playerDodgeChance(
     gearDodge += scaledMod(inst, 'dodgeBonus');
   }
   const traitDodge = sumTraitMod(traitIds, 'dodgeMod');
-  const legFactor = legTravelFactor(parts);
-  const legPenalty = (legFactor - 1) * 0.1;
-  const ohDodge = offHandCombatMods(equipment).dodge;
+  const legPenalty = legDodgePenalty(parts);
+  const ohDodge = offHandCombatMods(equipment, guardArmFactor(parts)).dodge;
   const raw =
     dexBase +
     traitDodge +
@@ -625,7 +645,7 @@ export function playerDodgeChance(
     energyDodgeBonus(energy) +
     legPenalty +
     loadDodgeMod;
-  return Math.max(0, Math.min(0.45, raw));
+  return Math.max(0, Math.min(MAX_DODGE_CHANCE, raw));
 }
 
 /** Player's effective defence for a round, including stance and terrain. */
@@ -992,6 +1012,7 @@ export function resolveEnemyAction(
   /** Zone a turned blow scuffed — wear only, no damage and no hit. */
   let deflectZone: BodyPartId | null = null;
   let critical = false;
+  let energyCost = 0;
   const defense = effectiveDefense(player, stance, terrain);
 
   const headMods = [equipment.head ? itemDef(equipment.head.defId).modifiers : undefined];
@@ -1009,23 +1030,29 @@ export function resolveEnemyAction(
     text: `${rollVerb} (d20 ${zRoll}${fmt(zombie.attack + env.zombieAttack)} = ${zTotal} vs ${defense})`,
   });
   if (zRoll === 20 || zTotal >= defense) {
-    const dodgeChance = playerDodgeChance(
-      attrs,
-      traitIds,
-      equipment,
-      energy,
-      bodyParts,
-      stance,
-      terrain,
-      loadDodgeMod,
-    );
+    // Nat 20 is a committed hit — no dodge. Everything else can still be slipped,
+    // but footwork costs energy so a high dodge build tires itself out.
+    const canDodge = zRoll !== 20;
+    const dodgeChance = canDodge
+      ? playerDodgeChance(
+          attrs,
+          traitIds,
+          equipment,
+          energy,
+          bodyParts,
+          stance,
+          terrain,
+          loadDodgeMod,
+        )
+      : 0;
     if (dodgeChance > 0 && rng.chance(dodgeChance)) {
       dodged = true;
+      energyCost = DODGE_ENERGY_COST;
       log.push({
         round,
         side: 'enemy',
         tone: 'player',
-        text: combatLine('enemyDodge'),
+        text: combatLine('enemyDodge', { energy: energyCost }),
       });
     } else {
       let dmg = zombie.damage + rng.int(0, 3);
@@ -1033,8 +1060,11 @@ export function resolveEnemyAction(
       hitZone = forceHead ? 'head' : rollHitZone(rng.fork('zone'), headWeightScale);
       critical = hitZone === 'head';
       const ohInst = equipment.offHand;
+      const guard = guardArmFactor(bodyParts);
       const blockChance =
-        ohInst && offHandRole(equipment) === 'shield' ? armorScaledMod(ohInst, 'blockChance') : 0;
+        ohInst && offHandRole(equipment) === 'shield'
+          ? armorScaledMod(ohInst, 'blockChance') * guard
+          : 0;
       if (ohInst && blockChance > 0 && rng.chance(blockChance)) {
         blocked = true;
         playerDamage = 0;
@@ -1117,6 +1147,7 @@ export function resolveEnemyAction(
     critical,
     headCritReduction: headCritReduce,
     statusResist,
+    energyCost,
   };
 }
 

@@ -116,6 +116,17 @@ export const SETTINGS_SCHEMA: SettingDef[] = [
     ],
     default: 'on',
   },
+  {
+    key: 'limbCoachSeen',
+    label: 'Limb injury coach',
+    description: 'One-shot tip the first time you take a meaningful limb wound. Reset to Off to see it again.',
+    group: 'Guide',
+    options: [
+      { value: 'off', label: 'Not seen yet' },
+      { value: 'on', label: 'Already shown' },
+    ],
+    default: 'off',
+  },
 ];
 
 /** Root font-size multipliers applied via `document.documentElement`. */

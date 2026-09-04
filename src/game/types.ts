@@ -405,6 +405,8 @@ export interface ItemInstance {
    * in a save written before conditions existed deserializes to.
    */
   condition?: number;
+  /** Infection risk carried by a drink made with unsafe water. */
+  contaminationRisk?: number;
   /** Rounds in a magazine item or loaded holstered firearm. */
   loadedRounds?: number;
 }

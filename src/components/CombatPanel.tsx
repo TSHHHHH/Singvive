@@ -3,7 +3,7 @@ import { useGame } from '../game/store';
 import { tip } from './tips';
 import { Icon } from '../icons/Icon';
 import type { IconName } from '../icons/keys';
-import { armCombatPenalty, legTravelFactor, totalHp, totalMaxHp } from '../game/survival';
+import { armCombatPenalty, guardArmFactor, headCombatPenalty, torsoCarryMult, totalHp, totalMaxHp } from '../game/survival';
 import { sumTraitMod } from '../game/character';
 import { equipSpeedBonus, loadEffectsFor } from '../game/inventory';
 import {
@@ -134,6 +134,7 @@ export function CombatPanel({
     character.attributes,
     equipment,
     sumTraitMod(character.traitIds, 'carryCapacityMod'),
+    torsoCarryMult(bodyParts),
   );
   const eq = fullEquipment(equipment);
   const holstered = holsteredFirearm(eq);
@@ -156,7 +157,7 @@ export function CombatPanel({
     character.attributes,
     character.traitIds,
     eq,
-    armCombatPenalty(bodyParts),
+    armCombatPenalty(bodyParts) + headCombatPenalty(bodyParts),
     load.attackMod,
   );
   const stance = STANCES[combat.selectedStance];
@@ -165,8 +166,8 @@ export function CombatPanel({
     character.attributes,
     stance,
     meters.energy,
-    legTravelFactor(bodyParts),
-    equipSpeedBonus(equipment) + offHandCombatMods(equipment).speed,
+    1,
+    equipSpeedBonus(equipment) + offHandCombatMods(equipment, guardArmFactor(bodyParts)).speed,
     stats.speedFactor,
     load.combatSpeedMult,
   );

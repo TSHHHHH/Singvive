@@ -16,6 +16,7 @@ export interface CombatFlavorCtx {
   soakNote?: string;
   inf?: number | string;
   stance?: string;
+  energy?: number | string;
 }
 
 export type CombatFlavorKey =
@@ -179,10 +180,10 @@ const POOLS: Record<CombatFlavorKey, string[]> = {
     'You step aside as it overshoots.',
   ],
   enemyDodge: [
-    'You slip the blow — reflexes and footing.',
-    'You step aside at the last beat.',
-    'You roll with it and come away clean.',
-    'Footwork saves you — the hit never lands.',
+    'You slip the blow — costs you {energy} energy.',
+    'You step aside at the last beat (−{energy} energy).',
+    'You roll with it and come away clean (−{energy} energy).',
+    'Footwork saves you — the hit never lands (−{energy} energy).',
   ],
   enemyBlocked: [
     'You catch it on the {weapon} — the hit never lands.',
@@ -245,7 +246,8 @@ function fill(tpl: string, ctx: CombatFlavorCtx): string {
     .replace(/\{soak\}/g, String(ctx.soak ?? '0'))
     .replace(/\{soakNote\}/g, ctx.soakNote ?? '')
     .replace(/\{inf\}/g, String(ctx.inf ?? '?'))
-    .replace(/\{stance\}/g, ctx.stance ?? '');
+    .replace(/\{stance\}/g, ctx.stance ?? '')
+    .replace(/\{energy\}/g, String(ctx.energy ?? '?'));
 }
 
 /** Pick a combat narrative line and fill tokens. */

@@ -63,7 +63,7 @@ committed steps** and deliberately not part of the build — see
 ## How it plays
 
 ```
-Pick an occupation (or an Advanced trait build) → choose a real Singapore spawn →
+Pick an occupation seed (or build traits freely on the same screen) → choose a real Singapore spawn →
   [ read the map: "?" blips inside your travelable range → trek BLIND across open ground →
     arrive (a doorway event or faction gate may fire) → search session → maybe fight →
     optional HDB dive or tunnel run → haul loot into the grid → cache surplus in a stash →

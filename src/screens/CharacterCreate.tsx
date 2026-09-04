@@ -30,36 +30,31 @@ import {
 import { randomSurvivorName, SURVIVOR_NAME_MAX } from '../game/randomNames';
 import type { Occupation, Trait } from '../game/types';
 import { Icon } from '../icons/Icon';
-import { AttrText } from '../components/AttrIcon';
-import { traitDescription, traitEffects, traitHoverText, traitName, useT } from '../i18n';
+import { TipHint, useCoarsePointer } from '../components/TipHint';
+import { traitHoverText, traitName, useT } from '../i18n';
 import { tip } from '../components/tips';
 
 type Side = 'positive' | 'negative';
-type Step = 'occupation' | 'custom';
+type PointSort = 'asc' | 'desc';
+
+const TRAIT_TIP_PANEL =
+  'max-w-[20rem] whitespace-pre-line break-words rounded border border-white/20 ' +
+  'bg-concrete-900/95 px-3 py-2.5 text-sm leading-snug text-concrete-50 ' +
+  'shadow-signage backdrop-blur-sm';
 
 /** Same set, order-insensitive — an edited build is no longer that occupation. */
 function sameTraits(a: string[], b: string[]): boolean {
   return a.length === b.length && a.every((id) => b.includes(id));
 }
 
-function TraitEffectList({
-  id,
-  locale,
-}: {
-  id: string;
-  locale: Parameters<typeof traitEffects>[1];
-}) {
-  const lines = traitEffects(id, locale);
-  if (lines.length === 0) return null;
-  return (
-    <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs text-white/70">
-      {lines.map((line) => (
-        <li key={line}>
-          <AttrText text={line} />
-        </li>
-      ))}
-    </ul>
-  );
+/** Sort by displayed point magnitude (1…5), then name. */
+function sortTraitsByPoints(items: Trait[], dir: PointSort): Trait[] {
+  const mul = dir === 'asc' ? 1 : -1;
+  return [...items].sort((a, b) => {
+    const d = Math.abs(a.cost) - Math.abs(b.cost);
+    if (d !== 0) return d * mul;
+    return a.name.localeCompare(b.name);
+  });
 }
 
 export function CharacterCreate() {
@@ -67,32 +62,59 @@ export function CharacterCreate() {
     useShallow((s) => ({ commitCharacter: s.commitCharacter, resetToMenu: s.resetToMenu })),
   );
   const { locale, t } = useT();
+  const coarsePointer = useCoarsePointer();
   const [name, setName] = useState('');
-  const [step, setStep] = useState<Step>('occupation');
   const [traitIds, setTraitIds] = useState<string[]>([]);
   const [pickedId, setPickedId] = useState<string | null>(null);
   const [myPresets, setMyPresets] = useState<TraitPreset[]>(() => loadPresets());
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
   const [presetNameDraft, setPresetNameDraft] = useState('');
   const [presetMsg, setPresetMsg] = useState<string | null>(null);
-
-  const [hovered, setHovered] = useState<Record<Side, string | null>>({
-    positive: null,
-    negative: null,
-  });
-  const [locked, setLocked] = useState<Record<Side, string | null>>({
-    positive: null,
-    negative: null,
-  });
+  const [pointSort, setPointSort] = useState<PointSort>('desc');
 
   const attrs = attributesFromTraits(traitIds);
   const budgetRemaining = TRAIT_BUDGET - traitBudgetUsed(traitIds);
 
   const picked = pickedId ? getOccupation(pickedId) : null;
-  const occupationId = picked && sameTraits(traitIds, picked.traitIds) ? picked.id : undefined;
+  const matchesOccupation = picked != null && sameTraits(traitIds, picked.traitIds);
+  const occupationId = matchesOccupation ? picked.id : undefined;
   const selectedMyPreset = selectedPresetId
-    ? myPresets.find((p) => p.id === selectedPresetId) ?? null
+    ? (myPresets.find((p) => p.id === selectedPresetId) ?? null)
     : null;
+  const matchesPreset =
+    selectedMyPreset != null && sameTraits(traitIds, selectedMyPreset.traitIds);
+
+  const positiveTraits = TRAITS.filter((t) => t.category === 'positive');
+  const negativeTraits = TRAITS.filter((t) => t.category === 'negative');
+  const positiveCount = traitIds.filter((id) => getTrait(id).category === 'positive').length;
+  const negativeCount = traitIds.filter((id) => getTrait(id).category === 'negative').length;
+
+  const identityLabel = matchesOccupation
+    ? picked.name
+    : matchesPreset
+      ? selectedMyPreset.name
+      : picked
+        ? `Custom · based on ${picked.name}`
+        : selectedMyPreset
+          ? `Custom · based on ${selectedMyPreset.name}`
+          : traitIds.length === 0
+            ? 'Blank slate'
+            : 'Custom';
+
+  const remixHint = matchesOccupation
+    ? `Loaded ${picked.name} — swap a trait to make it yours.`
+    : matchesPreset
+      ? `Loaded “${selectedMyPreset.name}” — edit freely, then save if you like it.`
+      : picked || selectedMyPreset
+        ? 'Build diverged from the seed. Revert to restore, or save as a preset.'
+        : 'Load a job seed or pick traits from scratch. You start at 0 points.';
+
+  const budgetHint =
+    budgetRemaining === 0 &&
+    traitIds.length === 2 &&
+    (matchesOccupation || (picked != null && !matchesOccupation))
+      ? 'A full signature + curse spends the whole pool. Swap the curse, or pick a cheaper signature, to free a point.'
+      : null;
 
   const start = () => {
     if (!isLegalTraitBuild(traitIds)) return;
@@ -105,6 +127,66 @@ export function CharacterCreate() {
   };
 
   const refreshPresets = () => setMyPresets(loadPresets());
+
+  const selectOccupation = (o: Occupation) => {
+    setPickedId(o.id);
+    setSelectedPresetId(null);
+    setTraitIds(o.traitIds);
+    setPresetMsg(null);
+  };
+
+  const selectMyPreset = (p: TraitPreset) => {
+    setSelectedPresetId(p.id);
+    setPickedId(null);
+    setTraitIds(p.traitIds);
+    setPresetNameDraft(p.name);
+    setPresetMsg(null);
+  };
+
+  const clearBuild = () => {
+    setPickedId(null);
+    setSelectedPresetId(null);
+    setTraitIds([]);
+    setPresetMsg(null);
+    setPresetNameDraft('');
+  };
+
+  const revert = () => {
+    if (picked) setTraitIds(picked.traitIds);
+    else if (selectedMyPreset) setTraitIds(selectedMyPreset.traitIds);
+    else setTraitIds([]);
+  };
+
+  const toggleTrait = (id: string) => {
+    if (traitIds.includes(id)) {
+      setTraitIds(traitIds.filter((t) => t !== id));
+    } else if (canPickTrait(id, traitIds)) {
+      setTraitIds([...traitIds, id]);
+    }
+  };
+
+  const handleSavePreset = () => {
+    const label =
+      presetNameDraft.trim() || selectedMyPreset?.name || picked?.name || 'My Build';
+    const existing = myPresets.find((p) => p.name.toLowerCase() === label.toLowerCase());
+    if (existing && !window.confirm(`Overwrite preset “${existing.name}”?`)) return;
+    const saved = savePreset(label, traitIds);
+    if (!saved) {
+      setPresetMsg(
+        budgetRemaining < 0
+          ? 'Fix the budget (points left must be ≥ 0) before saving.'
+          : myPresets.length >= MAX_TRAIT_PRESETS && !existing
+            ? `Preset limit reached (${MAX_TRAIT_PRESETS}). Delete one first.`
+            : 'Could not save preset — build must be legal.',
+      );
+      return;
+    }
+    refreshPresets();
+    setSelectedPresetId(saved.id);
+    setPickedId(null);
+    setPresetNameDraft(saved.name);
+    setPresetMsg(`Saved “${saved.name}”.`);
+  };
 
   const nameField = (
     <label className="flex flex-col items-start gap-1 text-left">
@@ -165,59 +247,34 @@ export function CharacterCreate() {
     </div>
   );
 
-  // ================= STEP 1 — presets =================
-
-  const selectOccupation = (o: Occupation) => {
-    setPickedId(o.id);
-    setSelectedPresetId(null);
-    setTraitIds(o.traitIds);
-  };
-
-  const selectMyPreset = (p: TraitPreset) => {
-    setSelectedPresetId(p.id);
-    setPickedId(null);
-    setTraitIds(p.traitIds);
-    setPresetNameDraft(p.name);
-  };
-
-  const startFromScratch = () => {
-    setPickedId(null);
-    setSelectedPresetId(null);
-    setTraitIds([]);
-    setLocked({ positive: null, negative: null });
-    setPresetMsg(null);
-    setStep('custom');
-  };
-
-  const openAdvanced = () => {
-    setPresetMsg(null);
-    setStep('custom');
-  };
-
-  const renderOccupationCard = (o: Occupation) => {
-    const selected = pickedId === o.id;
+  const renderOccupationSeed = (o: Occupation) => {
+    const selected = matchesOccupation && pickedId === o.id;
+    const basedOn = !matchesOccupation && pickedId === o.id;
     return (
       <button
         key={o.id}
+        type="button"
         onClick={() => selectOccupation(o)}
-        className={`flex flex-col rounded border px-3 py-2.5 text-left transition ${
+        className={`flex flex-col rounded border px-2.5 py-2 text-left transition ${
           selected
             ? 'border-signal bg-signal/15'
-            : 'border-white/10 bg-white/[0.03] hover:border-signal/50 hover:bg-white/[0.06]'
+            : basedOn
+              ? 'border-signal/40 bg-signal/5'
+              : 'border-white/10 bg-white/[0.03] hover:border-signal/50 hover:bg-white/[0.06]'
         }`}
       >
-        <span className="text-sm font-bold uppercase tracking-wide">{o.name}</span>
-        <span className="mt-1.5 flex flex-wrap items-center gap-x-3.5 gap-y-0.5">
+        <span className="text-xs font-bold uppercase tracking-wide">{o.name}</span>
+        <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
           {o.traitIds.map((id) => {
             const tr = getTrait(id);
             return (
               <span
                 key={id}
-                className={`inline-flex items-center gap-1.5 whitespace-nowrap text-xs ${
+                className={`inline-flex items-center gap-1 whitespace-nowrap text-2xs ${
                   tr.category === 'positive' ? 'text-signal' : 'text-hiss'
                 }`}
               >
-                <Icon name={tr.icon} size={16} className="shrink-0" />
+                <Icon name={tr.icon} size={12} className="shrink-0" />
                 {traitName(id, locale)}
               </span>
             );
@@ -227,325 +284,34 @@ export function CharacterCreate() {
     );
   };
 
-  const renderTraitChips = (ids: string[]) => {
-    const positives = ids.filter((id) => getTrait(id).category === 'positive');
-    const negatives = ids.filter((id) => getTrait(id).category === 'negative');
-    const chip = (id: string) => {
-      const trait = getTrait(id);
-      return (
-        <span
-          key={id}
-          {...tip(traitHoverText(id, locale))}
-          className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-2xs ${
-            trait.category === 'positive'
-              ? 'border-signal/30 bg-signal/10 text-signal'
-              : 'border-hiss/30 bg-hiss/10 text-hiss'
-          }`}
-        >
-          <Icon name={trait.icon} size={11} />
-          {traitName(id, locale)}
-        </span>
-      );
-    };
+  const renderSelectedChips = () => {
+    if (traitIds.length === 0) {
+      return <p className="text-2xs text-white/35">No traits yet — load a job or pick from the grid.</p>;
+    }
     return (
-      <div className="mt-3 space-y-2 border-t border-white/10 pt-2.5">
-        {positives.length > 0 && (
-          <div>
-            <span className="mb-1 block text-2xs uppercase tracking-widest text-signal/70">
-              Positive
-            </span>
-            <div className="flex flex-wrap gap-1">{positives.map(chip)}</div>
-          </div>
-        )}
-        {negatives.length > 0 && (
-          <div>
-            <span className="mb-1 block text-2xs uppercase tracking-widest text-hiss/70">
-              Negative
-            </span>
-            <div className="flex flex-wrap gap-1">{negatives.map(chip)}</div>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const renderOccupationDetail = (o: Occupation) => (
-    <div className="rounded border border-white/15 bg-concrete-900/80 px-4 py-3">
-      <h3 className="text-base font-bold uppercase tracking-wide text-signal">{o.name}</h3>
-      <p className="mt-1.5 text-xs leading-relaxed text-white/70">{o.blurb}</p>
-
-      <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        <div>
-          <span className="text-2xs uppercase tracking-widest text-signal">Good at</span>
-          <ul className="mt-1 space-y-0.5">
-            {o.goodAt.map((s) => (
-              <li key={s} className="text-xs text-white/70">
-                + {s}
-              </li>
-            ))}
-          </ul>
-        </div>
-        <div>
-          <span className="text-2xs uppercase tracking-widest text-hiss">Struggles with</span>
-          {o.strugglesWith.length > 0 ? (
-            <ul className="mt-1 space-y-0.5">
-              {o.strugglesWith.map((s) => (
-                <li key={s} className="text-xs text-white/70">
-                  − {s}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="mt-1 text-xs text-white/40">Nothing in particular.</p>
-          )}
-        </div>
-      </div>
-
-      <div className="mt-3 space-y-3 border-t border-white/10 pt-2.5">
-        {o.traitIds.map((id) => {
-          const tr = getTrait(id);
-          const you = tr.category === 'positive';
+      <div className="flex flex-wrap gap-1">
+        {traitIds.map((id) => {
+          const trait = getTrait(id);
           return (
-            <div key={id}>
-              <span
-                className={`mb-1 block text-2xs uppercase tracking-widest ${
-                  you ? 'text-signal/70' : 'text-hiss/70'
-                }`}
-              >
-                {you ? 'You are' : 'It cost you'}
-              </span>
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="inline-flex min-w-0 items-center gap-1.5 text-sm font-bold uppercase tracking-wide">
-                  <Icon name={tr.icon} size={14} />
-                  {traitName(id, locale)}
-                </span>
-                <span
-                  className={`shrink-0 text-xs tabular-nums ${you ? 'text-signal' : 'text-hiss'}`}
-                >
-                  {you ? '−' : '+'}
-                  {Math.abs(tr.cost)} pt
-                </span>
-              </div>
-              <p className="mt-1 text-xs leading-relaxed text-white/70">
-                <AttrText text={traitDescription(id, locale)} />
-              </p>
-              <TraitEffectList id={id} locale={locale} />
-            </div>
+            <button
+              key={id}
+              type="button"
+              onClick={() => toggleTrait(id)}
+              {...tip(`Remove ${traitName(id, locale)}`)}
+              className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-2xs transition hover:opacity-80 ${
+                trait.category === 'positive'
+                  ? 'border-signal/30 bg-signal/10 text-signal'
+                  : 'border-hiss/30 bg-hiss/10 text-hiss'
+              }`}
+            >
+              <Icon name={trait.icon} size={11} />
+              {traitName(id, locale)}
+              <span className="opacity-50">×</span>
+            </button>
           );
         })}
       </div>
-    </div>
-  );
-
-  const renderMyPresetDetail = (p: TraitPreset) => (
-    <div className="rounded border border-white/15 bg-concrete-900/80 px-4 py-3">
-      <div className="flex items-start justify-between gap-2">
-        <h3 className="text-base font-bold uppercase tracking-wide text-signal">{p.name}</h3>
-        <button
-          onClick={() => {
-            deletePreset(p.id);
-            refreshPresets();
-            if (selectedPresetId === p.id) {
-              setSelectedPresetId(null);
-              setTraitIds([]);
-            }
-          }}
-          className="text-2xs uppercase tracking-wide text-hiss/70 hover:text-hiss"
-        >
-          Delete
-        </button>
-      </div>
-      <p className="mt-1.5 text-xs text-white/50">
-        Your saved build · {p.traitIds.length} traits ·{' '}
-        {isLegalTraitBuild(p.traitIds) ? 'legal' : 'needs fixing in Advanced Mode'}
-      </p>
-      {renderTraitChips(p.traitIds)}
-      <div className="mt-3 flex flex-wrap gap-2">
-        <input
-          value={presetNameDraft}
-          onChange={(e) => setPresetNameDraft(e.target.value)}
-          maxLength={32}
-          className="w-40 rounded border border-white/15 bg-black/40 px-2 py-1 text-xs outline-none focus:border-signal"
-          placeholder="Rename…"
-        />
-        <button
-          onClick={() => {
-            const next = renamePreset(p.id, presetNameDraft);
-            if (!next) {
-              setPresetMsg('Could not rename — empty or duplicate name.');
-              return;
-            }
-            refreshPresets();
-            setPresetMsg(null);
-          }}
-          className="text-2xs uppercase tracking-wide text-white/50 hover:text-white/80"
-        >
-          Rename
-        </button>
-      </div>
-    </div>
-  );
-
-  const canStartFromPreset =
-    (picked != null || selectedMyPreset != null) && isLegalTraitBuild(traitIds);
-
-  const renderOccupationStep = () => (
-    <>
-      <div className="mt-2 text-center">
-        <h2 className="text-2xl font-bold uppercase tracking-[0.2em] text-signal">
-          Before It Fell
-        </h2>
-        <p className="mt-1 text-xs leading-relaxed text-white/45">
-          Pick a job — one signature, one matching curse — or open Advanced Mode.
-          <br />
-          A 5-cost signature needs a curse, not a pile of −1s. You start at 0.
-        </p>
-        <div className="mt-3 flex justify-center">{nameField}</div>
-      </div>
-
-      <div className="mt-5 grid gap-5 lg:grid-cols-[1fr_1fr]">
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={openAdvanced}
-              disabled={!picked && !selectedMyPreset}
-              className="rounded-lg border border-signal/50 bg-signal/10 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-signal transition hover:bg-signal/20 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-transparent disabled:text-white/25"
-            >
-              Advanced Mode
-            </button>
-            <button
-              onClick={startFromScratch}
-              className="rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white/70 transition hover:border-white/40 hover:text-white"
-            >
-              From scratch
-            </button>
-          </div>
-
-          <div>
-            <span className="mb-1.5 block text-2xs uppercase tracking-widest text-white/40">
-              Job presets
-            </span>
-            <div className="grid gap-1.5 sm:grid-cols-2">{OCCUPATIONS.map(renderOccupationCard)}</div>
-          </div>
-
-          <div>
-            <span className="mb-1.5 block text-2xs uppercase tracking-widest text-white/40">
-              My presets ({myPresets.length}/{MAX_TRAIT_PRESETS})
-            </span>
-            {myPresets.length === 0 ? (
-              <p className="rounded border border-dashed border-white/10 px-3 py-4 text-xs text-white/35">
-                No saved builds yet. Open Advanced Mode, pick traits, then Save as preset.
-              </p>
-            ) : (
-              <div className="grid gap-1.5 sm:grid-cols-2">
-                {myPresets.map((p) => {
-                  const selected = selectedPresetId === p.id;
-                  return (
-                    <button
-                      key={p.id}
-                      onClick={() => selectMyPreset(p)}
-                      className={`flex flex-col rounded border px-3 py-2.5 text-left transition ${
-                        selected
-                          ? 'border-signal bg-signal/15'
-                          : 'border-white/10 bg-white/[0.03] hover:border-signal/50'
-                      }`}
-                    >
-                      <span className="text-sm font-bold uppercase tracking-wide">{p.name}</span>
-                      <span className="mt-1 text-2xs text-white/45">
-                        {p.traitIds.length} traits
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-3">
-          {picked ? (
-            renderOccupationDetail(picked)
-          ) : selectedMyPreset ? (
-            renderMyPresetDetail(selectedMyPreset)
-          ) : (
-            <div className="grid place-items-center rounded border border-dashed border-white/10 px-4 py-10 text-center">
-              <p className="text-xs text-white/35">
-                Choose a preset to see what it means for the run.
-              </p>
-            </div>
-          )}
-
-          {(picked || selectedMyPreset) && (
-            <div>
-              <span className="text-2xs uppercase tracking-widest text-white/40">Attributes</span>
-              <div className="mt-1.5">{attributeGrid}</div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="mx-auto mt-6 flex w-full max-w-xl flex-col items-center gap-2">
-        <button
-          onClick={start}
-          disabled={!canStartFromPreset}
-          className="w-full max-w-sm rounded-lg bg-signal/80 px-6 py-3 font-bold uppercase tracking-widest text-black transition hover:bg-signal disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/30"
-        >
-          Next →
-        </button>
-      </div>
-    </>
-  );
-
-  // ================= STEP 2 — Advanced Mode =================
-
-  const positiveTraits = TRAITS.filter((t) => t.category === 'positive');
-  const negativeTraits = TRAITS.filter((t) => t.category === 'negative');
-  const positiveCount = traitIds.filter((id) => getTrait(id).category === 'positive').length;
-  const negativeCount = traitIds.filter((id) => getTrait(id).category === 'negative').length;
-
-  const toggleTrait = (id: string) => {
-    if (traitIds.includes(id)) {
-      setTraitIds(traitIds.filter((t) => t !== id));
-    } else if (canPickTrait(id, traitIds)) {
-      setTraitIds([...traitIds, id]);
-    }
-  };
-
-  const toggleLock = (side: Side, id: string) => {
-    setLocked((prev) => ({ ...prev, [side]: prev[side] === id ? null : id }));
-  };
-
-  const revert = () => {
-    if (picked) setTraitIds(picked.traitIds);
-    else if (selectedMyPreset) setTraitIds(selectedMyPreset.traitIds);
-    else setTraitIds([]);
-    setLocked({ positive: null, negative: null });
-  };
-
-  const handleSavePreset = () => {
-    const label =
-      presetNameDraft.trim() ||
-      selectedMyPreset?.name ||
-      picked?.name ||
-      'My Build';
-    const existing = myPresets.find((p) => p.name.toLowerCase() === label.toLowerCase());
-    if (existing && !window.confirm(`Overwrite preset “${existing.name}”?`)) return;
-    const saved = savePreset(label, traitIds);
-    if (!saved) {
-      setPresetMsg(
-        budgetRemaining < 0
-          ? 'Fix the budget (points left must be ≥ 0) before saving.'
-          : myPresets.length >= MAX_TRAIT_PRESETS && !existing
-            ? `Preset limit reached (${MAX_TRAIT_PRESETS}). Delete one first.`
-            : 'Could not save preset.',
-      );
-      return;
-    }
-    refreshPresets();
-    setSelectedPresetId(saved.id);
-    setPickedId(null);
-    setPresetNameDraft(saved.name);
-    setPresetMsg(`Saved “${saved.name}”.`);
+    );
   };
 
   const tileClass = (t: Trait): string => {
@@ -553,116 +319,84 @@ export function CharacterCreate() {
     const incompatible = !selected && isIncompatible(t.id, traitIds);
     const disabled = !selected && !canPickTrait(t.id, traitIds);
 
-    if (selected && t.category === 'positive') return 'border-signal bg-signal/15';
-    if (selected && t.category === 'negative') return 'border-hiss bg-hiss/15';
+    if (selected && t.category === 'positive') {
+      return 'border-2 border-signal bg-signal/30';
+    }
+    if (selected && t.category === 'negative') {
+      return 'border-2 border-hiss bg-hiss/30';
+    }
     if (incompatible || disabled) {
-      return 'border-white/5 bg-white/[0.02] opacity-40 cursor-not-allowed';
+      return 'border-2 border-white/5 bg-white/[0.02] opacity-40 cursor-not-allowed';
     }
     return t.category === 'positive'
-      ? 'border-signal/20 bg-signal/[0.04] hover:border-signal/60'
-      : 'border-hiss/20 bg-hiss/[0.04] hover:border-hiss/60';
+      ? 'border-2 border-signal/20 bg-signal/[0.04] hover:border-signal/55 hover:bg-signal/[0.1]'
+      : 'border-2 border-hiss/20 bg-hiss/[0.04] hover:border-hiss/55 hover:bg-hiss/[0.1]';
   };
 
   const renderTile = (t: Trait, side: Side) => {
     const selected = traitIds.includes(t.id);
-    const isLocked = locked[side] === t.id;
     const accent = side === 'positive' ? 'text-signal' : 'text-hiss';
     const sign = side === 'positive' ? '−' : '+';
+    const blocked = !selected && !canPickTrait(t.id, traitIds);
+    const why = blocked ? pickBlockReason(t.id, traitIds) : null;
+    const detail = traitHoverText(t.id, locale);
+    const tipText = why ? `${detail}\n(${why})` : detail;
+    const label = traitName(t.id, locale);
 
-        const blocked = !selected && !canPickTrait(t.id, traitIds);
-        const why = blocked ? pickBlockReason(t.id, traitIds) : null;
-
-        return (
-          <div
-            key={t.id}
-            onMouseEnter={() => setHovered((h) => ({ ...h, [side]: t.id }))}
-            onMouseLeave={() => setHovered((h) => (h[side] === t.id ? { ...h, [side]: null } : h))}
-            title={why ?? undefined}
-            className={`relative flex flex-col rounded border px-2.5 py-2 transition ${tileClass(t)} ${
-              isLocked ? 'ring-1 ring-white/50' : ''
-            }`}
-          >
-            <button
-              onClick={() => toggleTrait(t.id)}
-              disabled={blocked}
-              className="flex flex-1 items-start gap-2 text-left disabled:cursor-not-allowed"
-            >
-              <span
-                className={`mt-0.5 grid h-3.5 w-3.5 shrink-0 place-items-center border text-2xs leading-none ${
-                  selected ? `border-white/70 ${accent}` : 'border-white/25 text-transparent'
-                }`}
-              >
-                ✕
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="flex items-center gap-1 truncate text-xs font-semibold uppercase tracking-wide">
-                  <Icon name={t.icon} size={13} className="shrink-0" />
-                  <span className="truncate">{traitName(t.id, locale)}</span>
-                </span>
-                <span className={`text-2xs tabular-nums ${accent}`}>
-                  {sign}
-                  {Math.abs(t.cost)} pt
-                </span>
-                {why && <span className="mt-0.5 block text-2xs leading-snug text-white/45">{why}</span>}
-              </span>
-            </button>
-
-        <button
-          onClick={() => toggleLock(side, t.id)}
-          {...tip(isLocked ? 'Unpin details' : 'Pin details', { label: true })}
-          className={`absolute right-1 top-1 text-2xs leading-none transition ${
-            isLocked ? 'text-white' : 'text-white/25 hover:text-white/70'
-          }`}
-        >
-          {isLocked ? '📌' : '📍'}
-        </button>
-      </div>
+    const body = (
+      <button
+        type="button"
+        onClick={() => {
+          if (!blocked) toggleTrait(t.id);
+        }}
+        aria-pressed={selected}
+        aria-disabled={blocked}
+        className={`flex min-w-0 flex-1 items-center gap-2.5 text-left ${
+          blocked ? 'cursor-not-allowed' : ''
+        }`}
+      >
+        <Icon name={t.icon} size={28} className="shrink-0" />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-xs font-semibold uppercase tracking-wide">
+            {label}
+          </span>
+          <span className={`text-sm font-semibold tabular-nums ${accent}`}>
+            {sign}
+            {Math.abs(t.cost)} pt
+          </span>
+          {why && <span className="mt-0.5 block text-2xs leading-snug text-white/45">{why}</span>}
+        </span>
+      </button>
     );
-  };
-
-  const renderDetail = (side: Side) => {
-    const id = locked[side] ?? hovered[side];
-    const trait = id ? getTrait(id) : null;
-    const accent = side === 'positive' ? 'text-signal' : 'text-hiss';
-    const pinned = trait != null && locked[side] === trait.id;
 
     return (
-      <div className="mt-2 min-h-[6.5rem] rounded border border-white/15 bg-concrete-900/80 px-3 py-2">
-        {trait ? (
-          <>
-            <div className="flex items-baseline justify-between gap-2">
-              <span className="inline-flex min-w-0 items-center gap-1.5 text-sm font-bold uppercase tracking-wide">
-                <Icon name={trait.icon} size={14} />
-                {traitName(trait.id, locale)}
-              </span>
-              <span className={`shrink-0 text-xs tabular-nums ${accent}`}>
-                {side === 'positive' ? '−' : '+'}
-                {Math.abs(trait.cost)} pt
-              </span>
-            </div>
-            <p className="mt-1 text-xs leading-relaxed text-white/70">
-              <AttrText text={traitDescription(trait.id, locale)} />
-            </p>
-            <TraitEffectList id={trait.id} locale={locale} />
-            {trait.conflicts.length > 0 && (
-              <p className="mt-1.5 text-2xs text-white/40">
-                Conflicts:{' '}
-                {trait.conflicts.map((c) => traitName(c, locale)).join(', ')}
-              </p>
-            )}
-            {pinned && (
-              <button
-                onClick={() => toggleLock(side, trait.id)}
-                className="mt-1.5 text-2xs text-white/40 hover:text-white/80"
-              >
-                📌 pinned — click to unpin
-              </button>
-            )}
-          </>
+      <div
+        key={t.id}
+        className={`flex items-center gap-1.5 rounded px-2 py-2 transition ${tileClass(t)}`}
+      >
+        {coarsePointer ? (
+          body
         ) : (
-          <p className="text-xs text-white/30">
-            Hover a modifier for details. Click 📍 to pin it here while you compare the other side.
-          </p>
+          <TipHint
+            tip={tipText}
+            tipClassName={TRAIT_TIP_PANEL}
+            placement="top"
+            className="min-w-0 flex-1"
+          >
+            {body}
+          </TipHint>
+        )}
+
+        {coarsePointer && (
+          <TipHint tip={tipText} tipClassName={TRAIT_TIP_PANEL} placement="top" className="shrink-0">
+            <button
+              type="button"
+              aria-label={`About ${label}`}
+              className="inline-flex h-7 w-7 items-center justify-center rounded border border-white/20 text-xs font-semibold text-white/55 transition active:border-signal/50 active:text-signal"
+            >
+              ?
+            </button>
+          </TipHint>
         )}
       </div>
     );
@@ -673,16 +407,31 @@ export function CharacterCreate() {
     const list = isPos ? positiveTraits : negativeTraits;
     const groups = isPos
       ? [
-          { label: 'Signature', items: list.filter(isSignature) },
+          { label: 'Signature', items: sortTraitsByPoints(list.filter(isSignature), pointSort) },
           {
             label: 'Notable',
-            items: list.filter((t) => !isSignature(t) && t.cost >= 2),
+            items: sortTraitsByPoints(
+              list.filter((tr) => !isSignature(tr) && tr.cost >= 2),
+              pointSort,
+            ),
           },
-          { label: 'Minor', items: list.filter((t) => t.cost === 1) },
+          {
+            label: 'Minor',
+            items: sortTraitsByPoints(
+              list.filter((tr) => tr.cost === 1),
+              pointSort,
+            ),
+          },
         ]
       : [
-          { label: 'Curses', items: list.filter(isCurse) },
-          { label: 'Flaws', items: list.filter((t) => !isCurse(t)) },
+          { label: 'Curses', items: sortTraitsByPoints(list.filter(isCurse), pointSort) },
+          {
+            label: 'Flaws',
+            items: sortTraitsByPoints(
+              list.filter((tr) => !isCurse(tr)),
+              pointSort,
+            ),
+          },
         ];
     return (
       <div className="flex min-w-0 flex-col">
@@ -704,105 +453,210 @@ export function CharacterCreate() {
                   {g.label}
                 </span>
                 <div className="grid grid-cols-2 gap-1.5 xl:grid-cols-3">
-                  {g.items.map((t) => renderTile(t, side))}
+                  {g.items.map((tr) => renderTile(tr, side))}
                 </div>
               </div>
             ),
           )}
         </div>
-        {renderDetail(side)}
       </div>
     );
   };
 
-  const renderCustomStep = () => (
-    <>
+  return (
+    <div className="mx-auto w-full max-w-6xl p-6">
+      <button
+        type="button"
+        onClick={resetToMenu}
+        className="text-xs text-white/40 hover:text-white/70"
+      >
+        {t('ui.common.back')}
+      </button>
+
       <div className="mt-2 text-center">
         <h2 className="text-2xl font-bold uppercase tracking-[0.2em] text-signal">
-          Advanced Mode
+          Before It Fell
         </h2>
         <p className="mt-1 text-xs leading-relaxed text-white/45">
-          {picked ? (
-            <>
-              Starting from <span className="text-white/70">{picked.name}</span>. Negatives earn
-              points; positives spend them. Points left must stay at 0 or higher.
-              <br />
-              A 5-cost signature needs a curse, not a pile of −1s.
-            </>
-          ) : selectedMyPreset ? (
-            <>
-              Editing <span className="text-white/70">{selectedMyPreset.name}</span>. Negatives earn
-              points; positives spend them. Start at 0.
-            </>
-          ) : (
-            <>
-              Build freely. You start at 0 — take a curse (or two small flaws) to afford a
-              signature.
-              <br />
-              Max one signature, one curse, two negatives. A 5-cost needs a curse, not six −1s.
-            </>
-          )}
+          Jobs are starting seeds — load one, then swap traits on the grid.
+          <br />
+          Negatives earn points; positives spend them. Max one signature, one curse, two negatives.
+          <br />
+          Hover a trait for details — on touch, tap ?.
         </p>
-        <div className="mt-3 flex flex-wrap items-end justify-center gap-6">
-          {nameField}
-          <div className="flex flex-col items-center">
-            <span className="text-2xs uppercase tracking-widest text-white/40">Points left</span>
-            <span
-              className={`text-3xl font-bold tabular-nums ${
-                budgetRemaining < 0 ? 'text-hiss' : 'text-signal'
-              }`}
-            >
-              {budgetRemaining}
-            </span>
-          </div>
-          <button
-            onClick={revert}
-            className="mb-1 text-xs uppercase tracking-widest text-white/40 hover:text-white/80"
-          >
-            ⟳ {picked || selectedMyPreset ? 'Revert' : 'Reset'}
-          </button>
-        </div>
-
-        <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-          <input
-            value={presetNameDraft}
-            onChange={(e) => setPresetNameDraft(e.target.value)}
-            maxLength={32}
-            placeholder="Preset name"
-            className="w-44 rounded border border-white/15 bg-black/40 px-2 py-1.5 text-xs outline-none focus:border-signal"
-          />
-          <button
-            onClick={handleSavePreset}
-            disabled={budgetRemaining < 0}
-            className="rounded border border-signal/40 px-3 py-1.5 text-2xs font-semibold uppercase tracking-wide text-signal hover:bg-signal/10 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            Save as preset
-          </button>
-          {myPresets.length > 0 && (
-            <select
-              value=""
-              onChange={(e) => {
-                const p = myPresets.find((x) => x.id === e.target.value);
-                if (p) {
-                  selectMyPreset(p);
-                  setPresetMsg(`Loaded “${p.name}”.`);
-                }
-              }}
-              className="rounded border border-white/15 bg-black/40 px-2 py-1.5 text-2xs text-white/70 outline-none"
-            >
-              <option value="">Load preset…</option>
-              {myPresets.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
-        {presetMsg && <p className="mt-2 text-2xs text-white/50">{presetMsg}</p>}
       </div>
 
-      <div className="mt-5 grid gap-6 lg:grid-cols-2">
+      <div className="mt-4 flex flex-wrap items-end justify-center gap-6">
+        {nameField}
+        <div className="flex flex-col items-center">
+          <span className="text-2xs uppercase tracking-widest text-white/40">Points left</span>
+          <span
+            className={`text-3xl font-bold tabular-nums ${
+              budgetRemaining < 0 ? 'text-hiss' : 'text-signal'
+            }`}
+          >
+            {budgetRemaining}
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={revert}
+          className="mb-1 text-xs uppercase tracking-widest text-white/40 hover:text-white/80"
+        >
+          ⟳ {picked || selectedMyPreset ? 'Revert seed' : 'Reset'}
+        </button>
+        <button
+          type="button"
+          onClick={clearBuild}
+          className="mb-1 text-xs uppercase tracking-widest text-white/40 hover:text-white/80"
+        >
+          Clear
+        </button>
+      </div>
+
+      <div className="mt-5 space-y-3">
+        <div>
+          <span className="mb-1.5 block text-2xs uppercase tracking-widest text-white/40">
+            Job seeds
+          </span>
+          <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
+            {OCCUPATIONS.map(renderOccupationSeed)}
+          </div>
+        </div>
+
+        <div>
+          <span className="mb-1.5 block text-2xs uppercase tracking-widest text-white/40">
+            My presets ({myPresets.length}/{MAX_TRAIT_PRESETS})
+          </span>
+          {myPresets.length === 0 ? (
+            <p className="rounded border border-dashed border-white/10 px-3 py-3 text-xs text-white/35">
+              No saved builds yet. Mix traits below, then Save as preset.
+            </p>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {myPresets.map((p) => {
+                const selected = matchesPreset && selectedPresetId === p.id;
+                const basedOn = !matchesPreset && selectedPresetId === p.id;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => selectMyPreset(p)}
+                    className={`rounded border px-2.5 py-1.5 text-left transition ${
+                      selected
+                        ? 'border-signal bg-signal/15'
+                        : basedOn
+                          ? 'border-signal/40 bg-signal/5'
+                          : 'border-white/10 bg-white/[0.03] hover:border-signal/50'
+                    }`}
+                  >
+                    <span className="text-xs font-bold uppercase tracking-wide">{p.name}</span>
+                    <span className="ml-2 text-2xs text-white/45">{p.traitIds.length} traits</span>
+                    {!isLegalTraitBuild(p.traitIds) && (
+                      <span className="ml-2 text-2xs text-hiss">needs fixing</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-4 rounded border border-white/15 bg-concrete-900/80 px-4 py-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <span className="text-2xs uppercase tracking-widest text-white/40">Identity</span>
+            <p className="text-sm font-bold uppercase tracking-wide text-signal">{identityLabel}</p>
+            <p className="mt-1 text-xs text-white/50">{remixHint}</p>
+            {budgetHint && <p className="mt-1 text-2xs text-white/40">{budgetHint}</p>}
+            {matchesOccupation && picked && (
+              <p className="mt-2 text-xs leading-relaxed text-white/60">{picked.blurb}</p>
+            )}
+          </div>
+          {selectedMyPreset && matchesPreset && (
+            <div className="flex flex-col items-end gap-1">
+              <button
+                type="button"
+                onClick={() => {
+                  deletePreset(selectedMyPreset.id);
+                  refreshPresets();
+                  setSelectedPresetId(null);
+                  setTraitIds([]);
+                  setPresetNameDraft('');
+                }}
+                className="text-2xs uppercase tracking-wide text-hiss/70 hover:text-hiss"
+              >
+                Delete preset
+              </button>
+              <div className="flex flex-wrap items-center justify-end gap-1">
+                <input
+                  value={presetNameDraft}
+                  onChange={(e) => setPresetNameDraft(e.target.value)}
+                  maxLength={32}
+                  className="w-36 rounded border border-white/15 bg-black/40 px-2 py-1 text-xs outline-none focus:border-signal"
+                  placeholder="Rename…"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = renamePreset(selectedMyPreset.id, presetNameDraft);
+                    if (!next) {
+                      setPresetMsg('Could not rename — empty or duplicate name.');
+                      return;
+                    }
+                    refreshPresets();
+                    setPresetMsg(null);
+                  }}
+                  className="text-2xs uppercase tracking-wide text-white/50 hover:text-white/80"
+                >
+                  Rename
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="mt-3 border-t border-white/10 pt-2.5">
+          <span className="mb-1 block text-2xs uppercase tracking-widest text-white/40">
+            Selected · click to remove
+          </span>
+          {renderSelectedChips()}
+        </div>
+      </div>
+
+      <div className="mt-5 flex items-center justify-end gap-2">
+        <span className="text-2xs uppercase tracking-widest text-white/40">Sort</span>
+        <div
+          className="inline-flex overflow-hidden rounded border border-white/15"
+          role="group"
+          aria-label="Sort traits by points"
+        >
+          <button
+            type="button"
+            onClick={() => setPointSort('asc')}
+            aria-pressed={pointSort === 'asc'}
+            {...tip('Points low → high within each group')}
+            className={`px-2.5 py-1 text-xs font-semibold uppercase tracking-wide transition ${
+              pointSort === 'asc' ? 'bg-white/15 text-white' : 'text-white/40 hover:text-white/70'
+            }`}
+          >
+            Pts ↑
+          </button>
+          <button
+            type="button"
+            onClick={() => setPointSort('desc')}
+            aria-pressed={pointSort === 'desc'}
+            {...tip('Points high → low within each group')}
+            className={`border-l border-white/15 px-2.5 py-1 text-xs font-semibold uppercase tracking-wide transition ${
+              pointSort === 'desc' ? 'bg-white/15 text-white' : 'text-white/40 hover:text-white/70'
+            }`}
+          >
+            Pts ↓
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-3 grid gap-6 lg:grid-cols-2">
         {renderColumn('negative')}
         {renderColumn('positive')}
       </div>
@@ -819,26 +673,33 @@ export function CharacterCreate() {
         {attributeGrid}
       </div>
 
+      <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+        <input
+          value={presetNameDraft}
+          onChange={(e) => setPresetNameDraft(e.target.value)}
+          maxLength={32}
+          placeholder="Preset name"
+          className="w-44 rounded border border-white/15 bg-black/40 px-2 py-1.5 text-xs outline-none focus:border-signal"
+        />
+        <button
+          type="button"
+          onClick={handleSavePreset}
+          disabled={!isLegalTraitBuild(traitIds)}
+          className="rounded border border-signal/40 px-3 py-1.5 text-2xs font-semibold uppercase tracking-wide text-signal hover:bg-signal/10 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          Save as preset
+        </button>
+      </div>
+      {presetMsg && <p className="mt-2 text-center text-2xs text-white/50">{presetMsg}</p>}
+
       <button
+        type="button"
         onClick={start}
         disabled={!isLegalTraitBuild(traitIds)}
         className="mx-auto mt-6 block w-full max-w-sm rounded-lg bg-signal/80 px-6 py-3 font-bold uppercase tracking-widest text-black transition hover:bg-signal disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/30"
       >
         Next →
       </button>
-    </>
-  );
-
-  return (
-    <div className="mx-auto w-full max-w-6xl p-6">
-      <button
-        onClick={() => (step === 'custom' ? setStep('occupation') : resetToMenu())}
-        className="text-xs text-white/40 hover:text-white/70"
-      >
-        {t('ui.common.back')}
-      </button>
-
-      {step === 'occupation' ? renderOccupationStep() : renderCustomStep()}
     </div>
   );
 }

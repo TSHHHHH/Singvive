@@ -5,7 +5,7 @@ import { TRAITS, TRAIT_BUDGET, canPickTrait, getTrait, isCurse, isSignature, tra
 // Who you were on the Friday before it fell. One-click starting builds that
 // spend the trait budget *exactly* (net 0 under the 0-start pool), so picking
 // one is never the weaker choice against another or against a hand-rolled build.
-// Anything here can be opened in Advanced Mode and edited.
+// Anything here loads as an editable seed on the create screen.
 
 export const OCCUPATIONS: Occupation[] = [
   {
