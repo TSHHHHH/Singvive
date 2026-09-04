@@ -49,7 +49,7 @@ the in-game guide.
 ## 2. Core Gameplay Loop
 
 ```
-Pick an occupation (or Advanced trait build) → Choose a real SG spawn (density-checked) →
+Pick an occupation seed (or build traits freely on the same screen) → Choose a real SG spawn (density-checked) →
   [ read the map: "?" blips inside your travelable range → trek BLIND across open ground →
     arrive (pre-scavenge event / faction gate may fire) → search session → maybe fight →
     optional HDB dive or tunnel run → haul loot into the grid → cache surplus in the stash →
@@ -107,17 +107,19 @@ currency, and the survivor is always moving — the map is explored, not surveye
 ### 3.2 Survivor — occupations, attributes & traits
 - **Occupations** — nine two-trait kits (College Student, Personal Trainer, Soldier, Nurse,
   Food Vendor, Scavenger, Office Worker, Contractor, Fixer). Each is **one signature + one matching
-  curse**, nets the budget at exactly 0, and can be opened in **Advanced Mode** and edited.
+  curse**, nets the budget at exactly 0, and loads as an **editable seed** on the create screen
+  (same grid as a hand-rolled build — swap traits to make it yours).
 - **Attributes** are **derived from traits** (base 5 each, clamped 1–12) — Strength, Dexterity,
   Endurance, Perception, Wits. There is no separate point-buy panel; traits *are* the build.
 - **Traits** — budget starts at **0**. Negatives *refund* points; positives *spend* them. Remaining
   points must stay ≥ 0. Caps: **max one signature** (cost ≥ 4), **max one curse** (cost ≤ −3),
   **max two negatives** total. A 5-cost identity is paid with a curse, not a pile of −1s. Cheap
-  cousins stay for spread builds (*Reservist*, *Medic*, *Karang Guni*, *Home Cook*, *Distance Runner*…).
+  cousins stay for spread builds (*Reservist*, *Medic*, *Karang Guni*, *Home Cook*, *Distance Runner*,
+  plus mid options like *Shadow Habit*, *Train Memory*, *Sharp Eye*…).
   Signatures include *Combat Veteran*, *Trauma Medic*, *Hyrox Champion*, *Estate Memory*, *Made Man*;
-  Advanced-only signatures *Mule* and *Sixth Sense* compete with jobs for the one signature slot.
-- **Trait presets** persist across runs in `localStorage` so Advanced builds can be reused. Old
-  six-flaw presets become illegal and show “needs fixing” in Advanced Mode.
+  *Mule* and *Sixth Sense* compete with jobs for the one signature slot.
+- **Trait presets** persist across runs in `localStorage` so custom builds can be reused. Old
+  six-flaw presets become illegal and show “needs fixing” on the create screen.
 - Trait modifiers feed combat, travel, survival, loot, fog, crafting cost, faction standing, and
   unique rules (first hit halved, hawker-centre loot, HDB corridor reads, remaining-search intel).
 
@@ -154,13 +156,18 @@ currency, and the survivor is always moving — the map is explored, not surveye
   damage each hour until cured and is lethal at 100 (you turn).
 - **Injuries (Project-Zomboid-style), 6 body parts** — Head, Torso, L/R Arm, L/R Leg. Combat damage
   lands on a weighted-random part, lowering its condition and sometimes causing **bleeding** (drains
-  HP until treated).
-  - Injured parts **cut effective max HP** (Head/Torso hit hardest).
-  - **Limb-specific effects:** injured **legs slow travel**, injured **arms lower attack accuracy**.
-  - **Passive regen** (so bad luck doesn't brick a run): HP and part condition recover slowly when
-    stable — but **bleeding blocks regen** until you bandage it.
+  HP until treated). Total health is the **sum of all six parts**.
+  - **Legs** slow **travel** (limp with one bad leg; crawl only when both are wrecked). They do **not**
+    throttle combat gauge fill; footwork still takes a mild dodge hit.
+  - **Arms are handed:** right = weapon accuracy, left = guard / off-hand block & free-hand tempo.
+  - **Head** wounds tax attack accuracy, search speed, and awareness.
+  - **Torso** wounds raise energy drain and cut carry capacity.
+  - **Crippled** limbs (0 HP without proper treatment) cap passive heal at 70% until splinted/cleared.
+  - **Passive regen** when stable — but **major bleeding blocks regen** until you bandage it.
 - **Treatment:** bandage (stops one bleed + dresses a wound), medkit (stops all bleeds + big heal),
-  painkillers (HP only), antibiotics/antiseptic (infection).
+  painkillers (HP only), antibiotics/antiseptic (infection), splint (clears fracture).
+- **Teaching:** How-to-play includes a **Body** topic; first meaningful injury shows a one-shot coach
+  (settings flag `limbCoachSeen`).
 - Death causes: overwhelmed (HP 0), starvation, dehydration, infection, fatal head/torso wound,
   **overrun** (horde hits 100%).
 
@@ -173,14 +180,27 @@ currency, and the survivor is always moving — the map is explored, not surveye
   weapons hit harder but slower. Mid-fight you can switch **stance** (*Aggressive* / *Guarded* /
   *Precision*) — the next swing uses the new profile. Flee / Break off use the *Disengage* profile
   (easier flee DC, parting swing).
-- **Off-hand is a fork**, not leftover space. Empty: faster fill and easier dodge. A lid or shield
-  can fully stop a hit (and slows you). A second one-hander sometimes follows through. A torch only
-  helps you see and search. A **two-handed** weapon occupies mainHand and blocks offHand.
-- **Player attack:** `d20 + Dexterity + weapon accuracy + trait + stance − arm-injury penalty` vs.
+- **Off-hand is a fork**, not leftover space. Empty: faster fill and a small dodge bump. A lid or
+  shield can fully **block** a hit (and slows you) — shields buy block chance, not dodge. A second
+  one-hander sometimes follows through. A torch only helps you see and search. A **two-handed**
+  weapon occupies mainHand and blocks offHand.
+- **Player attack:** `d20 + Dexterity + weapon accuracy + trait + stance − arm/head-injury penalty` vs.
   `10 + enemy defense`. Natural 20 (or stance crit floor) crits. Damage = `weapon damage + Strength/2`
   (+ stance).
 - **Enemy attack:** `d20 + attack + environment` vs. `10 + Dexterity/2 + trait/armour defense + stance`.
   Worn **limb armour** soaks the body zone it covers. Zombie hits can infect; the hit wounds a body part.
+- **Dodge is a second save, not a second AC.** After a swing beats defence, the survivor may still
+  slip it (`playerDodgeChance`, hard-capped at **28%**). Dex, traits, light gear, free off-hand,
+  stance, terrain, and energy feed the chance; energy alone is only ±10%. A **natural 20 never
+  dodges**. A successful dodge costs **3 energy** — footwork taxes the meter so a high-dodge run
+  tires itself out instead of erasing half the fight for free.
+- **Armour has a ceiling.** Gear contributes at most **+6** defence in total (`MAX_EQUIP_DEFENSE`);
+  traits sit outside the cap. Defence is a d20 target, so a point of it is a flat 5% off every
+  incoming swing — uncapped, a full riot kit reached +13 and was hit only on a natural 20. Past the
+  cap armour earns its keep through soak, status resist and blocking, not evasion. A swing the kit
+  turns — one that would have landed on a bare survivor — **scuffs the armour that stopped it**, so
+  good gear pays upkeep instead of being free to own. Protective stats also fade faster with wear
+  than a weapon's edge does (floor 40%, vs 75%), and heavy plate costs **combat speed and carry**.
 - **Environment:** night/dusk and rain/storm/haze shift odds toward the enemy.
 - **Same loop for humans:** hostile-faction/event combat reuses the zombie loop with a **human
   stat block** (`kind: 'human'`, no infection, higher defense; drops gear on death).

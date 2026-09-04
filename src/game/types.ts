@@ -405,6 +405,8 @@ export interface ItemInstance {
    * in a save written before conditions existed deserializes to.
    */
   condition?: number;
+  /** Infection risk carried by a drink made with unsafe water. */
+  contaminationRisk?: number;
   /** Rounds in a magazine item or loaded holstered firearm. */
   loadedRounds?: number;
 }
@@ -808,7 +810,7 @@ export interface GameLogEntry {
   leftover?: LootStackRef[];
   /** Optional map focus — e.g. outpost intel tip. */
   focus?: { lat: number; lng: number; label?: string };
-  /** When set, UI collapses consecutive same-scope lines under one header. */
+  /** When set, UI collapses a place-visit (plus unscoped lines still at that place) under one header. */
   scope?: LogScope;
 }
 

@@ -38,6 +38,7 @@ import { tip } from '../components/tips';
 import { DayLogsModal } from '../components/DayLogsModal';
 import { GuideModal } from '../components/GuideModal';
 import { HowToPlayModal } from '../components/HowToPlayModal';
+import { LimbCoachModal } from '../components/LimbCoachModal';
 import { HdbDungeonModal } from '../components/HdbDungeonModal';
 import { HdbContextPanel } from '../components/HdbContextPanel';
 import { TraderModal } from '../components/TraderModal';
@@ -54,8 +55,10 @@ import {
   bleedEncounterMod,
   computeEvacBonus,
   computeScore,
+  headAwarenessPenalty,
   legTravelFactor,
   scoreDayMult,
+  torsoCarryMult,
 } from '../game/survival';
 import {
   equipEncounterChanceMod,
@@ -507,9 +510,10 @@ export function GameScreen() {
             character.attributes,
             equipment,
             sumTraitMod(character.traitIds, 'carryCapacityMod'),
+            torsoCarryMult(bodyParts),
           )
         : null,
-    [character, items, equipment],
+    [character, items, equipment, bodyParts],
   );
 
   const legFactor =
@@ -538,7 +542,7 @@ export function GameScreen() {
         character.attributes.perception,
         equipAwarenessMod(equipment),
         traitAwarenessMod(character.traitIds),
-      )
+      ) - headAwarenessPenalty(bodyParts)
     : 0;
   const detectMult = character ? traitDetectRadiusMult(character.traitIds) : 1;
   const blipRange = travelRange + blipMargin(awarenessValue) * detectMult;
@@ -1479,6 +1483,7 @@ export function GameScreen() {
       {dayLogsOpen && <DayLogsModal onClose={() => setDayLogsOpen(false)} />}
       {guideTopic && <GuideModal topic={guideTopic} onClose={() => setGuideTopic(null)} />}
       {howToPlayOpen && <HowToPlayModal onClose={() => setHowToPlayOpen(false)} />}
+      <LimbCoachModal bodyParts={bodyParts} onOpenGuide={setGuideTopic} />
       {/* Gated on store state rather than local state: the counter belongs to
           the place you're standing in, not to a button in this screen. */}
       <TraderModal />

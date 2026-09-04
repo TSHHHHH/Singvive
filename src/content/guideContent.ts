@@ -4,7 +4,15 @@ import { t, tList } from '../i18n/t';
 import type { LocaleId } from '../i18n/types';
 import { DEFAULT_LOCALE } from '../i18n/types';
 
-export type GuideTopic = 'survive' | 'fight' | 'loot' | 'evac' | 'score' | 'hdb' | 'tunnels';
+export type GuideTopic =
+  | 'survive'
+  | 'body'
+  | 'fight'
+  | 'loot'
+  | 'evac'
+  | 'score'
+  | 'hdb'
+  | 'tunnels';
 
 export interface GuideSection {
   id: GuideTopic;
@@ -14,6 +22,7 @@ export interface GuideSection {
 
 export const GUIDE_TOPIC_ORDER: readonly GuideTopic[] = [
   'survive',
+  'body',
   'fight',
   'loot',
   'hdb',
@@ -54,5 +63,6 @@ export function guideTopicsFor(topic: GuideTopic): GuideTopic[] {
   if (topic === 'evac') return ['evac', 'score'];
   if (topic === 'hdb') return ['hdb', 'loot'];
   if (topic === 'tunnels') return ['tunnels', 'evac'];
+  if (topic === 'body') return ['body', 'survive'];
   return [topic];
 }

@@ -13,9 +13,11 @@ import {
 } from '../game/inventory';
 import {
   armCombatPenalty,
+  headCombatPenalty,
   legTravelFactor,
   totalHp,
   totalMaxHp,
+  torsoCarryMult,
   travelSpeedMultiplier,
   type MeterModifier,
 } from '../game/survival';
@@ -95,8 +97,14 @@ export function SurvivorStatsGrid() {
   const derived = useMemo(() => {
     if (!character) return null;
     const carryMod = sumTraitMod(character.traitIds, 'carryCapacityMod');
-    const fx = loadEffectsFor(items, character.attributes, equipment, carryMod);
-    const armPen = armCombatPenalty(bodyParts);
+    const fx = loadEffectsFor(
+      items,
+      character.attributes,
+      equipment,
+      carryMod,
+      torsoCarryMult(bodyParts),
+    );
+    const armPen = armCombatPenalty(bodyParts) + headCombatPenalty(bodyParts);
     const pStats = playerCombatStats(
       character.attributes,
       character.traitIds,
@@ -120,7 +128,7 @@ export function SurvivorStatsGrid() {
         equipTravelSpeedFactor(equipment) *
         (1 + sumTraitMod(character.traitIds, 'travelSpeedMod'))) /
       fx.travelMult;
-    const carry = maxCarry(character.attributes, equipment, carryMod);
+    const carry = maxCarry(character.attributes, equipment, carryMod, torsoCarryMult(bodyParts));
     const loadKg = carriedWeight(items, equipment);
     const stealth = equipEncounterChanceMod(equipment);
     return { carryMod, fx, armPen, pStats, dodge, travel, carry, loadKg, stealth };

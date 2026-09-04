@@ -1,7 +1,7 @@
 import { useGame } from '../game/store';
 import { Icon } from '../icons/Icon';
 import { combatantIcon } from '../game/enemies';
-import { armCombatPenalty, formatClock } from '../game/survival';
+import { armCombatPenalty, formatClock, headCombatPenalty, torsoCarryMult } from '../game/survival';
 import { useClockFormat } from '../game/settings';
 import { sumTraitMod } from '../game/character';
 import { loadEffectsFor } from '../game/inventory';
@@ -62,6 +62,7 @@ export function EncounterPrompt({
     character.attributes,
     equipment,
     sumTraitMod(character.traitIds, 'carryCapacityMod'),
+    torsoCarryMult(bodyParts),
   );
   const eq = fullEquipment(equipment);
   const holstered = holsteredFirearm(eq);
@@ -69,7 +70,7 @@ export function EncounterPrompt({
     character.attributes,
     character.traitIds,
     eq,
-    armCombatPenalty(bodyParts),
+    armCombatPenalty(bodyParts) + headCombatPenalty(bodyParts),
     load.attackMod,
   );
   const holsterRounds = holstered ? loadedRoundsOf(holstered) : null;

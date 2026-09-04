@@ -1,5 +1,44 @@
 [
   {
+    "id": "kopi_o",
+    "name": "Brew Kopi O",
+    "inputs": {
+      "coffee": 1
+    },
+    "waterInput": 1,
+    "outputDefId": "kopi_o",
+    "outputCount": 1,
+    "hours": 0.5,
+    "needsShelter": false,
+    "blurb": "Coffee powder and water. It is plain, hot, and enough to keep moving."
+  },
+  {
+    "id": "kopi_sachet_drink",
+    "name": "Mix Kopi Sachet",
+    "inputs": {
+      "kopi_sachets": 1
+    },
+    "waterInput": 1,
+    "outputDefId": "kopi_sachet_drink",
+    "outputCount": 1,
+    "hours": 0.25,
+    "needsShelter": false,
+    "blurb": "One sachet and whatever water is safe enough to spare."
+  },
+  {
+    "id": "milo_drink",
+    "name": "Mix Milo",
+    "inputs": {
+      "milo_tin": 1
+    },
+    "waterInput": 1,
+    "outputDefId": "milo_drink",
+    "outputCount": 1,
+    "hours": 0.5,
+    "needsShelter": false,
+    "blurb": "Milo powder and water. Not fancy, but it puts something useful in you."
+  },
+  {
     "id": "purify",
     "name": "Purify Water",
     "inputs": {
@@ -137,14 +176,14 @@
     "name": "Brew Kopi C",
     "inputs": {
       "coffee": 1,
-      "condensed_milk": 1,
-      "water_bottle": 1
+      "condensed_milk": 1
     },
+    "waterInput": 1,
     "outputDefId": "kopi_c",
     "outputCount": 1,
     "hours": 0.5,
     "needsShelter": true,
-    "blurb": "Packet kopi, a squeeze of condensed milk, and the last of a bottle. It is not a kopitiam, but it is close."
+    "blurb": "Coffee powder, condensed milk, and water. Murky water makes a risky cup."
   },
   {
     "id": "cooked_mee",
@@ -164,14 +203,14 @@
     "name": "Mix a Milo Dinosaur",
     "inputs": {
       "milo_tin": 1,
-      "condensed_milk": 1,
-      "water_bottle": 1
+      "condensed_milk": 1
     },
+    "waterInput": 1,
     "outputDefId": "milo_dinosaur",
     "outputCount": 1,
     "hours": 0.5,
     "needsShelter": false,
-    "blurb": "The whole tin, extra powder on top, and whatever water you can spare. Heavy tin, light cup."
+    "blurb": "The whole tin, condensed milk, and water. Heavy tin, light cup; murky water still carries its risk."
   },
   {
     "id": "lockpick",
@@ -184,5 +223,130 @@
     "hours": 0.5,
     "needsShelter": false,
     "blurb": "Two scraps bent into a rake and a tensioner. One door, maybe."
+  },
+  {
+    "id": "nail_bat",
+    "name": "Drive Nails Through a Bat",
+    "inputs": {
+      "baseball_bat": 1,
+      "scrap_metal": 1,
+      "duct_tape": 1
+    },
+    "outputDefId": "nail_bat",
+    "outputCount": 1,
+    "hours": 0.75,
+    "needsShelter": false,
+    "blurb": "Ugly, loud, and it tears more than it hits. The nails bend after a while."
+  },
+  {
+    "id": "cloth_wraps",
+    "name": "Wrap Your Hands",
+    "inputs": {
+      "cloth_rags": 2,
+      "duct_tape": 1
+    },
+    "outputDefId": "cloth_wraps",
+    "outputCount": 1,
+    "hours": 0.5,
+    "needsShelter": false,
+    "blurb": "Rag and tape over the knuckles. It is barely anything, and it is better than nothing."
+  },
+  {
+    "id": "shin_guards",
+    "name": "Lash Shin Guards",
+    "inputs": {
+      "scrap_metal": 1,
+      "cloth_rags": 1,
+      "duct_tape": 1
+    },
+    "outputDefId": "shin_guards",
+    "outputCount": 1,
+    "hours": 0.5,
+    "needsShelter": false,
+    "blurb": "Flat scrap padded with rag and taped to the shins. Legs are what they go for low."
+  },
+  {
+    "id": "scrap_shield",
+    "name": "Lash a Scrap Shield",
+    "inputs": {
+      "scrap_metal": 2,
+      "zip_ties": 2,
+      "duct_tape": 1
+    },
+    "outputDefId": "scrap_shield",
+    "outputCount": 1,
+    "hours": 1,
+    "needsShelter": false,
+    "blurb": "Two sheets, a zip-tied handle, and an arm that will ache by evening."
+  },
+  {
+    "id": "padded_vest",
+    "name": "Cut a Padded Vest",
+    "inputs": {
+      "yoga_mat": 1,
+      "duct_tape": 2
+    },
+    "outputDefId": "padded_vest",
+    "outputCount": 1,
+    "hours": 1,
+    "needsShelter": false,
+    "blurb": "Foam soaks a bite better than it soaks a blade. You will miss it at bedtime."
+  },
+  {
+    "id": "scrap_helm",
+    "name": "Beat Out a Scrap Helm",
+    "inputs": {
+      "scrap_metal": 2,
+      "cloth_rags": 1,
+      "duct_tape": 1
+    },
+    "outputDefId": "scrap_helm",
+    "outputCount": 1,
+    "hours": 1.5,
+    "needsShelter": true,
+    "blurb": "A bucket of hammered plate with rag inside. You will not hear much coming.",
+    "tool": "toolbox"
+  },
+  {
+    "id": "scrap_armour",
+    "name": "Rivet a Scrap Plate Vest",
+    "inputs": {
+      "scrap_metal": 3,
+      "cloth_rags": 2,
+      "duct_tape": 2
+    },
+    "outputDefId": "scrap_armour",
+    "outputCount": 1,
+    "hours": 2,
+    "needsShelter": true,
+    "blurb": "Plate over rag over you. It stops teeth. It also announces every step you take.",
+    "tool": "toolbox"
+  },
+  {
+    "id": "tarp_poncho",
+    "name": "Cut a Tarp Poncho",
+    "inputs": {
+      "rain_tarp": 1,
+      "duct_tape": 1
+    },
+    "outputDefId": "rain_poncho",
+    "outputCount": 1,
+    "hours": 0.5,
+    "needsShelter": false,
+    "blurb": "A head hole and taped seams. Dry and drab — but that tarp was your roof."
+  },
+  {
+    "id": "headlamp",
+    "name": "Strap the Torch to Your Head",
+    "inputs": {
+      "torch": 1,
+      "zip_ties": 1,
+      "duct_tape": 1
+    },
+    "outputDefId": "headlamp",
+    "outputCount": 1,
+    "hours": 0.5,
+    "needsShelter": false,
+    "blurb": "The same light, and your off hand back. Worth an hour of fiddling with zip ties."
   }
 ]

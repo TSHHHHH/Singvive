@@ -162,6 +162,8 @@ import {
   REPAIR_HOURS,
   REPAIR_INPUTS,
   REPAIR_TOOL,
+  DIRTY_WATER_DRINK_INFECTION,
+  waterInputFor,
 } from './crafting';
 import {
   applyPartDamage,
@@ -172,6 +174,9 @@ import {
   computeScore,
   computeEvacBonus,
   DEATH_TEXT,
+  guardArmFactor,
+  headCombatPenalty,
+  headSearchFactor,
   HOURS_PER_DAY,
   initialBodyParts,
   initialMeters,
@@ -186,6 +191,8 @@ import {
   rollHitZone,
   migrateMeters,
   tickSystemicDamage,
+  torsoCarryMult,
+  torsoEnergyDrainMult,
   totalHp,
   treatInjuries,
   type DeathCause,
@@ -999,6 +1006,7 @@ export const useGame = create<State>((set, get) => {
     items: ItemInstance[];
     character: Character | null;
     equipment: Equipment;
+    bodyParts?: BodyParts;
   }) =>
     s.character
       ? loadEffectsFor(
@@ -1006,6 +1014,7 @@ export const useGame = create<State>((set, get) => {
           s.character.attributes,
           s.equipment,
           sumTraitMod(s.character.traitIds, 'carryCapacityMod'),
+          s.bodyParts ? torsoCarryMult(s.bodyParts) : 1,
         )
       : loadEffects(0);
 
@@ -1033,13 +1042,14 @@ export const useGame = create<State>((set, get) => {
       character.attributes,
       character.traitIds,
       eq,
-      armCombatPenalty(s.bodyParts),
+      armCombatPenalty(s.bodyParts) + headCombatPenalty(s.bodyParts),
       load.attackMod,
     );
     const prepGun = c.firePrepared || c.reloadPrepared ? holsteredFirearm(eq) : null;
     const prepGunDef = prepGun ? itemDef(prepGun.defId) : null;
     const prepProfile = prepGunDef ? firearmProfile(prepGunDef) : null;
-    const equipSpd = equipSpeedBonus(eq) + offHandCombatMods(eq).speed;
+    const equipSpd =
+      equipSpeedBonus(eq) + offHandCombatMods(eq, guardArmFactor(s.bodyParts)).speed;
     const pSpeed =
       prepGun && c.reloadPrepared
         ? playerReloadSpeed(
@@ -1047,7 +1057,7 @@ export const useGame = create<State>((set, get) => {
             stance,
             prepGun.defId,
             s.meters.energy,
-            legTravelFactor(s.bodyParts),
+            1,
             equipSpd,
             load.combatSpeedMult,
           )
@@ -1056,7 +1066,7 @@ export const useGame = create<State>((set, get) => {
               character.attributes,
               stance,
               s.meters.energy,
-              legTravelFactor(s.bodyParts),
+              1,
               equipSpd,
               weaponSpeedFactor(prepProfile, !!prepGunDef?.twoHanded),
               load.combatSpeedMult,
@@ -1065,7 +1075,7 @@ export const useGame = create<State>((set, get) => {
               character.attributes,
               stance,
               s.meters.energy,
-              legTravelFactor(s.bodyParts),
+              1,
               equipSpd,
               pStats.speedFactor,
               load.combatSpeedMult,
@@ -1404,7 +1414,10 @@ export const useGame = create<State>((set, get) => {
     let meters = tickMeters(s.meters, hours, {
       sleeping,
       thirstMult: weatherThirstMult(skyNow),
-      energyMult: weatherEnergyMult(skyNow) * (sleeping ? 1 : extraEnergyMult),
+      energyMult:
+        weatherEnergyMult(skyNow) *
+        (sleeping ? 1 : extraEnergyMult) *
+        torsoEnergyDrainMult(partsAfterSystemic),
       hungerDrainMod: sumTraitMod(traitIds, 'hungerDrainMod'),
       thirstDrainMod: sumTraitMod(traitIds, 'thirstDrainMod'),
       energyDrainMod: sumTraitMod(traitIds, 'energyDrainMod'),
@@ -1818,11 +1831,13 @@ export const useGame = create<State>((set, get) => {
     }));
 
     const speed =
-      searchSpeedFactor(
+      (searchSpeedFactor(
         equipSearchSpeedBonus(s.equipment),
         s.character!.attributes.perception,
         sumTraitMod(s.character!.traitIds, 'searchSpeedMod'),
-      ) * loadOf(s).searchMult;
+      ) *
+        loadOf(s).searchMult) /
+      headSearchFactor(s.bodyParts);
     const nonce = lootRng.int(1, 1_000_000_000).toString(36);
     const session = ensureSearching(
       buildSearchSession({
@@ -2491,11 +2506,13 @@ export const useGame = create<State>((set, get) => {
       condition: conditionRoll(rng, stack.defId, bias),
     }));
     const speed =
-      searchSpeedFactor(
+      (searchSpeedFactor(
         equipSearchSpeedBonus(s.equipment),
         s.character!.attributes.perception,
         sumTraitMod(s.character!.traitIds, 'searchSpeedMod'),
-      ) * loadOf(s).searchMult;
+      ) *
+        loadOf(s).searchMult) /
+      headSearchFactor(s.bodyParts);
     const nonce = rng.int(1, 1_000_000_000).toString(36);
     const session = ensureSearching(
       buildSearchSession({
@@ -5481,7 +5498,7 @@ export const useGame = create<State>((set, get) => {
             m.hunger = clampMeter(m.hunger + Math.round(fresh(fx.hunger) * (1 + foodEffectMod)));
           }
           if (fx.energy != null) m.energy = clampMeter(m.energy + fresh(fx.energy));
-          const waterRisk = fx.infectionRisk ?? 0;
+          const waterRisk = (fx.infectionRisk ?? 0) + (inst.contaminationRisk ?? 0);
           if (waterRisk > 0) {
             const resist = sumTraitMod(s.character!.traitIds, 'infectionResist');
             m.infection = clampMeter(m.infection + waterRisk * (1 - resist));
@@ -5775,7 +5792,11 @@ export const useGame = create<State>((set, get) => {
       if (!recipe) return;
       // A stash is a workbench: somewhere to put things down and take your time.
       const atShelter = s.currentPositionId !== null || s.hdb !== null;
+      const waterInputId = recipe.waterInput
+        ? waterInputFor(s.items, recipe.waterInput)
+        : null;
       const inputs = adjustCraftInputs(recipe.inputs, s.character!.traitIds);
+      if (waterInputId && recipe.waterInput) inputs[waterInputId] = recipe.waterInput;
       const check = canCraft(recipe, s.items, atShelter, inputs);
       if (!check.ok) {
         pushLog(`Can't make that — ${check.reason.toLowerCase()}.`, 'bad');
@@ -5808,13 +5829,29 @@ export const useGame = create<State>((set, get) => {
       if (advanceTime(recipe.hours)) return;
 
       let items = spendInputs(get().items);
-      const made = addToGrid(items, 'backpack', recipe.outputDefId, recipe.outputCount);
+      const contaminated =
+        waterInputId === 'dirty_water' ? DIRTY_WATER_DRINK_INFECTION : undefined;
+      const made = addToGrid(
+        items,
+        'backpack',
+        recipe.outputDefId,
+        recipe.outputCount,
+        undefined,
+        contaminated,
+      );
       const outName = itemDef(recipe.outputDefId).name;
       if (made.leftover === recipe.outputCount) {
         // The inputs are already gone; refusing now would eat them for nothing.
         const here = s.currentPositionId;
         const spilled = here
-          ? addToGrid(items, here, recipe.outputDefId, recipe.outputCount)
+          ? addToGrid(
+              items,
+              here,
+              recipe.outputDefId,
+              recipe.outputCount,
+              undefined,
+              contaminated,
+            )
           : { items, leftover: recipe.outputCount };
         set({ items: spilled.items });
         pushLog(
@@ -7030,6 +7067,7 @@ export const useGame = create<State>((set, get) => {
       const meters: Meters = {
         ...s.meters,
         infection: clampMeter(s.meters.infection + res.infectionGain),
+        energy: clampMeter(s.meters.energy - res.energyCost),
       };
       const { equipment, notes } = applyWear(s.equipment, 0, res.armorWear, res.wearSlot);
       const dead = checkDeath(meters, bodyParts) !== null;
@@ -7074,7 +7112,7 @@ export const useGame = create<State>((set, get) => {
         s.character!.attributes,
         s.character!.traitIds,
         s.equipment,
-        armCombatPenalty(s.bodyParts),
+        armCombatPenalty(s.bodyParts) + headCombatPenalty(s.bodyParts),
         load.attackMod,
       );
       const round = s.combat.round + 1;

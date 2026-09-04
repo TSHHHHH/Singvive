@@ -174,6 +174,7 @@ export function addToGrid(
   defId: string,
   count: number,
   condition?: number,
+  contaminationRisk?: number,
 ): { items: ItemInstance[]; leftover: number } {
   const def = itemDef(defId);
   let remaining = count;
@@ -205,6 +206,7 @@ export function addToGrid(
       ...(def.maxCondition !== undefined
         ? { condition: Math.round(condition ?? def.maxCondition) }
         : {}),
+      ...(contaminationRisk !== undefined ? { contaminationRisk } : {}),
     });
     remaining -= put;
   }
@@ -448,6 +450,19 @@ export function conditionScale(inst: ItemInstance): number {
 }
 
 /**
+ * How much of its protection worn armour still delivers. Steeper than the
+ * weapon curve (floor 0.4, not 0.75): a blunted parang is still a parang, but
+ * a cracked helmet stops being a helmet. Armour was the one class of gear with
+ * no upkeep cost — a full kit reached once stayed a full kit forever — and a
+ * shallow curve was half the reason. Only the protective modifiers ride this;
+ * accuracy, speed and search stay on `conditionScale`.
+ */
+export function armorConditionScale(inst: ItemInstance): number {
+  if (!hasCondition(inst)) return 1;
+  return 0.4 + 0.6 * (conditionOf(inst) / 100);
+}
+
+/**
  * How much of its printed restore a consumable still delivers. Steeper than
  * gear wear (floor 0.5, not 0.75): a tin that has sat in a hot bag for two days
  * is genuinely less of a meal, and freshness should be worth crossing a carpark
@@ -479,7 +494,7 @@ export function effectiveDamage(inst: ItemInstance): number {
  */
 export function equipDefenseBonus(inst: ItemInstance): number {
   const base = itemDef(inst.defId).modifiers?.defenseBonus ?? 0;
-  return base === 0 ? 0 : Math.round(base * conditionScale(inst));
+  return base === 0 ? 0 : Math.round(base * armorConditionScale(inst));
 }
 
 /** Map a combat hit zone to the wearable slot that covers it (feet never soak). */
@@ -498,24 +513,45 @@ export function slotForZone(zone: BodyPartId): EquipSlot | null {
   }
 }
 
-export function scaledMod(
-  inst: ItemInstance,
-  key:
-    | 'limbArmor'
-    | 'statusResist'
-    | 'accuracyBonus'
-    | 'speedBonus'
-    | 'travelSpeedBonus'
-    | 'dodgeBonus'
-    | 'attackBonus'
-    | 'encounterChanceMod'
-    | 'searchSpeedBonus'
-    | 'blockChance',
-): number {
-  if (isBroken(inst)) return 0;
-  const base = itemDef(inst.defId).modifiers?.[key] ?? 0;
+export type ScalableMod =
+  | 'limbArmor'
+  | 'statusResist'
+  | 'accuracyBonus'
+  | 'speedBonus'
+  | 'travelSpeedBonus'
+  | 'dodgeBonus'
+  | 'attackBonus'
+  | 'encounterChanceMod'
+  | 'searchSpeedBonus'
+  | 'blockChance';
+
+/**
+ * Wear only ever eats into what gear *gives* you.
+ *
+ * A negative modifier is a cost the item imposes by existing — the bulk of a
+ * vest, the weight of a shield, a visor between you and the fight. None of that
+ * gets better as the piece falls apart, so scaling a penalty toward zero would
+ * quietly reward neglect: a battered kevlar vest would slow you down less than
+ * a fresh one. Benefits fade with condition; penalties are paid in full.
+ */
+function wearScaled(base: number, scale: number): number {
   if (base === 0) return 0;
-  return base * conditionScale(inst);
+  return base < 0 ? base : base * scale;
+}
+
+export function scaledMod(inst: ItemInstance, key: ScalableMod): number {
+  if (isBroken(inst)) return 0;
+  return wearScaled(itemDef(inst.defId).modifiers?.[key] ?? 0, conditionScale(inst));
+}
+
+/**
+ * `scaledMod` on the armour curve — for the modifiers that are the protection
+ * itself (soak, status resist, a shield's block), which degrade faster than a
+ * weapon's edge. See `armorConditionScale`.
+ */
+export function armorScaledMod(inst: ItemInstance, key: ScalableMod): number {
+  if (isBroken(inst)) return 0;
+  return wearScaled(itemDef(inst.defId).modifiers?.[key] ?? 0, armorConditionScale(inst));
 }
 
 /** Flat soak from the piece covering `zone` (0 if bare / feet / broken). */
@@ -524,7 +560,7 @@ export function limbArmorForZone(equipment: Equipment, zone: BodyPartId): number
   if (!slot) return 0;
   const inst = equipment[slot];
   if (!inst) return 0;
-  return Math.round(scaledMod(inst, 'limbArmor'));
+  return Math.round(armorScaledMod(inst, 'limbArmor'));
 }
 
 /** Status resist from the piece covering `zone`, clamped 0..1. */
@@ -533,7 +569,7 @@ export function statusResistForZone(equipment: Equipment, zone: BodyPartId): num
   if (!slot) return 0;
   const inst = equipment[slot];
   if (!inst) return 0;
-  return Math.max(0, Math.min(1, scaledMod(inst, 'statusResist')));
+  return Math.max(0, Math.min(1, armorScaledMod(inst, 'statusResist')));
 }
 
 /** Sum condition-scaled accuracy from all worn gear (gloves). */
@@ -702,7 +738,12 @@ export function containerWeight(items: ItemInstance[], container: Container = BA
 }
 
 /** Max carrying capacity from build + any equipped weightCapacityBonus. */
-export function maxCarry(attrs: Attributes, equipment: Equipment, carryCapacityMod = 0): number {
+export function maxCarry(
+  attrs: Attributes,
+  equipment: Equipment,
+  carryCapacityMod = 0,
+  carryMult = 1,
+): number {
   let base = attrs.strength * 3 + attrs.endurance * 2 + carryCapacityMod;
   for (const slot of Object.keys(equipment) as EquipSlot[]) {
     const inst = equipment[slot];
@@ -710,7 +751,7 @@ export function maxCarry(attrs: Attributes, equipment: Equipment, carryCapacityM
     const bonus = itemDef(inst.defId).modifiers?.weightCapacityBonus ?? 0;
     if (bonus) base += Math.round(bonus * conditionScale(inst));
   }
-  return base;
+  return Math.max(1, Math.round(base * Math.max(0.25, carryMult)));
 }
 
 /** Pack ratio at and below which load does nothing. ~14 kg on a 25 kg character. */
@@ -734,8 +775,9 @@ export function loadRatio(
   attrs: Attributes,
   equipment: Equipment,
   carryCapacityMod = 0,
+  carryMult = 1,
 ): number {
-  const cap = maxCarry(attrs, equipment, carryCapacityMod);
+  const cap = maxCarry(attrs, equipment, carryCapacityMod, carryMult);
   if (cap <= 0) return carriedWeight(items, equipment) > 0 ? 99 : 0;
   return carriedWeight(items, equipment) / cap;
 }
@@ -796,8 +838,9 @@ export function loadEffectsFor(
   attrs: Attributes,
   equipment: Equipment,
   carryCapacityMod = 0,
+  carryMult = 1,
 ): LoadEffects {
-  return loadEffects(loadRatio(items, attrs, equipment, carryCapacityMod));
+  return loadEffects(loadRatio(items, attrs, equipment, carryCapacityMod, carryMult));
 }
 
 // ---------- Equipment ----------

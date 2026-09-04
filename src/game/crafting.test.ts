@@ -1,11 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import type { ItemInstance } from './types';
 import { itemDef } from './loot';
+import { addToGrid } from './inventory';
 import {
   RECIPES,
   canCraft,
   countOf,
   describeInputs,
+  waterInputFor,
   type Recipe,
 } from './crafting';
 
@@ -15,7 +17,7 @@ function findRecipe(id: string): Recipe {
   return r;
 }
 
-function stack(defId: string, count: number, container = 'backpack'): ItemInstance {
+function stack(defId: string, count = 1, container = 'backpack'): ItemInstance {
   return {
     uid: `${defId}-${container}-${count}`,
     defId,
@@ -113,5 +115,26 @@ describe('describeInputs', () => {
   it('formats a single-input recipe with no separator', () => {
     const bandages = findRecipe('bandages');
     expect(describeInputs(bandages.inputs)).toBe(`2× ${itemDef('cloth_rags').name}`);
+  });
+});
+
+describe('powdered drink crafting (waterInput)', () => {
+  it('prefers clean water, but accepts murky water when it is all the player has', () => {
+    expect(waterInputFor([stack('dirty_water'), stack('newater')], 1)).toBe('newater');
+    expect(waterInputFor([stack('dirty_water')], 1)).toBe('dirty_water');
+    expect(waterInputFor([stack('water_bottle')], 2)).toBeNull();
+  });
+
+  it('recognises a water-group recipe with any carried water source', () => {
+    const recipe = findRecipe('kopi_o');
+    expect(canCraft(recipe, [stack('coffee'), stack('dirty_water')], false)).toEqual({
+      ok: true,
+      reason: '',
+    });
+  });
+
+  it('keeps unsafe-water contamination on the prepared drink instance', () => {
+    const made = addToGrid([], 'backpack', 'kopi_o', 1, undefined, 8);
+    expect(made.items[0]?.contaminationRisk).toBe(8);
   });
 });

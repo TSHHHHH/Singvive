@@ -22,6 +22,7 @@ import { environmentCombatMods } from './weather';
 import { itemDef } from './loot';
 import { hasTraitFlag, sumTraitMod } from './character';
 import {
+  armorScaledMod,
   effectiveDamage,
   equipAccuracyBonus,
   equipDefenseBonus,
@@ -40,7 +41,8 @@ import {
   energyFleeDcModifier,
   headCritReductionFromGear,
   headTargetReductionFromGear,
-  legTravelFactor,
+  guardArmFactor,
+  legDodgePenalty,
   rollHitZone,
 } from './survival';
 import {
@@ -79,6 +81,9 @@ const EQUIP_SLOTS = ALL_EQUIP_SLOTS;
 export interface PlayerCombatStats {
   attack: number; // added to d20 attack roll
   defense: number; // target number enemies must beat
+  /** The gear-only slice of `defense`, post-cap — how much of the target
+   *  number the kit is holding up. Drives deflection wear. */
+  gearDefense: number;
   damage: number; // damage on a hit
   infectionResist: number; // 0..1
   weaponName: string;
@@ -121,6 +126,28 @@ const WEAR_ON_HIT = 0.5;
 const WEAR_ARMOR_EXTRA = 0.4;
 const WEAR_ON_MISS = 0.2;
 
+/**
+ * What a turned blow costs the kit that turned it.
+ *
+ * Armour used to wear only when something got through, which is exactly
+ * backwards: the better the loadout, the fewer hits landed, the less it aged.
+ * The strongest kits in the game were the ones that never paid upkeep. A swing
+ * that would have connected against a bare survivor and didn't now scuffs the
+ * armour that stopped it — lighter than a real hit, but it accumulates.
+ */
+const WEAR_ON_DEFLECT = 0.6;
+
+/**
+ * Ceiling on the gear contribution to defence.
+ *
+ * Defence is a d20 target number, so a point of it is a flat 5% off every
+ * incoming attack — linear on the stat sheet, runaway in play. Uncapped, a full
+ * riot kit reached +13 and left an Abomination hitting on a natural 20 and
+ * nothing else. Six points is the most a kit may buy (30%); past that armour
+ * has to justify itself through soak and status resist, not evasion.
+ */
+const MAX_EQUIP_DEFENSE = 6;
+
 // ---------------------------------------------------------------- stances --
 // Accuracy modifiers everywhere are expressed in d20 roll points (1 point ≈ 5%).
 
@@ -129,12 +156,12 @@ export const STANCES: Record<StanceId, StanceDef> = {
     id: 'aggressive',
     name: 'Aggressive',
     icon: 'stance.aggressive',
-    description: 'All forward pressure. +2 to hit, +2 damage, −3 defence, −3% dodge.',
+    description: 'All forward pressure. +2 to hit, +2 damage, −3 defence, −2% dodge.',
     attackMod: 2,
     damageMod: 2,
     defenseMod: -3,
     limbDamageMult: 1,
-    dodgeMod: -0.03,
+    dodgeMod: -0.02,
     critChanceBonus: 0,
     ignoresArmor: false,
     timeCostHours: 0,
@@ -147,12 +174,12 @@ export const STANCES: Record<StanceId, StanceDef> = {
     id: 'guarded',
     name: 'Guarded',
     icon: 'stance.guarded',
-    description: 'Cover up. +3 defence, +5% dodge, −2 to hit, limb damage taken ×0.75.',
+    description: 'Cover up. +3 defence, +2% dodge, −2 to hit, limb damage taken ×0.75.',
     attackMod: -2,
     damageMod: 0,
     defenseMod: 3,
     limbDamageMult: 0.75,
-    dodgeMod: 0.05,
+    dodgeMod: 0.02,
     critChanceBonus: 0,
     ignoresArmor: false,
     timeCostHours: 0,
@@ -368,15 +395,19 @@ export function playerCombatStats(
   const w = rawEffect && !gunClub ? rawEffect : gunClub && rawEffect ? rawEffect : null;
 
   let atkBonus = sumTraitMod(traitIds, 'attackMod');
-  let defBonus = sumTraitMod(traitIds, 'defenseMod');
+  let gearDef = 0;
   for (const slot of EQUIP_SLOTS) {
     const inst = eq[slot];
     if (!inst) continue;
     const mods = itemDef(inst.defId).modifiers;
     atkBonus += mods?.attackBonus ?? 0;
-    defBonus += equipDefenseBonus(inst);
+    gearDef += equipDefenseBonus(inst);
   }
   atkBonus += equipAccuracyBonus(eq);
+  // Traits sit outside the cap — it is a rail on what a loadout can buy, not on
+  // who the survivor is.
+  const gearDefense = Math.min(MAX_EQUIP_DEFENSE, gearDef);
+  const defBonus = sumTraitMod(traitIds, 'defenseMod') + gearDefense;
 
   let weaponAcc = w?.accuracy ?? 0;
   let baseDamage = usableWeapon && w ? effectiveDamage(usableWeapon) : 4;
@@ -424,6 +455,7 @@ export function playerCombatStats(
   return {
     attack,
     defense,
+    gearDefense,
     damage,
     infectionResist: Math.min(1, Math.max(-0.5, infectionResist)),
     weaponName,
@@ -455,9 +487,13 @@ export function offHandRole(equipment: Equipment): OffHandRole {
 }
 
 /** Bonuses from a free off-hand — not from iterating equipped items. */
-export function offHandCombatMods(equipment: Equipment): { speed: number; dodge: number } {
+export function offHandCombatMods(
+  equipment: Equipment,
+  guardFactor = 1,
+): { speed: number; dodge: number } {
   if (offHandRole(equipment) === 'empty' && !isTwoHandedEquipped(equipment)) {
-    return { speed: 0.6, dodge: 0.03 };
+    const g = Math.max(0.15, Math.min(1, guardFactor));
+    return { speed: 0.6 * g, dodge: 0.015 * g };
   }
   return { speed: 0, dodge: 0 };
 }
@@ -501,21 +537,21 @@ export function weaponSpeedFactor(e: WeaponEffect | null, twoHanded = false): nu
 
 /**
  * How fast the player's marker crawls. Dexterity is the bulk of it; the stance
- * is the part you actually chose, and a mauled leg or an empty tank is the part
- * the run chose for you. Weapon speed is a multiplier on the whole rate.
+ * is the part you actually chose, and an empty tank is the part the run chose
+ * for you. Leg injuries slow travel on the map, not this gauge.
  */
 export function playerSpeed(
   attrs: Attributes,
   stance: StanceDef,
   energy = 50,
-  legFactor = 1,
+  _legFactorUnused = 1,
   equipSpeed = 0,
   weaponFactor = 1,
   loadSpeedMult = 1,
 ): number {
   const energyMod = energy < 20 ? -2 : energy < 45 ? -1 : 0;
   const base = 6 + attrs.dexterity * 0.8 + stance.speedMod + energyMod + equipSpeed;
-  return Math.max(2, base * Math.max(0.4, legFactor) * weaponFactor * Math.max(0.25, loadSpeedMult));
+  return Math.max(2, base * weaponFactor * Math.max(0.25, loadSpeedMult));
 }
 
 /** Seconds of track time one action costs at the given speed. */
@@ -560,9 +596,25 @@ export interface EnemyActionResult {
   critical: boolean;
   headCritReduction: number;
   statusResist: number;
+  /** Energy spent slipping the blow — 0 when the hit landed or was blocked. */
+  energyCost: number;
 }
 
-/** Dodge chance when an attack roll already beat defence — 0..0.45 cap. */
+/**
+ * Hard cap on dodge chance after an attack already beat defence.
+ * Secondary evasion used to stack to 45% and erase half of connecting hits;
+ * 28% keeps light/dex fantasy without a second AC.
+ */
+export const MAX_DODGE_CHANCE = 0.28;
+
+/**
+ * Meter burn for a successful dodge. Flat so the sheet stays readable: each
+ * slip costs the same, and the energy→dodge feedback loop does the rest.
+ * Nat 20s cannot be dodged, so they never charge this.
+ */
+export const DODGE_ENERGY_COST = 3;
+
+/** Dodge chance when an attack roll already beat defence — 0..MAX_DODGE_CHANCE. */
 export function playerDodgeChance(
   attrs: Attributes,
   traitIds: string[],
@@ -578,12 +630,11 @@ export function playerDodgeChance(
   for (const slot of EQUIP_SLOTS) {
     const inst = equipment[slot];
     if (!inst) continue;
-    gearDodge += itemDef(inst.defId).modifiers?.dodgeBonus ?? 0;
+    gearDodge += scaledMod(inst, 'dodgeBonus');
   }
   const traitDodge = sumTraitMod(traitIds, 'dodgeMod');
-  const legFactor = legTravelFactor(parts);
-  const legPenalty = (legFactor - 1) * 0.1;
-  const ohDodge = offHandCombatMods(equipment).dodge;
+  const legPenalty = legDodgePenalty(parts);
+  const ohDodge = offHandCombatMods(equipment, guardArmFactor(parts)).dodge;
   const raw =
     dexBase +
     traitDodge +
@@ -594,7 +645,7 @@ export function playerDodgeChance(
     energyDodgeBonus(energy) +
     legPenalty +
     loadDodgeMod;
-  return Math.max(0, Math.min(0.45, raw));
+  return Math.max(0, Math.min(MAX_DODGE_CHANCE, raw));
 }
 
 /** Player's effective defence for a round, including stance and terrain. */
@@ -958,7 +1009,10 @@ export function resolveEnemyAction(
   let dodged = false;
   let blocked = false;
   let hitZone: BodyPartId | null = null;
+  /** Zone a turned blow scuffed — wear only, no damage and no hit. */
+  let deflectZone: BodyPartId | null = null;
   let critical = false;
+  let energyCost = 0;
   const defense = effectiveDefense(player, stance, terrain);
 
   const headMods = [equipment.head ? itemDef(equipment.head.defId).modifiers : undefined];
@@ -976,23 +1030,29 @@ export function resolveEnemyAction(
     text: `${rollVerb} (d20 ${zRoll}${fmt(zombie.attack + env.zombieAttack)} = ${zTotal} vs ${defense})`,
   });
   if (zRoll === 20 || zTotal >= defense) {
-    const dodgeChance = playerDodgeChance(
-      attrs,
-      traitIds,
-      equipment,
-      energy,
-      bodyParts,
-      stance,
-      terrain,
-      loadDodgeMod,
-    );
+    // Nat 20 is a committed hit — no dodge. Everything else can still be slipped,
+    // but footwork costs energy so a high dodge build tires itself out.
+    const canDodge = zRoll !== 20;
+    const dodgeChance = canDodge
+      ? playerDodgeChance(
+          attrs,
+          traitIds,
+          equipment,
+          energy,
+          bodyParts,
+          stance,
+          terrain,
+          loadDodgeMod,
+        )
+      : 0;
     if (dodgeChance > 0 && rng.chance(dodgeChance)) {
       dodged = true;
+      energyCost = DODGE_ENERGY_COST;
       log.push({
         round,
         side: 'enemy',
         tone: 'player',
-        text: combatLine('enemyDodge'),
+        text: combatLine('enemyDodge', { energy: energyCost }),
       });
     } else {
       let dmg = zombie.damage + rng.int(0, 3);
@@ -1000,8 +1060,11 @@ export function resolveEnemyAction(
       hitZone = forceHead ? 'head' : rollHitZone(rng.fork('zone'), headWeightScale);
       critical = hitZone === 'head';
       const ohInst = equipment.offHand;
+      const guard = guardArmFactor(bodyParts);
       const blockChance =
-        ohInst && offHandRole(equipment) === 'shield' ? scaledMod(ohInst, 'blockChance') : 0;
+        ohInst && offHandRole(equipment) === 'shield'
+          ? armorScaledMod(ohInst, 'blockChance') * guard
+          : 0;
       if (ohInst && blockChance > 0 && rng.chance(blockChance)) {
         blocked = true;
         playerDamage = 0;
@@ -1042,6 +1105,19 @@ export function resolveEnemyAction(
       }
     }
   } else {
+    // The blow that armour turned is the blow that wears it. If this swing
+    // would have landed on the same survivor without their kit, the kit is what
+    // stopped it — and it takes a scuff for the trouble. Without this, gear got
+    // *cheaper* to own the better it was, because good gear is never hit.
+    //
+    // The scuff lands on a rolled zone like a real hit would, so the piece that
+    // did the work pays for it. Charging every slot in full instead made a full
+    // riot kit wear out faster than a leather jacket — five pieces each paying
+    // the price of one — which is precisely the wrong incentive.
+    if (zTotal >= defense - player.gearDefense) {
+      armorWear = WEAR_ON_DEFLECT;
+      deflectZone = rollHitZone(rng.fork('deflect'), headWeightScale);
+    }
     log.push({
       round,
       side: 'enemy',
@@ -1050,10 +1126,11 @@ export function resolveEnemyAction(
     });
   }
 
+  const wearZone = hitZone ?? deflectZone;
   const wearSlot = blocked
     ? 'offHand'
-    : hitZone
-      ? (slotForZone(hitZone) ?? 'body')
+    : wearZone
+      ? (slotForZone(wearZone) ?? 'body')
       : null;
   const statusResist = hitZone ? statusResistForZone(equipment, hitZone) : 0;
 
@@ -1070,6 +1147,7 @@ export function resolveEnemyAction(
     critical,
     headCritReduction: headCritReduce,
     statusResist,
+    energyCost,
   };
 }
 

@@ -103,6 +103,26 @@
     [
       "intel_ration_slip",
       2.5
+    ],
+    [
+      "canned_luncheon_meat",
+      4
+    ],
+    [
+      "canned_sardines",
+      4
+    ],
+    [
+      "bread_loaf",
+      3
+    ],
+    [
+      "large_water_bottle",
+      2
+    ],
+    [
+      "kopi_sachets",
+      4
     ]
   ],
   "convenience": [
@@ -186,6 +206,7 @@
       "plus_100",
       3
     ],
+    ["large_water_bottle", 2],
     [
       "plasters",
       3
@@ -201,9 +222,37 @@
     [
       "daypack",
       2
+    ],
+    [
+      "canned_luncheon_meat",
+      3
+    ],
+    [
+      "canned_sardines",
+      4
+    ],
+    [
+      "kopi_sachets",
+      5
+    ],
+    [
+      "hand_sanitiser",
+      3
+    ],
+    [
+      "rain_poncho",
+      2
+    ],
+    [
+      "phone_charging_cable",
+      3
     ]
   ],
   "pharmacy": [
+    [
+      "rubber_gloves",
+      6
+    ],
     [
       "bandage",
       10
@@ -268,12 +317,22 @@
       "oral_rehydration",
       5
     ],
+    ["hand_sanitiser", 6],
+    ["insect_repellent", 5],
     [
       "emergency_blanket",
       3
     ]
   ],
   "hospital": [
+    [
+      "gas_mask",
+      3
+    ],
+    [
+      "rubber_gloves",
+      6
+    ],
     [
       "medkit",
       9
@@ -325,9 +384,15 @@
     [
       "intel_scavenger_sketch",
       2
-    ]
+    ],
+    ["hand_sanitiser", 5],
+    ["insect_repellent", 4]
   ],
   "clinic": [
+    [
+      "rubber_gloves",
+      6
+    ],
     [
       "bandage",
       9
@@ -386,6 +451,30 @@
     ]
   ],
   "hardware": [
+    [
+      "headlamp",
+      6
+    ],
+    [
+      "welding_gloves",
+      6
+    ],
+    [
+      "rubber_boots",
+      5
+    ],
+    [
+      "safety_boots",
+      6
+    ],
+    [
+      "hatchet",
+      7
+    ],
+    [
+      "sledgehammer",
+      5
+    ],
     [
       "hammer",
       8
@@ -482,6 +571,8 @@
       "work_gloves",
       6
     ],
+    ["zip_ties", 6],
+    ["bicycle_repair_kit", 3],
     [
       "cut_gloves",
       4
@@ -516,6 +607,14 @@
     ]
   ],
   "fuel": [
+    [
+      "turnout_coat",
+      3
+    ],
+    [
+      "riding_pants",
+      4
+    ],
     [
       "fuel_can",
       9
@@ -586,6 +685,14 @@
     ]
   ],
   "police": [
+    [
+      "gas_mask",
+      3
+    ],
+    [
+      "turnout_coat",
+      3
+    ],
     [
       "pistol",
       7.3
@@ -684,6 +791,34 @@
     ]
   ],
   "residential": [
+    [
+      "headlamp",
+      3
+    ],
+    [
+      "rubber_gloves",
+      4
+    ],
+    [
+      "cargo_shorts",
+      7
+    ],
+    [
+      "riding_pants",
+      4
+    ],
+    [
+      "rubber_boots",
+      4
+    ],
+    [
+      "duffel_bag",
+      4
+    ],
+    [
+      "hatchet",
+      3
+    ],
     [
       "snacks",
       8
@@ -868,6 +1003,8 @@
       "yoga_mat",
       3
     ],
+    ["kopi_sachets", 4],
+    ["canned_sardines", 3],
     [
       "camp_pillow",
       2
@@ -883,7 +1020,12 @@
     [
       "intel_turf_fragment",
       2.5
-    ]
+    ],
+    ["bread_loaf", 3],
+    ["canned_luncheon_meat", 4],
+    ["large_water_bottle", 2],
+    ["grocery_tote", 3],
+    ["phone_charging_cable", 3]
   ],
   "foodcourt": [
     [
@@ -989,6 +1131,10 @@
   ],
   "mrt": [
     [
+      "duffel_bag",
+      4
+    ],
+    [
       "snacks",
       8
     ],
@@ -1058,6 +1204,34 @@
     ]
   ],
   "industrial": [
+    [
+      "gas_mask",
+      3
+    ],
+    [
+      "headlamp",
+      5
+    ],
+    [
+      "turnout_coat",
+      3
+    ],
+    [
+      "welding_gloves",
+      6
+    ],
+    [
+      "rubber_boots",
+      5
+    ],
+    [
+      "safety_boots",
+      6
+    ],
+    [
+      "sledgehammer",
+      5
+    ],
     [
       "scrap_metal",
       10
@@ -1212,6 +1386,14 @@
     ]
   ],
   "school": [
+    [
+      "cargo_shorts",
+      5
+    ],
+    [
+      "duffel_bag",
+      4
+    ],
     [
       "snacks",
       8
@@ -1441,6 +1623,9 @@
     [
       "school_bag",
       2
-    ]
+    ],
+    ["insect_repellent", 4],
+    ["rain_poncho", 3],
+    ["large_water_bottle", 2]
   ]
 }

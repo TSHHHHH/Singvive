@@ -71,9 +71,9 @@ export function energyAttackBonus(energy: number): number {
   return Math.round(getMeterDelta(energy) * 3);
 }
 
-/** Additional chance to slip a connecting blow. −0.22 .. +0.22 */
+/** Additional chance to slip a connecting blow. −0.10 .. +0.10 */
 export function energyDodgeBonus(energy: number): number {
-  return getMeterDelta(energy) * 0.22;
+  return getMeterDelta(energy) * 0.1;
 }
 
 /** Flee DC shift — exhaustion makes breaking contact harder. +3 .. −3 */
@@ -333,18 +333,92 @@ export function bleedEncounterMod(parts: BodyParts): number {
   return Math.min(0.2, mod);
 }
 
-export function legTravelFactor(parts: BodyParts): number {
-  let factor = 0.5 + 0.5 * avgPartRatio(parts, ['leftLeg', 'rightLeg']);
-  if (parts.leftLeg.fractured || parts.rightLeg.fractured) factor *= 0.8;
-  if (parts.leftLeg.crippled || parts.rightLeg.crippled) factor = Math.min(factor, 0.4);
-  return factor;
+/**
+ * Per-leg contribution to overland travel. Fractures and cripples bite the
+ * contribution of that leg only — one healthy leg still limps you forward.
+ * Travel only; do not feed combat gauge fill.
+ */
+function legTravelContribution(part: BodyPart): number {
+  let r = part.hp / Math.max(1, part.maxHp);
+  if (part.crippled) r = Math.min(r, 0.1);
+  if (part.fractured) r *= 0.3;
+  return r;
 }
 
+/** Map speed multiplier from legs (1 = healthy). Not used for swing/reload fill. */
+export function legTravelFactor(parts: BodyParts): number {
+  const avg =
+    (legTravelContribution(parts.leftLeg) + legTravelContribution(parts.rightLeg)) / 2;
+  return 0.35 + 0.65 * avg;
+}
+
+/**
+ * Mild footwork hit for dodge only — separate from travel limp so a bad leg
+ * slows the map without throttling the combat gauge.
+ */
+export function legDodgePenalty(parts: BodyParts): number {
+  let pen = (avgPartRatio(parts, ['leftLeg', 'rightLeg']) - 1) * 0.08;
+  if (parts.leftLeg.fractured || parts.rightLeg.fractured) pen -= 0.02;
+  if (parts.leftLeg.crippled || parts.rightLeg.crippled) pen -= 0.03;
+  return pen;
+}
+
+function partRatio(part: BodyPart): number {
+  return part.hp / Math.max(1, part.maxHp);
+}
+
+/**
+ * Attack accuracy penalty from arms. Right = weapon arm, left = guard / off-hand.
+ */
 export function armCombatPenalty(parts: BodyParts): number {
-  let penalty = Math.round((1 - avgPartRatio(parts, ['leftArm', 'rightArm'])) * 4);
-  if (parts.leftArm.fractured || parts.rightArm.fractured) penalty += 1;
-  if (parts.leftArm.crippled || parts.rightArm.crippled) penalty += 1;
-  return penalty;
+  const right = parts.rightArm;
+  const left = parts.leftArm;
+  let weapon = (1 - partRatio(right)) * 3.5;
+  let guard = (1 - partRatio(left)) * 1.5;
+  if (right.fractured) weapon += 2;
+  if (right.crippled) weapon += 2;
+  if (left.fractured) guard += 1;
+  if (left.crippled) guard += 1;
+  return Math.round(weapon + guard);
+}
+
+/**
+ * 0..1 multiplier on off-hand block chance and free-hand tempo from the guard arm.
+ */
+export function guardArmFactor(parts: BodyParts): number {
+  const left = parts.leftArm;
+  let f = partRatio(left);
+  if (left.fractured) f *= 0.55;
+  if (left.crippled) f = Math.min(f, 0.25);
+  return Math.max(0.15, f);
+}
+
+/** Head wound → attack accuracy (0..3). */
+export function headCombatPenalty(parts: BodyParts): number {
+  return Math.round((1 - partRatio(parts.head)) * 3);
+}
+
+/**
+ * Head wound search *rate* (1 = healthy, 0.65 = empty). Duration callers should
+ * divide speedFactor by this (higher duration when hurt).
+ */
+export function headSearchFactor(parts: BodyParts): number {
+  return 0.65 + 0.35 * partRatio(parts.head);
+}
+
+/** Flat perception/awareness loss from a battered skull. */
+export function headAwarenessPenalty(parts: BodyParts): number {
+  return Math.floor((1 - partRatio(parts.head)) * 3);
+}
+
+/** Multiplier on hourly energy drain from torso trauma (1 = healthy). */
+export function torsoEnergyDrainMult(parts: BodyParts): number {
+  return 1 + (1 - partRatio(parts.torso)) * 0.35;
+}
+
+/** Multiplier on carry capacity from torso trauma (1 = healthy). */
+export function torsoCarryMult(parts: BodyParts): number {
+  return 0.75 + 0.25 * partRatio(parts.torso);
 }
 
 /** Head gear shrinks how often the head zone is rolled. */

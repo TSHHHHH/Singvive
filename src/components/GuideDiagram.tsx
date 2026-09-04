@@ -186,6 +186,21 @@ function TunnelsDiagram() {
   );
 }
 
+function BodyDiagram() {
+  const { t } = useT();
+  return (
+    <div className="flex flex-wrap items-center gap-1.5" aria-hidden>
+      <Chip label={t('ui.guide.diagram.legsTravel')} accent />
+      <Arrow />
+      <Chip icon="slot.mainHand" label={t('ui.guide.diagram.rightArmHit')} />
+      <Chip icon="slot.offHand" label={t('ui.guide.diagram.leftArmBlock')} />
+      <Arrow />
+      <Chip icon="attr.perception" label={t('ui.guide.diagram.headSearch')} />
+      <Chip icon="meter.energy" label={t('ui.guide.diagram.torsoEnergy')} />
+    </div>
+  );
+}
+
 function FightDiagram() {
   const { t } = useT();
   return (
@@ -213,6 +228,7 @@ function FightDiagram() {
 
 const DIAGRAMS: Record<GuideTopic, () => ReactElement> = {
   survive: SurviveDiagram,
+  body: BodyDiagram,
   fight: FightDiagram,
   loot: LootDiagram,
   hdb: HdbDiagram,

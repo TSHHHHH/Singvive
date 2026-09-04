@@ -41,7 +41,7 @@ export function ConditionPanel({
       <div className="mb-2 flex items-baseline justify-between gap-2">
         <div className="flex items-center gap-1.5">
           <h4 className="text-xs uppercase tracking-widest text-white/30">{t('ui.condition.title')}</h4>
-          {onOpenGuide && <GuideInfoButton topic="survive" onOpen={onOpenGuide} />}
+          {onOpenGuide && <GuideInfoButton topic="body" onOpen={onOpenGuide} />}
         </div>
         <div className="flex items-baseline gap-1.5">
           {majorCount > 0 && (

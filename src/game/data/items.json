@@ -120,12 +120,7 @@
     "w": 1,
     "h": 2,
     "weight": 1.4,
-    "effect": {
-      "kind": "food",
-      "hunger": 30,
-      "thirst": 6,
-      "energy": 12
-    },
+    "effect": { "kind": "misc" },
     "value": 10,
     "stackable": false,
     "maxStack": 1,
@@ -577,10 +572,7 @@
     "w": 1,
     "h": 1,
     "weight": 0.1,
-    "effect": {
-      "kind": "energy",
-      "energy": 20
-    },
+    "effect": { "kind": "misc" },
     "value": 4,
     "stackable": true,
     "maxStack": 4,
@@ -1035,7 +1027,6 @@
     "color": "#d8d5cc",
     "slot": "head",
     "modifiers": {
-      "defenseBonus": 1,
       "limbArmor": 1,
       "statusResist": 0.05
     },
@@ -1080,12 +1071,13 @@
     "color": "#2a2e34",
     "slot": "head",
     "modifiers": {
-      "defenseBonus": 2,
+      "defenseBonus": 1,
       "limbArmor": 3,
       "statusResist": 0.22,
       "dodgeBonus": -0.04,
       "headTargetReduction": 0.38,
-      "headCritReduction": 0.3
+      "headCritReduction": 0.3,
+      "speedBonus": -0.2
     },
     "icon": "item.motorcycle_helmet"
   },
@@ -1104,12 +1096,13 @@
     "color": "#3a4048",
     "slot": "head",
     "modifiers": {
-      "defenseBonus": 3,
+      "defenseBonus": 2,
       "limbArmor": 4,
       "statusResist": 0.3,
-      "dodgeBonus": -0.06,
+      "dodgeBonus": -0.08,
       "headTargetReduction": 0.4,
-      "headCritReduction": 0.4
+      "headCritReduction": 0.4,
+      "speedBonus": -0.3
     },
     "icon": "item.riot_helmet"
   },
@@ -1128,7 +1121,7 @@
     "color": "#5a3a24",
     "slot": "body",
     "modifiers": {
-      "defenseBonus": 2,
+      "defenseBonus": 1,
       "limbArmor": 2,
       "statusResist": 0.1,
       "dodgeBonus": 0.02
@@ -1151,7 +1144,6 @@
     "color": "#7a6b3a",
     "slot": "body",
     "modifiers": {
-      "defenseBonus": 1,
       "limbArmor": 1,
       "weightCapacityBonus": 6
     }
@@ -1187,7 +1179,7 @@
     "name": "Kevlar Vest",
     "w": 2,
     "h": 3,
-    "weight": 3.5,
+    "weight": 4.5,
     "effect": {
       "kind": "misc"
     },
@@ -1197,10 +1189,11 @@
     "color": "#2f3a2a",
     "slot": "body",
     "modifiers": {
-      "defenseBonus": 5,
+      "defenseBonus": 3,
       "limbArmor": 5,
       "statusResist": 0.25,
-      "dodgeBonus": -0.05
+      "dodgeBonus": -0.08,
+      "speedBonus": -0.8
     },
     "exotic": true,
     "scarcity": 0.25,
@@ -1221,7 +1214,7 @@
     "color": "#4a5240",
     "slot": "body",
     "modifiers": {
-      "defenseBonus": 2,
+      "defenseBonus": 1,
       "limbArmor": 2,
       "statusResist": 0.12,
       "weightCapacityBonus": 10
@@ -1380,7 +1373,7 @@
     "name": "Riot Leg Pads",
     "w": 2,
     "h": 2,
-    "weight": 2.2,
+    "weight": 2.8,
     "effect": {
       "kind": "misc"
     },
@@ -1390,10 +1383,10 @@
     "color": "#3a4048",
     "slot": "legs",
     "modifiers": {
-      "defenseBonus": 1,
       "limbArmor": 3,
       "statusResist": 0.2,
-      "dodgeBonus": -0.04
+      "dodgeBonus": -0.07,
+      "speedBonus": -0.7
     },
     "exotic": true,
     "scarcity": 0.3
@@ -1484,7 +1477,7 @@
     "name": "Riot Shield",
     "w": 2,
     "h": 3,
-    "weight": 4,
+    "weight": 4.5,
     "effect": {
       "kind": "misc"
     },
@@ -1494,11 +1487,10 @@
     "color": "#37506b",
     "slot": "offHand",
     "modifiers": {
-      "defenseBonus": 4,
+      "defenseBonus": 3,
       "attackBonus": -1,
-      "dodgeBonus": 0.08,
       "blockChance": 0.3,
-      "speedBonus": -1.4
+      "speedBonus": -1.6
     },
     "exotic": true,
     "scarcity": 0.3
@@ -2078,7 +2070,6 @@
     "slot": "offHand",
     "modifiers": {
       "defenseBonus": 1,
-      "dodgeBonus": 0.03,
       "blockChance": 0.12,
       "speedBonus": -0.4
     }
@@ -2098,8 +2089,7 @@
     "color": "#a8adb2",
     "slot": "offHand",
     "modifiers": {
-      "defenseBonus": 2,
-      "dodgeBonus": 0.04,
+      "defenseBonus": 1,
       "blockChance": 0.18,
       "speedBonus": -0.7
     }
@@ -2119,9 +2109,8 @@
     "color": "#c45a1d",
     "slot": "offHand",
     "modifiers": {
-      "defenseBonus": 3,
+      "defenseBonus": 2,
       "attackBonus": -1,
-      "dodgeBonus": 0.05,
       "blockChance": 0.22,
       "speedBonus": -1
     }
@@ -2165,7 +2154,7 @@
     "color": "#2a2e34",
     "slot": "head",
     "modifiers": {
-      "defenseBonus": 2,
+      "defenseBonus": 1,
       "limbArmor": 3,
       "statusResist": 0.18,
       "dodgeBonus": -0.07,
@@ -2190,10 +2179,11 @@
     "color": "#3a4048",
     "slot": "body",
     "modifiers": {
-      "defenseBonus": 3,
+      "defenseBonus": 2,
       "limbArmor": 3,
       "statusResist": 0.15,
-      "dodgeBonus": -0.03
+      "dodgeBonus": -0.03,
+      "speedBonus": -0.4
     },
     "scarcity": 0.55,
     "icon": "item.security_vest"
@@ -2213,10 +2203,11 @@
     "color": "#4a5a7a",
     "slot": "body",
     "modifiers": {
-      "defenseBonus": 3,
+      "defenseBonus": 2,
       "limbArmor": 4,
       "statusResist": 0.14,
-      "dodgeBonus": -0.04
+      "dodgeBonus": -0.06,
+      "speedBonus": -0.6
     },
     "icon": "item.football_pads"
   },
@@ -2501,11 +2492,12 @@
     "h": 1,
     "weight": 0.4,
     "effect": {
-      "kind": "energy",
-      "energy": 28,
-      "thirst": 12
+      "kind": "water",
+      "thirst": 24,
+      "energy": 22,
+      "hunger": 6
     },
-    "value": 12,
+    "value": 7,
     "stackable": false,
     "maxStack": 1,
     "color": "#8a6b4a",
@@ -2538,17 +2530,129 @@
     "h": 2,
     "weight": 0.55,
     "effect": {
-      "kind": "energy",
+      "kind": "water",
+      "thirst": 30,
       "energy": 24,
-      "thirst": 18,
       "hunger": 16
     },
-    "value": 14,
+    "value": 9,
     "stackable": false,
     "maxStack": 1,
     "color": "#5a3a28",
     "maxCondition": 100,
     "perishable": true
+  },
+  "canned_luncheon_meat": {
+    "id": "canned_luncheon_meat",
+    "name": "Canned Luncheon Meat",
+    "w": 2, "h": 1, "weight": 0.35,
+    "effect": { "kind": "food", "hunger": 40 },
+    "value": 8, "stackable": true, "maxStack": 3, "color": "#9b5b45"
+  },
+  "canned_sardines": {
+    "id": "canned_sardines",
+    "name": "Canned Sardines",
+    "w": 1, "h": 1, "weight": 0.15,
+    "effect": { "kind": "food", "hunger": 28 },
+    "value": 6, "stackable": true, "maxStack": 4, "color": "#70858b"
+  },
+  "bread_loaf": {
+    "id": "bread_loaf",
+    "name": "Bread Loaf",
+    "w": 2, "h": 2, "weight": 0.6,
+    "effect": { "kind": "food", "hunger": 45 },
+    "value": 8, "stackable": false, "maxStack": 1, "color": "#b88b4a",
+    "maxCondition": 100, "perishable": true
+  },
+  "kopi_sachets": {
+    "id": "kopi_sachets",
+    "name": "Kopi Sachets",
+    "w": 1, "h": 1, "weight": 0.08,
+    "effect": { "kind": "misc" },
+    "value": 4, "stackable": true, "maxStack": 5, "color": "#6b4a31"
+  },
+  "kopi_o": {
+    "id": "kopi_o",
+    "name": "Kopi O",
+    "w": 1, "h": 2, "weight": 0.35,
+    "effect": { "kind": "water", "thirst": 22, "energy": 18, "hunger": 4 },
+    "value": 6, "stackable": false, "maxStack": 1, "color": "#79573b",
+    "maxCondition": 100, "perishable": true
+  },
+  "kopi_sachet_drink": {
+    "id": "kopi_sachet_drink",
+    "name": "Kopi Sachet Drink",
+    "w": 1, "h": 2, "weight": 0.35,
+    "effect": { "kind": "water", "thirst": 24, "energy": 18, "hunger": 8 },
+    "value": 7, "stackable": false, "maxStack": 1, "color": "#866044",
+    "maxCondition": 100, "perishable": true
+  },
+  "milo_drink": {
+    "id": "milo_drink",
+    "name": "Milo Drink",
+    "w": 1, "h": 2, "weight": 0.4,
+    "effect": { "kind": "water", "thirst": 28, "energy": 18, "hunger": 12 },
+    "value": 8, "stackable": false, "maxStack": 1, "color": "#68442d",
+    "maxCondition": 100, "perishable": true
+  },
+  "large_water_bottle": {
+    "id": "large_water_bottle",
+    "name": "1.5L Water Bottle",
+    "w": 1, "h": 3, "weight": 1.6,
+    "effect": { "kind": "water", "thirst": 65 },
+    "value": 15, "stackable": true, "maxStack": 2, "color": "#367ca3", "scarcity": 0.7
+  },
+  "hand_sanitiser": {
+    "id": "hand_sanitiser",
+    "name": "Hand Sanitiser",
+    "w": 1, "h": 1, "weight": 0.15,
+    "effect": { "kind": "cure", "infection": 12 },
+    "value": 9, "stackable": true, "maxStack": 4, "color": "#9fc5c7"
+  },
+  "insect_repellent": {
+    "id": "insect_repellent",
+    "name": "Insect Repellent",
+    "w": 1, "h": 1, "weight": 0.2,
+    "effect": { "kind": "misc" },
+    "value": 8, "stackable": true, "maxStack": 3, "color": "#78905b"
+  },
+  "rain_poncho": {
+    "id": "rain_poncho",
+    "name": "Disposable Rain Poncho",
+    "w": 1, "h": 2, "weight": 0.2,
+    "effect": { "kind": "misc" },
+    "value": 7, "stackable": false, "maxStack": 1, "color": "#5b8991", "maxCondition": 80,
+    "slot": "body",
+    "modifiers": { "limbArmor": 1, "statusResist": 0.12, "encounterChanceMod": -0.03 }
+  },
+  "zip_ties": {
+    "id": "zip_ties",
+    "name": "Zip Ties",
+    "w": 1, "h": 1, "weight": 0.1,
+    "effect": { "kind": "misc" },
+    "value": 5, "stackable": true, "maxStack": 8, "color": "#d1d0bd"
+  },
+  "phone_charging_cable": {
+    "id": "phone_charging_cable",
+    "name": "Phone Charging Cable",
+    "w": 1, "h": 1, "weight": 0.1,
+    "effect": { "kind": "misc" },
+    "value": 5, "stackable": true, "maxStack": 2, "color": "#b7b9b5"
+  },
+  "bicycle_repair_kit": {
+    "id": "bicycle_repair_kit",
+    "name": "Bicycle Repair Kit",
+    "w": 2, "h": 1, "weight": 0.5,
+    "effect": { "kind": "misc" },
+    "value": 10, "stackable": false, "maxStack": 1, "color": "#6d7377"
+  },
+  "grocery_tote": {
+    "id": "grocery_tote",
+    "name": "Reusable Grocery Tote",
+    "w": 1, "h": 1, "weight": 0.15,
+    "effect": { "kind": "misc" },
+    "value": 8, "stackable": false, "maxStack": 1, "color": "#65775c",
+    "slot": "bag", "packGrid": { "w": 3, "h": 3 }, "maxCondition": 60
   },
   "intel_scavenger_sketch": {
     "id": "intel_scavenger_sketch",
@@ -2646,5 +2750,415 @@
     "scarcity": 0.12,
     "exotic": true,
     "icon": "action.map"
+  }
+,
+  "gas_mask": {
+    "id": "gas_mask",
+    "name": "Gas Mask",
+    "w": 2,
+    "h": 2,
+    "weight": 0.9,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 26,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#4a5248",
+    "slot": "head",
+    "modifiers": {
+      "limbArmor": 1,
+      "statusResist": 0.32,
+      "headTargetReduction": 0.15,
+      "headCritReduction": 0.1,
+      "awarenessMod": -1,
+      "speedBonus": -0.2
+    },
+    "scarcity": 0.4
+  },
+  "headlamp": {
+    "id": "headlamp",
+    "name": "Headlamp",
+    "w": 1,
+    "h": 1,
+    "weight": 0.15,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 14,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#c9a441",
+    "slot": "head",
+    "modifiers": {
+      "searchSpeedBonus": 0.18,
+      "awarenessMod": 1
+    }
+  },
+  "turnout_coat": {
+    "id": "turnout_coat",
+    "name": "Turnout Coat",
+    "w": 3,
+    "h": 2,
+    "weight": 3.4,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 30,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#7a6a3a",
+    "slot": "body",
+    "modifiers": {
+      "defenseBonus": 2,
+      "limbArmor": 4,
+      "statusResist": 0.4,
+      "dodgeBonus": -0.06,
+      "speedBonus": -0.7
+    },
+    "scarcity": 0.5
+  },
+  "rubber_gloves": {
+    "id": "rubber_gloves",
+    "name": "Rubber Gloves",
+    "w": 1,
+    "h": 1,
+    "weight": 0.1,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 5,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#c4a05a",
+    "slot": "hands",
+    "modifiers": {
+      "statusResist": 0.24
+    }
+  },
+  "welding_gloves": {
+    "id": "welding_gloves",
+    "name": "Welding Gloves",
+    "w": 1,
+    "h": 2,
+    "weight": 0.5,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 10,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#7a5a34",
+    "slot": "hands",
+    "modifiers": {
+      "limbArmor": 3,
+      "statusResist": 0.2,
+      "accuracyBonus": -1,
+      "speedBonus": -0.4
+    }
+  },
+  "cargo_shorts": {
+    "id": "cargo_shorts",
+    "name": "Cargo Shorts",
+    "w": 2,
+    "h": 1,
+    "weight": 0.3,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 4,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#8a7a54",
+    "slot": "legs",
+    "modifiers": {
+      "dodgeBonus": 0.04,
+      "speedBonus": 0.4
+    }
+  },
+  "riding_pants": {
+    "id": "riding_pants",
+    "name": "Riding Pants",
+    "w": 2,
+    "h": 2,
+    "weight": 1.4,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 20,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#3a3a40",
+    "slot": "legs",
+    "modifiers": {
+      "limbArmor": 3,
+      "statusResist": 0.22,
+      "dodgeBonus": -0.03,
+      "speedBonus": -0.3
+    },
+    "scarcity": 0.55
+  },
+  "rubber_boots": {
+    "id": "rubber_boots",
+    "name": "Rubber Boots",
+    "w": 2,
+    "h": 2,
+    "weight": 1,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 7,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#2f4a3a",
+    "slot": "feet",
+    "modifiers": {
+      "statusResist": 0.18,
+      "travelSpeedBonus": -0.05,
+      "speedBonus": -0.2
+    }
+  },
+  "safety_boots": {
+    "id": "safety_boots",
+    "name": "Steel-Toe Boots",
+    "w": 2,
+    "h": 2,
+    "weight": 1.7,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 16,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#4a3a2a",
+    "slot": "feet",
+    "modifiers": {
+      "attackBonus": 1,
+      "statusResist": 0.15,
+      "travelSpeedBonus": 0.06,
+      "encounterChanceMod": 0.04
+    }
+  },
+  "duffel_bag": {
+    "id": "duffel_bag",
+    "name": "Duffel Bag",
+    "w": 3,
+    "h": 2,
+    "weight": 1.1,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 24,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#4a4a52",
+    "slot": "bag",
+    "packGrid": {
+      "w": 7,
+      "h": 4
+    },
+    "modifiers": {
+      "speedBonus": -0.5,
+      "encounterChanceMod": 0.04,
+      "travelSpeedBonus": -0.05
+    },
+    "maxCondition": 80,
+    "scarcity": 0.6
+  },
+  "hatchet": {
+    "id": "hatchet",
+    "name": "Hatchet",
+    "w": 1,
+    "h": 2,
+    "weight": 0.9,
+    "effect": {
+      "kind": "weapon",
+      "damage": 17,
+      "accuracy": 1,
+      "ranged": false
+    },
+    "value": 14,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#7a6a54",
+    "slot": "mainHand",
+    "wearRate": 0.85
+  },
+  "sledgehammer": {
+    "id": "sledgehammer",
+    "name": "Sledgehammer",
+    "w": 2,
+    "h": 4,
+    "weight": 5.4,
+    "effect": {
+      "kind": "weapon",
+      "damage": 27,
+      "accuracy": -3,
+      "ranged": false
+    },
+    "value": 22,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#6a6f74",
+    "slot": "mainHand",
+    "twoHanded": true,
+    "wearRate": 0.5,
+    "scarcity": 0.65
+  },
+  "nail_bat": {
+    "id": "nail_bat",
+    "name": "Nail Bat",
+    "w": 1,
+    "h": 4,
+    "weight": 1.4,
+    "effect": {
+      "kind": "weapon",
+      "damage": 24,
+      "accuracy": -1,
+      "ranged": false
+    },
+    "value": 19,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#a08050",
+    "slot": "mainHand",
+    "twoHanded": true,
+    "wearRate": 1.5,
+    "maxCondition": 70
+  },
+  "cloth_wraps": {
+    "id": "cloth_wraps",
+    "name": "Cloth Hand Wraps",
+    "w": 1,
+    "h": 1,
+    "weight": 0.15,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 3,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#b8ae98",
+    "slot": "hands",
+    "modifiers": {
+      "limbArmor": 1,
+      "statusResist": 0.06,
+      "attackBonus": 1
+    },
+    "maxCondition": 50
+  },
+  "scrap_helm": {
+    "id": "scrap_helm",
+    "name": "Scrap Helm",
+    "w": 2,
+    "h": 2,
+    "weight": 1.3,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 10,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#77797a",
+    "slot": "head",
+    "modifiers": {
+      "limbArmor": 3,
+      "statusResist": 0.12,
+      "headTargetReduction": 0.25,
+      "headCritReduction": 0.2,
+      "dodgeBonus": -0.04,
+      "speedBonus": -0.35,
+      "awarenessMod": -1
+    },
+    "maxCondition": 60
+  },
+  "scrap_armour": {
+    "id": "scrap_armour",
+    "name": "Scrap Plate Vest",
+    "w": 2,
+    "h": 3,
+    "weight": 4,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 12,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#6f7276",
+    "slot": "body",
+    "modifiers": {
+      "defenseBonus": 1,
+      "limbArmor": 4,
+      "statusResist": 0.15,
+      "dodgeBonus": -0.08,
+      "speedBonus": -0.9,
+      "encounterChanceMod": 0.04
+    },
+    "maxCondition": 60
+  },
+  "padded_vest": {
+    "id": "padded_vest",
+    "name": "Padded Mat Vest",
+    "w": 2,
+    "h": 2,
+    "weight": 1.1,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 9,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#6a3a6a",
+    "slot": "body",
+    "modifiers": {
+      "limbArmor": 2,
+      "statusResist": 0.2,
+      "dodgeBonus": -0.02,
+      "speedBonus": -0.2
+    },
+    "maxCondition": 60
+  },
+  "shin_guards": {
+    "id": "shin_guards",
+    "name": "Scrap Shin Guards",
+    "w": 2,
+    "h": 1,
+    "weight": 1,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 8,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#7a7d80",
+    "slot": "legs",
+    "modifiers": {
+      "limbArmor": 2,
+      "statusResist": 0.12,
+      "speedBonus": -0.25
+    },
+    "maxCondition": 60
+  },
+  "scrap_shield": {
+    "id": "scrap_shield",
+    "name": "Lashed Scrap Shield",
+    "w": 2,
+    "h": 3,
+    "weight": 2.8,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 11,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#8a8d90",
+    "slot": "offHand",
+    "modifiers": {
+      "defenseBonus": 2,
+      "attackBonus": -1,
+      "blockChance": 0.2,
+      "speedBonus": -0.9
+    },
+    "maxCondition": 50
   }
 }

@@ -45,7 +45,14 @@ import {
   bleedEncounterMod,
   energyAttackBonus,
   energyDodgeBonus,
+  guardArmFactor,
+  headAwarenessPenalty,
+  headCombatPenalty,
+  headSearchFactor,
+  legDodgePenalty,
   legTravelFactor,
+  torsoCarryMult,
+  torsoEnergyDrainMult,
   travelSpeedMultiplier,
 } from './survival';
 import {
@@ -213,13 +220,15 @@ export function buildStatSheet(input: StatSheetInput): StatSheet {
   const { attributes, traitIds } = character;
   const traits = getTraits(traitIds);
   const carryMod = sumTraitMod(traitIds, 'carryCapacityMod');
-  const fx = loadEffectsFor(items, attributes, equipment, carryMod);
+  const torsoCarry = torsoCarryMult(bodyParts);
+  const fx = loadEffectsFor(items, attributes, equipment, carryMod, torsoCarry);
   const armPen = armCombatPenalty(bodyParts);
+  const headPen = headCombatPenalty(bodyParts);
   const pStats = playerCombatStats(
     attributes,
     traitIds,
     equipment,
-    armPen,
+    armPen + headPen,
     fx.attackMod,
   );
   const energyAtk = energyAttackBonus(meters.energy);
@@ -265,6 +274,7 @@ export function buildStatSheet(input: StatSheetInput): StatSheet {
         skyAim,
         nightExtra,
         armPen,
+        headPen,
         fxAttack: fx.attackMod,
         fxDodge: fx.dodgeMod,
         fxCombatSpeed: fx.combatSpeedMult,
@@ -279,6 +289,7 @@ export function buildStatSheet(input: StatSheetInput): StatSheet {
         traitIds,
         equipment,
         carryMod,
+        torsoCarry,
         fx,
         travel,
         weather,
@@ -286,8 +297,8 @@ export function buildStatSheet(input: StatSheetInput): StatSheet {
         meters,
       }),
     },
-    { id: 'survival', rows: survivalRows(traits, weather) },
-    { id: 'search', rows: searchRows(attributes, traits, traitIds, equipment) },
+    { id: 'survival', rows: survivalRows(traits, weather, bodyParts) },
+    { id: 'search', rows: searchRows(attributes, traits, traitIds, equipment, bodyParts) },
     { id: 'other', rows: otherRows(traitIds, traits) },
   ];
 
@@ -340,6 +351,7 @@ function combatRows(args: {
   skyAim: number;
   nightExtra: number;
   armPen: number;
+  headPen: number;
   fxAttack: number;
   fxDodge: number;
   fxCombatSpeed: number;
@@ -358,13 +370,14 @@ function combatRows(args: {
     skyAim,
     nightExtra,
     armPen,
+    headPen,
     fxAttack,
     fxDodge,
     fxCombatSpeed,
     energy,
   } = args;
   const rows: SheetRow[] = [];
-  const oh = offHandCombatMods(equipment);
+  const oh = offHandCombatMods(equipment, guardArmFactor(bodyParts));
 
   const atk: SheetSource[] = [];
   push(atk, attrSrc('dexterity', attributes.dexterity));
@@ -376,6 +389,7 @@ function combatRows(args: {
   );
   push(atk, itemSources(equipment, (inst) => scaledMod(inst, 'accuracyBonus')));
   push(atk, keySrc('arms', -armPen));
+  push(atk, keySrc('head', -headPen));
   push(atk, keySrc('load', fxAttack));
   push(atk, keySrc('energy', energyAtk));
   push(atk, keySrc('night', timeAim));
@@ -387,7 +401,12 @@ function combatRows(args: {
   push(def, keySrc('base', 10));
   push(def, attrSrc('dexterity', Math.floor(attributes.dexterity / 2)));
   push(def, traitSources(traits, 'defenseMod'));
-  push(def, itemSources(equipment, (inst) => equipDefenseBonus(inst)));
+  const defItems = itemSources(equipment, (inst) => equipDefenseBonus(inst));
+  push(def, defItems);
+  // Gear defence is capped (see MAX_EQUIP_DEFENSE). List the shortfall rather
+  // than trimming the per-item lines: the player should see which pieces are
+  // pulling and that the kit has stopped paying for more.
+  push(def, keySrc('capped', pStats.gearDefense - sumOf(defItems)));
   rows.push(row('defence', 'combat', 'flat', def, true, { total: pStats.defense }));
 
   const ddg: SheetSource[] = [];
@@ -395,11 +414,11 @@ function combatRows(args: {
   push(ddg, traitSources(traits, 'dodgeMod'));
   push(
     ddg,
-    itemSources(equipment, (inst) => itemDef(inst.defId).modifiers?.dodgeBonus ?? 0),
+    itemSources(equipment, (inst) => scaledMod(inst, 'dodgeBonus')),
   );
   push(ddg, keySrc('offHand', oh.dodge));
   push(ddg, keySrc('energy', energyDodgeBonus(energy)));
-  push(ddg, keySrc('legs', (legTravelFactor(bodyParts) - 1) * 0.1));
+  push(ddg, keySrc('legs', legDodgePenalty(bodyParts)));
   push(ddg, keySrc('load', fxDodge));
   rows.push(row('dodge', 'combat', 'pct', ddg, true, { total: dodge }));
 
@@ -457,14 +476,26 @@ function mobilityRows(args: {
   traitIds: string[];
   equipment: Equipment;
   carryMod: number;
+  torsoCarry: number;
   fx: ReturnType<typeof loadEffectsFor>;
   travel: number;
   weather: WeatherState;
   bodyParts: BodyParts;
   meters: Meters;
 }): SheetRow[] {
-  const { attributes, traits, traitIds, equipment, carryMod, fx, travel, weather, bodyParts, meters } =
-    args;
+  const {
+    attributes,
+    traits,
+    traitIds,
+    equipment,
+    carryMod,
+    torsoCarry,
+    fx,
+    travel,
+    weather,
+    bodyParts,
+    meters,
+  } = args;
   const rows: SheetRow[] = [];
 
   const tr: SheetSource[] = [];
@@ -487,9 +518,12 @@ function mobilityRows(args: {
       return bonus ? Math.round(bonus * conditionScale(inst)) : 0;
     }),
   );
+  const carryTotal = maxCarry(attributes, equipment, carryMod, torsoCarry);
+  const beforeTorso = maxCarry(attributes, equipment, carryMod, 1);
+  push(carry, keySrc('torso', carryTotal - beforeTorso));
   rows.push(
     row('carry', 'mobility', 'kg', carry, true, {
-      total: maxCarry(attributes, equipment, carryMod),
+      total: carryTotal,
     }),
   );
 
@@ -512,7 +546,7 @@ function mobilityRows(args: {
   return rows;
 }
 
-function survivalRows(traits: Trait[], weather: WeatherState): SheetRow[] {
+function survivalRows(traits: Trait[], weather: WeatherState, bodyParts: BodyParts): SheetRow[] {
   const rows: SheetRow[] = [];
   const hunger = traitSources(traits, 'hungerDrainMod');
   if (hunger.length) rows.push(row('hungerDrain', 'survival', 'pct', hunger, false));
@@ -529,6 +563,7 @@ function survivalRows(traits: Trait[], weather: WeatherState): SheetRow[] {
     push(energy, traitSources(traits, 'outdoorEnergyDrainMod'));
   }
   push(energy, keySrc('weather', weatherEnergyMult(weather.kind) - 1));
+  push(energy, keySrc('torso', torsoEnergyDrainMult(bodyParts) - 1));
   if (energy.length) rows.push(row('energyDrain', 'survival', 'pct', energy, false));
 
   const sleep = traitSources(traits, 'sleepRestoreMod');
@@ -548,16 +583,19 @@ function searchRows(
   traits: Trait[],
   traitIds: string[],
   equipment: Equipment,
+  bodyParts: BodyParts,
 ): SheetRow[] {
   const rows: SheetRow[] = [];
   const equipSearch = equipSearchSpeedBonus(equipment);
   const traitSearch = sumTraitMod(traitIds, 'searchSpeedMod');
-  const factor = searchSpeedFactor(equipSearch, attributes.perception, traitSearch);
+  const headFactor = headSearchFactor(bodyParts);
+  const factor = searchSpeedFactor(equipSearch, attributes.perception, traitSearch) / headFactor;
   const speedBonus = 1 / factor - 1;
   const srch: SheetSource[] = [];
   push(srch, attrSrc('perception', Math.max(0, attributes.perception - BASE_ATTRIBUTE) * 0.04));
   push(srch, traitSources(traits, 'searchSpeedMod'));
   push(srch, itemSources(equipment, (inst) => scaledMod(inst, 'searchSpeedBonus')));
+  push(srch, keySrc('head', headFactor - 1));
   if (srch.length) {
     rows.push(row('searchSpeed', 'search', 'pct', srch, true, { total: speedBonus }));
   }
@@ -569,15 +607,18 @@ function searchRows(
   push(lootSrc, attrSrc('perception', Math.floor((attributes.perception - BASE_ATTRIBUTE) / 2)));
   if (lootSrc.length) rows.push(row('loot', 'search', 'flat', lootSrc, true));
 
+  const headAw = headAwarenessPenalty(bodyParts);
   const aw: SheetSource[] = [];
   push(aw, attrSrc('perception', attributes.perception));
   push(aw, itemSources(equipment, (inst) => itemDef(inst.defId).modifiers?.awarenessMod ?? 0));
   push(aw, traitSources(traits, 'awarenessMod'));
-  const awTotal = awareness(
-    attributes.perception,
-    equipAwarenessMod(equipment),
-    traitAwarenessMod(traitIds),
-  );
+  push(aw, keySrc('head', -headAw));
+  const awTotal =
+    awareness(
+      attributes.perception,
+      equipAwarenessMod(equipment),
+      traitAwarenessMod(traitIds),
+    ) - headAw;
   rows.push(
     row('awareness', 'search', 'flat', aw, true, {
       total: awTotal,

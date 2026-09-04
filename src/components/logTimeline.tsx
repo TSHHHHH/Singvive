@@ -162,6 +162,15 @@ export function LogEntryBody({
   );
 }
 
+function sectionBand(stripe: number, active: boolean): string {
+  if (active) return 'before:bg-signal/[0.07]';
+  return stripe % 2 === 0 ? 'before:bg-white/[0.04]' : 'before:bg-white/[0.07]';
+}
+
+/** Full-bleed band/divider behind the spine, out to the timeline panel edges. */
+const BLEED =
+  "before:pointer-events-none before:absolute before:inset-y-0 before:-left-1.5 before:-right-2 before:content-['']";
+
 function LogSectionCard({
   group,
   locale,
@@ -174,6 +183,8 @@ function LogSectionCard({
   activeKey,
   manualClosed,
   onToggle,
+  stripe,
+  divide,
 }: {
   group: Extract<LogGroup, { type: 'section' }>;
   locale: LocaleId;
@@ -186,6 +197,8 @@ function LogSectionCard({
   activeKey: string | null;
   manualClosed: Set<string>;
   onToggle: (key: string) => void;
+  stripe: number;
+  divide: boolean;
 }) {
   const isActive = group.key === activeKey;
   const open = !manualClosed.has(group.key);
@@ -193,73 +206,66 @@ function LogSectionCard({
   const title = sectionTitle(group.scope, tr);
 
   return (
-    <li className="relative py-0.5 pl-6">
+    <li
+      className={`relative pl-6 ${BLEED} ${sectionBand(stripe, isActive)} ${
+        divide ? 'before:border-t before:border-white/10' : ''
+      }`}
+    >
       <span className="absolute left-0 top-[10px] h-[11px] w-[11px] rounded-full border-2 border-concrete-900 bg-white/20" />
-      {/*
-        Container left edge matches flat entry content, so timestamps stay on
-        one column. Location title sits in the text column (icon in the time
-        gutter) so it lines up with entry copy.
-      */}
-      <div
-        className={`overflow-hidden rounded border ${
-          isActive ? 'border-signal/35 bg-white/[0.05]' : 'border-white/10 bg-white/[0.02]'
-        }`}
+      <button
+        type="button"
+        onClick={() => onToggle(group.key)}
+        {...tip(open ? tr('ui.log.sectionCollapse') : tr('ui.log.sectionExpand'), {
+          label: true,
+        })}
+        className="flex w-full items-center justify-between gap-2 py-1.5 pr-2 text-left transition hover:bg-white/[0.04]"
       >
-        <button
-          type="button"
-          onClick={() => onToggle(group.key)}
-          {...tip(open ? tr('ui.log.sectionCollapse') : tr('ui.log.sectionExpand'), {
-            label: true,
-          })}
-          className="flex w-full items-center justify-between gap-2 py-1.5 pr-2 text-left transition hover:bg-white/[0.04]"
-        >
-          <span className="flex min-w-0 items-center text-xs font-semibold text-concrete-100">
-            <span
-              className="flex shrink-0 items-center justify-center self-stretch text-white/40"
-              style={{ width: timeW }}
-            >
-              <Icon name={scopeIcon(group.scope)} size={13} className="align-middle" />
-            </span>
-            <span className="truncate">{title}</span>
+        <span className="flex min-w-0 items-center text-xs font-semibold text-concrete-100">
+          <span
+            className="flex shrink-0 items-center justify-center self-stretch text-white/40"
+            style={{ width: timeW }}
+          >
+            <Icon name={scopeIcon(group.scope)} size={13} className="align-middle" />
           </span>
-          <span className="flex shrink-0 items-center gap-1.5 text-2xs text-white/35">
-            <span>
-              {group.entries.length === 1
-                ? tr('ui.log.entry', { n: group.entries.length })
-                : tr('ui.log.entries', { n: group.entries.length })}
-            </span>
-            {hauls > 0 && (
-              <span className="text-signal/60">{tr('ui.log.hauls', { n: hauls })}</span>
-            )}
-            {bad > 0 && <span className="text-hiss/70">{tr('ui.log.bad', { n: bad })}</span>}
-            <span className="text-white/25">{open ? '▾' : '▸'}</span>
+          <span className="truncate">{title}</span>
+        </span>
+        <span className="flex shrink-0 items-center gap-1.5 text-2xs text-white/35">
+          <span>
+            {group.entries.length === 1
+              ? tr('ui.log.entry', { n: group.entries.length })
+              : tr('ui.log.entries', { n: group.entries.length })}
           </span>
-        </button>
+          {hauls > 0 && (
+            <span className="text-signal/60">{tr('ui.log.hauls', { n: hauls })}</span>
+          )}
+          {bad > 0 && <span className="text-hiss/70">{tr('ui.log.bad', { n: bad })}</span>}
+          <span className="text-white/25">{open ? '▾' : '▸'}</span>
+        </span>
+      </button>
 
-        {open && (
-          <ol className="flex flex-col border-t border-white/10 pb-1">
-            {group.entries.map((e) => {
-              const isLatest = e.id === latestId;
-              return (
-                <li
-                  key={e.id}
-                  className={`py-1 pr-2 ${isLatest ? 'rounded bg-white/[0.07]' : ''}`}
-                >
-                  <LogEntryBody
-                    e={e}
-                    locale={locale}
-                    clock={clock}
-                    timeW={timeW}
-                    hang={hang}
-                    onFocusMap={onFocusMap}
-                    tr={tr}
-                  />
-                </li>
-              );
-            })}
-          </ol>
-        )}
-      </div>
+      {open && (
+        <ol className="flex flex-col pb-1">
+          {group.entries.map((e) => {
+            const isLatest = e.id === latestId;
+            return (
+              <li
+                key={e.id}
+                className={`py-1 pr-2 ${isLatest ? 'bg-white/[0.07]' : ''}`}
+              >
+                <LogEntryBody
+                  e={e}
+                  locale={locale}
+                  clock={clock}
+                  timeW={timeW}
+                  hang={hang}
+                  onFocusMap={onFocusMap}
+                  tr={tr}
+                />
+              </li>
+            );
+          })}
+        </ol>
+      )}
     </li>
   );
 }
@@ -270,19 +276,23 @@ function CompactLogSection({
   clock,
   timeW,
   tr,
+  stripe,
+  divide,
 }: {
   group: Extract<LogGroup, { type: 'section' }>;
   locale: LocaleId;
   clock: ClockFormat;
   timeW: string;
   tr: Translate;
+  stripe: number;
+  divide: boolean;
 }) {
   const [open, setOpen] = useState(true);
   const { bad, hauls } = sectionStats(group.entries);
   const title = sectionTitle(group.scope, tr);
 
   return (
-    <li className="overflow-hidden rounded border border-white/10">
+    <li className={`relative ${BLEED} ${sectionBand(stripe, false)} ${divide ? 'before:border-t before:border-white/10' : ''}`}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -304,7 +314,7 @@ function CompactLogSection({
         </span>
       </button>
       {open && (
-        <ol className="flex flex-col gap-1 border-t border-white/10 py-1.5 pr-2">
+        <ol className="flex flex-col gap-1 py-1.5 pr-2">
           {group.entries.map((e) => (
             <li key={e.id}>
               <LogEntryBody
@@ -360,21 +370,33 @@ export function GroupedLogList({
   const groups = groupLogEntries(entries);
 
   if (compact) {
+    let stripe = -1;
     return (
-      <ol className="flex flex-col gap-1.5">
-        {groups.map((g) =>
-          g.type === 'flat' ? (
-            <li key={g.entry.id} className="flex gap-2">
-              <LogEntryBody
-                e={g.entry}
-                locale={locale}
-                clock={clock}
-                timeW={timeW}
-                tr={tr}
-                compact
-              />
-            </li>
-          ) : (
+      <ol className="flex flex-col">
+        {groups.map((g, i) => {
+          const prev = groups[i - 1];
+          const divide = i > 0 && (g.type === 'section' || prev?.type === 'section');
+          if (g.type === 'flat') {
+            return (
+              <li
+                key={g.entry.id}
+                className={`relative flex gap-2 px-2 py-0.5 ${
+                  divide ? `${BLEED} before:border-t before:border-white/10` : ''
+                }`}
+              >
+                <LogEntryBody
+                  e={g.entry}
+                  locale={locale}
+                  clock={clock}
+                  timeW={timeW}
+                  tr={tr}
+                  compact
+                />
+              </li>
+            );
+          }
+          stripe += 1;
+          return (
             <CompactLogSection
               key={g.key}
               group={g}
@@ -382,39 +404,48 @@ export function GroupedLogList({
               clock={clock}
               timeW={timeW}
               tr={tr}
+              stripe={stripe}
+              divide={divide}
             />
-          ),
-        )}
+          );
+        })}
       </ol>
     );
   }
 
+  let stripe = -1;
   return (
     <>
-      {groups.map((g) =>
-        g.type === 'flat' ? (
-          <li
-            key={g.entry.id}
-            className={`relative flex gap-2 py-1 pl-6 ${
-              g.entry.id === latestId ? 'rounded bg-white/[0.07]' : ''
-            }`}
-          >
-            <span
-              className={`absolute left-0 top-[7px] h-[11px] w-[11px] rounded-full border-2 border-concrete-900 ${
-                dotClass[g.entry.tone] ?? 'bg-white/30'
-              } ${g.entry.id === latestId ? 'ring-2 ring-signal/60' : ''}`}
-            />
-            <LogEntryBody
-              e={g.entry}
-              locale={locale}
-              clock={clock}
-              timeW={timeW}
-              hang={hang}
-              onFocusMap={onFocusMap}
-              tr={tr}
-            />
-          </li>
-        ) : (
+      {groups.map((g, i) => {
+        const prev = groups[i - 1];
+        const divide = i > 0 && (g.type === 'section' || prev?.type === 'section');
+        if (g.type === 'flat') {
+          return (
+            <li
+              key={g.entry.id}
+              className={`relative flex gap-2 py-1 pl-6 ${
+                divide ? `${BLEED} before:border-t before:border-white/10` : ''
+              } ${g.entry.id === latestId ? 'bg-white/[0.07]' : ''}`}
+            >
+              <span
+                className={`absolute left-0 top-[7px] h-[11px] w-[11px] rounded-full border-2 border-concrete-900 ${
+                  dotClass[g.entry.tone] ?? 'bg-white/30'
+                } ${g.entry.id === latestId ? 'ring-2 ring-signal/60' : ''}`}
+              />
+              <LogEntryBody
+                e={g.entry}
+                locale={locale}
+                clock={clock}
+                timeW={timeW}
+                hang={hang}
+                onFocusMap={onFocusMap}
+                tr={tr}
+              />
+            </li>
+          );
+        }
+        stripe += 1;
+        return (
           <LogSectionCard
             key={g.key}
             group={g}
@@ -428,9 +459,11 @@ export function GroupedLogList({
             activeKey={activeKey}
             manualClosed={manualClosed}
             onToggle={toggle}
+            stripe={stripe}
+            divide={divide}
           />
-        ),
-      )}
+        );
+      })}
     </>
   );
 }
