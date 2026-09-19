@@ -269,8 +269,8 @@
       "metersFromSpawn": "距出生点 {m} 米",
       "danger": "危险度",
       "ruin": "废墟",
-      "factionOutpost": "派系前哨——提供完整服务，不可搜刮。",
-      "factionTerritory": "派系领地——NPC 枢纽，不可搜刮。",
+      "factionOutpost": "势力前哨——提供完整服务，不可搜刮。",
+      "factionTerritory": "势力领地——NPC 枢纽，不可搜刮。",
       "insideUnseen": "悄悄潜入——保持安静就能搜刮他们的物资。",
       "forcedEntry": "强行闯入——物资丰厚，但每次搜索都会触发战斗。",
       "twelveFloors": "12 层——逐层逐户清理，而非整体搜索。",
@@ -1086,7 +1086,7 @@
       "backToMap": "返回地图",
       "goldPlanned": "金色 = 计划路线",
       "noPath": "无法到达 {name}——路网未连通。",
-      "allCollapsed": "通往 {name} 的每条隧道都要爬坍塌段——碎石、尸群，无营地。",
+      "allCollapsed": "通往 {name} 的每条隧道都要爬坍塌段——碎石、尸潮，无营地。",
       "shortcutCollapsed": "此捷径要爬坍塌段——将是一趟苦差。",
       "tooSpent": "太疲惫了——先休息",
       "crawlCollapsed": "爬坍塌段 · {n} 站",
@@ -2293,9 +2293,9 @@
       "or": "1× {list} 或 {last}"
     },
     "faction_checkpoint": {
-      "title": "{short} 闸口",
+      "title": "{short} 关卡",
       "choices": {
-        "pay": "付入场费 — {price}",
+        "pay": "交入场费——{price}",
         "leave": "退开"
       },
       "lines": {
@@ -2323,10 +2323,10 @@
     },
     "faction_shakedown": {
       "title": "{short} 贡品",
-      "titleTerrible": "{short} 索要贡品",
+      "titleTerrible": "{short} 强索贡品",
       "choices": {
-        "pay": "交贡品 — {price}",
-        "refuse": "拒绝 — 拔刀相对",
+        "pay": "交贡品——{price}",
+        "refuse": "拒绝——动手",
         "leave": "退开"
       },
       "lines": {
@@ -2351,21 +2351,21 @@
         "他们让你一路走到入口才开灯。「一份 {tribute}，我们就当没见过你夜里来过。」"
       ],
       "wet": [
-        "{faction} 用防水布罩住 {name} 入口，还有人把守。「里面干。一份 {tribute}。」"
+        "{faction} 用防水布罩住 {name} 入口，还有人把守。「里面是干的。一份 {tribute}。」"
       ]
     },
     "locked_door": {
-      "title": "上锁的防盗门",
+      "title": "防盗门锁着",
       "choices": {
-        "pry": "撬开",
-        "pick": "撬锁",
-        "find": "找侧路",
+        "pry": "硬撬",
+        "pick": "开锁",
+        "find": "找侧门",
         "leave": "算了"
       },
       "lines": {
         "pryFailZombies": "动静把什么东西招出来了。",
         "pickFailTime": "你拨到手抽筋。锁还是不开。",
-        "pickFailDeny": "门赢了。",
+        "pickFailDeny": "锁没开。今天到此为止。",
         "findOk": "你绕楼一圈，找到一扇没人想到的维修门。",
         "findFailTime": "你绕了整栋楼，一无所获。",
         "findFailEnergy": "这一圈耗着你。腿发沉，什么都没拿到。",
@@ -2392,10 +2392,10 @@
       ]
     },
     "desperate_survivor": {
-      "title": "绝望的幸存者",
+      "title": "走投无路",
       "choices": {
-        "give": "给 1× 瓶装水、等渗饮料或罐头食品",
-        "reason": "跟他们讲道理",
+        "give": "给 1 份水/饮料/罐头",
+        "reason": "试着讲道理",
         "scare": "吓跑他们",
         "refuse": "拒绝"
       },
@@ -2421,9 +2421,9 @@
     "rival_scavenger": {
       "title": "有人捷足先登",
       "choices": {
-        "race": "抢先冲向里间",
-        "split": "喊一声——平分这地方",
-        "watch": "退开观察",
+        "race": "抢先冲里间",
+        "split": "喊一声——平分",
+        "watch": "先观望摸底",
         "confront": "把他们撵走"
       },
       "lines": {
@@ -2449,7 +2449,7 @@
       ]
     },
     "armed_raider": {
-      "title": "武装占点",
+      "title": "有人武装占门",
       "choices": {
         "sneak": "趁他们忙溜过去",
         "bluff": "装成自己人",
@@ -2479,9 +2479,9 @@
     "block_tout": {
       "title": "门口过路费",
       "choices": {
-        "pay": "付这无理费用",
+        "pay": "付这荒唐费",
         "stare": "瞪回去",
-        "fight": "把事情闹大",
+        "fight": "硬刚",
         "leave": "另找门"
       },
       "lines": {
@@ -2506,8 +2506,8 @@
       "title": "门被动了手脚",
       "choices": {
         "disarm": "顺着线拆掉",
-        "power": "弄清它连着什么",
-        "around": "绕远路（慢，安全）",
+        "power": "弄清连着啥",
+        "around": "绕远路——慢但稳",
         "leave": "不值"
       },
       "lines": {
@@ -2538,10 +2538,10 @@
     "quiet_tap": {
       "title": "水龙头还在流",
       "choices": {
-        "queue": "排队等候",
+        "queue": "去排队",
         "trade": "用食物换一灌",
         "push": "挤到前面",
-        "leave": "留给他们"
+        "leave": "不管了"
       },
       "lines": {
         "queue": "你像其他人一样等轮到自己。花了一小时，没人谢你。",
@@ -2563,11 +2563,11 @@
       ]
     },
     "body_in_the_doorway": {
-      "title": "门口的尸体",
+      "title": "门口倒着个人",
       "choices": {
         "strip": "翻他们的包",
         "read": "弄清死因",
-        "step": "跨过去继续干"
+        "step": "跨过去接着干"
       },
       "lines": {
         "stripFailZombies": "尸体一下子松动，哗啦声传得很远。",
@@ -2589,11 +2589,11 @@
       ]
     },
     "looters_fleeing": {
-      "title": "逆向车流",
+      "title": "夺路而出",
       "choices": {
-        "chase": "追上去——捡他们掉的",
+        "chase": "追上去：捡掉落",
         "read": "看他们从哪出来",
-        "let": "让他们走——自己进去"
+        "let": "放他们走：自己进"
       },
       "lines": {
         "chaseLose": "他们更熟这一层。你赶到时气喘吁吁，两手空空。",
@@ -2617,7 +2617,7 @@
       ]
     },
     "smoke_block": {
-      "title": "门缝下的烟",
+      "title": "门缝下在冒烟",
       "choices": {
         "side": "找没烟的侧门",
         "push": "硬闯烟雾",
@@ -2653,11 +2653,11 @@
       ]
     },
     "distress_beacon": {
-      "title": "仍在广播",
+      "title": "信号还在响",
       "choices": {
-        "trace": "追踪信号——读懂这地方",
+        "trace": "追踪信号——摸清地形",
         "rush": "跟着声音进去",
-        "ignore": "无视，安静进去"
+        "ignore": "别管：静静进去"
       },
       "lines": {
         "traceOk": "讯息告诉你的关于这栋楼的事，比广播者想说的还多。",
@@ -2687,7 +2687,7 @@
       "title": "游商",
       "choices": {
         "trade": "用食物换物资",
-        "leave": "不做——继续走"
+        "leave": "不成交——接着走"
       },
       "lines": {
         "tradeEmpty": "没食物就没交易。他们收起垫子，还是让你过。",
@@ -2712,7 +2712,7 @@
     "car_blockade": {
       "title": "废弃路障",
       "choices": {
-        "shift": "挪开一辆车够挤过去",
+        "shift": "挪开一辆好挤过去",
         "gap": "在残骸间找缝",
         "long": "绕远路",
         "leave": "不值得折腾"
@@ -2720,7 +2720,7 @@
       "lines": {
         "shiftOk": "金属呻吟，你的肩膀为每一寸付钱。",
         "shiftFailEnergy": "车纹丝不动。你的胳膊动了，而且不是好的那种。",
-        "shiftFailDeny": "路障赢了。",
+        "shiftFailDeny": "路障纹丝不动。",
         "gapFailTime": "你沿着整道路障找缝。",
         "gapFailDeny": "没有够宽的缝。",
         "longTime": "你绕过街区，从卸货区进来。",
@@ -2799,8 +2799,8 @@
         "有人在这单位大门上贴了红十字。「先给食物，」他们头也不抬地说。「然后我再看你。」"
       ],
       "choices": {
-        "pay": "接受包扎 — {price}，1 小时",
-        "leave": "算了 — 留着食物"
+        "pay": "包扎一下——{price}，1 小时",
+        "leave": "算了——留着吃的"
       },
       "lines": {
         "treatTime": "你躺着不动，让他们动手。",
@@ -2834,7 +2834,7 @@
         "faction_checkpoint": {
           "tell": [
             "蒸汽、排队，还有个拿着汤勺的人——同时也是闸口。",
-            "{name} 门口一张塑料凳。坐着的 auntie 纹丝不动。",
+            "{name} 门口一张塑料凳。坐着的阿姨纹丝不动。",
             "他们在湿巴刹入口拉了根绳子。人们照样等着。"
           ],
           "text": [

@@ -22,6 +22,7 @@ cutaways, tunnel runs, extraction, and an in-game guide are all implemented end 
 | **README.md** (you are here) | What the game is, how to run it, where everything lives |
 | **[GAME_DESIGN.md](GAME_DESIGN.md)** | Design source of truth — vision, loop, every system rule, UI, roadmap |
 | **[TECH_STACK.md](TECH_STACK.md)** | Architecture, DEV tooling, run/deploy detail, testing & CI, known debt |
+| **[docs/i18n-zh-hans.md](docs/i18n-zh-hans.md)** | zh-Hans glossary + voice rules |
 | **[AGENTS.md](AGENTS.md)** | Working agreements and guardrails for agents and contributors |
 
 ---
