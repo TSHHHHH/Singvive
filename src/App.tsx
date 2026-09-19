@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect } from 'react';
 import { useGame } from './game/store';
 import { FONT_SIZE_PX, useSetting } from './game/settings';
-import { isLocaleId, DEFAULT_LOCALE } from './i18n';
+import { isLocaleId, DEFAULT_LOCALE, ensureLocale } from './i18n';
 import { useReducedMotion } from './hooks/useReducedMotion';
 import { Menu } from './screens/Menu';
 import { TipLayer } from './components/tips';
@@ -54,6 +54,9 @@ function LocaleSync() {
   useEffect(() => {
     const locale = isLocaleId(language) ? language : DEFAULT_LOCALE;
     document.documentElement.lang = locale === 'zh-Hans' ? 'zh-Hans' : 'en';
+    // Doorway events bake copy at roll time — preload the catalog so the first
+    // event after a language switch is not stuck on English fallback.
+    void ensureLocale(locale);
   }, [language]);
   return null;
 }

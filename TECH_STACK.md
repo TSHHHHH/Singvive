@@ -18,7 +18,7 @@
 | HDB viewport | `react-zoom-pan-pinch` |
 | Determinism | `seedrandom`, wrapped in a forkable `Rng` (cosmetic flavour text may use `Math.random`) |
 | Styling | Tailwind CSS 3 |
-| Lint | oxlint + type-scale guard (`scripts/check-type-scale.mjs`) |
+| Lint | oxlint + type-scale + zh-Hans glossary guards |
 | Backend | Cloudflare Worker + D1 honor board (`/api/scores`); run state is localStorage |
 | Node | pinned by `.nvmrc` (22) |
 
@@ -32,7 +32,8 @@ src/
                (+ data/ JSON catalogs: items, lootTables, recipes, enemies, itemTileColors)
   api/         same-origin worldwide score client (no fetch under game/)
   i18n/        locale catalogs (`messages/en.json` source of truth, `zh-Hans.json` overlay)
-               and `t` / `useT`; player primer is `guide.*` keys
+               and `t` / `useT`; player primer is `guide.*` keys; zh voice/glossary in
+               docs/i18n-zh-hans.md
   content/     guide topic routing (`guideContent.ts`) — copy lives in i18n
   hooks/       shared React hooks (e.g. useAnimatedNumber)
   icons/       icon registry + keys (emoji fallbacks → drop-in PNGs)
@@ -208,7 +209,7 @@ npm install
 # copy .env.example → .env.local and set VITE_CARTO_API_KEY (CARTO raster watermark otherwise)
 npm run dev       # http://localhost:5190  (PORT env overrides; see vite.config.ts)
 npm run build     # typecheck (tsc -b) + production build
-npm run lint      # oxlint (--max-warnings=27) + scripts/check-type-scale.mjs
+npm run lint      # oxlint (--max-warnings=27) + type-scale + zh-Hans glossary guards
 npm run preview   # serve the production build locally (Worker + assets)
 npm run db:migrate:local  # apply D1 migrations to the local honor board (first time)
 ```
@@ -370,7 +371,7 @@ rate-limits by IP. Personal top-10 stays in `localStorage` and is not bulk-uploa
 | Gate | Command | What it covers |
 |---|---|---|
 | Types | `npm run build` (`tsc -b` runs first) | All four TS projects. **`strict` is on everywhere** — app, node, vitest, worker. |
-| Lint | `npm run lint` | oxlint with `--max-warnings=27`, then `scripts/check-type-scale.mjs` |
+| Lint | `npm run lint` | oxlint (`--max-warnings=27`), `scripts/check-type-scale.mjs`, `scripts/check-zh-hans-glossary.mjs` |
 | Tests | `npm run test` | Vitest, `environment: 'node'` |
 
 GitHub CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs `lint` → `test` → `build` on
