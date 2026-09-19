@@ -87,6 +87,24 @@ function Field({
 const inputClass =
   'rounded border border-white/10 bg-black/40 px-2 py-1.5 text-read text-white outline-none focus:border-signal/50';
 
+const ITEMS_ADVANCED_KEY = 'singvive.dev.items.advanced';
+
+function readAdvancedOpen(): boolean {
+  try {
+    return sessionStorage.getItem(ITEMS_ADVANCED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function writeAdvancedOpen(open: boolean): void {
+  try {
+    sessionStorage.setItem(ITEMS_ADVANCED_KEY, open ? '1' : '0');
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
+
 type Props = {
   item: ItemDef;
   /** When true, id field is locked (existing items). */
@@ -118,6 +136,7 @@ export function LootItemForm({
   const [uploading, setUploading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [assetKeys, setAssetKeys] = useState<string[]>([]);
+  const [advancedOpen, setAdvancedOpen] = useState(readAdvancedOpen);
   const [dragOver, setDragOver] = useState(false);
   const [revealCondition, setRevealCondition] = useState(100);
   const [revealPlayKey, setRevealPlayKey] = useState(0);
@@ -472,6 +491,22 @@ export function LootItemForm({
             />
             twoHanded
           </label>
+          <label
+            className="flex items-center gap-2 text-read"
+            {...tip('Counts as a bed when carried or stashed on-site')}
+          >
+            <input
+              type="checkbox"
+              checked={!!item.sleepGear}
+              onChange={(e) => {
+                const next = { ...item };
+                if (e.target.checked) next.sleepGear = true;
+                else delete next.sleepGear;
+                onChange(next);
+              }}
+            />
+            sleepGear
+          </label>
           <label className="flex items-center gap-2 text-read" {...tip('Granted when a new run starts')}>
             <input
               type="checkbox"
@@ -506,6 +541,20 @@ export function LootItemForm({
               />
             </label>
           )}
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Field label="scarcity (0–1]">
+            <input
+              type="number"
+              step="0.05"
+              min={0.01}
+              max={1}
+              className={inputClass}
+              value={item.scarcity ?? ''}
+              placeholder="—"
+              onChange={(e) => setOptionalNumber('scarcity', e.target.value)}
+            />
+          </Field>
         </div>
       </section>
 
@@ -907,7 +956,7 @@ export function LootItemForm({
 
       <section>
         <h4 className="mb-2 text-label uppercase text-white/30">Equip / wear</h4>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           <Field label="slot">
             <select
               className={inputClass}
@@ -955,18 +1004,6 @@ export function LootItemForm({
               onChange={(e) => setOptionalNumber('wearRate', e.target.value)}
             />
           </Field>
-          <Field label="scarcity (0–1]">
-            <input
-              type="number"
-              step="0.05"
-              min={0.01}
-              max={1}
-              className={inputClass}
-              value={item.scarcity ?? ''}
-              placeholder="—"
-              onChange={(e) => setOptionalNumber('scarcity', e.target.value)}
-            />
-          </Field>
         </div>
 
         {item.slot === 'bag' && (
@@ -980,108 +1017,130 @@ export function LootItemForm({
             />
           </div>
         )}
-
-        <div className="mt-4 rounded border border-white/10 bg-black/25 p-3">
-          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <h5 className="text-label uppercase text-white/30">Search reveal</h5>
-            <button
-              type="button"
-              disabled={!revealHighlight}
-              {...tip(
-                revealHighlight
-                  ? 'Replay reveal animation'
-                  : 'Ordinary find — nothing to replay',
-              )}
-              className="rounded border border-white/15 px-2 py-0.5 text-micro text-white/70 transition hover:border-signal/40 hover:text-signal disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-white/15 disabled:hover:text-white/70"
-              onClick={() => setRevealPlayKey((k) => k + 1)}
-            >
-              Replay
-            </button>
-          </div>
-          <div className="flex flex-wrap items-start gap-3">
-            <div
-              className="relative shrink-0 overflow-visible rounded border border-white/10 bg-black/40"
-              style={{
-                width: Math.max(revealFoot.w * REVEAL_CELL + 48, 96),
-                height: Math.max(revealFoot.h * REVEAL_CELL + 48, 96),
-                backgroundImage:
-                  'linear-gradient(#ffffff10 1px, transparent 1px), linear-gradient(90deg, #ffffff10 1px, transparent 1px)',
-                backgroundSize: `${REVEAL_CELL}px ${REVEAL_CELL}px`,
-                backgroundPosition: '24px 24px',
-              }}
-            >
-              <SearchFindRevealCell
-                def={item}
-                count={1}
-                condition={revealCondition}
-                highlight={revealHighlight}
-                playKey={revealPlayKey}
-                animate={!!revealHighlight}
-                forceMotion
-                iconSize={gridItemIconSize(revealFoot.w, revealFoot.h, REVEAL_CELL)}
-                as="div"
-                className="absolute"
-                style={{
-                  left: 24,
-                  top: 24,
-                  width: Math.max(revealFoot.w, 1) * REVEAL_CELL,
-                  height: Math.max(revealFoot.h, 1) * REVEAL_CELL,
-                }}
-              />
-            </div>
-            <div className="min-w-0 flex-1 space-y-2">
-              <p className="text-body text-white/55">
-                {revealHighlight ? (
-                  <>
-                    <span className="font-semibold uppercase tracking-wide text-concrete-50">
-                      {revealHighlight}
-                    </span>
-                    {revealWhisper ? ` — ${revealWhisper}` : null}
-                  </>
-                ) : (
-                  'Ordinary find — no burst'
-                )}
-              </p>
-              <label className="flex flex-col gap-1 text-body">
-                <span className="uppercase tracking-wider text-white/35">
-                  preview condition {revealCondition}%
-                </span>
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  value={revealCondition}
-                  onChange={(e) => {
-                    setRevealCondition(Number(e.target.value));
-                    setRevealPlayKey((k) => k + 1);
-                  }}
-                  className="w-full accent-[rgb(143,191,75)]"
-                />
-              </label>
-              <p className="text-micro text-white/30">
-                Highlight priority: exotic → pristine (cond ≥ 75) → scarce (scarcity ≤ 0.45).
-              </p>
-            </div>
-          </div>
-        </div>
       </section>
 
       <section>
-        <h4 className="mb-2 text-label uppercase text-white/30">Modifiers</h4>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {MODIFIER_KEYS.map((key) => (
-            <Field key={key} label={key}>
-              <input
-                type="number"
-                step="any"
-                className={inputClass}
-                value={item.modifiers?.[key] ?? ''}
-                placeholder="—"
-                onChange={(e) => setModifier(key, e.target.value)}
-              />
-            </Field>
-          ))}
-        </div>
+        <button
+          type="button"
+          onClick={() => {
+            setAdvancedOpen((v) => {
+              const next = !v;
+              writeAdvancedOpen(next);
+              return next;
+            });
+          }}
+          className="mb-2 flex w-full items-center justify-between rounded border border-white/10 bg-black/20 px-3 py-2 text-left"
+        >
+          <span className="text-label uppercase text-white/40">Advanced</span>
+          <span className="text-micro text-white/35">
+            {advancedOpen ? 'Hide' : 'Modifiers · search reveal'}
+          </span>
+        </button>
+        {advancedOpen && (
+          <div className="space-y-5 rounded-lg border border-white/10 bg-black/15 p-3">
+            <div className="rounded border border-white/10 bg-black/25 p-3">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <h5 className="text-label uppercase text-white/30">Search reveal</h5>
+                <button
+                  type="button"
+                  disabled={!revealHighlight}
+                  {...tip(
+                    revealHighlight
+                      ? 'Replay reveal animation'
+                      : 'Ordinary find — nothing to replay',
+                  )}
+                  className="rounded border border-white/15 px-2 py-0.5 text-micro text-white/70 transition hover:border-signal/40 hover:text-signal disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-white/15 disabled:hover:text-white/70"
+                  onClick={() => setRevealPlayKey((k) => k + 1)}
+                >
+                  Replay
+                </button>
+              </div>
+              <div className="flex flex-wrap items-start gap-3">
+                <div
+                  className="relative shrink-0 overflow-visible rounded border border-white/10 bg-black/40"
+                  style={{
+                    width: Math.max(revealFoot.w * REVEAL_CELL + 48, 96),
+                    height: Math.max(revealFoot.h * REVEAL_CELL + 48, 96),
+                    backgroundImage:
+                      'linear-gradient(#ffffff10 1px, transparent 1px), linear-gradient(90deg, #ffffff10 1px, transparent 1px)',
+                    backgroundSize: `${REVEAL_CELL}px ${REVEAL_CELL}px`,
+                    backgroundPosition: '24px 24px',
+                  }}
+                >
+                  <SearchFindRevealCell
+                    def={item}
+                    count={1}
+                    condition={revealCondition}
+                    highlight={revealHighlight}
+                    playKey={revealPlayKey}
+                    animate={!!revealHighlight}
+                    forceMotion
+                    iconSize={gridItemIconSize(revealFoot.w, revealFoot.h, REVEAL_CELL)}
+                    as="div"
+                    className="absolute"
+                    style={{
+                      left: 24,
+                      top: 24,
+                      width: Math.max(revealFoot.w, 1) * REVEAL_CELL,
+                      height: Math.max(revealFoot.h, 1) * REVEAL_CELL,
+                    }}
+                  />
+                </div>
+                <div className="min-w-0 flex-1 space-y-2">
+                  <p className="text-body text-white/55">
+                    {revealHighlight ? (
+                      <>
+                        <span className="font-semibold uppercase tracking-wide text-concrete-50">
+                          {revealHighlight}
+                        </span>
+                        {revealWhisper ? ` — ${revealWhisper}` : null}
+                      </>
+                    ) : (
+                      'Ordinary find — no burst'
+                    )}
+                  </p>
+                  <label className="flex flex-col gap-1 text-body">
+                    <span className="uppercase tracking-wider text-white/35">
+                      preview condition {revealCondition}%
+                    </span>
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      value={revealCondition}
+                      onChange={(e) => {
+                        setRevealCondition(Number(e.target.value));
+                        setRevealPlayKey((k) => k + 1);
+                      }}
+                      className="w-full accent-[rgb(143,191,75)]"
+                    />
+                  </label>
+                  <p className="text-micro text-white/30">
+                    Highlight priority: exotic → pristine (cond ≥ 75) → scarce (scarcity ≤ 0.45).
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h4 className="mb-2 text-label uppercase text-white/30">Modifiers</h4>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {MODIFIER_KEYS.map((key) => (
+                  <Field key={key} label={key}>
+                    <input
+                      type="number"
+                      step="any"
+                      className={inputClass}
+                      value={item.modifiers?.[key] ?? ''}
+                      placeholder="—"
+                      onChange={(e) => setModifier(key, e.target.value)}
+                    />
+                  </Field>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
       </section>
 
       <section>
