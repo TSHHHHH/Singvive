@@ -1189,6 +1189,24 @@
       "tooClose": "Too close to bother",
       "tooFar": "Too far to reach",
       "crossCta": "Cross on foot · {dur}"
+    },
+    "faction": {
+      "muster": {
+        "name": "The Muster",
+        "shortName": "Muster"
+      },
+      "gotong": {
+        "name": "Gotong Royong",
+        "shortName": "Gotong"
+      },
+      "syndicate_88": {
+        "name": "The 88 Syndicate (双八会)",
+        "shortName": "88 Syndicate"
+      },
+      "sta": {
+        "name": "Subterranean Transit Authority (STA)",
+        "shortName": "STA"
+      }
     }
   },
   "settings": {
@@ -2267,6 +2285,621 @@
         "−10% travel speed",
         "−1 awareness"
       ]
+    }
+  },
+  "event": {
+    "priceList": {
+      "one": "1× {name}",
+      "or": "1× {list} or {last}"
+    },
+    "faction_checkpoint": {
+      "title": "{short} Gate",
+      "choices": {
+        "pay": "Pay entrance — {price}",
+        "leave": "Back off"
+      },
+      "lines": {
+        "payEmpty": "Empty hands. They shrug, not unkindly, and point you back the way you came.",
+        "leave": "You step back from the table. They don't follow."
+      },
+      "tell": [
+        "There's a table across the entrance, and someone sitting at it.",
+        "Someone raises a hand as you approach — not a weapon. A hand.",
+        "A ledger sits open on a crate by the door of {name}.",
+        "They've put a stool in the doorway. That's the whole gate."
+      ],
+      "text": [
+        "{faction} keeps a book at {name}. \"{tribute} gets you on the grounds — and your name in the right column.\"",
+        "The one on the gate at {name} taps the open page. \"Entrance fee. One {tribute}. Then we know you.\"",
+        "A {short} volunteer looks you over from behind a folding table. \"Don't know your face. One {tribute} for the register and you can go in.\"",
+        "\"Sign in,\" says the gate. \"One {tribute}. Or turn around.\""
+      ],
+      "night": [
+        "A lamp over the ledger at {name}. \"{short}. One {tribute} and you're on the list.\""
+      ],
+      "wet": [
+        "They've pulled the table under the awning. \"{tribute} and you can come in out of this.\""
+      ]
+    },
+    "faction_shakedown": {
+      "title": "{short} Tribute",
+      "titleTerrible": "{short} Demands Tribute",
+      "choices": {
+        "pay": "Give tribute — {price}",
+        "refuse": "Refuse — draw down",
+        "leave": "Back off"
+      },
+      "lines": {
+        "payEmpty": "Empty hands buy nothing. They turn you around.",
+        "leave": "You leave before tribute becomes blood."
+      },
+      "tell": [
+        "Voices inside — not the dead. The dead don't chat.",
+        "Someone whistles once as you reach the entrance. A signal.",
+        "There's a mark sprayed by the door, still tacky.",
+        "A shape peels off the wall ahead of you."
+      ],
+      "text": [
+        "{faction} blockers fill the doorway of {name}. \"Tribute. One {tribute}. Then maybe we talk.\"",
+        "Two of {faction}'s people are already inside {name}, and they saw you first. \"One {tribute} — for the damage.\"",
+        "One of {faction}'s lookouts drops down off the ledge, hand out. \"You owe us. One {tribute}.\"",
+        "{faction} has {name} sewn up. The one doing the talking taps a crowbar against her boot. \"{tribute}. Repair what you broke.\"",
+        "Someone in {short} colours blocks the entrance without hurrying about it. \"Nothing personal. One {tribute}.\""
+      ],
+      "night": [
+        "A torch beam pins you in the doorway of {name}. \"{short}. One {tribute}, and lower your hands.\"",
+        "They let you get all the way to the entrance before the lights come on. \"One {tribute}, and we forget you came at night.\""
+      ],
+      "wet": [
+        "{faction} has the entrance to {name} tarped over and manned. \"Dry inside. One {tribute}.\""
+      ]
+    },
+    "locked_door": {
+      "title": "Locked Security Door",
+      "choices": {
+        "pry": "Pry it open",
+        "pick": "Pick the lock",
+        "find": "Find a side way",
+        "leave": "Leave it be"
+      },
+      "lines": {
+        "pryFailZombies": "The racket draws something out.",
+        "pickFailTime": "You work the lock until your hands cramp. It doesn't give.",
+        "pickFailDeny": "The door wins.",
+        "findOk": "You circle the building and find a service door nobody thought about.",
+        "findFailTime": "You circle the whole building for nothing.",
+        "findFailEnergy": "The circuit costs you. Legs heavy, nothing gained.",
+        "findFailDeny": "No way in but the hard way, and not today.",
+        "leave": "You leave it be."
+      },
+      "tell": [
+        "The main way in is shut, and shut properly.",
+        "Someone secured this place before they left.",
+        "The doors have been chained from the inside."
+      ],
+      "text": [
+        "A steel security door bars the way into {name}. It can be forced — loudly.",
+        "The roller shutter on {name} is down and padlocked. Whoever locked it didn't come back out.",
+        "Fire door, magnetic lock, dead building. {name} is sealed and it doesn't care how badly you need it.",
+        "Someone welded a bar across the entrance to {name}. Thorough. Inconvenient.",
+        "The doors to {name} are chained. Through the gap you can see shelves — and they look untouched."
+      ],
+      "night": [
+        "In the dark you can barely find the seam of the security door at {name}, let alone the lock."
+      ],
+      "wet": [
+        "The shutter on {name} is streaked with rain and locked fast. Every sound you make here will carry."
+      ]
+    },
+    "desperate_survivor": {
+      "title": "The Desperate Survivor",
+      "choices": {
+        "give": "Give 1× Bottled Water, Isotonic Drink or Canned Food",
+        "reason": "Reason with them",
+        "scare": "Scare them off",
+        "refuse": "Refuse them"
+      },
+      "tell": [
+        "Someone is sheltering just inside the entrance.",
+        "You're not the first one to want in here today.",
+        "A cough, close by. Human."
+      ],
+      "text": [
+        "A gaunt figure is huddled inside the doorway of {name}. \"Please… you got water?\"",
+        "Someone has made a nest of cardboard just inside {name}. She doesn't get up. \"Just a bottle, boss. Anything.\"",
+        "A man steps out of the stairwell with both hands showing, eyeing your pack. \"Two days no drink already.\"",
+        "There's a kid's school bag by the entrance to {name}, and the man wearing it hasn't eaten in a while. \"Spare something?\"",
+        "Someone blocks your way into {name} — not with a weapon, just with need. \"You look like you're doing okay, ah.\""
+      ],
+      "night": [
+        "A voice out of the dark inside {name}, cracked and dry. \"Don't shine that at me. Please. You got water?\""
+      ],
+      "wet": [
+        "Someone is pressed into the doorway of {name} out of the rain, soaked through anyway. \"Water? Clean water, I mean.\""
+      ]
+    },
+    "rival_scavenger": {
+      "title": "Someone Got Here First",
+      "choices": {
+        "race": "Race them for the back rooms",
+        "split": "Call out — split the place",
+        "watch": "Hang back and read the place",
+        "confront": "Run them off"
+      },
+      "lines": {
+        "raceWin": "You get there first, and you're winded for it.",
+        "raceLose": "They know the floor better than you do. By the time you reach the back, it's bare.",
+        "split": "You each take a half and work it in silence. It's almost companionable.",
+        "watchWin": "You wait them out from the stairwell and learn the building for free.",
+        "watchLose": "You wait them out and learn nothing except that your legs hurt."
+      },
+      "tell": [
+        "Fresh boot prints in the dust, going in. None coming out.",
+        "Something falls over inside, and someone swears.",
+        "A trolley is wedged in the doorway to hold it open."
+      ],
+      "text": [
+        "Someone else is already working {name} — you can hear them stripping a shelf. They haven't seen you yet.",
+        "A scavenger in a motorcycle helmet is halfway through {name}, bags at her feet. She looks up. Neither of you moves.",
+        "There's another survivor inside {name}, filling a duffel fast. Whoever commits first gets the back rooms.",
+        "You aren't the only one who thought of {name} today. He raises a hand — not a weapon, just a hand."
+      ],
+      "night": [
+        "A torch is sweeping the aisles of {name}, and it isn't yours. Whoever holds it is working fast."
+      ]
+    },
+    "armed_raider": {
+      "title": "Armed Claim",
+      "choices": {
+        "sneak": "Slip past while they're busy",
+        "bluff": "Talk like you belong here",
+        "pay": "Buy passage with supplies",
+        "fight": "Take the doorway",
+        "leave": "Back off"
+      },
+      "lines": {
+        "bluffOk": "You sell a story about a bigger crew coming. They clear a lane.",
+        "leave": "You leave them the claim."
+      },
+      "tell": [
+        "Someone is posted at the entrance like they own it.",
+        "A rifle sling creaks. Whoever's inside is not scavenging quietly.",
+        "Fresh brass on the step. Recent work."
+      ],
+      "text": [
+        "A raider has claimed the doorway of {name}, kit stacked behind him. \"Walk away, or pay in blood.\"",
+        "Someone with a parang and a stolen vest is screening {name}. He's already decided you're competition.",
+        "An armed crew of one is stripping {name} methodically. He looks up mid-cut and doesn't bother with a greeting.",
+        "The entrance to {name} is blocked by someone who treats looting like a job with overtime."
+      ],
+      "night": [
+        "A red laser dots the frame of {name} for half a second, then vanishes. Someone is hunting this block."
+      ]
+    },
+    "block_tout": {
+      "title": "Doorway Tax",
+      "choices": {
+        "pay": "Pay the nonsense fee",
+        "stare": "Stare them down",
+        "fight": "Make it a problem",
+        "leave": "Find another door"
+      },
+      "lines": {
+        "leave": "You leave him his cardboard throne."
+      },
+      "tell": [
+        "Someone is hanging around the entrance like it's theirs to tax.",
+        "A voice calls out before you reach the door — friendly, too friendly.",
+        "There's a folding stool by the doorway. Occupied."
+      ],
+      "text": [
+        "A tout at {name} opens with a smile and a price. \"Entry fee, ah. Small one. Or we have a problem.\"",
+        "Someone has set up shop in the doorway of {name} — no badge, just nerve. \"You want in, you talk to me.\"",
+        "A block tout blocks {name} with nothing but attitude and a scrap of cardboard that says ENTRY. He means it.",
+        "He's not a guard and not a scavenger — just a man charging for the privilege of walking into {name}."
+      ],
+      "night": [
+        "A cigarette tip glows in the doorway of {name}. \"Night rate,\" someone says. \"Still cheap.\""
+      ]
+    },
+    "rigged_door": {
+      "title": "The Door Is Rigged",
+      "choices": {
+        "disarm": "Trace the wire and disarm it",
+        "power": "Work out what it's tied to",
+        "around": "Go the long way round (slow, safe)",
+        "leave": "Not worth it"
+      },
+      "lines": {
+        "disarmFailWound": "The frame comes apart with a bang and takes a piece of you with it.",
+        "disarmFailZombies": "Every dead thing on the block heard that.",
+        "powerOk": "You follow the line back, find the anchor, and pull it slack.",
+        "powerFailTime": "You lose half an hour to a puzzle you can't solve.",
+        "powerFailDeny": "Not worth losing a hand over.",
+        "aroundTime": "You give the door a wide berth and let yourself in through a window on the far side.",
+        "aroundEnergy": "The long way round leaves you winded — but in.",
+        "leave": "You back out the way you came."
+      },
+      "tell": [
+        "There's something wrong with how this door sits.",
+        "A thin line of fishing wire catches the light.",
+        "Someone left this place ready for visitors."
+      ],
+      "text": [
+        "The entrance to {name} has been rigged — wire at ankle height, and a bundle of something taped behind the frame.",
+        "Whoever held {name} last booby-trapped the way in and never came back to disarm it.",
+        "A tripwire runs across the doorway of {name}, strung to a cluster of tins. Not lethal. Very loud.",
+        "{name} has been made unfriendly on purpose: broken glass set in the frame, and a line running somewhere you can't see."
+      ],
+      "wet": [
+        "Rain has soaked the rigging on the door of {name}, but the wire is still taut."
+      ]
+    },
+    "quiet_tap": {
+      "title": "The Tap Still Runs",
+      "choices": {
+        "queue": "Take your place in the queue",
+        "trade": "Trade food for a fill",
+        "push": "Push to the front",
+        "leave": "Leave them to it"
+      },
+      "lines": {
+        "queue": "You wait your turn like everyone else. It takes an hour and nobody thanks you for it.",
+        "tradeEmpty": "You've nothing to trade, and they've nothing spare for you.",
+        "leave": "You leave the queue to its water and move on."
+      },
+      "tell": [
+        "You can hear running water. Actual running water.",
+        "There's a queue. An orderly one.",
+        "People are here, and none of them are panicking."
+      ],
+      "text": [
+        "A standpipe behind {name} is still pressurised, and eleven people are queuing at it in the shade. Nobody is pushing.",
+        "Someone has rigged a working tap at {name} and made a system of it — a queue, a tally, a woman with a clipboard.",
+        "There's clean water at {name}, and a line of survivors waiting their turn for it. They watch you decide what kind of person you are."
+      ],
+      "night": [
+        "A single lamp over a working tap at {name}, and a short, patient queue beneath it."
+      ]
+    },
+    "body_in_the_doorway": {
+      "title": "Body in the Doorway",
+      "choices": {
+        "strip": "Go through their pack",
+        "read": "Work out what killed them",
+        "step": "Step over and get on with it"
+      },
+      "lines": {
+        "stripFailZombies": "The body comes free all at once, and the clatter carries.",
+        "readOk": "Bite on the forearm, defensive. Whatever did it went back inside.",
+        "readFail": "You learn nothing except that you didn't want to look that closely."
+      },
+      "tell": [
+        "Something is lying across the threshold.",
+        "The smell reaches you before the doorway does.",
+        "Flies. A lot of them, and all in one place."
+      ],
+      "text": [
+        "A body is slumped in the entrance to {name}, pack still on. It has been there a while, and it is wedged.",
+        "Someone died in the doorway of {name} with their kit on. Moving them means touching them.",
+        "There's a corpse across the way into {name} — recent enough to still be carrying, old enough to be part of the floor."
+      ],
+      "wet": [
+        "A body lies in the flooded entrance to {name}, pack half-submerged. The water has not been kind."
+      ]
+    },
+    "looters_fleeing": {
+      "title": "Wrong-Way Traffic",
+      "choices": {
+        "chase": "Chase them — grab what they dropped",
+        "read": "Watch where they came from",
+        "let": "Let them go — get inside"
+      },
+      "lines": {
+        "chaseLose": "They know the floor better. You arrive winded and empty-handed.",
+        "readOk": "You clock the route they took and what they skipped.",
+        "readFail": "They're gone before you learn anything useful."
+      },
+      "tell": [
+        "Someone bursts out of the entrance — wrong way, wrong speed.",
+        "A crash inside, then footsteps coming at you.",
+        "The door swings open and someone nearly runs you down.",
+        "You hear a bag hit the floor, then someone cursing their way out."
+      ],
+      "text": [
+        "A scavenger bolts out of {name} with both arms full and nearly bowls you over. Whatever they grabbed is still in the building.",
+        "Someone tears past you out of {name}, kit bouncing. The back rooms might still have something.",
+        "A figure stumbles out of {name} clutching a duffel — they saw you too late to stop.",
+        "Wrong-way traffic at {name}: someone exits at a sprint, leaving the place open behind them."
+      ],
+      "night": [
+        "A torch beam swings out of {name} and someone runs without looking. The door stays open."
+      ]
+    },
+    "smoke_block": {
+      "title": "Smoke Under the Door",
+      "choices": {
+        "side": "Find a side entry out of the smoke",
+        "push": "Push through the smoke",
+        "wait": "Wait for it to clear",
+        "leave": "Not today"
+      },
+      "lines": {
+        "sideOk": "You circle to a service door where the air is clear enough.",
+        "sideFailTime": "Every way in is the same haze.",
+        "sideFailDeny": "Not worth coughing your lungs out today.",
+        "pushFailWound": "You stumble in the haze and catch something sharp on the way down.",
+        "pushFailDeny": "You back out coughing blood and ash.",
+        "wait": "You wait downwind until the smoke thins enough to breathe.",
+        "leave": "You leave the smoke to its work."
+      },
+      "tell": [
+        "Smoke curls out from under the door.",
+        "The air at the entrance tastes of burnt plastic.",
+        "Something inside is still smouldering.",
+        "You cough before you reach the handle."
+      ],
+      "text": [
+        "Smoke pours from the entrance to {name}. Something burned in there and never quite stopped.",
+        "The doorway of {name} is hazy with smoke — not a bonfire, a kitchen or a stall gone wrong.",
+        "You can barely see the frame of {name} through the smoke. It might clear. It might not.",
+        "Burnt oil and charred plastic hang in the air at {name}. Going in blind is a bad idea."
+      ],
+      "night": [
+        "An orange glow flickers behind the smoke at {name}. Still hot in there."
+      ],
+      "wet": [
+        "Rain damps the smoke at {name} but the air inside is still wrong."
+      ]
+    },
+    "distress_beacon": {
+      "title": "Still Broadcasting",
+      "choices": {
+        "trace": "Trace the signal — read the place",
+        "rush": "Follow the voice inside",
+        "ignore": "Ignore it and go in quiet"
+      },
+      "lines": {
+        "traceOk": "The message tells you more about the building than the broadcaster meant.",
+        "traceFail": "Static and repetition. You learn nothing but the clock.",
+        "rushZombies": "The beacon was bait — or the dead answered it first."
+      },
+      "tell": [
+        "A radio crackles somewhere inside — on a loop.",
+        "You hear a recorded message, tinny and repeating.",
+        "Someone left a beacon running. It hasn't been switched off.",
+        "A siren wails once, then a voice on a speaker."
+      ],
+      "text": [
+        "A distress beacon is still broadcasting from inside {name}. \"…anyone receiving… coordinates…\"",
+        "A PA system at {name} loops a pre-recorded SOS. Someone wanted to be found.",
+        "The radio desk at {name} is still transmitting. Static, then a voice, then static again.",
+        "An emergency beacon at {name} hasn't given up yet. The message repeats every thirty seconds."
+      ],
+      "night": [
+        "In the dark the beacon at {name} is the only thing still working."
+      ],
+      "wet": [
+        "Rain drums the roof while the beacon at {name} keeps calling."
+      ]
+    },
+    "nomad_trader": {
+      "title": "Travelling Merchant",
+      "choices": {
+        "trade": "Trade food for supplies",
+        "leave": "No deal — move on"
+      },
+      "lines": {
+        "tradeEmpty": "No food, no trade. They fold the mat and let you pass anyway.",
+        "leave": "You leave the trader to their stock."
+      },
+      "tell": [
+        "Someone has set up a mat by the entrance — not scavenging, trading.",
+        "A pack is open on the step. Someone is counting stock.",
+        "There's a handwritten price list taped to the doorframe.",
+        "You smell cooking oil and hear someone haggling with nobody."
+      ],
+      "text": [
+        "A travelling merchant has camped the entrance to {name}. \"Trade only. I don't bite unless you do.\"",
+        "Someone has turned the doorway of {name} into a stall — small stock, fair prices, no questions.",
+        "A nomad trader spreads goods on a tarp at {name}. \"Food for medicine. Batteries for tins. You pick.\"",
+        "The entrance to {name} smells of someone else's cooking. They've got a mat, a scale, and a smile that doesn't reach their eyes."
+      ],
+      "night": [
+        "A lamp over a travelling trader at {name}. \"Night rate's the same. Food talks.\""
+      ]
+    },
+    "car_blockade": {
+      "title": "Abandoned Barricade",
+      "choices": {
+        "shift": "Shift a car enough to squeeze through",
+        "gap": "Find a gap between the wrecks",
+        "long": "Go the long way round",
+        "leave": "Not worth the trouble"
+      },
+      "lines": {
+        "shiftOk": "Metal groans and your shoulders pay for every inch.",
+        "shiftFailEnergy": "The car doesn't budge. Your arms do, and not in a good way.",
+        "shiftFailDeny": "The barricade wins.",
+        "gapFailTime": "You walk the whole barricade looking for a seam.",
+        "gapFailDeny": "No gap wide enough.",
+        "longTime": "You circle the block and come in through the loading bay.",
+        "longEnergy": "The long way round leaves you winded — but in.",
+        "leave": "You leave the barricade where it is."
+      },
+      "tell": [
+        "Abandoned cars choke the entrance.",
+        "Someone lined vehicles across the way in — bumper to bumper.",
+        "The driveway is a parking lot nobody can leave.",
+        "Tyres and metal block the only way in."
+      ],
+      "text": [
+        "Abandoned cars barricade the entrance to {name} — bumper to bumper, keys gone, doors locked.",
+        "Someone pushed three vehicles across the way into {name} and walked away.",
+        "The forecourt of {name} is a junk barrier of stalled cars. There might be a gap if you look.",
+        "A barricade of abandoned vehicles blocks {name}. Thorough. Not impassable."
+      ],
+      "night": [
+        "In the dark the car barricade at {name} is just shapes and metal."
+      ],
+      "wet": [
+        "Rain slicks the bonnets blocking {name}. Every surface is slippery."
+      ]
+    },
+    "flooded_entry": {
+      "title": "Knee-Deep at the Door",
+      "choices": {
+        "wade": "Wade in carefully",
+        "rush": "Plough through",
+        "back": "Back off"
+      },
+      "lines": {
+        "wadeOk": "You pick a line where the footing is still there under the water.",
+        "wadeFailTime": "The water hides a step and you go in hard.",
+        "wadeFailWound": "Something sharp under the water finds your leg.",
+        "rushEnergy": "Cold water to the knee and every step a fight.",
+        "rushWound": "You misstep on something that used to be a floor tile.",
+        "leave": "You leave the flood to settle."
+      },
+      "tell": [
+        "Water pours out when you push the door.",
+        "The entrance is ankle-deep and rising.",
+        "Someone's sandbags didn't hold.",
+        "You hear water moving inside before you see it."
+      ],
+      "text": [
+        "The entrance to {name} is knee-deep in floodwater — drain runoff, or something worse backed up inside.",
+        "Monsoon water has pooled at {name} and nobody drained it. The way in is a wade.",
+        "A blocked drain turned the doorway of {name} into a wading pool. The shelves might still be dry.",
+        "Floodwater fills the lobby of {name}. Whatever's worth taking is above the waterline — if you can reach it."
+      ],
+      "wet": [
+        "The rain hasn't stopped and neither has the water at {name}. It's worse than yesterday."
+      ]
+    },
+    "mrt_toll": {
+      "title": "STA Turnstile Toll",
+      "tell": "The turnstiles are manned.",
+      "text": "An STA marshal has the gate chained at waist height. \"Tunnel's not free. Cells, a torch, a tin — I'm not fussy. One of them and you're through.\"",
+      "choices": {
+        "pay": "Pay {price}",
+        "leave": "Take the surface instead"
+      },
+      "lines": {
+        "payEmpty": "No fare, no tunnel. You take the stairs back up.",
+        "leave": "You take the surface instead."
+      }
+    },
+    "field_doctor": {
+      "title": "Field Doctor",
+      "tell": "Someone is running a clinic out of a unit in {name}.",
+      "text": [
+        "A woman in a stained polo waves you onto a camp mat. \"I can clean and pack that. I don't take money — I take food. One tin, one meal, whatever you have.\"",
+        "The unit smells of iodine. \"Sit,\" says the man sorting gauze by the window. \"An hour of my time for something to eat. That's the whole price list.\"",
+        "Someone has taped a red cross to the gate of this unit. \"Food first,\" they say, without looking up. \"Then I'll look at you.\""
+      ],
+      "choices": {
+        "pay": "Get patched up — {price}, 1 hour",
+        "leave": "Leave it — keep the food"
+      },
+      "lines": {
+        "treatTime": "You lie still while they work.",
+        "treat": "The field doctor patches you up. Clean dressings, tight and even.",
+        "payEmpty": "The doctor wants payment in food. You have none to give.",
+        "leave": "You keep your food and your wounds. The gate closes behind you."
+      }
+    },
+    "faction": {
+      "muster": {
+        "faction_checkpoint": {
+          "tell": [
+            "A folding table, a ledger, and someone who still stands like they're on duty.",
+            "A clipboard comes up as you approach — not a rifle. A clipboard.",
+            "They've chalked a queue line on the ground in front of {name}."
+          ],
+          "text": [
+            "The Muster keeps a book at {name}. \"Name in the right column. One {tribute}. Then we know you.\"",
+            "An NSman in mixed kit looks you over. \"Managed order. One {tribute} for the register.\"",
+            "\"Have you served?\" The ledger is already open. \"One {tribute} either way.\""
+          ],
+          "night": [
+            "A lamp over the ledger at {name}. \"Muster. One {tribute} and you're on the list.\""
+          ],
+          "wet": [
+            "They've pulled the table under the school porch. \"{tribute} and you can come in out of this.\""
+          ]
+        }
+      },
+      "gotong": {
+        "faction_checkpoint": {
+          "tell": [
+            "Steam, a queue, and someone with a ladle who is also the gate.",
+            "A plastic stool in the doorway of {name}. The auntie on it is not moving.",
+            "They've strung a rope across the wet-market entrance. People are waiting anyway."
+          ],
+          "text": [
+            "Gotong Royong holds {name}. \"Eat first, then we talk. One {tribute} for the pot.\"",
+            "A stallholder wipes her hands. \"We pool what we have. One {tribute} and you can come in.\"",
+            "\"This is neighbours' food. One {tribute}. Don't bring trouble to the table.\""
+          ],
+          "night": [
+            "A pot still going at {name}. \"Gotong. One {tribute} and you're fed after.\""
+          ],
+          "wet": [
+            "They've pulled the queue under the tarpaulin. \"{tribute} and you can come in out of this.\""
+          ]
+        }
+      },
+      "sta": {
+        "faction_checkpoint": {
+          "tell": [
+            "A chain at waist height across the unpaid side of the gate.",
+            "Someone in a high-vis vest that used to mean something is sitting on the turnstile.",
+            "The barrier at {name} is down. A marshal is the only thing moving."
+          ],
+          "text": [
+            "STA has the gate at {name} chained. \"Tunnel's not free. One {tribute}.\"",
+            "A marshal taps the turnstile. \"Fare. One {tribute}. Then you can go down.\"",
+            "\"Platform's manned. One {tribute} and you're through.\""
+          ],
+          "night": [
+            "A torch beam off the tiles at {name}. \"STA. One {tribute} and you can go down.\""
+          ],
+          "wet": [
+            "Rain drums the concourse. \"{tribute} and you can come in out of this — the stairs stay dry.\""
+          ]
+        }
+      },
+      "syndicate_88": {
+        "faction_checkpoint": {
+          "tell": [
+            "The whistle is friendlier than last time. Still a whistle.",
+            "Someone at {name} nods you toward the stool."
+          ],
+          "text": [
+            "The 88 have a book of their own at {name}. \"You're on it. One {tribute} anyway.\"",
+            "A runner at the void deck of {name} holds out a palm. \"Known is not free. One {tribute}.\""
+          ]
+        },
+        "faction_shakedown": {
+          "tell": [
+            "A whistle from the void deck. Not a bird.",
+            "Someone peels off a pillar at {name}, unhurried.",
+            "There's a mark sprayed by the door, still tacky."
+          ],
+          "text": [
+            "88 blockers fill the doorway of {name}. \"Tribute. One {tribute}. Then maybe we talk.\"",
+            "Two of the Syndicate are already inside {name}. \"One {tribute} — for the damage.\"",
+            "A lookout drops down off the ledge, hand out. \"You owe the decks. One {tribute}.\""
+          ],
+          "night": [
+            "A torch beam pins you in the doorway of {name}. \"88. One {tribute}, and lower your hands.\""
+          ],
+          "wet": [
+            "They've tarped the entrance. \"Dry inside. One {tribute}.\""
+          ]
+        }
+      }
     }
   }
 }
