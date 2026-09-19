@@ -16,6 +16,10 @@ const RULES = [
   { re: /\bauntie\b/gi, msg: 'translate auntie → 阿姨' },
   { re: /门赢了/g, msg: 'calque — rewrite fail line (not sports personification)' },
   { re: /路障赢了/g, msg: 'calque — rewrite fail line (not sports personification)' },
+  { re: /底层空地/g, msg: 'use 组屋底层 (glossary)' },
+  { re: /底层公共空间/g, msg: 'use 组屋底层 (glossary)' },
+  { re: /召集队/g, msg: 'use 集合军 for Muster (glossary)' },
+  { re: /88\s*帮/g, msg: 'use 双八 / 双八会 (glossary)' },
 ];
 
 const hits = [];
