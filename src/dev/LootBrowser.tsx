@@ -81,7 +81,7 @@ function DialogShell({
         className="w-full max-w-md rounded-xl border border-white/10 bg-concrete-900 p-5 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <h4 className="mb-2 text-base font-bold text-signal">{title}</h4>
+        <h4 className="mb-2 text-title text-signal">{title}</h4>
         {children}
       </div>
     </div>
@@ -710,12 +710,12 @@ export function DevLootBrowser() {
   return (
     <div className="fixed inset-0 z-[2000] flex flex-col overflow-hidden bg-concrete-900">
       <header className="flex flex-wrap items-center gap-2 border-b border-white/10 px-4 py-3">
-        <h3 className="mr-auto text-lg font-bold text-signal">Loot</h3>
+        <h3 className="mr-auto text-title text-signal">Loot</h3>
         <div className="mr-2 flex rounded border border-white/10 p-0.5">
           <button
             type="button"
             onClick={() => setTab('items')}
-            className={`rounded px-2.5 py-1 text-xs ${
+            className={`rounded px-2.5 py-1 text-body ${
               tab === 'items' ? 'bg-signal/20 text-signal' : 'text-white/50 hover:text-white/70'
             }`}
           >
@@ -724,7 +724,7 @@ export function DevLootBrowser() {
           <button
             type="button"
             onClick={() => setTab('tables')}
-            className={`rounded px-2.5 py-1 text-xs ${
+            className={`rounded px-2.5 py-1 text-body ${
               tab === 'tables' ? 'bg-signal/20 text-signal' : 'text-white/50 hover:text-white/70'
             }`}
           >
@@ -736,7 +736,7 @@ export function DevLootBrowser() {
               setTab('recipes');
               setRecipeFocusId(null);
             }}
-            className={`rounded px-2.5 py-1 text-xs ${
+            className={`rounded px-2.5 py-1 text-body ${
               tab === 'recipes' ? 'bg-signal/20 text-signal' : 'text-white/50 hover:text-white/70'
             }`}
           >
@@ -745,7 +745,7 @@ export function DevLootBrowser() {
           <button
             type="button"
             onClick={() => setTab('tiles')}
-            className={`rounded px-2.5 py-1 text-xs ${
+            className={`rounded px-2.5 py-1 text-body ${
               tab === 'tiles' ? 'bg-signal/20 text-signal' : 'text-white/50 hover:text-white/70'
             }`}
           >
@@ -753,17 +753,17 @@ export function DevLootBrowser() {
           </button>
         </div>
         {tab === 'items' && catalogDirty && (
-          <span className="rounded bg-amber-500/20 px-2 py-0.5 text-2xs uppercase tracking-wider text-amber-300">
+          <span className="rounded bg-amber-500/20 px-2 py-0.5 text-label uppercase text-amber-300">
             unsaved
           </span>
         )}
         {tab === 'tiles' && tileColorsDirty && (
-          <span className="rounded bg-amber-500/20 px-2 py-0.5 text-2xs uppercase tracking-wider text-amber-300">
+          <span className="rounded bg-amber-500/20 px-2 py-0.5 text-label uppercase text-amber-300">
             unsaved
           </span>
         )}
         {tab === 'items' && selectedDirty && (
-          <span className="rounded bg-amber-500/10 px-2 py-0.5 text-2xs uppercase tracking-wider text-amber-200/80">
+          <span className="rounded bg-amber-500/10 px-2 py-0.5 text-label uppercase text-amber-200/80">
             item dirty
           </span>
         )}
@@ -777,7 +777,7 @@ export function DevLootBrowser() {
           type="button"
           disabled={busy || !catalogDirty || !valid}
           onClick={requestSave}
-          className="rounded border border-signal/40 px-2.5 py-1 text-xs text-signal disabled:opacity-40"
+          className="rounded border border-signal/40 px-2.5 py-1 text-body text-signal disabled:opacity-40"
           {...tip('Ctrl/Cmd+S')}
         >
           Save
@@ -786,14 +786,14 @@ export function DevLootBrowser() {
           type="button"
           disabled={busy || !catalogDirty}
           onClick={handleRevert}
-          className="rounded border border-white/15 px-2.5 py-1 text-xs text-white/70 disabled:opacity-40"
+          className="rounded border border-white/15 px-2.5 py-1 text-body text-white/70 disabled:opacity-40"
         >
           Revert
         </button>
         <button
           type="button"
           onClick={requestNew}
-          className="rounded border border-white/15 px-2.5 py-1 text-xs text-white/70"
+          className="rounded border border-white/15 px-2.5 py-1 text-body text-white/70"
         >
           New
         </button>
@@ -801,7 +801,7 @@ export function DevLootBrowser() {
           type="button"
           disabled={!selectedId}
           onClick={requestDuplicate}
-          className="rounded border border-white/15 px-2.5 py-1 text-xs text-white/70 disabled:opacity-40"
+          className="rounded border border-white/15 px-2.5 py-1 text-body text-white/70 disabled:opacity-40"
         >
           Duplicate
         </button>
@@ -809,14 +809,14 @@ export function DevLootBrowser() {
           type="button"
           disabled={!selectedId}
           onClick={handleDelete}
-          className="rounded border border-red-500/30 px-2.5 py-1 text-xs text-red-300 disabled:opacity-40"
+          className="rounded border border-red-500/30 px-2.5 py-1 text-body text-red-300 disabled:opacity-40"
         >
           Delete
         </button>
         <button
           type="button"
           onClick={toggleCompareMode}
-          className={`rounded border px-2.5 py-1 text-xs ${
+          className={`rounded border px-2.5 py-1 text-body ${
             itemsViewMode === 'compare'
               ? 'border-signal/50 bg-signal/15 text-signal'
               : 'border-white/15 text-white/70'
@@ -826,21 +826,21 @@ export function DevLootBrowser() {
           {itemsViewMode === 'compare' ? 'Edit item' : 'Compare'}
         </button>
         {itemsViewMode === 'compare' && compareIds.length > 0 && (
-          <span className="rounded bg-signal/10 px-2 py-0.5 text-2xs text-signal/90">
+          <span className="rounded bg-signal/10 px-2 py-0.5 text-micro text-signal/90">
             {compareIds.length} in compare
           </span>
         )}
         <button
           type="button"
           onClick={() => downloadCatalog(catalog)}
-          className="rounded border border-white/15 px-2.5 py-1 text-xs text-white/70"
+          className="rounded border border-white/15 px-2.5 py-1 text-body text-white/70"
         >
           Export
         </button>
         <button
           type="button"
           onClick={() => fileRef.current?.click()}
-          className="rounded border border-white/15 px-2.5 py-1 text-xs text-white/70"
+          className="rounded border border-white/15 px-2.5 py-1 text-body text-white/70"
         >
           Import
         </button>
@@ -863,7 +863,7 @@ export function DevLootBrowser() {
               type="button"
               disabled={busy || !tileColorsDirty || !tileColorsValid}
               onClick={() => void persistTileColors()}
-              className="rounded border border-signal/40 px-2.5 py-1 text-xs text-signal disabled:opacity-40"
+              className="rounded border border-signal/40 px-2.5 py-1 text-body text-signal disabled:opacity-40"
               {...tip('Ctrl/Cmd+S')}
             >
               Save
@@ -872,7 +872,7 @@ export function DevLootBrowser() {
               type="button"
               disabled={busy || !tileColorsDirty}
               onClick={handleRevertTileColors}
-              className="rounded border border-white/15 px-2.5 py-1 text-xs text-white/70 disabled:opacity-40"
+              className="rounded border border-white/15 px-2.5 py-1 text-body text-white/70 disabled:opacity-40"
             >
               Revert
             </button>
@@ -881,7 +881,7 @@ export function DevLootBrowser() {
         <button
           type="button"
           onClick={requestClose}
-          className="text-xs text-white/40 hover:text-white/70"
+          className="text-body text-white/40 hover:text-white/70"
           {...tip('Esc')}
         >
           ✕ close
@@ -890,7 +890,7 @@ export function DevLootBrowser() {
 
       {(status || error) && (
         <div
-          className={`border-b border-white/5 px-4 py-2 text-xs whitespace-pre-wrap ${
+          className={`border-b border-white/5 px-4 py-2 text-body whitespace-pre-wrap ${
             error ? 'bg-red-950/40 text-red-300' : 'text-white/45'
           }`}
         >
@@ -905,12 +905,12 @@ export function DevLootBrowser() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search id / name…"
-              className="rounded border border-white/10 bg-black/40 px-2 py-1.5 text-sm outline-none focus:border-signal/40"
+              className="rounded border border-white/10 bg-black/40 px-2 py-1.5 text-read outline-none focus:border-signal/40"
             />
             <select
               value={kindFilter}
               onChange={(e) => setKindFilter(e.target.value as KindFilter)}
-              className="rounded border border-white/10 bg-black/40 px-2 py-1.5 text-xs text-white outline-none"
+              className="rounded border border-white/10 bg-black/40 px-2 py-1.5 text-body text-white outline-none"
             >
               <option value="all">All kinds</option>
               {[...EFFECT_KINDS].map((k) => (
@@ -922,7 +922,7 @@ export function DevLootBrowser() {
             <select
               value={slotFilter}
               onChange={(e) => setSlotFilter(e.target.value as SlotFilter)}
-              className="rounded border border-white/10 bg-black/40 px-2 py-1.5 text-xs text-white outline-none"
+              className="rounded border border-white/10 bg-black/40 px-2 py-1.5 text-body text-white outline-none"
             >
               <option value="all">Any slot</option>
               <option value="equipped">Has slot</option>
@@ -940,7 +940,7 @@ export function DevLootBrowser() {
             <select
               value={sortMode}
               onChange={(e) => setSortMode(e.target.value as ItemSortMode)}
-              className="rounded border border-white/10 bg-black/40 px-2 py-1.5 text-xs text-white outline-none"
+              className="rounded border border-white/10 bg-black/40 px-2 py-1.5 text-body text-white outline-none"
             >
               {ITEM_SORT_GROUPS.map((group) => (
                 <optgroup key={group} label={group}>
@@ -952,7 +952,7 @@ export function DevLootBrowser() {
                 </optgroup>
               ))}
             </select>
-            <label className="flex items-center gap-2 text-xs text-white/50">
+            <label className="flex items-center gap-2 text-body text-white/50">
               <input
                 type="checkbox"
                 checked={groupByKind}
@@ -960,7 +960,7 @@ export function DevLootBrowser() {
               />
               Group by kind
             </label>
-            <label className="flex items-center gap-2 text-xs text-white/50">
+            <label className="flex items-center gap-2 text-body text-white/50">
               <input
                 type="checkbox"
                 checked={exoticOnly}
@@ -968,7 +968,7 @@ export function DevLootBrowser() {
               />
               Exotic only
             </label>
-            <label className="flex items-center gap-2 text-xs text-white/50">
+            <label className="flex items-center gap-2 text-body text-white/50">
               <input
                 type="checkbox"
                 checked={startingOnly}
@@ -976,7 +976,7 @@ export function DevLootBrowser() {
               />
               Starting only
             </label>
-            <label className="flex items-center gap-2 text-xs text-white/50">
+            <label className="flex items-center gap-2 text-body text-white/50">
               <input
                 type="checkbox"
                 checked={missingArtOnly}
@@ -984,7 +984,7 @@ export function DevLootBrowser() {
               />
               Missing art
             </label>
-            <div className="text-2xs text-white/30">
+            <div className="text-micro text-white/30">
               {ids.length} / {Object.keys(catalog).length} shown · ↑↓ to move
             </div>
           </div>
@@ -992,7 +992,7 @@ export function DevLootBrowser() {
             {groupedIds.map((group) => (
               <li key={group.kind ?? 'all'}>
                 {group.kind && (
-                  <div className="sticky top-0 bg-concrete-900/95 px-3 py-1 text-2xs uppercase tracking-widest text-white/30">
+                  <div className="sticky top-0 bg-concrete-900/95 px-3 py-1 text-label uppercase text-white/30">
                     {group.kind}
                   </div>
                 )}
@@ -1008,7 +1008,7 @@ export function DevLootBrowser() {
                         <button
                           type="button"
                           onClick={() => requestSelect(id)}
-                          className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition ${
+                          className={`flex w-full items-center gap-2 px-3 py-2 text-left text-read transition ${
                             active
                               ? 'text-signal ring-1 ring-inset ring-signal/40'
                               : inCompare
@@ -1025,13 +1025,13 @@ export function DevLootBrowser() {
                             <Icon name={itemIcon(item)} size={18} />
                           </span>
                           <span className="min-w-0 flex-1 truncate">
-                            <span className="block truncate font-medium">
+                            <span className="block truncate font-semibold">
                               {item.name}
                               {dirty ? ' •' : ''}
                               {inCompare ? ' ◆' : ''}
                               {item.startingItem ? ' ★' : ''}
                             </span>
-                            <span className="block truncate font-mono text-2xs text-white/45">
+                            <span className="block truncate text-micro text-white/45">
                               {id} · {item.effect.kind}
                               {sortMetric ? ` · ${sortMetric}` : ''}
                               {!hasArt(id) ? ' · no art' : ''}
@@ -1087,7 +1087,7 @@ export function DevLootBrowser() {
               />
             </div>
           ) : (
-            <p className="p-6 text-sm text-white/40">Select an item or create a new one.</p>
+            <p className="p-6 text-read text-white/40">Select an item or create a new one.</p>
           )}
         </main>
       </div>
@@ -1143,7 +1143,7 @@ export function DevLootBrowser() {
 
       {pendingNav && !diffOpen && (
         <DialogShell title="Unsaved item changes" onBackdrop={() => void resolvePending('cancel')}>
-          <p className="mb-4 text-sm text-white/60">
+          <p className="mb-4 text-read text-white/60">
             The current item has unsaved edits. Save the catalog, discard this item&apos;s changes,
             or cancel.
             {(recipesDirty || tablesDirty) && pendingNav?.kind === 'close'
@@ -1154,14 +1154,14 @@ export function DevLootBrowser() {
             <button
               type="button"
               onClick={() => void resolvePending('cancel')}
-              className="rounded border border-white/15 px-3 py-1.5 text-xs text-white/70"
+              className="rounded border border-white/15 px-3 py-1.5 text-body text-white/70"
             >
               Cancel
             </button>
             <button
               type="button"
               onClick={() => void resolvePending('discard')}
-              className="rounded border border-red-500/30 px-3 py-1.5 text-xs text-red-300"
+              className="rounded border border-red-500/30 px-3 py-1.5 text-body text-red-300"
             >
               Discard
             </button>
@@ -1169,7 +1169,7 @@ export function DevLootBrowser() {
               type="button"
               disabled={busy || !valid}
               onClick={() => void resolvePending('save')}
-              className="rounded border border-signal/40 px-3 py-1.5 text-xs text-signal disabled:opacity-40"
+              className="rounded border border-signal/40 px-3 py-1.5 text-body text-signal disabled:opacity-40"
             >
               Save
             </button>
@@ -1185,26 +1185,26 @@ export function DevLootBrowser() {
             setPendingDiff(null);
           }}
         >
-          <div className="mb-4 max-h-64 overflow-y-auto text-xs text-white/65">
+          <div className="mb-4 max-h-64 overflow-y-auto text-body text-white/65">
             {diffIsEmpty(pendingDiff) ? (
               <p>No field changes detected.</p>
             ) : (
               <ul className="flex flex-col gap-2">
                 {pendingDiff.added.map((id) => (
                   <li key={`a-${id}`}>
-                    <span className="text-signal">+ added</span> <span className="font-mono">{id}</span>
+                    <span className="text-signal">+ added</span> <span>{id}</span>
                   </li>
                 ))}
                 {pendingDiff.removed.map((id) => (
                   <li key={`r-${id}`}>
                     <span className="text-red-300">− removed</span>{' '}
-                    <span className="font-mono">{id}</span>
+                    <span>{id}</span>
                   </li>
                 ))}
                 {pendingDiff.changed.map((c) => (
                   <li key={`c-${c.id}`}>
                     <span className="text-amber-200">~ changed</span>{' '}
-                    <span className="font-mono">{c.id}</span>
+                    <span>{c.id}</span>
                     <span className="text-white/35"> · {c.fields.join(', ')}</span>
                   </li>
                 ))}
@@ -1218,7 +1218,7 @@ export function DevLootBrowser() {
                 setDiffOpen(false);
                 setPendingDiff(null);
               }}
-              className="rounded border border-white/15 px-3 py-1.5 text-xs text-white/70"
+              className="rounded border border-white/15 px-3 py-1.5 text-body text-white/70"
             >
               Cancel
             </button>
@@ -1226,7 +1226,7 @@ export function DevLootBrowser() {
               type="button"
               disabled={busy || !valid}
               onClick={() => void saveFromDiff()}
-              className="rounded border border-signal/40 px-3 py-1.5 text-xs text-signal disabled:opacity-40"
+              className="rounded border border-signal/40 px-3 py-1.5 text-body text-signal disabled:opacity-40"
             >
               Confirm save
             </button>
@@ -1245,9 +1245,9 @@ export function DevLootBrowser() {
             }
           }}
         >
-          <p className="mb-4 text-sm text-white/60">
+          <p className="mb-4 text-read text-white/60">
             Catalog written to{' '}
-            <span className="font-mono text-white/80">src/game/data/items.json</span>. The editor
+            <span className="text-white/80">src/game/data/items.json</span>. The editor
             stays open so you can keep working. Refresh the page for changes to take effect in the
             live game.
           </p>
@@ -1261,7 +1261,7 @@ export function DevLootBrowser() {
                   setOpen(false);
                 }
               }}
-              className="rounded border border-signal/40 px-3 py-1.5 text-xs text-signal"
+              className="rounded border border-signal/40 px-3 py-1.5 text-body text-signal"
             >
               OK
             </button>

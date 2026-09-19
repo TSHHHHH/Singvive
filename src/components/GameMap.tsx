@@ -19,6 +19,7 @@ import { FogOverlay } from './FogOverlay';
 import type { ExploredCircle } from '../game/fog';
 import type { TravelAnim } from '../game/store';
 import { useGame } from '../game/store';
+import { useSetting, useSettings } from '../game/settings';
 import type { NoisePulse } from '../game/noise';
 import { HAZARD_CONFIG, type HazardZone } from '../game/wilds';
 import { hazardBlobDrawList } from '../game/hazardBlob';
@@ -85,22 +86,6 @@ function loadZoom(): number {
 function saveZoom(zoom: number): void {
   try {
     localStorage.setItem(ZOOM_KEY, String(zoom));
-  } catch {
-    /* storage unavailable — non-fatal */
-  }
-}
-
-// Whether the rail network is drawn over the map. Like the zoom, this is a
-// view preference and survives reloads.
-const MRT_KEY = 'singvive.mrtOverlay';
-
-function loadMrtPref(): boolean {
-  return localStorage.getItem(MRT_KEY) === '1';
-}
-
-function saveMrtPref(on: boolean): void {
-  try {
-    localStorage.setItem(MRT_KEY, on ? '1' : '0');
   } catch {
     /* storage unavailable — non-fatal */
   }
@@ -618,16 +603,14 @@ function GameMapInner({
 
   // The rail network is a separate file, fetched the first time the player asks
   // to see it (or already in memory, if the world build got there first).
-  const [showMrt, setShowMrt] = useState(loadMrtPref);
+  // The on/off state is a setting, so this button and the one on the spawn
+  // screen are two views of one value rather than two stale local copies.
+  const showMrt = useSetting('railOverlay') === 'on';
+  const setSetting = useSettings((s) => s.setSetting);
   const net = useMrtNetwork(showMrt);
   const destroyedTunnelEdges = useGame((s) => s.destroyedTunnelEdges);
 
-  const toggleMrt = () => {
-    setShowMrt((on) => {
-      saveMrtPref(!on);
-      return !on;
-    });
-  };
+  const toggleMrt = () => setSetting('railOverlay', showMrt ? 'off' : 'on');
 
   return (
     <div className="relative h-full w-full">
@@ -729,7 +712,7 @@ function GameMapInner({
         onClick={toggleMrt}
         aria-pressed={showMrt}
         {...tip('Show the MRT & LRT network', { label: true })}
-        className={`absolute right-2 top-2 z-[500] flex items-center gap-1.5 rounded border px-2 py-1.5 text-xs font-semibold shadow-signage transition-colors ${
+        className={`absolute right-2 top-2 z-[500] flex items-center gap-1.5 rounded border px-2 py-1.5 text-body font-semibold shadow-signage transition-colors ${
           showMrt
             ? 'border-astral/50 bg-astral/20 text-astral'
             : 'border-white/15 bg-concrete-900/95 text-white/60 hover:text-white/90'

@@ -20,11 +20,11 @@ export function ScoreBoard({
   const { t } = useT();
 
   if (rows.length === 0) {
-    return empty ? <p className="text-sm text-white/40">{empty}</p> : null;
+    return empty ? <p className="text-read text-white/40">{empty}</p> : null;
   }
 
   return (
-    <ul className="flex flex-col gap-1 text-sm">
+    <ul className="flex flex-col gap-1 text-read">
       {rows.map((h, i) => {
         const active = highlightId != null && h.id === highlightId;
         return (
@@ -37,11 +37,11 @@ export function ScoreBoard({
             <span>
               {i + 1}. {h.name}
               {h.escaped === true ? (
-                <span className="ml-2 text-[10px] uppercase tracking-widest text-signal/80">
+                <span className="ml-2 text-label uppercase text-signal/80">
                   {t('ui.scores.evac')}
                 </span>
               ) : h.escaped === false ? (
-                <span className="ml-2 text-[10px] uppercase tracking-widest text-white/30">
+                <span className="ml-2 text-label uppercase text-white/30">
                   {t('ui.scores.died')}
                 </span>
               ) : null}
@@ -89,7 +89,7 @@ function TabButton({
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-sm px-3 py-1 text-[10px] uppercase tracking-widest ${
+      className={`rounded-sm px-3 py-1 text-label uppercase ${
         active ? 'bg-white/15 text-white' : 'text-white/40 transition hover:text-white/70'
       }`}
     >

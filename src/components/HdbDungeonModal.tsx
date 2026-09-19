@@ -351,7 +351,7 @@ function BlockadeStripe({ block }: { block: HdbBlock }) {
       }
     >
       {clearable ? (
-        <span className="max-h-full rotate-180 text-[9px] font-black leading-none tracking-wide text-black [writing-mode:vertical-rl]">
+        <span className="max-h-full rotate-180 text-micro font-bold leading-none tracking-wide text-black [writing-mode:vertical-rl]">
           {t('ui.hdb.blockStripe')}
         </span>
       ) : (
@@ -375,7 +375,7 @@ function StairGateBadge({
   const clearable = block.breakable;
   return (
     <span
-      className={`pointer-events-none absolute inset-x-0 z-10 flex h-2.5 items-center justify-center whitespace-nowrap px-0.5 text-2xs font-bold uppercase leading-none tracking-wider shadow-[0_0_6px_rgba(217,45,45,0.7)] ${
+      className={`pointer-events-none absolute inset-x-0 z-10 flex h-2.5 items-center justify-center whitespace-nowrap px-0.5 text-label uppercase leading-none shadow-[0_0_6px_rgba(217,45,45,0.7)] ${
         edge === 'above' ? 'top-0' : 'bottom-0'
       } ${
         clearable
@@ -723,7 +723,7 @@ function BuildingCutaway({
                           ? t('ui.hdb.level', { nn: label })
                           : t('ui.hdb.levelUnexplored', { nn: label }),
                 )}
-                className={`flex items-center justify-center border-r border-concrete-700 text-xs font-bold tabular-nums ${
+                className={`flex items-center justify-center border-r border-concrete-700 text-body font-bold tabular-nums ${
                   hereLevel
                     ? 'bg-signal/20 text-signal'
                     : seal
@@ -904,7 +904,7 @@ function BuildingCutaway({
                       {blockLeft && <BlockadeStripe block={blockLeft} />}
                       <span className="relative z-[6]">
                         {level === Math.ceil(hdb.height / 2) ? (
-                          <span className="text-2xs font-bold">{stair.id}</span>
+                          <span className="text-micro font-bold">{stair.id}</span>
                         ) : (
                           <Icon name="hdb.stairwell" size={13} />
                         )}
@@ -1107,7 +1107,7 @@ function CorridorDoor({
   if (!unit.available) {
     face = (
       <span
-        className="text-xs font-bold leading-none text-concrete-500"
+        className="text-body font-bold leading-none text-concrete-500"
         {...tip(t('ui.hdb.doorBoardedShutTitle'))}
       >
         ✕
@@ -1116,7 +1116,7 @@ function CorridorDoor({
   } else if (unit.state === 'cleared') {
     face = (
       <span
-        className="text-2xs font-bold leading-none text-concrete-600"
+        className="text-micro font-bold leading-none text-concrete-600"
         {...tip(t('ui.hdb.doorClearedTitle'))}
       >
         ·
@@ -1145,7 +1145,7 @@ function CorridorDoor({
   const door = (
     <span className="flex max-w-full flex-col items-center justify-end">
       <span
-        className="mb-0.5 max-w-[2.75rem] truncate text-center text-2xs font-bold leading-none tabular-nums text-concrete-200"
+        className="mb-0.5 max-w-[2.75rem] truncate text-center text-micro font-bold leading-none tabular-nums text-concrete-200"
         {...tip(unit.label)}
       >
         {unitNum}
@@ -1261,11 +1261,11 @@ function HdbStatusDock({
     <div className="shrink-0 border-b border-concrete-600 bg-concrete-900/60 px-3 py-1.5">
       <div className="flex items-center gap-2">
         <div className="flex min-w-0 flex-1 items-center gap-1.5">
-          <span className="signage truncate text-xs text-signal" {...tip(placeMeta)}>
+          <span className="truncate text-plate uppercase text-signal" {...tip(placeMeta)}>
             {name}
           </span>
           <span
-            className="shrink-0 text-2xs tabular-nums text-concrete-500"
+            className="shrink-0 text-micro tabular-nums text-concrete-500"
             {...tip(t('ui.hdb.storeysRevealed', { revealed, height }))}
           >
             {revealed}/{height}
@@ -1280,7 +1280,7 @@ function HdbStatusDock({
           aria-label={detailsOpen ? t('ui.hdb.ariaHideDetails') : t('ui.hdb.ariaShowDetails')}
           {...tip(detailsOpen ? t('ui.hdb.hideDetails') : t('ui.hdb.showDetails'))}
           onClick={() => setDetailsOpen((o) => !o)}
-          className="shrink-0 rounded border border-concrete-600 px-1.5 py-1 text-2xs text-concrete-400 hover:bg-white/5"
+          className="shrink-0 rounded border border-concrete-600 px-1.5 py-1 text-micro text-concrete-400 hover:bg-white/5"
         >
           {detailsOpen ? '▴' : '▾'}
         </button>
@@ -1289,7 +1289,7 @@ function HdbStatusDock({
           onClick={onLeave}
           disabled={!canLeave}
           {...tip(leaveTitle)}
-          className="shrink-0 rounded border border-concrete-600 px-2.5 py-1 text-xs hover:bg-white/5 disabled:opacity-40"
+          className="shrink-0 rounded border border-concrete-600 px-2.5 py-1 text-body hover:bg-white/5 disabled:opacity-40"
         >
           {t('ui.hdb.leave')}
         </button>
@@ -1301,9 +1301,9 @@ function HdbStatusDock({
         className="mt-1 w-full text-left"
         {...tip(t('ui.hdb.tapDetails'))}
       >
-        <div className="mb-0.5 text-xs leading-snug text-concrete-400">
-          <span className="signage text-concrete-500">{t('ui.hdb.heat')}</span>{' '}
-          <span className={`signage ${bandColor}`}>{bandLabel}</span>{' '}
+        <div className="mb-0.5 text-body text-concrete-400">
+          <span className="text-plate uppercase text-concrete-500">{t('ui.hdb.heat')}</span>{' '}
+          <span className={`text-plate uppercase ${bandColor}`}>{bandLabel}</span>{' '}
           <span className="tabular-nums text-concrete-300">
             {heat}/{HEAT_MAX}
           </span>
@@ -1338,7 +1338,7 @@ function HdbStatusDock({
         <div className="mt-1.5 space-y-1.5 border-t border-concrete-700/80 pt-1.5">
           <HdbSymbolKey />
           <div
-            className="flex flex-wrap gap-1.5 text-2xs"
+            className="flex flex-wrap gap-1.5 text-micro"
             {...tip(t('ui.hdb.senseCorridor'))}
           >
             {senses.map((s) => (
@@ -1386,7 +1386,7 @@ function HdbSymbolKey() {
   });
 
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-2xs leading-none text-concrete-400">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-micro leading-none text-concrete-400">
       <span className="inline-flex items-center gap-1.5">
         <PlayerPin size="xs" />
         {t('ui.hdb.legendYou')}
@@ -1400,7 +1400,7 @@ function HdbSymbolKey() {
       </span>
       {roomTypes}
       <span className="inline-flex items-center gap-1">
-        <span className="text-2xs font-bold text-concrete-500">✕</span> {t('ui.hdb.legendBoarded')}
+        <span className="text-micro font-bold text-concrete-500">✕</span> {t('ui.hdb.legendBoarded')}
       </span>
       <span className="inline-flex items-center gap-1 text-concrete-500">
         {t('ui.hdb.legendDim')}

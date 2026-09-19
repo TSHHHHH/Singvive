@@ -28,11 +28,11 @@ export function GuideModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between gap-3">
-          <h3 className="text-lg font-bold text-signal">{heading}</h3>
+          <h3 className="text-title text-signal">{heading}</h3>
           <button
             type="button"
             onClick={onClose}
-            className="text-xs text-white/40 hover:text-white/70"
+            className="text-body text-white/40 hover:text-white/70"
           >
             {t('ui.common.close')}
           </button>

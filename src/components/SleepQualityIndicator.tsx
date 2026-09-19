@@ -80,7 +80,7 @@ export function SleepQualityIndicator({ preview }: { preview: RestPreview }) {
   return (
     <TipHint className="inline-flex" tip={<SleepTip preview={preview} />}>
       <div
-        className="flex cursor-help items-center gap-1 border-b border-dashed border-white/20 text-xs text-white"
+        className="flex cursor-help items-center gap-1 border-b border-dashed border-white/20 text-body text-white"
         aria-label={t('ui.sleep.aria', {
           pct: totalPct,
           ambushPct,
@@ -153,17 +153,17 @@ function SleepTip({ preview }: { preview: RestPreview }) {
   return (
     <div className="w-max min-w-[14rem] max-w-[min(18rem,calc(100vw-1.5rem))] rounded-lg border border-white/15 bg-concrete-900 p-2.5 text-left shadow-signage">
       <div className="mb-1 flex items-baseline justify-between gap-2">
-        <span className="text-xs font-semibold uppercase tracking-widest text-white/40">
+        <span className="text-plate uppercase text-white/40">
           {t('ui.sleep.restRecovery')}
         </span>
-        <span className="shrink-0 text-xs font-bold tabular-nums text-white/80">
+        <span className="shrink-0 text-body font-bold tabular-nums text-white/80">
           {pct(conditions.recoveryMult)}
         </span>
       </div>
-      <p className="mb-1.5 text-2xs leading-snug text-white/45">{conditions.summary}</p>
+      <p className="mb-1.5 text-micro text-white/45">{conditions.summary}</p>
       <ul className="flex flex-col gap-0.5">
         {rows.map((row) => (
-          <li key={row.key} className="flex justify-between gap-3 text-xs">
+          <li key={row.key} className="flex justify-between gap-3 text-body">
             <span className="text-white/55">{row.label}</span>
             <span className={`shrink-0 tabular-nums ${factorTone(row.mult)}`}>
               ×{row.mult.toFixed(2)}
@@ -171,17 +171,17 @@ function SleepTip({ preview }: { preview: RestPreview }) {
           </li>
         ))}
       </ul>
-      <div className="mt-1.5 flex justify-between gap-3 border-t border-white/10 pt-1.5 text-xs">
+      <div className="mt-1.5 flex justify-between gap-3 border-t border-white/10 pt-1.5 text-body">
         <span className="text-white/40">{t('ui.sleep.combined')}</span>
         <span className="font-semibold tabular-nums text-white/80">
           ×{conditions.recoveryMult.toFixed(2)}
         </span>
       </div>
       <div className="mt-1.5 border-t border-white/10 pt-1.5">
-        <div className="text-xs font-semibold uppercase tracking-widest text-white/40">
+        <div className="text-plate uppercase text-white/40">
           {t('ui.sleep.nightAmbush')}
         </div>
-        <div className="mt-0.5 text-xs font-bold tabular-nums" style={{ color: ambush.color }}>
+        <div className="mt-0.5 text-body font-bold tabular-nums" style={{ color: ambush.color }}>
           {preview.ambushChance <= 0
             ? t('ui.sleep.safe')
             : `${Math.round(preview.ambushChance * 100)}% · ${ambushLabel}`}
@@ -190,7 +190,7 @@ function SleepTip({ preview }: { preview: RestPreview }) {
       {conditions.occupancyNotes.length > 0 && (
         <ul className="mt-1 flex flex-col gap-0.5">
           {conditions.occupancyNotes.map((note) => (
-            <li key={note} className="text-2xs leading-snug text-white/45">
+            <li key={note} className="text-micro text-white/45">
               {note}
             </li>
           ))}

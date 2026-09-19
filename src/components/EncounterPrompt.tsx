@@ -127,7 +127,7 @@ export function EncounterPrompt({
       <button
         type="button"
         onClick={combatEngage}
-        className="flex w-full items-center gap-1.5 rounded border border-white/15 px-2 py-1 text-left text-xs leading-snug text-white/70 transition hover:bg-white/5"
+        className="flex w-full items-center gap-1.5 rounded border border-white/15 px-2 py-1 text-left text-body text-white/70 transition hover:bg-white/5"
       >
         <Icon name="combat.player" size={13} className="shrink-0" />
         <span className="min-w-0 flex-1 whitespace-normal break-words">
@@ -139,7 +139,7 @@ export function EncounterPrompt({
         type="button"
         onClick={combatBreakOff}
         {...tip(STANCES.disengage.description)}
-        className="flex w-full items-center gap-1.5 rounded border border-hiss/50 px-2 py-1 text-left text-xs leading-snug text-hiss transition hover:bg-hiss/10"
+        className="flex w-full items-center gap-1.5 rounded border border-hiss/50 px-2 py-1 text-left text-body text-hiss transition hover:bg-hiss/10"
       >
         <Icon name={STANCES.disengage.icon} size={13} className="shrink-0" />
         <span className="min-w-0 flex-1 whitespace-normal break-words">
@@ -153,16 +153,16 @@ export function EncounterPrompt({
   if (variant === 'card') {
     return (
       <div className="space-y-2">
-        <div className="text-2xs uppercase tracking-widest text-hiss/80">
+        <div className="text-label uppercase text-hiss/80">
           {t('ui.combat.contact')}
         </div>
-        <p className="text-xs leading-snug text-white/70">
-          <span className="mr-1.5 font-mono text-2xs tabular-nums text-white/35">
+        <p className="text-body text-white/70">
+          <span className="mr-1.5 text-micro tabular-nums text-white/35">
             {formatClock(hour, clock)}
           </span>
           {cardProse}
         </p>
-        <div className="text-2xs text-white/40">{footnote}</div>
+        <div className="text-micro text-white/40">{footnote}</div>
         <div className="flex flex-col gap-1">{choices}</div>
       </div>
     );
@@ -172,9 +172,9 @@ export function EncounterPrompt({
     <li className="relative flex gap-2 rounded bg-white/[0.07] py-1 pl-6">
       <span className="absolute left-0 top-[7px] h-[11px] w-[11px] animate-pulse rounded-full border-2 border-concrete-900 bg-hiss" />
       <div className="min-w-0 flex-1">
-        <div className="flex text-xs leading-snug text-white/70">
+        <div className="flex text-body text-white/70">
           <span
-            className="shrink-0 font-mono text-2xs tabular-nums text-white/25"
+            className="shrink-0 text-micro tabular-nums text-white/25"
             style={{ width: timeW }}
           >
             {formatClock(hour, clock)}
@@ -182,7 +182,7 @@ export function EncounterPrompt({
           <p className="min-w-0 flex-1 whitespace-normal break-words">{prose}</p>
         </div>
 
-        <div className="mt-1 text-2xs text-white/40" style={{ paddingLeft: timeW }}>
+        <div className="mt-1 text-micro text-white/40" style={{ paddingLeft: timeW }}>
           {footnote}
         </div>
 

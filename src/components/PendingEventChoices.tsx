@@ -54,7 +54,7 @@ export function PendingEventChoices({
             type="button"
             disabled={!affordable}
             onClick={() => resolveEvent(c.id)}
-            className={`flex w-full items-center gap-1.5 rounded border px-2 py-1 text-left text-xs leading-snug transition disabled:opacity-30 ${tone}`}
+            className={`flex w-full items-center gap-1.5 rounded border px-2 py-1 text-left text-body transition disabled:opacity-30 ${tone}`}
           >
             <Icon name={CHOICE_ICON[c.kind]} size={13} className="shrink-0" />
             <span className="min-w-0 flex-1 whitespace-normal break-words">
@@ -88,11 +88,11 @@ export function PendingEventCardBody({ event }: { event: GameEvent }) {
 
   return (
     <div className="space-y-2">
-      <div className="text-2xs uppercase tracking-widest text-signal/70">
+      <div className="text-label uppercase text-signal/70">
         {t('ui.pending.someoneWantsWord')}
       </div>
-      <p className="text-xs leading-snug text-white/70">
-        <span className="mr-1.5 font-mono text-2xs tabular-nums text-white/35">
+      <p className="text-body text-white/70">
+        <span className="mr-1.5 text-micro tabular-nums text-white/35">
           {formatClock(hour, clock)}
         </span>
         <span className="font-semibold text-concrete-50">{event.title}</span>

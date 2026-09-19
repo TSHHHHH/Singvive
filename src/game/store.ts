@@ -829,6 +829,10 @@ interface State {
 
   resetToMenu: () => void;
   continueRun: () => void;
+  /** Throw the run away for good and go back to the menu. */
+  abandonRun: () => void;
+  /** Re-read the continue slot and the device board after they change on disk. */
+  refreshSaveSlot: () => void;
 }
 
 let logCounter = 0;
@@ -7413,6 +7417,20 @@ export const useGame = create<State>((set, get) => {
         highScores: loadHighScores(),
       });
     },
+
+    /**
+     * Order matters and is easy to get backwards. `resetToMenu` opens with a
+     * `flushPersist()`, so clearing the slot first and resetting second would
+     * fire the pending write and resurrect the save we just deleted. Cancelling
+     * the debounce makes that flush a no-op — the same sequence `endRun` uses.
+     */
+    abandonRun: () => {
+      cancelPersist();
+      clearRun();
+      get().resetToMenu();
+    },
+
+    refreshSaveSlot: () => set({ hasSavedRun: !!loadRun(), highScores: loadHighScores() }),
 
     continueRun: () => {
       const run = loadRun();

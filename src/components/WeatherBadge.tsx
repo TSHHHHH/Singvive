@@ -15,12 +15,12 @@ export function WeatherBadge({ weather }: { weather: WeatherKind }) {
       tipClassName="w-max min-w-[9rem] rounded-lg border border-white/15 bg-concrete-900 p-2 shadow-signage"
       tip={
         <>
-          <div className="mb-1 text-xs font-semibold uppercase tracking-widest text-white/40">
+          <div className="mb-1 text-plate uppercase text-white/40">
             {t('ui.weather.effects', { kind: kindLabel })}
           </div>
           <ul className="flex flex-col gap-0.5">
             {effects.map((e, i) => (
-              <li key={i} className={`text-xs ${e.good ? 'text-signal' : 'text-hiss'}`}>
+              <li key={i} className={`text-body ${e.good ? 'text-signal' : 'text-hiss'}`}>
                 {e.good ? '▲' : '▼'} {e.label}
               </li>
             ))}

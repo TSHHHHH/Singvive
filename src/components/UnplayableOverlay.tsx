@@ -249,8 +249,8 @@ export function UnplayableOverlay({ zones }: { zones: ZonesData }) {
 export function UnplayableLegend() {
   const { t } = useT();
   return (
-    <div className="pointer-events-none absolute bottom-3 left-3 z-[400] rounded border border-white/15 bg-black/70 px-2.5 py-2 text-[11px] leading-relaxed text-white/75 backdrop-blur-sm">
-      <div className="mb-1 font-medium text-white/90">{t('ui.terrain.title')}</div>
+    <div className="pointer-events-none absolute bottom-3 left-3 z-[400] rounded border border-white/15 bg-black/70 px-2.5 py-2 text-body leading-relaxed text-white/75 backdrop-blur-sm">
+      <div className="mb-1 font-semibold text-white/90">{t('ui.terrain.title')}</div>
       <div className="flex items-center gap-2">
         <span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#4d7a8c]" />
         {t('ui.terrain.water')}

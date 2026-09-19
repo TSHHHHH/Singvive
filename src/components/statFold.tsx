@@ -71,6 +71,7 @@ const FOLD_BTN =
 function DoubleChevron({ dir }: { dir: 'up' | 'down' }) {
   const mark = dir === 'up' ? '▴' : '▾';
   return (
+    // Glyph geometry, not type — two chevrons stacked inside a 24px button.
     <span className="flex flex-col items-center text-[9px] leading-[0.65]" aria-hidden>
       <span>{mark}</span>
       <span>{mark}</span>
@@ -116,7 +117,7 @@ export function StatCard({
   const inner = (
     <section className="rounded-lg border border-white/15 bg-concrete-900/80 p-3">
       <div className="mb-2 flex items-center gap-2">
-        <h4 className="min-w-0 flex-1 truncate text-xs uppercase tracking-widest text-white/30">
+        <h4 className="min-w-0 flex-1 truncate text-plate uppercase text-white/30">
           {title}
         </h4>
         {foldable && <StatFoldBar />}

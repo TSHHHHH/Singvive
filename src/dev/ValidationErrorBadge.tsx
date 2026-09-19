@@ -44,7 +44,7 @@ export function ValidationErrorBadge({ errors }: { errors: string[] }) {
         aria-haspopup="dialog"
         {...tip('Show validation errors')}
         onClick={() => setOpen((o) => !o)}
-        className="rounded bg-red-500/20 px-2 py-0.5 text-2xs uppercase tracking-wider text-red-300 hover:bg-red-500/30"
+        className="rounded bg-red-500/20 px-2 py-0.5 text-label uppercase text-red-300 hover:bg-red-500/30"
       >
         {label}
       </button>
@@ -54,7 +54,7 @@ export function ValidationErrorBadge({ errors }: { errors: string[] }) {
           aria-label="Validation errors"
           className="absolute left-0 top-full z-[60] mt-1 w-max min-w-[16rem] max-w-[min(28rem,calc(100vw-2rem))] rounded-lg border border-red-500/30 bg-concrete-900 p-2 shadow-xl"
         >
-          <ul className="max-h-56 space-y-1 overflow-y-auto font-mono text-[11px] leading-snug text-red-200/90">
+          <ul className="max-h-56 space-y-1 overflow-y-auto text-body text-red-200/90">
             {errors.map((msg, i) => (
               <li key={`${i}:${msg}`} className="break-words">
                 {msg}

@@ -34,15 +34,15 @@ export function StatsPanel() {
     <div className="flex flex-col gap-3">
       {character && (
         <section className="rounded-lg border border-white/15 bg-concrete-900/80 p-3">
-          <h4 className="mb-2 text-xs uppercase tracking-widest text-white/30">
+          <h4 className="mb-2 text-plate uppercase text-white/30">
             {t('ui.stats.survivor')}
           </h4>
           <div className="flex items-baseline justify-between">
-            <span className="truncate text-sm font-bold text-signal">{character.name}</span>
-            <span className="shrink-0 text-xs text-white/40">{t('ui.stats.day', { day })}</span>
+            <span className="truncate text-read font-bold text-signal">{character.name}</span>
+            <span className="shrink-0 text-body text-white/40">{t('ui.stats.day', { day })}</span>
           </div>
           {occupationMatches && occupation && (
-            <div className="mt-0.5 text-xs uppercase tracking-wide text-white/40">
+            <div className="mt-0.5 text-plate uppercase text-white/40">
               {occupation.name}
             </div>
           )}
@@ -57,7 +57,7 @@ export function StatsPanel() {
                       <span
                         key={tr.id}
                         {...tip(traitHoverText(tr.id, locale))}
-                        className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs ${
+                        className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-body ${
                           cat === 'positive' ? 'bg-signal/15 text-signal' : 'bg-hiss/15 text-hiss'
                         }`}
                       >
@@ -81,7 +81,7 @@ export function StatsPanel() {
             {group.rows.map((row) => {
               const raw = stats[row.key];
               return (
-                <div key={row.key} className="flex items-center gap-2 text-xs">
+                <div key={row.key} className="flex items-center gap-2 text-body">
                   <span className="w-6 shrink-0 text-center text-white/40">
                     <Icon name={row.icon} size={16} />
                   </span>

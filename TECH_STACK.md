@@ -57,6 +57,54 @@ CARTO watermarks them. Stadia is sharper but keyless only on `localhost`; Esri i
 fallback (no `@2x`, caps at z16). **Any replacement must support both `{r}` and native z20**, or
 the map goes soft — `TILE_MAX_NATIVE_ZOOM` must match what the provider actually serves.
 
+### The type scale
+
+Every typographic value in the app comes from **`src/ui/type.ts`** — there is no other place a
+font-size, line-height, letter-spacing or weight may be written. Eight named roles, and they are
+the whole vocabulary; Tailwind's default `text-xs`/`text-lg`/… scale is **replaced**, not
+extended, so the old class names no longer compile to anything.
+
+| role | size | leading | tracking | weight | for |
+| --- | --- | --- | --- | --- | --- |
+| `text-micro` | 10px | 1.4 | — | — | plain small readouts, meter values, timestamps |
+| `text-label` | 10px | 1.2 | 0.12em | 600 | small caps label — pair with `uppercase` |
+| `text-body` | 12px | 1.4 | — | — | the workhorse |
+| `text-plate` | 12px | 1.25 | 0.12em | 700 | section kicker — pair with `uppercase` |
+| `text-read` | 14px | 1.35 | — | — | buttons, inputs, emphasised rows |
+| `text-title` | 18px | 1.3 | — | 700 | modal and panel headings, hero numerics |
+| `text-marquee` | 30px | 1 | -0.01em | 700 | clock, death stat, SIGNAL LOST |
+| `text-banner` | 48px | 0.95 | -0.02em | 700 | the wordmark |
+
+Three consumers, one definition:
+
+- **Tailwind classes** — `tailwind.config.ts` builds `theme.fontSize` from `tailwindFontSize()`.
+  A role carries its own leading/tracking/weight, so a call site is usually one class. Tailwind
+  emits `font-size` *before* weight/leading/tracking, so a site can still override any of them
+  (`text-body leading-relaxed` for prose) when it has a reason to.
+- **`src/index.css`** — reaches the scale through the `--type-<role>-{size,leading,tracking,weight}`
+  custom properties, emitted by an `addBase` plugin. It must never name a literal size.
+- **Imperative label builders** — the Leaflet `divIcon` HTML in `mapIcons.ts`, `MrtOverlay.tsx`
+  and `NeighbourhoodWash.tsx` call `typeCss(role, { scale })`, which returns a declaration string.
+  `scale` is how a dense map zoom shrinks a label without inventing a step off the scale.
+
+Sizes are **rem, never px**. A px value silently opts out of the player's Font size setting
+(`src/game/settings.ts` → `src/App.tsx` sets the root px) — which is exactly how a third of the UI
+used to ignore that setting while the description claimed it "affects the whole interface".
+
+Weights are limited to **400 / 600 / 700**, the exact set `index.html` loads Noto Sans SC at.
+500/800/900 get synthesised into mud on Han glyphs, and loading more weights is expensive:
+Google Fonts splits Noto Sans SC into ~100 `unicode-range` slices *per weight*.
+
+CJK overrides live at the top of `src/index.css` and key off `html[lang='zh-Hans']`. They target
+the utilities themselves (`.uppercase`, `.text-label`, `.text-micro`) rather than a wrapper class,
+so they reach every call site — including a size lift for the 10px roles, which are below the
+legibility floor for Han.
+
+`npm run lint` enforces all of this via `scripts/check-type-scale.mjs`. If you need a size the
+scale does not have, **add a role to `src/ui/type.ts`** — do not reach for `text-[13px]`. The
+guard's allowlist is for icon geometry only: a glyph centred in a hard-coded px box, which must
+*not* scale with the font setting.
+
 ### DEV tooling stack (reuse this)
 
 In-game editors that must **persist to the repo** (not just mutate a live run) follow the loot

@@ -196,7 +196,7 @@ function ZoomBtn({
       {...tip(tipText, { placement: 'left' })}
       aria-label={tipText}
       onClick={onClick}
-      className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded border border-concrete-500 bg-concrete-900/90 text-sm font-bold text-concrete-100 shadow-md active:bg-concrete-800"
+      className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded border border-concrete-500 bg-concrete-900/90 text-read font-bold text-concrete-100 shadow-md active:bg-concrete-800"
     >
       {label}
     </button>

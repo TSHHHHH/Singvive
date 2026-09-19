@@ -81,7 +81,7 @@ function NumericCell({
           style={{ width: `${width}%` }}
         />
       </div>
-      <span className={`font-mono text-2xs tabular-nums ${delta ?? 'text-white/75'}`}>{text}</span>
+      <span className={`text-micro tabular-nums ${delta ?? 'text-white/75'}`}>{text}</span>
     </div>
   );
 }
@@ -170,13 +170,13 @@ export function ItemComparePanel({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex flex-wrap items-center gap-2 border-b border-white/10 px-4 py-3">
-        <h4 className="text-sm font-semibold text-signal">Compare</h4>
-        <span className="text-2xs text-white/40">{items.length} items</span>
+        <h4 className="text-read font-semibold text-signal">Compare</h4>
+        <span className="text-micro text-white/40">{items.length} items</span>
         <div className="relative" ref={quickRef}>
           <button
             type="button"
             onClick={() => setQuickOpen((o) => !o)}
-            className="rounded border border-signal/40 px-2.5 py-1 text-xs text-signal"
+            className="rounded border border-signal/40 px-2.5 py-1 text-body text-signal"
             {...tip('Add every item in a category')}
           >
             Quick add…
@@ -195,7 +195,7 @@ export function ItemComparePanel({
                     key={cat.id}
                     type="button"
                     onClick={() => addCategory(cat)}
-                    className="flex w-full px-3 py-2 text-left text-xs text-white/80 hover:bg-white/5"
+                    className="flex w-full px-3 py-2 text-left text-body text-white/80 hover:bg-white/5"
                   >
                     {cat.label}
                   </button>
@@ -208,7 +208,7 @@ export function ItemComparePanel({
           type="button"
           disabled={!selectedId || compareIds.includes(selectedId)}
           onClick={addSelected}
-          className="rounded border border-white/15 px-2.5 py-1 text-xs text-white/70 disabled:opacity-40"
+          className="rounded border border-white/15 px-2.5 py-1 text-body text-white/70 disabled:opacity-40"
         >
           Add selection
         </button>
@@ -219,27 +219,27 @@ export function ItemComparePanel({
             onCompareIdsChange([]);
             onBaselineChange(null);
           }}
-          className="rounded border border-white/15 px-2.5 py-1 text-xs text-white/50 disabled:opacity-40"
+          className="rounded border border-white/15 px-2.5 py-1 text-body text-white/50 disabled:opacity-40"
         >
           Clear all
         </button>
-        <span className="ml-auto text-2xs text-white/30">★ baseline · bars = row max</span>
+        <span className="ml-auto text-micro text-white/30">★ baseline · bars = row max</span>
       </div>
 
       {items.length === 0 ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-sm text-white/40">
+        <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-read text-white/40">
           <p>No items in the compare set.</p>
-          <p className="text-xs text-white/30">
+          <p className="text-body text-white/30">
             Use <span className="text-signal">Quick add…</span> to load a whole category, or add
             the current list selection.
           </p>
         </div>
       ) : (
         <div className="min-h-0 flex-1 overflow-auto">
-          <table className="w-max min-w-full border-collapse text-left text-xs">
+          <table className="w-max min-w-full border-collapse text-left text-body">
             <thead className="sticky top-0 z-[2] bg-concrete-900/98 backdrop-blur-sm">
               <tr className="border-b border-white/10">
-                <th className="sticky left-0 z-[3] min-w-[8rem] bg-concrete-900/98 px-3 py-2 text-2xs uppercase tracking-wider text-white/35">
+                <th className="sticky left-0 z-[3] min-w-[8rem] bg-concrete-900/98 px-3 py-2 text-label uppercase text-white/35">
                   Stat
                 </th>
                 {items.map((item) => {
@@ -259,18 +259,18 @@ export function ItemComparePanel({
                             <Icon name={itemIcon(item)} size={16} />
                           </span>
                           <div className="min-w-0 flex-1">
-                            <div className="truncate font-medium text-white/90">
+                            <div className="truncate font-semibold text-white/90">
                               {item.name}
                               {dirty ? ' •' : ''}
                             </div>
-                            <div className="truncate font-mono text-2xs text-white/40">{item.id}</div>
+                            <div className="truncate text-micro text-white/40">{item.id}</div>
                           </div>
                         </div>
                         <div className="flex flex-wrap gap-1">
                           <button
                             type="button"
                             onClick={() => onEdit(item.id)}
-                            className="rounded border border-signal/40 px-1.5 py-0.5 text-2xs text-signal"
+                            className="rounded border border-signal/40 px-1.5 py-0.5 text-micro text-signal"
                           >
                             Edit
                           </button>
@@ -279,7 +279,7 @@ export function ItemComparePanel({
                             onClick={() =>
                               onBaselineChange(isBaseline ? null : item.id)
                             }
-                            className={`rounded border px-1.5 py-0.5 text-2xs ${
+                            className={`rounded border px-1.5 py-0.5 text-micro ${
                               isBaseline
                                 ? 'border-amber-400/50 text-amber-200'
                                 : 'border-white/15 text-white/50'
@@ -291,7 +291,7 @@ export function ItemComparePanel({
                           <button
                             type="button"
                             onClick={() => removeId(item.id)}
-                            className="rounded border border-white/10 px-1.5 py-0.5 text-2xs text-white/40"
+                            className="rounded border border-white/10 px-1.5 py-0.5 text-micro text-white/40"
                           >
                             ×
                           </button>
@@ -312,7 +312,7 @@ export function ItemComparePanel({
                     <tr className="bg-white/[0.03]">
                       <td
                         colSpan={items.length + 1}
-                        className="sticky left-0 px-3 py-1.5 text-2xs uppercase tracking-widest text-white/30"
+                        className="sticky left-0 px-3 py-1.5 text-label uppercase text-white/30"
                       >
                         {group}
                       </td>
@@ -323,7 +323,7 @@ export function ItemComparePanel({
                           {row.label}
                         </td>
                         {items.map((item) => (
-                          <td key={item.id} className="border-l border-white/5 px-2 py-2 font-mono text-2xs">
+                          <td key={item.id} className="border-l border-white/5 px-2 py-2 text-micro">
                             {row.value(item) ?? '—'}
                           </td>
                         ))}

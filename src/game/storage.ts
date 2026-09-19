@@ -272,6 +272,95 @@ export function clearRun(): void {
   }
 }
 
+/** Wrapper written by `exportRunJson`, so an imported file can be recognised
+ *  rather than trusted blind. */
+interface RunExport {
+  app: 'singvive';
+  kind: 'run';
+  version: string;
+  savedAt: string;
+  run: SavedRun;
+}
+
+/**
+ * The current save as a downloadable string, or null when there is none.
+ *
+ * Callers must `flushPersist()` first: run writes are debounced, so reading the
+ * key mid-run without a flush hands the player a save several seconds stale.
+ */
+export function exportRunJson(): string | null {
+  let raw: string | null = null;
+  try {
+    raw = localStorage.getItem(RUN_KEY);
+  } catch {
+    return null;
+  }
+  if (!raw) return null;
+  let run: SavedRun;
+  try {
+    run = JSON.parse(raw) as SavedRun;
+  } catch {
+    return null;
+  }
+  const payload: RunExport = {
+    app: 'singvive',
+    kind: 'run',
+    version: RUN_KEY,
+    savedAt: new Date().toISOString(),
+    run,
+  };
+  return JSON.stringify(payload, null, 2);
+}
+
+/**
+ * Write an exported file back into the continue slot.
+ *
+ * Only the shape is checked here. Field-level repair is `loadRun`'s job — it
+ * already runs a forgiving migration chain over whatever it finds, so a stale
+ * or hand-edited file degrades into "no save" rather than a crash. A bare
+ * `SavedRun` is accepted too, since that is what the old crash-screen dumps
+ * and any hand-rolled backup look like.
+ */
+export function importRunJson(text: string): boolean {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return false;
+  }
+  if (!parsed || typeof parsed !== 'object') return false;
+  const wrapper = parsed as Partial<RunExport>;
+  const run = (wrapper.app === 'singvive' ? wrapper.run : parsed) as SavedRun | undefined;
+  if (!run || typeof run !== 'object') return false;
+  if (
+    !run.character ||
+    typeof run.seed !== 'string' ||
+    !run.meters ||
+    typeof run.day !== 'number'
+  ) {
+    return false;
+  }
+  try {
+    localStorage.setItem(RUN_KEY, JSON.stringify(run));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Wipes the on-device board. The worldwide board (src/api/scores.ts) is a
+ * server record and is untouched, and the `singvive.posted.v1:*` dedupe keys
+ * stay put — clearing those would let an already-posted score go up twice.
+ */
+export function clearHighScores(): void {
+  try {
+    localStorage.removeItem(SCORES_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 export function loadHighScores(): HighScore[] {
   try {
     const raw = localStorage.getItem(SCORES_KEY);

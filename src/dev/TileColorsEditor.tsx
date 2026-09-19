@@ -33,7 +33,7 @@ export function TileColorsEditor({ colors, onChange }: Props) {
 
   return (
     <div className="min-h-0 flex-1 overflow-auto p-4">
-      <p className="mb-4 max-w-xl text-sm text-white/50">
+      <p className="mb-4 max-w-xl text-read text-white/50">
         Inventory tile backgrounds are tinted by category — not per item. Slotted
         non-weapons (armour, bags, etc.) use <span className="text-white/70">Gear</span>.
         Exotic gear still uses the amber ring.
@@ -43,7 +43,7 @@ export function TileColorsEditor({ colors, onChange }: Props) {
         {TILE_COLOR_KEYS.map((key) => (
           <div
             key={`preview-${key}`}
-            className="flex h-9 w-9 items-center justify-center rounded text-2xs font-bold uppercase text-white/80"
+            className="flex h-9 w-9 items-center justify-center rounded text-label uppercase text-white/80"
             style={{
               background: `${colors[key]}66`,
               boxShadow: `inset 0 0 0 1px ${colors[key]}`,
@@ -66,10 +66,10 @@ export function TileColorsEditor({ colors, onChange }: Props) {
             >
               <TileSwatch hex={valid ? hex : '#7f8c8d'} />
               <div className="min-w-[10rem] flex-1">
-                <div className="text-sm font-medium text-concrete-50">
+                <div className="text-read font-semibold text-concrete-50">
                   {TILE_COLOR_LABELS[key]}
                 </div>
-                <div className="font-mono text-2xs text-white/35">{key}</div>
+                <div className="text-micro text-white/35">{key}</div>
               </div>
               <input
                 type="color"
@@ -79,7 +79,7 @@ export function TileColorsEditor({ colors, onChange }: Props) {
                 aria-label={`${key} color picker`}
               />
               <input
-                className={`w-28 rounded border bg-black/40 px-2 py-1.5 font-mono text-xs text-concrete-50 ${
+                className={`w-28 rounded border bg-black/40 px-2 py-1.5 text-body text-concrete-50 ${
                   valid ? 'border-white/15' : 'border-hiss/60'
                 }`}
                 value={hex}

@@ -10,7 +10,7 @@ export function HazardOnRoute({ hazards }: { hazards: HazardZone[] }) {
         return (
           <div
             key={z.id}
-            className="rounded border bg-black/30 px-2 py-1 text-xs"
+            className="rounded border bg-black/30 px-2 py-1 text-body"
             style={{ color: cfg.color, borderColor: `${cfg.color}66` }}
           >
             <div className="font-semibold">

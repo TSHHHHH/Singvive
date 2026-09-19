@@ -151,11 +151,11 @@ export function CrawlPids({
     <div className="sticky top-0 z-10 shrink-0 border-b border-concrete-600 bg-concrete-800">
       <div className="flex items-start justify-between gap-3 px-3 pt-2.5 lg:px-4">
         <div className="min-w-0">
-          <div className="signage text-2xs text-signal">{pids.kicker}</div>
-          <div className="truncate text-sm font-semibold leading-tight text-concrete-50">
+          <div className="text-label uppercase text-signal">{pids.kicker}</div>
+          <div className="truncate text-read font-semibold text-concrete-50">
             {pids.title}
           </div>
-          <div className="truncate text-2xs text-concrete-400">
+          <div className="truncate text-micro text-concrete-400">
             {pids.lineName}
             {pids.detail ? ` · ${pids.detail}` : ''}
             {remaining > 0
@@ -167,7 +167,7 @@ export function CrawlPids({
         </div>
         <div className="shrink-0 pt-1 text-right">
           <div className="h-1 w-16 rounded-full" style={{ background: pids.lineColor }} />
-          <div className="mt-1 text-2xs tabular-nums text-concrete-400">
+          <div className="mt-1 text-micro tabular-nums text-concrete-400">
             {t('ui.stationStrip.metersNoWeather', { m: meters })}
           </div>
         </div>
@@ -237,7 +237,7 @@ export function StationStrip({
                 <div className="mb-0.5 h-7 w-full px-0.5">
                   {showName && (
                     <div
-                      className={`truncate text-center text-2xs leading-tight ${
+                      className={`truncate text-center text-micro ${
                         kind === 'here'
                           ? 'font-semibold text-concrete-50'
                           : kind === 'next'
@@ -259,7 +259,7 @@ export function StationStrip({
                   />
                 </div>
                 <div
-                  className={`mt-0.5 font-mono text-2xs leading-none ${
+                  className={`mt-0.5 text-micro leading-none ${
                     kind === 'past' ? 'text-concrete-400/50' : 'text-concrete-200'
                   }`}
                 >

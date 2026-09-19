@@ -14,6 +14,8 @@ export function iconMarkup(
   const icon = resolveIcon(name);
 
   if (icon.kind === 'emoji') {
+    // Icon geometry, not type: the <img> branch below is width:${size}px, so
+    // the emoji branch has to match it exactly. Allow-listed in the guard.
     return `<span style="font-size:${size}px;line-height:1">${icon.emoji}</span>`;
   }
 

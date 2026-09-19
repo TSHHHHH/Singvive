@@ -55,12 +55,12 @@ export function DigitalClock({
     >
       <div className="flex flex-col leading-none">
         <span
-          className={`text-2xs uppercase tracking-[0.2em] text-white/35 ${fx?.dayChanged ? 'clock-label-flash' : ''}`}
+          className={`text-label uppercase text-white/35 ${fx?.dayChanged ? 'clock-label-flash' : ''}`}
         >
           Day {day}
         </span>
         <span
-          className={`mt-0.5 text-xs uppercase tracking-widest text-white/45 ${fx?.kind === 'band' ? 'clock-label-flash' : ''}`}
+          className={`mt-0.5 text-plate uppercase text-white/45 ${fx?.kind === 'band' ? 'clock-label-flash' : ''}`}
         >
           {TIME_LABEL[band]}
         </span>
@@ -68,7 +68,7 @@ export function DigitalClock({
       <div className="relative flex items-baseline gap-1.5">
         <Icon name={icon} size={18} className="leading-none" />
         <span
-          className="font-mono text-3xl font-bold leading-none tabular-nums"
+          className="text-marquee tabular-nums"
           style={{ color, textShadow: `0 0 8px ${color}66` }}
         >
           {hh}
@@ -76,7 +76,7 @@ export function DigitalClock({
           {mm}
         </span>
         {meridiem && (
-          <span className="text-xs font-bold uppercase tracking-wide" style={{ color }}>
+          <span className="text-plate uppercase" style={{ color }}>
             {meridiem}
           </span>
         )}

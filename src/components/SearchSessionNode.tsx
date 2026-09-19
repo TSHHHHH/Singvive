@@ -223,7 +223,7 @@ export function SearchSessionNode({
                     background: '#1a1a1ecc',
                   }}
                 >
-                  <span className="text-base text-white/25">?</span>
+                  <span className="text-title text-white/25">?</span>
                   {isSearching && (
                     <span
                       className="pointer-events-none absolute inset-1 rounded border border-signal/40"
@@ -262,7 +262,7 @@ export function SearchSessionNode({
               window.clearTimeout(denyClear.current);
               denyClear.current = window.setTimeout(() => setDenyFlash(0), 700);
             }}
-            className={`flex w-full items-center gap-1.5 rounded border border-signal/40 px-2 py-1 text-left text-xs text-signal transition hover:bg-signal/10${
+            className={`flex w-full items-center gap-1.5 rounded border border-signal/40 px-2 py-1 text-left text-body text-signal transition hover:bg-signal/10${
               denyFlash > 0 ? ' take-all-deny' : ''
             }`}
           >
@@ -274,7 +274,7 @@ export function SearchSessionNode({
           <button
             type="button"
             onClick={() => abortSearch()}
-            className="flex w-full items-center gap-1.5 rounded border border-white/15 px-2 py-1 text-left text-xs text-white/60 transition hover:bg-white/5"
+            className="flex w-full items-center gap-1.5 rounded border border-white/15 px-2 py-1 text-left text-body text-white/60 transition hover:bg-white/5"
           >
             <Icon name="choice.leave" size={13} className="shrink-0" />
             {t('ui.location.leaveAbandon')}
@@ -283,7 +283,7 @@ export function SearchSessionNode({
           <button
             type="button"
             onClick={() => completeSearch()}
-            className="flex w-full items-center gap-1.5 rounded border border-signal/40 px-2 py-1 text-left text-xs font-semibold text-signal transition hover:bg-signal/10"
+            className="flex w-full items-center gap-1.5 rounded border border-signal/40 px-2 py-1 text-left text-body font-semibold text-signal transition hover:bg-signal/10"
           >
             <Icon name="choice.check" size={13} className="shrink-0" />
             {foundCount > 0 ? t('ui.location.doneAbandon') : t('ui.location.done')}
@@ -296,11 +296,11 @@ export function SearchSessionNode({
   if (variant === 'card') {
     return (
       <div className="space-y-2">
-        <div className="text-2xs uppercase tracking-widest text-signal/70">
+        <div className="text-label uppercase text-signal/70">
           {t('ui.location.search')}
         </div>
-        <p className="text-xs leading-snug text-white/70">
-          <span className="mr-1.5 font-mono text-2xs tabular-nums text-white/35">
+        <p className="text-body text-white/70">
+          <span className="mr-1.5 text-micro tabular-nums text-white/35">
             {formatClock(hour, clock)}
           </span>
           {headerInner}
@@ -316,10 +316,10 @@ export function SearchSessionNode({
       <div className="min-w-0 flex-1">
         <p
           style={hang}
-          className="whitespace-normal break-words text-xs leading-snug text-white/70"
+          className="whitespace-normal break-words text-body text-white/70"
         >
           <span
-            className="inline-block font-mono text-2xs tabular-nums text-white/25"
+            className="inline-block text-micro tabular-nums text-white/25"
             style={{ width: timeW, textIndent: 0 }}
           >
             {formatClock(hour, clock)}
@@ -349,12 +349,12 @@ function SearchHoverPanel({
       style={{ minHeight: gridH }}
     >
       {!slot ? (
-        <p className="text-2xs leading-snug text-white/30">{t('ui.search.hoverDetails')}</p>
+        <p className="text-micro text-white/30">{t('ui.search.hoverDetails')}</p>
       ) : slot.state === 'fogged' || slot.state === 'searching' ? (
         <div className="space-y-1">
-          <div className="text-xs font-semibold text-white/50">{t('ui.search.unknown')}</div>
-          <p className="text-2xs leading-snug text-white/35">{t('ui.search.clickNext')}</p>
-          <p className="text-2xs text-white/25">
+          <div className="text-body font-semibold text-white/50">{t('ui.search.unknown')}</div>
+          <p className="text-micro text-white/35">{t('ui.search.clickNext')}</p>
+          <p className="text-micro text-white/25">
             {t('ui.search.footprint', { label: slotFootprintLabel(slot) })}
           </p>
         </div>
@@ -374,22 +374,22 @@ function FoundHoverDetails({ slot }: { slot: SearchSlot }) {
         <Icon name={itemIcon(def)} size={18} className="mt-0.5 shrink-0" />
         <div className="min-w-0">
           <div className="flex flex-wrap items-baseline gap-1.5">
-            <span className="text-xs font-semibold text-concrete-50">{def.name}</span>
+            <span className="text-body font-semibold text-concrete-50">{def.name}</span>
             {def.exotic && (
-              <span className="rounded bg-amber-300/15 px-1 text-2xs uppercase tracking-wide text-amber-300">
+              <span className="rounded bg-amber-300/15 px-1 text-label uppercase text-amber-300">
                 Exotic
               </span>
             )}
             {slot.count > 1 && (
-              <span className="tabular-nums text-2xs text-signal">×{slot.count}</span>
+              <span className="tabular-nums text-micro text-signal">×{slot.count}</span>
             )}
           </div>
-          <div className="text-2xs uppercase tracking-wide text-white/35">{itemKindLabel(def)}</div>
+          <div className="text-label uppercase text-white/35">{itemKindLabel(def)}</div>
         </div>
       </div>
       <ul className="space-y-0.5">
         {lines.map((line) => (
-          <li key={line} className="text-2xs leading-snug text-white/55">
+          <li key={line} className="text-micro text-white/55">
             {line}
           </li>
         ))}

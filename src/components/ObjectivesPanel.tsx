@@ -106,7 +106,7 @@ export function ObjectivesPanel({
       <section className="rounded-lg border border-white/15 bg-concrete-900/80 p-3">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5">
-            <span className="text-sm font-bold text-concrete-50">{t('ui.objective.scoreLadder')}</span>
+            <span className="text-read font-bold text-concrete-50">{t('ui.objective.scoreLadder')}</span>
             {onOpenGuide && (
               <GuideInfoButton
                 topic="evac"
@@ -115,25 +115,25 @@ export function ObjectivesPanel({
               />
             )}
           </div>
-          <span className="shrink-0 text-xs tabular-nums text-signal">
+          <span className="shrink-0 text-body tabular-nums text-signal">
             {t('ui.objective.dayMult', { mult: dayMult.toFixed(1) })}
           </span>
         </div>
-        <p className="mt-1 text-xs leading-snug text-white/50">{t('ui.objective.scoreBlurb')}</p>
+        <p className="mt-1 text-body text-white/50">{t('ui.objective.scoreBlurb')}</p>
         <div className="mt-2 grid grid-cols-2 gap-2 text-center">
           <div className="rounded bg-white/5 px-2 py-1.5">
-            <div className="text-lg font-black tabular-nums text-concrete-50">
+            <div className="text-title tabular-nums text-concrete-50">
               {projectedScore}
             </div>
-            <div className="text-2xs uppercase tracking-wide text-white/35">
+            <div className="text-label uppercase text-white/35">
               {t('ui.objective.ifYouDieNow')}
             </div>
           </div>
           <div className="rounded bg-signal/10 px-2 py-1.5">
-            <div className="text-lg font-black tabular-nums text-signal">
+            <div className="text-title tabular-nums text-signal">
               +{projectedEvacBonus}
             </div>
-            <div className="text-2xs uppercase tracking-wide text-white/35">
+            <div className="text-label uppercase text-white/35">
               {t('ui.objective.evacBonus')}
             </div>
           </div>
@@ -143,10 +143,10 @@ export function ObjectivesPanel({
       {/* ---- Extraction ---- */}
       <section className="rounded-lg border border-signal/40 bg-signal/[0.06] p-3">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-sm font-bold text-signal">
+          <span className="text-read font-bold text-signal">
             <Icon name="action.evac" /> {t('ui.objective.escapeSingapore')}
           </span>
-          <span className="shrink-0 text-xs text-white/40">
+          <span className="shrink-0 text-body text-white/40">
             {atEvac
               ? t('ui.objective.youAreHere')
               : evacZoneName
@@ -155,14 +155,14 @@ export function ObjectivesPanel({
           </span>
         </div>
         {evacZoneName ? (
-          <p className="mt-1 text-sm text-white/70">{reachBlurb}</p>
+          <p className="mt-1 text-read text-white/70">{reachBlurb}</p>
         ) : (
-          <p className="mt-1 text-sm text-white/50">{t('ui.objective.noActiveWindow')}</p>
+          <p className="mt-1 text-read text-white/50">{t('ui.objective.noActiveWindow')}</p>
         )}
 
         {windowText && (
           <div
-            className={`mt-2 text-xs font-semibold ${
+            className={`mt-2 text-body font-semibold ${
               urgent ? 'animate-pulse text-hiss' : 'text-concrete-200'
             }`}
           >
@@ -171,7 +171,7 @@ export function ObjectivesPanel({
         )}
 
         <div className="mt-3">
-          <div className="flex items-center justify-between text-2xs uppercase tracking-wide text-white/40">
+          <div className="flex items-center justify-between text-label uppercase text-white/40">
             <span>
               {manifestRevealed ? t('ui.objective.manifest') : t('ui.objective.radioRead')}
             </span>
@@ -198,7 +198,7 @@ export function ObjectivesPanel({
               }}
             />
           </div>
-          <p className="mt-1.5 text-2xs text-white/35">
+          <p className="mt-1.5 text-micro text-white/35">
             {manifestRevealed
               ? `${t(BIAS_KEY[evacBias])} · ${
                   evacCurrent >= evacRequired
@@ -208,14 +208,14 @@ export function ObjectivesPanel({
               : t('ui.objective.radioBlurb')}
           </p>
           {manifestRevealed && (
-            <p className="mt-1 text-2xs text-white/25">{t('ui.objective.manifestBlurb')}</p>
+            <p className="mt-1 text-micro text-white/25">{t('ui.objective.manifestBlurb')}</p>
           )}
         </div>
 
         {atEvac && (
           <button
             onClick={onEvac}
-            className="mt-3 w-full rounded-lg bg-signal/80 py-2 text-sm font-bold text-black transition hover:bg-signal"
+            className="mt-3 w-full rounded-lg bg-signal/80 py-2 text-read font-bold text-black transition hover:bg-signal"
           >
             {t(manifestRevealed ? 'ui.game.callEvac' : 'ui.game.raiseChannel')}
           </button>
@@ -224,23 +224,23 @@ export function ObjectivesPanel({
 
       {(intelNoteCount > 0 || rumourCount > 0) && (
         <section className="rounded-lg border border-[#c4b07a]/30 bg-[#c4b07a]/[0.06] p-3">
-          <p className="text-2xs font-semibold uppercase tracking-wide text-[#c4b07a]/80">
+          <p className="text-label uppercase text-[#c4b07a]/80">
             {t('ui.objective.leadsTitle')}
           </p>
-          <p className="mt-1 text-sm text-white/70">
+          <p className="mt-1 text-read text-white/70">
             {intelNoteCount > 0 && rumourCount > 0
               ? t('ui.objective.leadsBoth', { notes: intelNoteCount, rumours: rumourCount })
               : intelNoteCount > 0
                 ? t('ui.objective.leadsNotes', { count: intelNoteCount })
                 : t('ui.objective.leadsRumours', { count: rumourCount })}
           </p>
-          <p className="mt-1.5 text-2xs text-white/35">{t('ui.objective.leadsBlurb')}</p>
+          <p className="mt-1.5 text-micro text-white/35">{t('ui.objective.leadsBlurb')}</p>
         </section>
       )}
 
       {/* ---- Doom clock ---- */}
       <section className="rounded-lg border border-white/15 bg-concrete-900/80 p-3">
-        <div className="flex items-center justify-between text-2xs uppercase tracking-wide text-white/40">
+        <div className="flex items-center justify-between text-label uppercase text-white/40">
           <span>{t('ui.objective.horde', { label: doomLabel })}</span>
           <span className="tabular-nums">{Math.round(doom)}%</span>
         </div>
@@ -250,9 +250,9 @@ export function ObjectivesPanel({
             style={{ width: `${Math.min(100, doom)}%`, background: doomColor }}
           />
         </div>
-        <p className="mt-1.5 text-2xs text-white/30">{t('ui.objective.hordeBlurb')}</p>
+        <p className="mt-1.5 text-micro text-white/30">{t('ui.objective.hordeBlurb')}</p>
         {townName && townTier && (
-          <p className="mt-1 text-2xs text-white/40">
+          <p className="mt-1 text-micro text-white/40">
             {t('ui.town.here', { name: townName, tier: t(`ui.town.${townTier}`) })}
           </p>
         )}

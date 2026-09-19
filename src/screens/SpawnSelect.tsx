@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-lea
 import L from 'leaflet';
 import { useShallow } from 'zustand/react/shallow';
 import { useGame } from '../game/store';
+import { useSetting, useSettings } from '../game/settings';
 import { NEIGHBOURHOODS, SG_BOUNDS, SG_CENTER } from '../game/singapore';
 import {
   ensureZonesLoaded,
@@ -30,21 +31,6 @@ const bounds = L.latLngBounds(
   [SG_BOUNDS.minLat, SG_BOUNDS.minLng],
   [SG_BOUNDS.maxLat, SG_BOUNDS.maxLng],
 );
-
-/** Shared with GameMap — survives reloads and stays in sync across screens. */
-const MRT_KEY = 'singvive.mrtOverlay';
-
-function loadMrtPref(): boolean {
-  return localStorage.getItem(MRT_KEY) === '1';
-}
-
-function saveMrtPref(on: boolean): void {
-  try {
-    localStorage.setItem(MRT_KEY, on ? '1' : '0');
-  } catch {
-    /* storage unavailable — non-fatal */
-  }
-}
 
 interface Picked {
   lat: number;
@@ -107,15 +93,12 @@ export function SpawnSelect() {
   const [geoBusy, setGeoBusy] = useState(false);
   const [rejected, setRejected] = useState<string | null>(null);
   const [zones, setZones] = useState<ZonesData | null>(null);
-  const [showMrt, setShowMrt] = useState(loadMrtPref);
+  // Same setting GameMap reads, so a choice here carries into the run.
+  const showMrt = useSetting('railOverlay') === 'on';
+  const setSetting = useSettings((s) => s.setSetting);
   const mrtNet = useMrtNetwork(showMrt);
 
-  const toggleMrt = () => {
-    setShowMrt((on) => {
-      saveMrtPref(!on);
-      return !on;
-    });
-  };
+  const toggleMrt = () => setSetting('railOverlay', showMrt ? 'off' : 'on');
 
   useEffect(() => {
     prefetchBake();
@@ -234,24 +217,24 @@ export function SpawnSelect() {
   return (
     <div className="flex h-full flex-col p-3 sm:p-4">
       <div className="mb-3 flex flex-wrap items-center gap-2 sm:justify-between">
-        <button onClick={resetToMenu} className="text-xs text-white/40 hover:text-white/70">
+        <button onClick={resetToMenu} className="text-body text-white/40 hover:text-white/70">
           {t('ui.common.back')}
         </button>
-        <h2 className="order-first w-full text-center text-base font-bold text-signal sm:order-none sm:w-auto sm:text-lg">
+        <h2 className="order-first w-full text-center text-title text-signal sm:order-none sm:w-auto">
           {t('ui.spawn.title')}
         </h2>
         <div className="ml-auto flex gap-2 sm:ml-0">
           <button
             onClick={useMyLocation}
             disabled={geoBusy || loading}
-            className="rounded bg-white/10 px-3 py-1.5 text-sm hover:bg-white/20 disabled:opacity-40"
+            className="rounded bg-white/10 px-3 py-1.5 text-read hover:bg-white/20 disabled:opacity-40"
             {...tip(t('ui.spawn.myLocationTitle'))}
           >
             {geoBusy ? t('ui.spawn.locating') : t('ui.spawn.myLocation')}
           </button>
           <button
             onClick={randomSpawn}
-            className="rounded bg-white/10 px-3 py-1.5 text-sm hover:bg-white/20"
+            className="rounded bg-white/10 px-3 py-1.5 text-read hover:bg-white/20"
           >
             {t('ui.spawn.random')}
           </button>
@@ -259,7 +242,7 @@ export function SpawnSelect() {
       </div>
 
       {rejected && (
-        <div className="mb-2 rounded border border-hiss/50 bg-hiss/10 px-3 py-2 text-sm text-hiss">
+        <div className="mb-2 rounded border border-hiss/50 bg-hiss/10 px-3 py-2 text-read text-hiss">
           {rejected}
         </div>
       )}
@@ -305,7 +288,7 @@ export function SpawnSelect() {
           onClick={toggleMrt}
           aria-pressed={showMrt}
           {...tip(t('ui.spawn.railMapTitle'))}
-          className={`absolute right-2 top-2 z-[500] flex items-center gap-1.5 rounded border px-2 py-1.5 text-xs font-semibold shadow-signage transition-colors ${
+          className={`absolute right-2 top-2 z-[500] flex items-center gap-1.5 rounded border px-2 py-1.5 text-body font-semibold shadow-signage transition-colors ${
             showMrt
               ? 'border-astral/50 bg-astral/20 text-astral'
               : 'border-white/15 bg-concrete-900/95 text-white/60 hover:text-white/90'
@@ -325,15 +308,16 @@ export function SpawnSelect() {
         {loading && (
           <div className="absolute inset-0 z-[500] flex items-center justify-center bg-black/70 text-center">
             <div>
-              <div className="mb-2 animate-pulse text-2xl">📡</div>
-              <p className="text-sm text-white/70">{t('ui.spawn.scanning')}</p>
+              {/* Decorative glyph, not type — sized as an icon, off the scale. */}
+              <div className="mb-2 animate-pulse text-[1.5rem] leading-none">📡</div>
+              <p className="text-read text-white/70">{t('ui.spawn.scanning')}</p>
             </div>
           </div>
         )}
       </div>
 
       <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-        <p className="text-sm text-white/50">
+        <p className="text-read text-white/50">
           {picked ? (
             <>
               {t('ui.spawn.spawnLabel')} <span className="text-signal">{picked.name}</span>

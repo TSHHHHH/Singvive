@@ -182,7 +182,7 @@ export function CombatPanel({
 
   return (
     <div
-      className={`combat-fx--force-motion flex h-full min-h-0 flex-col gap-1.5 text-sm ${shakeClass} ${outcomeClass}`}
+      className={`combat-fx--force-motion flex h-full min-h-0 flex-col gap-1.5 text-read ${shakeClass} ${outcomeClass}`}
     >
       {/* ---- fighter header ----
            Info columns share leftover width; names sit atop the portraits
@@ -236,7 +236,7 @@ export function CombatPanel({
         />
       </div>
 
-      <div className="flex shrink-0 items-center justify-end gap-2 border-b border-white/10 pb-1 text-xs text-white/30">
+      <div className="flex shrink-0 items-center justify-end gap-2 border-b border-white/10 pb-1 text-body text-white/30">
         {meters.infection > 0 && (
           <span className="text-astral">☣ {Math.round(meters.infection)}</span>
         )}
@@ -260,12 +260,12 @@ export function CombatPanel({
            identical boxes is what makes a run of them countable at a glance. */}
       <div
         ref={logRef}
-        className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-0.5 text-sm leading-snug"
+        className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-0.5 text-read"
       >
         {groups.map((g, gi) =>
           g.side ? (
             <div key={gi} className="flex items-center gap-1">
-              <span className="w-3 shrink-0 text-xs text-astral/70">
+              <span className="w-3 shrink-0 text-body text-astral/70">
                 {g.side === 'player' ? '▶' : ''}
               </span>
               <div
@@ -281,7 +281,7 @@ export function CombatPanel({
                   </div>
                 ))}
               </div>
-              <span className="w-3 shrink-0 text-right text-xs text-hiss/70">
+              <span className="w-3 shrink-0 text-right text-body text-hiss/70">
                 {g.side === 'enemy' ? '◀' : ''}
               </span>
             </div>
@@ -290,7 +290,7 @@ export function CombatPanel({
                gutters and stay unboxed between the bubbles. */
             <div key={gi} className="px-4">
               {g.entries.map((e, i) => (
-                <div key={i} className={`py-px text-xs ${TONE_CLASS[e.tone]}`}>
+                <div key={i} className={`py-px text-body ${TONE_CLASS[e.tone]}`}>
                   {e.text}
                 </div>
               ))}
@@ -316,7 +316,7 @@ export function CombatPanel({
           <button
             onClick={combatTogglePause}
             {...tip(combat.paused ? t('ui.combat.resume') : t('ui.combat.pause'), { label: true })}
-            className={`h-6 w-10 rounded border text-xs font-bold transition ${
+            className={`h-6 w-10 rounded border text-body font-bold transition ${
               combat.paused
                 ? 'border-signal/60 bg-signal/15 text-signal'
                 : 'border-white/20 text-white/70 hover:bg-white/10'
@@ -329,7 +329,7 @@ export function CombatPanel({
               <button
                 key={sp}
                 onClick={() => combatSetSpeedIndex(i)}
-                className={`h-6 flex-1 rounded border text-xs tabular-nums transition ${
+                className={`h-6 flex-1 rounded border text-body tabular-nums transition ${
                   i === combat.speedIndex
                     ? 'border-astral/60 bg-astral/15 text-astral'
                     : 'border-white/15 text-white/45 hover:bg-white/10'
@@ -345,7 +345,7 @@ export function CombatPanel({
       {combat.over ? (
         <button
           onClick={combatContinue}
-          className="shrink-0 rounded bg-signal/90 py-1.5 text-sm font-bold text-black hover:bg-signal"
+          className="shrink-0 rounded bg-signal/90 py-1.5 text-read font-bold text-black hover:bg-signal"
         >
           {combat.outcome === 'dead' ? t('ui.combat.seeResults') : t('ui.combat.continue')}
         </button>
@@ -367,7 +367,7 @@ export function CombatPanel({
                         ? t('ui.combat.reloadTip')
                         : t('ui.combat.noAmmo'),
                 )}
-                className={`h-7 shrink-0 rounded border px-2 text-xs font-bold uppercase tracking-wide transition ${
+                className={`h-7 shrink-0 rounded border px-2 text-plate uppercase transition ${
                   canFire && !combat.firePrepared && !combat.reloadPrepared
                     ? 'border-signal/60 text-signal hover:bg-signal/10'
                     : 'border-white/15 text-white/30'
@@ -379,7 +379,7 @@ export function CombatPanel({
             <button
               onClick={combatBreakOff}
               {...tip(t('ui.combat.breakOffTitle'))}
-              className="h-7 shrink-0 rounded border border-hiss/50 px-2 text-xs font-bold uppercase tracking-wide text-hiss hover:bg-hiss/10"
+              className="h-7 shrink-0 rounded border border-hiss/50 px-2 text-plate uppercase text-hiss hover:bg-hiss/10"
             >
               {t('ui.combat.breakOff')}
             </button>
@@ -408,7 +408,7 @@ function StanceSwitcher({
             key={id}
             onClick={() => onSelect(id)}
             {...tip(s.description)}
-            className={`h-7 min-w-0 flex-1 truncate rounded border px-1 text-xs font-bold uppercase tracking-wide transition ${
+            className={`h-7 min-w-0 flex-1 truncate rounded border px-1 text-plate uppercase transition ${
               on
                 ? 'border-astral/70 bg-astral/20 text-astral'
                 : 'border-white/15 text-white/50 hover:border-white/30 hover:text-white/80'
@@ -447,7 +447,7 @@ function SpeedTrack({
 
   return (
     <div className="shrink-0 space-y-0.5">
-      <div className="flex justify-between text-2xs tabular-nums text-white/30">
+      <div className="flex justify-between text-micro tabular-nums text-white/30">
         <span {...tip('Seconds per your action at current Speed')}>you {pSec.toFixed(1)}s</span>
         <span {...tip('Seconds per their action')}>them {eSec.toFixed(1)}s</span>
       </div>
@@ -531,7 +531,7 @@ function Portrait({
         flash ? 'ring-white/50' : 'ring-white/10'
       } ${hitClass}`}
     >
-      <span className="truncate px-0.5 pt-0.5 text-center text-2xs leading-tight text-white/70" {...tip(name)}>
+      <span className="truncate px-0.5 pt-0.5 text-center text-micro text-white/70" {...tip(name)}>
         {name}
       </span>
       <div className="flex min-h-0 flex-1 items-center justify-center">
@@ -584,7 +584,7 @@ function FighterColumn({
   return (
     <div className="flex min-w-0 flex-col justify-between gap-0.5">
       <div className={`flex items-baseline ${mirrored ? 'justify-start' : 'justify-end'}`}>
-        <span className="shrink-0 text-xs tabular-nums text-white/45">
+        <span className="shrink-0 text-body tabular-nums text-white/45">
           {hp}/{maxHp}
         </span>
       </div>
@@ -602,7 +602,7 @@ function FighterColumn({
         />
       </div>
       <div
-        className={`flex min-w-0 gap-1 overflow-hidden rounded-sm border border-white/10 px-1 py-0.5 text-2xs tabular-nums text-white/40 ${
+        className={`flex min-w-0 gap-1 overflow-hidden rounded-sm border border-white/10 px-1 py-0.5 text-micro tabular-nums text-white/40 ${
           mirrored ? 'justify-end' : ''
         }`}
       >
@@ -616,7 +616,7 @@ function FighterColumn({
           <span className="text-white/25">{spdLabel}</span> {speed.toFixed(0)}
         </span>
       </div>
-      <div className={`truncate text-xs text-white/30 ${mirrored ? 'text-right' : ''}`}>
+      <div className={`truncate text-body text-white/30 ${mirrored ? 'text-right' : ''}`}>
         {weapon}
       </div>
     </div>

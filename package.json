@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "lint": "oxlint --max-warnings=27",
+    "lint": "oxlint --max-warnings=27 && node scripts/check-type-scale.mjs",
+    "lint:type": "node scripts/check-type-scale.mjs",
     "test": "vitest run",
     "bake:pois": "node --experimental-strip-types scripts/bake-pois.mjs",
     "bake:mrt": "node scripts/bake-mrt.mjs",

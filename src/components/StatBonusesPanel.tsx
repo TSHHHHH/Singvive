@@ -133,7 +133,7 @@ export function sheetLinesAsModifiers(lines: SheetLine[]): MeterModifier[] {
 
 /** Value + chevron columns stay the same width on every line so totals line up with breakdowns. */
 const VALUE_COL = 'w-[4.75rem] shrink-0 text-right tabular-nums whitespace-nowrap';
-const CHEVRON_COL = 'w-3 shrink-0 text-center text-xs text-white/30';
+const CHEVRON_COL = 'w-3 shrink-0 text-center text-body text-white/30';
 
 function SheetStatRow({ row }: { row: SheetRow }) {
   const { locale, t } = useT();
@@ -152,10 +152,10 @@ function SheetStatRow({ row }: { row: SheetRow }) {
       <span className="w-6 shrink-0 text-center text-white/40">
         {icon ? <Icon name={icon} size={16} /> : null}
       </span>
-      <span className="min-w-0 flex-1 truncate text-xs text-white/55">
+      <span className="min-w-0 flex-1 truncate text-body text-white/55">
         {t(`ui.sheet.row.${row.id}`)}
       </span>
-      <span className={`${VALUE_COL} text-sm font-bold ${totalClass}`}>{total}</span>
+      <span className={`${VALUE_COL} text-read font-bold ${totalClass}`}>{total}</span>
       <span className={CHEVRON_COL} aria-hidden>
         {foldable ? (open ? '▴' : '▾') : ''}
       </span>
@@ -181,7 +181,7 @@ function SheetStatRow({ row }: { row: SheetRow }) {
           {lines.map((line) => (
             <li
               key={`${line.label}-${line.amount}`}
-              className={`flex items-center gap-2 text-xs ${
+              className={`flex items-center gap-2 text-body ${
                 line.good ? 'text-signal/80' : 'text-hiss/90'
               }`}
             >

@@ -40,13 +40,13 @@ export function AttributeRow() {
                 <Icon name={ATTRIBUTE_ICONS[k]} size={12} title={label} />
               </div>
               <div
-                className={`text-sm font-bold tabular-nums ${
+                className={`text-read font-bold tabular-nums ${
                   delta > 0 ? 'text-signal' : delta < 0 ? 'text-hiss' : 'text-concrete-200'
                 }`}
               >
                 {value}
               </div>
-              <div className="text-2xs uppercase text-white/40">
+              <div className="text-label uppercase text-white/40">
                 {t(`ui.attributes.short.${k}`)}
               </div>
             </div>
@@ -72,32 +72,32 @@ function AttributeTip({
   return (
     <>
       <div className="mb-1 flex items-baseline justify-between gap-2">
-        <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-white/40">
+        <span className="flex items-center gap-1.5 text-plate uppercase text-white/40">
           <Icon name={ATTRIBUTE_ICONS[attr]} size={12} />
           {t(`ui.attributes.${attr}`)}
         </span>
-        <span className="shrink-0 text-2xs tabular-nums text-white/40">
+        <span className="shrink-0 text-micro tabular-nums text-white/40">
           {t('ui.attributes.baseTo', { base: BASE_ATTRIBUTE, value })}
         </span>
       </div>
-      <p className="text-xs leading-snug text-white/60">{ATTRIBUTE_BLURB[attr]}</p>
+      <p className="text-body text-white/60">{ATTRIBUTE_BLURB[attr]}</p>
 
       {effects.length > 0 ? (
         <ul className="mt-1.5 flex flex-col gap-0.5">
           {effects.map((e) => (
-            <li key={e.label} className={`text-xs ${e.good ? 'text-signal' : 'text-hiss'}`}>
+            <li key={e.label} className={`text-body ${e.good ? 'text-signal' : 'text-hiss'}`}>
               {e.good ? '▲' : '▼'} {e.label}
             </li>
           ))}
         </ul>
       ) : (
-        <p className="mt-1.5 text-xs text-white/35">{t('ui.attributes.atBaseline')}</p>
+        <p className="mt-1.5 text-body text-white/35">{t('ui.attributes.atBaseline')}</p>
       )}
 
       {sources.length > 0 && (
         <ul className="mt-1.5 flex flex-col gap-px border-t border-white/10 pt-1.5">
           {sources.map((s) => (
-            <li key={s.name} className="flex justify-between gap-2 text-2xs">
+            <li key={s.name} className="flex justify-between gap-2 text-micro">
               <span className="truncate text-white/45">{s.name}</span>
               <span className={`shrink-0 tabular-nums ${s.mod > 0 ? 'text-signal' : 'text-hiss'}`}>
                 {s.mod > 0 ? '+' : ''}

@@ -108,10 +108,24 @@ export function countOf(items: ItemInstance[], defId: string): number {
     .reduce((n, i) => n + i.stack, 0);
 }
 
+/**
+ * Machine-readable twin of `reason`. The panel needs to *translate* the
+ * blocker, and `src/game/` stays free of the message catalog — so the shape
+ * travels and the UI writes the sentence. `reason` stays for the run log and
+ * the DEV recipe sandbox, which both want plain English.
+ */
+export type CraftBlock =
+  | { kind: 'shelter' }
+  | { kind: 'tool'; defId: string }
+  | { kind: 'input'; defId: string; need: number; have: number }
+  | { kind: 'water'; need: number; have: number };
+
 export interface RecipeAvailability {
   ok: boolean;
   /** Why not, phrased for the player. Empty when `ok`. */
   reason: string;
+  /** Present only when blocked — the same fact, for the UI to localize. */
+  block?: CraftBlock;
 }
 
 export function canCraft(
@@ -121,25 +135,42 @@ export function canCraft(
   inputs?: Record<string, number>,
 ): RecipeAvailability {
   if (recipe.needsShelter && !atShelter) {
-    return { ok: false, reason: 'Needs somewhere to work' };
+    return { ok: false, reason: 'Needs somewhere to work', block: { kind: 'shelter' } };
   }
   if (recipe.tool && countOf(items, recipe.tool) < 1) {
-    return { ok: false, reason: `Needs a ${itemDef(recipe.tool).name}` };
+    return {
+      ok: false,
+      reason: `Needs a ${itemDef(recipe.tool).name}`,
+      block: { kind: 'tool', defId: recipe.tool },
+    };
   }
   const needMap = inputs ?? recipe.inputs;
   for (const [defId, need] of Object.entries(needMap)) {
     const have = countOf(items, defId);
     if (have < need) {
-      return { ok: false, reason: `Needs ${need}× ${itemDef(defId).name} (have ${have})` };
+      return {
+        ok: false,
+        reason: `Needs ${need}× ${itemDef(defId).name} (have ${have})`,
+        block: { kind: 'input', defId, need, have },
+      };
     }
   }
   if (recipe.waterInput !== undefined) {
     const waterProvided = WATER_INPUT_IDS.some((id) => (needMap[id] ?? 0) >= recipe.waterInput!);
     if (!waterProvided && !waterInputFor(items, recipe.waterInput)) {
-      return { ok: false, reason: `Needs ${recipe.waterInput}× water` };
+      return {
+        ok: false,
+        reason: `Needs ${recipe.waterInput}× water`,
+        block: { kind: 'water', need: recipe.waterInput, have: waterCarried(items) },
+      };
     }
   }
   return { ok: true, reason: '' };
+}
+
+/** Every drop in the pack, clean or murky — what a water blocker compares against. */
+export function waterCarried(items: ItemInstance[]): number {
+  return WATER_INPUT_IDS.reduce((total, id) => total + countOf(items, id), 0);
 }
 
 /** Choose clean water first; murky water is accepted only as a last resort. */

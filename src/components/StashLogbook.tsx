@@ -33,7 +33,7 @@ export function StashLogbook({ onFocusLocation }: Props) {
   return (
     <>
       {entries.length === 0 ? (
-        <p className="text-sm text-white/40">
+        <p className="text-read text-white/40">
           No caches yet. Travel to a location and deposit loot into its stash.
         </p>
       ) : (
@@ -48,19 +48,19 @@ export function StashLogbook({ onFocusLocation }: Props) {
                 <div className="flex items-center justify-between gap-2">
                   <span className="min-w-0 font-semibold">
                     <Icon name={POI_CONFIG[loc.category].icon} /> {loc.name}
-                    {here && <span className="ml-2 text-xs text-signal">(here)</span>}
+                    {here && <span className="ml-2 text-body text-signal">(here)</span>}
                   </span>
                   {onFocusLocation && (
                     <button
                       type="button"
                       onClick={() => onFocusLocation(loc.lat, loc.lng)}
-                      className="shrink-0 rounded border border-white/15 px-2 py-0.5 text-2xs text-white/70 transition hover:bg-white/10 hover:text-signal"
+                      className="shrink-0 rounded border border-white/15 px-2 py-0.5 text-micro text-white/70 transition hover:bg-white/10 hover:text-signal"
                     >
                       Show on map
                     </button>
                   )}
                 </div>
-                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-white/60">
+                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-body text-white/60">
                   {[...counts.entries()].map(([defId, n]) => (
                     <span key={defId}>
                       {itemDef(defId).name} ×{n}
@@ -72,7 +72,7 @@ export function StashLogbook({ onFocusLocation }: Props) {
           })}
         </ul>
       )}
-      <p className="mt-4 text-xs text-white/30">
+      <p className="mt-4 text-body text-white/30">
         Caches are read-only from here — travel to a location to withdraw from its stash.
       </p>
     </>

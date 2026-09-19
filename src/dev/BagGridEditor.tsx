@@ -45,37 +45,37 @@ export function BagGridEditor({ grid, onChange }: Props) {
   return (
     <div className="rounded border border-white/10 bg-black/25 p-3">
       <div className="mb-2 flex flex-wrap items-end justify-between gap-2">
-        <h5 className="text-2xs uppercase tracking-widest text-white/30">Pack grid</h5>
-        <span className="text-2xs tabular-nums text-white/45">
+        <h5 className="text-label uppercase text-white/30">Pack grid</h5>
+        <span className="text-micro tabular-nums text-white/45">
           {usable}/{total} cells
         </span>
       </div>
       <div className="mb-3 flex flex-wrap items-end gap-3">
-        <label className="flex flex-col gap-0.5 text-xs">
+        <label className="flex flex-col gap-0.5 text-body">
           <span className="uppercase tracking-wider text-white/35">w</span>
           <input
             type="number"
             min={1}
             max={MAX_EDGE}
-            className="w-16 rounded border border-white/10 bg-black/40 px-2 py-1.5 text-sm text-white outline-none focus:border-signal/50"
+            className="w-16 rounded border border-white/10 bg-black/40 px-2 py-1.5 text-read text-white outline-none focus:border-signal/50"
             value={grid.w}
             onChange={(e) => setEdge('w', e.target.value)}
           />
         </label>
-        <label className="flex flex-col gap-0.5 text-xs">
+        <label className="flex flex-col gap-0.5 text-body">
           <span className="uppercase tracking-wider text-white/35">h</span>
           <input
             type="number"
             min={1}
             max={MAX_EDGE}
-            className="w-16 rounded border border-white/10 bg-black/40 px-2 py-1.5 text-sm text-white outline-none focus:border-signal/50"
+            className="w-16 rounded border border-white/10 bg-black/40 px-2 py-1.5 text-read text-white outline-none focus:border-signal/50"
             value={grid.h}
             onChange={(e) => setEdge('h', e.target.value)}
           />
         </label>
         <button
           type="button"
-          className="rounded border border-white/15 px-2 py-1.5 text-2xs text-white/70 transition hover:border-signal/40 hover:text-signal"
+          className="rounded border border-white/15 px-2 py-1.5 text-micro text-white/70 transition hover:border-signal/40 hover:text-signal"
           onClick={() => onChange({ w: grid.w, h: grid.h })}
         >
           Fill / clear holes
@@ -115,7 +115,7 @@ export function BagGridEditor({ grid, onChange }: Props) {
           );
         })}
       </div>
-      <p className="mt-2 text-2xs text-white/30">
+      <p className="mt-2 text-micro text-white/30">
         Click a cell to punch or restore a hole. This is the full pack silhouette while the bag is
         equipped.
       </p>

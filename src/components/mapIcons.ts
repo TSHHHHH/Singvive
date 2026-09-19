@@ -1,4 +1,8 @@
 import L from 'leaflet';
+
+// The px font sizes below are icon geometry, not type: each glyph is centred in
+// a hard-coded pin box, so it must not scale with the Font size setting. They
+// are allow-listed in scripts/check-type-scale.mjs.
 import { POI_CONFIG } from '../game/poi';
 import { FACTION_CONFIG } from '../game/factions';
 import { iconMarkup } from '../icons/markup';

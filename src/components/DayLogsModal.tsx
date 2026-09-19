@@ -49,17 +49,17 @@ export function DayLogsModal({ onClose }: { onClose: () => void }) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex shrink-0 items-center justify-between border-b border-white/10 p-4">
-          <h3 className="text-sm font-bold text-signal">
+          <h3 className="text-read font-bold text-signal">
             <Icon name="action.dayLogs" /> {t('ui.log.dayLogs')}
           </h3>
-          <button onClick={onClose} className="text-xs text-white/40 hover:text-white/70">
+          <button onClick={onClose} className="text-body text-white/40 hover:text-white/70">
             {t('ui.common.close')}
           </button>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto p-3">
           {days.length === 0 ? (
-            <p className="p-4 text-center text-sm text-white/30">{t('ui.log.nothingRecorded')}</p>
+            <p className="p-4 text-center text-read text-white/30">{t('ui.log.nothingRecorded')}</p>
           ) : (
             <ul className="flex flex-col gap-1.5">
               {days.map(({ day, entries }) => {
@@ -77,15 +77,15 @@ export function DayLogsModal({ onClose }: { onClose: () => void }) {
                       onClick={() => setOpenDay(open ? null : day)}
                       className="flex w-full items-center justify-between px-3 py-2 text-left transition hover:bg-white/5"
                     >
-                      <span className="text-sm font-semibold">
+                      <span className="text-read font-semibold">
                         {t('ui.log.dayN', { day })}
                         {day === currentDay && (
-                          <span className="ml-2 rounded bg-signal/20 px-1 text-2xs font-semibold uppercase tracking-wide text-signal">
+                          <span className="ml-2 rounded bg-signal/20 px-1 text-label uppercase text-signal">
                             {t('ui.log.today')}
                           </span>
                         )}
                       </span>
-                      <span className="flex items-center gap-2 text-xs text-white/35">
+                      <span className="flex items-center gap-2 text-body text-white/35">
                         <span>
                           {entries.length === 1
                             ? t('ui.log.entry', { n: entries.length })

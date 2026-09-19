@@ -6,7 +6,7 @@ import { EFFECT_KINDS } from './validateItems';
 import type { ItemsCatalog } from './lootApi';
 
 const inputClass =
-  'rounded border border-white/10 bg-black/40 px-2 py-1.5 text-sm text-white outline-none focus:border-signal/50';
+  'rounded border border-white/10 bg-black/40 px-2 py-1.5 text-read text-white outline-none focus:border-signal/50';
 
 const KINDS = ['all', ...[...EFFECT_KINDS].sort()] as const;
 
@@ -81,7 +81,7 @@ export function RecipeItemSearch({ items, exclude, placeholder, onPick }: Props)
           setKind(e.target.value as KindFilter);
           setOpen(true);
         }}
-        className="rounded border border-white/10 bg-black/40 px-1.5 py-1.5 text-2xs text-white/70 outline-none"
+        className="rounded border border-white/10 bg-black/40 px-1.5 py-1.5 text-micro text-white/70 outline-none"
         aria-label="Filter by kind"
       >
         {KINDS.map((k) => (
@@ -99,7 +99,7 @@ export function RecipeItemSearch({ items, exclude, placeholder, onPick }: Props)
           }}
           onFocus={() => setOpen(true)}
           placeholder={placeholder}
-          className={inputClass + ' w-full font-mono'}
+          className={inputClass + ' w-full'}
           onKeyDown={(e) => {
             if (e.key === 'Escape') {
               e.preventDefault();
@@ -134,7 +134,7 @@ export function RecipeItemSearch({ items, exclude, placeholder, onPick }: Props)
             className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded border border-white/10 bg-concrete-900 shadow-xl"
           >
             {matches.length === 0 ? (
-              <li className="px-2 py-2 text-xs text-white/35">No items match</li>
+              <li className="px-2 py-2 text-body text-white/35">No items match</li>
             ) : (
               matches.map((def, i) => (
                 <li key={def.id}>
@@ -143,7 +143,7 @@ export function RecipeItemSearch({ items, exclude, placeholder, onPick }: Props)
                     data-hi={i === hi ? '1' : '0'}
                     onMouseEnter={() => setHi(i)}
                     onClick={() => pick(def)}
-                    className={`flex w-full items-center gap-2 px-2 py-1.5 text-left text-xs ${
+                    className={`flex w-full items-center gap-2 px-2 py-1.5 text-left text-body ${
                       i === hi ? 'bg-signal/15' : 'hover:bg-white/5'
                     }`}
                   >
@@ -151,7 +151,7 @@ export function RecipeItemSearch({ items, exclude, placeholder, onPick }: Props)
                       <Icon name={itemIcon(def)} size={16} />
                     </span>
                     <span className="min-w-0 flex-1 truncate text-white/80">{def.name}</span>
-                    <span className="shrink-0 font-mono text-2xs text-white/35">
+                    <span className="shrink-0 text-micro text-white/35">
                       {def.effect.kind} · v{def.value}
                       {def.scarcity !== undefined && def.scarcity < 1 ? ` · s${def.scarcity}` : ''}
                     </span>

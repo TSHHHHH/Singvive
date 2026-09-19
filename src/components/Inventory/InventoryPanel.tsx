@@ -60,8 +60,8 @@ function InventoryControlsHint({ coarse }: { coarse: boolean }): ReactNode {
   return (
     <TipHint
       tip={
-        <div className="space-y-1 text-2xs normal-case tracking-normal">
-          <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-white/35">
+        <div className="space-y-1 text-micro normal-case tracking-normal">
+          <div className="mb-1.5 text-label uppercase text-white/35">
             {t('ui.inventory.controls')}
           </div>
           {rows.map((row) => (
@@ -78,7 +78,7 @@ function InventoryControlsHint({ coarse }: { coarse: boolean }): ReactNode {
       <button
         type="button"
         aria-label={t('ui.inventory.controlsAria')}
-        className="inline-flex h-4 w-4 items-center justify-center rounded border border-white/15 text-[10px] font-semibold leading-none text-white/45 transition hover:border-signal/40 hover:text-signal"
+        className="inline-flex h-4 w-4 items-center justify-center rounded border border-white/15 text-micro font-semibold leading-none text-white/45 transition hover:border-signal/40 hover:text-signal"
       >
         ?
       </button>
@@ -230,7 +230,7 @@ export function InventoryPanel({
                           unequipItem(inspectedEquipSlot);
                           setSelectedUid(null);
                         }}
-                        className="w-full rounded border border-astral/40 bg-astral/10 px-1.5 py-1 text-xs leading-tight text-astral hover:bg-astral/20"
+                        className="w-full rounded border border-astral/40 bg-astral/10 px-1.5 py-1 text-body leading-tight text-astral hover:bg-astral/20"
                       >
                         {t('ui.inventory.unequip')}
                       </button>
@@ -241,7 +241,7 @@ export function InventoryPanel({
                             onClick={() => applyItem(inspected.uid)}
                             disabled={inCombat}
                             {...tip(inCombat ? t('ui.inventory.cannotUseCombat') : undefined)}
-                            className={`w-full rounded px-1.5 py-1 text-xs font-semibold leading-tight ${
+                            className={`w-full rounded px-1.5 py-1 text-body font-semibold leading-tight ${
                               inCombat
                                 ? 'cursor-not-allowed bg-white/10 text-white/30'
                                 : 'bg-signal/80 text-black hover:bg-signal'
@@ -256,7 +256,7 @@ export function InventoryPanel({
                               equipItem(inspected.uid, def.slot!);
                               setSelectedUid(null);
                             }}
-                            className="w-full rounded border border-astral/40 bg-astral/10 px-1.5 py-1 text-xs leading-tight text-astral hover:bg-astral/20"
+                            className="w-full rounded border border-astral/40 bg-astral/10 px-1.5 py-1 text-body leading-tight text-astral hover:bg-astral/20"
                           >
                             {t('ui.inventory.equip')}
                           </button>
@@ -273,7 +273,7 @@ export function InventoryPanel({
                                 ? t('ui.inventory.twoHandBlocked')
                                 : undefined,
                             )}
-                            className={`w-full rounded border px-1.5 py-1 text-xs leading-tight ${
+                            className={`w-full rounded border px-1.5 py-1 text-body leading-tight ${
                               isTwoHandedEquipped(equipment)
                                 ? 'cursor-not-allowed border-white/10 text-white/30'
                                 : 'border-astral/40 bg-astral/10 text-astral hover:bg-astral/20'
@@ -285,7 +285,7 @@ export function InventoryPanel({
                         {canRotate && (
                           <button
                             onClick={() => rotateItem(inspected.uid)}
-                            className="w-full rounded bg-white/10 px-1.5 py-1 text-xs leading-tight hover:bg-white/20"
+                            className="w-full rounded bg-white/10 px-1.5 py-1 text-body leading-tight hover:bg-white/20"
                             {...tip(t('ui.inventory.rotateHint'))}
                           >
                             {t('ui.inventory.rotate')}
@@ -299,7 +299,7 @@ export function InventoryPanel({
                                 inspected.container === BACKPACK ? stashContainer : BACKPACK,
                               )
                             }
-                            className="w-full rounded bg-white/10 px-1.5 py-1 text-xs leading-tight hover:bg-white/20"
+                            className="w-full rounded bg-white/10 px-1.5 py-1 text-body leading-tight hover:bg-white/20"
                           >
                             →{' '}
                             {inspected.container === BACKPACK
@@ -312,7 +312,7 @@ export function InventoryPanel({
                             dropItem(inspected.uid);
                             setSelectedUid(null);
                           }}
-                          className="w-full rounded border border-hiss/40 px-1.5 py-1 text-xs leading-tight text-hiss/80 hover:bg-hiss/10"
+                          className="w-full rounded border border-hiss/40 px-1.5 py-1 text-body leading-tight text-hiss/80 hover:bg-hiss/10"
                           {...tip(t('ui.inventory.dropGone'))}
                         >
                           {t('ui.inventory.drop')}
@@ -322,7 +322,7 @@ export function InventoryPanel({
                     {repairable && (
                       <button
                         onClick={() => repairItem(inspected.uid, fieldKit?.defId)}
-                        className="w-full rounded border border-amber-300/40 bg-amber-300/10 px-1.5 py-1 text-xs leading-tight text-amber-200 hover:bg-amber-300/20"
+                        className="w-full rounded border border-amber-300/40 bg-amber-300/10 px-1.5 py-1 text-body leading-tight text-amber-200 hover:bg-amber-300/20"
                         {...tip(
                           fieldKit
                             ? t('ui.inventory.usesOne', { name: itemDef(fieldKit.defId).name })
@@ -338,7 +338,7 @@ export function InventoryPanel({
                     {tearable && (
                       <button
                         onClick={() => tearForRags(inspected.uid)}
-                        className="w-full rounded bg-white/10 px-1.5 py-1 text-xs leading-tight hover:bg-white/20"
+                        className="w-full rounded bg-white/10 px-1.5 py-1 text-body leading-tight hover:bg-white/20"
                         {...tip(t('ui.inventory.tearTitle', {
                           cost: TEAR_CONDITION_COST,
                           yield: TEAR_RAGS_YIELD,
@@ -349,14 +349,14 @@ export function InventoryPanel({
                     )}
                   </>
                 ) : (
-                  <p className="text-center text-2xs leading-snug text-white/25">
+                  <p className="text-center text-micro text-white/25">
                     {t('ui.inventory.clickToAct')}
                   </p>
                 )}
               </div>
             </div>
           ) : (
-            <p className="m-auto text-center text-xs text-white/30">
+            <p className="m-auto text-center text-body text-white/30">
               {t(coarse ? 'ui.inventory.selectHintTouch' : 'ui.inventory.selectHint')}
             </p>
           )}
@@ -431,15 +431,15 @@ export function InventoryPanel({
                     aria-hidden
                   />
                 )}
-                <span className="relative z-[1] text-2xs uppercase tracking-wide text-white/40">
+                <span className="relative z-[1] text-label uppercase text-white/40">
                   {t(`ui.slots.${slot}`)}
                 </span>
                 {eDef && inst ? (
                   <Icon name={itemIcon(eDef)} size={18} className="relative z-[1]" />
                 ) : twoHandBlocked ? (
-                  <span className="relative z-[1] text-2xs text-white/25">2H</span>
+                  <span className="relative z-[1] text-micro text-white/25">2H</span>
                 ) : freeHand ? (
-                  <span className="relative z-[1] text-2xs text-signal/70">
+                  <span className="relative z-[1] text-micro text-signal/70">
                     {t('ui.inventory.freeHand')}
                   </span>
                 ) : (
@@ -465,7 +465,7 @@ export function InventoryPanel({
             {...gridHandlers}
           />
 
-          <div className="flex items-center gap-2 text-xs">
+          <div className="flex items-center gap-2 text-body">
             <TipHint
               className="flex min-w-0 flex-1 items-center gap-2"
               placement="top"
@@ -515,7 +515,7 @@ export function InventoryPanel({
           <button
             type="button"
             onClick={() => confirmTempStash()}
-            className="mt-2 w-full rounded bg-signal/80 py-1.5 text-xs font-bold text-black hover:bg-signal"
+            className="mt-2 w-full rounded bg-signal/80 py-1.5 text-body font-bold text-black hover:bg-signal"
           >
             {t('ui.inventory.confirmAbandon')}
           </button>
@@ -523,7 +523,7 @@ export function InventoryPanel({
       )}
 
       {showStash && inTunnel && !hasTempStash && (
-        <p className="text-2xs text-white/35">{t('ui.inventory.stashLocked')}</p>
+        <p className="text-micro text-white/35">{t('ui.inventory.stashLocked')}</p>
       )}
 
       {showStash && stashContainer && (

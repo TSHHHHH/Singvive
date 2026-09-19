@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { t } from './t';
 import { ATTRIBUTE_KEYS, TRAITS } from '../game/character';
-import { SETTINGS_SCHEMA } from '../game/settings';
+import { SETTINGS_SCHEMA, SETTINGS_TABS } from '../game/settings';
 import { RECIPES } from '../game/crafting';
 import { TOWN_TIER_ORDER } from '../game/townField';
 import { EQUIP_SLOTS } from '../components/Inventory/equipSlots';
@@ -59,6 +59,21 @@ describe('every templated message key resolves in English', () => {
       `settings.${d.key}.label`,
       `settings.${d.key}.description`,
     ]);
+    expect(keys.filter(unresolved)).toEqual([]);
+  });
+
+  it('settings option labels', () => {
+    const keys = SETTINGS_SCHEMA.flatMap((d) =>
+      d.options.map((o) => `settings.${d.key}.options.${o.value}`),
+    );
+    expect(keys.filter(unresolved)).toEqual([]);
+  });
+
+  it('settings tabs and section headings', () => {
+    const keys = [
+      ...SETTINGS_TABS.map((x) => `settings.tabs.${x.id}`),
+      ...SETTINGS_SCHEMA.flatMap((d) => (d.section ? [`settings.groups.${d.section}`] : [])),
+    ];
     expect(keys.filter(unresolved)).toEqual([]);
   });
 

@@ -44,11 +44,12 @@ export class ErrorBoundary extends Component<Props, State> {
     return (
       <div className="flex min-h-full items-center justify-center p-6">
         <div className="w-full max-w-md text-center">
-          <div className="mb-2 text-6xl">📻</div>
-          <h1 className="text-3xl font-black text-hiss">{tr('ui.error.signalLost')}</h1>
-          <p className="mt-1 text-sm text-white/50">{tr('ui.error.brokeBlurb')}</p>
+          {/* Decorative glyph, not type — sized as an icon, off the scale. */}
+          <div className="mb-2 text-[3.75rem] leading-none">📻</div>
+          <h1 className="text-marquee text-hiss">{tr('ui.error.signalLost')}</h1>
+          <p className="mt-1 text-read text-white/50">{tr('ui.error.brokeBlurb')}</p>
 
-          <pre className="mt-6 overflow-x-auto rounded-lg border border-white/10 bg-black/40 p-3 text-left text-xs text-white/40">
+          <pre className="mt-6 overflow-x-auto rounded-lg border border-white/10 bg-black/40 p-3 text-left text-body text-white/40">
             {error.message || String(error)}
           </pre>
 
@@ -64,7 +65,7 @@ export class ErrorBoundary extends Component<Props, State> {
               clearRun();
               window.location.reload();
             }}
-            className="mt-3 block w-full text-xs text-white/30 hover:text-white/60"
+            className="mt-3 block w-full text-body text-white/30 hover:text-white/60"
           >
             {tr('ui.error.deleteRun')}
           </button>

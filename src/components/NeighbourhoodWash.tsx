@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Marker, Polygon, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
+import { typeCss } from '../ui/type';
 import {
   TOWNS,
   TOWN_TIER_ORDER,
@@ -235,9 +236,9 @@ function TownLabelLayer({
   const map = useMap();
   ensureTownPane(map);
 
-  const tight = zoom < 11;
-  const namePx = tight ? 9 : 11;
-  const tierPx = tight ? 8 : 9;
+  // Dense zooms shrink the labels, but as a fraction of the role rather than
+  // four magic pixel values — so they still track the Font size setting.
+  const labelScale = zoom < 11 ? 0.85 : 1;
   return (
     <>
       {TOWNS.map((town, i) => {
@@ -252,11 +253,11 @@ function TownLabelLayer({
               text-shadow:0 1px 3px #000,0 0 8px #000;
             ">
               <div style="
-                font-size:${namePx}px;font-weight:700;letter-spacing:0.06em;
+                ${typeCss('label', { scale: labelScale })}
                 text-transform:uppercase;color:${color};white-space:nowrap;opacity:0.95;
               ">${town.name}</div>
               <div style="
-                font-size:${tierPx}px;font-weight:600;letter-spacing:0.04em;
+                ${typeCss('micro', { scale: labelScale })}
                 text-transform:uppercase;color:${color};opacity:0.8;margin-top:1px;
               ">${tierName}</div>
             </div>`,
@@ -283,10 +284,10 @@ function TownStatusLegend({ visible }: { visible: boolean }) {
   const map = useMap();
   return createPortal(
     <div
-      className="pointer-events-none absolute bottom-3 left-3 z-[500] rounded border border-white/15 bg-black/75 px-2.5 py-2 text-[11px] leading-relaxed text-white/75 backdrop-blur-sm"
+      className="pointer-events-none absolute bottom-3 left-3 z-[500] rounded border border-white/15 bg-black/75 px-2.5 py-2 text-body leading-relaxed text-white/75 backdrop-blur-sm"
       style={{ opacity: visible ? 1 : 0, transition: FADE_TRANSITION }}
     >
-      <div className="mb-1 font-medium uppercase tracking-widest text-white/90">
+      <div className="mb-1 text-plate uppercase text-white/90">
         {t('ui.town.legendTitle')}
       </div>
       {TOWN_TIER_ORDER.map((tier) => (

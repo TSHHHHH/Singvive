@@ -403,6 +403,8 @@ hostility, trade, shelter, aid, and intel:
   - **Left survivor rail** (~340px): clock, weather, Rest (with sleep-quality preview), `ObjectiveBar`,
     `ConditionPanel` (meters + body), and panel buttons **Inventory / Craft / Logbook / Stats**.
   - **Slide-out overlay** (does not reflow the map): inventory, craft, logbook, stats, objectives.
+    Most panels are a 360px column beside the rail; **craft** spans the whole map instead (never
+    narrower than 360px) and reflows its recipes into as many columns as that width allows.
   - **Centre map** with target dock, trek/location sheets, noise/weather FX; HDB cutaway or tunnel run
     take over when active.
   - **Right timeline** — game log; contact Fight/Flee gate dims the rest of the UI until chosen.

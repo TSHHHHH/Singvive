@@ -38,7 +38,7 @@ export function MeterBar({ label, value, max, color, danger, icon, dynamic, modi
   const bar = (
     <>
       {/* The row-level TipHint already explains the meter; don't stack two tips. */}
-      <span className="w-5 text-center text-sm" {...tip(hasTip ? undefined : label)}>
+      <span className="w-5 text-center text-read" {...tip(hasTip ? undefined : label)}>
         <Icon name={icon} title={label} />
       </span>
       <div className="relative h-3 flex-1 overflow-hidden rounded-none bg-black/50 ring-1 ring-white/15">
@@ -47,7 +47,7 @@ export function MeterBar({ label, value, max, color, danger, icon, dynamic, modi
           style={{ width: `${pct}%`, background: fill }}
         />
       </div>
-      <span className="w-9 text-right text-sm tabular-nums text-white/70">
+      <span className="w-9 text-right text-read tabular-nums text-white/70">
         {Math.round(value)}
       </span>
     </>
@@ -61,7 +61,7 @@ export function MeterBar({ label, value, max, color, danger, icon, dynamic, modi
     <TipHint
       className="flex items-center gap-2"
       placement="top"
-      tipClassName="w-max max-w-[200px] rounded border border-white/15 bg-black/90 px-2 py-1.5 text-2xs leading-relaxed shadow-signage"
+      tipClassName="w-max max-w-[200px] rounded border border-white/15 bg-black/90 px-2 py-1.5 text-micro leading-relaxed shadow-signage"
       tip={
         <>
           <div className="mb-0.5 uppercase tracking-widest text-white/40">{label}</div>

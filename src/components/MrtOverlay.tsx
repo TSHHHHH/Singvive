@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { CircleMarker, Marker, Polyline, Tooltip, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
+import { typeCss } from '../ui/type';
 import {
   getMrtNetwork,
   linesAt,
@@ -88,7 +89,7 @@ function labelIcon(station: MrtStation, color: string): L.DivIcon {
   const codes = station.codes
     .map(
       (c) =>
-        `<span style="background:${color};color:#08080a;border-radius:3px;padding:0 3px;font-weight:700;">${c}</span>`,
+        `<span style="background:${color};color:#08080a;border-radius:3px;padding:0 3px;font-weight:var(--type-plate-weight);">${c}</span>`,
     )
     .join(' ');
   const icon = L.divIcon({
@@ -96,7 +97,7 @@ function labelIcon(station: MrtStation, color: string): L.DivIcon {
     html: `<div style="
       transform:translate(14px,-50%);
       display:flex;align-items:center;gap:4px;white-space:nowrap;
-      font-size:10px;line-height:14px;color:#e8e5dd;
+      ${typeCss('micro')}color:#e8e5dd;
       text-shadow:0 1px 3px #000,0 0 6px #000;
       pointer-events:none;
     ">${codes}<span>${station.name}</span></div>`,
@@ -356,7 +357,7 @@ export function MrtLineLegend({
 }) {
   const { t } = useT();
   return (
-    <div className="max-w-[45vw] rounded border border-white/15 bg-concrete-900/95 p-2 text-2xs leading-tight text-white/70 shadow-signage">
+    <div className="max-w-[45vw] rounded border border-white/15 bg-concrete-900/95 p-2 text-micro text-white/70 shadow-signage">
       {legendLines(net).map((line) => (
         <div key={line.code} className="flex items-center gap-1.5">
           <span

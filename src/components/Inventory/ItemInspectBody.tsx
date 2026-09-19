@@ -34,7 +34,7 @@ function ConditionBlock({
   const broken = isBroken(inst);
   return (
     <div className={compact ? 'mt-1.5' : 'mt-2'}>
-      <div className="flex items-baseline justify-between text-xs">
+      <div className="flex items-baseline justify-between text-body">
         <span
           className={
             broken
@@ -104,22 +104,22 @@ export function ItemInspectBody({
   return (
     <div className={compact ? 'space-y-1.5' : undefined}>
       {badge && (
-        <div className="text-2xs font-semibold uppercase tracking-widest text-white/40">{badge}</div>
+        <div className="text-label uppercase text-white/40">{badge}</div>
       )}
       <div className="flex items-start gap-3">
         <Icon name={itemIcon(def)} size={iconSize} className="mt-0.5 shrink-0" />
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2">
-            <span className={`font-bold ${compact ? 'text-sm' : ''}`}>
+            <span className={`font-bold ${compact ? 'text-read' : ''}`}>
               {itemName(inst.defId, locale)}
             </span>
             {def.exotic && (
-              <span className="rounded bg-amber-300/15 px-1.5 text-2xs uppercase tracking-wide text-amber-300">
+              <span className="rounded bg-amber-300/15 px-1.5 text-label uppercase text-amber-300">
                 {t('ui.inventory.exotic')}
               </span>
             )}
           </div>
-          <div className="text-xs uppercase tracking-wide text-white/40">{kindLine}</div>
+          <div className="text-plate uppercase text-white/40">{kindLine}</div>
         </div>
       </div>
 
@@ -129,7 +129,7 @@ export function ItemInspectBody({
         {itemStatLines(def, inst, equipment, t).map((line) => (
           <div
             key={line.key}
-            className="flex items-center justify-between gap-2 text-xs text-white/70"
+            className="flex items-center justify-between gap-2 text-body text-white/70"
           >
             <span className="inline-flex min-w-0 items-center gap-1.5">
               <Icon name={line.icon} size={12} className="shrink-0 opacity-55" />
@@ -168,7 +168,7 @@ export function ItemInspectBody({
             })}
           />
           {bagWontFit && (
-            <p className="mt-1 text-2xs text-hiss">
+            <p className="mt-1 text-micro text-hiss">
               {equipment.bag?.uid === inst.uid
                 ? t('ui.inventory.bagWontUnequip')
                 : t('ui.inventory.bagWontFit')}
@@ -178,7 +178,7 @@ export function ItemInspectBody({
       )}
 
       <div
-        className={`flex items-center justify-between gap-3 text-xs text-white/50 ${compact ? 'mt-1.5' : 'mt-2'}`}
+        className={`flex items-center justify-between gap-3 text-body text-white/50 ${compact ? 'mt-1.5' : 'mt-2'}`}
       >
         <span className="inline-flex min-w-0 items-center gap-1" {...tip('Grid size')}>
           <Icon name="meta.size" size={12} className="shrink-0 opacity-55" />
@@ -196,14 +196,14 @@ export function ItemInspectBody({
         </span>
       </div>
       {def.stackable && inst.stack > 1 && (
-        <div className="text-xs text-white/40">×{inst.stack} stacked</div>
+        <div className="text-body text-white/40">×{inst.stack} stacked</div>
       )}
 
       {!hideCompareNote &&
         def.slot &&
         equipment[def.slot] &&
         equipment[def.slot]!.uid !== inst.uid && (
-          <p className="mt-1.5 text-2xs text-white/35">
+          <p className="mt-1.5 text-micro text-white/35">
             Compared to equipped {slotLabel(def.slot)}
           </p>
         )}

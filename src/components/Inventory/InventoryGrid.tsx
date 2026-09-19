@@ -91,7 +91,7 @@ export function InventoryGrid({
 
   return (
     <div>
-      <div className="mb-1 flex items-center justify-between text-xs uppercase tracking-widest text-white/40">
+      <div className="mb-1 flex items-center justify-between text-plate uppercase text-white/40">
         <span className="inline-flex items-center gap-1.5">
           <span>{title}</span>
           {titleAccessory}
@@ -191,7 +191,7 @@ export function InventoryGrid({
                   className="drop-shadow"
                 />
                 {def.stackable && inst.stack > 1 && (
-                  <span className="absolute bottom-0 right-0 rounded-tl bg-black/60 px-1 text-2xs font-black leading-tight text-white">
+                  <span className="absolute bottom-0 right-0 rounded-tl bg-black/60 px-1 text-micro font-bold text-white">
                     ×{inst.stack}
                   </span>
                 )}

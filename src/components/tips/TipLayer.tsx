@@ -4,6 +4,7 @@ import { clampBox, placeNear, type Placement } from './clamp';
 import { HOVER_DELAY_MS, HOLD_MOVE_PX, LONG_PRESS_MS } from './hold';
 import { getTip, setTip, subscribeTip } from './tipStore';
 import { useCoarsePointer } from './useCoarsePointer';
+import { useSetting } from '../../game/settings';
 
 /** Sweeping straight from one tipped element to the next re-shows instantly. */
 const GRACE_MS = 300;
@@ -16,7 +17,7 @@ export const TIP_ID = 'app-tip';
 
 const PANEL =
   'pointer-events-none fixed z-[3000] max-w-[260px] whitespace-pre-line break-words ' +
-  'rounded border border-white/20 bg-concrete-900/95 px-2 py-1.5 text-2xs leading-relaxed ' +
+  'rounded border border-white/20 bg-concrete-900/95 px-2 py-1.5 text-micro leading-relaxed ' +
   'text-concrete-50 shadow-signage backdrop-blur-sm transition-opacity duration-75';
 
 function readPlacement(el: HTMLElement): Placement {
@@ -37,6 +38,13 @@ function rectKey(el: HTMLElement): string {
  * to pin (short tap still fires the control).
  */
 export function TipLayer() {
+  // Gating the mount rather than the render: with tips off, none of the
+  // delegated listeners below get attached at all.
+  if (useSetting('tooltips') === 'off') return null;
+  return <TipLayerInner />;
+}
+
+function TipLayerInner() {
   const coarse = useCoarsePointer();
   const state = useSyncExternalStore(subscribeTip, getTip, () => null);
   const ref = useRef<HTMLDivElement>(null);

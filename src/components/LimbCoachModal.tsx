@@ -51,15 +51,15 @@ export function LimbCoachModal({
         role="dialog"
         aria-labelledby="limb-coach-title"
       >
-        <h3 id="limb-coach-title" className="mb-2 text-lg font-bold text-signal">
+        <h3 id="limb-coach-title" className="mb-2 text-title text-signal">
           {t('ui.guide.limbCoach.title')}
         </h3>
-        <p className="mb-2 text-sm text-white/75">{t(`ui.guide.limbCoach.effect.${partId}`)}</p>
-        <p className="mb-4 text-xs leading-relaxed text-white/50">{t('ui.guide.limbCoach.blurb')}</p>
+        <p className="mb-2 text-read text-white/75">{t(`ui.guide.limbCoach.effect.${partId}`)}</p>
+        <p className="mb-4 text-body leading-relaxed text-white/50">{t('ui.guide.limbCoach.blurb')}</p>
         <div className="flex flex-wrap items-center justify-end gap-2">
           <button
             type="button"
-            className="rounded px-3 py-1.5 text-xs font-semibold text-white/55 hover:bg-white/5 hover:text-white/80"
+            className="rounded px-3 py-1.5 text-body font-semibold text-white/55 hover:bg-white/5 hover:text-white/80"
             onClick={() => {
               dismiss();
               onOpenGuide('body');
@@ -69,7 +69,7 @@ export function LimbCoachModal({
           </button>
           <button
             type="button"
-            className="rounded bg-signal/20 px-3 py-1.5 text-xs font-semibold text-signal hover:bg-signal/30"
+            className="rounded bg-signal/20 px-3 py-1.5 text-body font-semibold text-signal hover:bg-signal/30"
             onClick={dismiss}
           >
             {t('ui.guide.gotIt')}

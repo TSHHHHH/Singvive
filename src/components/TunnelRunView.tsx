@@ -885,7 +885,7 @@ function NodePip({
           <Icon name={revealed ? meta.icon : 'tunnel.unknown'} size={isHere ? 28 : 24} />
         </span>
         {showLabel && (
-          <span className="mt-0.5 max-w-[9.5rem] truncate text-center text-xs font-medium leading-tight text-concrete-200">
+          <span className="mt-0.5 max-w-[9.5rem] truncate text-center text-body font-semibold leading-tight text-concrete-200">
             {label}
             {revealed && isNext && node.kind !== 'platform' ? (
               <span className="text-hiss"> ▲{nodeThreat(node)}</span>
@@ -922,33 +922,33 @@ function CampPanel({
   const { t } = useT();
   return (
     <div className="shrink-0 border-t border-astral/30 bg-astral/5 px-3 py-2">
-      <div className="signage mb-1.5 text-2xs text-astral">{name} · they let you in</div>
+      <div className="mb-1.5 text-label uppercase text-astral">{name} · they let you in</div>
       {servicesUsed ? (
-        <p className="mb-2 text-xs text-concrete-400">
+        <p className="mb-2 text-body text-concrete-400">
           Camp services already used — one favour is all they&apos;ll spare.
         </p>
       ) : (
         <div className="flex flex-wrap gap-2">
           <button
             onClick={onRest}
-            className="flex-1 rounded border border-astral/40 px-2 py-1.5 text-xs text-astral hover:bg-astral/10"
+            className="flex-1 rounded border border-astral/40 px-2 py-1.5 text-body text-astral hover:bg-astral/10"
           >
             <Icon name="action.sleep" size={12} /> {t('ui.tunnel.sleep')}
-            <span className="block text-2xs opacity-70">{t('ui.tunnel.sleepHint')}</span>
+            <span className="block text-micro opacity-70">{t('ui.tunnel.sleepHint')}</span>
           </button>
           <button
             onClick={onTreat}
-            className="flex-1 rounded border border-astral/40 px-2 py-1.5 text-xs text-astral hover:bg-astral/10"
+            className="flex-1 rounded border border-astral/40 px-2 py-1.5 text-body text-astral hover:bg-astral/10"
           >
             <Icon name="hdb.doctor" size={12} /> {t('ui.tunnel.patch')}
-            <span className="block text-2xs opacity-70">{t('ui.tunnel.patchHint')}</span>
+            <span className="block text-micro opacity-70">{t('ui.tunnel.patchHint')}</span>
           </button>
         </div>
       )}
 
       {offer && (
         <div className="mt-2 rounded border border-concrete-600 bg-concrete-950/60 px-2 py-1.5">
-          <div className="flex items-center justify-between gap-2 text-xs">
+          <div className="flex items-center justify-between gap-2 text-body">
             <span>
               <span className="text-hiss">− {itemDef(offer.wantDefId).name}</span>
               <span className="text-concrete-400">{t('ui.tunnel.forConnector')}</span>
@@ -957,13 +957,13 @@ function CampPanel({
             <span className="flex shrink-0 gap-1">
               <button
                 onClick={onAccept}
-                className="rounded bg-signal/90 px-2 py-1 text-xs font-bold text-black hover:bg-signal"
+                className="rounded bg-signal/90 px-2 py-1 text-body font-bold text-black hover:bg-signal"
               >
                 {t('ui.tunnel.trade')}
               </button>
               <button
                 onClick={onDecline}
-                className="rounded border border-concrete-600 px-2 py-1 text-xs hover:bg-white/5"
+                className="rounded border border-concrete-600 px-2 py-1 text-body hover:bg-white/5"
               >
                 {t('ui.tunnel.pass')}
               </button>
@@ -987,15 +987,15 @@ function CarriagePanel({
   const { t } = useT();
   return (
     <div className="shrink-0 border-t border-astral/30 bg-astral/5 px-3 py-2">
-      <div className="signage mb-1.5 text-2xs text-astral">{name} · the consist is in the way</div>
+      <div className="mb-1.5 text-label uppercase text-astral">{name} · the consist is in the way</div>
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
           onClick={onInvert}
-          className="flex-1 rounded border border-astral/40 px-2 py-1.5 text-xs text-astral hover:bg-astral/10"
+          className="flex-1 rounded border border-astral/40 px-2 py-1.5 text-body text-astral hover:bg-astral/10"
         >
           {t('ui.tunnel.dropInvert')}
-          <span className="block text-2xs opacity-70">
+          <span className="block text-micro opacity-70">
             {t('ui.tunnel.invertHint', {
               min: CARRIAGE_INVERT_MINUTES,
               energy: CARRIAGE_INVERT_ENERGY,
@@ -1005,10 +1005,10 @@ function CarriagePanel({
         <button
           type="button"
           onClick={onSmash}
-          className="flex-1 rounded border border-astral/40 px-2 py-1.5 text-xs text-astral hover:bg-astral/10"
+          className="flex-1 rounded border border-astral/40 px-2 py-1.5 text-body text-astral hover:bg-astral/10"
         >
           {t('ui.tunnel.smash')}
-          <span className="block text-2xs opacity-70">
+          <span className="block text-micro opacity-70">
             {t('ui.tunnel.smashHint', { min: CARRIAGE_SMASH_MINUTES })}
           </span>
         </button>
@@ -1031,23 +1031,23 @@ function CheckpointPanel({
   const { t } = useT();
   return (
     <div className="shrink-0 border-t border-astral/30 bg-astral/5 px-3 py-2">
-      <div className="signage mb-1.5 text-2xs text-astral">{name} · STA holds the bore</div>
+      <div className="mb-1.5 text-label uppercase text-astral">{name} · STA holds the bore</div>
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
           onClick={onPay}
-          className="flex-1 rounded border border-astral/40 px-2 py-1.5 text-xs text-astral hover:bg-astral/10"
+          className="flex-1 rounded border border-astral/40 px-2 py-1.5 text-body text-astral hover:bg-astral/10"
         >
           {t('ui.tunnel.payFare')}
-          <span className="block text-2xs opacity-70">{priceList(FACTION_CONFIG.sta.tribute)}</span>
+          <span className="block text-micro opacity-70">{priceList(FACTION_CONFIG.sta.tribute)}</span>
         </button>
         <button
           type="button"
           onClick={onSneak}
-          className="flex-1 rounded border border-astral/40 px-2 py-1.5 text-xs text-astral hover:bg-astral/10"
+          className="flex-1 rounded border border-astral/40 px-2 py-1.5 text-body text-astral hover:bg-astral/10"
         >
           {t('ui.tunnel.slipPast')}
-          <span className="block text-2xs opacity-70">{t('ui.tunnel.dexVsDc', { dc })}</span>
+          <span className="block text-micro opacity-70">{t('ui.tunnel.dexVsDc', { dc })}</span>
         </button>
       </div>
     </div>
@@ -1102,17 +1102,17 @@ function NodeDetail({
     <div className="shrink-0 border-t border-concrete-600 bg-concrete-900/60 p-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="signage text-xs text-concrete-50">
+          <div className="text-plate uppercase text-concrete-50">
             {revealed
               ? t('ui.tunnel.nodeTitle', { name: node.name, label: metaLabel })
               : t('ui.tunnel.furtherDown')}
           </div>
-          <p className="mt-1 text-xs leading-snug text-concrete-400">{blurb}</p>
+          <p className="mt-1 text-body text-concrete-400">{blurb}</p>
           {revealed && node.collapsedBore && (
-            <p className="mt-1 text-2xs text-hiss">Collapsed bore — rubble, packs, no camps.</p>
+            <p className="mt-1 text-micro text-hiss">Collapsed bore — rubble, packs, no camps.</p>
           )}
         </div>
-        <div className="shrink-0 text-right text-2xs tabular-nums text-concrete-400">
+        <div className="shrink-0 text-right text-micro tabular-nums text-concrete-400">
           <div>{t('ui.tunnel.minutesApprox', { n: nodePreviewMinutes(run, node) })}</div>
           {revealed && hazard && (
             <div className="text-hiss">
@@ -1143,7 +1143,7 @@ function NodeDetail({
         <button
           type="button"
           onClick={onExit}
-          className="mt-2 w-full rounded border border-astral/50 bg-astral/15 py-2 text-sm font-bold text-astral transition hover:bg-astral/25"
+          className="mt-2 w-full rounded border border-astral/50 bg-astral/15 py-2 text-read font-bold text-astral transition hover:bg-astral/25"
         >
           {t('ui.tunnel.exitHere', { name: node.name })}
         </button>
@@ -1152,7 +1152,7 @@ function NodeDetail({
       <button
         disabled={!canWalk}
         onClick={onWalk}
-        className="mt-2 w-full rounded bg-signal/90 py-2 text-sm font-bold text-black transition hover:bg-signal disabled:opacity-30"
+        className="mt-2 w-full rounded bg-signal/90 py-2 text-read font-bold text-black transition hover:bg-signal disabled:opacity-30"
       >
         {canWalk
           ? arrival
@@ -1164,7 +1164,7 @@ function NodeDetail({
               ? t('ui.tunnel.keepWalking')
               : t('ui.tunnel.pickForward')}
       </button>
-      <p className="mt-1 text-center text-2xs text-concrete-400/70">
+      <p className="mt-1 text-center text-micro text-concrete-400/70">
         {mayExit
           ? 'Stairs up at every station — or keep walking toward the far end.'
           : 'There is no way back up until the next station — the tunnel only runs one way now.'}

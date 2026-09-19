@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect } from 'react';
 import { useGame } from './game/store';
 import { FONT_SIZE_PX, useSetting } from './game/settings';
 import { isLocaleId, DEFAULT_LOCALE } from './i18n';
+import { useReducedMotion } from './hooks/useReducedMotion';
 import { Menu } from './screens/Menu';
 import { TipLayer } from './components/tips';
 import { flushPersist } from './game/persistRun';
@@ -34,12 +35,25 @@ function FontSizeSync() {
   return null;
 }
 
+/**
+ * Hangs the in-app reduce-motion choice on the root element. The CSS rules that
+ * still animation live in a `prefers-reduced-motion` media query, which can only
+ * hear the OS; `.motion-reduce-forced` re-states the same selectors so a player
+ * whose system has no such switch can still ask for stillness.
+ */
+function MotionSync() {
+  const reduce = useReducedMotion();
+  useEffect(() => {
+    document.documentElement.classList.toggle('motion-reduce-forced', reduce);
+  }, [reduce]);
+  return null;
+}
+
 function LocaleSync() {
   const language = useSetting('language');
   useEffect(() => {
     const locale = isLocaleId(language) ? language : DEFAULT_LOCALE;
     document.documentElement.lang = locale === 'zh-Hans' ? 'zh-Hans' : 'en';
-    document.documentElement.dataset.locale = locale;
   }, [language]);
   return null;
 }
@@ -64,7 +78,7 @@ function PersistFlush() {
 
 function ScreenFallback() {
   return (
-    <div className="flex h-full w-full items-center justify-center bg-concrete-950 text-sm text-white/40">
+    <div className="flex h-full w-full items-center justify-center bg-concrete-950 text-read text-white/40">
       Loading…
     </div>
   );
@@ -76,6 +90,7 @@ export default function App() {
   return (
     <div className="h-full w-full overflow-hidden">
       <FontSizeSync />
+      <MotionSync />
       <LocaleSync />
       <PersistFlush />
       <TipLayer />

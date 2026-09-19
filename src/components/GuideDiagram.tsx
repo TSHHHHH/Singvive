@@ -16,7 +16,7 @@ function Chip({
 }) {
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-2xs tabular-nums ${
+      className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-micro tabular-nums ${
         accent
           ? 'border-signal/40 bg-signal/10 text-signal'
           : 'border-white/10 bg-white/5 text-white/60'
@@ -79,7 +79,7 @@ function LootDiagram() {
         {cells.map((c, i) => (
           <div
             key={i}
-            className={`flex h-5 w-5 items-center justify-center rounded-sm text-2xs ${
+            className={`flex h-5 w-5 items-center justify-center rounded-sm text-micro ${
               c.next
                 ? 'border border-signal/50 bg-signal/15 text-signal'
                 : c.fog
@@ -120,11 +120,11 @@ function EvacDiagram() {
       <div className="space-y-1">
         {weights.map((row) => (
           <div key={row.label} className="flex items-center gap-2">
-            <span className="w-16 shrink-0 text-2xs text-white/40">{row.label}</span>
+            <span className="w-16 shrink-0 text-micro text-white/40">{row.label}</span>
             <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded bg-black/50">
               <div className={`h-full rounded bg-signal/60 ${row.w}`} />
             </div>
-            <span className="w-10 shrink-0 text-right text-2xs tabular-nums text-signal/80">
+            <span className="w-10 shrink-0 text-right text-micro tabular-nums text-signal/80">
               {row.mult}
             </span>
           </div>
@@ -138,7 +138,7 @@ function ScoreDiagram() {
   const { t } = useT();
   return (
     <div className="space-y-2" aria-hidden>
-      <div className="flex flex-wrap items-center gap-1 text-2xs text-white/55">
+      <div className="flex flex-wrap items-center gap-1 text-micro text-white/55">
         <Chip icon="action.kills" label="×25" />
         <span className="text-white/25">+</span>
         <Chip icon="stat.value" label={t('ui.guide.diagram.loot')} />

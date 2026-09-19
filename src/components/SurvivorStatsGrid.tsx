@@ -45,8 +45,8 @@ interface StatCellProps {
 function StatCell({ label, value, tip: tipText, modifiers }: StatCellProps) {
   const inner = (
     <>
-      <div className="text-sm font-bold tabular-nums text-signal">{value}</div>
-      <div className="text-xs uppercase tracking-wide text-white/40">{label}</div>
+      <div className="text-read font-bold tabular-nums text-signal">{value}</div>
+      <div className="text-plate uppercase text-white/40">{label}</div>
     </>
   );
   if (modifiers?.length) {
@@ -159,7 +159,7 @@ export function SurvivorStatsGrid() {
 
   return (
     <div>
-      <h4 className="mb-1.5 text-xs uppercase tracking-widest text-white/30">
+      <h4 className="mb-1.5 text-plate uppercase text-white/30">
         {t('ui.survivor.statsTitle')}
       </h4>
       <div className="grid grid-cols-3 gap-1">

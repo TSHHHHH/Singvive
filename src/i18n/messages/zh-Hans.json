@@ -32,7 +32,31 @@
       "title": "⚙ 设置",
       "reviewGuide": "重看玩法指南",
       "reviewGuideDesc": "打开入门指南，涵盖生存、战斗、搜刮、组屋、隧道等内容。",
-      "openGuide": "打开指南"
+      "openGuide": "打开指南",
+      "tabsAria": "设置分区",
+      "confirmPrompt": "确定吗？",
+      "data": {
+        "resetLabel": "重置设置",
+        "resetDesc": "将本面板的所有选项恢复为默认值。不会影响你的存档。",
+        "resetAction": "恢复默认",
+        "exportLabel": "导出存档",
+        "exportDesc": "把当前存档下载为文件，便于保存或转移到其他设备。",
+        "exportAction": "下载存档",
+        "exportEmpty": "没有可导出的存档。",
+        "importLabel": "导入存档",
+        "importDesc": "载入存档文件，将覆盖当前的续玩存档。",
+        "importMenuOnly": "仅限标题界面——游戏进行中会覆盖导入的文件。",
+        "importAction": "选择文件…",
+        "importOk": "存档已载入。点击「继续游戏」开始。",
+        "importFailed": "该文件不是 Singvive 存档。",
+        "scoresLabel": "清除本设备记录",
+        "scoresDesc": "清空本机排行榜。已上传到全球榜的成绩仍会保留。",
+        "scoresAction": "清除记录",
+        "scoresCleared": "本机排行榜已清空。",
+        "abandonLabel": "放弃本局",
+        "abandonDesc": "删除当前存档（第 {day} 天）并返回标题界面。无法撤销。",
+        "abandonAction": "放弃本局"
+      }
     },
     "guide": {
       "howToPlay": "玩法指南",
@@ -367,7 +391,30 @@
     },
     "craft": {
       "needHave": "{name} — 需要 {need}，现有 {have}",
-      "toolTip": "{name} — 留在背包（现有 {have}）"
+      "toolTip": "{name} — 留在背包（现有 {have}）",
+      "workbench": "工作台",
+      "shelterOk": "有落脚处",
+      "shelterNo": "无落脚处",
+      "toolboxOk": "有工具箱",
+      "toolboxNo": "无工具箱",
+      "hint": "材料取自背包。需落脚处的配方要有储藏点或组屋。工具留在背包里。",
+      "filterAll": "全部",
+      "filterReady": "可做",
+      "groupField": "野外",
+      "groupShelter": "落脚处",
+      "groupDesperate": "走投无路",
+      "noneReady": "眼下什么都做不了。多搬些材料回来，或者找个能干活的地方。",
+      "anyWater": "任意水源",
+      "hoursShort": "{h}小时",
+      "blockShelter": "需要一个能干活的地方",
+      "blockTool": "需要{name}",
+      "blockInput": "需要 {need}× {name} — 现有 {have}",
+      "blockWater": "需要 {need}× 水 — 现有 {have}",
+      "boilNote": "烧掉一罐燃料会拉低你的撤离读数。",
+      "tearName": "撕开身上的衣服",
+      "tearCost": "不耗材料 — 还能撕 {n} 次",
+      "tearBlurb": "从身上穿的衣服上扯下布条。除了衣服，什么都不花。",
+      "tearNone": "你身上的衣服已经撕光了。去找布，或者就这样将就。"
     },
     "attributes": {
       "strength": "力量",
@@ -1147,7 +1194,8 @@
     "groups": {
       "Display": "显示",
       "Timeline": "时间线",
-      "Guide": "指南"
+      "Guide": "指南",
+      "Map": "地图"
     },
     "logView": {
       "label": "时间线详细度",
@@ -1189,6 +1237,46 @@
     "showGuideOnStart": {
       "label": "开局显示怎么玩",
       "description": "开局时显示怎么玩入门。熟了可以关掉。",
+      "options": {
+        "on": "开",
+        "off": "关"
+      }
+    },
+    "limbCoachSeen": {
+      "label": "肢体伤势提示",
+      "description": "第一次受到明显的肢体创伤时弹出一次的提示。改回“尚未显示”可再看一遍。",
+      "options": {
+        "off": "尚未显示",
+        "on": "已显示过"
+      }
+    },
+    "tabs": {
+      "display": "显示",
+      "gameplay": "玩法",
+      "accessibility": "无障碍",
+      "guide": "指南",
+      "data": "数据与存档"
+    },
+    "railOverlay": {
+      "label": "地铁图",
+      "description": "默认在地图上绘制地铁线网。地图上的按钮控制的是同一项。",
+      "options": {
+        "on": "开",
+        "off": "关"
+      }
+    },
+    "reduceMotion": {
+      "label": "减少动态效果",
+      "description": "停止飘动的雨丝、脉冲与微光。「自动」跟随系统设置。",
+      "options": {
+        "auto": "自动",
+        "on": "开",
+        "off": "关"
+      }
+    },
+    "tooltips": {
+      "label": "悬停提示",
+      "description": "悬停时弹出说明，触屏则长按。许多纯图标按钮没有其他标签——除非碍事，否则建议保持开启。",
       "options": {
         "on": "开",
         "off": "关"

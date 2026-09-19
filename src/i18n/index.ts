@@ -32,4 +32,5 @@ export {
   settingDescription,
   settingOptionLabel,
   settingGroupLabel,
+  settingTabLabel,
 } from './display';

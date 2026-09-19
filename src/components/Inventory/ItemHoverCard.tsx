@@ -150,7 +150,7 @@ export function ItemHoverCard({
                   if (a.disabled) return;
                   a.onSelect();
                 }}
-                className={`w-full rounded px-1.5 py-1 text-left text-xs leading-tight ${
+                className={`w-full rounded px-1.5 py-1 text-left text-body leading-tight ${
                   a.disabled
                     ? 'cursor-not-allowed bg-white/10 text-white/30'
                     : a.danger

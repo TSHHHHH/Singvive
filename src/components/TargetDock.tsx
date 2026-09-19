@@ -31,17 +31,17 @@ export function TargetDock({
         <div
           className={
             'min-h-0 flex-1 overflow-y-auto p-2.5 text-white/80 ' +
-            '[&_button]:py-1.5 [&_button]:text-xs'
+            '[&_button]:py-1.5 [&_button]:text-body'
           }
         >
           <div className="mb-1.5 flex items-center justify-between gap-2">
-            <span className="text-2xs font-semibold uppercase tracking-widest text-white/30">
+            <span className="text-label uppercase text-white/30">
               {title}
             </span>
             {onClose && (
               <button
                 onClick={onClose}
-                className="-my-1 shrink-0 px-1 text-xs leading-none text-white/25 hover:text-white/60"
+                className="-my-1 shrink-0 px-1 text-body leading-none text-white/25 hover:text-white/60"
               >
                 ✕
               </button>

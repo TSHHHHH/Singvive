@@ -167,4 +167,11 @@ export function settingGroupLabel(group: string, locale: LocaleId = DEFAULT_LOCA
   return group;
 }
 
+export function settingTabLabel(id: string, locale: LocaleId = DEFAULT_LOCALE): string {
+  const path = `settings.tabs.${id}`;
+  const translated = t(path, undefined, locale);
+  if (translated !== path) return translated;
+  return id;
+}
+
 export type { TVars };

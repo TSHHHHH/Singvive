@@ -77,7 +77,7 @@ function Field({
   children: ReactNode;
 }) {
   return (
-    <label className="flex flex-col gap-0.5 text-xs">
+    <label className="flex flex-col gap-0.5 text-body">
       <span className="uppercase tracking-wider text-white/35">{label}</span>
       {children}
     </label>
@@ -85,7 +85,7 @@ function Field({
 }
 
 const inputClass =
-  'rounded border border-white/10 bg-black/40 px-2 py-1.5 text-sm text-white outline-none focus:border-signal/50';
+  'rounded border border-white/10 bg-black/40 px-2 py-1.5 text-read text-white outline-none focus:border-signal/50';
 
 type Props = {
   item: ItemDef;
@@ -273,7 +273,7 @@ export function LootItemForm({
       <section className="grid grid-cols-2 gap-3">
         <Field label="id">
           <input
-            className={`${inputClass} font-mono ${idLocked ? 'opacity-50' : ''}`}
+            className={`${inputClass} ${idLocked ? 'opacity-50' : ''}`}
             value={item.id}
             disabled={idLocked}
             onChange={(e) => patch({ id: e.target.value.trim() })}
@@ -296,11 +296,11 @@ export function LootItemForm({
               }}
               aria-hidden
             />
-            <div className="min-w-0 flex-1 text-xs text-white/55">
-              <div className="font-medium text-white/75">
+            <div className="min-w-0 flex-1 text-body text-white/55">
+              <div className="font-semibold text-white/75">
                 {TILE_COLOR_LABELS[category]}
               </div>
-              <div className="font-mono text-2xs text-white/35">
+              <div className="text-micro text-white/35">
                 {categoryHex} · from Tile colors tab
               </div>
             </div>
@@ -309,7 +309,7 @@ export function LootItemForm({
       </section>
 
       <section>
-        <h4 className="mb-2 text-2xs uppercase tracking-widest text-white/30">Icon</h4>
+        <h4 className="mb-2 text-label uppercase text-white/30">Icon</h4>
         <div className="flex flex-wrap items-start gap-4">
           <div
             className={`flex h-16 w-16 items-center justify-center rounded border bg-black/40 transition ${
@@ -337,7 +337,7 @@ export function LootItemForm({
           <div className="grid min-w-0 flex-1 grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="icon key (optional override)">
               <input
-                className={`${inputClass} font-mono`}
+                className={`${inputClass}`}
                 list="loot-icon-keys"
                 placeholder={ownKey}
                 value={item.icon ?? ''}
@@ -350,7 +350,7 @@ export function LootItemForm({
               </datalist>
             </Field>
             <Field label="resolved">
-              <div className="rounded border border-white/10 bg-black/20 px-2 py-1.5 font-mono text-sm text-white/60">
+              <div className="rounded border border-white/10 bg-black/20 px-2 py-1.5 text-read text-white/60">
                 {resolvedKey}
                 {ICON_ASSETS[resolvedKey] ? ' · asset' : ' · emoji fallback'}
               </div>
@@ -360,14 +360,14 @@ export function LootItemForm({
                 type="button"
                 disabled={uploading || !item.id}
                 onClick={() => fileRef.current?.click()}
-                className="rounded border border-signal/40 px-2.5 py-1.5 text-xs text-signal disabled:opacity-40"
+                className="rounded border border-signal/40 px-2.5 py-1.5 text-body text-signal disabled:opacity-40"
               >
                 {uploading ? 'Uploading…' : 'Upload PNG / WebP'}
               </button>
               <button
                 type="button"
                 onClick={() => setIcon(ownKey)}
-                className="rounded border border-white/15 px-2.5 py-1.5 text-xs text-white/70"
+                className="rounded border border-white/15 px-2.5 py-1.5 text-body text-white/70"
               >
                 Use item.{item.id || '…'}
               </button>
@@ -377,14 +377,14 @@ export function LootItemForm({
                   setIcon('');
                   clearPreview();
                 }}
-                className="rounded border border-white/15 px-2.5 py-1.5 text-xs text-white/70"
+                className="rounded border border-white/15 px-2.5 py-1.5 text-body text-white/70"
               >
                 Clear override
               </button>
-              <span className="text-2xs text-white/35">
+              <span className="text-micro text-white/35">
                 Max {Math.round(MAX_ICON_BYTES / 1024)} KB · ≤{MAX_ICON_EDGE}px edge · drop on
                 preview or upload · writes{' '}
-                <span className="font-mono">src/assets/icons/item-{'{id}'}.png</span>
+                <span>src/assets/icons/item-{'{id}'}.png</span>
               </span>
               <input
                 ref={fileRef}
@@ -403,7 +403,7 @@ export function LootItemForm({
       </section>
 
       <section>
-        <h4 className="mb-2 text-2xs uppercase tracking-widest text-white/30">Grid / economy</h4>
+        <h4 className="mb-2 text-label uppercase text-white/30">Grid / economy</h4>
         <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
           {(
             [
@@ -425,7 +425,7 @@ export function LootItemForm({
           ))}
         </div>
         <div className="mt-3 flex flex-wrap gap-4">
-          <label className="flex items-center gap-2 text-sm">
+          <label className="flex items-center gap-2 text-read">
             <input
               type="checkbox"
               checked={item.stackable}
@@ -433,7 +433,7 @@ export function LootItemForm({
             />
             stackable
           </label>
-          <label className="flex items-center gap-2 text-sm">
+          <label className="flex items-center gap-2 text-read">
             <input
               type="checkbox"
               checked={!!item.exotic}
@@ -446,7 +446,7 @@ export function LootItemForm({
             />
             exotic
           </label>
-          <label className="flex items-center gap-2 text-sm">
+          <label className="flex items-center gap-2 text-read">
             <input
               type="checkbox"
               checked={!!item.perishable}
@@ -459,7 +459,7 @@ export function LootItemForm({
             />
             perishable
           </label>
-          <label className="flex items-center gap-2 text-sm">
+          <label className="flex items-center gap-2 text-read">
             <input
               type="checkbox"
               checked={!!item.twoHanded}
@@ -472,7 +472,7 @@ export function LootItemForm({
             />
             twoHanded
           </label>
-          <label className="flex items-center gap-2 text-sm" {...tip('Granted when a new run starts')}>
+          <label className="flex items-center gap-2 text-read" {...tip('Granted when a new run starts')}>
             <input
               type="checkbox"
               checked={!!item.startingItem}
@@ -489,7 +489,7 @@ export function LootItemForm({
             starting item
           </label>
           {item.startingItem && !item.slot && (
-            <label className="flex items-center gap-2 text-sm">
+            <label className="flex items-center gap-2 text-read">
               count
               <input
                 type="number"
@@ -510,7 +510,7 @@ export function LootItemForm({
       </section>
 
       <section>
-        <h4 className="mb-2 text-2xs uppercase tracking-widest text-white/30">Effect</h4>
+        <h4 className="mb-2 text-label uppercase text-white/30">Effect</h4>
         <div className="grid grid-cols-2 gap-3">
           <Field label="kind">
             <select
@@ -828,7 +828,7 @@ export function LootItemForm({
                   }}
                 />
               </Field>
-              <label className="flex items-center gap-2 self-end pb-1 text-sm">
+              <label className="flex items-center gap-2 self-end pb-1 text-read">
                 <input
                   type="checkbox"
                   checked={effect.ranged}
@@ -885,7 +885,7 @@ export function LootItemForm({
                       }}
                     />
                   </Field>
-                  <label className="flex items-center gap-2 self-end pb-1 text-sm">
+                  <label className="flex items-center gap-2 self-end pb-1 text-read">
                     <input
                       type="checkbox"
                       checked={!!effect.usesMagazine}
@@ -906,7 +906,7 @@ export function LootItemForm({
       </section>
 
       <section>
-        <h4 className="mb-2 text-2xs uppercase tracking-widest text-white/30">Equip / wear</h4>
+        <h4 className="mb-2 text-label uppercase text-white/30">Equip / wear</h4>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Field label="slot">
             <select
@@ -983,7 +983,7 @@ export function LootItemForm({
 
         <div className="mt-4 rounded border border-white/10 bg-black/25 p-3">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <h5 className="text-2xs uppercase tracking-widest text-white/30">Search reveal</h5>
+            <h5 className="text-label uppercase text-white/30">Search reveal</h5>
             <button
               type="button"
               disabled={!revealHighlight}
@@ -992,7 +992,7 @@ export function LootItemForm({
                   ? 'Replay reveal animation'
                   : 'Ordinary find — nothing to replay',
               )}
-              className="rounded border border-white/15 px-2 py-0.5 text-2xs text-white/70 transition hover:border-signal/40 hover:text-signal disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-white/15 disabled:hover:text-white/70"
+              className="rounded border border-white/15 px-2 py-0.5 text-micro text-white/70 transition hover:border-signal/40 hover:text-signal disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-white/15 disabled:hover:text-white/70"
               onClick={() => setRevealPlayKey((k) => k + 1)}
             >
               Replay
@@ -1030,7 +1030,7 @@ export function LootItemForm({
               />
             </div>
             <div className="min-w-0 flex-1 space-y-2">
-              <p className="text-xs text-white/55">
+              <p className="text-body text-white/55">
                 {revealHighlight ? (
                   <>
                     <span className="font-semibold uppercase tracking-wide text-concrete-50">
@@ -1042,7 +1042,7 @@ export function LootItemForm({
                   'Ordinary find — no burst'
                 )}
               </p>
-              <label className="flex flex-col gap-1 text-xs">
+              <label className="flex flex-col gap-1 text-body">
                 <span className="uppercase tracking-wider text-white/35">
                   preview condition {revealCondition}%
                 </span>
@@ -1058,7 +1058,7 @@ export function LootItemForm({
                   className="w-full accent-[rgb(143,191,75)]"
                 />
               </label>
-              <p className="text-2xs text-white/30">
+              <p className="text-micro text-white/30">
                 Highlight priority: exotic → pristine (cond ≥ 75) → scarce (scarcity ≤ 0.45).
               </p>
             </div>
@@ -1067,7 +1067,7 @@ export function LootItemForm({
       </section>
 
       <section>
-        <h4 className="mb-2 text-2xs uppercase tracking-widest text-white/30">Modifiers</h4>
+        <h4 className="mb-2 text-label uppercase text-white/30">Modifiers</h4>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {MODIFIER_KEYS.map((key) => (
             <Field key={key} label={key}>
@@ -1085,11 +1085,11 @@ export function LootItemForm({
       </section>
 
       <section>
-        <h4 className="mb-2 text-2xs uppercase tracking-widest text-white/30">Where used</h4>
+        <h4 className="mb-2 text-label uppercase text-white/30">Where used</h4>
         {usage.length === 0 ? (
-          <p className="text-xs text-white/35">Not referenced by loot tables, recipes, factions, or starting gear.</p>
+          <p className="text-body text-white/35">Not referenced by loot tables, recipes, factions, or starting gear.</p>
         ) : (
-          <ul className="flex flex-col gap-1 text-xs text-white/60">
+          <ul className="flex flex-col gap-1 text-body text-white/60">
             {usage.map((u) => (
               <li key={`${u.kind}:${u.label}`}>
                 {u.recipeId && onOpenRecipe ? (
@@ -1098,12 +1098,12 @@ export function LootItemForm({
                     onClick={() => onOpenRecipe(u.recipeId!)}
                     className="w-full rounded border border-white/5 bg-black/20 px-2 py-1 text-left hover:border-signal/30 hover:text-signal"
                   >
-                    <span className="mr-2 font-mono text-2xs uppercase text-white/30">{u.kind}</span>
+                    <span className="mr-2 text-label uppercase text-white/30">{u.kind}</span>
                     {u.label}
                   </button>
                 ) : (
                   <div className="rounded border border-white/5 bg-black/20 px-2 py-1">
-                    <span className="mr-2 font-mono text-2xs uppercase text-white/30">{u.kind}</span>
+                    <span className="mr-2 text-label uppercase text-white/30">{u.kind}</span>
                     {u.label}
                   </div>
                 )}

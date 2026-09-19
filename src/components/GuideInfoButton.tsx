@@ -20,7 +20,7 @@ export function GuideInfoButton({
         e.stopPropagation();
         onOpen(topic);
       }}
-      className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded border border-white/15 text-2xs font-semibold text-white/45 transition hover:border-signal/40 hover:text-signal"
+      className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded border border-white/15 text-micro font-semibold text-white/45 transition hover:border-signal/40 hover:text-signal"
     >
       ?
     </button>

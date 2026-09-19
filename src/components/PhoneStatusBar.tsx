@@ -36,7 +36,7 @@ function MiniMeter({
       className="flex min-w-0 flex-1 items-center gap-1"
       {...tip(`${Math.round(value)}/${Math.round(max)}`)}
     >
-      <span className="shrink-0 text-2xs leading-none">
+      <span className="shrink-0 text-micro leading-none">
         <Icon name={icon} size={12} />
       </span>
       <span className="relative h-1.5 min-w-0 flex-1 overflow-hidden rounded-none bg-black/50 ring-1 ring-white/15">
@@ -86,7 +86,7 @@ export function PhoneStatusBar({ onOpenStatus }: { onOpenStatus: () => void }) {
     >
       <span
         key={fx?.nonce ?? 'idle'}
-        className={`relative shrink-0 tabular-nums text-2xs text-white/50 ${pulse}`}
+        className={`relative shrink-0 tabular-nums text-micro text-white/50 ${pulse}`}
         style={{ '--clock-accent': accent } as CSSProperties}
       >
         D{day}{' '}
@@ -113,7 +113,7 @@ export function PhoneStatusBar({ onOpenStatus }: { onOpenStatus: () => void }) {
         )}
       </span>
       {bleeding > 0 && (
-        <span className="shrink-0 text-2xs font-semibold uppercase tracking-wider text-hiss">
+        <span className="shrink-0 text-label uppercase text-hiss">
           {t('ui.phone.bleed')}
         </span>
       )}

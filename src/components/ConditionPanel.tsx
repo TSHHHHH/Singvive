@@ -40,19 +40,19 @@ export function ConditionPanel({
     <section className="rounded-lg border border-white/15 bg-concrete-900/80 p-2.5">
       <div className="mb-2 flex items-baseline justify-between gap-2">
         <div className="flex items-center gap-1.5">
-          <h4 className="text-xs uppercase tracking-widest text-white/30">{t('ui.condition.title')}</h4>
+          <h4 className="text-plate uppercase text-white/30">{t('ui.condition.title')}</h4>
           {onOpenGuide && <GuideInfoButton topic="body" onOpen={onOpenGuide} />}
         </div>
         <div className="flex items-baseline gap-1.5">
           {majorCount > 0 && (
-            <span className="pulse-danger rounded-sm bg-hiss/20 px-1.5 py-px text-2xs font-semibold uppercase tracking-widest text-hiss">
+            <span className="pulse-danger rounded-sm bg-hiss/20 px-1.5 py-px text-label uppercase text-hiss">
               {majorCount > 1
                 ? t('ui.condition.bleedingOutTimes', { n: majorCount })
                 : t('ui.condition.bleedingOut')}
             </span>
           )}
           {minorCount > 0 && (
-            <span className="rounded-sm bg-white/10 px-1.5 py-px text-2xs font-semibold uppercase tracking-widest text-concrete-200">
+            <span className="rounded-sm bg-white/10 px-1.5 py-px text-label uppercase text-concrete-200">
               {minorCount > 1
                 ? t('ui.condition.bleedingTimes', { n: minorCount })
                 : t('ui.condition.bleeding')}

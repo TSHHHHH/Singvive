@@ -64,7 +64,7 @@ type Props = {
 };
 
 const inputClass =
-  'rounded border border-white/10 bg-black/40 px-2 py-1.5 text-sm text-white outline-none focus:border-signal/50';
+  'rounded border border-white/10 bg-black/40 px-2 py-1.5 text-read text-white outline-none focus:border-signal/50';
 
 const HANDYMAN = 'handyman';
 
@@ -82,7 +82,7 @@ function asRecipe(row: RecipeRecord): Recipe {
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <label className="flex flex-col gap-0.5 text-xs">
+    <label className="flex flex-col gap-0.5 text-body">
       <span className="uppercase tracking-wider text-white/35">{label}</span>
       {children}
     </label>
@@ -105,7 +105,7 @@ function Stepper({
       <button
         type="button"
         onClick={() => onChange(Math.max(min, Math.round((value - step) * 100) / 100))}
-        className="rounded border border-white/15 px-1.5 py-0.5 text-xs text-white/60"
+        className="rounded border border-white/15 px-1.5 py-0.5 text-body text-white/60"
       >
         −
       </button>
@@ -115,12 +115,12 @@ function Stepper({
         step={step}
         value={value}
         onChange={(e) => onChange(Math.max(min, Number(e.target.value) || min))}
-        className="w-16 rounded border border-white/10 bg-black/40 px-2 py-1 font-mono text-sm outline-none focus:border-signal/40"
+        className="w-16 rounded border border-white/10 bg-black/40 px-2 py-1 text-read outline-none focus:border-signal/40"
       />
       <button
         type="button"
         onClick={() => onChange(Math.round((value + step) * 100) / 100)}
-        className="rounded border border-white/15 px-1.5 py-0.5 text-xs text-white/60"
+        className="rounded border border-white/15 px-1.5 py-0.5 text-body text-white/60"
       >
         +
       </button>
@@ -155,7 +155,7 @@ function ItemChip({
     </>
   );
   const className =
-    'inline-flex max-w-full items-center gap-1.5 rounded border border-white/10 bg-black/30 px-1.5 py-1 text-xs text-white/80';
+    'inline-flex max-w-full items-center gap-1.5 rounded border border-white/10 bg-black/30 px-1.5 py-1 text-body text-white/80';
   if (!onOpen) return <span className={className}>{inner}</span>;
   return (
     <button type="button" onClick={() => onOpen(id)} className={`${className} hover:border-signal/40 hover:text-signal`}>
@@ -167,12 +167,12 @@ function ItemChip({
 function SourceBadges({ flags }: { flags: ItemSourceFlags }) {
   return (
     <span className="flex flex-wrap gap-1">
-      {flags.loot && <span className="rounded bg-sky-500/20 px-1 text-2xs text-sky-200">loot</span>}
-      {flags.craft && <span className="rounded bg-white/10 px-1 text-2xs text-white/45">craft</span>}
-      {flags.faction && <span className="rounded bg-violet-500/20 px-1 text-2xs text-violet-200">faction</span>}
-      {flags.starting && <span className="rounded bg-amber-500/20 px-1 text-2xs text-amber-200">starting</span>}
+      {flags.loot && <span className="rounded bg-sky-500/20 px-1 text-micro text-sky-200">loot</span>}
+      {flags.craft && <span className="rounded bg-white/10 px-1 text-micro text-white/45">craft</span>}
+      {flags.faction && <span className="rounded bg-violet-500/20 px-1 text-micro text-violet-200">faction</span>}
+      {flags.starting && <span className="rounded bg-amber-500/20 px-1 text-micro text-amber-200">starting</span>}
       {!hasAnySource(flags) && (
-        <span className="rounded bg-red-500/20 px-1 text-2xs text-red-300">no source</span>
+        <span className="rounded bg-red-500/20 px-1 text-micro text-red-300">no source</span>
       )}
     </span>
   );
@@ -181,8 +181,8 @@ function SourceBadges({ flags }: { flags: ItemSourceFlags }) {
 function EconomyStrip({ eco }: { eco: RecipeEconomy }) {
   const cell = (label: string, value: string, warn?: boolean) => (
     <div>
-      <div className="text-2xs uppercase tracking-wider text-white/35">{label}</div>
-      <div className={`font-mono text-sm ${warn ? 'text-amber-200' : 'text-white/80'}`}>{value}</div>
+      <div className="text-label uppercase text-white/35">{label}</div>
+      <div className={`text-read ${warn ? 'text-amber-200' : 'text-white/80'}`}>{value}</div>
     </div>
   );
   return (
@@ -210,7 +210,7 @@ function CompareCard({
 }) {
   const eco = recipeEconomy(recipe, items);
   return (
-    <div className="rounded border border-white/10 bg-black/25 p-3 text-sm">
+    <div className="rounded border border-white/10 bg-black/25 p-3 text-read">
       <div className="mb-2 font-semibold text-signal">{recipe.name}</div>
       <div className="mb-2 flex flex-wrap gap-1.5">
         {Object.entries(recipe.inputs).map(([id, n]) => (
@@ -219,7 +219,7 @@ function CompareCard({
         <span className="text-white/25">→</span>
         <ItemChip id={recipe.outputDefId} items={items} count={recipe.outputCount} />
       </div>
-      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 font-mono text-xs text-white/65">
+      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-body text-white/65">
         <dt className="text-white/35">id</dt>
         <dd>{recipe.id}</dd>
         <dt className="text-white/35">hours</dt>
@@ -766,7 +766,7 @@ export function RecipesEditor({
   }, [recipes, items, overviewSort]);
 
   if (!recipes) {
-    return <p className="p-6 text-sm text-white/40">{busy ? 'Loading…' : 'No recipes loaded.'}</p>;
+    return <p className="p-6 text-read text-white/40">{busy ? 'Loading…' : 'No recipes loaded.'}</p>;
   }
 
   const sortBtn = (key: OverviewSort, label: string) => (
@@ -796,7 +796,7 @@ export function RecipesEditor({
                   key={p}
                   type="button"
                   onClick={() => setPlace(p)}
-                  className={`flex-1 rounded px-2 py-1 text-2xs capitalize ${
+                  className={`flex-1 rounded px-2 py-1 text-micro capitalize ${
                     place === p ? 'bg-signal/20 text-signal' : 'text-white/50 hover:text-white/70'
                   }`}
                 >
@@ -804,7 +804,7 @@ export function RecipesEditor({
                 </button>
               ))}
             </div>
-            <div className="text-2xs text-white/30">
+            <div className="text-micro text-white/30">
               {filtered.length} / {recipes.length} · ↑↓ to move
             </div>
           </div>
@@ -818,7 +818,7 @@ export function RecipesEditor({
                   <button
                     type="button"
                     onClick={() => requestSelect(recipe.id)}
-                    className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition ${
+                    className={`flex w-full items-center gap-2 px-3 py-2 text-left text-read transition ${
                       isActive
                         ? 'bg-signal/15 text-signal'
                         : comparing
@@ -834,7 +834,7 @@ export function RecipesEditor({
                       )}
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate font-medium">
+                      <span className="block truncate font-semibold">
                         {recipe.name}
                         {baselineRecipes &&
                         JSON.stringify(baselineRecipes.find((b) => b.id === recipe.id)) !==
@@ -842,7 +842,7 @@ export function RecipesEditor({
                           ? ' •'
                           : ''}
                       </span>
-                      <span className="block truncate font-mono text-2xs text-white/35">
+                      <span className="block truncate text-micro text-white/35">
                         {recipe.id} · {Object.keys(recipe.inputs).length} in → {recipe.outputCount}×{' '}
                         {recipe.outputDefId}
                         {recipe.needsShelter ? ' · bench' : ''}
@@ -859,16 +859,16 @@ export function RecipesEditor({
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <div className="flex flex-wrap items-center gap-2 border-b border-white/10 px-4 py-3">
           <div className="mr-auto min-w-0">
-            <h4 className="text-base font-bold text-signal">
+            <h4 className="text-title text-signal">
               {pane === 'overview' ? 'Recipe overview' : (selected?.name ?? 'Recipes')}
             </h4>
-            <p className="text-xs text-white/40">Hard-refresh the game after Save.</p>
+            <p className="text-body text-white/40">Hard-refresh the game after Save.</p>
           </div>
           <div className="flex rounded border border-white/10 p-0.5">
             <button
               type="button"
               onClick={() => setPane('edit')}
-              className={`rounded px-2 py-1 text-2xs ${
+              className={`rounded px-2 py-1 text-micro ${
                 pane === 'edit' ? 'bg-signal/20 text-signal' : 'text-white/50'
               }`}
             >
@@ -877,7 +877,7 @@ export function RecipesEditor({
             <button
               type="button"
               onClick={() => setPane('overview')}
-              className={`rounded px-2 py-1 text-2xs ${
+              className={`rounded px-2 py-1 text-micro ${
                 pane === 'overview' ? 'bg-signal/20 text-signal' : 'text-white/50'
               }`}
             >
@@ -885,12 +885,12 @@ export function RecipesEditor({
             </button>
           </div>
           {dirty && (
-            <span className="rounded bg-amber-500/20 px-2 py-0.5 text-2xs uppercase tracking-wider text-amber-300">
+            <span className="rounded bg-amber-500/20 px-2 py-0.5 text-label uppercase text-amber-300">
               unsaved
             </span>
           )}
           {pane === 'edit' && selectedDirty && (
-            <span className="rounded bg-amber-500/10 px-2 py-0.5 text-2xs uppercase tracking-wider text-amber-200/80">
+            <span className="rounded bg-amber-500/10 px-2 py-0.5 text-label uppercase text-amber-200/80">
               recipe dirty
             </span>
           )}
@@ -899,7 +899,7 @@ export function RecipesEditor({
             type="button"
             disabled={busy || !dirty || !valid}
             onClick={requestSave}
-            className="rounded border border-signal/40 px-2.5 py-1 text-xs text-signal disabled:opacity-40"
+            className="rounded border border-signal/40 px-2.5 py-1 text-body text-signal disabled:opacity-40"
             {...tip('Ctrl/Cmd+S')}
           >
             Save recipes
@@ -908,14 +908,14 @@ export function RecipesEditor({
             type="button"
             disabled={busy || !dirty}
             onClick={handleRevert}
-            className="rounded border border-white/15 px-2.5 py-1 text-xs text-white/70 disabled:opacity-40"
+            className="rounded border border-white/15 px-2.5 py-1 text-body text-white/70 disabled:opacity-40"
           >
             Revert
           </button>
           <button
             type="button"
             onClick={requestNew}
-            className="rounded border border-white/15 px-2.5 py-1 text-xs text-white/70"
+            className="rounded border border-white/15 px-2.5 py-1 text-body text-white/70"
           >
             New
           </button>
@@ -923,7 +923,7 @@ export function RecipesEditor({
             type="button"
             disabled={!selected}
             onClick={requestDuplicate}
-            className="rounded border border-white/15 px-2.5 py-1 text-xs text-white/70 disabled:opacity-40"
+            className="rounded border border-white/15 px-2.5 py-1 text-body text-white/70 disabled:opacity-40"
           >
             Duplicate
           </button>
@@ -931,7 +931,7 @@ export function RecipesEditor({
             type="button"
             disabled={!selected || Object.keys(selected.inputs).length === 0}
             onClick={openFamily}
-            className="rounded border border-white/15 px-2.5 py-1 text-xs text-white/70 disabled:opacity-40"
+            className="rounded border border-white/15 px-2.5 py-1 text-body text-white/70 disabled:opacity-40"
             {...tip('Copy and swap one ingredient')}
           >
             Family…
@@ -940,7 +940,7 @@ export function RecipesEditor({
             type="button"
             disabled={!selected}
             onClick={handleDelete}
-            className="rounded border border-red-500/30 px-2.5 py-1 text-xs text-red-300 disabled:opacity-40"
+            className="rounded border border-red-500/30 px-2.5 py-1 text-body text-red-300 disabled:opacity-40"
           >
             Delete
           </button>
@@ -950,7 +950,7 @@ export function RecipesEditor({
                 type="button"
                 disabled={selectedIndex <= 0}
                 onClick={() => moveSelected(-1)}
-                className="rounded border border-white/15 px-2.5 py-1 text-xs text-white/70 disabled:opacity-40"
+                className="rounded border border-white/15 px-2.5 py-1 text-body text-white/70 disabled:opacity-40"
               >
                 ↑
               </button>
@@ -958,7 +958,7 @@ export function RecipesEditor({
                 type="button"
                 disabled={selectedIndex < 0 || selectedIndex >= recipes.length - 1}
                 onClick={() => moveSelected(1)}
-                className="rounded border border-white/15 px-2.5 py-1 text-xs text-white/70 disabled:opacity-40"
+                className="rounded border border-white/15 px-2.5 py-1 text-body text-white/70 disabled:opacity-40"
               >
                 ↓
               </button>
@@ -968,7 +968,7 @@ export function RecipesEditor({
                   setPickCompare(true);
                   report('Click a recipe in the list to compare');
                 }}
-                className={`rounded border px-2.5 py-1 text-xs ${
+                className={`rounded border px-2.5 py-1 text-body ${
                   pickCompare ? 'border-signal/50 text-signal' : 'border-white/15 text-white/70'
                 }`}
               >
@@ -978,7 +978,7 @@ export function RecipesEditor({
                 <button
                   type="button"
                   onClick={() => setCompareId(null)}
-                  className="rounded border border-white/15 px-2.5 py-1 text-xs text-white/50"
+                  className="rounded border border-white/15 px-2.5 py-1 text-body text-white/50"
                 >
                   Clear compare
                 </button>
@@ -988,14 +988,14 @@ export function RecipesEditor({
           <button
             type="button"
             onClick={() => downloadRecipes(recipes)}
-            className="rounded border border-white/15 px-2.5 py-1 text-xs text-white/70"
+            className="rounded border border-white/15 px-2.5 py-1 text-body text-white/70"
           >
             Export
           </button>
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
-            className="rounded border border-white/15 px-2.5 py-1 text-xs text-white/70"
+            className="rounded border border-white/15 px-2.5 py-1 text-body text-white/70"
           >
             Import
           </button>
@@ -1014,8 +1014,8 @@ export function RecipesEditor({
 
         {pane === 'overview' ? (
           <div className="min-h-0 flex-1 overflow-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="sticky top-0 z-10 bg-concrete-900 text-2xs uppercase tracking-wider text-white/35">
+            <table className="w-full text-left text-read">
+              <thead className="sticky top-0 z-10 bg-concrete-900 text-label uppercase text-white/35">
                 <tr>
                   <th className="px-3 py-2">{sortBtn('name', 'Recipe')}</th>
                   <th className="px-3 py-2">{sortBtn('place', 'Place')}</th>
@@ -1034,29 +1034,29 @@ export function RecipesEditor({
                     onClick={() => requestSelect(r.id)}
                   >
                     <td className="px-3 py-2">
-                      <div className="font-medium text-white/85">{r.name}</div>
-                      <div className="font-mono text-2xs text-white/35">{r.id}</div>
+                      <div className="font-semibold text-white/85">{r.name}</div>
+                      <div className="text-micro text-white/35">{r.id}</div>
                     </td>
-                    <td className="px-3 py-2 text-xs text-white/55">
+                    <td className="px-3 py-2 text-body text-white/55">
                       {r.needsShelter ? 'shelter' : 'field'}
                     </td>
-                    <td className="px-3 py-2 font-mono text-xs">{r.hours}</td>
-                    <td className="px-3 py-2 font-mono text-xs">{inputCount}</td>
+                    <td className="px-3 py-2 text-body">{r.hours}</td>
+                    <td className="px-3 py-2 text-body">{inputCount}</td>
                     <td
-                      className={`px-3 py-2 font-mono text-xs ${
+                      className={`px-3 py-2 text-body ${
                         e.deltaValue > 0 ? 'text-amber-200' : 'text-white/70'
                       }`}
                     >
                       {signed(e.deltaValue)}
                     </td>
                     <td
-                      className={`px-3 py-2 font-mono text-xs ${
+                      className={`px-3 py-2 text-body ${
                         e.deltaWeight > 0.05 ? 'text-amber-200' : 'text-white/70'
                       }`}
                     >
                       {signed(e.deltaWeight)}
                     </td>
-                    <td className="px-3 py-2 font-mono text-xs text-red-300">
+                    <td className="px-3 py-2 text-body text-red-300">
                       {warns || '—'}
                     </td>
                   </tr>
@@ -1069,13 +1069,13 @@ export function RecipesEditor({
             <div className={compareDef ? 'grid gap-6 lg:grid-cols-2' : undefined}>
               <div>
             <section className="mb-5 rounded-lg border border-white/10 bg-black/20 p-3">
-              <h5 className="mb-2 text-2xs uppercase tracking-widest text-white/30">Combination</h5>
+              <h5 className="mb-2 text-label uppercase text-white/30">Combination</h5>
               <div className="flex flex-wrap items-center gap-2">
                 {Object.entries(selected.inputs).map(([id, n]) => (
                   <ItemChip key={id} id={id} items={items} count={n} onOpen={onOpenItem} />
                 ))}
                 {Object.keys(selected.inputs).length === 0 && (
-                  <span className="text-xs text-white/35">Add ingredients below</span>
+                  <span className="text-body text-white/35">Add ingredients below</span>
                 )}
                 {selected.tool && (
                   <>
@@ -1095,7 +1095,7 @@ export function RecipesEditor({
 
             {eco && (
               <section className="mb-5 rounded-lg border border-white/10 bg-black/20 p-3">
-                <h5 className="mb-2 text-2xs uppercase tracking-widest text-white/30">Economy</h5>
+                <h5 className="mb-2 text-label uppercase text-white/30">Economy</h5>
                 <EconomyStrip eco={eco} />
               </section>
             )}
@@ -1105,7 +1105,7 @@ export function RecipesEditor({
                 {warnings.map((w) => (
                   <li
                     key={w.text}
-                    className={`rounded border px-2 py-1 text-xs ${
+                    className={`rounded border px-2 py-1 text-body ${
                       w.level === 'warn'
                         ? 'border-amber-500/30 bg-amber-500/10 text-amber-100'
                         : 'border-white/10 bg-white/5 text-white/55'
@@ -1120,7 +1120,7 @@ export function RecipesEditor({
             <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <Field label="Id">
                 <input
-                  className={inputClass + ' font-mono'}
+                  className={inputClass + ''}
                   value={selected.id}
                   disabled={!creating}
                   onChange={(e) => patch({ id: e.target.value })}
@@ -1145,7 +1145,7 @@ export function RecipesEditor({
                 <button
                   type="button"
                   onClick={() => patch({ needsShelter: !selected.needsShelter })}
-                  className={`rounded border px-2.5 py-1.5 text-sm ${
+                  className={`rounded border px-2.5 py-1.5 text-read ${
                     selected.needsShelter
                       ? 'border-signal/40 bg-signal/10 text-signal'
                       : 'border-white/10 text-white/70'
@@ -1167,7 +1167,7 @@ export function RecipesEditor({
 
             <div className="mb-5 grid gap-4 lg:grid-cols-2">
               <section>
-                <h5 className="mb-2 text-2xs uppercase tracking-widest text-white/30">Output</h5>
+                <h5 className="mb-2 text-label uppercase text-white/30">Output</h5>
                 <div className="mb-2 flex flex-wrap items-center gap-2">
                   <ItemChip
                     id={selected.outputDefId}
@@ -1199,7 +1199,7 @@ export function RecipesEditor({
                 />
               </section>
               <section>
-                <h5 className="mb-2 text-2xs uppercase tracking-widest text-white/30">Tool (kept)</h5>
+                <h5 className="mb-2 text-label uppercase text-white/30">Tool (kept)</h5>
                 <div className="mb-2 flex flex-wrap items-center gap-2">
                   {selected.tool ? (
                     <>
@@ -1212,7 +1212,7 @@ export function RecipesEditor({
                       <SourceBadges flags={itemSourceFlags(selected.tool, recipes, items)} />
                     </>
                   ) : (
-                    <span className="text-xs text-white/35">No tool required</span>
+                    <span className="text-body text-white/35">No tool required</span>
                   )}
                   {selected.tool && (
                     <button
@@ -1222,7 +1222,7 @@ export function RecipesEditor({
                         delete next.tool;
                         setRecipes(recipes.map((r) => (r.id === selected.id ? next : r)));
                       }}
-                      className="rounded border border-white/15 px-2 py-1 text-2xs text-white/50"
+                      className="rounded border border-white/15 px-2 py-1 text-micro text-white/50"
                     >
                       Clear
                     </button>
@@ -1238,7 +1238,7 @@ export function RecipesEditor({
             </div>
 
             <section className="mb-5">
-              <h5 className="mb-2 text-2xs uppercase tracking-widest text-white/30">
+              <h5 className="mb-2 text-label uppercase text-white/30">
                 Ingredients (consumed)
               </h5>
               <ul className="mb-3 flex flex-col gap-1.5">
@@ -1259,17 +1259,17 @@ export function RecipesEditor({
                       <button
                         type="button"
                         onClick={() => onOpenItem?.(id)}
-                        className="min-w-0 flex-1 truncate text-left text-sm text-white/80 hover:text-signal"
+                        className="min-w-0 flex-1 truncate text-left text-read text-white/80 hover:text-signal"
                       >
                         {itemName(items, id)}
-                        <span className="ml-2 font-mono text-2xs text-white/35">{id}</span>
+                        <span className="ml-2 text-micro text-white/35">{id}</span>
                       </button>
                       <SourceBadges flags={itemSourceFlags(id, recipes, items)} />
                       <Stepper value={count} min={1} step={1} onChange={(n) => setInputCount(id, n)} />
                       <button
                         type="button"
                         onClick={() => setInputCount(id, 0)}
-                        className="rounded border border-red-500/30 px-2 py-0.5 text-2xs text-red-300"
+                        className="rounded border border-red-500/30 px-2 py-0.5 text-micro text-red-300"
                       >
                         Remove
                       </button>
@@ -1286,14 +1286,14 @@ export function RecipesEditor({
             </section>
 
             <section className="mb-5 rounded-lg border border-white/15 bg-concrete-900/80 p-3">
-              <h5 className="mb-2 text-2xs uppercase tracking-widest text-white/30">
+              <h5 className="mb-2 text-label uppercase text-white/30">
                 Can I make this?
               </h5>
               <div className="mb-3 flex flex-wrap gap-2">
                 <button
                   type="button"
                   onClick={() => setSandboxShelter((v) => !v)}
-                  className={`rounded border px-2 py-1 text-xs ${
+                  className={`rounded border px-2 py-1 text-body ${
                     sandboxShelter
                       ? 'border-signal/40 bg-signal/10 text-signal'
                       : 'border-white/10 text-white/50'
@@ -1304,7 +1304,7 @@ export function RecipesEditor({
                 <button
                   type="button"
                   onClick={() => setSandboxHandyman((v) => !v)}
-                  className={`rounded border px-2 py-1 text-xs ${
+                  className={`rounded border px-2 py-1 text-body ${
                     sandboxHandyman
                       ? 'border-signal/40 bg-signal/10 text-signal'
                       : 'border-white/10 text-white/50'
@@ -1315,7 +1315,7 @@ export function RecipesEditor({
               </div>
               <ul className="mb-3 flex flex-col gap-1">
                 {Object.keys(selected.inputs).map((id) => (
-                  <li key={id} className="flex items-center gap-2 text-xs">
+                  <li key={id} className="flex items-center gap-2 text-body">
                     <span className="w-36 truncate text-white/60">{itemName(items, id)}</span>
                     <Stepper
                       value={sandboxPack[id] ?? 0}
@@ -1324,14 +1324,14 @@ export function RecipesEditor({
                       onChange={(n) => setSandboxPack((p) => ({ ...p, [id]: n }))}
                     />
                     {sandboxResult && sandboxResult.adjusted[id] !== undefined && (
-                      <span className="font-mono text-2xs text-white/35">
+                      <span className="text-micro text-white/35">
                         needs {sandboxResult.adjusted[id]}
                       </span>
                     )}
                   </li>
                 ))}
                 {selected.tool && (
-                  <li className="flex items-center gap-2 text-xs">
+                  <li className="flex items-center gap-2 text-body">
                     <span className="w-36 truncate text-white/60">
                       {itemName(items, selected.tool)} (tool)
                     </span>
@@ -1348,7 +1348,7 @@ export function RecipesEditor({
               </ul>
               {sandboxResult && (
                 <p
-                  className={`text-xs ${
+                  className={`text-body ${
                     sandboxResult.check.ok ? 'text-signal' : 'text-red-300'
                   }`}
                 >
@@ -1366,10 +1366,10 @@ export function RecipesEditor({
             </section>
 
             <section className="mb-5 rounded-lg border border-white/15 bg-concrete-900/80 p-3">
-              <h5 className="mb-2 text-2xs uppercase tracking-widest text-white/30">
+              <h5 className="mb-2 text-label uppercase text-white/30">
                 Workbench preview
               </h5>
-              <div className="flex items-start gap-2.5 rounded bg-white/5 px-2.5 py-2.5 text-xs">
+              <div className="flex items-start gap-2.5 rounded bg-white/5 px-2.5 py-2.5 text-body">
                 {defOf(items, selected.outputDefId) ? (
                   <Icon
                     name={itemIcon(defOf(items, selected.outputDefId)!)}
@@ -1420,10 +1420,10 @@ export function RecipesEditor({
                 </span>
               </div>
               <div className="mt-3 border-t border-white/10 pt-3">
-                <p className="mb-1 text-2xs uppercase tracking-widest text-white/30">
+                <p className="mb-1 text-label uppercase text-white/30">
                   Repair (not a recipe)
                 </p>
-                <p className="text-xs leading-snug text-white/45">
+                <p className="text-body text-white/45">
                   Workbench: {REPAIR_INPUTS.duct_tape}× {itemName(items, 'duct_tape')} +{' '}
                   {REPAIR_INPUTS.scrap_metal}× {itemName(items, 'scrap_metal')} +{' '}
                   {itemName(items, REPAIR_TOOL)} → +{REPAIR_AMOUNT} condition, {REPAIR_HOURS}h.
@@ -1437,17 +1437,17 @@ export function RecipesEditor({
             </section>
 
             <section>
-              <h5 className="mb-2 text-2xs uppercase tracking-widest text-white/30">
+              <h5 className="mb-2 text-label uppercase text-white/30">
                 Chains & cousins
               </h5>
               {chains.madeBy.length === 0 &&
               chains.usedIn.length === 0 &&
               chains.cousins.length === 0 ? (
-                <p className="text-xs text-white/35">
+                <p className="text-body text-white/35">
                   No other recipes share these items yet — a fresh combo.
                 </p>
               ) : (
-                <ul className="flex flex-col gap-1 text-xs text-white/60">
+                <ul className="flex flex-col gap-1 text-body text-white/60">
                   {chains.madeBy.map((r) => (
                     <li key={`m-${r.id}`}>
                       <button
@@ -1490,16 +1490,16 @@ export function RecipesEditor({
               </div>
               {compareDef && (
                 <div>
-                  <h5 className="mb-3 text-2xs uppercase tracking-widest text-white/30">
+                  <h5 className="mb-3 text-label uppercase text-white/30">
                     Compare · {compareDef.id}
                   </h5>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div>
-                      <div className="mb-1 text-2xs text-white/35">Current</div>
+                      <div className="mb-1 text-micro text-white/35">Current</div>
                       <CompareCard recipe={selected} items={items} />
                     </div>
                     <div>
-                      <div className="mb-1 text-2xs text-white/35">Other</div>
+                      <div className="mb-1 text-micro text-white/35">Other</div>
                       <CompareCard recipe={compareDef} items={items} />
                     </div>
                   </div>
@@ -1508,36 +1508,36 @@ export function RecipesEditor({
             </div>
           </div>
         ) : (
-          <p className="p-6 text-sm text-white/40">No recipe selected. New starts a combo.</p>
+          <p className="p-6 text-read text-white/40">No recipe selected. New starts a combo.</p>
         )}
       </div>
 
       {pendingNav && !diffOpen && (
         <div className="absolute inset-0 z-[2100] flex items-center justify-center bg-black/70 p-4">
           <div className="w-full max-w-md rounded-xl border border-white/10 bg-concrete-900 p-5">
-            <h4 className="mb-2 text-base font-bold text-signal">Unsaved recipe edits</h4>
-            <p className="mb-4 text-sm text-white/60">
+            <h4 className="mb-2 text-title text-signal">Unsaved recipe edits</h4>
+            <p className="mb-4 text-read text-white/60">
               Save the catalog, discard this recipe&apos;s changes, or cancel.
             </p>
             <div className="flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => void resolvePending('cancel')}
-                className="rounded border border-white/15 px-3 py-1.5 text-xs text-white/70"
+                className="rounded border border-white/15 px-3 py-1.5 text-body text-white/70"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={() => void resolvePending('discard')}
-                className="rounded border border-red-500/30 px-3 py-1.5 text-xs text-red-300"
+                className="rounded border border-red-500/30 px-3 py-1.5 text-body text-red-300"
               >
                 Discard
               </button>
               <button
                 type="button"
                 onClick={() => void resolvePending('save')}
-                className="rounded border border-signal/40 px-3 py-1.5 text-xs text-signal"
+                className="rounded border border-signal/40 px-3 py-1.5 text-body text-signal"
               >
                 Save…
               </button>
@@ -1549,8 +1549,8 @@ export function RecipesEditor({
       {familyOpen && selected && (
         <div className="absolute inset-0 z-[2100] flex items-center justify-center bg-black/70 p-4">
           <div className="w-full max-w-md rounded-xl border border-white/10 bg-concrete-900 p-5">
-            <h4 className="mb-2 text-base font-bold text-signal">Family copy</h4>
-            <p className="mb-3 text-xs text-white/50">
+            <h4 className="mb-2 text-title text-signal">Family copy</h4>
+            <p className="mb-3 text-body text-white/50">
               Duplicate this recipe and swap one ingredient — how the spear variants work.
             </p>
             <Field label="Swap this input">
@@ -1567,7 +1567,7 @@ export function RecipesEditor({
               </select>
             </Field>
             <div className="mb-3">
-              <span className="mb-1 block text-xs uppercase tracking-wider text-white/35">
+              <span className="mb-1 block text-plate uppercase text-white/35">
                 For this item
               </span>
               {familyTo && (
@@ -1582,7 +1582,7 @@ export function RecipesEditor({
                 onPick={setFamilyTo}
               />
             </div>
-            <label className="mb-3 flex items-center gap-2 text-xs text-white/70">
+            <label className="mb-3 flex items-center gap-2 text-body text-white/70">
               <input
                 type="checkbox"
                 checked={familyChangeOut}
@@ -1603,7 +1603,7 @@ export function RecipesEditor({
               <button
                 type="button"
                 onClick={() => setFamilyOpen(false)}
-                className="rounded border border-white/15 px-3 py-1.5 text-xs text-white/70"
+                className="rounded border border-white/15 px-3 py-1.5 text-body text-white/70"
               >
                 Cancel
               </button>
@@ -1611,7 +1611,7 @@ export function RecipesEditor({
                 type="button"
                 disabled={!familyFrom || !familyTo}
                 onClick={applyFamily}
-                className="rounded border border-signal/40 px-3 py-1.5 text-xs text-signal disabled:opacity-40"
+                className="rounded border border-signal/40 px-3 py-1.5 text-body text-signal disabled:opacity-40"
               >
                 Create copy
               </button>
@@ -1623,12 +1623,12 @@ export function RecipesEditor({
       {diffOpen && pendingDiff && (
         <div className="absolute inset-0 z-[2100] flex items-center justify-center bg-black/70 p-4">
           <div className="w-full max-w-lg rounded-xl border border-white/10 bg-concrete-900 p-5">
-            <h4 className="mb-2 text-base font-bold text-signal">Review recipe changes</h4>
-            <div className="mb-4 max-h-72 overflow-y-auto text-xs text-white/65">
+            <h4 className="mb-2 text-title text-signal">Review recipe changes</h4>
+            <div className="mb-4 max-h-72 overflow-y-auto text-body text-white/65">
               {recipeDiffEmpty(pendingDiff) ? (
                 <p>No changes detected.</p>
               ) : (
-                <ul className="flex flex-col gap-1 font-mono">
+                <ul className="flex flex-col gap-1">
                   {pendingDiff.added.map((id) => (
                     <li key={`a-${id}`}>
                       <span className="text-signal">+</span> {id}
@@ -1659,7 +1659,7 @@ export function RecipesEditor({
                   setDiffOpen(false);
                   setPendingDiff(null);
                 }}
-                className="rounded border border-white/15 px-3 py-1.5 text-xs text-white/70"
+                className="rounded border border-white/15 px-3 py-1.5 text-body text-white/70"
               >
                 Cancel
               </button>
@@ -1667,7 +1667,7 @@ export function RecipesEditor({
                 type="button"
                 disabled={busy || !valid}
                 onClick={() => void confirmSave()}
-                className="rounded border border-signal/40 px-3 py-1.5 text-xs text-signal disabled:opacity-40"
+                className="rounded border border-signal/40 px-3 py-1.5 text-body text-signal disabled:opacity-40"
               >
                 Confirm save
               </button>
@@ -1679,16 +1679,16 @@ export function RecipesEditor({
       {saveOk && (
         <div className="absolute inset-0 z-[2100] flex items-center justify-center bg-black/70 p-4">
           <div className="w-full max-w-sm rounded-xl border border-white/10 bg-concrete-900 p-5">
-            <h4 className="mb-2 text-base font-bold text-signal">Saved successfully</h4>
-            <p className="mb-4 text-sm text-white/60">
-              Wrote <span className="font-mono text-white/80">src/game/data/recipes.json</span>.
+            <h4 className="mb-2 text-title text-signal">Saved successfully</h4>
+            <p className="mb-4 text-read text-white/60">
+              Wrote <span className="text-white/80">src/game/data/recipes.json</span>.
               Refresh the page for changes to take effect in the live workbench.
             </p>
             <div className="flex justify-end">
               <button
                 type="button"
                 onClick={() => setSaveOk(false)}
-                className="rounded border border-signal/40 px-3 py-1.5 text-xs text-signal"
+                className="rounded border border-signal/40 px-3 py-1.5 text-body text-signal"
               >
                 OK
               </button>

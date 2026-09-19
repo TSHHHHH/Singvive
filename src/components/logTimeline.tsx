@@ -85,8 +85,8 @@ export function LogEntryBody({
   return (
     <div className="min-w-0 flex-1">
       {compact ? (
-        <div className={`break-words text-xs leading-snug ${toneClass[e.tone] ?? 'text-white/60'}`}>
-          <span className="mr-2 shrink-0 tabular-nums text-2xs text-white/25">
+        <div className={`break-words text-body ${toneClass[e.tone] ?? 'text-white/60'}`}>
+          <span className="mr-2 shrink-0 tabular-nums text-micro text-white/25">
             {formatClock(e.hour, clock)}
           </span>
           {highlightLogText(e.text)}
@@ -94,12 +94,12 @@ export function LogEntryBody({
       ) : (
         <p
           style={hang}
-          className={`whitespace-normal break-words text-xs leading-snug ${
+          className={`whitespace-normal break-words text-body ${
             toneClass[e.tone] ?? 'text-white/60'
           }`}
         >
           <span
-            className="inline-block font-mono text-2xs tabular-nums text-white/25"
+            className="inline-block text-micro tabular-nums text-white/25"
             style={{ width: timeW, textIndent: 0 }}
           >
             {formatClock(e.hour, clock)}
@@ -112,7 +112,7 @@ export function LogEntryBody({
           <button
             type="button"
             onClick={() => onFocusMap(e.focus!.lat, e.focus!.lng)}
-            className="rounded border border-signal/40 bg-signal/10 px-2 py-0.5 text-2xs text-signal hover:bg-signal/20"
+            className="rounded border border-signal/40 bg-signal/10 px-2 py-0.5 text-micro text-signal hover:bg-signal/20"
           >
             {e.focus.label
               ? tr('ui.log.showOnMapLabel', { label: e.focus.label })
@@ -128,13 +128,13 @@ export function LogEntryBody({
           {e.loot.map((s, i) => {
             const def = itemDef(s.defId);
             return compact ? (
-              <li key={i} className="text-xs text-white/40">
+              <li key={i} className="text-body text-white/40">
                 {itemName(s.defId, locale)} ×{s.count}
               </li>
             ) : (
               <li
                 key={i}
-                className="flex items-center gap-1.5 border-l border-white/15 bg-white/[0.04] px-2 py-0.5 text-xs"
+                className="flex items-center gap-1.5 border-l border-white/15 bg-white/[0.04] px-2 py-0.5 text-body"
               >
                 <Icon name={itemIcon(def)} size={13} className="shrink-0" />
                 <span className="min-w-0 flex-1 truncate text-concrete-200">
@@ -148,7 +148,7 @@ export function LogEntryBody({
       )}
       {e.leftover && e.leftover.length > 0 && (
         <div
-          className="mt-1 text-2xs text-hiss"
+          className="mt-1 text-micro text-hiss"
           style={compact ? undefined : { paddingLeft: timeW }}
         >
           {tr('ui.log.packFull', {
@@ -220,7 +220,7 @@ function LogSectionCard({
         })}
         className="flex w-full items-center justify-between gap-2 py-1.5 pr-2 text-left transition hover:bg-white/[0.04]"
       >
-        <span className="flex min-w-0 items-center text-xs font-semibold text-concrete-100">
+        <span className="flex min-w-0 items-center text-body font-semibold text-concrete-100">
           <span
             className="flex shrink-0 items-center justify-center self-stretch text-white/40"
             style={{ width: timeW }}
@@ -229,7 +229,7 @@ function LogSectionCard({
           </span>
           <span className="truncate">{title}</span>
         </span>
-        <span className="flex shrink-0 items-center gap-1.5 text-2xs text-white/35">
+        <span className="flex shrink-0 items-center gap-1.5 text-micro text-white/35">
           <span>
             {group.entries.length === 1
               ? tr('ui.log.entry', { n: group.entries.length })
@@ -296,7 +296,7 @@ function CompactLogSection({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between gap-2 py-1.5 pr-2 text-left text-xs hover:bg-white/[0.04]"
+        className="flex w-full items-center justify-between gap-2 py-1.5 pr-2 text-left text-body hover:bg-white/[0.04]"
       >
         <span className="flex min-w-0 items-center font-semibold">
           <span
@@ -307,7 +307,7 @@ function CompactLogSection({
           </span>
           <span className="truncate">{title}</span>
         </span>
-        <span className="shrink-0 text-2xs text-white/35">
+        <span className="shrink-0 text-micro text-white/35">
           {group.entries.length}
           {hauls > 0 ? ` · ${hauls}` : ''}
           {bad > 0 ? ` · ${bad}` : ''} {open ? '▾' : '▸'}

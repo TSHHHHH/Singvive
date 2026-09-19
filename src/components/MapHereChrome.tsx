@@ -13,7 +13,7 @@ const toneClass: Record<string, string> = {
 };
 
 const ICON_BTN =
-  'flex h-9 w-9 shrink-0 items-center justify-center rounded border text-sm transition disabled:opacity-30';
+  'flex h-9 w-9 shrink-0 items-center justify-center rounded border text-read transition disabled:opacity-30';
 
 /**
  * Phone map idle chrome: two newest log lines + compact "here" row with
@@ -72,13 +72,13 @@ export function MapHereChrome({
         aria-label="Open log"
       >
         {entries.length === 0 ? (
-          <div className="text-2xs text-white/35">Nothing logged yet</div>
+          <div className="text-micro text-white/35">Nothing logged yet</div>
         ) : (
           <div className="flex flex-col gap-0.5">
             {entries.map((e) => (
               <div
                 key={e.id}
-                className={`truncate text-2xs leading-snug ${toneClass[e.tone] ?? toneClass.info}`}
+                className={`truncate text-micro ${toneClass[e.tone] ?? toneClass.info}`}
               >
                 <span className="mr-1.5 tabular-nums text-white/35">
                   {formatClock(e.hour, clock)}
@@ -100,8 +100,8 @@ export function MapHereChrome({
           >
             <Icon name={POI_CONFIG[sel.category].icon} size={18} />
             <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-bold">{sel.name}</div>
-              <div className="text-xs text-signal/70">
+              <div className="truncate text-read font-bold">{sel.name}</div>
+              <div className="text-body text-signal/70">
                 <Icon name="action.here" /> here
               </div>
             </div>

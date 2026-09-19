@@ -55,7 +55,7 @@ export function EnemyOverview({
   return (
     <div className="flex h-full flex-col gap-3 overflow-hidden p-4">
       <div className="flex flex-wrap items-end gap-3">
-        <label className="flex flex-col gap-0.5 text-xs text-white/55">
+        <label className="flex flex-col gap-0.5 text-body text-white/55">
           <span>Danger (scaled rows)</span>
           <input
             type="range"
@@ -65,12 +65,12 @@ export function EnemyOverview({
             onChange={(e) => onDangerChange(Number(e.target.value))}
             className="w-40"
           />
-          <span className="font-mono text-signal">{danger}</span>
+          <span className="text-signal">{danger}</span>
         </label>
-        <label className="flex flex-col gap-0.5 text-xs text-white/55">
+        <label className="flex flex-col gap-0.5 text-body text-white/55">
           <span>Kind</span>
           <select
-            className="rounded border border-white/10 bg-black/40 px-2 py-1.5 text-sm text-white"
+            className="rounded border border-white/10 bg-black/40 px-2 py-1.5 text-read text-white"
             value={kindFilter}
             onChange={(e) => onKindFilter(e.target.value as typeof kindFilter)}
           >
@@ -82,7 +82,7 @@ export function EnemyOverview({
             <option value="animal">Animals</option>
           </select>
         </label>
-        <p className="max-w-xl text-[11px] leading-snug text-white/40">
+        <p className="max-w-xl text-body text-white/40">
           Midpoint jitter (no RNG). Threat vs baseline scavenger: dmg {THREAT_BASELINE.playerDamage},
           spd {THREAT_BASELINE.playerSpeed}, hp {THREAT_BASELINE.playerHp}. Click a row to edit.
           Click column headers to sort.
@@ -90,7 +90,7 @@ export function EnemyOverview({
       </div>
 
       <div className="min-h-0 flex-1 overflow-auto rounded border border-white/10">
-        <table className="w-full min-w-[900px] text-left text-xs">
+        <table className="w-full min-w-[900px] text-left text-body">
           <thead className="sticky top-0 bg-concrete-900 text-white/45">
             <tr>
               {SORT_COLS.map((col) => (
@@ -110,14 +110,14 @@ export function EnemyOverview({
               <th className="px-2 py-2 font-semibold">Context</th>
             </tr>
           </thead>
-          <tbody className="font-mono text-white/75">
+          <tbody className="text-white/75">
             {rows.map((row) => (
               <tr
                 key={row.key}
                 className="cursor-pointer border-t border-white/5 hover:bg-signal/10"
                 onClick={() => onOpenRow(row)}
               >
-                <td className="px-2 py-1.5 font-sans text-white">{row.name}</td>
+                <td className="px-2 py-1.5 text-white">{row.name}</td>
                 <td className="px-2 py-1.5 capitalize text-white/50">{row.kind}</td>
                 <td className="px-2 py-1.5">{row.hp}</td>
                 <td className="px-2 py-1.5">{row.attack}</td>
@@ -129,7 +129,7 @@ export function EnemyOverview({
                 <td className="px-2 py-1.5 text-emerald-300/90">{row.toKill}</td>
                 <td className="px-2 py-1.5 text-amber-300/90">{row.toDie}</td>
                 <td className="px-2 py-1.5 text-signal">{row.threat}</td>
-                <td className="px-2 py-1.5 font-sans text-white/40">{row.context}</td>
+                <td className="px-2 py-1.5 text-white/40">{row.context}</td>
               </tr>
             ))}
           </tbody>

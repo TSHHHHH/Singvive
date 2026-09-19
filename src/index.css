@@ -45,31 +45,35 @@ body,
 body {
   background: #08080a;
   color: #d6d2c8;
-  font-family:
-    ui-monospace,
-    SFMono-Regular,
-    Menlo,
-    Consolas,
-    'Noto Sans SC',
-    'Microsoft YaHei',
-    'PingFang SC',
-    'Segoe UI',
-    monospace;
+  /* font-family comes from src/ui/type.ts via the tailwind base plugin. */
   overscroll-behavior: none;
   padding: var(--safe-top) var(--safe-right) 0 var(--safe-left);
   box-sizing: border-box;
 }
 
-/* CJK: uppercase / wide tracking looks wrong on Chinese glyphs. */
-html[lang='zh-Hans'] .signage,
-html[data-locale='zh-Hans'] .signage {
+/*
+ * CJK. Han glyphs have no case, and Latin signage tracking reads as broken
+ * spacing on them. These target the utilities themselves rather than a wrapper
+ * class, so they reach every call site — `.uppercase` at (0,2,0) outranks the
+ * utility's own (0,1,0).
+ */
+html[lang='zh-Hans'] body {
+  line-height: 1.5;
+}
+
+html[lang='zh-Hans'] .uppercase {
   text-transform: none;
+}
+
+html[lang='zh-Hans'] .text-label,
+html[lang='zh-Hans'] .text-plate {
   letter-spacing: 0.06em;
 }
 
-html[lang='zh-Hans'] body,
-html[data-locale='zh-Hans'] body {
-  line-height: 1.45;
+/* 10px Han is below the legibility floor — lift the two smallest roles. */
+html[lang='zh-Hans'] .text-micro,
+html[lang='zh-Hans'] .text-label {
+  font-size: 0.6875rem;
 }
 
 /* In-run basemap: Dark Matter is already muted; a small lift keeps streets
@@ -83,12 +87,6 @@ html[data-locale='zh-Hans'] body {
   }
 }
 
-/* Bureau signage: stencilled, wide, upper-case. */
-.signage {
-  text-transform: uppercase;
-  letter-spacing: 0.22em;
-  font-weight: 800;
-}
 
 /* Hairline rule used to separate bureau panels. */
 .rule {
@@ -451,7 +449,7 @@ select optgroup {
   background: rgba(8, 8, 10, 0.82);
   border-radius: 2px;
   color: var(--clock-accent, #e8e5dd);
-  font-size: 0.65rem;
+  font-size: var(--type-micro-size);
   font-weight: 700;
   letter-spacing: 0.04em;
   line-height: 1;
@@ -634,6 +632,119 @@ select optgroup {
   }
 }
 
+/* The same rules, reachable from the in-app Reduce motion setting: a media
+   query can only hear the OS. Mirrors the block above — keep them in step. */
+.motion-reduce-forced .pulse-danger {
+  animation: none;
+  opacity: 0.9;
+}
+.motion-reduce-forced .search-find-pulse {
+  animation: none;
+  filter: brightness(1.35);
+}
+.motion-reduce-forced .search-find-burst-shard {
+  animation: none;
+  opacity: 0.85;
+  transform: translateY(-10px) scale(0.75);
+}
+.motion-reduce-forced .combat-shake,
+.motion-reduce-forced .combat-shake-hard {
+  animation: none;
+}
+.motion-reduce-forced .combat-hp-punch {
+  animation: none;
+  filter: brightness(1.45);
+}
+.motion-reduce-forced .combat-portrait-hit,
+.motion-reduce-forced .combat-portrait-hit-bad,
+.motion-reduce-forced .combat-portrait-dodge {
+  animation: none;
+  filter: brightness(1.35);
+}
+.motion-reduce-forced .combat-outcome-win {
+  animation: none;
+  box-shadow: inset 0 0 0 1px rgba(163, 230, 53, 0.55);
+}
+.motion-reduce-forced .combat-outcome-dead {
+  animation: none;
+  box-shadow: inset 0 0 0 1px rgba(217, 45, 45, 0.55);
+}
+.motion-reduce-forced .clock-pulse-tick {
+  animation: clock-pulse-tick-still 1.2s ease-out 1 forwards;
+  transform: none;
+}
+.motion-reduce-forced .clock-pulse-band {
+  animation: clock-pulse-band-still 1.6s ease-out 1 forwards;
+  transform: none;
+}
+.motion-reduce-forced .clock-pulse-phone.clock-pulse-tick,
+.motion-reduce-forced .clock-pulse-phone.clock-pulse-band {
+  animation: clock-pulse-phone-still 1.2s ease-out 1 forwards;
+  transform: none;
+}
+.motion-reduce-forced .clock-delta-chip {
+  animation: clock-delta-still 1.6s ease-out 1 forwards;
+}
+.motion-reduce-forced .clock-label-flash {
+  animation: none;
+  color: var(--clock-accent, #e8e5dd);
+}
+.motion-reduce-forced .tod-flash {
+  animation: none;
+  opacity: 0.28;
+}
+/*
+ * Gameplay reveal FX opts in via .search-find-fx--force-motion (live search +
+ * loot editor). Ambient HUD motion still respects reduced-motion above.
+ */
+.motion-reduce-forced .search-find-fx--force-motion .search-find-pulse {
+  animation: search-find-pulse 1.1s ease-out 1;
+  filter: none;
+}
+.motion-reduce-forced .search-find-fx--force-motion .search-find-burst-shard {
+  animation: search-find-burst-fly 0.85s ease-out 1 both;
+  opacity: 1;
+  transform: none;
+}
+/* Combat impact cues stay on under reduced motion — they are gameplay feedback. */
+.motion-reduce-forced .combat-fx--force-motion .combat-shake {
+  animation: combat-shake 0.22s ease-out 1;
+}
+.motion-reduce-forced .combat-fx--force-motion .combat-shake-hard {
+  animation: combat-shake-hard 0.32s ease-out 1;
+}
+.motion-reduce-forced .combat-fx--force-motion .combat-hp-punch {
+  animation: combat-hp-punch 0.28s ease-out 1;
+  filter: none;
+}
+.motion-reduce-forced .combat-fx--force-motion .combat-portrait-hit {
+  animation: combat-portrait-hit 0.28s ease-out 1;
+  filter: none;
+}
+.motion-reduce-forced .combat-fx--force-motion .combat-portrait-hit-bad {
+  animation: combat-portrait-hit-bad 0.28s ease-out 1;
+  filter: none;
+}
+.motion-reduce-forced .combat-fx--force-motion .combat-portrait-dodge {
+  animation: combat-portrait-dodge 0.3s ease-out 1;
+  filter: none;
+}
+.motion-reduce-forced .combat-fx--force-motion .combat-outcome-win {
+  animation: combat-outcome-win 0.55s ease-out 1;
+  box-shadow: none;
+}
+.motion-reduce-forced .combat-fx--force-motion .combat-outcome-dead {
+  animation: combat-outcome-dead 0.55s ease-out 1;
+  box-shadow: none;
+}
+.motion-reduce-forced .hdb-route-ribbon {
+  animation: none;
+  opacity: 0.95;
+}
+.motion-reduce-forced .hdb-route-dest {
+  animation: none;
+}
+
 /* HDB hover route — soft live telemetry pulse on the ribbon. */
 @keyframes hdb-route-breathe {
   0%,
@@ -689,6 +800,14 @@ select optgroup {
     opacity: 1;
     transform: none;
   }
+}
+
+/* The same rules, reachable from the in-app Reduce motion setting: a media
+   query can only hear the OS. Mirrors the block above — keep them in step. */
+.motion-reduce-forced .evac-beacon {
+  animation: none;
+  opacity: 1;
+  transform: none;
 }
 
 /* The player's teardrop pin. Same reason as the beacon above: kept out of the
@@ -1097,8 +1216,8 @@ select optgroup {
   border-radius: 2px;
   background: rgba(17, 17, 18, 0.95);
   color: #e8e5dd;
-  font-size: 10px;
-  line-height: 14px;
+  font-size: var(--type-micro-size);
+  line-height: var(--type-micro-leading);
   font-weight: 600;
   white-space: pre-line;
   backdrop-filter: blur(2px);

@@ -142,14 +142,14 @@ function RouteHazardBlock({
   return (
     <>
       {routeRisk && (
-        <div className="mt-1 flex justify-between text-xs text-white/55">
+        <div className="mt-1 flex justify-between text-body text-white/55">
           <span>{t('ui.location.route')}</span>
           <span style={{ color: label?.color }}>{label?.text}</span>
         </div>
       )}
       {routeRisk && <HazardOnRoute hazards={routeRisk.hazards} />}
       {routeBlind && (
-        <div className="mt-2 text-xs text-white/35">
+        <div className="mt-2 text-body text-white/35">
           You can't see far enough to read that ground. Anything could be sitting on it.
         </div>
       )}
@@ -173,13 +173,13 @@ function UnknownCard({
         <Icon name="poi.unknown" size={22} className="opacity-60" />
         <div className="min-w-0 flex-1">
           <div className="font-bold text-white/70">{t('ui.location.unknownLocation')}</div>
-          <div className="text-xs text-white/40">
+          <div className="text-body text-white/40">
             Commit blind — no danger intel until you arrive.
           </div>
         </div>
       </div>
       {est && (
-        <div className="mt-2 flex justify-between rounded bg-black/30 p-2 text-xs text-white/55">
+        <div className="mt-2 flex justify-between rounded bg-black/30 p-2 text-body text-white/55">
           <span><Icon name="action.travel" /> {t('ui.location.travelThere')}</span>
           <span className="text-white/80">
             {formatDuration(est.travelMin)}
@@ -189,24 +189,24 @@ function UnknownCard({
       )}
       <RouteHazardBlock routeRisk={routeRisk} routeBlind={routeBlind} />
       {est?.arrivalAtNight && (
-        <div className="mt-1 text-xs text-hiss">
+        <div className="mt-1 text-body text-hiss">
           🌙 You'd arrive after dark — far more dangerous.
         </div>
       )}
       {outOfRange && (
-        <div className="mt-1 text-xs text-hiss">
+        <div className="mt-1 text-body text-hiss">
           ⛔ Beyond your range — hop closer, rest, or walk the tunnels.
         </div>
       )}
       {noDryRoute && (
-        <div className="mt-1 text-xs text-hiss">
+        <div className="mt-1 text-body text-hiss">
           ⛔ No dry route — water or sealed ground blocks the way.
         </div>
       )}
       <button
         disabled={energyLow || outOfRange || !!noDryRoute}
         onClick={onTravel}
-        className="mt-3 w-full rounded bg-signal/80 py-2 text-sm font-bold text-black hover:bg-signal disabled:opacity-30"
+        className="mt-3 w-full rounded bg-signal/80 py-2 text-read font-bold text-black hover:bg-signal disabled:opacity-30"
       >
         {energyLow
           ? t('ui.location.tooExhausted')
@@ -230,7 +230,7 @@ function StationCodes({ sel }: { sel: LocationState }) {
   if (!net || !station) return null;
 
   return (
-    <div className="mt-2 flex flex-wrap items-center gap-1 text-xs">
+    <div className="mt-2 flex flex-wrap items-center gap-1 text-body">
       {station.codes.map((code) => (
         <span
           key={code}
@@ -259,10 +259,10 @@ function PlanTunnelsButton({ onPlan }: { onPlan: () => void }) {
     <button
       type="button"
       onClick={onPlan}
-      className="w-full rounded border border-astral/40 bg-astral/10 py-2 text-sm font-semibold text-astral hover:bg-astral/20"
+      className="w-full rounded border border-astral/40 bg-astral/10 py-2 text-read font-semibold text-astral hover:bg-astral/20"
     >
       <Icon name="action.mrt" /> {t('ui.location.route')}
-      <span className="block text-xs font-normal opacity-75">
+      <span className="block text-body font-normal opacity-75">
         {t('ui.location.pickStation')}
       </span>
     </button>
@@ -280,7 +280,7 @@ function TunnelButton({ seg, onTunnel }: { seg: MrtSegment | null; onTunnel: () 
   return (
     <button
       onClick={onTunnel}
-      className="w-full rounded border py-2 text-sm font-semibold hover:brightness-125"
+      className="w-full rounded border py-2 text-read font-semibold hover:brightness-125"
       style={{
         borderColor: `${line?.color ?? '#2bc4d9'}66`,
         background: `${line?.color ?? '#2bc4d9'}1a`,
@@ -288,7 +288,7 @@ function TunnelButton({ seg, onTunnel }: { seg: MrtSegment | null; onTunnel: () 
       }}
     >
       <Icon name="action.mrt" /> {t('ui.location.planTunnels')}
-      <span className="block text-xs font-normal opacity-75">
+      <span className="block text-body font-normal opacity-75">
         {seg?.collapsed
           ? t('ui.location.collapsedBore')
           : seg
@@ -338,6 +338,7 @@ function ReputationLadder({ standing, color }: { standing: number; color: string
         return (
           <span
             key={rung.key}
+            // Glyph geometry, not type — a standing rung mark.
             className="text-[0.65rem] leading-none"
             style={{
               color: filled ? color : `${color}44`,
@@ -378,7 +379,7 @@ function FactionClaim({
   if (compact) {
     return (
       <div
-        className="mt-2 rounded border px-2 py-1.5 text-xs"
+        className="mt-2 rounded border px-2 py-1.5 text-body"
         style={{
           color: faction.color,
           borderColor: `${faction.color}66`,
@@ -408,15 +409,15 @@ function FactionClaim({
     >
       <Icon name={faction.icon} size={26} />
       <div className="w-full text-center leading-tight">
-        <div className="truncate text-xs font-bold tracking-wide">{faction.shortName}</div>
-        <div className="truncate text-2xs opacity-75">{place}</div>
+        <div className="truncate text-body font-bold tracking-wide">{faction.shortName}</div>
+        <div className="truncate text-micro opacity-75">{place}</div>
       </div>
       <div
         className="mt-0.5 w-full rounded border px-1.5 py-1"
         style={{ borderColor: `${faction.color}44`, background: `${faction.color}12` }}
       >
         <ReputationLadder standing={standing} color={faction.color} />
-        <div className="mt-0.5 text-center text-2xs font-semibold tabular-nums opacity-90">
+        <div className="mt-0.5 text-center text-micro font-semibold tabular-nums opacity-90">
           {standLabel} {score}
         </div>
       </div>
@@ -503,25 +504,25 @@ function FactionHubActions({ sel }: { sel: LocationState }) {
   return (
     <>
       <div className="mt-1 border-t border-white/10 pt-2">
-        <div className="mb-1.5 text-2xs font-semibold uppercase tracking-widest text-white/35">
+        <div className="mb-1.5 text-label uppercase text-white/35">
           {t('ui.location.services')}
         </div>
         <div className="flex flex-col gap-2">
           {!cleared && (
-            <p className="text-xs text-white/50">{t('ui.location.approachGateFirst')}</p>
+            <p className="text-body text-white/50">{t('ui.location.approachGateFirst')}</p>
           )}
           {services.includes('trade') && (
             <button
               disabled={!cleared || !canTrade}
               onClick={() => openTrader(sel.id)}
-              className="w-full rounded border px-2 py-2 text-sm leading-tight hover:brightness-125 disabled:opacity-30"
+              className="w-full rounded border px-2 py-2 text-read hover:brightness-125 disabled:opacity-30"
               style={{ borderColor: `${cfg.color}66`, background: `${cfg.color}1a`, color: cfg.color }}
             >
               <Icon name={cfg.icon} />{' '}
               {sel.factionId === 'syndicate_88'
                 ? t('ui.location.fence')
                 : t(SERVICE_META.trade.labelKey)}
-              <span className="block text-xs font-normal opacity-75">
+              <span className="block text-body font-normal opacity-75">
                 {!cleared
                   ? t('ui.location.gateFirst')
                   : canTrade
@@ -536,10 +537,10 @@ function FactionHubActions({ sel }: { sel: LocationState }) {
             <button
               disabled={!cleared || !canRest}
               onClick={outpostRest}
-              className="w-full rounded border border-white/15 px-2 py-2 text-sm leading-tight hover:bg-white/5 disabled:opacity-30"
+              className="w-full rounded border border-white/15 px-2 py-2 text-read hover:bg-white/5 disabled:opacity-30"
             >
               <Icon name={SERVICE_META.rest.icon} /> {t(SERVICE_META.rest.labelKey)}
-              <span className="block text-xs font-normal opacity-60">
+              <span className="block text-body font-normal opacity-60">
                 {!cleared
                   ? t('ui.location.gateFirst')
                   : canRest
@@ -552,10 +553,10 @@ function FactionHubActions({ sel }: { sel: LocationState }) {
             <button
               disabled={!cleared || !canAid || (sel.aidUsedDay ?? -1) >= day}
               onClick={factionAid}
-              className="w-full rounded border border-white/15 px-2 py-2 text-sm leading-tight hover:bg-white/5 disabled:opacity-30"
+              className="w-full rounded border border-white/15 px-2 py-2 text-read hover:bg-white/5 disabled:opacity-30"
             >
               <Icon name={SERVICE_META.aid.icon} /> {t(SERVICE_META.aid.labelKey)}
-              <span className="block text-xs font-normal opacity-60">
+              <span className="block text-body font-normal opacity-60">
                 {!cleared
                   ? t('ui.location.gateFirst')
                   : (sel.aidUsedDay ?? -1) >= day
@@ -570,10 +571,10 @@ function FactionHubActions({ sel }: { sel: LocationState }) {
             <button
               disabled={!cleared || !canIntel || (sel.intelUsedDay ?? -1) >= day}
               onClick={factionIntel}
-              className="w-full rounded border border-white/15 px-2 py-2 text-sm leading-tight hover:bg-white/5 disabled:opacity-30"
+              className="w-full rounded border border-white/15 px-2 py-2 text-read hover:bg-white/5 disabled:opacity-30"
             >
               <Icon name={SERVICE_META.intel.icon} /> {t(SERVICE_META.intel.labelKey)}
-              <span className="block text-xs font-normal opacity-60">
+              <span className="block text-body font-normal opacity-60">
                 {!cleared
                   ? t('ui.location.gateFirst')
                   : (sel.intelUsedDay ?? -1) >= day
@@ -588,11 +589,11 @@ function FactionHubActions({ sel }: { sel: LocationState }) {
             <button
               disabled={!cleared || !canFeed || (sel.feedUsedDay ?? -1) >= day}
               onClick={factionFeed}
-              className="w-full rounded border px-2 py-2 text-sm leading-tight hover:brightness-125 disabled:opacity-30"
+              className="w-full rounded border px-2 py-2 text-read hover:brightness-125 disabled:opacity-30"
               style={{ borderColor: `${cfg.color}66`, background: `${cfg.color}1a`, color: cfg.color }}
             >
               <Icon name={SERVICE_META.feed.icon} /> {t(SERVICE_META.feed.labelKey)}
-              <span className="block text-xs font-normal opacity-75">
+              <span className="block text-body font-normal opacity-75">
                 {!cleared
                   ? t('ui.location.gateFirst')
                   : (sel.feedUsedDay ?? -1) >= day
@@ -605,10 +606,10 @@ function FactionHubActions({ sel }: { sel: LocationState }) {
           )}
           {services.includes('escort') && (
             <div className="rounded border border-white/15 px-2 py-2">
-              <div className="text-sm leading-tight">
+              <div className="text-read">
                 <Icon name={SERVICE_META.escort.icon} /> {t(SERVICE_META.escort.labelKey)}
               </div>
-              <p className="mt-0.5 text-xs opacity-60">
+              <p className="mt-0.5 text-body opacity-60">
                 {!cleared
                   ? t('ui.location.gateFirst')
                   : !canEscort
@@ -620,13 +621,13 @@ function FactionHubActions({ sel }: { sel: LocationState }) {
               {cleared && canEscort && !escortDest && (
                 <div className="mt-1.5 flex flex-col gap-1">
                   {escortDests.length === 0 ? (
-                    <p className="text-xs text-white/45">{t('ui.location.escortNoDest')}</p>
+                    <p className="text-body text-white/45">{t('ui.location.escortNoDest')}</p>
                   ) : (
                     escortDests.map((d) => (
                       <button
                         key={d.id}
                         onClick={() => factionEscort(d.id)}
-                        className="w-full rounded border border-white/10 px-2 py-1 text-left text-xs hover:bg-white/5"
+                        className="w-full rounded border border-white/10 px-2 py-1 text-left text-body hover:bg-white/5"
                       >
                         {d.name}
                         <span className="ml-1 opacity-50">
@@ -643,10 +644,10 @@ function FactionHubActions({ sel }: { sel: LocationState }) {
             <button
               disabled={!cleared}
               onClick={searchKinDeck}
-              className="w-full rounded border border-white/15 px-2 py-2 text-sm leading-tight hover:bg-white/5 disabled:opacity-30"
+              className="w-full rounded border border-white/15 px-2 py-2 text-read hover:bg-white/5 disabled:opacity-30"
             >
               <Icon name="hdb.enterBlock" /> {t('ui.location.walkTheDecks')}
-              <span className="block text-xs font-normal opacity-60">
+              <span className="block text-body font-normal opacity-60">
                 {!cleared
                   ? t('ui.location.gateFirst')
                   : sel.kinDeckUsed
@@ -756,7 +757,7 @@ function KnownCard({
             : t('ui.location.searchesLeftPlural', { n: searchesLabel });
 
   const metaLine = (
-    <div className="mt-1 text-xs text-white/45">
+    <div className="mt-1 text-body text-white/45">
       <div>
         {poiLabel} · {sel.size}
       </div>
@@ -786,10 +787,10 @@ function KnownCard({
       {searchingHere ? (
         <button
           onClick={() => abortSearch()}
-          className="w-full rounded border border-white/20 bg-white/5 px-2 py-2 text-sm font-bold leading-tight hover:bg-white/10"
+          className="w-full rounded border border-white/20 bg-white/5 px-2 py-2 text-read font-bold hover:bg-white/10"
         >
           <Icon name="action.search" /> {t('ui.location.searching')}
-          <span className="block text-xs font-normal opacity-75">
+          <span className="block text-body font-normal opacity-75">
             ~{formatDuration(searchEtaMin)} left — {t('ui.location.leaveStopEarly')}
           </span>
         </button>
@@ -798,7 +799,7 @@ function KnownCard({
           <button
             disabled={sel.exhausted}
             onClick={raidSearch}
-            className="w-full rounded bg-signal/90 px-2 py-2 text-sm font-bold leading-tight text-black hover:bg-signal disabled:opacity-30"
+            className="w-full rounded bg-signal/90 px-2 py-2 text-read font-bold text-black hover:bg-signal disabled:opacity-30"
           >
             <Icon name="action.search" />{' '}
             {sel.exhausted
@@ -807,7 +808,7 @@ function KnownCard({
                 ? t('ui.location.searchWhileUnseen')
                 : t('ui.location.tearThrough')}
             {!sel.exhausted && (
-              <span className="block text-xs font-normal opacity-75">
+              <span className="block text-body font-normal opacity-75">
                 {!seesSearches
                   ? t('ui.location.stillHasLoot')
                   : Math.abs(searches - 1) < 0.05
@@ -820,30 +821,30 @@ function KnownCard({
           <>
             <button
               onClick={onEnter}
-              className="w-full rounded bg-signal/90 px-2 py-2 text-sm font-bold leading-tight text-black hover:bg-signal"
+              className="w-full rounded bg-signal/90 px-2 py-2 text-read font-bold text-black hover:bg-signal"
             >
               <Icon name="action.search" /> {t('ui.location.approachGate')}
             </button>
             <button
               onClick={sneakEnter}
-              className="w-full rounded border border-white/20 px-2 py-2 text-sm leading-tight hover:bg-white/5"
+              className="w-full rounded border border-white/20 px-2 py-2 text-read hover:bg-white/5"
             >
               <Icon name="action.search" /> {t('ui.location.sneakIn')}
-              <span className="block text-xs font-normal opacity-60">{t('ui.location.sneakHint')}</span>
+              <span className="block text-body font-normal opacity-60">{t('ui.location.sneakHint')}</span>
             </button>
             <button
               onClick={forceEnter}
-              className="w-full rounded border border-hiss/50 px-2 py-2 text-sm leading-tight text-hiss hover:bg-hiss/10"
+              className="w-full rounded border border-hiss/50 px-2 py-2 text-read text-hiss hover:bg-hiss/10"
             >
               <Icon name="combat.hostiles" /> {t('ui.location.forceEnter')}
-              <span className="block text-xs font-normal opacity-60">{t('ui.location.forceHint')}</span>
+              <span className="block text-body font-normal opacity-60">{t('ui.location.forceHint')}</span>
             </button>
           </>
         )
       ) : isBlock ? (
         <button
           onClick={onEnterBlock ?? onEnter}
-          className="w-full rounded bg-signal/90 px-2 py-2 text-sm font-bold leading-tight text-black hover:bg-signal"
+          className="w-full rounded bg-signal/90 px-2 py-2 text-read font-bold text-black hover:bg-signal"
         >
           <Icon name="hdb.enterBlock" /> {t('ui.location.enterBlock')}
         </button>
@@ -851,7 +852,7 @@ function KnownCard({
         <button
           disabled={sel.exhausted}
           onClick={onEnter}
-          className="w-full rounded bg-signal/80 px-2 py-2 text-sm font-bold leading-tight text-black hover:bg-signal disabled:opacity-30"
+          className="w-full rounded bg-signal/80 px-2 py-2 text-read font-bold text-black hover:bg-signal disabled:opacity-30"
         >
           {sel.exhausted
             ? t('ui.location.nothingLeftToSearch')
@@ -862,7 +863,7 @@ function KnownCard({
       )}
       <button
         onClick={onOpenStash}
-        className="w-full rounded border border-white/15 px-2 py-2 text-sm leading-tight hover:bg-white/5"
+        className="w-full rounded border border-white/15 px-2 py-2 text-read hover:bg-white/5"
       >
         <Icon name="action.stash" /> {t('ui.location.openStashHere')}
       </button>
@@ -879,7 +880,7 @@ function KnownCard({
           <Icon name={cfg.icon} size={22} className="mt-0.5 shrink-0" />
           <div className="min-w-0 flex-1">
             <div className="font-bold leading-snug">{sel.name}</div>
-            <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-white/40">
+            <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-body text-white/40">
               <span>
                 {poiLabel} · {sel.size}
               </span>
@@ -894,7 +895,7 @@ function KnownCard({
 
         {faction && <FactionClaim sel={sel} faction={faction} compact />}
 
-        <div className="mt-2 flex items-center justify-between text-xs">
+        <div className="mt-2 flex items-center justify-between text-body">
           <span className="text-white/50">
             {t('ui.location.metersFromSpawn', { m: Math.round(sel.distanceFromSpawn) })}
           </span>
@@ -903,7 +904,7 @@ function KnownCard({
             <span className="text-white/15">{'●'.repeat(5 - dngr)}</span>
           </span>
         </div>
-        <div className="mt-1 text-xs text-white/40">
+        <div className="mt-1 text-body text-white/40">
           {occupied
             ? sel.isFactionOutpost
               ? t('ui.location.factionOutpost')
@@ -921,7 +922,7 @@ function KnownCard({
         </div>
 
         {est && (
-          <div className="mt-2 rounded bg-black/30 p-2 text-xs text-white/55">
+          <div className="mt-2 rounded bg-black/30 p-2 text-body text-white/55">
             <div className="flex justify-between">
               <span><Icon name="action.travel" /> {t('ui.location.travelHere')}</span>
               {est.travelMult > 1 && loadFx ? (
@@ -967,19 +968,19 @@ function KnownCard({
         <RouteHazardBlock routeRisk={routeRisk} routeBlind={routeBlind} />
         <div className="mt-3 flex flex-col gap-2">
           {outOfRange && !canTunnel && (
-            <div className="text-xs text-hiss">
+            <div className="text-body text-hiss">
               ⛔ Beyond your range — hop closer, rest, or walk the tunnels.
             </div>
           )}
           {noDryRoute && (
-            <div className="text-xs text-hiss">
+            <div className="text-body text-hiss">
               ⛔ No dry route — water or sealed ground blocks the way.
             </div>
           )}
           <button
             disabled={energyLow || outOfRange || !!noDryRoute}
             onClick={onTravel}
-            className="w-full rounded bg-signal/80 py-2 text-sm font-bold text-black hover:bg-signal disabled:opacity-30"
+            className="w-full rounded bg-signal/80 py-2 text-read font-bold text-black hover:bg-signal disabled:opacity-30"
           >
             {energyLow
               ? t('ui.location.tooExhausted')
@@ -990,7 +991,7 @@ function KnownCard({
                   : `${t('ui.location.travelHere')} · ${est ? formatDuration(est.travelMin) : ''}`}
           </button>
           {canTunnel && <TunnelButton seg={tunnelSeg ?? null} onTunnel={onTunnel} />}
-          {tunnelHint && <div className="text-xs text-white/45">{tunnelHint}</div>}
+          {tunnelHint && <div className="text-body text-white/45">{tunnelHint}</div>}
         </div>
       </>
     );
@@ -1016,13 +1017,13 @@ function KnownCard({
                   {metaLine}
                   <StationCodes sel={sel} />
                   {siteStatus && (
-                    <div className="mt-1 text-xs text-white/40">{siteStatus}</div>
+                    <div className="mt-1 text-body text-white/40">{siteStatus}</div>
                   )}
                 </div>
               </div>
               {faction && <FactionClaim sel={sel} faction={faction} />}
             </div>
-            <div className="mt-2 text-xs leading-snug text-white/45">{cfg.blurb}</div>
+            <div className="mt-2 text-body text-white/45">{cfg.blurb}</div>
           </>
         }
       />

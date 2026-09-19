@@ -86,7 +86,7 @@ function DialogShell({
         className="w-full max-w-md rounded-xl border border-white/10 bg-concrete-900 p-5 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <h4 className="mb-2 text-base font-bold text-signal">{title}</h4>
+        <h4 className="mb-2 text-title text-signal">{title}</h4>
         {children}
       </div>
     </div>
@@ -109,11 +109,11 @@ function NumField({
   max?: number;
 }) {
   return (
-    <label className="flex flex-col gap-0.5 text-xs text-white/55">
+    <label className="flex flex-col gap-0.5 text-body text-white/55">
       <span>{label}</span>
       <input
         type="number"
-        className="rounded border border-white/10 bg-black/40 px-2 py-1 font-mono text-sm text-white"
+        className="rounded border border-white/10 bg-black/40 px-2 py-1 text-read text-white"
         value={value}
         step={step}
         min={min}
@@ -134,18 +134,18 @@ function RangeField({
   onChange: (r: IntRange) => void;
 }) {
   return (
-    <div className="flex flex-col gap-0.5 text-xs text-white/55">
+    <div className="flex flex-col gap-0.5 text-body text-white/55">
       <span>{label}</span>
       <div className="flex gap-2">
         <input
           type="number"
-          className="w-full rounded border border-white/10 bg-black/40 px-2 py-1 font-mono text-sm text-white"
+          className="w-full rounded border border-white/10 bg-black/40 px-2 py-1 text-read text-white"
           value={value[0]}
           onChange={(e) => onChange([Number(e.target.value), value[1]])}
         />
         <input
           type="number"
-          className="w-full rounded border border-white/10 bg-black/40 px-2 py-1 font-mono text-sm text-white"
+          className="w-full rounded border border-white/10 bg-black/40 px-2 py-1 text-read text-white"
           value={value[1]}
           onChange={(e) => onChange([value[0], Number(e.target.value)])}
         />
@@ -164,11 +164,11 @@ function TextField({
   onChange: (s: string) => void;
 }) {
   return (
-    <label className="flex flex-col gap-0.5 text-xs text-white/55">
+    <label className="flex flex-col gap-0.5 text-body text-white/55">
       <span>{label}</span>
       <input
         type="text"
-        className="rounded border border-white/10 bg-black/40 px-2 py-1 text-sm text-white"
+        className="rounded border border-white/10 bg-black/40 px-2 py-1 text-read text-white"
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />
@@ -192,15 +192,15 @@ function DropPoolEditor({
   const available = itemIds.filter((id) => !drops.includes(id));
   return (
     <div className="space-y-2">
-      <div className="text-xs font-semibold uppercase tracking-wider text-white/45">
+      <div className="text-plate uppercase text-white/45">
         Drop pool <span className="font-normal normal-case text-white/30">(click → Loot)</span>
       </div>
       <div className="flex flex-wrap gap-1.5">
-        {drops.length === 0 && <span className="text-xs text-white/35">No drops</span>}
+        {drops.length === 0 && <span className="text-body text-white/35">No drops</span>}
         {drops.map((id) => (
           <span
             key={id}
-            className="inline-flex items-center gap-1 rounded border border-white/15 bg-black/30 px-2 py-0.5 font-mono text-xs text-signal"
+            className="inline-flex items-center gap-1 rounded border border-white/15 bg-black/30 px-2 py-0.5 text-body text-signal"
           >
             <button
               type="button"
@@ -222,7 +222,7 @@ function DropPoolEditor({
         ))}
       </div>
       <select
-        className="w-full rounded border border-white/10 bg-black/40 px-2 py-1.5 text-sm text-white"
+        className="w-full rounded border border-white/10 bg-black/40 px-2 py-1.5 text-read text-white"
         value=""
         onChange={(e) => {
           const id = e.target.value;
@@ -251,15 +251,15 @@ function DerivedCard({
 }) {
   const t = estimateThreat(enemy);
   return (
-    <div className="rounded border border-white/10 bg-black/25 p-3 text-xs">
+    <div className="rounded border border-white/10 bg-black/25 p-3 text-body">
       <div className="mb-2 flex items-baseline justify-between gap-2">
         <span className="font-semibold text-signal">{label}</span>
         {danger !== undefined && (
-          <span className="font-mono text-white/35">danger {danger}</span>
+          <span className="text-white/35">danger {danger}</span>
         )}
       </div>
       <div className="mb-1 font-semibold text-white">{enemy.name}</div>
-      <dl className="grid grid-cols-4 gap-x-2 gap-y-1 font-mono text-white/65">
+      <dl className="grid grid-cols-4 gap-x-2 gap-y-1 text-white/65">
         <dt className="text-white/35">HP</dt>
         <dd>{enemy.hp}</dd>
         <dt className="text-white/35">Atk</dt>
@@ -288,8 +288,8 @@ function DerivedCard({
 function WhereUsed({ notes }: { notes: string[] }) {
   if (!notes.length) return null;
   return (
-    <div className="rounded border border-white/10 bg-black/20 px-3 py-2 text-xs text-white/55">
-      <div className="mb-1 text-[10px] font-bold uppercase tracking-wider text-white/35">
+    <div className="rounded border border-white/10 bg-black/20 px-3 py-2 text-body text-white/55">
+      <div className="mb-1 text-label uppercase text-white/35">
         Where used
       </div>
       <ul className="list-inside list-disc space-y-0.5">
@@ -918,10 +918,10 @@ export function DevEnemyBrowser() {
   return (
     <div className="fixed inset-0 z-[2000] flex flex-col overflow-hidden bg-concrete-900">
       <header className="flex flex-wrap items-center gap-2 border-b border-white/10 px-4 py-3">
-        <h2 className="mr-2 text-sm font-bold uppercase tracking-widest text-signal">
+        <h2 className="mr-2 text-read font-bold uppercase tracking-widest text-signal">
           Encounter kit
         </h2>
-        <div className="flex rounded border border-white/10 text-xs">
+        <div className="flex rounded border border-white/10 text-body">
           {(['overview', 'zombies', 'humans', 'animals', 'spawn'] as const).map((t) => (
             <button
               key={t}
@@ -936,17 +936,17 @@ export function DevEnemyBrowser() {
           ))}
         </div>
         {dirty && (
-          <span className="rounded bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-300">
+          <span className="rounded bg-amber-500/20 px-2 py-0.5 text-label uppercase text-amber-300">
             Dirty
           </span>
         )}
         {entryDirty && (
-          <span className="rounded bg-amber-500/10 px-2 py-0.5 text-[10px] uppercase text-amber-200/80">
+          <span className="rounded bg-amber-500/10 px-2 py-0.5 text-label uppercase text-amber-200/80">
             Entry dirty
           </span>
         )}
         {!valid && (
-          <span className="rounded bg-red-500/20 px-2 py-0.5 text-[10px] font-bold uppercase text-red-300">
+          <span className="rounded bg-red-500/20 px-2 py-0.5 text-label uppercase text-red-300">
             {validationErrors.length} errors
           </span>
         )}
@@ -955,7 +955,7 @@ export function DevEnemyBrowser() {
             <>
               <button
                 type="button"
-                className={`rounded border px-2 py-1 text-xs ${
+                className={`rounded border px-2 py-1 text-body ${
                   pickCompare
                     ? 'border-signal text-signal'
                     : 'border-white/15 text-white/70 hover:bg-white/5'
@@ -974,7 +974,7 @@ export function DevEnemyBrowser() {
               {compare && (
                 <button
                   type="button"
-                  className="rounded border border-white/15 px-2 py-1 text-xs text-white/50 hover:bg-white/5"
+                  className="rounded border border-white/15 px-2 py-1 text-body text-white/50 hover:bg-white/5"
                   onClick={() => setCompare(null)}
                 >
                   Clear compare
@@ -984,7 +984,7 @@ export function DevEnemyBrowser() {
           )}
           <button
             type="button"
-            className="rounded border border-white/15 px-2 py-1 text-xs text-white/70 hover:bg-white/5 disabled:opacity-40"
+            className="rounded border border-white/15 px-2 py-1 text-body text-white/70 hover:bg-white/5 disabled:opacity-40"
             disabled={!entryDirty}
             onClick={revertEntry}
           >
@@ -992,7 +992,7 @@ export function DevEnemyBrowser() {
           </button>
           <button
             type="button"
-            className="rounded border border-white/15 px-2 py-1 text-xs text-white/70 hover:bg-white/5 disabled:opacity-40"
+            className="rounded border border-white/15 px-2 py-1 text-body text-white/70 hover:bg-white/5 disabled:opacity-40"
             disabled={!dirty || busy}
             onClick={revertAll}
           >
@@ -1000,14 +1000,14 @@ export function DevEnemyBrowser() {
           </button>
           <button
             type="button"
-            className="rounded border border-white/15 px-2 py-1 text-xs text-white/70 hover:bg-white/5"
+            className="rounded border border-white/15 px-2 py-1 text-body text-white/70 hover:bg-white/5"
             onClick={() => catalog && downloadEnemiesCatalog(catalog)}
           >
             Export
           </button>
           <button
             type="button"
-            className="rounded border border-white/15 px-2 py-1 text-xs text-white/70 hover:bg-white/5"
+            className="rounded border border-white/15 px-2 py-1 text-body text-white/70 hover:bg-white/5"
             onClick={() => fileRef.current?.click()}
           >
             Import
@@ -1033,7 +1033,7 @@ export function DevEnemyBrowser() {
           />
           <button
             type="button"
-            className="rounded bg-signal px-3 py-1 text-xs font-bold uppercase tracking-wider text-concrete-950 disabled:opacity-40"
+            className="rounded bg-signal px-3 py-1 text-plate uppercase text-concrete-950 disabled:opacity-40"
             disabled={!dirty || !valid || busy}
             onClick={() => void requestSave()}
           >
@@ -1041,7 +1041,7 @@ export function DevEnemyBrowser() {
           </button>
           <button
             type="button"
-            className="rounded border border-white/20 px-2 py-1 text-xs text-white/70 hover:bg-white/5"
+            className="rounded border border-white/20 px-2 py-1 text-body text-white/70 hover:bg-white/5"
             onClick={() => (dirty ? setConfirmClose(true) : setOpen(false))}
           >
             Close
@@ -1051,7 +1051,7 @@ export function DevEnemyBrowser() {
 
       {(status || error) && (
         <div
-          className={`border-b px-4 py-1.5 text-xs ${
+          className={`border-b px-4 py-1.5 text-body ${
             error ? 'border-red-500/30 bg-red-950/40 text-red-200' : 'border-white/5 text-white/50'
           }`}
         >
@@ -1060,7 +1060,7 @@ export function DevEnemyBrowser() {
       )}
 
       {!valid && validationErrors.length > 0 && (
-        <div className="max-h-24 overflow-y-auto border-b border-red-500/20 bg-red-950/20 px-4 py-2 font-mono text-[11px] text-red-200/90">
+        <div className="max-h-24 overflow-y-auto border-b border-red-500/20 bg-red-950/20 px-4 py-2 text-body text-red-200/90">
           {validationErrors.slice(0, 12).map((e) => (
             <div key={e}>{e}</div>
           ))}
@@ -1069,7 +1069,7 @@ export function DevEnemyBrowser() {
 
       <div className="flex min-h-0 flex-1">
         {!catalog ? (
-          <div className="flex flex-1 items-center justify-center text-sm text-white/40">
+          <div className="flex flex-1 items-center justify-center text-read text-white/40">
             {busy ? 'Loading…' : 'No catalog'}
           </div>
         ) : tab === 'overview' ? (
@@ -1088,10 +1088,10 @@ export function DevEnemyBrowser() {
           <>
             <aside className="flex w-56 shrink-0 flex-col border-r border-white/10">
               <div className="flex items-center justify-between border-b border-white/10 px-3 py-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-white/40">
+                <span className="text-label uppercase text-white/40">
                   Tiers
                 </span>
-                <button type="button" className="text-xs text-signal hover:underline" onClick={addZombie}>
+                <button type="button" className="text-body text-signal hover:underline" onClick={addZombie}>
                   + Add
                 </button>
               </div>
@@ -1108,20 +1108,20 @@ export function DevEnemyBrowser() {
                         setDragIndex(null);
                       }}
                       onDragEnd={() => setDragIndex(null)}
-                      className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm ${
+                      className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-read ${
                         zombieSel?.t === 'tier' && zombieSel.id === z.id
                           ? 'bg-signal/15 text-signal'
                           : 'text-white/70 hover:bg-white/5'
                       }`}
                       onClick={() => trySelectZombie({ t: 'tier', id: z.id })}
                     >
-                      <span className="w-4 font-mono text-[10px] text-white/30">{i + 1}</span>
+                      <span className="w-4 text-micro text-white/30">{i + 1}</span>
                       <span className="truncate">{z.name}</span>
                     </button>
                   </li>
                 ))}
               </ul>
-              <div className="border-t border-white/10 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-white/40">
+              <div className="border-t border-white/10 px-3 py-2 text-label uppercase text-white/40">
                 Elites
               </div>
               <ul className="p-1 pb-3">
@@ -1129,7 +1129,7 @@ export function DevEnemyBrowser() {
                   <li key={id}>
                     <button
                       type="button"
-                      className={`w-full rounded px-2 py-1.5 text-left text-sm ${
+                      className={`w-full rounded px-2 py-1.5 text-left text-read ${
                         zombieSel?.t === 'elite' && zombieSel.id === id
                           ? 'bg-signal/15 text-signal'
                           : 'text-white/70 hover:bg-white/5'
@@ -1153,12 +1153,12 @@ export function DevEnemyBrowser() {
                         <>
                           <div className="flex items-start justify-between gap-3">
                             <div>
-                              <div className="font-mono text-xs text-white/35">{z.id}</div>
-                              <h3 className="text-lg font-semibold text-white">{z.name}</h3>
+                              <div className="text-body text-white/35">{z.id}</div>
+                              <h3 className="text-title text-white">{z.name}</h3>
                             </div>
                             <button
                               type="button"
-                              className="text-xs text-red-300/80 hover:underline disabled:opacity-30"
+                              className="text-body text-red-300/80 hover:underline disabled:opacity-30"
                               disabled={catalog.zombies.length <= 1}
                               onClick={() => removeZombie(z.id)}
                             >
@@ -1185,10 +1185,10 @@ export function DevEnemyBrowser() {
                       const e = catalog.elites[zombieSel.id];
                       return (
                         <>
-                          <div className="font-mono text-xs text-white/35">{e.id}</div>
-                          <h3 className="text-lg font-semibold text-white">{e.name}</h3>
+                          <div className="text-body text-white/35">{e.id}</div>
+                          <h3 className="text-title text-white">{e.name}</h3>
                           <WhereUsed notes={whereNotes} />
-                          <label className="flex flex-col gap-0.5 text-xs text-white/55">
+                          <label className="flex flex-col gap-0.5 text-body text-white/55">
                             <span>Preview danger</span>
                             <input
                               type="range"
@@ -1234,14 +1234,14 @@ export function DevEnemyBrowser() {
         ) : tab === 'humans' ? (
           <>
             <aside className="flex w-56 shrink-0 flex-col border-r border-white/10">
-              <div className="border-b border-white/10 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-white/40">
+              <div className="border-b border-white/10 px-3 py-2 text-label uppercase text-white/40">
                 Shared
               </div>
               <ul className="p-1">
                 <li>
                   <button
                     type="button"
-                    className={`w-full rounded px-2 py-1.5 text-left text-sm ${
+                    className={`w-full rounded px-2 py-1.5 text-left text-read ${
                       humanSel?.t === 'defaults'
                         ? 'bg-signal/15 text-signal'
                         : 'text-white/70 hover:bg-white/5'
@@ -1252,7 +1252,7 @@ export function DevEnemyBrowser() {
                   </button>
                 </li>
               </ul>
-              <div className="border-t border-white/10 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-white/40">
+              <div className="border-t border-white/10 px-3 py-2 text-label uppercase text-white/40">
                 Factions
               </div>
               <ul className="p-1">
@@ -1260,7 +1260,7 @@ export function DevEnemyBrowser() {
                   <li key={id}>
                     <button
                       type="button"
-                      className={`w-full rounded px-2 py-1.5 text-left text-sm ${
+                      className={`w-full rounded px-2 py-1.5 text-left text-read ${
                         humanSel?.t === 'faction' && humanSel.id === id
                           ? 'bg-signal/15 text-signal'
                           : 'text-white/70 hover:bg-white/5'
@@ -1272,7 +1272,7 @@ export function DevEnemyBrowser() {
                   </li>
                 ))}
               </ul>
-              <div className="border-t border-white/10 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-white/40">
+              <div className="border-t border-white/10 px-3 py-2 text-label uppercase text-white/40">
                 Loners
               </div>
               <ul className="p-1">
@@ -1280,7 +1280,7 @@ export function DevEnemyBrowser() {
                   <li key={id}>
                     <button
                       type="button"
-                      className={`w-full rounded px-2 py-1.5 text-left text-sm ${
+                      className={`w-full rounded px-2 py-1.5 text-left text-read ${
                         humanSel?.t === 'loner' && humanSel.id === id
                           ? 'bg-signal/15 text-signal'
                           : 'text-white/70 hover:bg-white/5'
@@ -1298,9 +1298,9 @@ export function DevEnemyBrowser() {
                 <div className="space-y-4">
                   {humanSel?.t === 'defaults' && (
                     <>
-                      <h3 className="text-lg font-semibold text-white">Shared human defaults</h3>
+                      <h3 className="text-title text-white">Shared human defaults</h3>
                       <WhereUsed notes={whereNotes} />
-                      <label className="flex flex-col gap-0.5 text-xs text-white/55">
+                      <label className="flex flex-col gap-0.5 text-body text-white/55">
                         <span>Preview danger</span>
                         <input
                           type="range"
@@ -1323,10 +1323,10 @@ export function DevEnemyBrowser() {
                       const overrideKeys = HUMAN_SCALING_KEYS.filter((k) => h[k] !== undefined);
                       return (
                         <>
-                          <div className="font-mono text-xs text-white/35">{humanSel.id}</div>
-                          <h3 className="text-lg font-semibold text-white">{h.name}</h3>
+                          <div className="text-body text-white/35">{humanSel.id}</div>
+                          <h3 className="text-title text-white">{h.name}</h3>
                           <WhereUsed notes={whereNotes} />
-                          <label className="flex flex-col gap-0.5 text-xs text-white/55">
+                          <label className="flex flex-col gap-0.5 text-body text-white/55">
                             <span>Preview danger</span>
                             <input
                               type="range"
@@ -1346,7 +1346,7 @@ export function DevEnemyBrowser() {
                             value={h.armor}
                             onChange={(armor) => updateHuman(humanSel.id, { armor })}
                           />
-                          <p className="text-xs text-white/35">
+                          <p className="text-body text-white/35">
                             Runtime speed = baseSpeed − armor ({resolved.baseSpeed - h.armor})
                           </p>
                           <DropPoolEditor
@@ -1355,13 +1355,13 @@ export function DevEnemyBrowser() {
                             onChange={(drops) => updateHuman(humanSel.id, { drops })}
                           />
                           <div className="flex items-center justify-between gap-2">
-                            <div className="text-xs font-semibold uppercase tracking-wider text-white/45">
+                            <div className="text-plate uppercase text-white/45">
                               Scaling overrides
                             </div>
                             {overrideKeys.length > 0 ? (
                               <button
                                 type="button"
-                                className="text-xs text-white/50 hover:underline"
+                                className="text-body text-white/50 hover:underline"
                                 onClick={() => clearHumanOverrides(humanSel.id)}
                               >
                                 Clear overrides
@@ -1369,7 +1369,7 @@ export function DevEnemyBrowser() {
                             ) : (
                               <button
                                 type="button"
-                                className="text-xs text-signal hover:underline"
+                                className="text-body text-signal hover:underline"
                                 onClick={() =>
                                   updateHuman(humanSel.id, { ...catalog.humanDefaults })
                                 }
@@ -1397,7 +1397,7 @@ export function DevEnemyBrowser() {
                               onChange={(patch) => updateHuman(humanSel.id, patch)}
                             />
                           ) : (
-                            <p className="text-xs text-white/40">
+                            <p className="text-body text-white/40">
                               Inherits all scaling from Human defaults.
                             </p>
                           )}
@@ -1409,10 +1409,10 @@ export function DevEnemyBrowser() {
                       const l = catalog.loners[humanSel.id];
                       return (
                         <>
-                          <div className="font-mono text-xs text-white/35">{humanSel.id}</div>
-                          <h3 className="text-lg font-semibold text-white">{l.name}</h3>
+                          <div className="text-body text-white/35">{humanSel.id}</div>
+                          <h3 className="text-title text-white">{l.name}</h3>
                           <WhereUsed notes={whereNotes} />
-                          <label className="flex flex-col gap-0.5 text-xs text-white/55">
+                          <label className="flex flex-col gap-0.5 text-body text-white/55">
                             <span>Preview danger</span>
                             <input
                               type="range"
@@ -1472,7 +1472,7 @@ export function DevEnemyBrowser() {
         ) : tab === 'animals' ? (
           <>
             <aside className="flex w-56 shrink-0 flex-col border-r border-white/10">
-              <div className="border-b border-white/10 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-white/40">
+              <div className="border-b border-white/10 px-3 py-2 text-label uppercase text-white/40">
                 Animals
               </div>
               <ul className="flex-1 overflow-y-auto p-1">
@@ -1480,7 +1480,7 @@ export function DevEnemyBrowser() {
                   <li key={a.id}>
                     <button
                       type="button"
-                      className={`w-full rounded px-2 py-1.5 text-left text-sm ${
+                      className={`w-full rounded px-2 py-1.5 text-left text-read ${
                         animalSel === a.id
                           ? 'bg-signal/15 text-signal'
                           : 'text-white/70 hover:bg-white/5'
@@ -1509,15 +1509,15 @@ export function DevEnemyBrowser() {
                     };
                     return (
                       <>
-                        <div className="font-mono text-xs text-white/35">{a.id}</div>
-                        <h3 className="text-lg font-semibold text-white">{a.name}</h3>
+                        <div className="text-body text-white/35">{a.id}</div>
+                        <h3 className="text-title text-white">{a.name}</h3>
                         <WhereUsed notes={whereNotes} />
                         <TextField
                           label="Name"
                           value={a.name}
                           onChange={(name) => updateAnimal(a.id, { name })}
                         />
-                        <div className="flex flex-wrap gap-3 text-xs text-white/55">
+                        <div className="flex flex-wrap gap-3 text-body text-white/55">
                           {ANIMAL_HABITATS.map((h) => (
                             <label key={h} className="flex items-center gap-1.5">
                               <input
@@ -1563,7 +1563,7 @@ export function DevEnemyBrowser() {
           <main className="flex-1 overflow-y-auto p-4">
             <div className="mx-auto grid max-w-5xl gap-6 lg:grid-cols-2">
               <section className="space-y-4">
-                <h3 className="text-sm font-bold uppercase tracking-wider text-signal">Spawn rules</h3>
+                <h3 className="text-read font-bold uppercase tracking-wider text-signal">Spawn rules</h3>
                 <RangeField
                   label="Zombie tier jitter [lo, hi]"
                   value={catalog.spawn.zombieTierJitter}
@@ -1581,10 +1581,10 @@ export function DevEnemyBrowser() {
                     setCatalog({ ...catalog, spawn: { ...catalog.spawn, humanDropChance } })
                   }
                 />
-                <label className="flex flex-col gap-0.5 text-xs text-white/55">
+                <label className="flex flex-col gap-0.5 text-body text-white/55">
                   <span>Wilds gang faction</span>
                   <select
-                    className="rounded border border-white/10 bg-black/40 px-2 py-1.5 text-sm text-white"
+                    className="rounded border border-white/10 bg-black/40 px-2 py-1.5 text-read text-white"
                     value={catalog.spawn.wildsGangFaction}
                     onChange={(e) =>
                       setCatalog({
@@ -1603,10 +1603,10 @@ export function DevEnemyBrowser() {
                     ))}
                   </select>
                 </label>
-                <label className="flex flex-col gap-0.5 text-xs text-white/55">
+                <label className="flex flex-col gap-0.5 text-body text-white/55">
                   <span>HDB elite binding</span>
                   <select
-                    className="rounded border border-white/10 bg-black/40 px-2 py-1.5 text-sm text-white"
+                    className="rounded border border-white/10 bg-black/40 px-2 py-1.5 text-read text-white"
                     value={catalog.spawn.eliteBindings.hdb}
                     onChange={(e) =>
                       setCatalog({
@@ -1628,10 +1628,10 @@ export function DevEnemyBrowser() {
                     ))}
                   </select>
                 </label>
-                <label className="flex flex-col gap-0.5 text-xs text-white/55">
+                <label className="flex flex-col gap-0.5 text-body text-white/55">
                   <span>Tunnel elite binding</span>
                   <select
-                    className="rounded border border-white/10 bg-black/40 px-2 py-1.5 text-sm text-white"
+                    className="rounded border border-white/10 bg-black/40 px-2 py-1.5 text-read text-white"
                     value={catalog.spawn.eliteBindings.tunnel}
                     onChange={(e) =>
                       setCatalog({
@@ -1656,13 +1656,13 @@ export function DevEnemyBrowser() {
               </section>
 
               <section className="space-y-3">
-                <h3 className="text-sm font-bold uppercase tracking-wider text-signal">
+                <h3 className="text-read font-bold uppercase tracking-wider text-signal">
                   Seeded roll preview
                 </h3>
-                <label className="flex flex-col gap-0.5 text-xs text-white/55">
+                <label className="flex flex-col gap-0.5 text-body text-white/55">
                   <span>Kind</span>
                   <select
-                    className="rounded border border-white/10 bg-black/40 px-2 py-1.5 text-sm text-white"
+                    className="rounded border border-white/10 bg-black/40 px-2 py-1.5 text-read text-white"
                     value={
                       previewKind.t === 'zombie'
                         ? 'zombie'
@@ -1713,7 +1713,7 @@ export function DevEnemyBrowser() {
                 </label>
                 <TextField label="Seed" value={previewSeed} onChange={setPreviewSeed} />
                 <div className="overflow-x-auto rounded border border-white/10">
-                  <table className="w-full text-left text-xs">
+                  <table className="w-full text-left text-body">
                     <thead className="bg-black/30 text-white/40">
                       <tr>
                         <th className="px-2 py-1.5">D</th>
@@ -1727,13 +1727,13 @@ export function DevEnemyBrowser() {
                         <th className="px-2 py-1.5">Threat</th>
                       </tr>
                     </thead>
-                    <tbody className="font-mono text-white/75">
+                    <tbody className="text-white/75">
                       {previews.map(({ danger, enemy }) => {
                         const t = estimateThreat(enemy);
                         return (
                           <tr key={danger} className="border-t border-white/5">
                             <td className="px-2 py-1.5 text-signal">{danger}</td>
-                            <td className="px-2 py-1.5 font-sans">{enemy.name}</td>
+                            <td className="px-2 py-1.5">{enemy.name}</td>
                             <td className="px-2 py-1.5">{enemy.hp}</td>
                             <td className="px-2 py-1.5">{enemy.attack}</td>
                             <td className="px-2 py-1.5">{enemy.defense}</td>
@@ -1755,12 +1755,12 @@ export function DevEnemyBrowser() {
 
       {diffOpen && pendingDiff && (
         <DialogShell title="Review changes" onBackdrop={() => setDiffOpen(false)}>
-          <div className="mb-4 max-h-60 space-y-2 overflow-y-auto text-xs text-white/70">
+          <div className="mb-4 max-h-60 space-y-2 overflow-y-auto text-body text-white/70">
             {pendingDiff.added.length > 0 && (
               <div>
                 <div className="font-semibold text-emerald-300">Added</div>
                 {pendingDiff.added.map((a) => (
-                  <div key={a} className="font-mono">
+                  <div key={a}>
                     + {a}
                   </div>
                 ))}
@@ -1770,7 +1770,7 @@ export function DevEnemyBrowser() {
               <div>
                 <div className="font-semibold text-red-300">Removed</div>
                 {pendingDiff.removed.map((a) => (
-                  <div key={a} className="font-mono">
+                  <div key={a}>
                     − {a}
                   </div>
                 ))}
@@ -1780,7 +1780,7 @@ export function DevEnemyBrowser() {
               <div>
                 <div className="font-semibold text-amber-300">Changed</div>
                 {pendingDiff.changed.map((c) => (
-                  <div key={c.path} className="font-mono">
+                  <div key={c.path}>
                     {c.path}: {c.fields.join(', ')}
                   </div>
                 ))}
@@ -1790,14 +1790,14 @@ export function DevEnemyBrowser() {
           <div className="flex justify-end gap-2">
             <button
               type="button"
-              className="rounded border border-white/15 px-3 py-1.5 text-xs"
+              className="rounded border border-white/15 px-3 py-1.5 text-body"
               onClick={() => setDiffOpen(false)}
             >
               Cancel
             </button>
             <button
               type="button"
-              className="rounded bg-signal px-3 py-1.5 text-xs font-bold text-concrete-950"
+              className="rounded bg-signal px-3 py-1.5 text-body font-bold text-concrete-950"
               onClick={() => void confirmSave()}
             >
               Write enemies.json
@@ -1808,20 +1808,20 @@ export function DevEnemyBrowser() {
 
       {saveSuccessOpen && (
         <DialogShell title="Saved" onBackdrop={() => setSaveSuccessOpen(false)}>
-          <p className="mb-4 text-sm text-white/65">
+          <p className="mb-4 text-read text-white/65">
             Catalog written. Hard-refresh the game to load new numbers into live combat modules.
           </p>
           <div className="flex justify-end gap-2">
             <button
               type="button"
-              className="rounded border border-white/15 px-3 py-1.5 text-xs"
+              className="rounded border border-white/15 px-3 py-1.5 text-body"
               onClick={() => setSaveSuccessOpen(false)}
             >
               Keep editing
             </button>
             <button
               type="button"
-              className="rounded bg-signal px-3 py-1.5 text-xs font-bold text-concrete-950"
+              className="rounded bg-signal px-3 py-1.5 text-body font-bold text-concrete-950"
               onClick={() => {
                 setSaveSuccessOpen(false);
                 setOpen(false);
@@ -1835,18 +1835,18 @@ export function DevEnemyBrowser() {
 
       {confirmClose && (
         <DialogShell title="Discard unsaved changes?" onBackdrop={() => setConfirmClose(false)}>
-          <p className="mb-4 text-sm text-white/65">You have unsaved encounter kit edits.</p>
+          <p className="mb-4 text-read text-white/65">You have unsaved encounter kit edits.</p>
           <div className="flex justify-end gap-2">
             <button
               type="button"
-              className="rounded border border-white/15 px-3 py-1.5 text-xs"
+              className="rounded border border-white/15 px-3 py-1.5 text-body"
               onClick={() => setConfirmClose(false)}
             >
               Stay
             </button>
             <button
               type="button"
-              className="rounded bg-red-500/80 px-3 py-1.5 text-xs font-bold text-white"
+              className="rounded bg-red-500/80 px-3 py-1.5 text-body font-bold text-white"
               onClick={() => {
                 setConfirmClose(false);
                 setOpen(false);

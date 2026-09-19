@@ -143,7 +143,7 @@ export function SearchFindRevealCell({
     <>
       <Icon name={itemIcon(def)} size={iconSize} className="relative z-[1] drop-shadow" />
       {count > 1 && (
-        <span className="absolute bottom-0 right-0 z-[1] rounded-tl bg-black/60 px-0.5 text-2xs font-black leading-tight text-white">
+        <span className="absolute bottom-0 right-0 z-[1] rounded-tl bg-black/60 px-0.5 text-micro font-bold text-white">
           ×{count}
         </span>
       )}

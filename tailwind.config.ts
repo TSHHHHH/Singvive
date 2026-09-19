@@ -1,16 +1,23 @@
-/** @type {import('tailwindcss').Config} */
+import type { Config } from 'tailwindcss';
+import { FONT_STACK_MONO, tailwindFontSize, typeVars } from './src/ui/type';
+
 export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
+    // Not `extend` — this REPLACES Tailwind's default size scale, so text-xs,
+    // text-lg and friends simply no longer exist. The old scale is what let
+    // twenty font sizes accumulate; leaving it alive alongside the roles would
+    // keep two vocabularies in play and nothing to tell them apart.
+    fontSize: tailwindFontSize(),
     extend: {
-      // One type scale for the whole HUD. Everything picks a step here;
-      // no ad-hoc text-[Npx] anywhere. 2xs is the smallest legible step —
-      // meter readouts, stat chips, timestamps.
-      fontSize: {
-        '2xs': ['10px', '14px'],
+      letterSpacing: {
+        // The two display trackings. Roles carry their own tracking; these are
+        // for the handful of headings that are deliberately wider than signage.
+        signage: '0.2em',
+        marquee: '0.3em',
       },
       fontFamily: {
-        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
+        mono: FONT_STACK_MONO,
       },
       colors: {
         // Brutalist-bureau palette: poured concrete, bureau ochre, hiss red.
@@ -46,5 +53,14 @@ export default {
       },
     },
   },
-  plugins: [],
-};
+  plugins: [
+    // The scale, reachable from plain CSS as var(--type-body-size) etc, and the
+    // one font stack — index.css must not declare its own.
+    ({ addBase }: { addBase: (styles: Record<string, Record<string, string>>) => void }) => {
+      addBase({
+        ':root': typeVars(),
+        body: { 'font-family': FONT_STACK_MONO.join(',') },
+      });
+    },
+  ],
+} satisfies Config;

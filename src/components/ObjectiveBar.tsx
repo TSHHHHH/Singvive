@@ -118,11 +118,11 @@ export function ObjectiveBar({
       className="w-full rounded-lg border border-signal/35 bg-signal/[0.07] p-2.5 text-left transition hover:bg-signal/[0.12]"
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="text-2xs font-semibold uppercase tracking-widest text-signal/70">
+        <span className="text-label uppercase text-signal/70">
           <Icon name="action.objectives" /> {t('ui.objective.title')}
         </span>
         <span
-          className={`shrink-0 text-xs tabular-nums ${
+          className={`shrink-0 text-body tabular-nums ${
             urgent ? 'animate-pulse text-hiss' : 'text-concrete-200'
           }`}
         >
@@ -138,7 +138,7 @@ export function ObjectiveBar({
         </span>
       </div>
 
-      <div className="mt-0.5 truncate text-sm text-concrete-50">
+      <div className="mt-0.5 truncate text-read text-concrete-50">
         {evacZoneName ? (
           <ReachLine zone={evacZoneName} />
         ) : (
@@ -150,12 +150,12 @@ export function ObjectiveBar({
         )}
       </div>
       {townName && townTier && (
-        <div className="mt-0.5 truncate text-2xs text-white/40">
+        <div className="mt-0.5 truncate text-micro text-white/40">
           {t('ui.town.here', { name: townName, tier: t(`ui.town.${townTier}`) })}
         </div>
       )}
       {(intelNoteCount > 0 || rumourCount > 0) && (
-        <div className="mt-0.5 truncate text-2xs text-[#c4b07a]/90">
+        <div className="mt-0.5 truncate text-micro text-[#c4b07a]/90">
           {intelNoteCount > 0 && rumourCount > 0
             ? t('ui.objective.leadsBoth', { notes: intelNoteCount, rumours: rumourCount })
             : intelNoteCount > 0
@@ -167,7 +167,7 @@ export function ObjectiveBar({
       <div className="mt-1.5 flex items-center gap-2">
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <div className="flex items-center gap-1.5">
-            <span className="w-8 shrink-0 text-2xs text-white/35">×{dayMult.toFixed(1)}</span>
+            <span className="w-8 shrink-0 text-micro text-white/35">×{dayMult.toFixed(1)}</span>
             <div className="h-1 flex-1 overflow-hidden rounded bg-black/50">
               <div
                 className="h-full transition-all"
@@ -179,7 +179,7 @@ export function ObjectiveBar({
             </div>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="w-10 shrink-0 truncate text-2xs text-white/35" {...tip(vibeTip)}>
+            <span className="w-10 shrink-0 truncate text-micro text-white/35" {...tip(vibeTip)}>
               {vibeShort}
             </span>
             <div className="h-1 flex-1 overflow-hidden rounded bg-black/50">
@@ -204,7 +204,7 @@ export function ObjectiveBar({
               style={{ width: `${Math.min(100, doom)}%`, background: doomColor }}
             />
           </div>
-          <span className="text-2xs uppercase tracking-wide text-white/35">{doomLabel}</span>
+          <span className="text-label uppercase text-white/35">{doomLabel}</span>
         </div>
       </div>
     </button>

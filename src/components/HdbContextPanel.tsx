@@ -69,10 +69,10 @@ function ScoutTile({
           : 'border-white/15 bg-concrete-900/60 text-concrete-100'
       }`}
     >
-      <div className="flex min-h-[1.25rem] max-w-full items-center justify-center text-xs font-semibold leading-tight">
+      <div className="flex min-h-[1.25rem] max-w-full items-center justify-center text-body font-semibold leading-tight">
         {children}
       </div>
-      <span className="text-2xs uppercase tracking-wider text-concrete-500">{label}</span>
+      <span className="text-label uppercase text-concrete-500">{label}</span>
     </div>
   );
 }
@@ -128,7 +128,7 @@ export function HdbContextPanel({
           ? t('ui.hdb.leaveNeedVoidDeck')
           : undefined;
     return (
-      <div className="space-y-2 text-xs">
+      <div className="space-y-2 text-body">
         <p className="text-concrete-300">{t('ui.hdb.compactHint')}</p>
         <div className="flex justify-end">
           <button
@@ -136,7 +136,7 @@ export function HdbContextPanel({
             onClick={() => hdbLeave()}
             disabled={!canLeave}
             {...tip(leaveTitle)}
-            className="rounded border border-white/15 px-2.5 py-1 text-xs text-concrete-300 hover:bg-white/5 disabled:opacity-40"
+            className="rounded border border-white/15 px-2.5 py-1 text-body text-concrete-300 hover:bg-white/5 disabled:opacity-40"
           >
             {t('ui.hdb.leaveBlock')}
           </button>
@@ -194,7 +194,7 @@ export function HdbContextPanel({
                 type="button"
                 onClick={() => hdbUnlockGate(c.key)}
                 disabled={walking}
-                className="min-h-[44px] w-full rounded border border-signal/60 bg-signal/15 px-3 py-2 text-xs text-signal hover:bg-signal/25 disabled:opacity-40 lg:min-h-0 lg:py-1.5"
+                className="min-h-[44px] w-full rounded border border-signal/60 bg-signal/15 px-3 py-2 text-body text-signal hover:bg-signal/25 disabled:opacity-40 lg:min-h-0 lg:py-1.5"
               >
                 {t('ui.hdb.fobAction', { min: FOB_MINUTES })}
               </button>
@@ -203,7 +203,7 @@ export function HdbContextPanel({
               type="button"
               onClick={() => hdbForceBlock(c.key)}
               disabled={walking}
-              className="min-h-[44px] w-full rounded border border-hiss/60 bg-hiss/15 px-3 py-2 text-xs text-hiss hover:bg-hiss/25 disabled:opacity-40 lg:min-h-0 lg:py-1.5"
+              className="min-h-[44px] w-full rounded border border-hiss/60 bg-hiss/15 px-3 py-2 text-body text-hiss hover:bg-hiss/25 disabled:opacity-40 lg:min-h-0 lg:py-1.5"
             >
               {t('ui.hdb.clearAction', {
                 label: blockLabel,
@@ -232,7 +232,7 @@ export function HdbContextPanel({
           <span
             key={c.key}
             {...tip(blockBlurb)}
-            className="min-h-[44px] w-full rounded border border-concrete-600 bg-concrete-900/80 px-3 py-2 text-xs text-concrete-300 lg:min-h-0 lg:py-1.5"
+            className="min-h-[44px] w-full rounded border border-concrete-600 bg-concrete-900/80 px-3 py-2 text-body text-concrete-300 lg:min-h-0 lg:py-1.5"
           >
             {t('ui.hdb.noWayThrough', { label: blockLabel })}
           </span>
@@ -294,11 +294,11 @@ export function HdbContextPanel({
 
   const placeHeader = (
     <div className="flex min-w-0 items-baseline gap-2">
-      <span className="truncate text-xs font-semibold tabular-nums tracking-wide text-concrete-50">
+      <span className="truncate text-body font-semibold tabular-nums tracking-wide text-concrete-50">
         {placeTitle}
       </span>
       {placeStatus && (
-        <span className="shrink-0 text-xs font-semibold uppercase tracking-wide text-concrete-400">
+        <span className="shrink-0 text-plate uppercase text-concrete-400">
           {placeStatus}
         </span>
       )}
@@ -347,7 +347,7 @@ export function HdbContextPanel({
       )}
 
       <ScoutTile label={t('ui.hdb.scoutRoom')} tip={unitBlurb}>
-        <span className="inline-flex max-w-full items-center gap-0.5 text-xs text-concrete-200">
+        <span className="inline-flex max-w-full items-center gap-0.5 text-body text-concrete-200">
           <Icon name={UNIT_META[sel.type].icon} size={12} />
           <span className="truncate">{unitLabel}</span>
         </span>
@@ -375,7 +375,7 @@ export function HdbContextPanel({
               }
               size={12}
             />
-            <span className="truncate text-xs">
+            <span className="truncate text-body">
               {msgOr(
                 `ui.hdb.container.${sel.scoutedInfo.containerCategory}`,
                 sel.scoutedInfo.containerCategory,
@@ -415,7 +415,7 @@ export function HdbContextPanel({
           stair.kind === 'side' ? t('ui.hdb.sideStairTitle') : t('ui.hdb.internalWell')
         }
       >
-        <span className="inline-flex items-center gap-0.5 text-xs text-concrete-200">
+        <span className="inline-flex items-center gap-0.5 text-body text-concrete-200">
           <Icon name="hdb.stairwell" size={12} />
           {stair.kind === 'side' ? t('ui.hdb.sideShort') : t('ui.hdb.wellShort')}
         </span>
@@ -447,7 +447,7 @@ export function HdbContextPanel({
 
   const doorButtons = sel ? (
     sel.state === 'cleared' ? (
-      <span className="text-xs leading-snug text-concrete-400">
+      <span className="text-body text-concrete-400">
         {t('ui.hdb.unitClearedBlurb')}
       </span>
     ) : selVerb === 'service' && sel.service ? (
@@ -455,7 +455,7 @@ export function HdbContextPanel({
         type="button"
         onClick={() => hdbUseService(sel.id)}
         disabled={busy}
-        className="min-h-[44px] w-full rounded bg-signal/80 px-3 py-2 text-xs font-bold text-black hover:bg-signal disabled:opacity-30 lg:min-h-0 lg:py-1.5"
+        className="min-h-[44px] w-full rounded bg-signal/80 px-3 py-2 text-body font-bold text-black hover:bg-signal disabled:opacity-30 lg:min-h-0 lg:py-1.5"
       >
         <Icon name={SERVICE_ICON[sel.service]} />{' '}
         {msgOr(`ui.hdb.service.${sel.service}`, SERVICE_LABEL[sel.service], undefined, locale)}
@@ -465,7 +465,7 @@ export function HdbContextPanel({
         type="button"
         onClick={() => hdbReadNotice(sel.id)}
         disabled={busy}
-        className="min-h-[44px] w-full rounded bg-signal/80 px-3 py-2 text-xs font-bold text-black hover:bg-signal disabled:opacity-30 lg:min-h-0 lg:py-1.5"
+        className="min-h-[44px] w-full rounded bg-signal/80 px-3 py-2 text-body font-bold text-black hover:bg-signal disabled:opacity-30 lg:min-h-0 lg:py-1.5"
       >
         <Icon name="hdb.notice" /> {t('ui.hdb.readNotice', { min: 15 })}
       </button>
@@ -474,7 +474,7 @@ export function HdbContextPanel({
         type="button"
         onClick={() => hdbUseShelter(sel.id)}
         disabled={busy}
-        className="min-h-[44px] w-full rounded bg-signal/80 px-3 py-2 text-xs font-bold text-black hover:bg-signal disabled:opacity-30 lg:min-h-0 lg:py-1.5"
+        className="min-h-[44px] w-full rounded bg-signal/80 px-3 py-2 text-body font-bold text-black hover:bg-signal disabled:opacity-30 lg:min-h-0 lg:py-1.5"
       >
         <Icon name="hdb.shelter" />{' '}
         {t('ui.hdb.restShelter', { h: SHELTER_HOURS, heat: SHELTER_HEAT_DROP })}
@@ -486,7 +486,7 @@ export function HdbContextPanel({
             type="button"
             onClick={() => hdbPick(sel.id)}
             disabled={busy || lockpickCount < 1}
-            className="min-h-[44px] w-full rounded border border-signal/50 bg-signal/10 px-3 py-2 text-xs font-bold text-signal hover:bg-signal/20 disabled:opacity-30 lg:min-h-0 lg:py-1.5"
+            className="min-h-[44px] w-full rounded border border-signal/50 bg-signal/10 px-3 py-2 text-body font-bold text-signal hover:bg-signal/20 disabled:opacity-30 lg:min-h-0 lg:py-1.5"
           >
             <Icon name="item.lockpick" />{' '}
             {lockpickCount < 1
@@ -499,7 +499,7 @@ export function HdbContextPanel({
             type="button"
             onClick={() => hdbBreach(sel.id)}
             disabled={busy}
-            className="min-h-[44px] w-full rounded bg-signal/80 px-3 py-2 text-xs font-bold text-black hover:bg-signal disabled:opacity-30 lg:min-h-0 lg:py-1.5"
+            className="min-h-[44px] w-full rounded bg-signal/80 px-3 py-2 text-body font-bold text-black hover:bg-signal disabled:opacity-30 lg:min-h-0 lg:py-1.5"
           >
             <Icon name={doorHeat > 0 ? 'hdb.breach' : 'hdb.unit'} />{' '}
             {t('ui.hdb.breachLine', {
@@ -525,7 +525,7 @@ export function HdbContextPanel({
             {sel ? (
               doorButtons
             ) : !stair && !boarded && clearable.length === 0 && impassable.length === 0 ? (
-              <p className="text-xs text-concrete-400">
+              <p className="text-body text-concrete-400">
                 {isVoidDeckFloor(floor) && floor.units.length === 0
                   ? t('ui.hdb.voidHint')
                   : isPhone

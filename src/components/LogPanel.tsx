@@ -13,7 +13,7 @@ import { formatClock } from '../game/survival';
 
 /** Every control in the timeline header shares one box, so the row reads even. */
 const CTRL =
-  'flex h-6 w-8 shrink-0 items-center justify-center rounded border border-white/10 text-2xs leading-none transition';
+  'flex h-6 w-8 shrink-0 items-center justify-center rounded border border-white/10 text-micro leading-none transition';
 
 /**
  * Where live interactive nodes (event / contact / search) should render.
@@ -122,7 +122,7 @@ export function LogPanel({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="mb-2 flex shrink-0 items-center justify-between gap-2">
-        <h3 className="text-xs uppercase tracking-widest text-white/30">
+        <h3 className="text-plate uppercase text-white/30">
           {t('ui.log.timelineDay', { day })}
         </h3>
         {/* One row of identically-sized controls — the view toggles and the two
@@ -174,7 +174,7 @@ export function LogPanel({
             <div className="absolute bottom-2 left-[5px] top-1 w-px bg-white/10" />
 
             {(hiddenCount > 0 || earlierDays) && (
-              <li className="relative mb-1 pl-6 text-2xs italic text-white/25">
+              <li className="relative mb-1 pl-6 text-micro italic text-white/25">
                 {hiddenCount > 0 &&
                   (hiddenCount === 1
                     ? t('ui.log.earlierHidden', { n: hiddenCount })
@@ -206,10 +206,10 @@ export function LogPanel({
                 <div className="min-w-0 flex-1">
                   <p
                     style={hang}
-                    className="whitespace-normal break-words text-xs leading-snug text-white/70"
+                    className="whitespace-normal break-words text-body text-white/70"
                   >
                     <span
-                      className="inline-block font-mono text-2xs tabular-nums text-white/25"
+                      className="inline-block text-micro tabular-nums text-white/25"
                       style={{ width: timeW, textIndent: 0 }}
                     >
                       {formatClock(hour, clock)}

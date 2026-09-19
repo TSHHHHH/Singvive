@@ -68,7 +68,7 @@ export function ItemContextMenu({
             a.onSelect();
             onClose();
           }}
-          className={`block w-full px-3 py-1.5 text-left text-xs transition ${
+          className={`block w-full px-3 py-1.5 text-left text-body transition ${
             a.disabled
               ? 'cursor-not-allowed text-white/25'
               : a.danger

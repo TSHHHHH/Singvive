@@ -243,11 +243,11 @@ export function DevLocaleEditor() {
     <div className="fixed inset-0 z-[2000] flex items-stretch justify-end bg-black/60 p-2 sm:p-4">
       <div className="flex h-full w-full max-w-5xl flex-col overflow-hidden rounded-lg border border-white/15 bg-concrete-900 shadow-signage">
         <header className="flex shrink-0 flex-wrap items-center gap-2 border-b border-white/10 px-3 py-2">
-          <h2 className="mr-auto text-sm font-bold text-signal">Locale</h2>
+          <h2 className="mr-auto text-read font-bold text-signal">Locale</h2>
           <select
             value={ns}
             onChange={(e) => setNs(e.target.value as Namespace)}
-            className="rounded border border-white/15 bg-black/40 px-2 py-1 text-xs"
+            className="rounded border border-white/15 bg-black/40 px-2 py-1 text-body"
           >
             {(['ui', 'settings', 'guide', 'item', 'enemy', 'recipe', 'trait', 'all'] as const).map(
               (n) => (
@@ -261,9 +261,9 @@ export function DevLocaleEditor() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Filter keys…"
-            className="min-w-[8rem] flex-1 rounded border border-white/15 bg-black/40 px-2 py-1 text-xs"
+            className="min-w-[8rem] flex-1 rounded border border-white/15 bg-black/40 px-2 py-1 text-body"
           />
-          <label className="flex items-center gap-1 text-2xs text-white/50">
+          <label className="flex items-center gap-1 text-micro text-white/50">
             <input
               type="checkbox"
               checked={missingOnly}
@@ -274,14 +274,14 @@ export function DevLocaleEditor() {
           <button
             type="button"
             onClick={exportPack}
-            className="rounded border border-white/15 px-2 py-1 text-xs text-white/70 hover:border-white/30"
+            className="rounded border border-white/15 px-2 py-1 text-body text-white/70 hover:border-white/30"
           >
             Export
           </button>
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
-            className="rounded border border-white/15 px-2 py-1 text-xs text-white/70 hover:border-white/30"
+            className="rounded border border-white/15 px-2 py-1 text-body text-white/70 hover:border-white/30"
           >
             Import
           </button>
@@ -300,39 +300,39 @@ export function DevLocaleEditor() {
             type="button"
             disabled={busy}
             onClick={() => void save()}
-            className="rounded border border-signal/40 bg-signal/15 px-2 py-1 text-xs text-signal"
+            className="rounded border border-signal/40 bg-signal/15 px-2 py-1 text-body text-signal"
           >
             Save
           </button>
           <button
             type="button"
             onClick={close}
-            className="rounded border border-white/15 px-2 py-1 text-xs text-white/50"
+            className="rounded border border-white/15 px-2 py-1 text-body text-white/50"
           >
             Close
           </button>
         </header>
 
         {(status || error) && (
-          <div className="shrink-0 border-b border-white/10 px-3 py-1.5 text-2xs">
+          <div className="shrink-0 border-b border-white/10 px-3 py-1.5 text-micro">
             {status && <span className="text-white/45">{status}</span>}
             {error && <span className="ml-2 text-danger">{error}</span>}
           </div>
         )}
 
         <div className="min-h-0 flex-1 overflow-auto">
-          <table className="w-full border-collapse text-left text-2xs">
+          <table className="w-full border-collapse text-left text-micro">
             <thead className="sticky top-0 bg-concrete-900 text-white/40">
               <tr>
-                <th className="w-[22%] border-b border-white/10 px-2 py-1.5 font-medium">Key</th>
-                <th className="w-[39%] border-b border-white/10 px-2 py-1.5 font-medium">English</th>
-                <th className="w-[39%] border-b border-white/10 px-2 py-1.5 font-medium">简体中文</th>
+                <th className="w-[22%] border-b border-white/10 px-2 py-1.5 font-semibold">Key</th>
+                <th className="w-[39%] border-b border-white/10 px-2 py-1.5 font-semibold">English</th>
+                <th className="w-[39%] border-b border-white/10 px-2 py-1.5 font-semibold">简体中文</th>
               </tr>
             </thead>
             <tbody>
               {visible.map((r) => (
                 <tr key={r.key} className="align-top odd:bg-white/[0.02]">
-                  <td className="border-b border-white/5 px-2 py-1 font-mono text-white/35 break-all">
+                  <td className="border-b border-white/5 px-2 py-1 text-white/35 break-all">
                     {r.key}
                   </td>
                   <td className="border-b border-white/5 px-2 py-1">
@@ -357,11 +357,11 @@ export function DevLocaleEditor() {
             </tbody>
           </table>
           {visible.length === 0 && (
-            <p className="p-4 text-xs text-white/40">No rows match this filter.</p>
+            <p className="p-4 text-body text-white/40">No rows match this filter.</p>
           )}
         </div>
 
-        <footer className="shrink-0 border-t border-white/10 px-3 py-1.5 text-2xs text-white/30">
+        <footer className="shrink-0 border-t border-white/10 px-3 py-1.5 text-micro text-white/30">
           {visible.length} / {rows.length} keys · English is source of truth · missing zh falls back
           at runtime
         </footer>

@@ -1,5 +1,6 @@
-import { memo, useEffect, useState } from 'react';
-import { useSetting, useSettingIsExplicit } from '../game/settings';
+import { memo } from 'react';
+import { useSetting } from '../game/settings';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 import type { TimeOfDay, WeatherKind } from '../game/types';
 
 // ---------------------------------------------------------------------------
@@ -16,27 +17,9 @@ import type { TimeOfDay, WeatherKind } from '../game/types';
 // The layers live in index.css (.wx-*).
 // ---------------------------------------------------------------------------
 
-/**
- * The OS "reduce motion" hint, live.
- *
- * It only decides the *default* here. A frozen rain sheet is a static hatch
- * across the map — worse to look at than the thing it's sparing you — so when
- * motion is off we swap in still tints instead (see `stillLayersFor`), and an
- * explicit choice in Settings overrides the hint entirely.
- */
-function usePrefersReducedMotion(): boolean {
-  const [reduce, setReduce] = useState(
-    () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false,
-  );
-  useEffect(() => {
-    const mq = window.matchMedia?.('(prefers-reduced-motion: reduce)');
-    if (!mq) return;
-    const onChange = () => setReduce(mq.matches);
-    mq.addEventListener('change', onChange);
-    return () => mq.removeEventListener('change', onChange);
-  }, []);
-  return reduce;
-}
+// Reduced motion does not mean "freeze": a frozen rain sheet is a static hatch
+// across the map, worse to look at than the thing it is sparing you. When
+// motion is off we swap in still tints instead — see `stillLayersFor`.
 
 /** Which layers each weather kind puts up. `day`-only effects gate on time.
  *
@@ -91,13 +74,9 @@ function stillLayersFor(kind: WeatherKind, time: TimeOfDay): string[] {
  */
 function WeatherFxInner({ kind, time }: { kind: WeatherKind; time: TimeOfDay }) {
   const mode = useSetting('weatherFx');
-  const chosen = useSettingIsExplicit('weatherFx');
-  const reduce = usePrefersReducedMotion();
+  const still = useReducedMotion();
   if (mode === 'off') return null;
 
-  // The OS hint is the default, not a veto: picking a mode in Settings is a
-  // deliberate statement about this overlay, and it wins.
-  const still = reduce && !chosen;
   const layers = still ? stillLayersFor(kind, time) : layersFor(kind, time, mode === 'subtle');
   if (layers.length === 0) return null;
 

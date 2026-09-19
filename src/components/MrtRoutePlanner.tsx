@@ -154,7 +154,7 @@ export function MrtRoutePlanner({
   if (!net || !from) {
     return (
       <div className="flex h-full w-full min-h-0 flex-col items-center justify-center bg-concrete-950 p-4">
-        <div className="rounded border border-white/15 bg-concrete-900 p-4 text-sm text-white/70">
+        <div className="rounded border border-white/15 bg-concrete-900 p-4 text-read text-white/70">
           {t('ui.mrt.loading')}
           <button type="button" className="mt-3 block text-signal" onClick={onClose}>
             {t('ui.mrt.cancel')}
@@ -172,8 +172,8 @@ export function MrtRoutePlanner({
     <div className="flex h-full w-full min-h-0 flex-col overflow-hidden bg-concrete-950">
       <div className="flex shrink-0 items-center justify-between gap-3 border-b border-concrete-600 bg-concrete-900 px-3 py-2.5">
         <div className="min-w-0">
-          <div className="signage text-xs text-signal">{t('ui.mrt.title')}</div>
-          <div className="truncate text-xs text-concrete-400">
+          <div className="text-plate uppercase text-signal">{t('ui.mrt.title')}</div>
+          <div className="truncate text-body text-concrete-400">
             {t('ui.mrt.from', { name: from.name })}
             {to ? t('ui.mrt.to', { name: to.name }) : t('ui.mrt.tapStation')}
           </div>
@@ -181,7 +181,7 @@ export function MrtRoutePlanner({
         <button
           type="button"
           onClick={onClose}
-          className="rounded border border-white/15 px-3 py-1.5 text-xs text-white/70 hover:bg-white/5"
+          className="rounded border border-white/15 px-3 py-1.5 text-body text-white/70 hover:bg-white/5"
         >
           {t('ui.mrt.backToMap')}
         </button>
@@ -238,15 +238,15 @@ export function MrtRoutePlanner({
 
       <div className="shrink-0 border-t border-concrete-600 bg-concrete-900 p-3">
         {to && !reachable && (
-          <p className="mb-2 text-xs text-hiss">{t('ui.mrt.noPath', { name: to.name })}</p>
+          <p className="mb-2 text-body text-hiss">{t('ui.mrt.noPath', { name: to.name })}</p>
         )}
         {to && reachable && routes.every((r) => r.collapsedHops > 0) && (
-          <p className="mb-2 text-xs text-hiss">
+          <p className="mb-2 text-body text-hiss">
             {t('ui.mrt.allCollapsed', { name: to.name })}
           </p>
         )}
         {route && route.collapsedHops > 0 && !routes.every((r) => r.collapsedHops > 0) && (
-          <p className="mb-2 text-xs text-hiss">{t('ui.mrt.shortcutCollapsed')}</p>
+          <p className="mb-2 text-body text-hiss">{t('ui.mrt.shortcutCollapsed')}</p>
         )}
         {routes.length > 0 && (
           <div className="mb-2 flex flex-col gap-1.5">
@@ -255,7 +255,7 @@ export function MrtRoutePlanner({
                 key={i}
                 type="button"
                 onClick={() => setRouteIdx(i)}
-                className={`rounded border px-2 py-1.5 text-left text-xs transition ${
+                className={`rounded border px-2 py-1.5 text-left text-body transition ${
                   routeIdx === i || (!routes[routeIdx] && i === 0)
                     ? r.collapsedHops > 0
                       ? 'border-hiss/50 bg-hiss/10 text-hiss'
@@ -264,7 +264,7 @@ export function MrtRoutePlanner({
                 }`}
               >
                 {localizedRouteOptionLabel(r, i, t)}
-                <span className="mt-0.5 block text-2xs text-white/40">
+                <span className="mt-0.5 block text-micro text-white/40">
                   {r.meters} m
                   {r.changes > 0
                     ? r.changes === 1
@@ -281,7 +281,7 @@ export function MrtRoutePlanner({
           type="button"
           disabled={!route || energyLow}
           onClick={() => route && from && onConfirm(routeStationIds(route, from.id))}
-          className="w-full rounded bg-signal/90 py-2.5 text-sm font-bold text-black hover:bg-signal disabled:opacity-30"
+          className="w-full rounded bg-signal/90 py-2.5 text-read font-bold text-black hover:bg-signal disabled:opacity-30"
         >
           {energyLow
             ? t('ui.mrt.tooSpent')
@@ -295,7 +295,7 @@ export function MrtRoutePlanner({
                   : t('ui.mrt.enterTunnelsPlural', { n: route.stops })
               : t('ui.mrt.pickDestination')}
         </button>
-        <p className="mt-1.5 text-center text-2xs text-concrete-400">{t('ui.mrt.crawlHint')}</p>
+        <p className="mt-1.5 text-center text-micro text-concrete-400">{t('ui.mrt.crawlHint')}</p>
       </div>
     </div>
   );

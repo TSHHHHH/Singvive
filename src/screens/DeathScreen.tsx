@@ -94,11 +94,12 @@ export function DeathScreen() {
   return (
     <div className="flex min-h-full items-center justify-center p-6">
       <div className="w-full max-w-md text-center">
-        <div className="mb-2 text-6xl">{escaped ? '🚁' : '💀'}</div>
-        <h1 className={`text-3xl font-black ${escaped ? 'text-signal' : 'text-hiss'}`}>
+        {/* Decorative glyph, not type — sized as an icon, off the scale. */}
+        <div className="mb-2 text-[3.75rem] leading-none">{escaped ? '🚁' : '💀'}</div>
+        <h1 className={`text-marquee ${escaped ? 'text-signal' : 'text-hiss'}`}>
           {escaped ? t('ui.death.escaped') : t('ui.death.died')}
         </h1>
-        <p className="mt-1 text-sm text-white/50">
+        <p className="mt-1 text-read text-white/50">
           {escaped
             ? t('ui.death.escapeBlurb')
             : deathCause
@@ -112,7 +113,7 @@ export function DeathScreen() {
           <Stat label={t('ui.death.score')} value={finalScore} />
         </div>
 
-        <p className="mt-4 text-sm text-white/50">
+        <p className="mt-4 text-read text-white/50">
           {escaped ? (
             <>
               {character?.name} escaped Singapore on day{' '}
@@ -128,11 +129,11 @@ export function DeathScreen() {
           )}
         </p>
 
-        <p className="mt-3 text-xs text-white/40">{statusCopy(worldStatus, rank, t)}</p>
+        <p className="mt-3 text-body text-white/40">{statusCopy(worldStatus, rank, t)}</p>
 
         {localRows.length > 0 && (
           <div className="mt-6 text-left">
-            <h2 className="mb-2 text-xs uppercase tracking-widest text-white/40">
+            <h2 className="mb-2 text-plate uppercase text-white/40">
               {t('ui.death.thisDevice')}
             </h2>
             <ScoreBoard rows={localRows} />
@@ -140,13 +141,13 @@ export function DeathScreen() {
         )}
 
         <div className="mt-6 text-left">
-          <h2 className="mb-2 text-xs uppercase tracking-widest text-white/40">
+          <h2 className="mb-2 text-plate uppercase text-white/40">
             {t('ui.death.worldwide')}
           </h2>
           {world === undefined ? (
-            <p className="text-sm text-white/40">{t('ui.death.loadingWorld')}</p>
+            <p className="text-read text-white/40">{t('ui.death.loadingWorld')}</p>
           ) : world === null ? (
-            <p className="text-sm text-white/40">{t('ui.death.worldUnreachable')}</p>
+            <p className="text-read text-white/40">{t('ui.death.worldUnreachable')}</p>
           ) : (
             <ScoreBoard
               rows={world.slice(0, 10)}
@@ -183,8 +184,8 @@ function statusCopy(
 function Stat({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-lg border border-white/15 bg-concrete-900/80 py-3">
-      <div className="text-2xl font-black text-signal tabular-nums">{value}</div>
-      <div className="text-xs uppercase tracking-widest text-white/40">{label}</div>
+      <div className="text-marquee text-signal tabular-nums">{value}</div>
+      <div className="text-plate uppercase text-white/40">{label}</div>
     </div>
   );
 }

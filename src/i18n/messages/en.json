@@ -32,7 +32,31 @@
       "title": "⚙ Settings",
       "reviewGuide": "Review how to play",
       "reviewGuideDesc": "Open the primer with Survive, Fight, Loot, Block, Tunnels, and the rest.",
-      "openGuide": "Open guide"
+      "openGuide": "Open guide",
+      "tabsAria": "Settings sections",
+      "confirmPrompt": "Sure?",
+      "data": {
+        "resetLabel": "Reset settings",
+        "resetDesc": "Put every option on this panel back to its default. Your run is not touched.",
+        "resetAction": "Reset to defaults",
+        "exportLabel": "Export save",
+        "exportDesc": "Download the current run as a file you can keep or move to another device.",
+        "exportAction": "Download save",
+        "exportEmpty": "No run to export.",
+        "importLabel": "Import save",
+        "importDesc": "Load a save file. It replaces whatever is in the continue slot.",
+        "importMenuOnly": "Only from the title screen — a live run would overwrite the imported file.",
+        "importAction": "Choose file…",
+        "importOk": "Save loaded. Continue run to play it.",
+        "importFailed": "That file is not a Singvive save.",
+        "scoresLabel": "Clear scores on this device",
+        "scoresDesc": "Wipes the device board. The worldwide board keeps your posted runs.",
+        "scoresAction": "Clear scores",
+        "scoresCleared": "Device board cleared.",
+        "abandonLabel": "Abandon run",
+        "abandonDesc": "Delete the current run — day {day} — and go back to the title screen. There is no undo.",
+        "abandonAction": "Abandon run"
+      }
     },
     "guide": {
       "howToPlay": "How to play",
@@ -368,7 +392,30 @@
     },
     "craft": {
       "needHave": "{name} — need {need}, have {have}",
-      "toolTip": "{name} — stays in the pack (have {have})"
+      "toolTip": "{name} — stays in the pack (have {have})",
+      "workbench": "Workbench",
+      "shelterOk": "Shelter",
+      "shelterNo": "No shelter",
+      "toolboxOk": "Toolbox",
+      "toolboxNo": "No toolbox",
+      "hint": "Inputs from the pack. Shelter recipes need a stash or HDB. Tools stay in the pack.",
+      "filterAll": "All",
+      "filterReady": "Ready",
+      "groupField": "Field",
+      "groupShelter": "Shelter",
+      "groupDesperate": "Desperate",
+      "noneReady": "Nothing you can make right now. Haul more materials back, or find somewhere to work.",
+      "anyWater": "Any Water",
+      "hoursShort": "{h}h",
+      "blockShelter": "Needs somewhere to work",
+      "blockTool": "Needs a {name}",
+      "blockInput": "Needs {need}× {name} — have {have}",
+      "blockWater": "Needs {need}× water — have {have}",
+      "boilNote": "Burning a jerry can lowers your extract gauge.",
+      "tearName": "Cut Up Your Clothes",
+      "tearCost": "Nothing — {n} left in them",
+      "tearBlurb": "Cut strips from what you are wearing. Costs nothing but the clothes.",
+      "tearNone": "The clothes on your back are already stripped. Find cloth, or go without."
     },
     "attributes": {
       "strength": "Strength",
@@ -1156,7 +1203,8 @@
     "groups": {
       "Display": "Display",
       "Timeline": "Timeline",
-      "Guide": "Guide"
+      "Guide": "Guide",
+      "Map": "Map"
     },
     "logView": {
       "label": "Timeline detail",
@@ -1198,6 +1246,46 @@
     "showGuideOnStart": {
       "label": "How to play on start",
       "description": "Show the how-to-play primer when a run begins. Turn off after you know the ropes.",
+      "options": {
+        "on": "On",
+        "off": "Off"
+      }
+    },
+    "limbCoachSeen": {
+      "label": "Limb injury coach",
+      "description": "One-shot tip the first time you take a meaningful limb wound. Reset to Off to see it again.",
+      "options": {
+        "off": "Not seen yet",
+        "on": "Already shown"
+      }
+    },
+    "tabs": {
+      "display": "Display",
+      "gameplay": "Gameplay",
+      "accessibility": "Accessibility",
+      "guide": "Guide",
+      "data": "Data & save"
+    },
+    "railOverlay": {
+      "label": "Rail map",
+      "description": "Draw the MRT network over the map by default. The on-map button toggles the same thing.",
+      "options": {
+        "on": "On",
+        "off": "Off"
+      }
+    },
+    "reduceMotion": {
+      "label": "Reduce motion",
+      "description": "Stop drifting rain, pulses and shimmer. Auto follows your system setting.",
+      "options": {
+        "auto": "Auto",
+        "on": "On",
+        "off": "Off"
+      }
+    },
+    "tooltips": {
+      "label": "Hover tips",
+      "description": "Pop-up labels on hover, or long-press on touch. Many icon-only buttons have no other label — leave these on unless they get in the way.",
       "options": {
         "on": "On",
         "off": "Off"

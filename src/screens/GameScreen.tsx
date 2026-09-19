@@ -28,7 +28,7 @@ import { InventoryPanel } from '../components/Inventory/InventoryPanel';
 import { InventoryInteractionProvider } from '../components/Inventory/InventoryInteractionContext';
 import { CraftingPanel } from '../components/CraftingPanel';
 import { StashLogbook } from '../components/StashLogbook';
-import { SettingsModal } from '../components/SettingsModal';
+import { SettingsModal } from '../components/settings';
 import { DigitalClock } from '../components/DigitalClock';
 import { WeatherBadge } from '../components/WeatherBadge';
 import { SleepQualityIndicator } from '../components/SleepQualityIndicator';
@@ -135,7 +135,7 @@ function HereHazardLine({
   const worst = underfoot.reduce((a, z) => (z.severity > a.severity ? z : a));
   const cfg = HAZARD_CONFIG[worst.kind];
   return (
-    <div className="mt-2 text-xs" style={{ color: cfg.color }}>
+    <div className="mt-2 text-body" style={{ color: cfg.color }}>
       {cfg.blurb} Do not sleep here.
     </div>
   );
@@ -299,6 +299,12 @@ export function GameScreen() {
   const [trekTarget, setTrekTarget] = useState<{ lat: number; lng: number } | null>(null);
   const [mobileView, setMobileView] = useState<MobileView>('map');
   const [sidePanel, setSidePanel] = useState<SidePanel | null>(null);
+  // Craft takes the map's width; the others keep the 360px column. Remembering
+  // the last panel keeps that width stable through the 200 ms close, so the
+  // workbench does not snap narrow while it is still sliding out.
+  const lastSidePanel = useRef<SidePanel | null>(null);
+  if (sidePanel) lastSidePanel.current = sidePanel;
+  const wideSlideOut = (sidePanel ?? lastSidePanel.current) === 'craft';
   const [hereSheetOpen, setHereSheetOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [dayLogsOpen, setDayLogsOpen] = useState(false);
@@ -948,7 +954,7 @@ export function GameScreen() {
       {atEvac && (
         <button
           onClick={callEvac}
-          className="mt-2 w-full rounded-lg bg-signal/80 py-2 text-sm font-bold text-black transition hover:bg-signal"
+          className="mt-2 w-full rounded-lg bg-signal/80 py-2 text-read font-bold text-black transition hover:bg-signal"
         >
           <Icon name="action.evac" />{' '}
           {t(evacManifestRevealed ? 'ui.game.callEvac' : 'ui.game.raiseChannel')}
@@ -957,8 +963,8 @@ export function GameScreen() {
     </>
   ) : !worldLoading ? (
     <>
-      <div className="text-sm text-white/70">{t('ui.game.nowhereTitle')}</div>
-      <div className="mt-1 text-xs text-white/40">{t('ui.game.nowhereBlurb')}</div>
+      <div className="text-read text-white/70">{t('ui.game.nowhereTitle')}</div>
+      <div className="mt-1 text-body text-white/40">{t('ui.game.nowhereBlurb')}</div>
       <HereHazardLine
         seed={seed}
         lat={currentPos.lat}
@@ -1064,7 +1070,7 @@ export function GameScreen() {
               <SleepQualityIndicator preview={sleepPreview} />
               <button
                 onClick={rest}
-                className="rounded border border-white/15 px-2.5 py-1 text-xs transition hover:bg-white/5"
+                className="rounded border border-white/15 px-2.5 py-1 text-body transition hover:bg-white/5"
                 {...tip(sleepPreview.conditions.summary)}
               >
                 <Icon name="action.sleep" /> {t('ui.game.rest')}
@@ -1120,7 +1126,7 @@ export function GameScreen() {
                   <button
                     key={id}
                     onClick={() => setSidePanel(active ? null : id)}
-                    className={`rounded border py-1.5 text-xs transition ${
+                    className={`rounded border py-1.5 text-body transition ${
                       active
                         ? 'border-signal bg-signal/15 text-signal'
                         : 'border-white/15 text-white/70 hover:bg-white/5'
@@ -1145,19 +1151,26 @@ export function GameScreen() {
            reflows when you check your pack.
            Phone: sits between the status bar and bottom nav so meters stay
            visible while you eat/drink from inventory. */}
-      {/* Closed, it parks fully off the left edge — on lg that means clearing its
-          own 360px plus the 340px rail it is offset by, so it slides out from
-          behind the rail instead of fading in on top of it. */}
+      {/* Craft is the one panel with a grid to lay out, so on desktop it spans
+          the whole map instead of the 360px column — pinned to the timeline's
+          edge, never narrower than the column it replaces (at 1024px the map
+          strip is thinner than 360px, so the min-width is what wins there).
+          Closed, it parks its own width plus the 340px rail off the left edge,
+          so it slides out from behind the rail instead of fading in on top. */}
       <div
-        className={`absolute left-0 z-[700] w-full transition-transform duration-200 ease-out max-lg:bottom-[calc(var(--mobile-nav-h)+env(safe-area-inset-bottom,0px))] max-lg:top-[var(--mobile-status-bar-h)] lg:inset-y-0 lg:left-[340px] lg:w-[360px] ${
+        className={`absolute left-0 z-[700] w-full transition-[transform,width,right] duration-200 ease-out max-lg:bottom-[calc(var(--mobile-nav-h)+env(safe-area-inset-bottom,0px))] max-lg:top-[var(--mobile-status-bar-h)] lg:inset-y-0 lg:left-[340px] ${
+          wideSlideOut
+            ? 'lg:right-[max(35vw,320px)] lg:w-auto lg:min-w-[360px]'
+            : 'lg:w-[360px]'
+        } ${
           sidePanel
             ? 'translate-x-0'
-            : 'pointer-events-none -translate-x-full lg:-translate-x-[700px]'
+            : 'pointer-events-none -translate-x-full lg:-translate-x-[calc(100%+340px)]'
         } ${backgrounded}`}
       >
         <div className="flex h-full flex-col border-r border-white/15 bg-concrete-900 shadow-signage">
           <div className="flex shrink-0 items-center justify-between border-b border-white/10 p-3">
-            <h3 className="text-sm font-bold text-signal">
+            <h3 className="text-read font-bold text-signal">
               {sidePanel && (
                 <>
                   <Icon name={SIDE_PANEL_ICONS[sidePanel]} /> {t(sidePanelLabelKey(sidePanel))}
@@ -1166,7 +1179,7 @@ export function GameScreen() {
             </h3>
             <button
               onClick={() => setSidePanel(null)}
-              className="text-xs text-white/40 hover:text-white/70"
+              className="text-body text-white/40 hover:text-white/70"
             >
               {t('ui.common.close')}
             </button>
@@ -1286,7 +1299,7 @@ export function GameScreen() {
                 </div>
               )}
               {worldError && (
-                <div className="absolute bottom-2 left-2 z-[500] max-w-xs rounded bg-black/85 px-3 py-1.5 text-xs text-concrete-50">
+                <div className="absolute bottom-2 left-2 z-[500] max-w-xs rounded bg-black/85 px-3 py-1.5 text-body text-concrete-50">
                   {worldError}
                 </div>
               )}
@@ -1390,13 +1403,13 @@ export function GameScreen() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-2 flex items-center justify-between">
-              <span className="text-2xs font-semibold uppercase tracking-widest text-signal/70">
+              <span className="text-label uppercase text-signal/70">
                 {t('ui.game.youAreHere')}
               </span>
               <button
                 type="button"
                 onClick={() => setHereSheetOpen(false)}
-                className="text-xs text-white/40 hover:text-white/70"
+                className="text-body text-white/40 hover:text-white/70"
               >
                 {t('ui.common.close')}
               </button>
@@ -1408,7 +1421,7 @@ export function GameScreen() {
 
       {/* ================= MOBILE bottom nav ================= */}
       <nav
-        className="relative z-[710] flex shrink-0 border-t border-white/10 bg-concrete-900 pb-[env(safe-area-inset-bottom,0px)] text-2xs lg:hidden"
+        className="relative z-[710] flex shrink-0 border-t border-white/10 bg-concrete-900 pb-[env(safe-area-inset-bottom,0px)] text-micro lg:hidden"
         style={{ minHeight: 'calc(var(--mobile-nav-h) + env(safe-area-inset-bottom, 0px))' }}
       >
         <NavBtn
@@ -1448,11 +1461,11 @@ export function GameScreen() {
       {ghostOffer && (
         <div className="absolute inset-0 z-[1150] flex items-center justify-center bg-black/85 p-4">
           <div className="w-full max-w-sm rounded-lg border border-signal/40 bg-concrete-900 p-5 shadow-signage">
-            <h3 className="signage text-xs text-signal">A survivor, still standing</h3>
-            <p className="mt-3 text-sm text-concrete-200">
+            <h3 className="text-plate uppercase text-signal">A survivor, still standing</h3>
+            <p className="mt-3 text-read text-concrete-200">
               They lived where your predecessor did not. One trade, then they're gone:
             </p>
-            <div className="mt-3 flex items-center justify-between rounded border border-concrete-600 bg-black/40 px-3 py-2 text-sm">
+            <div className="mt-3 flex items-center justify-between rounded border border-concrete-600 bg-black/40 px-3 py-2 text-read">
               <span className="text-hiss">− {itemDef(ghostOffer.wantDefId).name}</span>
               <span className="text-concrete-400">→</span>
               <span className="text-signal">+ {itemDef(ghostOffer.giveDefId).name}</span>
@@ -1460,13 +1473,13 @@ export function GameScreen() {
             <div className="mt-4 flex gap-2">
               <button
                 onClick={acceptGhostTrade}
-                className="flex-1 rounded bg-signal/80 py-2 text-sm font-bold text-black hover:bg-signal"
+                className="flex-1 rounded bg-signal/80 py-2 text-read font-bold text-black hover:bg-signal"
               >
                 Trade
               </button>
               <button
                 onClick={declineGhostTrade}
-                className="flex-1 rounded border border-concrete-600 py-2 text-sm hover:bg-white/5"
+                className="flex-1 rounded border border-concrete-600 py-2 text-read hover:bg-white/5"
               >
                 Walk on
               </button>
@@ -1515,14 +1528,14 @@ function RailSection({
     >
       <div className="mb-1 flex items-center justify-between">
         <span
-          className={`text-2xs font-semibold uppercase tracking-widest ${
+          className={`text-label uppercase ${
             accent ? 'text-signal/70' : 'text-white/40'
           }`}
         >
           {title}
         </span>
         {onClose && (
-          <button onClick={onClose} className="text-xs text-white/40 hover:text-white/70">
+          <button onClick={onClose} className="text-body text-white/40 hover:text-white/70">
             {t('ui.common.close')}
           </button>
         )}

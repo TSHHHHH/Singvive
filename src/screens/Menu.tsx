@@ -3,8 +3,10 @@ import { fetchOnlineScores, type OnlineScore } from '../api/scores';
 import { ScoreBoard, ScoreBoardTabs } from '../components/ScoreBoard';
 import { useShallow } from 'zustand/react/shallow';
 import { useGame } from '../game/store';
-import { useSettings } from '../game/settings';
-import { LOCALES, useLocale, useT } from '../i18n';
+import { useT } from '../i18n';
+import { Icon } from '../icons/Icon';
+import { SettingsModal } from '../components/settings';
+import { HowToPlayModal } from '../components/HowToPlayModal';
 
 export function Menu() {
   const { goToCharacter, continueRun, hasSavedRun, highScores } = useGame(
@@ -16,8 +18,8 @@ export function Menu() {
     })),
   );
   const { t } = useT();
-  const locale = useLocale();
-  const setSetting = useSettings((s) => s.setSetting);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [howToPlayOpen, setHowToPlayOpen] = useState(false);
   const [tab, setTab] = useState<'world' | 'device'>('world');
   const [world, setWorld] = useState<OnlineScore[] | null | undefined>(undefined);
 
@@ -40,38 +42,25 @@ export function Menu() {
 
   return (
     <div className="relative flex min-h-full items-center justify-center p-6">
-      <div
-        className="absolute right-4 top-4 z-10 flex gap-1 sm:right-6 sm:top-6"
-        role="group"
-        aria-label={t('settings.language.label')}
+      {/* Language used to sit here as bare pills. It is the first row of the
+          first Settings tab now, so a reader who cannot parse the UI still only
+          has one thing to find. */}
+      <button
+        type="button"
+        onClick={() => setSettingsOpen(true)}
+        className="absolute right-4 top-4 z-10 flex items-center gap-1.5 rounded border border-white/10 bg-white/5 px-2.5 py-1.5 text-body text-white/60 transition hover:border-white/30 hover:text-white sm:right-6 sm:top-6"
       >
-        {LOCALES.map((opt) => {
-          const active = locale === opt.id;
-          return (
-            <button
-              key={opt.id}
-              type="button"
-              onClick={() => setSetting('language', opt.id)}
-              className={`rounded border px-2.5 py-1 text-xs transition ${
-                active
-                  ? 'border-signal bg-signal/15 text-signal'
-                  : 'border-white/10 bg-white/5 text-white/50 hover:border-white/25 hover:text-white/70'
-              }`}
-            >
-              {opt.label}
-            </button>
-          );
-        })}
-      </div>
+        <Icon name="action.settings" size={14} /> {t('ui.log.settings')}
+      </button>
 
       <div className="w-full max-w-md text-center">
-        <h1 className="mb-1 text-5xl font-black tracking-tight text-signal drop-shadow">
+        <h1 className="mb-1 text-banner text-signal drop-shadow">
           SINGVIVE
         </h1>
-        <p className="mb-2 text-sm uppercase tracking-[0.3em] text-white/40">
+        <p className="mb-2 text-read uppercase tracking-marquee text-white/40">
           {t('ui.menu.tagline')}
         </p>
-        <p className="mb-8 text-xs text-white/45">{t('ui.menu.subtitle')}</p>
+        <p className="mb-8 text-body text-white/45">{t('ui.menu.subtitle')}</p>
 
         <div className="mx-auto flex max-w-md flex-col gap-3">
           <button
@@ -91,15 +80,15 @@ export function Menu() {
         </div>
 
         <div className="mx-auto mt-8 max-w-md text-left">
-          <h2 className="mb-2 text-xs uppercase tracking-widest text-white/40">
+          <h2 className="mb-2 text-plate uppercase text-white/40">
             {t('ui.menu.topScores')}
           </h2>
           <ScoreBoardTabs value={tab} onChange={setTab} />
           {tab === 'world' ? (
             world === undefined ? (
-              <p className="text-sm text-white/40">{t('ui.menu.loadingWorld')}</p>
+              <p className="text-read text-white/40">{t('ui.menu.loadingWorld')}</p>
             ) : world === null ? (
-              <p className="text-sm text-white/40">{t('ui.menu.worldUnreachable')}</p>
+              <p className="text-read text-white/40">{t('ui.menu.worldUnreachable')}</p>
             ) : (
               <ScoreBoard rows={world.slice(0, 10)} empty={t('ui.menu.noWorldScores')} />
             )
@@ -108,10 +97,18 @@ export function Menu() {
           )}
         </div>
 
-        <p className="mx-auto mt-10 max-w-md text-xs leading-relaxed text-white/30">
+        <p className="mx-auto mt-10 max-w-md text-body leading-relaxed text-white/30">
           {t('ui.menu.blurb')}
         </p>
       </div>
+
+      {settingsOpen && (
+        <SettingsModal
+          onClose={() => setSettingsOpen(false)}
+          onReviewGuide={() => setHowToPlayOpen(true)}
+        />
+      )}
+      {howToPlayOpen && <HowToPlayModal onClose={() => setHowToPlayOpen(false)} />}
     </div>
   );
 }

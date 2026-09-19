@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { loadRun } from './storage';
+import {
+  clearHighScores,
+  exportRunJson,
+  importRunJson,
+  loadHighScores,
+  loadRun,
+} from './storage';
 import type { SavedRun } from './storage';
 
 const store = new Map<string, string>();
@@ -75,5 +81,53 @@ describe('loadRun with items missing from the catalog', () => {
     write({ items: [inst('a', 'parang')] });
     const run = loadRun() as SavedRun;
     expect(run.items.map((i) => i.defId)).toEqual(['parang']);
+  });
+});
+
+describe('export / import round trip', () => {
+  it('exports the live save inside a recognisable wrapper', () => {
+    write({ day: 7 });
+    const json = exportRunJson() as string;
+    const parsed = JSON.parse(json) as { app: string; kind: string; run: SavedRun };
+    expect(parsed.app).toBe('singvive');
+    expect(parsed.kind).toBe('run');
+    expect(parsed.run.day).toBe(7);
+  });
+
+  it('exports nothing when there is no run', () => {
+    expect(exportRunJson()).toBeNull();
+  });
+
+  it('imports its own export back into the continue slot', () => {
+    write({ day: 7, seed: 'abc' });
+    const json = exportRunJson() as string;
+    store.clear();
+    expect(importRunJson(json)).toBe(true);
+    expect((loadRun() as SavedRun).seed).toBe('abc');
+  });
+
+  it('accepts a bare SavedRun, which is what a hand-rolled backup looks like', () => {
+    write({ day: 3 });
+    const bare = store.get('singvive.run.v6') as string;
+    store.clear();
+    expect(importRunJson(bare)).toBe(true);
+    expect((loadRun() as SavedRun).day).toBe(3);
+  });
+
+  it('refuses junk rather than writing an unloadable slot', () => {
+    expect(importRunJson('not json')).toBe(false);
+    expect(importRunJson('{"app":"singvive","kind":"run","run":{}}')).toBe(false);
+    expect(importRunJson('null')).toBe(false);
+    expect(loadRun()).toBeNull();
+  });
+});
+
+describe('clearHighScores', () => {
+  it('drops the device board and leaves the posted-score markers alone', () => {
+    store.set('singvive.scores.v1', JSON.stringify([{ name: 'T', days: 3, score: 9 }]));
+    store.set('singvive.posted.v1:abc', '1');
+    clearHighScores();
+    expect(loadHighScores()).toEqual([]);
+    expect(store.get('singvive.posted.v1:abc')).toBe('1');
   });
 });

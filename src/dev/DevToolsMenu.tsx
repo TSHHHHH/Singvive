@@ -95,7 +95,7 @@ export function DevToolsMenu() {
     >
       {panelOpen && (
         <div className="mb-1 min-w-[10.5rem] overflow-hidden rounded border border-signal/40 bg-concrete-900/95 shadow-lg">
-          <div className="border-b border-white/10 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-white/40">
+          <div className="border-b border-white/10 px-2.5 py-1.5 text-label uppercase text-white/40">
             Dev tools
           </div>
           <ul className="py-1">
@@ -106,13 +106,13 @@ export function DevToolsMenu() {
                   <button
                     type="button"
                     onClick={() => t.open()}
-                    className="flex w-full items-center justify-between gap-3 px-2.5 py-1.5 text-left text-xs hover:bg-white/5"
+                    className="flex w-full items-center justify-between gap-3 px-2.5 py-1.5 text-left text-body hover:bg-white/5"
                   >
                     <span className={isOpen ? 'font-semibold text-signal' : 'text-white/80'}>
                       {t.label}
                     </span>
                     <span
-                      className={`text-[10px] uppercase tracking-wide ${
+                      className={`text-label uppercase ${
                         isOpen ? 'text-signal' : 'text-white/30'
                       }`}
                     >
@@ -123,7 +123,7 @@ export function DevToolsMenu() {
               );
             })}
           </ul>
-          <p className="border-t border-white/10 px-2.5 py-1.5 text-[10px] text-white/35">
+          <p className="border-t border-white/10 px-2.5 py-1.5 text-micro text-white/35">
             Ctrl+Shift+D hides this
           </p>
         </div>
@@ -131,7 +131,7 @@ export function DevToolsMenu() {
       <button
         type="button"
         onClick={() => setPanelOpen((o) => !o)}
-        className="rounded border border-signal/40 bg-concrete-900/95 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-signal shadow-lg hover:bg-concrete-800"
+        className="rounded border border-signal/40 bg-concrete-900/95 px-3 py-1.5 text-plate uppercase text-signal shadow-lg hover:bg-concrete-800"
         {...tip('DEV tools (Ctrl+Shift+D to hide)')}
         aria-expanded={panelOpen}
       >

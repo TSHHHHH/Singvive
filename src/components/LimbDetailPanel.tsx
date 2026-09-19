@@ -85,10 +85,10 @@ function StatusIcon({ chip }: { chip: StatusChip }) {
     >
       <Icon name={chip.icon} size={12} title={chip.label} />
       <span className="pointer-events-none absolute bottom-full right-0 z-30 mb-1.5 hidden w-max max-w-[14rem] rounded border border-white/15 bg-concrete-900 px-2 py-1.5 text-left shadow-signage group-hover/tip:block">
-        <span className="block text-2xs font-semibold uppercase tracking-wider text-white/50">
+        <span className="block text-label uppercase text-white/50">
           {chip.label}
         </span>
-        <span className="mt-0.5 block text-2xs leading-snug text-concrete-200">{chip.detail}</span>
+        <span className="mt-0.5 block text-micro text-concrete-200">{chip.detail}</span>
       </span>
     </span>
   );
@@ -119,7 +119,7 @@ function LimbRow({
       onMouseEnter={() => onHover(partId)}
       onMouseLeave={() => onHover(null)}
     >
-      <span className="w-9 shrink-0 text-2xs uppercase tracking-wide text-white/45">
+      <span className="w-9 shrink-0 text-label uppercase text-white/45">
         {BODY_PART_LABEL[partId]}
       </span>
       <div
@@ -130,7 +130,7 @@ function LimbRow({
           className={`absolute inset-y-0 left-0 transition-all duration-300 ${low ? 'pulse-danger' : ''}`}
           style={{ width: `${Math.max(0, Math.min(100, pct))}%`, background: barColor(pct) }}
         />
-        <span className="relative z-[1] flex items-center justify-end px-1.5 py-0.5 text-xs tabular-nums leading-none text-white/80 [text-shadow:0_1px_1px_rgba(0,0,0,0.85)]">
+        <span className="relative z-[1] flex items-center justify-end px-1.5 py-0.5 text-body tabular-nums leading-none text-white/80 [text-shadow:0_1px_1px_rgba(0,0,0,0.85)]">
           {hpText}
         </span>
       </div>

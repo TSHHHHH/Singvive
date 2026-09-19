@@ -231,36 +231,36 @@ export function DevIconBrowser() {
   return (
     <div className="fixed inset-0 z-[2000] flex flex-col overflow-hidden bg-concrete-900">
       <header className="flex flex-wrap items-center gap-2 border-b border-white/10 px-4 py-3">
-        <h2 className="mr-2 text-sm font-bold uppercase tracking-widest text-signal">
+        <h2 className="mr-2 text-read font-bold uppercase tracking-widest text-signal">
           Icons
         </h2>
-        <span className="rounded border border-white/15 px-2 py-0.5 text-[11px] text-white/60">
+        <span className="rounded border border-white/15 px-2 py-0.5 text-body text-white/60">
           {withArt} / {nonItemKeys.length} with art
         </span>
         {orphans.length > 0 && (
           <button
             type="button"
             onClick={() => setShowOrphans((v) => !v)}
-            className="rounded border border-amber-500/40 px-2 py-0.5 text-[11px] text-amber-300/90 hover:bg-amber-500/10"
+            className="rounded border border-amber-500/40 px-2 py-0.5 text-body text-amber-300/90 hover:bg-amber-500/10"
           >
             {orphans.length} orphan{orphans.length === 1 ? '' : 's'}
           </button>
         )}
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          {status && <span className="max-w-md truncate text-[11px] text-white/45">{status}</span>}
-          {error && <span className="max-w-md truncate text-[11px] text-red-400">{error}</span>}
+          {status && <span className="max-w-md truncate text-body text-white/45">{status}</span>}
+          {error && <span className="max-w-md truncate text-body text-red-400">{error}</span>}
           <button
             type="button"
             disabled={busy}
             onClick={() => void load()}
-            className="rounded border border-white/15 px-2.5 py-1 text-xs text-white/70 hover:bg-white/5 disabled:opacity-40"
+            className="rounded border border-white/15 px-2.5 py-1 text-body text-white/70 hover:bg-white/5 disabled:opacity-40"
           >
             Refresh
           </button>
           <button
             type="button"
             onClick={() => setOpen(false)}
-            className="rounded border border-white/15 px-2.5 py-1 text-xs text-white/70 hover:bg-white/5"
+            className="rounded border border-white/15 px-2.5 py-1 text-body text-white/70 hover:bg-white/5"
             {...tip('Esc')}
           >
             Close
@@ -269,11 +269,11 @@ export function DevIconBrowser() {
       </header>
 
       {showOrphans && orphans.length > 0 && (
-        <div className="border-b border-amber-500/20 bg-amber-950/30 px-4 py-2 text-xs text-amber-100/80">
+        <div className="border-b border-amber-500/20 bg-amber-950/30 px-4 py-2 text-body text-amber-100/80">
           <p className="mb-1 font-semibold uppercase tracking-wide text-amber-200/90">
             On-disk files with no matching key
           </p>
-          <ul className="flex flex-wrap gap-x-3 gap-y-1 font-mono text-[11px]">
+          <ul className="flex flex-wrap gap-x-3 gap-y-1 text-body">
             {orphans.map((o) => (
               <li key={o.file}>
                 {o.file}{' '}
@@ -291,7 +291,7 @@ export function DevIconBrowser() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search keys…"
-              className="w-full rounded border border-white/10 bg-black/30 px-2 py-1.5 text-xs text-white placeholder:text-white/30"
+              className="w-full rounded border border-white/10 bg-black/30 px-2 py-1.5 text-body text-white placeholder:text-white/30"
             />
             <div className="mt-2 flex gap-1">
               {(['all', 'missing', 'has'] as const).map((f) => (
@@ -299,7 +299,7 @@ export function DevIconBrowser() {
                   key={f}
                   type="button"
                   onClick={() => setArtFilter(f)}
-                  className={`flex-1 rounded px-1 py-1 text-[10px] uppercase tracking-wide ${
+                  className={`flex-1 rounded px-1 py-1 text-label uppercase ${
                     artFilter === f
                       ? 'bg-signal/20 text-signal'
                       : 'text-white/40 hover:text-white/70'
@@ -314,7 +314,7 @@ export function DevIconBrowser() {
             <button
               type="button"
               onClick={() => setNsFilter('all')}
-              className={`mb-0.5 w-full rounded px-2 py-1.5 text-left text-xs ${
+              className={`mb-0.5 w-full rounded px-2 py-1.5 text-left text-body ${
                 nsFilter === 'all'
                   ? 'bg-signal/15 text-signal'
                   : 'text-white/55 hover:bg-white/5'
@@ -332,14 +332,14 @@ export function DevIconBrowser() {
                   key={ns}
                   type="button"
                   onClick={() => setNsFilter(ns)}
-                  className={`mb-0.5 flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-xs ${
+                  className={`mb-0.5 flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-body ${
                     nsFilter === ns
                       ? 'bg-signal/15 text-signal'
                       : 'text-white/55 hover:bg-white/5'
                   }`}
                 >
-                  <span className="font-mono">{ns}</span>
-                  <span className="text-[10px] text-white/35">
+                  <span>{ns}</span>
+                  <span className="text-micro text-white/35">
                     {missing > 0 ? `${count - missing}/${count}` : count}
                   </span>
                 </button>
@@ -350,11 +350,11 @@ export function DevIconBrowser() {
 
         <main className="min-h-0 flex-1 overflow-y-auto p-3">
           {grouped.length === 0 ? (
-            <p className="text-sm text-white/40">No icons match.</p>
+            <p className="text-read text-white/40">No icons match.</p>
           ) : (
             grouped.map(([ns, keys]) => (
               <section key={ns} className="mb-5">
-                <h3 className="mb-2 font-mono text-[11px] uppercase tracking-widest text-white/35">
+                <h3 className="mb-2 text-plate uppercase text-white/35">
                   {ns}
                 </h3>
                 <div className="grid grid-cols-[repeat(auto-fill,minmax(7.5rem,1fr))] gap-2">
@@ -384,16 +384,16 @@ export function DevIconBrowser() {
                         <span className="flex h-10 w-10 items-center justify-center text-white">
                           <Icon name={key} size={28} />
                         </span>
-                        <span className="w-full truncate font-mono text-[10px] text-white/70">
+                        <span className="w-full truncate text-micro text-white/70">
                           {ns === 'trait' ? iconLabel(key) : key}
                         </span>
                         {ns === 'trait' && (
-                          <span className="w-full truncate font-mono text-[9px] text-white/30">
+                          <span className="w-full truncate text-micro text-white/30">
                             {key}
                           </span>
                         )}
                         <span
-                          className={`text-[9px] uppercase tracking-wide ${
+                          className={`text-label uppercase ${
                             art ? 'text-emerald-400/80' : 'text-white/30'
                           }`}
                         >
@@ -412,11 +412,11 @@ export function DevIconBrowser() {
           {selected ? (
             <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3">
               <div>
-                <p className="font-mono text-sm text-signal">{selected}</p>
+                <p className="text-read text-signal">{selected}</p>
                 {TRAIT_LABEL[selected] && (
-                  <p className="mt-0.5 text-xs text-white/70">{TRAIT_LABEL[selected]}</p>
+                  <p className="mt-0.5 text-body text-white/70">{TRAIT_LABEL[selected]}</p>
                 )}
-                <p className="mt-0.5 text-[11px] text-white/40">
+                <p className="mt-0.5 text-body text-white/40">
                   emoji fallback · {EMOJI_FALLBACK[selected]}
                 </p>
               </div>
@@ -434,14 +434,14 @@ export function DevIconBrowser() {
                     className={`flex flex-1 flex-col items-center gap-1 rounded border border-white/10 py-3 ${sw.className}`}
                   >
                     <Icon name={selected} size={32} />
-                    <span className="text-[9px] uppercase tracking-wide opacity-60">
+                    <span className="text-label uppercase opacity-60">
                       {sw.label}
                     </span>
                   </div>
                 ))}
               </div>
 
-              <p className="text-[11px] text-white/45">
+              <p className="text-body text-white/45">
                 {selHasArt
                   ? selInfo
                     ? `On disk: ${selInfo.file}`
@@ -450,7 +450,7 @@ export function DevIconBrowser() {
               </p>
 
               <div
-                className="rounded border border-dashed border-white/20 px-3 py-6 text-center text-xs text-white/40"
+                className="rounded border border-dashed border-white/20 px-3 py-6 text-center text-body text-white/40"
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => {
                   e.preventDefault();
@@ -458,7 +458,7 @@ export function DevIconBrowser() {
                 }}
               >
                 Drop PNG / WebP here
-                <div className="mt-1 text-[10px] text-white/25">
+                <div className="mt-1 text-micro text-white/25">
                   max {MAX_ICON_EDGE}px · {MAX_ICON_BYTES / 1024} KB
                 </div>
               </div>
@@ -480,7 +480,7 @@ export function DevIconBrowser() {
                   type="button"
                   disabled={uploading}
                   onClick={() => fileRef.current?.click()}
-                  className="rounded border border-signal/40 bg-signal/15 px-2.5 py-1.5 text-xs font-semibold text-signal hover:bg-signal/25 disabled:opacity-40"
+                  className="rounded border border-signal/40 bg-signal/15 px-2.5 py-1.5 text-body font-semibold text-signal hover:bg-signal/25 disabled:opacity-40"
                 >
                   {uploading ? 'Working…' : selHasArt ? 'Replace…' : 'Upload…'}
                 </button>
@@ -489,7 +489,7 @@ export function DevIconBrowser() {
                     type="button"
                     disabled={uploading}
                     onClick={() => void onClear(selected)}
-                    className="rounded border border-white/15 px-2.5 py-1.5 text-xs text-white/60 hover:bg-white/5 disabled:opacity-40"
+                    className="rounded border border-white/15 px-2.5 py-1.5 text-body text-white/60 hover:bg-white/5 disabled:opacity-40"
                   >
                     Clear asset
                   </button>
@@ -497,15 +497,15 @@ export function DevIconBrowser() {
                 <button
                   type="button"
                   onClick={() => void onCopy(selected)}
-                  className="rounded border border-white/15 px-2.5 py-1.5 text-xs text-white/60 hover:bg-white/5"
+                  className="rounded border border-white/15 px-2.5 py-1.5 text-body text-white/60 hover:bg-white/5"
                 >
                   Copy key
                 </button>
               </div>
 
-              <p className="text-[10px] leading-relaxed text-white/30">
+              <p className="text-micro leading-relaxed text-white/30">
                 Writes{' '}
-                <span className="font-mono text-white/45">
+                <span className="text-white/45">
                   src/assets/icons/{selected.replace(/\./g, '-')}.png
                 </span>
                 . Item art stays in the Loot browser. Hard-refresh the game after
@@ -513,7 +513,7 @@ export function DevIconBrowser() {
               </p>
             </div>
           ) : (
-            <p className="p-4 text-sm text-white/35">Select an icon tile.</p>
+            <p className="p-4 text-read text-white/35">Select an icon tile.</p>
           )}
         </aside>
       </div>

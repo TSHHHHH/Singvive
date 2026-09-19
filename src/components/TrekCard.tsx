@@ -59,11 +59,11 @@ export function TrekCard({
         <Icon name="action.travel" size={22} className="mt-0.5 shrink-0 opacity-60" />
         <div className="min-w-0 flex-1">
           <div className="font-bold text-white/70">{t('ui.trek.title')}</div>
-          <div className="text-xs leading-snug text-white/40">{t('ui.trek.blurb')}</div>
+          <div className="text-body text-white/40">{t('ui.trek.blurb')}</div>
         </div>
       </div>
 
-      <div className="mt-2 space-y-1 rounded bg-black/30 p-2 text-xs text-white/55">
+      <div className="mt-2 space-y-1 rounded bg-black/30 p-2 text-body text-white/55">
         <StatRow
           icon="action.travel"
           label={t('ui.trek.cross')}
@@ -90,15 +90,15 @@ export function TrekCard({
 
       <HazardOnRoute hazards={risk.hazards} />
 
-      {blind && <div className="mt-2 text-xs text-white/35">{t('ui.trek.blind')}</div>}
-      {arrivalAtNight && <div className="mt-1 text-xs text-hiss">{t('ui.trek.night')}</div>}
-      {outOfRange && <div className="mt-1 text-xs text-hiss">{t('ui.trek.outOfRange')}</div>}
-      {noDryRoute && <div className="mt-1 text-xs text-hiss">{t('ui.trek.noDry')}</div>}
+      {blind && <div className="mt-2 text-body text-white/35">{t('ui.trek.blind')}</div>}
+      {arrivalAtNight && <div className="mt-1 text-body text-hiss">{t('ui.trek.night')}</div>}
+      {outOfRange && <div className="mt-1 text-body text-hiss">{t('ui.trek.outOfRange')}</div>}
+      {noDryRoute && <div className="mt-1 text-body text-hiss">{t('ui.trek.noDry')}</div>}
 
       <button
         disabled={blocked}
         onClick={onTrek}
-        className="mt-3 w-full rounded bg-signal/80 py-2 text-sm font-bold text-black transition hover:bg-signal disabled:opacity-30"
+        className="mt-3 w-full rounded bg-signal/80 py-2 text-read font-bold text-black transition hover:bg-signal disabled:opacity-30"
       >
         {energyLow
           ? t('ui.trek.tooExhausted')
