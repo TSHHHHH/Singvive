@@ -376,6 +376,18 @@ export function samplePolyline(points: LatLng[], stepM = CHORD_STEP_M): LatLng[]
   return out;
 }
 
+/** Segment lengths + total for distance-weighted progress along `points`. */
+function pathSegMetrics(points: LatLng[]): { segs: number[]; total: number } {
+  const segs: number[] = [];
+  let total = 0;
+  for (let i = 1; i < points.length; i++) {
+    const d = haversine(points[i - 1].lat, points[i - 1].lng, points[i].lat, points[i].lng);
+    segs.push(d);
+    total += d;
+  }
+  return { segs, total };
+}
+
 /**
  * Position along a polyline at progress `t` in [0,1], weighted by distance.
  */
@@ -384,13 +396,7 @@ export function pointAlongPath(points: LatLng[], t: number): LatLng {
   if (points.length === 1 || t <= 0) return { ...points[0] };
   if (t >= 1) return { ...points[points.length - 1] };
 
-  const segs: number[] = [];
-  let total = 0;
-  for (let i = 1; i < points.length; i++) {
-    const d = haversine(points[i - 1].lat, points[i - 1].lng, points[i].lat, points[i].lng);
-    segs.push(d);
-    total += d;
-  }
+  const { segs, total } = pathSegMetrics(points);
   if (total <= 0) return { ...points[points.length - 1] };
 
   let remain = t * total;
@@ -408,4 +414,70 @@ export function pointAlongPath(points: LatLng[], t: number): LatLng {
     remain -= d;
   }
   return { ...points[points.length - 1] };
+}
+
+/**
+ * Vertices from the start of the polyline through progress `t` (inclusive),
+ * ending at the interpolated point. Used by the en-route trail.
+ */
+export function pathUntil(points: LatLng[], t: number): LatLng[] {
+  if (points.length === 0) return [];
+  if (points.length === 1 || t <= 0) return [{ ...points[0] }];
+  if (t >= 1) return points.map((p) => ({ ...p }));
+
+  const { segs, total } = pathSegMetrics(points);
+  if (total <= 0) return [{ ...points[points.length - 1] }];
+
+  let remain = t * total;
+  const out: LatLng[] = [{ ...points[0] }];
+  for (let i = 0; i < segs.length; i++) {
+    const d = segs[i];
+    if (remain <= d || i === segs.length - 1) {
+      const u = d > 0 ? Math.min(1, remain / d) : 1;
+      if (u > 0) {
+        const a = points[i];
+        const b = points[i + 1];
+        out.push({
+          lat: a.lat + (b.lat - a.lat) * u,
+          lng: a.lng + (b.lng - a.lng) * u,
+        });
+      }
+      return out;
+    }
+    out.push({ ...points[i + 1] });
+    remain -= d;
+  }
+  return out;
+}
+
+/**
+ * Vertices from progress `t` (inclusive) through the end of the polyline.
+ * Used by the en-route "ahead" dash.
+ */
+export function pathFromProgress(points: LatLng[], t: number): LatLng[] {
+  if (points.length === 0) return [];
+  if (t <= 0) return points.map((p) => ({ ...p }));
+  if (points.length === 1 || t >= 1) return [{ ...points[points.length - 1] }];
+
+  const { segs, total } = pathSegMetrics(points);
+  if (total <= 0) return [{ ...points[points.length - 1] }];
+
+  let remain = t * total;
+  for (let i = 0; i < segs.length; i++) {
+    const d = segs[i];
+    if (remain <= d || i === segs.length - 1) {
+      const u = d > 0 ? Math.min(1, remain / d) : 1;
+      const a = points[i];
+      const b = points[i + 1];
+      const along: LatLng = {
+        lat: a.lat + (b.lat - a.lat) * u,
+        lng: a.lng + (b.lng - a.lng) * u,
+      };
+      const out: LatLng[] = [{ ...along }];
+      for (let j = i + 1; j < points.length; j++) out.push({ ...points[j] });
+      return out;
+    }
+    remain -= d;
+  }
+  return [{ ...points[points.length - 1] }];
 }
