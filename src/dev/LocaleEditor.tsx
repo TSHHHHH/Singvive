@@ -12,6 +12,7 @@ import {
   OPEN_LOCALE_EVENT,
   reportDevToolState,
   type CloseDevToolsDetail,
+  type OpenLocaleDetail,
 } from './devBridge';
 import { saveLocaleCatalog } from './localeApi';
 
@@ -101,7 +102,10 @@ export function DevLocaleEditor() {
   }, []);
 
   useEffect(() => {
-    const onOpen = () => {
+    const onOpen = (e: Event) => {
+      const detail = (e as CustomEvent<OpenLocaleDetail>).detail ?? {};
+      if (detail.namespace) setNs(detail.namespace);
+      if (detail.query !== undefined) setQuery(detail.query);
       setOpen(true);
       reportDevToolState('locale', true);
       void load();

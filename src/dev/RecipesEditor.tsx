@@ -45,6 +45,7 @@ import {
 } from './validateRecipes';
 import { ValidationErrorBadge } from './ValidationErrorBadge';
 import { tip } from '../components/tips';
+import { openLocaleEditor } from './devBridge';
 
 type PlaceFilter = 'all' | 'field' | 'shelter';
 type Pane = 'edit' | 'overview';
@@ -57,6 +58,8 @@ type PendingNav =
 type Props = {
   active?: boolean;
   focusRecipeId?: string | null;
+  /** Live items draft from the Loot Items tab — keeps pickers fresh after Items Save. */
+  itemsCatalog?: ItemsCatalog | null;
   onStatus?: (message: string | null, error?: string | null) => void;
   onOpenItem?: (itemId: string) => void;
   onDraftChange?: (recipes: RecipesCatalog) => void;
@@ -67,6 +70,23 @@ const inputClass =
   'rounded border border-white/10 bg-black/40 px-2 py-1.5 text-read text-white outline-none focus:border-signal/50';
 
 const HANDYMAN = 'handyman';
+const RECIPES_ADVANCED_KEY = 'singvive.dev.recipes.advanced';
+
+function readAdvancedOpen(): boolean {
+  try {
+    return sessionStorage.getItem(RECIPES_ADVANCED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function writeAdvancedOpen(open: boolean): void {
+  try {
+    sessionStorage.setItem(RECIPES_ADVANCED_KEY, open ? '1' : '0');
+  } catch {
+    /* ignore */
+  }
+}
 
 function itemName(items: ItemsCatalog, id: string): string {
   return items[id]?.name ?? ITEMS[id]?.name ?? id;
@@ -241,6 +261,7 @@ function CompareCard({
 export function RecipesEditor({
   active = true,
   focusRecipeId,
+  itemsCatalog,
   onStatus,
   onOpenItem,
   onDraftChange,
@@ -271,6 +292,8 @@ export function RecipesEditor({
   const [sandboxShelter, setSandboxShelter] = useState(true);
   const [sandboxHandyman, setSandboxHandyman] = useState(false);
   const [sandboxPack, setSandboxPack] = useState<Record<string, number>>({});
+  const [advancedOpen, setAdvancedOpen] = useState(readAdvancedOpen);
+  const [localeHintId, setLocaleHintId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
 
@@ -287,7 +310,8 @@ export function RecipesEditor({
         fetchRecipesCatalog(),
         fetchItemsCatalog().catch(() => ITEMS as ItemsCatalog),
       ]);
-      setItems(catalog);
+      // Prefer the live Items-tab draft from the parent when available.
+      if (!itemsCatalog) setItems(catalog);
       setRecipes(data);
       setBaselineRecipes(structuredClone(data));
       setBaseline(recipesFingerprint(data));
@@ -310,6 +334,11 @@ export function RecipesEditor({
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!itemsCatalog) return;
+    setItems(itemsCatalog);
+  }, [itemsCatalog]);
 
   useEffect(() => {
     if (!recipes || !focusRecipeId) return;
@@ -474,7 +503,8 @@ export function RecipesEditor({
     setSelectedId(id);
     setCreating(true);
     setPane('edit');
-    report(`Draft ${id} — pick a combo, then Save`);
+    setLocaleHintId(id);
+    report(`Draft ${id} — pick a combo, then Save · add recipe.${id} in Locale`);
   };
 
   const applyDuplicate = () => {
@@ -549,12 +579,14 @@ export function RecipesEditor({
   const handleDelete = () => {
     if (!recipes || !selected) return;
     if (!confirm(`Delete recipe "${selected.name}"?`)) return;
-    const next = recipes.filter((r) => r.id !== selected.id);
+    const removed = selected.id;
+    const next = recipes.filter((r) => r.id !== removed);
     setRecipes(next);
     setCreating(false);
-    if (compareId === selected.id) setCompareId(null);
+    if (compareId === removed) setCompareId(null);
     setSelectedId(next[Math.max(0, selectedIndex - 1)]?.id ?? next[0]?.id ?? null);
-    report(`Removed ${selected.id} from draft`);
+    setLocaleHintId(removed);
+    report(`Removed ${removed} from draft · drop recipe.${removed} from Locale if unused`);
   };
 
   const moveSelected = (dir: -1 | 1) => {
@@ -703,6 +735,9 @@ export function RecipesEditor({
 
   const eco = selected ? recipeEconomy(selected, items) : null;
   const warnings = selected && recipes ? recipeWarnings(selected, recipes, items) : [];
+  const visibleWarnings = advancedOpen
+    ? warnings
+    : warnings.filter((w) => w.level === 'warn');
   const excludeInputs = useMemo(() => {
     const set = new Set<string>();
     if (!selected) return set;
@@ -805,7 +840,8 @@ export function RecipesEditor({
               ))}
             </div>
             <div className="text-micro text-white/30">
-              {filtered.length} / {recipes.length} · ↑↓ to move
+              {filtered.length} / {recipes.length}
+              {advancedOpen ? ' · ↑↓ to move' : ''}
             </div>
           </div>
           <ul ref={listRef} className="min-h-0 flex-1 overflow-y-auto">
@@ -863,6 +899,20 @@ export function RecipesEditor({
               {pane === 'overview' ? 'Recipe overview' : (selected?.name ?? 'Recipes')}
             </h4>
             <p className="text-body text-white/40">Hard-refresh the game after Save.</p>
+            {localeHintId && (
+              <button
+                type="button"
+                onClick={() =>
+                  openLocaleEditor({
+                    namespace: 'recipe',
+                    query: `recipe.${localeHintId}`,
+                  })
+                }
+                className="mt-1 rounded border border-signal/30 px-2 py-0.5 text-micro text-signal hover:bg-signal/10"
+              >
+                Open Locale · recipe.{localeHintId}
+              </button>
+            )}
           </div>
           <div className="flex rounded border border-white/10 p-0.5">
             <button
@@ -946,22 +996,28 @@ export function RecipesEditor({
           </button>
           {pane === 'edit' && (
             <>
-              <button
-                type="button"
-                disabled={selectedIndex <= 0}
-                onClick={() => moveSelected(-1)}
-                className="rounded border border-white/15 px-2.5 py-1 text-body text-white/70 disabled:opacity-40"
-              >
-                ↑
-              </button>
-              <button
-                type="button"
-                disabled={selectedIndex < 0 || selectedIndex >= recipes.length - 1}
-                onClick={() => moveSelected(1)}
-                className="rounded border border-white/15 px-2.5 py-1 text-body text-white/70 disabled:opacity-40"
-              >
-                ↓
-              </button>
+              {advancedOpen && (
+                <>
+                  <button
+                    type="button"
+                    disabled={selectedIndex <= 0}
+                    onClick={() => moveSelected(-1)}
+                    className="rounded border border-white/15 px-2.5 py-1 text-body text-white/70 disabled:opacity-40"
+                    {...tip('Reorder catalog (Advanced)')}
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    disabled={selectedIndex < 0 || selectedIndex >= recipes.length - 1}
+                    onClick={() => moveSelected(1)}
+                    className="rounded border border-white/15 px-2.5 py-1 text-body text-white/70 disabled:opacity-40"
+                    {...tip('Reorder catalog (Advanced)')}
+                  >
+                    ↓
+                  </button>
+                </>
+              )}
               <button
                 type="button"
                 onClick={() => {
@@ -1100,9 +1156,9 @@ export function RecipesEditor({
               </section>
             )}
 
-            {warnings.length > 0 && (
+            {visibleWarnings.length > 0 && (
               <ul className="mb-5 flex flex-col gap-1">
-                {warnings.map((w) => (
+                {visibleWarnings.map((w) => (
                   <li
                     key={w.text}
                     className={`rounded border px-2 py-1 text-body ${
@@ -1283,9 +1339,56 @@ export function RecipesEditor({
                 placeholder="add an ingredient…"
                 onPick={addInput}
               />
+              <div className="mt-3 flex flex-wrap items-center gap-3 rounded border border-white/5 bg-black/20 px-2 py-2">
+                <span
+                  className="text-label uppercase text-white/35"
+                  {...tip(
+                    'Any carried water (newater / dirty / bottle) can satisfy this — not a named ingredient row',
+                  )}
+                >
+                  Water input
+                </span>
+                <Stepper
+                  value={selected.waterInput ?? 0}
+                  min={0}
+                  step={1}
+                  onChange={(n) => {
+                    const next = { ...selected };
+                    if (n <= 0) delete next.waterInput;
+                    else next.waterInput = n;
+                    setRecipes(recipes.map((r) => (r.id === selected.id ? next : r)));
+                  }}
+                />
+                <span className="text-micro text-white/35">
+                  {selected.waterInput
+                    ? `${selected.waterInput}× any water (not listed above)`
+                    : 'Off — drink recipes (kopi/milo) usually set 1'}
+                </span>
+              </div>
             </section>
 
-            <section className="mb-5 rounded-lg border border-white/15 bg-concrete-900/80 p-3">
+            <section className="mb-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setAdvancedOpen((v) => {
+                    const next = !v;
+                    writeAdvancedOpen(next);
+                    return next;
+                  });
+                }}
+                className="mb-2 flex w-full items-center justify-between rounded border border-white/10 bg-black/20 px-3 py-2 text-left"
+              >
+                <span className="text-label uppercase text-white/40">Advanced</span>
+                <span className="text-micro text-white/35">
+                  {advancedOpen
+                    ? 'Hide'
+                    : 'Sandbox · workbench · chains · reorder'}
+                </span>
+              </button>
+              {advancedOpen && (
+                <div className="space-y-5">
+            <section className="rounded-lg border border-white/15 bg-concrete-900/80 p-3">
               <h5 className="mb-2 text-label uppercase text-white/30">
                 Can I make this?
               </h5>
@@ -1365,7 +1468,7 @@ export function RecipesEditor({
               )}
             </section>
 
-            <section className="mb-5 rounded-lg border border-white/15 bg-concrete-900/80 p-3">
+            <section className="rounded-lg border border-white/15 bg-concrete-900/80 p-3">
               <h5 className="mb-2 text-label uppercase text-white/30">
                 Workbench preview
               </h5>
@@ -1485,6 +1588,9 @@ export function RecipesEditor({
                       </li>
                     ))}
                 </ul>
+              )}
+            </section>
+                </div>
               )}
             </section>
               </div>

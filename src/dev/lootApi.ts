@@ -193,7 +193,7 @@ export function blankItem(id: string): ItemDef {
     value: 1,
     stackable: true,
     maxStack: 1,
-    color: '#7f8c8d',
+    // Legacy `color` is not written — tile tint comes from Tile colors.
   };
 }
 

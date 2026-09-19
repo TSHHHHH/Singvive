@@ -43,6 +43,7 @@ import {
 import {
   CLOSE_DEV_TOOLS_EVENT,
   OPEN_LOOT_EVENT,
+  openLocaleEditor,
   reportDevToolState,
   type CloseDevToolsDetail,
   type OpenLootDetail,
@@ -126,6 +127,8 @@ export function DevLootBrowser() {
   const [diffOpen, setDiffOpen] = useState(false);
   const [pendingDiff, setPendingDiff] = useState<CatalogDiff | null>(null);
   const [closeAfterSuccess, setCloseAfterSuccess] = useState(false);
+  /** Item id for a Locale deep-link after New / Delete. */
+  const [localeHintId, setLocaleHintId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
 
@@ -340,7 +343,8 @@ export function DevLootBrowser() {
     setCatalog((prev) => ({ ...prev, [id]: item }));
     setSelectedId(id);
     setCreating(true);
-    setStatus(`Draft ${id} — set id then Save`);
+    setLocaleHintId(id);
+    setStatus(`Draft ${id} — set id then Save · add item.${id} in Locale`);
   };
 
   const applyDuplicate = () => {
@@ -618,7 +622,8 @@ export function DevLootBrowser() {
       setCompareBaselineId((baseline) => (baseline === removed ? (next[0] ?? null) : baseline));
       return next;
     });
-    setStatus(`Removed ${removed} from draft`);
+    setLocaleHintId(removed);
+    setStatus(`Removed ${removed} from draft · drop item.${removed} from Locale if unused`);
   };
 
   const handleImport = async (file: File) => {
@@ -888,13 +893,27 @@ export function DevLootBrowser() {
         </button>
       </header>
 
-      {(status || error) && (
+      {(status || error || localeHintId) && (
         <div
-          className={`border-b border-white/5 px-4 py-2 text-body whitespace-pre-wrap ${
+          className={`flex flex-wrap items-center gap-2 border-b border-white/5 px-4 py-2 text-body ${
             error ? 'bg-red-950/40 text-red-300' : 'text-white/45'
           }`}
         >
-          {error ?? status}
+          <span className="min-w-0 flex-1 whitespace-pre-wrap">{error ?? status}</span>
+          {localeHintId && !error && (
+            <button
+              type="button"
+              onClick={() =>
+                openLocaleEditor({
+                  namespace: 'item',
+                  query: `item.${localeHintId}`,
+                })
+              }
+              className="shrink-0 rounded border border-signal/30 px-2 py-0.5 text-micro text-signal hover:bg-signal/10"
+            >
+              Open Locale · item.{localeHintId}
+            </button>
+          )}
         </div>
       )}
 
@@ -1118,6 +1137,7 @@ export function DevLootBrowser() {
         <RecipesEditor
           active={tab === 'recipes'}
           focusRecipeId={recipeFocusId}
+          itemsCatalog={catalog}
           onStatus={(message, err) => {
             if (err) {
               setError(err);

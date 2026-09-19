@@ -22,6 +22,12 @@ export type OpenEnemyDetail = {
   lonerId?: string;
 };
 export type OpenIconDetail = { key?: string };
+export type OpenLocaleDetail = {
+  /** Prefill the Locale search box (e.g. `item.crowbar` or a bare id). */
+  query?: string;
+  /** Prefill the namespace filter when known. */
+  namespace?: 'ui' | 'settings' | 'guide' | 'item' | 'enemy' | 'recipe' | 'trait' | 'all';
+};
 export type CloseDevToolsDetail = { except?: DevToolId };
 export type DevToolStateDetail = { tool: DevToolId; open: boolean };
 
@@ -71,7 +77,9 @@ export function openIconBrowser(detail: OpenIconDetail = {}): void {
   );
 }
 
-export function openLocaleEditor(): void {
+export function openLocaleEditor(detail: OpenLocaleDetail = {}): void {
   closeDevTools('locale');
-  window.dispatchEvent(new CustomEvent(OPEN_LOCALE_EVENT));
+  window.dispatchEvent(
+    new CustomEvent<OpenLocaleDetail>(OPEN_LOCALE_EVENT, { detail }),
+  );
 }
