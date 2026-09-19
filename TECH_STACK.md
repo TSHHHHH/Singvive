@@ -18,7 +18,7 @@
 | HDB viewport | `react-zoom-pan-pinch` |
 | Determinism | `seedrandom`, wrapped in a forkable `Rng` (cosmetic flavour text may use `Math.random`) |
 | Styling | Tailwind CSS 3 |
-| Lint | oxlint |
+| Lint | oxlint + type-scale guard (`scripts/check-type-scale.mjs`) |
 | Backend | Cloudflare Worker + D1 honor board (`/api/scores`); run state is localStorage |
 | Node | pinned by `.nvmrc` (22) |
 
@@ -208,7 +208,7 @@ npm install
 # copy .env.example → .env.local and set VITE_CARTO_API_KEY (CARTO raster watermark otherwise)
 npm run dev       # http://localhost:5190  (PORT env overrides; see vite.config.ts)
 npm run build     # typecheck (tsc -b) + production build
-npm run lint      # oxlint
+npm run lint      # oxlint (--max-warnings=27) + scripts/check-type-scale.mjs
 npm run preview   # serve the production build locally (Worker + assets)
 npm run db:migrate:local  # apply D1 migrations to the local honor board (first time)
 ```
@@ -370,7 +370,7 @@ rate-limits by IP. Personal top-10 stays in `localStorage` and is not bulk-uploa
 | Gate | Command | What it covers |
 |---|---|---|
 | Types | `npm run build` (`tsc -b` runs first) | All four TS projects. **`strict` is on everywhere** — app, node, vitest, worker. |
-| Lint | `npm run lint` | oxlint with `--max-warnings=27` |
+| Lint | `npm run lint` | oxlint with `--max-warnings=27`, then `scripts/check-type-scale.mjs` |
 | Tests | `npm run test` | Vitest, `environment: 'node'` |
 
 GitHub CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs `lint` → `test` → `build` on
@@ -379,14 +379,17 @@ push/PR to `main` (no deploy). Production deploys are **Workers Builds** on the 
 
 ### Test coverage — know what is *not* covered
 
-Nine suites, 44 tests, ~780 lines, all under `src/game/` and all pure logic:
+Fourteen suites, 83 tests, ~1.3k lines — mostly under `src/game/`, plus catalog validation and
+i18n key guards:
 
-`combat`, `wilds`, `events`, `inventory`, `firearms`, `intel`, `logGroup`, `persistRun`, `rng`.
+`combat`, `wilds`, `events`, `inventory`, `firearms`, `intel`, `logGroup`, `persistRun`, `rng`,
+`crafting`, `survival`, `storage`, `dev/catalogs`, `i18n/messageKeys`.
 
 Vitest runs in the **node** environment, so there is **no component, hook, store, or worker
-coverage** — roughly 17k lines of TSX and the 7.6k-line `store.ts` are exercised only by hand.
+coverage** — roughly 17k lines of TSX and the ~7.6k-line `store.ts` are exercised only by hand.
 When changing store actions or React state flow, a manual playtest is the only gate. The pure
 `src/game/` modules are the parts that are cheap to test; prefer putting new logic there.
+Still thin or missing among pure modules: `goal`, `noise`, `searchSession`.
 
 ### The lint warning ratchet
 
@@ -413,7 +416,7 @@ gameplay state (meters, body parts, items, kills, gauges), never the prose.
 
 Recorded so it is not rediscovered. None of this is currently breaking; all of it is a ceiling.
 
-### `store.ts` is 7,546 lines
+### `store.ts` is ~7,650 lines
 
 A single flat `interface State` with ~85 data fields followed by ~95 action fields, ~187
 `set()` calls, and ~58 helper closures inside one factory. Naming does the namespacing
@@ -427,7 +430,7 @@ documented for console inspection).
 
 ### Content catalogs are typed by assertion, not validation
 
-`items.json` (141 defs), `lootTables.json`, `enemies.json`, `recipes.json`, and
+`items.json` (175 defs), `lootTables.json`, `enemies.json`, `recipes.json`, and
 `itemTileColors.json` are static ESM imports `structuredClone`d at module init and cast through
 `as unknown as` — which erases *all* type checking of the JSON against `ItemDef` and friends.
 
@@ -457,8 +460,8 @@ unsaved Tables-tab draft. And the underlying duplication stands: a shared schema
 equivalent) used by the game, the DEV editors, and the build would replace both the casts and the
 hand-written validators outright.
 
-Related: `itemDef(id: string): ItemDef` returns `ITEMS[id]`, so an unknown id yields `undefined`
-typed as `ItemDef`. `strict` cannot catch this because the lie is in the signature.
+Related: prefer `itemDefOrNull` when a missing id is possible (saves, DEV tools). `itemDef(id)`
+throws on unknown ids; the JSON→`ItemDef` cast at catalog load is still the unchecked trust edge.
 
 ### Saves are parsed across a trust boundary with no validation
 
@@ -486,7 +489,7 @@ graphs), and `log` (capped at 4,000 entries).
 
 ### i18n keys are stringly typed
 
-`t(key: string)` resolves against a 1,988-line catalog by splitting the path per call, with no
+`t(key: string)` resolves against a ~2.3k-line catalog by splitting the path per call, with no
 flat-map cache and no key type. A typo falls through to `?? key` with no compile-time signal.
 `useSetting(key: string)` has the same shape — `useSetting('langauge')` type-checks and
 returns `''`.

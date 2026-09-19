@@ -70,8 +70,8 @@
         "energy": "Energy",
         "infect": "Infect",
         "hpLimbs": "HP = 6 limbs",
-        "sleepDrain": "sleep ×0.3 drain",
-        "lowHpLoss": "<20 → HP loss",
+        "sleepDrain": "sleep ×0.55 drain",
+        "lowHpLoss": "<35 → HP loss",
         "pack": "pack",
         "stash": "stash",
         "limitedSearches": "limited searches",
@@ -1296,7 +1296,7 @@
     "survive": {
       "title": "Survive",
       "bullets": [
-        "Hunger, thirst, energy, and infection tick with every hour. Keep them up — empty hunger or thirst below 20 starts eating limb HP.",
+        "Hunger, thirst, energy, and infection tick with every hour. Keep them up — empty hunger or thirst below 35 starts eating limb HP.",
         "Health is the sum of your six limbs — see the Body topic for how each injury changes travel, aim, and stamina. Major bleeds block regen until bandaged; infection at 100 ends the run.",
         "Before a run, pick a job seed or build traits on the same screen — negatives earn points, positives spend them. A full signature + curse spends the whole pool; swap to free a point for another trait.",
         "Night (after dusk) is more dangerous. Get inside before dark — the streets fill with a night swarm. Rest shows recovery and ambush chance; sleep still drains hunger and thirst (reduced).",
