@@ -5,7 +5,7 @@
 You wake up in a fallen Singapore. There is no rescue on a timetable — only a rising horde and,
 eventually, a chance to extract. Knowing nothing of what is around you, you push out into the fog,
 chart real places by walking to them, scavenge what you can carry, and manage a failing body until
-it gives out or you call for a lift. Every run is generated from live OpenStreetMap data and a
+it gives out or you call for a lift. Every run is generated from pre-baked OpenStreetMap data and a
 seed, so no two survivors face the same city.
 
 **Status:** feature-rich and fully playable on desktop and mobile — crafting, faction trade, HDB
@@ -49,7 +49,7 @@ Then open **http://localhost:5190** (not 5173 — the port is overridden in `vit
 | `npm run dev` | Dev server on :5190, with the Cloudflare plugin and local D1 |
 | `npm run build` | Typecheck (`tsc -b`) then production build — **this is the typecheck gate** |
 | `npm run test` | Vitest over the pure `src/game/` logic |
-| `npm run lint` | oxlint |
+| `npm run lint` | oxlint (`--max-warnings=27`) + type-scale guard |
 | `npm run preview` | Serve the production build locally (Worker + assets) |
 | `npm run db:migrate:local` | Apply D1 migrations to the local honor board (first run) |
 | `npm run deploy` | Build and publish to Cloudflare Workers |

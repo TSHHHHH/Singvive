@@ -20,7 +20,7 @@
 You wake up in a fallen Singapore. There is no rescue on a timetable — only a rising **horde** and,
 eventually, a chance to **extract**. Knowing nothing of what's around you, you push out into the fog,
 chart real places by walking to them, scavenge what you can carry, and manage a failing body until it
-gives out or you call for a lift. Every run is procedurally generated from live map data and a seed,
+gives out or you call for a lift. Every run is procedurally generated from pre-baked map data and a seed,
 so no two survivors face the same city.
 
 **Pillars**
@@ -66,10 +66,10 @@ currency, and the survivor is always moving — the map is explored, not surveye
 ## 3. Systems
 
 ### 3.1 World generation (real locations)
-- Real locations come from **OpenStreetMap**, pre-baked into `public/pois.json` at build time
-  (`npm run bake:pois`) rather than queried per run. On spawn the game loads that static file once and
-  filters it to POIs within ~1.5 km. Shops/amenities carry full geometry (`out geom`, for outlines);
-  HDB blocks are centroids only (`out center`, kept light).
+- Real locations come from **OpenStreetMap**, pre-baked into `public/pois.json` by a **manual**
+  commit step (`npm run bake:pois` — not part of `npm run build`) rather than queried per run. On spawn
+  the game loads that static file once and filters it to POIs within ~1.5 km. Shops/amenities carry full
+  geometry (`out geom`, for outlines); HDB blocks are centroids only (`out center`, kept light).
 - Data sources degrade in order: **baked file → live Overpass → procedural fallback**. Baking removes
   the per-run dependency on a volunteer-run API that rate-limits by IP — a static file on the CDN
   can't throttle, works offline once cached, and returns in milliseconds.
@@ -152,8 +152,10 @@ currency, and the survivor is always moving — the map is explored, not surveye
 - **Rest** is not a free full refill — see **sleep quality** (3.12).
 
 ### 3.5 Survival meters & the injury system
-- **Meters:** Health, Hunger, Thirst, Energy, Infection (drain per active hour). Infection deals HP
-  damage each hour until cured and is lethal at 100 (you turn).
+- **Meters:** Health, Hunger, Thirst, Energy, Infection (drain per active hour). Hunger or thirst
+  below **35** starts draining limb HP (ramps to empty); at 0 you die of starvation / dehydration.
+  Infection deals HP damage each hour until cured and is lethal at 100 (you turn). Sleep still drains
+  hunger/thirst at **×0.55** of the waking rate.
 - **Injuries (Project-Zomboid-style), 6 body parts** — Head, Torso, L/R Arm, L/R Leg. Combat damage
   lands on a weighted-random part, lowering its condition and sometimes causing **bleeding** (drains
   HP until treated). Total health is the **sum of all six parts**.
@@ -363,7 +365,8 @@ hostility, trade, shelter, aid, and intel:
 - **Horde** rises ~8/day from a **mid-crisis** start (~42 on a new run); at 100 the city is **overrun**
   and the run ends. That island clock is still the fail state — but street danger is **geographic**.
   A seed-picked **ground zero** (one of 20 real towns in `game/townField.ts`) sits ahead of the mean;
-  distant neighbourhoods sit behind it. Tiers: Stirring → Restless → Massing → Fallen → Lost.
+  distant neighbourhoods sit behind it. **Neighbourhood** tiers: Stirring → Restless → Massing →
+  Fallen → Lost (the island meter itself tops out as Swarming → Overrun).
   Lost is walkable, not a wall: extra trek/search pressure, dusk-rate night swarm in daylight,
   spawn snaps you into a roofed site. The spawn map stays clean; the run map paints a neighbourhood
   status overlay when you zoom out until the island fits (zoom ≤12) — real URA planning-area shapes,
@@ -471,8 +474,9 @@ Generic survival add-ons. Fine later; they do not answer “why this game.”
   before adding quests.
 - **Balance** still matters: travel speed, meter/injury drain, danger regen, horde climb, evac
   thresholds, loot rarity.
-- **Tests:** pure modules (`crafting`, `goal`, `noise`, `searchSession`, `wilds`) are ripe for a
-  lightweight Vitest suite; none exists yet.
+- **Tests:** Vitest covers combat, wilds, crafting, survival, events, inventory, firearms, and more
+  under `src/game/` (+ catalog / i18n key guards). Still thin or missing: `goal`, `noise`,
+  `searchSession`, and anything that only lives in `store.ts` / React.
 
 ### Shipped (was roadmap)
 

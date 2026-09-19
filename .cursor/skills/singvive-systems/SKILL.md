@@ -85,7 +85,7 @@ Playtest Progress:
 - [ ] Screenshot death or extract screen if testing those flows
 ```
 
-Dev server: **port 5190** (not 5173). `window.__game` exposes the Zustand store in DEV.
+Dev server: **port 5190** (not 5173). `window.__game` exposes the Zustand store (assigned in all builds for console inspection).
 
 ## Verification commands
 
