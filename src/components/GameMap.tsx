@@ -29,19 +29,21 @@ import { MrtOverlay, MrtLineLegend, useMrtNetwork } from './MrtOverlay';
 import { VegetationOverlay } from './UnplayableOverlay';
 import { NeighbourhoodWash } from './NeighbourhoodWash';
 import { Icon } from '../icons/Icon';
-import { pointAlongPath } from '../game/route';
+import { pathFromProgress, pathUntil, pointAlongPath } from '../game/route';
 import { useAnimatedNumber, useThrottledNumber } from '../hooks/useAnimatedNumber';
+import {
+  CAMERA_EDGE,
+  CAMERA_INTERVAL_MS,
+  CAMERA_LEAD,
+  CAMERA_LERP,
+  CAMERA_MIN_PX,
+  travelEase,
+} from '../ui/travelMotion';
 import { tip } from './tips';
 
 // White outline for buildings you can see but haven't identified — stands out
 // against the dark map like the "?" blips do.
 const UNKNOWN_STROKE = '#e8e5dd';
-
-const easeInOut = (t: number) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
-
-/** How close to the viewport edge the walker gets before the camera follows,
- *  as a fraction of the map's shorter side. */
-const FOLLOW_MARGIN = 0.28;
 
 // The player's chosen zoom persists across the whole game (and future sessions)
 // so moving around never snaps it back.
@@ -118,8 +120,8 @@ function GroundPicker({ onPick }: { onPick: (lat: number, lng: number) => void }
 
 /**
  * The player's marker. When a `travelAnim` is active it glides along the
- * land route (or straight chord) and pans the camera to follow at the current
- * zoom; otherwise it sits at `home` and smoothly pans there on discrete jumps.
+ * land route (or straight chord) with a held ease and soft throttled camera
+ * lead; otherwise it sits at `home` and smoothly pans there on discrete jumps.
  */
 function PlayerMarker({
   home,
@@ -160,27 +162,59 @@ function PlayerMarker({
     posRef.current = start;
     markerRef.current?.setLatLng([start.lat, start.lng]);
 
+    // Short hops that stay inside the safe band never engage the camera.
+    const size0 = map.getSize();
+    const margin0 = Math.min(size0.x, size0.y) * CAMERA_EDGE;
+    const inBand = (pt: { x: number; y: number }) =>
+      pt.x >= margin0 &&
+      pt.y >= margin0 &&
+      pt.x <= size0.x - margin0 &&
+      pt.y <= size0.y - margin0;
+    const startPt = map.latLngToContainerPoint([path[0].lat, path[0].lng]);
+    const end = path[path.length - 1];
+    const endPt = map.latLngToContainerPoint([end.lat, end.lng]);
+    const shortOnScreen = inBand(startPt) && inBand(endPt);
+
+    let following = false;
+    let lastCamAt = 0;
+
     const tick = () => {
       const t = Math.min(1, (Date.now() - startedAt) / durationMs);
-      const e = easeInOut(t);
+      const e = travelEase(t);
       const { lat, lng } = pointAlongPath(path, e);
       posRef.current = { lat, lng };
       markerRef.current?.setLatLng([lat, lng]);
 
-      // Panning repositions every marker, fog tile and vector on the map, so
-      // it must not run per frame. Follow only once the walker has drifted
-      // near the edge of the viewport — inside the middle of the screen the
-      // camera can simply hold still.
-      const p = map.latLngToContainerPoint([lat, lng]);
-      const size = map.getSize();
-      const margin = Math.min(size.x, size.y) * FOLLOW_MARGIN;
-      if (
-        p.x < margin ||
-        p.y < margin ||
-        p.x > size.x - margin ||
-        p.y > size.y - margin
-      ) {
-        map.panTo([lat, lng], { animate: false });
+      // Soft lead: chase a point ahead of the walker at ~12 Hz. Never pan every
+      // rAF — that repositions fog tiles and every marker.
+      if (!shortOnScreen) {
+        const now = Date.now();
+        if (now - lastCamAt >= CAMERA_INTERVAL_MS) {
+          lastCamAt = now;
+          const p = map.latLngToContainerPoint([lat, lng]);
+          const size = map.getSize();
+          const margin = Math.min(size.x, size.y) * CAMERA_EDGE;
+          if (
+            p.x < margin ||
+            p.y < margin ||
+            p.x > size.x - margin ||
+            p.y > size.y - margin
+          ) {
+            following = true;
+          }
+          if (following) {
+            const leadT = Math.min(1, e + CAMERA_LEAD * (1 - e));
+            const lead = pointAlongPath(path, leadT);
+            const center = map.getCenter();
+            const nextLat = center.lat + (lead.lat - center.lat) * CAMERA_LERP;
+            const nextLng = center.lng + (lead.lng - center.lng) * CAMERA_LERP;
+            const nextPt = map.latLngToContainerPoint([nextLat, nextLng]);
+            const curPt = map.latLngToContainerPoint(center);
+            if (Math.hypot(nextPt.x - curPt.x, nextPt.y - curPt.y) >= CAMERA_MIN_PX) {
+              map.panTo([nextLat, nextLng], { animate: false });
+            }
+          }
+        }
       }
 
       if (t < 1) {
@@ -295,6 +329,80 @@ function FocusCamera({
     map.panTo([target.lat, target.lng], { animate: true, duration: 0.75 });
   }, [map, target?.token, target?.lat, target?.lng]);
   return null;
+}
+
+/**
+ * En-route trail: traversed (solid) vs ahead (faint dash), driven by the same
+ * `startedAt`/`durationMs`/`travelEase` clock as the pin. Imperative setLatLngs
+ * so GameScreen does not re-render at 60 Hz.
+ */
+function TravelTrail({
+  path,
+  travelAnim,
+}: {
+  path: { lat: number; lng: number }[];
+  travelAnim: TravelAnim;
+}) {
+  const traversedRef = useRef<L.Polyline | null>(null);
+  const aheadRef = useRef<L.Polyline | null>(null);
+  const rafRef = useRef<number | undefined>(undefined);
+
+  const startPos: [number, number] = [path[0].lat, path[0].lng];
+  const fullPos = useMemo(
+    () => path.map((p) => [p.lat, p.lng] as [number, number]),
+    [path],
+  );
+
+  useEffect(() => {
+    const { startedAt, durationMs } = travelAnim;
+    const tick = () => {
+      const t = Math.min(1, (Date.now() - startedAt) / durationMs);
+      const e = travelEase(t);
+      const done = pathUntil(path, e);
+      const rest = pathFromProgress(path, e);
+      traversedRef.current?.setLatLngs(done.map((p) => [p.lat, p.lng] as [number, number]));
+      const aheadPts =
+        rest.length >= 2
+          ? rest
+          : [done[done.length - 1] ?? path[0], path[path.length - 1]];
+      aheadRef.current?.setLatLngs(aheadPts.map((p) => [p.lat, p.lng] as [number, number]));
+      if (t < 1) rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    return () => {
+      if (rafRef.current !== undefined) cancelAnimationFrame(rafRef.current);
+    };
+  }, [path, travelAnim]);
+
+  return (
+    <>
+      <Polyline
+        ref={traversedRef}
+        positions={[startPos]}
+        interactive={false}
+        pathOptions={{
+          color: '#9ad7eb',
+          weight: 3,
+          opacity: 0.9,
+          lineCap: 'round',
+          lineJoin: 'round',
+        }}
+      />
+      <Polyline
+        ref={aheadRef}
+        positions={fullPos}
+        interactive={false}
+        pathOptions={{
+          color: '#7ec8e3',
+          weight: 2.5,
+          opacity: 0.4,
+          dashArray: '8 10',
+          lineCap: 'round',
+          lineJoin: 'round',
+        }}
+      />
+    </>
+  );
 }
 
 /**
@@ -653,20 +761,24 @@ function GameMapInner({
       {/* Drawn under the pins — ground, not a destination. */}
       <HazardRings hazards={hazards} pathIds={pathIdSet} />
 
-      {travelPath && travelPath.length >= 2 && (
-        <Polyline
-          positions={travelPath.map((p) => [p.lat, p.lng] as [number, number])}
-          interactive={false}
-          pathOptions={{
-            color: travelPathBlocked ? '#d92d2d' : '#7ec8e3',
-            weight: 2.5,
-            opacity: travelPathBlocked ? 0.85 : 0.75,
-            dashArray: travelPathBlocked ? '4 8' : '8 10',
-            lineCap: 'round',
-            lineJoin: 'round',
-          }}
-        />
-      )}
+      {travelPath &&
+        travelPath.length >= 2 &&
+        (travelAnim && !travelPathBlocked ? (
+          <TravelTrail path={travelPath} travelAnim={travelAnim} />
+        ) : (
+          <Polyline
+            positions={travelPath.map((p) => [p.lat, p.lng] as [number, number])}
+            interactive={false}
+            pathOptions={{
+              color: travelPathBlocked ? '#d92d2d' : '#7ec8e3',
+              weight: 2.5,
+              opacity: travelPathBlocked ? 0.85 : 0.75,
+              dashArray: travelPathBlocked ? '4 8' : '8 10',
+              lineCap: 'round',
+              lineJoin: 'round',
+            }}
+          />
+        ))}
 
       {trekTarget && (
         <Marker
