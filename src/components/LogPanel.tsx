@@ -8,7 +8,7 @@ import { SearchSessionNode } from './SearchSessionNode';
 import { PendingEventChoices } from './PendingEventChoices';
 import type { GuideTopic } from '../content/guideContent';
 import { useT } from '../i18n';
-import { GroupedLogList, useActiveLogScopeKey } from './logTimeline';
+import { GroupedLogList, LIVE_NODE_BAND, useActiveLogScopeKey } from './logTimeline';
 import { formatClock } from '../game/survival';
 
 /** Every control in the timeline header shares one box, so the row reads even. */
@@ -201,7 +201,7 @@ export function LogPanel({
             />
 
             {showLive && ev && (
-              <li className="relative flex gap-2 rounded bg-white/[0.07] py-1 pl-6">
+              <li className={`relative flex gap-2 py-1 pl-6 ${LIVE_NODE_BAND}`}>
                 <span className="absolute left-0 top-[7px] h-[11px] w-[11px] animate-pulse rounded-full border-2 border-concrete-900 bg-signal" />
                 <div className="min-w-0 flex-1">
                   <p
