@@ -1,10 +1,10 @@
 import { MapContainer, TileLayer, Marker, Circle, Polygon, Polyline, useMap, useMapEvents } from 'react-leaflet';
-import { Fragment, memo, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, memo, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import type L from 'leaflet';
 import type { Poi, TimeOfDay, WeatherKind, MapAnnotation } from '../game/types';
 import { WeatherFx } from './WeatherFx';
 import { TimeOfDayFx } from './TimeOfDayFx';
-import { poiIcon, playerIcon, unknownIcon, evacIcon, dangerColor, rumourIcon } from './mapIcons';
+import { poiIcon, playerIcon, unknownIcon, evacIcon, dangerColor, rumourIcon, nightVeilIcon } from './mapIcons';
 import {
   TILE_ATTRIBUTION,
   TILE_MAX_NATIVE_ZOOM,
@@ -126,14 +126,19 @@ function GroundPicker({ onPick }: { onPick: (lat: number, lng: number) => void }
 function PlayerMarker({
   home,
   travelAnim,
+  veilRadiusM,
+  veilAlpha,
 }: {
   home: { lat: number; lng: number };
   travelAnim: TravelAnim | null;
+  veilRadiusM: number;
+  veilAlpha: number;
 }) {
   const map = useMap();
   const [pos, setPos] = useState(home);
   const rafRef = useRef<number | undefined>(undefined);
   const markerRef = useRef<L.Marker | null>(null);
+  const veilRef = useRef<L.Marker | null>(null);
   const posRef = useRef(pos);
   posRef.current = pos;
 
@@ -142,6 +147,7 @@ function PlayerMarker({
       setPos(home);
       posRef.current = home;
       markerRef.current?.setLatLng([home.lat, home.lng]);
+      veilRef.current?.setLatLng([home.lat, home.lng]);
       // Discrete move (spawn/MRT): follow at the current zoom, don't reset it.
       map.panTo([home.lat, home.lng], { animate: true, duration: 0.6 });
       return;
@@ -161,6 +167,7 @@ function PlayerMarker({
     setPos(start);
     posRef.current = start;
     markerRef.current?.setLatLng([start.lat, start.lng]);
+    veilRef.current?.setLatLng([start.lat, start.lng]);
 
     // Short hops that stay inside the safe band never engage the camera.
     const size0 = map.getSize();
@@ -184,6 +191,7 @@ function PlayerMarker({
       const { lat, lng } = pointAlongPath(path, e);
       posRef.current = { lat, lng };
       markerRef.current?.setLatLng([lat, lng]);
+      veilRef.current?.setLatLng([lat, lng]);
 
       // Soft lead: chase a point ahead of the walker at ~12 Hz. Never pan every
       // rAF — that repositions fog tiles and every marker.
@@ -266,12 +274,86 @@ function PlayerMarker({
   }, [travelAnim]);
 
   return (
+    <>
+      {veilAlpha > 0 && (
+        <NightVeil
+          markerRef={veilRef}
+          pos={posRef.current}
+          radiusM={veilRadiusM}
+          alpha={veilAlpha}
+        />
+      )}
+      <Marker
+        ref={markerRef}
+        position={[pos.lat, pos.lng]}
+        icon={playerIcon()}
+        interactive={false}
+        zIndexOffset={1000}
+      />
+    </>
+  );
+}
+
+const NIGHT_VEIL_PANE = 'nightVeil';
+/** Above fog, hazard rings and the town wash; below the MRT overlay (450) and pins. */
+const NIGHT_VEIL_PANE_Z = 440;
+/** Web-Mercator metres per pixel at zoom 0 on the equator (256 px tiles). */
+const M_PER_PX_Z0 = 40075016.686 / 256;
+
+function ensureVeilPane(map: L.Map): void {
+  if (map.getPane(NIGHT_VEIL_PANE)) return;
+  const pane = map.createPane(NIGHT_VEIL_PANE);
+  pane.style.zIndex = String(NIGHT_VEIL_PANE_Z);
+  pane.style.pointerEvents = 'none';
+}
+
+/**
+ * The edge of sight after dark: a soft spotlight riding the player pin.
+ * Inside it the map reads normally; past it the street goes black. One fixed
+ * DivIcon whose inner disc is resized in place (zoomanim → CSS transition),
+ * so zoom and radius changes never remount the marker. The giant box-shadow
+ * is the darkness — only the on-screen part is ever rasterised.
+ */
+function NightVeil({
+  markerRef,
+  pos,
+  radiusM,
+  alpha,
+}: {
+  markerRef: RefObject<L.Marker | null>;
+  pos: { lat: number; lng: number };
+  radiusM: number;
+  alpha: number;
+}) {
+  const map = useMap();
+  useState(() => ensureVeilPane(map));
+  const [zoom, setZoom] = useState(() => map.getZoom());
+  useMapEvents({
+    zoomanim: (e) => setZoom((e as L.ZoomAnimEvent).zoom),
+    zoomend: () => setZoom(map.getZoom()),
+  });
+  const icon = useMemo(() => nightVeilIcon(), []);
+
+  useEffect(() => {
+    const disc = markerRef.current?.getElement()?.firstElementChild as HTMLElement | null;
+    if (!disc) return;
+    const mpp = (M_PER_PX_Z0 * Math.cos((pos.lat * Math.PI) / 180)) / 2 ** zoom;
+    const r = Math.max(24, radiusM / mpp);
+    disc.style.width = `${r * 2}px`;
+    disc.style.height = `${r * 2}px`;
+    disc.style.marginLeft = `${-r}px`;
+    disc.style.marginTop = `${-r}px`;
+    disc.style.setProperty('--veil', `rgba(2, 4, 10, ${alpha.toFixed(3)})`);
+  }, [markerRef, zoom, radiusM, alpha, pos.lat]);
+
+  return (
     <Marker
       ref={markerRef}
+      pane={NIGHT_VEIL_PANE}
       position={[pos.lat, pos.lng]}
-      icon={playerIcon()}
+      icon={icon}
       interactive={false}
-      zIndexOffset={1000}
+      keyboard={false}
     />
   );
 }
@@ -286,6 +368,9 @@ interface Props {
   travelRange: number;
   /** how far out anonymous "?" blips are sensed */
   blipRange: number;
+  /** after dark: edge of sight in metres, and how black it is past it (0 = day) */
+  veilRadiusM: number;
+  veilAlpha: number;
   exploredArea: ExploredCircle[];
   /** active walking glide, if the player is mid-travel */
   travelAnim: TravelAnim | null;
@@ -686,6 +771,8 @@ function GameMapInner({
   hereId,
   travelRange,
   blipRange,
+  veilRadiusM,
+  veilAlpha,
   exploredArea,
   travelAnim,
   evacZoneId,
@@ -813,7 +900,12 @@ function GameMapInner({
       )}
 
       <NoiseWaves pulses={noisePulses} />
-      <PlayerMarker home={home} travelAnim={travelAnim} />
+      <PlayerMarker
+        home={home}
+        travelAnim={travelAnim}
+        veilRadiusM={veilRadiusM}
+        veilAlpha={veilAlpha}
+      />
       {showMrt && net && (
         <MrtOverlay net={net} destroyedEdges={destroyedTunnelEdges} />
       )}

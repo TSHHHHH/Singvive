@@ -13,6 +13,8 @@ interface Props {
   risk: TrekRisk;
   /** True when nothing on the route has been sensed — the estimate is a guess. */
   blind: boolean;
+  /** After dark with little light — pockets past the light are not shown. */
+  dark?: boolean;
   energyLow: boolean;
   outOfRange: boolean;
   tooClose: boolean;
@@ -39,6 +41,7 @@ export function TrekCard({
   travelMin,
   risk,
   blind,
+  dark = false,
   energyLow,
   outOfRange,
   tooClose,
@@ -91,6 +94,7 @@ export function TrekCard({
       <HazardOnRoute hazards={risk.hazards} />
 
       {blind && <div className="mt-2 text-body text-white/35">{t('ui.trek.blind')}</div>}
+      {dark && <div className="mt-1 text-body text-hiss">{t('ui.trek.dark')}</div>}
       {arrivalAtNight && <div className="mt-1 text-body text-hiss">{t('ui.trek.night')}</div>}
       {outOfRange && <div className="mt-1 text-body text-hiss">{t('ui.trek.outOfRange')}</div>}
       {noDryRoute && <div className="mt-1 text-body text-hiss">{t('ui.trek.noDry')}</div>}

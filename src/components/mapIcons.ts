@@ -159,3 +159,16 @@ export function dangerColor(danger: number): string {
       return '#d92d2d';
   }
 }
+
+/**
+ * Night veil — a zero-size anchor holding one disc. GameMap's NightVeil sizes
+ * the disc in place; the disc's huge box-shadow is the dark past your sight.
+ */
+export function nightVeilIcon(): L.DivIcon {
+  return L.divIcon({
+    className: 'night-veil',
+    html: '<div class="night-veil-disc"></div>',
+    iconSize: [0, 0],
+    iconAnchor: [0, 0],
+  });
+}

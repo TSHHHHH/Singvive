@@ -26,11 +26,13 @@
 src/
   game/        pure, seed-driven logic — rng, world, poi, loot, inventory, packGrid, survival,
                travel, weather, fog, combat, factions, events, character, occupations, crafting,
-               trade, sleep, goal, searchSession, hdbDungeon, tunnelRun, mrtDamage, wilds,
+               trade, sleep, nightSight, goal, searchSession, hdbDungeon, tunnelRun, mrtDamage, wilds,
                wildsEncounter, vegetation, playable, route, noise, ghostSurvivor, townField,
                itemTileColor, settings, storage, types, Zustand store
                (+ data/ JSON catalogs: items, lootTables, recipes, enemies, itemTileColors)
   api/         same-origin worldwide score client (no fetch under game/)
+  audio/       procedural Web Audio ambience (engine singleton + `useAmbience` hook fed scalars
+               from GameScreen); cosmetic only, may use Math.random
   i18n/        locale catalogs (`messages/en.json` source of truth, `zh-Hans.json` overlay)
                and `t` / `useT`; player primer is `guide.*` keys; zh voice/glossary in
                docs/i18n-zh-hans.md

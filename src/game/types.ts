@@ -82,6 +82,8 @@ export interface Trait {
 
   // --- perception / fog ---
   awarenessMod?: number;
+  /** Additive share of sight after dark (Night Owl +, Afraid of the Dark −). */
+  nightSightMod?: number;
   detectRadiusMod?: number; // multiplier delta to detect radius / blip margin
 
   // --- inventory ---
@@ -281,6 +283,11 @@ export interface ItemModifiers {
   headCritReduction?: number;
   weightCapacityBonus?: number;
   awarenessMod?: number;
+  /**
+   * 0..1 share of the dark a worn light fills (torch, headlamp). Stacks with
+   * diminishing returns — see `combineLight` in `nightSight.ts`.
+   */
+  lightPower?: number;
   /**
    * Flat damage subtracted when a hit lands on the body zone this piece covers.
    * Condition-scaled. Feet omit this — they do not soak combat hits.

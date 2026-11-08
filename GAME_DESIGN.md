@@ -149,6 +149,17 @@ currency, and the survivor is always moving — the map is explored, not surveye
   layer (I Am Legend). Crossing is a near-certain high-danger fight. Roofed sites shelter you; tunnels
   bypass the surface. Dawn they recede. Rest shows recovery **and** night ambush chance.
 - **Night is dangerous.** Bands: day (06–17), dusk (17–19), night (19–06). Combat hardens after dark.
+- **Night sight** (`game/nightSight.ts`). After dusk the survivor sees only as far as their light.
+  Ambient light falls to ~60% at dusk and ~22% at night (cloud, rain, storm and haze cut it
+  further). Sight scales the **blip range** and the **hazard-sensing radius**, so pockets outside the
+  light are left off the trek card but still fire on the walk; the night swarm still reads further
+  than ordinary pockets (you hear a street flood before you see it). A black **veil** past the edge
+  of sight covers the map (above fog, below the MRT overlay and pins). Walking blind adds up to
+  **+32% trek encounter** at full dark. Unlit night aim is **−3** (was −2); lit is **−1**, lit dusk 0.
+  **Light gear:** `lightPower` on items — *Torch* 0.55 (off hand, so it spends the off-hand fork),
+  *Headlamp* 0.45 (head, hands free). Sources stack with diminishing returns (cap 0.85); rain
+  shortens the beam. A lit survivor at night pays a small **beacon** tax (+5% trek encounter).
+  *Night Owl* +0.12 sight, *Afraid of the Dark* −0.06. Daytime is untouched.
 - **Rest** is not a free full refill — see **sleep quality** (3.12).
 
 ### 3.5 Survival meters & the injury system
@@ -384,12 +395,21 @@ hostility, trade, shelter, aid, and intel:
   meet a mini-boss, loot the corpse, or find a one-shot trader — whatever became of them
   (`game/ghostSurvivor.ts`).
 
-### 3.18 Persistence, scoring & settings
+### 3.18 Sound
+- **Procedural ambience** (`src/audio/ambience.ts`, Web Audio, no asset files). Beds: brown-noise
+  wind (hollower after dark, a rumble in tunnels), rain by weather, a tropical night chorus that
+  **goes quiet as horde pressure rises**. One-shots: distant groans (rate and closeness rise with
+  local pressure and darkness), house-gecko chirps, unseen metal clanks, thunder, tunnel drips.
+  Heartbeat below 40% HP. Stingers: a far-off civil-defence wail at nightfall, a dissonant hit on
+  contact. Setting `sound` (off / quiet / full); audio starts on the first click (browser policy)
+  and suspends while the tab is hidden. Purely cosmetic — nothing in `game/` reads it.
+
+### 3.19 Persistence, scoring & settings
 - Fully **client-side** for the run. Keys:
   - `singvive.run.v6` — active run (v6: extraction + horde; optional `groundZeroId` for the town field)
   - `singvive.scores.v1` — personal leaderboard on this device
   - `singvive.settings.v1` — prefs independent of the run (language `en` | `zh-Hans`, timeline
-    detail, 12/24 clock, weather FX, font size, how-to-play on start)
+    detail, 12/24 clock, weather FX, sound, font size, how-to-play on start)
   - `singvive.legacy_run` — last dead survivor for ghost encounters
   - plus zoom / MRT overlay prefs
 - **Worldwide honor board** — death and extract also `POST /api/scores` (Cloudflare Worker + D1).

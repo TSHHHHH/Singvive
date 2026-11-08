@@ -19,14 +19,18 @@ import type {
   StanceId,
   TerrainId,
   Enemy,
+  TimeOfDay,
+  WeatherKind,
 } from './types';
 import { freshEventClock } from './types';
+import { sightFactor } from './nightSight';
 import { emptyRunStats, normalizeRunStats } from './stats';
 import { Rng, randomSeed } from './rng';
 import {
   adjustCraftInputs,
   attrEmoji,
   ATTRIBUTE_LABELS,
+  equipLightPower,
   hasTraitFlag,
   maxHpFor,
   startingStanding,
@@ -994,6 +998,24 @@ export const useGame = create<State>((set, get) => {
       }
     }
     return { equipment: next, notes };
+  };
+
+  /** Sight + light for a trek roll — must match what GameScreen previews. */
+  const darkOpts = (
+    s: { equipment: Equipment; character: Character | null },
+    band: TimeOfDay,
+    weather: WeatherKind,
+  ) => {
+    const lightPower = equipLightPower(s.equipment);
+    return {
+      lightPower,
+      sight: sightFactor(
+        band,
+        weather,
+        lightPower,
+        sumTraitMod(s.character?.traitIds ?? [], 'nightSightMod'),
+      ),
+    };
   };
 
   /** Combined mobility factor: injuries × footwear × traits. */
@@ -3877,6 +3899,7 @@ export const useGame = create<State>((set, get) => {
             (now.escort?.toId === loc.id ? ESCORT_ENCOUNTER_MOD : 0),
           safe: now.spawn ?? undefined,
           day: now.day,
+          ...darkOpts(now, band, weather),
         },
         undefined,
         route.points,
@@ -4152,6 +4175,7 @@ export const useGame = create<State>((set, get) => {
             load.encounterMod,
           safe: now.spawn ?? undefined,
           day: now.day,
+          ...darkOpts(now, trekBand, weather),
         },
         undefined,
         route.points,
