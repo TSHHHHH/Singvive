@@ -1516,7 +1516,8 @@
     "modifiers": {
       "attackBonus": 1,
       "searchSpeedBonus": 0.2,
-      "awarenessMod": 1
+      "awarenessMod": 1,
+      "lightPower": 0.55
     }
   },
   "fuel_can": {
@@ -2929,7 +2930,8 @@
     "slot": "head",
     "modifiers": {
       "searchSpeedBonus": 0.18,
-      "awarenessMod": 1
+      "awarenessMod": 1,
+      "lightPower": 0.45
     }
   },
   "turnout_coat": {

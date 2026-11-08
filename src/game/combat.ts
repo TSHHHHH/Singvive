@@ -20,7 +20,8 @@ import type {
 import type { Rng } from './rng';
 import { environmentCombatMods } from './weather';
 import { itemDef } from './loot';
-import { hasTraitFlag, sumTraitMod } from './character';
+import { equipLightPower, hasTraitFlag, sumTraitMod } from './character';
+import { darkAimDelta } from './nightSight';
 import {
   armorScaledMod,
   effectiveDamage,
@@ -98,6 +99,8 @@ export interface PlayerCombatStats {
   wearRate: number;
   /** Ignore night/dusk accuracy penalties from the environment. */
   nightAccuracyPenaltyRemoved: boolean;
+  /** Worn light (torch / headlamp), 0..1 — after dark, lit swings aim better. */
+  lightPower?: number;
   /** Extra accuracy at night/dusk (negative = worse). */
   nightAccuracyExtra: number;
   /** Attack delta applied only vs undead. */
@@ -468,6 +471,7 @@ export function playerCombatStats(
     roundsPerShot: 0,
     wearRate,
     nightAccuracyPenaltyRemoved: hasTraitFlag(traitIds, 'nightAccuracyPenaltyRemoved'),
+    lightPower: equipLightPower(eq),
     nightAccuracyExtra:
       sumTraitMod(traitIds, 'nightAccuracyExtra') + sm.nightAccuracyExtra,
     zombieAttackMod: sumTraitMod(traitIds, 'zombieAttackMod') + sm.zombieAttackMod,
@@ -697,6 +701,7 @@ export function resolvePlayerAction(
   if (weather.time === 'night' || weather.time === 'dusk') {
     const timePenalty = weather.time === 'night' ? -2 : -1;
     if (player.nightAccuracyPenaltyRemoved) envAccuracy -= timePenalty;
+    else envAccuracy += darkAimDelta(weather.time, player.lightPower ?? 0);
     envAccuracy += player.nightAccuracyExtra;
   }
   const log: CombatLogEntry[] = [];

@@ -484,6 +484,7 @@ function describeSearchItem(def: ItemDef, slot: SearchSlot): string[] {
     lines.push(`Travel ${m.travelSpeedBonus > 0 ? '+' : ''}${Math.round(m.travelSpeedBonus * 100)}%`);
   }
   if (m.awarenessMod) lines.push(`Awareness +${m.awarenessMod}`);
+  if (m.lightPower) lines.push(`Light ${Math.round(m.lightPower * 100)}%`);
   if ((def.scarcity ?? 1) <= 0.45) lines.push('Scarce find');
 
   return lines;

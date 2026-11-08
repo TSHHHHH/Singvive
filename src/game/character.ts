@@ -3,6 +3,7 @@ import type { IconName } from '../icons/keys';
 import { EMOJI_FALLBACK } from '../icons/keys';
 import { itemDef } from './loot';
 import { clampStanding, emptyStanding, type FactionStanding } from './factions';
+import { combineLight } from './nightSight';
 
 export const ATTRIBUTE_KEYS: AttributeKey[] = [
   'strength',
@@ -173,9 +174,10 @@ export const TRAITS: Trait[] = [
     category: 'positive',
     cost: 1,
     icon: 'trait.night_owl',
-    effects: ['No accuracy penalty at night'],
+    effects: ['No accuracy penalty at night', 'Sees further after dark'],
     conflicts: ['poor_sleep', 'afraid_of_dark', 'young_blood'],
     nightAccuracyPenaltyRemoved: true,
+    nightSightMod: 0.12,
   },
   {
     id: 'thick_skin',
@@ -641,9 +643,10 @@ export const TRAITS: Trait[] = [
     category: 'negative',
     cost: -1,
     icon: 'trait.afraid_of_dark',
-    effects: ['+10% encounter chance at night', 'Extra −1 accuracy after dark'],
+    effects: ['+10% encounter chance at night', 'Extra −1 accuracy after dark', 'Sees less after dark'],
     conflicts: ['night_owl'],
     nightEncounterChanceMod: 0.1,
+    nightSightMod: -0.06,
     nightAccuracyExtra: -1,
   },
   {
@@ -1254,6 +1257,17 @@ export function equipAwarenessMod(equipment: Equipment): number {
     }
   }
   return mod;
+}
+
+/** Combined light power of everything worn (torch, headlamp…), 0..MAX_LIGHT_POWER. */
+export function equipLightPower(equipment: Equipment): number {
+  const powers: number[] = [];
+  for (const slot of Object.values(equipment)) {
+    if (!slot) continue;
+    const p = itemDef(slot.defId).modifiers?.lightPower;
+    if (p) powers.push(p);
+  }
+  return combineLight(powers);
 }
 
 /** Total awareness modifier from traits. */

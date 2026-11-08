@@ -125,6 +125,19 @@ export const SETTINGS_SCHEMA: SettingDef[] = [
     default: 'off',
   },
   {
+    key: 'sound',
+    label: 'Sound',
+    description:
+      'Ambient sound — wind, rain, the night chorus, and the things out there. Synthesised live; starts after your first click.',
+    tab: 'display',
+    options: [
+      { value: 'off', label: 'Off' },
+      { value: 'quiet', label: 'Quiet' },
+      { value: 'full', label: 'Full' },
+    ],
+    default: 'full',
+  },
+  {
     key: 'logView',
     label: 'Timeline detail',
     description: 'How much of the timeline to keep on screen.',

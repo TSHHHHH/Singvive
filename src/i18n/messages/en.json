@@ -587,7 +587,7 @@
       "pack": "Pack",
       "packCells": "{n} cells ({w}×{h})",
       "awareness": "Awareness",
-
+      "light": "Light",
       "hunger": "Hunger",
       "thirst": "Thirst",
       "energy": "Energy",
@@ -1202,6 +1202,7 @@
       "forest": " · forest",
       "energyHit": "−{n} energy",
       "blind": "You can't see far enough to read that ground. Anything could be sitting on it.",
+      "dark": "Too dark to read the ground. Whatever sits past your light won't show until you walk into it.",
       "night": "🌙 You'd be caught out there after dark, with no door to close.",
       "outOfRange": "⛔ Further than you can push in one go — pick somewhere nearer.",
       "noDry": "⛔ No dry route — water or sealed ground blocks the way.",
@@ -1272,6 +1273,15 @@
         "full": "Full"
       }
     },
+    "sound": {
+      "label": "Sound",
+      "description": "Ambient sound — wind, rain, the night chorus, and the things out there. Synthesised live; starts after your first click.",
+      "options": {
+        "off": "Off",
+        "quiet": "Quiet",
+        "full": "Full"
+      }
+    },
     "fontSize": {
       "label": "Font size",
       "description": "UI text scale. Affects the whole interface, including the timeline.",
@@ -1338,7 +1348,7 @@
         "Hunger, thirst, energy, and infection tick with every hour. Keep them up — empty hunger or thirst below 35 starts eating limb HP.",
         "Health is the sum of your six limbs — see the Body topic for how each injury changes travel, aim, and stamina. Major bleeds block regen until bandaged; infection at 100 ends the run.",
         "Before a run, pick a job seed or build traits on the same screen — negatives earn points, positives spend them. A full signature + curse spends the whole pool; swap to free a point for another trait.",
-        "Night (after dusk) is more dangerous. Get inside before dark — the streets fill with a night swarm. Rest shows recovery and ambush chance; sleep still drains hunger and thirst (reduced).",
+        "Night (after dusk) is more dangerous. Get inside before dark — the streets fill with a night swarm. After dark you only see as far as your light: fewer blips, fewer pockets on the trek card, and worse aim. A torch (off hand) or headlamp (head) pushes the dark back, but a lit survivor is easier to spot. Rest shows recovery and ambush chance; sleep still drains hunger and thirst (reduced).",
         "Hazard pockets sit between pins (horde, patrols, collapse, flood). Sense them inside your ring, route around when you can — each kind bites differently if you cross.",
         "The horde meter is the island clock, not the street under your feet. It climbs every day and every neighbourhood gets worse with it — but a Stirring town is not a Lost one. Ground zero is already Fallen or worse when you wake; distant estates may still be holding. Lost streets stay walkable, they just cost more: denser pockets, dusk-rate swarms in daylight, harder searches. Zoom out until the island fits and the map becomes a status overlay; street zoom stays clear. At 100% the city is overrun and the run ends.",
         "Infected animals share the combat loop and can infect on a hit. Otters and monitors claim inland water, macaques and boars the catchment, dogs/cats/rats the streets.",
@@ -1802,7 +1812,8 @@
       "name": "Night Owl",
       "description": "Years of shift work pay off.",
       "effects": [
-        "No accuracy penalty at night"
+        "No accuracy penalty at night",
+        "Sees further after dark"
       ]
     },
     "thick_skin": {
@@ -2055,7 +2066,8 @@
       "description": "Shadows still win.",
       "effects": [
         "+10% encounter chance at night",
-        "Extra −1 accuracy after dark"
+        "Extra −1 accuracy after dark",
+        "Sees less after dark"
       ]
     },
     "thin_blood": {

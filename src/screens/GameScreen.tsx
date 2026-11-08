@@ -60,7 +60,10 @@ import {
   legTravelFactor,
   scoreDayMult,
   torsoCarryMult,
+  totalHp,
+  totalMaxHp,
 } from '../game/survival';
+import { useAmbience } from '../audio/useAmbience';
 import {
   equipEncounterChanceMod,
   equipTravelSpeedFactor,
@@ -72,6 +75,7 @@ import { rollWeather, timeOfDay, weatherEncounterMod } from '../game/weather';
 import { awareness, blipMargin, travelableRange } from '../game/fog';
 import {
   equipAwarenessMod,
+  equipLightPower,
   sumTraitMod,
   traitAwarenessMod,
   traitDetectRadiusMult,
@@ -90,8 +94,10 @@ import {
   sensedHazardField,
   trekRisk,
   HAZARD_CONFIG,
+  NIGHT_SWARM_SENSE_M,
   TREK_MIN_DISTANCE_M,
 } from '../game/wilds';
+import { sightFactor, sightLimitedRange, swarmSenseRange, veilAlpha } from '../game/nightSight';
 import type { LocationState } from '../game/types';
 import type { IconName } from '../icons/keys';
 
@@ -554,7 +560,21 @@ export function GameScreen() {
       ) - headAwarenessPenalty(bodyParts)
     : 0;
   const detectMult = character ? traitDetectRadiusMult(character.traitIds) : 1;
-  const blipRange = travelRange + blipMargin(awarenessValue) * detectMult;
+  // After dark you sense only what your light reaches: fewer blips, fewer
+  // pockets previewed. Hidden pockets still fire on the walk.
+  const lightPower = equipLightPower(equipment);
+  const sight = sightFactor(
+    time,
+    weather,
+    lightPower,
+    character ? sumTraitMod(character.traitIds, 'nightSightMod') : 0,
+  );
+  const blipRange = sightLimitedRange(
+    travelRange + blipMargin(awarenessValue) * detectMult,
+    sight,
+  );
+  // Quantised so energy ticks don't rewrite the veil's style every hour.
+  const nightVeilAlpha = Math.round(veilAlpha(time, sight) * 20) / 20;
 
   // Hazards densify with local neighbourhood pressure — a Lost town is not a Stirring one.
   const hazardPressure = hordeIntensity(hordeLevel);
@@ -574,9 +594,22 @@ export function GameScreen() {
         time,
         day,
         pressureAt,
+        swarmSenseRange(NIGHT_SWARM_SENSE_M, sight),
       ),
-    [seed, currentPos.lat, currentPos.lng, blipRange, spawn, hazardPressure, time, day, pressureAt],
+    [seed, currentPos.lat, currentPos.lng, blipRange, spawn, hazardPressure, time, day, pressureAt, sight],
   );
+
+  // Ambience: quantised scalars so hourly ticks don't churn audio params.
+  const maxHp = totalMaxHp(bodyParts);
+  useAmbience({
+    band: time,
+    weather,
+    dread: Math.round(pressureAt(currentPos.lat, currentPos.lng) * 20) / 20,
+    sight: Math.round(sight * 20) / 20,
+    hpFrac: maxHp > 0 ? Math.round((totalHp(bodyParts) / maxHp) * 20) / 20 : 1,
+    inCombat,
+    underground: tunnel !== null,
+  });
 
   const trekDist = trekTarget
     ? previewRoute && !previewRoute.blocked
@@ -692,6 +725,8 @@ export function GameScreen() {
             bleedEncounterMod(bodyParts),
           safe: spawn ?? undefined,
           day,
+          sight,
+          lightPower,
         },
         known,
         via,
@@ -716,6 +751,8 @@ export function GameScreen() {
     previewRoute,
     day,
     pressureAt,
+    sight,
+    lightPower,
   ]);
 
   const poiRouteInfo = useMemo(() => {
@@ -755,6 +792,8 @@ export function GameScreen() {
             bleedEncounterMod(bodyParts),
           safe: spawn ?? undefined,
           day,
+          sight,
+          lightPower,
         },
         known,
         via,
@@ -779,6 +818,8 @@ export function GameScreen() {
     blipRange,
     currentPositionId,
     pressureAt,
+    sight,
+    lightPower,
   ]);
 
   // Held only so the ride card re-renders once the network arrives; the routing
@@ -915,6 +956,7 @@ export function GameScreen() {
               travelMin={trekEst.travelMin}
               risk={trekInfo.risk}
               blind={trekInfo.blind}
+              dark={time !== 'day' && sight < 0.6}
               energyLow={meters.energy < 5}
               outOfRange={trekDist > travelRange}
               tooClose={trekDist < TREK_MIN_DISTANCE_M}
@@ -1272,6 +1314,8 @@ export function GameScreen() {
                 hereId={currentPositionId}
                 travelRange={mapRangeTarget}
                 blipRange={blipRange}
+                veilRadiusM={blipRange}
+                veilAlpha={nightVeilAlpha}
                 exploredArea={exploredArea}
                 travelAnim={travelAnim}
                 evacZoneId={evacZoneId}

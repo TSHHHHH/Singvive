@@ -27,6 +27,7 @@ import {
   TERRAIN,
 } from './combat';
 import { awareness } from './fog';
+import { darkAimDelta } from './nightSight';
 import {
   ALL_EQUIP_SLOTS,
   conditionScale,
@@ -196,16 +197,19 @@ function row(
   };
 }
 
-function timeAccuracy(weather: WeatherState, nightPenaltyRemoved: boolean): number {
+/** The night/dusk hit already baked into `environmentCombatMods`. */
+function baseTimePenalty(weather: WeatherState): number {
+  return weather.time === 'night' ? -2 : weather.time === 'dusk' ? -1 : 0;
+}
+
+/** Time-of-day aim as combat applies it: base penalty, then lit/unlit delta. */
+function timeAccuracy(weather: WeatherState, nightPenaltyRemoved: boolean, lightPower: number): number {
   if (nightPenaltyRemoved) return 0;
-  if (weather.time === 'night') return -2;
-  if (weather.time === 'dusk') return -1;
-  return 0;
+  return baseTimePenalty(weather) + darkAimDelta(weather.time, lightPower);
 }
 
 function skyAccuracy(weather: WeatherState): number {
-  const timePenalty = timeAccuracy(weather, false);
-  return environmentCombatMods(weather).playerAccuracy - timePenalty;
+  return environmentCombatMods(weather).playerAccuracy - baseTimePenalty(weather);
 }
 
 function isNightBand(weather: WeatherState): boolean {
@@ -232,7 +236,7 @@ export function buildStatSheet(input: StatSheetInput): StatSheet {
     fx.attackMod,
   );
   const energyAtk = energyAttackBonus(meters.energy);
-  const timeAim = timeAccuracy(weather, pStats.nightAccuracyPenaltyRemoved);
+  const timeAim = timeAccuracy(weather, pStats.nightAccuracyPenaltyRemoved, pStats.lightPower ?? 0);
   const skyAim = skyAccuracy(weather);
   const nightExtra = isNightBand(weather) ? pStats.nightAccuracyExtra : 0;
   const liveAttack = pStats.attack + energyAtk + timeAim + skyAim + nightExtra;

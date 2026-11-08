@@ -265,6 +265,11 @@ export function itemStatLines(
       ),
     );
   }
+  if (m.lightPower) {
+    const pct = Math.round(m.lightPower * 100);
+    const cmpPct = cmpM.lightPower !== undefined ? Math.round(cmpM.lightPower * 100) : undefined;
+    lines.push(line('aw', t('ui.stats.light'), `${pct}%`, numDelta(pct, cmpPct)));
+  }
 
   if (lines.length === 0) {
     // Consumables print what this instance actually gives, with the pristine

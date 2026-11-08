@@ -1170,6 +1170,29 @@ select optgroup {
     rgba(18, 14, 10, 0.14)
   );
 }
+/* Edge of sight after dark (GameMap NightVeil). Disc is sized from JS; the
+   spread shadow blacks out everything past it. Transition matches the zoom. */
+.night-veil {
+  pointer-events: none !important;
+}
+.night-veil-disc {
+  --veil: rgba(2, 4, 10, 0.8);
+  position: absolute;
+  left: 0;
+  top: 0;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, transparent 58%, var(--veil) 100%);
+  box-shadow: 0 0 0 200vmax var(--veil);
+  transition:
+    width 250ms cubic-bezier(0, 0, 0.25, 1),
+    height 250ms cubic-bezier(0, 0, 0.25, 1),
+    margin 250ms cubic-bezier(0, 0, 0.25, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .night-veil-disc {
+    transition: none;
+  }
+}
 .tod-night {
   background:
     linear-gradient(to bottom, rgba(6, 12, 26, 0.42), rgba(4, 10, 22, 0.24) 52%, rgba(2, 6, 16, 0.36)),

@@ -11,6 +11,7 @@ import {
   isZonesLoaded,
 } from './playable';
 import { LOST_PRESSURE } from './townField';
+import { darkTrekEncounterMod } from './nightSight';
 
 // ---------------------------------------------------------------------------
 // The wilds — the ground *between* the pins.
@@ -529,6 +530,8 @@ export function sensedHazardField(
   band: TimeOfDay,
   day: number,
   pressureAt?: (lat: number, lng: number) => number,
+  /** How far the swarm reads — shrinks with darkness (`swarmSenseRange`). */
+  swarmSenseM: number = NIGHT_SWARM_SENSE_M,
 ): HazardZone[] {
   const dayZones = hazardZonesNear(seed, lat, lng, dayRadiusM, safe, pressure, {
     band: 'day',
@@ -540,7 +543,7 @@ export function sensedHazardField(
     seed,
     lat,
     lng,
-    NIGHT_SWARM_SENSE_M,
+    swarmSenseM,
     undefined,
     pressure,
     { band, day, pressureAt },
@@ -646,6 +649,10 @@ export function trekRisk(
     safe?: SafeAnchor;
     day?: number;
     pressureAt?: (lat: number, lng: number) => number;
+    /** Share of sight after dark (`sightFactor`). Omitted = full sight. */
+    sight?: number;
+    /** Worn light power — a lit survivor at night is a beacon. */
+    lightPower?: number;
   },
   hazardsOverride?: HazardZone[],
   via?: { lat: number; lng: number }[],
@@ -677,6 +684,7 @@ export function trekRisk(
   p += pathPressure * 0.18;
   p += opts.traitEncounterMod;
   p += opts.weatherEncounterMod;
+  p += darkTrekEncounterMod(opts.band, opts.sight ?? 1, opts.lightPower ?? 0);
 
   let energyCost = TREK_BASE_ENERGY + dist / 250;
   let worst = 0;
