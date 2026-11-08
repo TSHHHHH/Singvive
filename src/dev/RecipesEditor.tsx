@@ -8,7 +8,7 @@ import {
   REPAIR_INPUTS,
   REPAIR_TOOL,
 } from '../game/crafting';
-import { adjustCraftInputs } from '../game/character';
+import { adjustCraftInputs, sumTraitMod } from '../game/character';
 import { ITEMS } from '../game/loot';
 import type { ItemDef } from '../game/types';
 import { itemIcon } from '../components/Inventory/itemIcon';
@@ -767,7 +767,10 @@ export function RecipesEditor({
   const sandboxResult = useMemo(() => {
     if (!selected) return null;
     const traitIds = sandboxHandyman ? [HANDYMAN] : [];
-    const adjusted = adjustCraftInputs(selected.inputs, traitIds);
+    const adjusted = adjustCraftInputs(
+      selected.inputs,
+      traitIds.length ? sumTraitMod(traitIds, 'craftCostMod') : 0,
+    );
     const pack = { ...sandboxPack };
     if (selected.tool) pack[selected.tool] = Math.max(pack[selected.tool] ?? 0, 1);
     const check = canCraft(asRecipe(selected), packToInstances(pack), sandboxShelter, adjusted);

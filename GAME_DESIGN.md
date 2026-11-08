@@ -123,6 +123,17 @@ currency, and the survivor is always moving — the map is explored, not surveye
 - Trait modifiers feed combat, travel, survival, loot, fog, crafting cost, faction standing, and
   unique rules (first hit halved, hawker-centre loot, HDB corridor reads, remaining-search intel).
 
+### 3.2b Skills (in-run, passive)
+
+- Seven **passive** skills sit between traits and mechanical mods: Fighting, Shooting,
+  Fitness, Scavenging, Medicine, Trades, Stealth. Levels run **0–5** and **die with the run**.
+- **Soft funnel:** traits keep their `*Mod` fields and also grant `skillStart` / `skillXpMult`.
+  Signatures typically start at **+2** in their lane. Final mod = traits + skill levels + gear.
+- **Growth:** meaningful actions grant practice XP (soft daily cap per skill). Looted
+  **skill books** cost hours to read and grant a big XP chunk or one gated level by tier.
+- Awareness / dialogue / fog stay on traits and attributes — not a skill in v1.
+- Run schema is `singvive.run.v7` (v6 continues are wiped).
+
 ### 3.3 Fog of war — blind exploration
 - You have **no knowledge** of any location until you stand in it. Undiscovered places show only as
   anonymous **"?" blips** (no name, category or danger). Their **building outline is still drawn** (in

@@ -120,7 +120,9 @@
     "w": 1,
     "h": 2,
     "weight": 1.4,
-    "effect": { "kind": "misc" },
+    "effect": {
+      "kind": "misc"
+    },
     "value": 10,
     "stackable": false,
     "maxStack": 1,
@@ -572,7 +574,9 @@
     "w": 1,
     "h": 1,
     "weight": 0.1,
-    "effect": { "kind": "misc" },
+    "effect": {
+      "kind": "misc"
+    },
     "value": 4,
     "stackable": true,
     "maxStack": 4,
@@ -2545,114 +2549,248 @@
   "canned_luncheon_meat": {
     "id": "canned_luncheon_meat",
     "name": "Canned Luncheon Meat",
-    "w": 2, "h": 1, "weight": 0.35,
-    "effect": { "kind": "food", "hunger": 40 },
-    "value": 8, "stackable": true, "maxStack": 3, "color": "#9b5b45"
+    "w": 2,
+    "h": 1,
+    "weight": 0.35,
+    "effect": {
+      "kind": "food",
+      "hunger": 40
+    },
+    "value": 8,
+    "stackable": true,
+    "maxStack": 3,
+    "color": "#9b5b45"
   },
   "canned_sardines": {
     "id": "canned_sardines",
     "name": "Canned Sardines",
-    "w": 1, "h": 1, "weight": 0.15,
-    "effect": { "kind": "food", "hunger": 28 },
-    "value": 6, "stackable": true, "maxStack": 4, "color": "#70858b"
+    "w": 1,
+    "h": 1,
+    "weight": 0.15,
+    "effect": {
+      "kind": "food",
+      "hunger": 28
+    },
+    "value": 6,
+    "stackable": true,
+    "maxStack": 4,
+    "color": "#70858b"
   },
   "bread_loaf": {
     "id": "bread_loaf",
     "name": "Bread Loaf",
-    "w": 2, "h": 2, "weight": 0.6,
-    "effect": { "kind": "food", "hunger": 45 },
-    "value": 8, "stackable": false, "maxStack": 1, "color": "#b88b4a",
-    "maxCondition": 100, "perishable": true
+    "w": 2,
+    "h": 2,
+    "weight": 0.6,
+    "effect": {
+      "kind": "food",
+      "hunger": 45
+    },
+    "value": 8,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#b88b4a",
+    "maxCondition": 100,
+    "perishable": true
   },
   "kopi_sachets": {
     "id": "kopi_sachets",
     "name": "Kopi Sachets",
-    "w": 1, "h": 1, "weight": 0.08,
-    "effect": { "kind": "misc" },
-    "value": 4, "stackable": true, "maxStack": 5, "color": "#6b4a31"
+    "w": 1,
+    "h": 1,
+    "weight": 0.08,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 4,
+    "stackable": true,
+    "maxStack": 5,
+    "color": "#6b4a31"
   },
   "kopi_o": {
     "id": "kopi_o",
     "name": "Kopi O",
-    "w": 1, "h": 2, "weight": 0.35,
-    "effect": { "kind": "water", "thirst": 22, "energy": 18, "hunger": 4 },
-    "value": 6, "stackable": false, "maxStack": 1, "color": "#79573b",
-    "maxCondition": 100, "perishable": true
+    "w": 1,
+    "h": 2,
+    "weight": 0.35,
+    "effect": {
+      "kind": "water",
+      "thirst": 22,
+      "energy": 18,
+      "hunger": 4
+    },
+    "value": 6,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#79573b",
+    "maxCondition": 100,
+    "perishable": true
   },
   "kopi_sachet_drink": {
     "id": "kopi_sachet_drink",
     "name": "Kopi Sachet Drink",
-    "w": 1, "h": 2, "weight": 0.35,
-    "effect": { "kind": "water", "thirst": 24, "energy": 18, "hunger": 8 },
-    "value": 7, "stackable": false, "maxStack": 1, "color": "#866044",
-    "maxCondition": 100, "perishable": true
+    "w": 1,
+    "h": 2,
+    "weight": 0.35,
+    "effect": {
+      "kind": "water",
+      "thirst": 24,
+      "energy": 18,
+      "hunger": 8
+    },
+    "value": 7,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#866044",
+    "maxCondition": 100,
+    "perishable": true
   },
   "milo_drink": {
     "id": "milo_drink",
     "name": "Milo Drink",
-    "w": 1, "h": 2, "weight": 0.4,
-    "effect": { "kind": "water", "thirst": 28, "energy": 18, "hunger": 12 },
-    "value": 8, "stackable": false, "maxStack": 1, "color": "#68442d",
-    "maxCondition": 100, "perishable": true
+    "w": 1,
+    "h": 2,
+    "weight": 0.4,
+    "effect": {
+      "kind": "water",
+      "thirst": 28,
+      "energy": 18,
+      "hunger": 12
+    },
+    "value": 8,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#68442d",
+    "maxCondition": 100,
+    "perishable": true
   },
   "large_water_bottle": {
     "id": "large_water_bottle",
     "name": "1.5L Water Bottle",
-    "w": 1, "h": 3, "weight": 1.6,
-    "effect": { "kind": "water", "thirst": 65 },
-    "value": 15, "stackable": true, "maxStack": 2, "color": "#367ca3", "scarcity": 0.7
+    "w": 1,
+    "h": 3,
+    "weight": 1.6,
+    "effect": {
+      "kind": "water",
+      "thirst": 65
+    },
+    "value": 15,
+    "stackable": true,
+    "maxStack": 2,
+    "color": "#367ca3",
+    "scarcity": 0.7
   },
   "hand_sanitiser": {
     "id": "hand_sanitiser",
     "name": "Hand Sanitiser",
-    "w": 1, "h": 1, "weight": 0.15,
-    "effect": { "kind": "cure", "infection": 12 },
-    "value": 9, "stackable": true, "maxStack": 4, "color": "#9fc5c7"
+    "w": 1,
+    "h": 1,
+    "weight": 0.15,
+    "effect": {
+      "kind": "cure",
+      "infection": 12
+    },
+    "value": 9,
+    "stackable": true,
+    "maxStack": 4,
+    "color": "#9fc5c7"
   },
   "insect_repellent": {
     "id": "insect_repellent",
     "name": "Insect Repellent",
-    "w": 1, "h": 1, "weight": 0.2,
-    "effect": { "kind": "misc" },
-    "value": 8, "stackable": true, "maxStack": 3, "color": "#78905b"
+    "w": 1,
+    "h": 1,
+    "weight": 0.2,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 8,
+    "stackable": true,
+    "maxStack": 3,
+    "color": "#78905b"
   },
   "rain_poncho": {
     "id": "rain_poncho",
     "name": "Disposable Rain Poncho",
-    "w": 1, "h": 2, "weight": 0.2,
-    "effect": { "kind": "misc" },
-    "value": 7, "stackable": false, "maxStack": 1, "color": "#5b8991", "maxCondition": 80,
+    "w": 1,
+    "h": 2,
+    "weight": 0.2,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 7,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#5b8991",
+    "maxCondition": 80,
     "slot": "body",
-    "modifiers": { "limbArmor": 1, "statusResist": 0.12, "encounterChanceMod": -0.03 }
+    "modifiers": {
+      "limbArmor": 1,
+      "statusResist": 0.12,
+      "encounterChanceMod": -0.03
+    }
   },
   "zip_ties": {
     "id": "zip_ties",
     "name": "Zip Ties",
-    "w": 1, "h": 1, "weight": 0.1,
-    "effect": { "kind": "misc" },
-    "value": 5, "stackable": true, "maxStack": 8, "color": "#d1d0bd"
+    "w": 1,
+    "h": 1,
+    "weight": 0.1,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 5,
+    "stackable": true,
+    "maxStack": 8,
+    "color": "#d1d0bd"
   },
   "phone_charging_cable": {
     "id": "phone_charging_cable",
     "name": "Phone Charging Cable",
-    "w": 1, "h": 1, "weight": 0.1,
-    "effect": { "kind": "misc" },
-    "value": 5, "stackable": true, "maxStack": 2, "color": "#b7b9b5"
+    "w": 1,
+    "h": 1,
+    "weight": 0.1,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 5,
+    "stackable": true,
+    "maxStack": 2,
+    "color": "#b7b9b5"
   },
   "bicycle_repair_kit": {
     "id": "bicycle_repair_kit",
     "name": "Bicycle Repair Kit",
-    "w": 2, "h": 1, "weight": 0.5,
-    "effect": { "kind": "misc" },
-    "value": 10, "stackable": false, "maxStack": 1, "color": "#6d7377"
+    "w": 2,
+    "h": 1,
+    "weight": 0.5,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 10,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#6d7377"
   },
   "grocery_tote": {
     "id": "grocery_tote",
     "name": "Reusable Grocery Tote",
-    "w": 1, "h": 1, "weight": 0.15,
-    "effect": { "kind": "misc" },
-    "value": 8, "stackable": false, "maxStack": 1, "color": "#65775c",
-    "slot": "bag", "packGrid": { "w": 3, "h": 3 }, "maxCondition": 60
+    "w": 1,
+    "h": 1,
+    "weight": 0.15,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 8,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#65775c",
+    "slot": "bag",
+    "packGrid": {
+      "w": 3,
+      "h": 3
+    },
+    "maxCondition": 60
   },
   "intel_scavenger_sketch": {
     "id": "intel_scavenger_sketch",
@@ -2750,8 +2888,7 @@
     "scarcity": 0.12,
     "exotic": true,
     "icon": "action.map"
-  }
-,
+  },
   "gas_mask": {
     "id": "gas_mask",
     "name": "Gas Mask",
@@ -3160,5 +3297,209 @@
       "speedBonus": -0.9
     },
     "maxCondition": 50
+  },
+  "book_reservist": {
+    "id": "book_reservist",
+    "name": "Reservist Handbook",
+    "w": 1,
+    "h": 2,
+    "weight": 0.4,
+    "effect": {
+      "kind": "skillBook",
+      "skill": "fighting",
+      "tier": 1
+    },
+    "value": 12,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#8b7355",
+    "icon": "item.misc"
+  },
+  "book_silat": {
+    "id": "book_silat",
+    "name": "Silat Notes",
+    "w": 1,
+    "h": 1,
+    "weight": 0.2,
+    "effect": {
+      "kind": "skillBook",
+      "skill": "fighting",
+      "tier": 2
+    },
+    "value": 18,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#8b7355",
+    "icon": "item.misc"
+  },
+  "book_range_day": {
+    "id": "book_range_day",
+    "name": "Range Day Magazine",
+    "w": 1,
+    "h": 1,
+    "weight": 0.15,
+    "effect": {
+      "kind": "skillBook",
+      "skill": "shooting",
+      "tier": 1
+    },
+    "value": 10,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#6b7a5a",
+    "icon": "item.misc"
+  },
+  "book_police_arms": {
+    "id": "book_police_arms",
+    "name": "Police Arms Primer",
+    "w": 1,
+    "h": 2,
+    "weight": 0.35,
+    "effect": {
+      "kind": "skillBook",
+      "skill": "shooting",
+      "tier": 3
+    },
+    "value": 28,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#6b7a5a",
+    "icon": "item.misc"
+  },
+  "book_hyrox": {
+    "id": "book_hyrox",
+    "name": "Parkrun Pamphlet",
+    "w": 1,
+    "h": 1,
+    "weight": 0.1,
+    "effect": {
+      "kind": "skillBook",
+      "skill": "fitness",
+      "tier": 1
+    },
+    "value": 8,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#5a7a8b",
+    "icon": "item.misc"
+  },
+  "book_karang_guni": {
+    "id": "book_karang_guni",
+    "name": "Karang Guni Tips",
+    "w": 1,
+    "h": 1,
+    "weight": 0.15,
+    "effect": {
+      "kind": "skillBook",
+      "skill": "scavenging",
+      "tier": 1
+    },
+    "value": 10,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#8b6b4a",
+    "icon": "item.misc"
+  },
+  "book_estate_mag": {
+    "id": "book_estate_mag",
+    "name": "Estate Mag",
+    "w": 1,
+    "h": 1,
+    "weight": 0.2,
+    "effect": {
+      "kind": "skillBook",
+      "skill": "scavenging",
+      "tier": 2
+    },
+    "value": 16,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#8b6b4a",
+    "icon": "item.misc"
+  },
+  "book_first_aid": {
+    "id": "book_first_aid",
+    "name": "First Aid Manual",
+    "w": 1,
+    "h": 2,
+    "weight": 0.4,
+    "effect": {
+      "kind": "skillBook",
+      "skill": "medicine",
+      "tier": 1
+    },
+    "value": 14,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#7a8b5a",
+    "icon": "item.misc"
+  },
+  "book_clinic": {
+    "id": "book_clinic",
+    "name": "Clinic Protocol",
+    "w": 1,
+    "h": 2,
+    "weight": 0.45,
+    "effect": {
+      "kind": "skillBook",
+      "skill": "medicine",
+      "tier": 3
+    },
+    "value": 26,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#7a8b5a",
+    "icon": "item.misc"
+  },
+  "book_bca": {
+    "id": "book_bca",
+    "name": "BCA Handbook Excerpt",
+    "w": 1,
+    "h": 2,
+    "weight": 0.5,
+    "effect": {
+      "kind": "skillBook",
+      "skill": "trades",
+      "tier": 2
+    },
+    "value": 20,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#7a6b5a",
+    "icon": "item.misc"
+  },
+  "book_hdb_diy": {
+    "id": "book_hdb_diy",
+    "name": "HDB DIY Pamphlet",
+    "w": 1,
+    "h": 1,
+    "weight": 0.15,
+    "effect": {
+      "kind": "skillBook",
+      "skill": "trades",
+      "tier": 1
+    },
+    "value": 9,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#7a6b5a",
+    "icon": "item.misc"
+  },
+  "book_night_shift": {
+    "id": "book_night_shift",
+    "name": "Night-shift Security Brief",
+    "w": 1,
+    "h": 1,
+    "weight": 0.12,
+    "effect": {
+      "kind": "skillBook",
+      "skill": "stealth",
+      "tier": 2
+    },
+    "value": 15,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#4a4a5a",
+    "icon": "item.misc"
   }
 }

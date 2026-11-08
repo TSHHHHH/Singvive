@@ -10,6 +10,8 @@ import type {
   MapAnnotation,
   Meters,
   RunStats,
+  SkillDayXp,
+  SkillsState,
 } from './types';
 import type { ExploredCircle } from './fog';
 import type { HdbDungeon } from './hdbDungeon';
@@ -33,7 +35,7 @@ import { itemDefOrNull } from './loot';
 import { migrateBodyParts, migrateMeters } from './survival';
 import { normalizeRunStats } from './stats';
 
-const RUN_KEY = 'singvive.run.v6'; // v6: extraction goal + horde clock
+const RUN_KEY = 'singvive.run.v7'; // v7: in-run skills (+ wipe v6 continues)
 const SCORES_KEY = 'singvive.scores.v1';
 
 export interface SavedRun {
@@ -112,6 +114,10 @@ export interface SavedRun {
   escort?: { toId: string } | null;
   /** Display-only run counters. Absent on saves written before they existed. */
   stats?: RunStats;
+  /** In-run passive skills. Required on v7 saves. */
+  skills: SkillsState;
+  /** Practice XP banked for the current day. */
+  skillDayXp: SkillDayXp;
   mapAnnotations?: MapAnnotation[];
   /**
    * The whole timeline, every day of it. The Timeline column only renders the

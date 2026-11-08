@@ -6,7 +6,7 @@ alwaysApply: false
 
 # Run persistence
 
-Active schema key: **`singvive.run.v6`** (extraction + horde). Do not invent a new key without a migration path.
+Active schema key: **`singvive.run.v7`** (extraction + horde). Do not invent a new key without a migration path.
 
 ## Debounce
 

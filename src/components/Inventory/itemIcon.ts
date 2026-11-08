@@ -18,6 +18,7 @@ const EFFECT_ICON: Record<ItemEffect['kind'], IconName> = {
   magazine: 'item.ammo',
   fuel: 'item.fuel',
   intel: 'action.map',
+  skillBook: 'item.misc',
   misc: 'item.misc',
 };
 

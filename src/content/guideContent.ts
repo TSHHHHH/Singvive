@@ -8,6 +8,7 @@ export type GuideTopic =
   | 'survive'
   | 'body'
   | 'fight'
+  | 'skills'
   | 'loot'
   | 'evac'
   | 'score'
@@ -24,6 +25,7 @@ export const GUIDE_TOPIC_ORDER: readonly GuideTopic[] = [
   'survive',
   'body',
   'fight',
+  'skills',
   'loot',
   'hdb',
   'tunnels',

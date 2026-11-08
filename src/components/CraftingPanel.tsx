@@ -13,7 +13,8 @@ import {
   type Recipe,
   type RecipeAvailability,
 } from '../game/crafting';
-import { adjustCraftInputs } from '../game/character';
+import { adjustCraftInputs, sumTraitMod } from '../game/character';
+import { skillMods, SKILL_IDS } from '../game/skills';
 import type { ItemDef, ItemInstance } from '../game/types';
 import { itemIcon } from './Inventory/itemIcon';
 import { Icon } from '../icons/Icon';
@@ -64,16 +65,20 @@ export function CraftingPanel() {
   const atShelter = currentPositionId !== null || hdb !== null;
   const hasToolbox = countOf(items, 'toolbox') > 0;
   const traitIds = character?.traitIds ?? [];
+  const skills = useGame((s) => s.skills);
+  const craftCost =
+    sumTraitMod(traitIds, 'craftCostMod') + skillMods(skills).craftCostMod;
 
   // `character.traitIds` is a fresh array on every store read; its contents are
   // what the craft-cost adjustment actually depends on.
   const traitKey = traitIds.join(',');
+  const skillKey = SKILL_IDS.map((id) => skills[id].level).join(',');
   // One availability pass for the whole catalog: the counts in the filter bar
   // and the ready-first ordering both read it, and `countOf` walks the pack.
   const rows = useMemo<RecipeRow[]>(
     () =>
       RECIPES.map((recipe) => {
-        const inputs = adjustCraftInputs(recipe.inputs, traitIds);
+        const inputs = adjustCraftInputs(recipe.inputs, craftCost);
         return {
           recipe,
           inputs,
@@ -83,7 +88,7 @@ export function CraftingPanel() {
         };
       }),
     // oxlint-disable-next-line react-hooks/exhaustive-deps
-    [items, atShelter, traitKey],
+    [items, atShelter, traitKey, skillKey],
   );
 
   const readyCount = rows.filter((r) => r.check.ok).length;

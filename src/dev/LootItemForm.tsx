@@ -64,6 +64,8 @@ function defaultEffect(kind: ItemEffect['kind']): ItemEffect {
       return { kind: 'fuel' };
     case 'intel':
       return { kind: 'intel', mode: 'precise', bias: 'danger' };
+    case 'skillBook':
+      return { kind: 'skillBook', skill: 'fighting', tier: 1 };
     case 'misc':
       return { kind: 'misc' };
   }

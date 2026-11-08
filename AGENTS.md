@@ -21,14 +21,14 @@ Standard commands live in `package.json` (`dev`, `build`, `lint`, `preview`, `de
 - The `bake:pois` / `bake:mrt` / `bake:zones` / `bake:towns` scripts re-fetch map data (Overpass or data.gov.sg) and are **manual, committed steps** — they are intentionally NOT part of `npm run build`. Do not run them during environment setup.
 - Everything under `src/game/` is pure and seed-driven (see `.kiro/hooks/game-logic-guard.kiro.hook`): no React/DOM imports, no `fetch`, no gameplay `Math.random()` (use the seeded `Rng`), no `any`. Cosmetic flavour helpers may use `Math.random`; `rng.ts` may use it only to mint a fresh seed string. Score HTTP lives in `src/api/` and `worker/`.
 - Player-facing guide copy is in `src/content/guideContent.ts` — keep it aligned with `GAME_DESIGN.md` score/evac/survival rules when those change.
-- Active run schema key is `singvive.run.v6` (extraction + horde). Do not invent a new key without a migration path.
+- Active run schema key is `singvive.run.v7` (extraction + horde). Do not invent a new key without a migration path.
 
 ## Performance / scale
 
 Scale pressure is **client-side** (Leaflet DOM, `pois.json` parse, localStorage). The Worker is scores only — do not move gameplay onto it. Combat resolution, crafting, and events are not CPU hotspots; land A* and walkability scans are. Do not "optimise" the d20 resolver.
 
 - Do not subscribe `GameScreen` (or any map parent) to the whole `combat` object — gauge ticks rewrite it at 20 Hz. Select booleans/scalars; let `CombatPanel` own combat. Do not add `log` or per-frame search progress to that slice.
-- `persist()` must stay **debounced** (≥5 s + flush on hide). Never stringify OSM `outline` rings; rehydrate from the bake on `continueRun`. Stay on `singvive.run.v6` unless there is a migration path.
+- `persist()` must stay **debounced** (≥5 s + flush on hide). Never stringify OSM `outline` rings; rehydrate from the bake on `continueRun`. Stay on `singvive.run.v7` unless there is a migration path.
 - POI layers must be **viewport-culled** (`getBounds().pad(0.2)`). Mapping every `locations` entry into a Marker/Polygon does not scale with island crossing. Hidden POIs must not become Leaflet layers.
 - Keep Leaflet out of the menu chunk (`React.lazy` for spawn/game/create/death screens). Do not add a second mapping library.
 - `advanceTime` / noise / faction expand must **preserve location identity** for untouched sites. Cloning the whole `locations` record re-renders the map HUD.

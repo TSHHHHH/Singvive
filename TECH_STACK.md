@@ -209,10 +209,15 @@ npm install
 # copy .env.example → .env.local and set VITE_CARTO_API_KEY (CARTO raster watermark otherwise)
 npm run dev       # http://localhost:5190  (PORT env overrides; see vite.config.ts)
 npm run build     # typecheck (tsc -b) + production build
+npm run build:itch  # static zip for itch.io → release/singvive-itch.zip
 npm run lint      # oxlint (--max-warnings=27) + type-scale + zh-Hans glossary guards
 npm run preview   # serve the production build locally (Worker + assets)
 npm run db:migrate:local  # apply D1 migrations to the local honor board (first time)
 ```
+
+### itch.io upload
+
+`npm run build:itch` is a static build (`vite build --mode itch`, `base: './'`, no Cloudflare plugin) packed so `index.html` is at the root of `release/singvive-itch.zip`. Upload that zip as an HTML project. `VITE_CARTO_API_KEY` from `.env.local` is baked in the same way as the Workers build. The worldwide honor board stays on the Worker — `/api/scores` is absent inside the itch player, and the client treats that as offline. Runs still save in the player's `localStorage`.
 
 ### Refreshing map data
 
@@ -476,7 +481,7 @@ deleted from the catalog while still equipped) is fixed and covered by `src/game
 but the shape of the risk remains — a validating parser that reports *what* is wrong would be
 strictly better than a `try/catch` that answers only yes or no.
 
-Versioning is by key name (`singvive.run.v6`): bumping to `v7` silently orphans every existing
+Versioning is by key name (`singvive.run.v7`): bumping to `v7` silently orphans every existing
 save, because there is no read-old-key-and-upgrade path. All intra-v6 evolution is the inline
 migration list.
 

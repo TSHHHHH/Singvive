@@ -230,6 +230,7 @@ const DIAGRAMS: Record<GuideTopic, () => ReactElement> = {
   survive: SurviveDiagram,
   body: BodyDiagram,
   fight: FightDiagram,
+  skills: FightDiagram,
   loot: LootDiagram,
   hdb: HdbDiagram,
   tunnels: TunnelsDiagram,

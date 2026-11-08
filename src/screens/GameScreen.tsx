@@ -12,6 +12,7 @@ import {
 } from '../game/mrt';
 import { ConditionPanel } from '../components/ConditionPanel';
 import { StatsPanel } from '../components/StatsPanel';
+import { SkillsPanel } from '../components/SkillsPanel';
 import { LogPanel } from '../components/LogPanel';
 import { CombatPanel } from '../components/CombatPanel';
 import { PhoneStatusBar } from '../components/PhoneStatusBar';
@@ -146,24 +147,26 @@ function HereHazardLine({
  * wants more room than the rail can give lands here, objectives included —
  * there is exactly one place detail opens.
  */
-type SidePanel = 'inventory' | 'craft' | 'logbook' | 'stats' | 'objective';
+type SidePanel = 'inventory' | 'craft' | 'logbook' | 'stats' | 'skills' | 'objective';
 
 const SIDE_PANEL_ICONS: Record<SidePanel, IconName> = {
   inventory: 'action.inventory',
   craft: 'action.craft',
   logbook: 'action.logbook',
   stats: 'action.stats',
+  skills: 'attr.wits',
   objective: 'action.objectives',
 };
 
 /** Rail switchers — objectives opens from its own bar. */
-const PANEL_BUTTONS: SidePanel[] = ['inventory', 'craft', 'logbook', 'stats'];
+const PANEL_BUTTONS: SidePanel[] = ['inventory', 'craft', 'logbook', 'stats', 'skills'];
 
 function sidePanelLabelKey(id: SidePanel): string {
   if (id === 'inventory') return 'ui.phone.stash';
   if (id === 'craft') return 'ui.phone.craft';
   if (id === 'logbook') return 'ui.phone.logbook';
   if (id === 'stats') return 'ui.phone.stats';
+  if (id === 'skills') return 'ui.phone.skills';
   return 'ui.phone.objectives';
 }
 
@@ -1118,7 +1121,7 @@ export function GameScreen() {
             {/* --- the panel switchers --- */}
             <div className="grid grid-cols-2 gap-1.5">
               {(isPhone
-                ? PANEL_BUTTONS.filter((id) => id === 'logbook' || id === 'stats')
+                ? PANEL_BUTTONS.filter((id) => id === 'logbook' || id === 'stats' || id === 'skills')
                 : PANEL_BUTTONS
               ).map((id) => {
                 const active = sidePanel === id;
@@ -1191,6 +1194,7 @@ export function GameScreen() {
             {sidePanel === 'craft' && <CraftingPanel />}
             {sidePanel === 'logbook' && <StashLogbook onFocusLocation={focusStashOnMap} />}
             {sidePanel === 'stats' && <StatsPanel />}
+            {sidePanel === 'skills' && <SkillsPanel />}
             {sidePanel === 'objective' && (
               <ObjectivesPanel
                 evacZoneName={evacZone?.name ?? null}

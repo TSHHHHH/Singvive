@@ -178,6 +178,15 @@ const BLEED =
  */
 export const LIVE_NODE_BAND = `${BLEED} isolate before:-z-10 before:bg-white/[0.07]`;
 
+/**
+ * Same full-bleed as `BLEED`, but for rows nested under a `pl-6` section —
+ * cancel the section gutter plus the scroll pad so the tint hits both edges.
+ */
+const BLEED_NESTED =
+  "before:pointer-events-none before:absolute before:inset-y-0 before:-left-[1.875rem] before:-right-2 before:content-['']";
+
+const LATEST_TINT = 'before:bg-white/[0.07]';
+
 function LogSectionCard({
   group,
   locale,
@@ -257,7 +266,9 @@ function LogSectionCard({
             return (
               <li
                 key={e.id}
-                className={`py-1 pr-2 ${isLatest ? 'bg-white/[0.07]' : ''}`}
+                className={`relative py-1 pr-2 ${
+                  isLatest ? `${BLEED_NESTED} ${LATEST_TINT}` : ''
+                }`}
               >
                 <LogEntryBody
                   e={e}
@@ -427,17 +438,20 @@ export function GroupedLogList({
         const prev = groups[i - 1];
         const divide = i > 0 && (g.type === 'section' || prev?.type === 'section');
         if (g.type === 'flat') {
+          const isLatest = g.entry.id === latestId;
           return (
             <li
               key={g.entry.id}
               className={`relative flex gap-2 py-1 pl-6 ${
-                divide ? `${BLEED} before:border-t before:border-white/10` : ''
-              } ${g.entry.id === latestId ? 'bg-white/[0.07]' : ''}`}
+                divide || isLatest ? BLEED : ''
+              } ${divide ? 'before:border-t before:border-white/10' : ''} ${
+                isLatest ? LATEST_TINT : ''
+              }`}
             >
               <span
                 className={`absolute left-0 top-[7px] h-[11px] w-[11px] rounded-full border-2 border-concrete-900 ${
                   dotClass[g.entry.tone] ?? 'bg-white/30'
-                } ${g.entry.id === latestId ? 'ring-2 ring-signal/60' : ''}`}
+                } ${isLatest ? 'ring-2 ring-signal/60' : ''}`}
               />
               <LogEntryBody
                 e={g.entry}
