@@ -14,6 +14,7 @@ import {
 } from '../game/combat';
 import { enemyName, useT } from '../i18n';
 import { tip } from './tips';
+import { LIVE_NODE_BAND } from './logTimeline';
 
 type Variant = 'timeline' | 'card';
 
@@ -169,7 +170,7 @@ export function EncounterPrompt({
   }
 
   return (
-    <li className="relative flex gap-2 rounded bg-white/[0.07] py-1 pl-6">
+    <li className={`relative flex gap-2 py-1 pl-6 ${LIVE_NODE_BAND}`}>
       <span className="absolute left-0 top-[7px] h-[11px] w-[11px] animate-pulse rounded-full border-2 border-concrete-900 bg-hiss" />
       <div className="min-w-0 flex-1">
         <div className="flex text-body text-white/70">

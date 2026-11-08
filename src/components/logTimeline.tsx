@@ -171,6 +171,13 @@ function sectionBand(stripe: number, active: boolean): string {
 const BLEED =
   "before:pointer-events-none before:absolute before:inset-y-0 before:-left-1.5 before:-right-2 before:content-['']";
 
+/**
+ * Highlight band for live timeline nodes (pending event, encounter, search).
+ * Bleeds to the panel edges like section bands so the sides line up; the
+ * band sits behind the node's content (`isolate` + negative z).
+ */
+export const LIVE_NODE_BAND = `${BLEED} isolate before:-z-10 before:bg-white/[0.07]`;
+
 function LogSectionCard({
   group,
   locale,
