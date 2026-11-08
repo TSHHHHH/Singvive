@@ -16,6 +16,7 @@ const EFFECT_KINDS = new Set([
   'magazine',
   'fuel',
   'intel',
+  'skillBook',
   'misc',
 ]);
 
@@ -134,6 +135,26 @@ function validateEffect(effect: unknown, id: string, errors: string[]): void {
       break;
     case 'fuel':
     case 'misc':
+      break;
+    case 'skillBook': {
+      const skills = new Set([
+        'fighting',
+        'shooting',
+        'fitness',
+        'scavenging',
+        'medicine',
+        'trades',
+        'stealth',
+      ]);
+      if (typeof effect.skill !== 'string' || !skills.has(effect.skill)) {
+        errors.push(`${id}: skillBook.skill must be a known SkillId`);
+      }
+      if (effect.tier !== 1 && effect.tier !== 2 && effect.tier !== 3 && effect.tier !== 4) {
+        errors.push(`${id}: skillBook.tier must be 1..4`);
+      }
+      break;
+    }
+    case 'intel':
       break;
   }
 }

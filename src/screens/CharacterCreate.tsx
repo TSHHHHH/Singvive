@@ -28,6 +28,7 @@ import {
   type TraitPreset,
 } from '../game/traitPresets';
 import { randomSurvivorName, SURVIVOR_NAME_MAX } from '../game/randomNames';
+import { previewStartingSkills, SKILL_IDS, SKILL_LABELS } from '../game/skills';
 import type { Occupation, Trait } from '../game/types';
 import { Icon } from '../icons/Icon';
 import { TipHint, useCoarsePointer } from '../components/TipHint';
@@ -244,6 +245,28 @@ export function CharacterCreate() {
           </div>
         );
       })}
+    </div>
+  );
+
+  const startingSkills = previewStartingSkills(traitIds);
+  const skillsPreview = (
+    <div className="rounded border border-white/10 bg-white/5 px-2.5 py-2">
+      <div className="mb-1.5 text-plate uppercase text-white/40">{t('ui.skills.starting')}</div>
+      <div className="flex flex-wrap gap-x-3 gap-y-1">
+        {SKILL_IDS.map((id) => {
+          const level = startingSkills[id].level;
+          if (level <= 0) return null;
+          return (
+            <span key={id} className="text-body text-concrete-50">
+              {SKILL_LABELS[id]}{' '}
+              <span className="tabular-nums text-signal">{level}</span>
+            </span>
+          );
+        })}
+        {SKILL_IDS.every((id) => startingSkills[id].level <= 0) && (
+          <span className="text-body text-white/40">—</span>
+        )}
+      </div>
     </div>
   );
 
@@ -671,6 +694,10 @@ export function CharacterCreate() {
           </span>
         </div>
         {attributeGrid}
+      </div>
+
+      <div className="mt-4">
+        {skillsPreview}
       </div>
 
       <div className="mt-5 flex flex-wrap items-center justify-center gap-2">

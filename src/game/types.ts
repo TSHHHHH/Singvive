@@ -24,6 +24,28 @@ export type Attributes = Record<AttributeKey, number>;
 
 export type TraitCategory = 'positive' | 'negative';
 
+/** In-run passive skills — see `skills.ts`. */
+export type SkillId =
+  | 'fighting'
+  | 'shooting'
+  | 'fitness'
+  | 'scavenging'
+  | 'medicine'
+  | 'trades'
+  | 'stealth';
+
+export interface SkillProgress {
+  level: number;
+  xp: number;
+}
+
+export type SkillsState = Record<SkillId, SkillProgress>;
+
+export interface SkillDayXp {
+  day: number;
+  gained: Partial<Record<SkillId, number>>;
+}
+
 export interface Trait {
   id: string;
   name: string;
@@ -34,6 +56,14 @@ export interface Trait {
   /** Mechanical bullets for the create UI. Flavour stays in `description`. */
   effects: string[];
   conflicts: string[]; // trait ids that are mutually exclusive
+
+  /**
+   * Soft funnel into the skill layer — starting levels (signatures often +2).
+   * Mechanical `*Mod` fields may still apply on top (soft funnel).
+   */
+  skillStart?: Partial<Record<SkillId, number>>;
+  /** Multiplier on practice XP for a skill (e.g. 1.25). Books ignore this. */
+  skillXpMult?: Partial<Record<SkillId, number>>;
 
   // --- attributes (traits are now the sole source of stat deltas) ---
   strengthMod?: number;
@@ -232,6 +262,12 @@ export type ItemEffect =
       bias: IntelBias;
       /** Rumour offset radius in metres (mode rumour only). */
       fuzzM?: number;
+    }
+  | {
+      kind: 'skillBook';
+      skill: SkillId;
+      /** 1 beginner … 4 expert — gates readability and level grant. */
+      tier: 1 | 2 | 3 | 4;
     }
   | { kind: 'misc' };
 

@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { pathFromProgress, pathUntil, pointAlongPath, type LatLng } from './route';
-import { travelEase, TRAVEL_HOLD } from '../ui/travelMotion';
+import {
+  travelAnimDurationMs,
+  travelEase,
+  TRAVEL_ANIM_MAX_MS,
+  TRAVEL_ANIM_MIN_MS,
+  TRAVEL_HOLD,
+} from '../ui/travelMotion';
 
 const LINE: LatLng[] = [
   { lat: 1.3, lng: 103.8 },
@@ -26,6 +32,19 @@ describe('travelEase', () => {
     const mid = travelEase(0.5);
     expect(mid).toBeGreaterThan(0.2);
     expect(mid).toBeLessThan(0.8);
+  });
+});
+
+describe('travelAnimDurationMs', () => {
+  it('clamps short hops to the floor and long ones to the ceiling', () => {
+    expect(travelAnimDurationMs(1)).toBe(TRAVEL_ANIM_MIN_MS);
+    expect(travelAnimDurationMs(200)).toBe(TRAVEL_ANIM_MAX_MS);
+  });
+
+  it('scales with sim minutes inside the band', () => {
+    const mid = travelAnimDurationMs(60);
+    expect(mid).toBeGreaterThan(TRAVEL_ANIM_MIN_MS);
+    expect(mid).toBeLessThan(TRAVEL_ANIM_MAX_MS);
   });
 });
 

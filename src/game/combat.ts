@@ -74,6 +74,7 @@ import {
   type LonerKind,
   type AnimalHabitat,
 } from './enemies';
+import { emptySkills, skillMods, type SkillsState } from './skills';
 
 export type { LonerKind, AnimalHabitat } from './enemies';
 
@@ -388,6 +389,7 @@ export function playerCombatStats(
   equipment: Equipment,
   armPenalty = 0,
   loadAttackMod = 0,
+  skills: SkillsState = emptySkills(),
 ): PlayerCombatStats {
   const eq = fullEquipment(equipment);
   const mainHand = eq.mainHand;
@@ -396,8 +398,9 @@ export function playerCombatStats(
   const rawEffect = weaponDef && weaponDef.effect.kind === 'weapon' ? weaponDef.effect : null;
   const gunClub = !!(rawEffect && isRangedWeaponEffect(rawEffect));
   const w = rawEffect && !gunClub ? rawEffect : gunClub && rawEffect ? rawEffect : null;
+  const sm = skillMods(skills);
 
-  let atkBonus = sumTraitMod(traitIds, 'attackMod');
+  let atkBonus = sumTraitMod(traitIds, 'attackMod') + sm.attackMod;
   let gearDef = 0;
   for (const slot of EQUIP_SLOTS) {
     const inst = eq[slot];
@@ -410,7 +413,7 @@ export function playerCombatStats(
   // Traits sit outside the cap — it is a rail on what a loadout can buy, not on
   // who the survivor is.
   const gearDefense = Math.min(MAX_EQUIP_DEFENSE, gearDef);
-  const defBonus = sumTraitMod(traitIds, 'defenseMod') + gearDefense;
+  const defBonus = sumTraitMod(traitIds, 'defenseMod') + sm.defenseMod + gearDefense;
 
   let weaponAcc = w?.accuracy ?? 0;
   let baseDamage = usableWeapon && w ? effectiveDamage(usableWeapon) : 4;
@@ -431,7 +434,8 @@ export function playerCombatStats(
   const attack = attrs.dexterity + weaponAcc + atkBonus - armPenalty + loadAttackMod;
   const defense = 10 + Math.floor(attrs.dexterity / 2) + defBonus;
   const damage = baseDamage + Math.floor(attrs.strength / 2);
-  const infectionResist = sumTraitMod(traitIds, 'infectionResist');
+  const infectionResist =
+    sumTraitMod(traitIds, 'infectionResist') + sm.infectionResist;
   const brokenName = mainHand && isBroken(mainHand) ? itemDef(mainHand.defId).name : null;
   const weaponName = weaponDef
     ? gunClub
@@ -468,8 +472,9 @@ export function playerCombatStats(
     wearRate,
     nightAccuracyPenaltyRemoved: hasTraitFlag(traitIds, 'nightAccuracyPenaltyRemoved'),
     lightPower: equipLightPower(eq),
-    nightAccuracyExtra: sumTraitMod(traitIds, 'nightAccuracyExtra'),
-    zombieAttackMod: sumTraitMod(traitIds, 'zombieAttackMod'),
+    nightAccuracyExtra:
+      sumTraitMod(traitIds, 'nightAccuracyExtra') + sm.nightAccuracyExtra,
+    zombieAttackMod: sumTraitMod(traitIds, 'zombieAttackMod') + sm.zombieAttackMod,
     speedFactor,
     weaponAccuracy: weaponAcc,
     strength: attrs.strength,
@@ -628,6 +633,7 @@ export function playerDodgeChance(
   stance: StanceDef,
   terrain: TerrainModifier,
   loadDodgeMod = 0,
+  skills: SkillsState = emptySkills(),
 ): number {
   const dexBase = (attrs.dexterity - 5) * 0.02;
   let gearDodge = 0;
@@ -636,7 +642,7 @@ export function playerDodgeChance(
     if (!inst) continue;
     gearDodge += scaledMod(inst, 'dodgeBonus');
   }
-  const traitDodge = sumTraitMod(traitIds, 'dodgeMod');
+  const traitDodge = sumTraitMod(traitIds, 'dodgeMod') + skillMods(skills).dodgeMod;
   const legPenalty = legDodgePenalty(parts);
   const ohDodge = offHandCombatMods(equipment, guardArmFactor(parts)).dodge;
   const raw =

@@ -206,7 +206,10 @@
       "plus_100",
       3
     ],
-    ["large_water_bottle", 2],
+    [
+      "large_water_bottle",
+      2
+    ],
     [
       "plasters",
       3
@@ -317,11 +320,25 @@
       "oral_rehydration",
       5
     ],
-    ["hand_sanitiser", 6],
-    ["insect_repellent", 5],
+    [
+      "hand_sanitiser",
+      6
+    ],
+    [
+      "insect_repellent",
+      5
+    ],
     [
       "emergency_blanket",
       3
+    ],
+    [
+      "book_first_aid",
+      4
+    ],
+    [
+      "book_clinic",
+      1
     ]
   ],
   "hospital": [
@@ -385,8 +402,22 @@
       "intel_scavenger_sketch",
       2
     ],
-    ["hand_sanitiser", 5],
-    ["insect_repellent", 4]
+    [
+      "hand_sanitiser",
+      5
+    ],
+    [
+      "insect_repellent",
+      4
+    ],
+    [
+      "book_clinic",
+      3
+    ],
+    [
+      "book_first_aid",
+      2
+    ]
   ],
   "clinic": [
     [
@@ -448,6 +479,14 @@
     [
       "oral_rehydration",
       4
+    ],
+    [
+      "book_first_aid",
+      3
+    ],
+    [
+      "book_clinic",
+      2
     ]
   ],
   "hardware": [
@@ -571,8 +610,14 @@
       "work_gloves",
       6
     ],
-    ["zip_ties", 6],
-    ["bicycle_repair_kit", 3],
+    [
+      "zip_ties",
+      6
+    ],
+    [
+      "bicycle_repair_kit",
+      3
+    ],
     [
       "cut_gloves",
       4
@@ -604,6 +649,18 @@
     [
       "knee_pads",
       3
+    ],
+    [
+      "book_bca",
+      3
+    ],
+    [
+      "book_hdb_diy",
+      3
+    ],
+    [
+      "book_silat",
+      1
     ]
   ],
   "fuel": [
@@ -788,6 +845,22 @@
     [
       "intel_scavenger_sketch",
       2.5
+    ],
+    [
+      "book_range_day",
+      3
+    ],
+    [
+      "book_police_arms",
+      2
+    ],
+    [
+      "book_night_shift",
+      2
+    ],
+    [
+      "book_reservist",
+      2
     ]
   ],
   "residential": [
@@ -1003,8 +1076,14 @@
       "yoga_mat",
       3
     ],
-    ["kopi_sachets", 4],
-    ["canned_sardines", 3],
+    [
+      "kopi_sachets",
+      4
+    ],
+    [
+      "canned_sardines",
+      3
+    ],
     [
       "camp_pillow",
       2
@@ -1021,11 +1100,26 @@
       "intel_turf_fragment",
       2.5
     ],
-    ["bread_loaf", 3],
-    ["canned_luncheon_meat", 4],
-    ["large_water_bottle", 2],
-    ["grocery_tote", 3],
-    ["phone_charging_cable", 3]
+    [
+      "bread_loaf",
+      3
+    ],
+    [
+      "canned_luncheon_meat",
+      4
+    ],
+    [
+      "large_water_bottle",
+      2
+    ],
+    [
+      "grocery_tote",
+      3
+    ],
+    [
+      "phone_charging_cable",
+      3
+    ]
   ],
   "foodcourt": [
     [
@@ -1201,6 +1295,18 @@
     [
       "intel_smudged_map",
       0.8
+    ],
+    [
+      "book_range_day",
+      1
+    ],
+    [
+      "book_karang_guni",
+      1
+    ],
+    [
+      "book_hyrox",
+      1
     ]
   ],
   "industrial": [
@@ -1383,6 +1489,14 @@
     [
       "intel_scavenger_sketch",
       1.5
+    ],
+    [
+      "book_bca",
+      2
+    ],
+    [
+      "book_hdb_diy",
+      2
     ]
   ],
   "school": [
@@ -1557,6 +1671,30 @@
     [
       "yoga_mat",
       3
+    ],
+    [
+      "book_reservist",
+      3
+    ],
+    [
+      "book_hyrox",
+      3
+    ],
+    [
+      "book_first_aid",
+      2
+    ],
+    [
+      "book_karang_guni",
+      2
+    ],
+    [
+      "book_estate_mag",
+      2
+    ],
+    [
+      "book_hdb_diy",
+      2
     ]
   ],
   "waypoint": [
@@ -1624,8 +1762,17 @@
       "school_bag",
       2
     ],
-    ["insect_repellent", 4],
-    ["rain_poncho", 3],
-    ["large_water_bottle", 2]
+    [
+      "insect_repellent",
+      4
+    ],
+    [
+      "rain_poncho",
+      3
+    ],
+    [
+      "large_water_bottle",
+      2
+    ]
   ]
 }

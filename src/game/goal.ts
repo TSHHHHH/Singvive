@@ -67,6 +67,8 @@ export function evacWeightMult(effect: ItemEffect): number {
       return 0.35;
     case 'intel':
       return 0;
+    case 'skillBook':
+      return 0.25;
   }
 }
 

@@ -33,7 +33,7 @@ const inst = (id: string, defId: string) => ({
 
 const write = (over: Record<string, unknown>) => {
   store.set(
-    'singvive.run.v6',
+    'singvive.run.v7',
     JSON.stringify({
       character: {
         name: 'T',
@@ -108,7 +108,7 @@ describe('export / import round trip', () => {
 
   it('accepts a bare SavedRun, which is what a hand-rolled backup looks like', () => {
     write({ day: 3 });
-    const bare = store.get('singvive.run.v6') as string;
+    const bare = store.get('singvive.run.v7') as string;
     store.clear();
     expect(importRunJson(bare)).toBe(true);
     expect((loadRun() as SavedRun).day).toBe(3);

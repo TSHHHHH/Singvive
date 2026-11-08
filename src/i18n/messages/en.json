@@ -386,9 +386,29 @@
       "log": "Log",
       "logbook": "Logbook",
       "stats": "Stats",
+      "skills": "Skills",
       "objectives": "Objectives",
       "openStatus": "Open status",
       "bleed": "Bleed"
+    },
+    "skills": {
+      "title": "Skills",
+      "blurb": "Passive abilities that grow from practice and books. They die with the run.",
+      "level": "Lv {level}",
+      "xp": "{xp} / {need} XP",
+      "maxed": "Maxed",
+      "practiceLeft": "{left} practice XP left today",
+      "fromSkills": "From skill levels",
+      "starting": "Starting skills",
+      "mod": {
+        "attack": "Attack",
+        "defense": "Defence",
+        "travel": "Travel",
+        "loot": "Loot",
+        "heal": "Heal bonus",
+        "craft": "Craft cost",
+        "encounter": "Encounters"
+      }
     },
     "craft": {
       "needHave": "{name} — need {need}, have {have}",
@@ -1353,6 +1373,15 @@
         "Out of combat: right-click a magazine + ammo box to refill, then load it into the holstered pistol. Shotguns take shells directly on the holstered gun. Typed ammo only — no global round pool."
       ]
     },
+    "skills": {
+      "title": "Skills",
+      "bullets": [
+        "Seven passive skills sit between traits and the numbers: Fighting, Shooting, Fitness, Scavenging, Medicine, Trades, Stealth. Traits still apply their own mods (soft funnel) and often grant starting skill levels — signatures start high.",
+        "Practice meaningful actions to earn XP (kills, searches, treks, crafts, heals, flees). Practice XP soft-caps each day per skill so spam does not pay.",
+        "Loot and read skill books and magazines. Reading costs hours and grants a big XP chunk — or one gated level if you are still under the book's tier. Wrong-tier books stay unread.",
+        "Skills die with the run. There is no account unlock tree."
+      ]
+    },
     "loot": {
       "title": "Loot",
       "bullets": [
@@ -1462,6 +1491,18 @@
     "crowbar": "Crowbar",
     "fire_axe": "Fire Axe",
     "parang": "Parang",
+    "book_reservist": "Reservist Handbook",
+    "book_silat": "Silat Notes",
+    "book_range_day": "Range Day Magazine",
+    "book_police_arms": "Police Arms Primer",
+    "book_hyrox": "Parkrun Pamphlet",
+    "book_karang_guni": "Karang Guni Tips",
+    "book_estate_mag": "Estate Mag",
+    "book_first_aid": "First Aid Manual",
+    "book_clinic": "Clinic Protocol",
+    "book_bca": "BCA Handbook Excerpt",
+    "book_hdb_diy": "HDB DIY Pamphlet",
+    "book_night_shift": "Night-shift Security Brief",
     "wooden_stick": "Wooden Stick",
     "meat_cleaver": "Meat Cleaver",
     "golf_club": "Golf Club",

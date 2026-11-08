@@ -19,6 +19,7 @@ import { GuideInfoButton } from './GuideInfoButton';
 import type { GuideTopic } from '../content/guideContent';
 import { useT } from '../i18n';
 import { tip } from './tips';
+import { LIVE_NODE_BAND } from './logTimeline';
 
 type Variant = 'timeline' | 'card';
 
@@ -311,7 +312,7 @@ export function SearchSessionNode({
   }
 
   return (
-    <li className="relative flex gap-2 rounded bg-white/[0.07] py-1.5 pl-6 pr-3">
+    <li className={`relative flex gap-2 py-1.5 pl-6 pr-2 ${LIVE_NODE_BAND}`}>
       <span className="absolute left-0 top-[7px] h-[11px] w-[11px] animate-pulse rounded-full border-2 border-concrete-900 bg-signal" />
       <div className="min-w-0 flex-1">
         <p

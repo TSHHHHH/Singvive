@@ -21,6 +21,8 @@ import type {
   Enemy,
   TimeOfDay,
   WeatherKind,
+  SkillDayXp,
+  SkillsState,
 } from './types';
 import { freshEventClock } from './types';
 import { sightFactor } from './nightSight';
@@ -38,6 +40,18 @@ import {
   traitFirstHitDamageMult,
   traitPoiLootBonus,
 } from './character';
+import {
+  applySkillBook,
+  emptySkillDayXp,
+  emptySkills,
+  gainSkillXp,
+  PRACTICE_XP,
+  skillMods,
+  skillsFromTraits,
+  SKILL_LABELS,
+  traitSkillXpMult,
+  type SkillId,
+} from './skills';
 import { fetchOsmPois, haversine, type RawPoi } from './overpass';
 import { bakedEvacPois, bakedPoisNear, ensureBakeLoaded } from './bakedPois';
 import {
@@ -429,6 +443,7 @@ import {
   evacWindowHours,
   type EvacDemandBias,
 } from './goal';
+import { travelAnimDurationMs } from '../ui/travelMotion';
 
 /** How the crew phrases this window's cargo appetite once the channel is up. */
 const BIAS_LOG: Record<EvacDemandBias, string> = {
@@ -594,6 +609,10 @@ interface State {
   kills: number;
   /** Display-only run counters — see stats.ts. */
   stats: RunStats;
+  /** In-run passive skills (die with the survivor). */
+  skills: SkillsState;
+  /** Practice XP banked today — soft daily cap. */
+  skillDayXp: SkillDayXp;
   exploredArea: ExploredCircle[];
 
   combat: CombatState | null;
@@ -920,7 +939,27 @@ export const useGame = create<State>((set, get) => {
   /** Knowing what a thing is worth is itself a skill — see the Kiasu trait. */
   const lootValueMod = (): number => {
     const c = get().character;
-    return c ? sumTraitMod(c.traitIds, 'lootValueMod') : 0;
+    const base = c ? sumTraitMod(c.traitIds, 'lootValueMod') : 0;
+    return base + skillMods(get().skills).lootValueMod;
+  };
+
+  const skillPackage = () => skillMods(get().skills);
+
+  /** Practice XP from a meaningful action (books use applySkillBook instead). */
+  const applyPracticeXp = (skill: SkillId, amount: number) => {
+    const st = get();
+    if (!st.character || amount <= 0) return;
+    const r = gainSkillXp(st.skills, st.skillDayXp, st.day, skill, amount, {
+      xpMult: traitSkillXpMult(st.character.traitIds, skill),
+    });
+    if (r.applied <= 0) return;
+    set({ skills: r.skills, skillDayXp: r.dayXp });
+    if (r.leveled) {
+      pushLog(
+        SKILL_LABELS[skill] + ' rose to ' + r.skills[skill].level + '.',
+        'good',
+      );
+    }
   };
 
   const bumpHaul = (loot: LootStack[], leftover: LootStack[]) => {
@@ -1026,7 +1065,7 @@ export const useGame = create<State>((set, get) => {
   }) =>
     legTravelFactor(s.bodyParts) *
     equipTravelSpeedFactor(s.equipment) *
-    (1 + sumTraitMod(s.character?.traitIds ?? [], 'travelSpeedMod'));
+    (1 + sumTraitMod(s.character?.traitIds ?? [], 'travelSpeedMod') + skillPackage().travelSpeedMod);
 
   const loadOf = (s: {
     items: ItemInstance[];
@@ -1039,7 +1078,7 @@ export const useGame = create<State>((set, get) => {
           s.items,
           s.character.attributes,
           s.equipment,
-          sumTraitMod(s.character.traitIds, 'carryCapacityMod'),
+          sumTraitMod(s.character.traitIds, 'carryCapacityMod') + skillPackage().carryCapacityMod,
           s.bodyParts ? torsoCarryMult(s.bodyParts) : 1,
         )
       : loadEffects(0);
@@ -1070,6 +1109,7 @@ export const useGame = create<State>((set, get) => {
       eq,
       armCombatPenalty(s.bodyParts) + headCombatPenalty(s.bodyParts),
       load.attackMod,
+      s.skills,
     );
     const prepGun = c.firePrepared || c.reloadPrepared ? holsteredFirearm(eq) : null;
     const prepGunDef = prepGun ? itemDef(prepGun.defId) : null;
@@ -1175,6 +1215,8 @@ export const useGame = create<State>((set, get) => {
         clothingTears: s.clothingTears,
         kills: s.kills,
         stats: s.stats,
+        skills: s.skills,
+        skillDayXp: s.skillDayXp,
         log: s.log,
         usedFallback: s.usedFallback,
         exploredArea: s.exploredArea,
@@ -1431,8 +1473,8 @@ export const useGame = create<State>((set, get) => {
       hours,
       hasTraitFlag(traitIds, 'bleedingSelfStopDisabled'),
       s.meters.hunger,
-      sumTraitMod(traitIds, 'legHealMod'),
-      sumTraitMod(traitIds, 'bleedStopBonus'),
+      sumTraitMod(traitIds, 'legHealMod') + skillPackage().legHealMod,
+      sumTraitMod(traitIds, 'bleedStopBonus') + skillPackage().bleedStopBonus,
     );
     const partsAfterSystemic = tickSystemicDamage(bodyParts, s.meters, hours);
     const skyNow = weatherKindFor(s.seed, s.day);
@@ -1446,7 +1488,7 @@ export const useGame = create<State>((set, get) => {
         torsoEnergyDrainMult(partsAfterSystemic),
       hungerDrainMod: sumTraitMod(traitIds, 'hungerDrainMod'),
       thirstDrainMod: sumTraitMod(traitIds, 'thirstDrainMod'),
-      energyDrainMod: sumTraitMod(traitIds, 'energyDrainMod'),
+      energyDrainMod: sumTraitMod(traitIds, 'energyDrainMod') + skillPackage().energyDrainMod,
       outdoorEnergyDrainMod: sumTraitMod(traitIds, 'outdoorEnergyDrainMod'),
       outdoors,
       heat: skyNow === 'heat',
@@ -1681,8 +1723,11 @@ export const useGame = create<State>((set, get) => {
       weatherEncounterMod: 0,
       traitEncounterMod:
         sumTraitMod(s.character.traitIds, 'encounterChanceMod') +
+          skillPackage().encounterChanceMod +
         sumTraitMod(s.character.traitIds, 'nightEncounterChanceMod') +
-        sumTraitMod(s.character.traitIds, 'ambushChanceMod') * 0.15 +
+        (sumTraitMod(s.character.traitIds, 'ambushChanceMod') +
+          skillPackage().ambushChanceMod) *
+          0.15 +
         equipEncounterChanceMod(s.equipment) +
         bleedEncounterMod(s.bodyParts),
       safe: s.spawn ?? undefined,
@@ -1768,6 +1813,7 @@ export const useGame = create<State>((set, get) => {
     );
     const lootMod =
       sumTraitMod(s.character!.traitIds, 'lootMod') +
+        skillPackage().lootMod +
       traitPoiLootBonus(s.character!.traitIds, loc.category);
     const perceptionBonus = Math.floor((s.character!.attributes.perception - 5) / 2);
     const raiding =
@@ -1860,7 +1906,7 @@ export const useGame = create<State>((set, get) => {
       (searchSpeedFactor(
         equipSearchSpeedBonus(s.equipment),
         s.character!.attributes.perception,
-        sumTraitMod(s.character!.traitIds, 'searchSpeedMod'),
+        sumTraitMod(s.character!.traitIds, 'searchSpeedMod') + skillPackage().searchSpeedMod,
       ) *
         loadOf(s).searchMult) /
       headSearchFactor(s.bodyParts);
@@ -2061,6 +2107,7 @@ export const useGame = create<State>((set, get) => {
       pushLog('You leave the rest behind.', 'info', { loot: [], leftover });
     }
 
+    applyPracticeXp('scavenging', PRACTICE_XP.searchComplete);
     set({ pendingSearch: null });
     if (working.raiding) {
       const after = get().locations[working.locationId];
@@ -2407,12 +2454,12 @@ export const useGame = create<State>((set, get) => {
     encChance += weatherEncounterMod(weatherKindFor(s.seed, s.day));
     // Local neighbourhood pressure — a Fallen town is not a Stirring one.
     encChance += pressureFn()(loc.lat, loc.lng) * 0.3;
-    encChance += sumTraitMod(s.character!.traitIds, 'encounterChanceMod');
+    encChance += sumTraitMod(s.character!.traitIds, 'encounterChanceMod') + skillPackage().encounterChanceMod;
     if (band === 'night' || band === 'dusk') {
       encChance += sumTraitMod(s.character!.traitIds, 'nightEncounterChanceMod');
     }
     // Ambush-prone builds get jumped more often when a search turns into a fight.
-    const ambushMult = Math.max(0.15, 1 + sumTraitMod(s.character!.traitIds, 'ambushChanceMod'));
+    const ambushMult = Math.max(0.15, 1 + sumTraitMod(s.character!.traitIds, 'ambushChanceMod') + skillPackage().ambushChanceMod);
     encChance = Math.max(0.02, Math.min(0.95, encChance * (0.7 + 0.3 * ambushMult)));
 
     if (encRng.chance(encChance)) {
@@ -2477,8 +2524,8 @@ export const useGame = create<State>((set, get) => {
   const hdbForceOpts = () => {
     const s = get();
     return {
-      heatMult: sumTraitMod(s.character!.traitIds, 'hdbDoorHeatMult'),
-      minutesMult: sumTraitMod(s.character!.traitIds, 'hdbBreachMinutesMult'),
+      heatMult: sumTraitMod(s.character!.traitIds, 'hdbDoorHeatMult') + skillPackage().hdbDoorHeatMult,
+      minutesMult: sumTraitMod(s.character!.traitIds, 'hdbBreachMinutesMult') + skillPackage().hdbBreachMinutesMult,
       crowbar: s.items.some((i) => i.container === 'backpack' && i.defId === 'crowbar'),
     };
   };
@@ -2535,7 +2582,7 @@ export const useGame = create<State>((set, get) => {
       (searchSpeedFactor(
         equipSearchSpeedBonus(s.equipment),
         s.character!.attributes.perception,
-        sumTraitMod(s.character!.traitIds, 'searchSpeedMod'),
+        sumTraitMod(s.character!.traitIds, 'searchSpeedMod') + skillPackage().searchSpeedMod,
       ) *
         loadOf(s).searchMult) /
       headSearchFactor(s.bodyParts);
@@ -3496,6 +3543,8 @@ export const useGame = create<State>((set, get) => {
     clothingTears: OWN_CLOTHES_TEARS,
     kills: 0,
     stats: emptyRunStats(),
+    skills: emptySkills(),
+    skillDayXp: emptySkillDayXp(1),
     exploredArea: [],
     combat: null,
     _combatRng: null,
@@ -3544,6 +3593,8 @@ export const useGame = create<State>((set, get) => {
         clothingTears: OWN_CLOTHES_TEARS,
         kills: 0,
         stats: emptyRunStats(),
+        skills: skillsFromTraits(c.traitIds),
+        skillDayXp: emptySkillDayXp(1),
         log: [],
       });
     },
@@ -3636,7 +3687,7 @@ export const useGame = create<State>((set, get) => {
 
       // A scavenger by trade gets more out of every site than the search budget
       // allows anyone else.
-      const searchBonus = sumTraitMod(get().character!.traitIds, 'searchBonusMod');
+      const searchBonus = sumTraitMod(get().character!.traitIds, 'searchBonusMod') + skillPackage().searchBonusMod;
       const locations: Record<string, LocationState> = {};
       for (const l of list) {
         locations[l.id] =
@@ -3871,6 +3922,10 @@ export const useGame = create<State>((set, get) => {
       // later, on searching). Bail if the survivor dies en route.
       if (advanceTime((est.travelMin / 60) * vegOnRoute.travelMult, undefined, false, true, load.energyMult)) return;
       bumpStats({ distanceM: dist });
+      {
+        const trekHours = (est.travelMin / 60) * vegOnRoute.travelMult;
+        applyPracticeXp('fitness', Math.max(1, Math.round(trekHours * PRACTICE_XP.trekHour)));
+      }
 
       // Prefetch the landing cell while the glide runs.
       void ensureWorldAround(loc.lat, loc.lng);
@@ -3890,6 +3945,7 @@ export const useGame = create<State>((set, get) => {
           weatherEncounterMod: weatherEncounterMod(weather),
           traitEncounterMod:
             sumTraitMod(now.character!.traitIds, 'encounterChanceMod') +
+            skillMods(now.skills).encounterChanceMod +
             (band === 'night' || band === 'dusk'
               ? sumTraitMod(now.character!.traitIds, 'nightEncounterChanceMod')
               : 0) +
@@ -3945,10 +4001,7 @@ export const useGame = create<State>((set, get) => {
       }
 
       // Vegetation stretches the real-time glide slightly so slow ground reads.
-      const durationMs = Math.min(
-        2800,
-        Math.max(800, Math.round(est.travelMin * 22 * Math.min(1.35, vegOnRoute.travelMult))),
-      );
+      const durationMs = travelAnimDurationMs(est.travelMin, vegOnRoute.travelMult);
       pushLog(flavor('setout', {
         name: loc.name,
         time: timeOfDay(s.hour),
@@ -4149,6 +4202,7 @@ export const useGame = create<State>((set, get) => {
       );
       const veg = vegetationCost(from, { lat, lng }, route.points);
       if (advanceTime((est.travelMin / 60) * veg.travelMult, undefined, false, true, load.energyMult)) return;
+      applyPracticeXp('fitness', Math.max(1, Math.round(((est.travelMin / 60) * veg.travelMult) * PRACTICE_XP.trekHour)));
       bumpStats({ distanceM: dist });
 
       // Prefetch the landing cell — open ground is how you leave the bubble.
@@ -4167,6 +4221,7 @@ export const useGame = create<State>((set, get) => {
           weatherEncounterMod: weatherEncounterMod(weather),
           traitEncounterMod:
             sumTraitMod(now.character!.traitIds, 'encounterChanceMod') +
+            skillMods(now.skills).encounterChanceMod +
             (trekBand === 'night' || trekBand === 'dusk'
               ? sumTraitMod(now.character!.traitIds, 'nightEncounterChanceMod')
               : 0) +
@@ -4220,10 +4275,7 @@ export const useGame = create<State>((set, get) => {
         trekFindLog = applyTravelFind(encRng, 'trek');
       }
 
-      const durationMs = Math.min(
-        2800,
-        Math.max(800, Math.round(est.travelMin * 22 * Math.min(1.35, veg.travelMult))),
-      );
+      const durationMs = travelAnimDurationMs(est.travelMin, veg.travelMult);
       const startedAt = Date.now();
       pushLog(flavor('trekOut'), 'info');
       if (veg.patches.length > 0) {
@@ -5495,7 +5547,7 @@ export const useGame = create<State>((set, get) => {
       const inst = s.items.find((i) => i.uid === uid);
       if (!inst) return;
       const def = itemDef(inst.defId);
-      const healBonus = sumTraitMod(s.character!.traitIds, 'healBonus');
+      const healBonus = sumTraitMod(s.character!.traitIds, 'healBonus') + skillPackage().healBonus;
       // Freshness pays. A wilting packet still feeds, just not as much — and the
       // log says so, so the player learns to eat the old stuff first.
       const fresh = (base: number) => scaledRestore(inst, base);
@@ -5528,7 +5580,7 @@ export const useGame = create<State>((set, get) => {
           if (fx.energy != null) m.energy = clampMeter(m.energy + fresh(fx.energy));
           const waterRisk = (fx.infectionRisk ?? 0) + (inst.contaminationRisk ?? 0);
           if (waterRisk > 0) {
-            const resist = sumTraitMod(s.character!.traitIds, 'infectionResist');
+            const resist = sumTraitMod(s.character!.traitIds, 'infectionResist') + skillPackage().infectionResist;
             m.infection = clampMeter(m.infection + waterRisk * (1 - resist));
             pushLog(
               `Drank ${def.name}. ${consumableRestoreSummary(fx)} — it sits wrong (+${Math.round(waterRisk * (1 - resist))} infection).`,
@@ -5556,9 +5608,10 @@ export const useGame = create<State>((set, get) => {
           // The Polyclinic Nurse's training takes most of that sting out.
           const risk = def.effect.infectionRisk ?? 0;
           if (risk > 0) {
-            const resist = sumTraitMod(s.character!.traitIds, 'infectionResist');
+            const resist = sumTraitMod(s.character!.traitIds, 'infectionResist') + skillPackage().infectionResist;
             m.infection = clampMeter(m.infection + risk * (1 - resist));
           }
+          applyPracticeXp('medicine', PRACTICE_XP.healUse);
           consumed = true;
           pushLog(
             def.effect.stopsBleeding
@@ -5600,6 +5653,46 @@ export const useGame = create<State>((set, get) => {
             'info',
           );
           return;
+        }
+        case 'skillBook': {
+          const book = def.effect;
+          const result = applySkillBook(s.skills, book.skill, book.tier);
+          if (!result.ok) {
+            pushLog(
+              result.reason === 'too_advanced'
+                ? def.name + ' is beyond you yet — come back when you know more.'
+                : def.name + ' has nothing left to teach.',
+              'info',
+            );
+            break;
+          }
+          advanceTime(result.hours);
+          set({ skills: result.skills });
+          if (result.gainedLevel) {
+            pushLog(
+              'You finish ' +
+                def.name +
+                '. ' +
+                SKILL_LABELS[book.skill] +
+                ' rises to ' +
+                result.skills[book.skill].level +
+                '.',
+              'good',
+            );
+          } else {
+            pushLog(
+              'You finish ' +
+                def.name +
+                '. ' +
+                SKILL_LABELS[book.skill] +
+                ' inches forward (+' +
+                result.xpGranted +
+                ' XP).',
+              'good',
+            );
+          }
+          consumed = true;
+          break;
         }
         case 'intel': {
           if (s.travelAnim || s.pendingEvent) {
@@ -5823,7 +5916,10 @@ export const useGame = create<State>((set, get) => {
       const waterInputId = recipe.waterInput
         ? waterInputFor(s.items, recipe.waterInput)
         : null;
-      const inputs = adjustCraftInputs(recipe.inputs, s.character!.traitIds);
+      const inputs = adjustCraftInputs(
+        recipe.inputs,
+        sumTraitMod(s.character!.traitIds, 'craftCostMod') + skillPackage().craftCostMod,
+      );
       if (waterInputId && recipe.waterInput) inputs[waterInputId] = recipe.waterInput;
       const check = canCraft(recipe, s.items, atShelter, inputs);
       if (!check.ok) {
@@ -5892,6 +5988,7 @@ export const useGame = create<State>((set, get) => {
         set({ items: made.items });
         pushLog(`Made ${recipe.outputCount}× ${outName}.`, 'good');
       }
+      applyPracticeXp('trades', PRACTICE_XP.craft);
       persist();
     },
 
@@ -6347,7 +6444,7 @@ export const useGame = create<State>((set, get) => {
       if (advanceTime(PICK_MINUTES / 60)) return;
       const g = get();
       if (!g.hdb || !g.character) return;
-      const pickMod = sumTraitMod(g.character.traitIds, 'hdbPickMod');
+      const pickMod = sumTraitMod(g.character.traitIds, 'hdbPickMod') + skillPackage().hdbPickMod;
       const rng = new Rng(g.seed).fork(`pick:${g.hdb.locationId}:${unitId}:${g.day}:${g.hdb.moveSeq}`);
       const check = pickCheck(rng, g.character.attributes.dexterity, pickMod);
       pushLog(
@@ -6359,6 +6456,7 @@ export const useGame = create<State>((set, get) => {
         persist();
         return;
       }
+      applyPracticeXp('trades', PRACTICE_XP.hdbPick);
       pushLog('The lock turns without a sound.', 'good');
       const quiet = { ...unit, entry: 'ajar' as const };
       resolveHdbDoor(unitId, breachOutcome(g.hdb, quiet, level), 'ajar', { skipTime: true });
@@ -6916,9 +7014,12 @@ export const useGame = create<State>((set, get) => {
             c.terrain,
             c.context,
             s.meters.energy,
-            sumTraitMod(s.character.traitIds, 'attackMod'),
-            sumTraitMod(s.character.traitIds, 'nightAccuracyExtra'),
-            sumTraitMod(s.character.traitIds, 'zombieAttackMod'),
+            sumTraitMod(s.character.traitIds, 'attackMod') +
+              skillPackage().shootingAccuracy,
+            sumTraitMod(s.character.traitIds, 'nightAccuracyExtra') +
+              skillPackage().nightAccuracyExtra,
+            sumTraitMod(s.character.traitIds, 'zombieAttackMod') +
+              skillPackage().zombieAttackMod,
           );
           const nextGun = {
             ...prepGun,
@@ -6966,6 +7067,7 @@ export const useGame = create<State>((set, get) => {
               combat: { ...next, over: true, outcome: 'win' },
               kills: s.kills + 1,
             });
+            applyPracticeXp('shooting', PRACTICE_XP.firearmKill);
             bumpStats(
               zombie.kind === 'human'
                 ? { humanKills: 1 }
@@ -6975,6 +7077,7 @@ export const useGame = create<State>((set, get) => {
             );
           } else {
             set({ equipment, combat: next });
+            if (res.hit) applyPracticeXp('shooting', PRACTICE_XP.firearmShot);
           }
           if (res.applyGunshotDanger && res.gunshotIntensity > 0) {
             const g = get();
@@ -7038,6 +7141,7 @@ export const useGame = create<State>((set, get) => {
             combat: { ...next, over: true, outcome: 'win' },
             kills: s.kills + 1,
           });
+          applyPracticeXp('fighting', PRACTICE_XP.meleeKill);
           bumpStats(
             zombie.kind === 'human'
               ? { humanKills: 1 }
@@ -7142,6 +7246,7 @@ export const useGame = create<State>((set, get) => {
         s.equipment,
         armCombatPenalty(s.bodyParts) + headCombatPenalty(s.bodyParts),
         load.attackMod,
+        s.skills,
       );
       const round = s.combat.round + 1;
       const stance = STANCES[s.combat.selectedStance];
@@ -7223,6 +7328,7 @@ export const useGame = create<State>((set, get) => {
             reloadPrepared: false,
           },
         });
+      applyPracticeXp('stealth', PRACTICE_XP.fleeSuccess);
         bumpStats({ fightsFled: 1 });
       } else if (dead) {
         set({
@@ -7511,6 +7617,8 @@ export const useGame = create<State>((set, get) => {
         clothingTears: run.clothingTears ?? OWN_CLOTHES_TEARS,
         kills: run.kills,
         stats: normalizeRunStats(run.stats),
+        skills: run.skills ?? skillsFromTraits(run.character.traitIds),
+        skillDayXp: run.skillDayXp ?? emptySkillDayXp(run.day),
         usedFallback: run.usedFallback,
         exploredArea: mergeExploredCircles(run.exploredArea ?? []),
         expandedCells: run.expandedCells ?? [],

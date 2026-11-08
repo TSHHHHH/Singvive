@@ -4,6 +4,23 @@
  * Not used by sim travel cost (`BASE_SPEED` / duration clamp stay untouched).
  */
 
+/** Floor / ceiling for the pin glide (ms). */
+export const TRAVEL_ANIM_MIN_MS = 1250;
+export const TRAVEL_ANIM_MAX_MS = 4400;
+/** Sim travel minutes → wall-clock ms before veg stretch / clamp. */
+export const TRAVEL_ANIM_MS_PER_MIN = 34;
+/** Veg can stretch the glide up to this multiplier. */
+export const TRAVEL_ANIM_VEG_CAP = 1.35;
+
+/** Wall-clock ms for the land-travel pin glide (cosmetic only). */
+export function travelAnimDurationMs(travelMin: number, travelMult = 1): number {
+  const veg = Math.min(TRAVEL_ANIM_VEG_CAP, Math.max(1, travelMult));
+  return Math.min(
+    TRAVEL_ANIM_MAX_MS,
+    Math.max(TRAVEL_ANIM_MIN_MS, Math.round(travelMin * TRAVEL_ANIM_MS_PER_MIN * veg)),
+  );
+}
+
 /** Fraction of wall-clock time held still at each end of the glide. */
 export const TRAVEL_HOLD = 0.1;
 

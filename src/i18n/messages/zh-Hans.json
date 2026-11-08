@@ -386,9 +386,29 @@
       "log": "日志",
       "logbook": "记录本",
       "stats": "属性",
+      "skills": "技能",
       "objectives": "目标",
       "openStatus": "打开状态",
       "bleed": "流血"
+    },
+    "skills": {
+      "title": "技能",
+      "blurb": "被动能力，靠练习与书籍成长。本局结束即清零。",
+      "level": "等级 {level}",
+      "xp": "{xp} / {need} 经验",
+      "maxed": "已满级",
+      "practiceLeft": "今日练习经验剩余 {left}",
+      "fromSkills": "来自技能等级",
+      "starting": "开局技能",
+      "mod": {
+        "attack": "攻击",
+        "defense": "防御",
+        "travel": "移动",
+        "loot": "搜刮",
+        "heal": "治疗加成",
+        "craft": "合成消耗",
+        "encounter": "遭遇"
+      }
     },
     "craft": {
       "needHave": "{name} — 需要 {need}，现有 {have}",
@@ -1353,6 +1373,15 @@
         "战斗外：右键弹匣 + 弹药盒装填，再装进枪套里的手枪。霰弹枪直接往枪套枪上装霰弹。弹药分型号——没有全局子弹池。"
       ]
     },
+    "skills": {
+      "title": "技能",
+      "bullets": [
+        "七项被动技能夹在特质与数值之间：格斗、射击、体能、搜刮、医疗、手艺、潜行。特质仍保留自身加成（软漏斗），并常提供开局技能等级——签名特质开局更高。",
+        "有意义的行动给练习经验（击杀、搜索、赶路、合成、治疗、逃脱）。每项技能每日练习经验有软上限，刷同一动作很快就不涨。",
+        "搜刮技能书与杂志。阅读消耗小时，给大段经验——或在未达书籍层级时直接升一级。层级不够的书读不了。",
+        "技能随本局结束清零。没有账号解锁树。"
+      ]
+    },
     "loot": {
       "title": "搜刮",
       "bullets": [
@@ -1462,6 +1491,18 @@
     "crowbar": "撬棍",
     "fire_axe": "消防斧",
     "parang": "巴冷刀",
+    "book_reservist": "预备役手册",
+    "book_silat": "短打笔记",
+    "book_range_day": "靶场杂志",
+    "book_police_arms": "警械入门",
+    "book_hyrox": "Parkrun 传单",
+    "book_karang_guni": "旧货佬窍门",
+    "book_estate_mag": "组屋杂志",
+    "book_first_aid": "急救手册",
+    "book_clinic": "诊所规程",
+    "book_bca": "建屋局手册摘录",
+    "book_hdb_diy": "组屋 DIY 传单",
+    "book_night_shift": "夜班安保简报",
     "wooden_stick": "木棍",
     "meat_cleaver": "砍骨刀",
     "golf_club": "高尔夫球杆",

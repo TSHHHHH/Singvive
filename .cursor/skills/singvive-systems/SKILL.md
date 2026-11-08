@@ -17,7 +17,7 @@ flowchart TD
   AdvanceTime --> Noise[noise.ts]
   Store --> Combat[combat.ts overlay]
   Store --> Persist[persistRun.ts debounced]
-  Persist --> Storage[storage.ts singvive.run.v6]
+  Persist --> Storage[storage.ts singvive.run.v7]
   Store --> Travel[travel.ts A*]
   Store --> World[world.ts locations]
 ```
@@ -47,12 +47,13 @@ Do **not** add a second Zustand store or dump logic only into the façade.
 | System | File(s) |
 |--------|---------|
 | Time hub | `store.ts` → `advanceTime` |
-| Persistence | `persistRun.ts`, `storage.ts` (`singvive.run.v6`) |
+| Persistence | `persistRun.ts`, `storage.ts` (`singvive.run.v7`) |
 | Combat | `combat.ts` (pure resolve), `CombatPanel` (UI) |
 | Travel | `travel.ts`, `route.ts` |
 | Inventory | `inventory.ts`, `packGrid.ts` |
 | World / POIs | `world.ts`, `bakedPois.ts`, `poi.ts` |
 | Loot | `loot.ts`, `data/items.json` |
+| Skills | `skills.ts` (in-run passive levels) |
 
 ## Cross-module changes
 
@@ -67,7 +68,7 @@ Before editing `store.ts` or touching combat + travel + persist together:
 - [ ] All gameplay RNG uses `Rng` with `fork()` tags
 - [ ] No `Math.random()` in `src/game/` (except `randomSeed()` in `rng.ts`)
 - [ ] Same seed + spawn reproduces world, encounters, loot
-- [ ] Persist schema stays `singvive.run.v6` unless migration added
+- [ ] Persist schema stays `singvive.run.v7` unless migration added
 
 ## Browser playtest smoke path
 
