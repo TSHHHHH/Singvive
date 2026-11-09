@@ -56,6 +56,15 @@
         "abandonLabel": "Abandon run",
         "abandonDesc": "Delete the current run — day {day} — and go back to the title screen. There is no undo.",
         "abandonAction": "Abandon run"
+      },
+      "cameraKeys": {
+        "title": "Camera keys",
+        "pan": "Pan the map",
+        "fast": "Hold to pan faster",
+        "rotate": "Turn the view (3D)",
+        "zoom": "Zoom in / out",
+        "recenter": "Back to you",
+        "note": "Arrow keys pan only when no list or panel has focus."
       }
     },
     "guide": {
@@ -1329,6 +1338,23 @@
       "options": {
         "on": "On",
         "off": "Off"
+      }
+    },
+    "mapKeys": {
+      "label": "Keyboard camera",
+      "description": "Pan, turn and zoom the run map from the keyboard. The keys are listed below.",
+      "options": {
+        "on": "On",
+        "off": "Off"
+      }
+    },
+    "mapKeyPanSpeed": {
+      "label": "Keyboard pan speed",
+      "description": "How fast WASD and the arrows slide the map. Hold Shift for a burst on top.",
+      "options": {
+        "slow": "Slow",
+        "normal": "Normal",
+        "fast": "Fast"
       }
     },
     "reduceMotion": {

@@ -8,9 +8,10 @@ import { alive } from './layers';
  *
  * Three channels, none of which touch a layer's paint or filter:
  * - **Light.** MapLibre's one directional light colours and shades every
- *   extruded building. Rain darkens and cools it, haze turns it amber, heat
- *   drops the sun low and harsh, overcast flattens it overhead. A storm's
- *   lightning is a few frames of this light going white.
+ *   extruded building. Rain cools it, haze turns it amber, heat drops the sun
+ *   low and harsh, overcast flattens it overhead. A storm's lightning is a few
+ *   frames of this light going white. The light can tint but never darken:
+ *   see `liftLight`.
  * - **Sky.** Horizon and sky colours, seen when the camera tilts far enough
  *   to reach the horizon.
  * - **Depth haze.** At the run map's tilt the horizon is off screen, so
@@ -72,7 +73,7 @@ const WEATHER: Record<WeatherKind, Atmosphere> = {
     sky: '#16191c',
     horizon: '#2c3034',
     fog: '#16191c',
-    light: '#b4bcc4',
+    light: '#c8d0d8',
     intensity: 0.22,
     polar: 8,
     haze: '#2a2e33',
@@ -84,8 +85,8 @@ const WEATHER: Record<WeatherKind, Atmosphere> = {
     sky: '#10161c',
     horizon: '#26323c',
     fog: '#10161c',
-    light: '#8696a8',
-    intensity: 0.3,
+    light: '#d2dce8',
+    intensity: 0.38,
     polar: 18,
     haze: '#24303a',
     hazeAlpha: 0.58,
@@ -96,8 +97,8 @@ const WEATHER: Record<WeatherKind, Atmosphere> = {
     sky: '#0a0e14',
     horizon: '#1a2230',
     fog: '#0a0e14',
-    light: '#6a7888',
-    intensity: 0.34,
+    light: '#c6d2e2',
+    intensity: 0.42,
     polar: 14,
     haze: '#18202c',
     hazeAlpha: 0.66,
@@ -137,6 +138,25 @@ const TIME: Record<Exclude<TimeOfDay, 'day'>, { light: string; k: number; dim: n
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
+/**
+ * Lowest a light channel may go, 0..1. MapLibre lights an extrusion as
+ * `max(colour * shade * light, 0.3 * (1 - light))`. Our blocks are near-black
+ * (#2a2e2a), so once the light drops much below white the second term wins on
+ * every face: the city goes one flat brown with no lit or shaded sides. That
+ * is what rain, storms and night used to look like. Keeping each channel at
+ * or above this keeps the shading; gloom comes from sky, haze and the
+ * time-of-day wash instead.
+ */
+export const LIGHT_FLOOR = 0.8;
+
+/** Mix a light colour toward white just enough that no channel is below LIGHT_FLOOR. */
+export function liftLight(hex: string): string {
+  const n = parseInt(hex.slice(1), 16);
+  const lo = Math.min((n >> 16) & 255, (n >> 8) & 255, n & 255) / 255;
+  if (lo >= LIGHT_FLOOR) return hex;
+  return mixHex(hex, '#ffffff', (LIGHT_FLOOR - lo) / (1 - lo));
+}
+
 export function mixAtmosphere(a: Atmosphere, b: Atmosphere, t: number): Atmosphere {
   if (t <= 0) return a;
   if (t >= 1) return b;
@@ -160,14 +180,14 @@ export function mixAtmosphere(a: Atmosphere, b: Atmosphere, t: number): Atmosphe
  */
 export function atmosphereFor(kind: WeatherKind, time: TimeOfDay, strength: number): Atmosphere {
   const w = mixAtmosphere(BASE_ATMOSPHERE, WEATHER[kind], strength);
-  if (time === 'day') return w;
+  if (time === 'day') return { ...w, light: liftLight(w.light) };
   const t = TIME[time];
   return {
     ...w,
     sky: mixHex(w.sky, t.air, t.ak),
     horizon: mixHex(w.horizon, t.air, t.ak * 0.8),
     fog: mixHex(w.fog, t.air, t.ak),
-    light: dimHex(mixHex(w.light, t.light, t.k), t.dim),
+    light: liftLight(dimHex(mixHex(w.light, t.light, t.k), t.dim)),
     haze: mixHex(w.haze, t.air, t.ak),
   };
 }

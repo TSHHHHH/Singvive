@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BASE_ATMOSPHERE, atmosphereFor, mixAtmosphere, tiltShare } from './atmosphere';
+import { BASE_ATMOSPHERE, LIGHT_FLOOR, atmosphereFor, mixAtmosphere, tiltShare } from './atmosphere';
 
 describe('atmosphereFor', () => {
   it('is the plain 3D look with weather off in daylight', () => {
@@ -19,6 +19,19 @@ describe('atmosphereFor', () => {
     const lum = (hex: string) => parseInt(hex.slice(1, 3), 16) + parseInt(hex.slice(3, 5), 16) + parseInt(hex.slice(5, 7), 16);
     expect(lum(atmosphereFor('clear', 'night', 0).light)).toBeLessThan(lum(BASE_ATMOSPHERE.light));
     expect(lum(atmosphereFor('rain', 'night', 1).light)).toBeLessThan(lum(atmosphereFor('rain', 'day', 1).light));
+  });
+
+  // Below the floor MapLibre's ambient term flattens every block to one brown.
+  it('never darkens the light enough to flatten the buildings', () => {
+    for (const kind of ['clear', 'cloudy', 'rain', 'thunderstorm', 'haze', 'heat'] as const) {
+      for (const time of ['day', 'dusk', 'night'] as const) {
+        for (const strength of [0, 0.6, 1]) {
+          const n = parseInt(atmosphereFor(kind, time, strength).light.slice(1), 16);
+          const lo = Math.min((n >> 16) & 255, (n >> 8) & 255, n & 255) / 255;
+          expect(lo).toBeGreaterThanOrEqual(LIGHT_FLOOR - 0.005);
+        }
+      }
+    }
   });
 
   it('haze closes the view in more than clear air', () => {

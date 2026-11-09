@@ -10,6 +10,7 @@ import { settingGroupLabel, settingTabLabel, useT } from '../../i18n';
 import { ModalShell, TabRail } from '../ModalShell';
 import { SettingControl, SettingRow } from './SettingControl';
 import { SettingsDataTab } from './SettingsDataTab';
+import { CameraKeysReference } from './CameraKeysReference';
 
 /**
  * Settings panel. The schema still drives everything — adding a `SettingDef`
@@ -62,6 +63,7 @@ export function SettingsModal({
                       onChange={(next) => setSetting(def.key, next)}
                     />
                   ))}
+                  {sec.name === 'Map' && <CameraKeysReference dimmed={values.mapKeys === 'off'} />}
                 </div>
               </section>
             ))}

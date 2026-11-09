@@ -38,6 +38,9 @@ import {
 } from '../ui/travelMotion';
 import { tip } from './tips';
 import { MapView } from '../map/MapView';
+import { RUN_BOX } from '../map/mapStyle';
+import { KeyboardCamera } from './KeyboardCamera';
+import { EdgeVignette } from './EdgeVignette';
 import { useLayerEvent, useMapEvent, useMapGL } from '../map/hooks';
 import { MapMarker } from '../map/markers';
 import { createMarker } from '../map/markerDom';
@@ -1155,16 +1158,20 @@ function GameMapInner({
         rotate
         minZoom={MIN_ZOOM}
         maxZoom={MAX_ZOOM}
+        bounds={RUN_BOX}
         className="h-full w-full"
         style={{ background: '#08080a' }}
       >
         <ZoomMemory />
         <FocusCamera target={focusTarget} />
         <Camera3d on={view3d} />
+        <KeyboardCamera home={home} />
         {view3d && <Atmosphere3d kind={weather} time={time} dom={weatherDom} />}
         <GroundPicker onPick={onPickGround} engine={engine} onSite={selectSite} />
         {/* Soft-cost forest wash — under fog so only explored ground shows green. */}
         <VegetationOverlay />
+        {/* Outside the island disc the world fades to black. */}
+        <EdgeVignette />
         {/* Fog + 3D buildings. Overlays draw by slot, not mount order. */}
         <SightLayers
           home={home}

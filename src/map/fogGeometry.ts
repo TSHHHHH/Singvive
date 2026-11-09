@@ -16,14 +16,17 @@ import { discPolygon, EMPTY_FC, type LngLatPair } from './geo';
  * `SOFT_STEP_M` each, so the edge steps from clear to full fog.
  */
 
-/** Generous box around the island; the fog never needs to reach further. */
+/**
+ * Box around the island, past EdgeVignette's dark ring (EDGE_DARK_M) on every
+ * side, so the fog never ends in a visible straight edge.
+ */
 const WORLD: Polygon = [
   [
-    [103.4, 1.05],
-    [104.3, 1.05],
-    [104.3, 1.55],
-    [103.4, 1.55],
-    [103.4, 1.05],
+    [103.3, 0.9],
+    [104.4, 0.9],
+    [104.4, 1.8],
+    [103.3, 1.8],
+    [103.3, 0.9],
   ],
 ];
 

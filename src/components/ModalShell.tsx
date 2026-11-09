@@ -1,5 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, type ReactNode } from 'react';
 import { useT } from '../i18n';
+import { modalStack as stack } from './modalStack';
 
 // ---------------------------------------------------------------------------
 // The one modal shell.
@@ -8,15 +9,6 @@ import { useT } from '../i18n';
 // button, which meant `role="dialog"`, Escape and focus restoration would have
 // had to be written once per modal. They live here instead.
 // ---------------------------------------------------------------------------
-
-/**
- * Open modals, innermost last.
- *
- * Settings can open the how-to-play primer *on top of itself* — both stay
- * mounted — so two shells listen for Escape at once and a single keypress would
- * close both. Only the top of this stack reacts.
- */
-const stack: string[] = [];
 
 const MAX_W = {
   md: 'max-w-md',

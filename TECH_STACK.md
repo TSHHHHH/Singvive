@@ -69,12 +69,19 @@ goes flat. MapLibre zoom is the old Leaflet zoom − 1 (the saved zoom key moved
   The union is cached; only the live sight disc is subtracted per update. During a glide the
   sight disc follows the pin (`useSightCenter` in `GameMap.tsx`, every 100 ms), so fog and
   buildings reveal along the walk and arrival has nothing left to change.
+- **Island edge** (`components/EdgeVignette.tsx`, slot `edge`): the run map is a disc around the island; past `EDGE_CLEAR_M` the ground fades to near-black by `EDGE_DARK_M`, and the camera is held to `RUN_BOX` (`mapStyle.ts`), just inside that ring. The fog box reaches past it so there is no straight edge.
 - **3D** (`buildings.ts`, setting `mapView3d`) extrudes the basemap's buildings from `LOD_ZOOM` 15.
   A building stands only inside an explored or live disc (feature-state `rise`, animated unless
   reduced motion; never held for the camera — only the 10–20 ms tile index scan waits for it to
   settle). Sites are matched to their building and coloured through feature-state; taps on
   a site's building select it, other buildings walk to them. Badges lift to the roof through the
   `--roof` / `--roof-lift` CSS variables. Spawn select and the route planner stay 2D.
+- **Keyboard camera** (`components/KeyboardCamera.tsx`, bindings in `map/cameraKeys.ts`, settings
+  `mapKeys` / `mapKeyPanSpeed`). MapLibre's own `keyboard` handler stays off; this is a held-key
+  velocity loop on `KeyboardEvent.code` (WASD/arrows pan, Shift faster, Q/E rotate in 3D, +/−
+  zoom, C recentres). Moves carry the key event as `originalEvent`, so the travel chase yields to
+  them like a drag. Stands down under any `ModalShell` (`isModalOpen()`), in text fields, and —
+  for arrows only — when a list/tab rail has focus. The Settings key list reads `CAMERA_KEY_HINTS`.
 - **Atmosphere** (`atmosphere.ts`, mounted by `Atmosphere3d` in 3D only) owns `setSky` / `setLight`.
   Each weather has a preset (sky, light colour/intensity/angle, distance haze) and dusk/night tint
   it; the `weatherFx` setting scales the weather share (off 0, subtle 0.6, full 1) while time of day

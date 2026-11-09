@@ -56,6 +56,15 @@
         "abandonLabel": "放弃本局",
         "abandonDesc": "删除当前存档（第 {day} 天）并返回标题界面。无法撤销。",
         "abandonAction": "放弃本局"
+      },
+      "cameraKeys": {
+        "title": "镜头按键",
+        "pan": "平移地图",
+        "fast": "按住加速平移",
+        "rotate": "旋转视角（3D）",
+        "zoom": "放大 / 缩小",
+        "recenter": "回到自己",
+        "note": "只有在列表或面板未获得焦点时，方向键才会平移地图。"
       }
     },
     "guide": {
@@ -1329,6 +1338,23 @@
       "options": {
         "on": "开",
         "off": "关"
+      }
+    },
+    "mapKeys": {
+      "label": "键盘镜头",
+      "description": "用键盘平移、旋转和缩放行动地图。按键见下方列表。",
+      "options": {
+        "on": "开",
+        "off": "关"
+      }
+    },
+    "mapKeyPanSpeed": {
+      "label": "键盘平移速度",
+      "description": "WASD 与方向键平移地图的速度。按住 Shift 可再加速。",
+      "options": {
+        "slow": "慢",
+        "normal": "中",
+        "fast": "快"
       }
     },
     "reduceMotion": {

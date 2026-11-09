@@ -174,6 +174,33 @@ export const SETTINGS_SCHEMA: SettingDef[] = [
     default: 'on',
   },
   {
+    key: 'mapKeys',
+    label: 'Keyboard camera',
+    description:
+      'Pan, turn and zoom the run map from the keyboard. The keys are listed below.',
+    tab: 'gameplay',
+    section: 'Map',
+    control: 'toggle',
+    options: [
+      { value: 'on', label: 'On' },
+      { value: 'off', label: 'Off' },
+    ],
+    default: 'on',
+  },
+  {
+    key: 'mapKeyPanSpeed',
+    label: 'Keyboard pan speed',
+    description: 'How fast WASD and the arrows slide the map. Hold Shift for a burst on top.',
+    tab: 'gameplay',
+    section: 'Map',
+    options: [
+      { value: 'slow', label: 'Slow' },
+      { value: 'normal', label: 'Normal' },
+      { value: 'fast', label: 'Fast' },
+    ],
+    default: 'normal',
+  },
+  {
     key: 'reduceMotion',
     label: 'Reduce motion',
     description:

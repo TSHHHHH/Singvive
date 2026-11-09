@@ -72,6 +72,7 @@ export const SLOTS = [
   'veil',
   'mrt',
   'buildings',
+  'edge',
   'top',
 ] as const;
 
@@ -85,4 +86,23 @@ export const SG_BOX: LatLngBox = {
   west: SG_BOUNDS.minLng,
   north: SG_BOUNDS.maxLat,
   east: SG_BOUNDS.maxLng,
+};
+
+/**
+ * The run map's world is a disc around the island: clear out to
+ * `EDGE_CLEAR_M`, fading to near-black by `EDGE_DARK_M` (EdgeVignette).
+ * Its camera limit is a square a little inside the dark ring, so panning to
+ * any edge shows the fade, never the raw basemap beyond it.
+ */
+export const ISLAND_CENTRE = { lat: 1.34, lng: 103.825 };
+export const EDGE_CLEAR_M = 25_000;
+export const EDGE_DARK_M = 40_000;
+const RUN_HALF_M = 35_000;
+const RUN_HALF_LAT = RUN_HALF_M / 111_320;
+const RUN_HALF_LNG = RUN_HALF_M / (111_320 * Math.cos((ISLAND_CENTRE.lat * Math.PI) / 180));
+export const RUN_BOX: LatLngBox = {
+  south: ISLAND_CENTRE.lat - RUN_HALF_LAT,
+  west: ISLAND_CENTRE.lng - RUN_HALF_LNG,
+  north: ISLAND_CENTRE.lat + RUN_HALF_LAT,
+  east: ISLAND_CENTRE.lng + RUN_HALF_LNG,
 };
