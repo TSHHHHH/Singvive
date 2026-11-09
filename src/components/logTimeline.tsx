@@ -416,7 +416,7 @@ export function GroupedLogList({
           stripe += 1;
           return (
             <CompactLogSection
-              key={g.key}
+              key={`${g.key}:${g.entries[0]?.id ?? i}`}
               group={g}
               locale={locale}
               clock={clock}
@@ -468,7 +468,7 @@ export function GroupedLogList({
         stripe += 1;
         return (
           <LogSectionCard
-            key={g.key}
+            key={`${g.key}:${g.entries[0]?.id ?? i}`}
             group={g}
             locale={locale}
             clock={clock}

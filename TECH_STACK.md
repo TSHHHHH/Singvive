@@ -15,7 +15,6 @@
 | Real data | OpenStreetMap → `public/pois.json` (`bake:pois`), `public/mrt.json` (`bake:mrt`), `public/zones.json` (`bake:zones`); URA planning areas → `public/towns.json` (`bake:towns`); live Overpass as POI runtime fallback |
 | State | Zustand 5 (single store); `window.__game` in DEV |
 | Inventory DnD | Custom pointer-drag over a cell grid (backpack ↔ stash ↔ equipment) |
-| HDB viewport | `react-zoom-pan-pinch` |
 | Determinism | `seedrandom`, wrapped in a forkable `Rng` (cosmetic flavour text may use `Math.random`) |
 | Styling | Tailwind CSS 3 |
 | Lint | oxlint + type-scale + zh-Hans glossary guards |
@@ -42,7 +41,7 @@ src/
   dev/         DEV-only editors + Dev menu (loot / enemies / icons / locale) — never imported from game/
   components/  GameMap, FogOverlay, NeighbourhoodWash, Inventory/*, CraftingPanel, CombatPanel,
                ConditionPanel, StatsPanel, ObjectiveBar, ObjectivesPanel, PhoneStatusBar,
-               HdbDungeonModal, TunnelRunView, StationStrip, TraderModal, GuideModal,
+               HdbDungeonModal, HdbLevelStrips, TunnelRunView, StationStrip, TraderModal, GuideModal,
                SettingsModal, TrekCard, LocationCard, …
   screens/     Menu, CharacterCreate, SpawnSelect, GameScreen, DeathScreen
                (combat is a panel inside GameScreen — no combat phase)
@@ -80,6 +79,17 @@ goes flat. MapLibre zoom is the old Leaflet zoom − 1 (the saved zoom key moved
   stump (feature-state `ruin`, a height factor), Gutted swaps for a procedural broken model
   (`map/ruinModel.ts`, own `ruins-3d` layer) on the nearest 30 within 900 m and stays a low stump
   beyond. Models build within an 8 ms budget per slice and are cached per site.
+  Inside an HDB block the engine draws one amber **storey band** (`setFloorBand` /
+  `clearFloorBand`, its own `storey-band` fill-extrusion layer, a collar stood 1.2 m off the
+  site's ring). `BlockView` in `GameMap.tsx` moves it only when the landing or hovered strip
+  changes (`hdbHoverLevel`, set by `HdbLevelStrips`), and eases the camera onto the block and back
+  out: zoom from the roof height so the tower fills about half the box `CameraInset` leaves beside
+  the strips (clamped 17.2–19), foot dropped low. While inside, `engine.setFocus(siteId)` draws the
+  block solid on `focus-3d` (same paint, under `buildings-3d`) and ghosts every other building and
+  ruin to 0.18 opacity. The band sits between the two, so ghosts in front tint it instead of
+  hiding it behind their depth. One filter + opacity change per focus change, never per tick.
+  `engine.onRoofs` also feeds `siteRoofs` in the store so `hdbEnter` sizes the block from its
+  real roof. Worked blocks dim through `hdbScar`, keyed on quarter-steps cached per `hdbBlocks`.
   The rest of the city is damaged by a stable hash of the feature id (same buildings every run,
   not seeded): 7% scorched (`scorch`), 3% of 10 m+ buildings collapsed (`aruin` stump; the
   nearest 24 within 900 m get broken models too, flattening the building parts inside them),
@@ -103,28 +113,30 @@ goes flat. MapLibre zoom is the old Leaflet zoom − 1 (the saved zoom key moved
   `WeatherFx` drops its flat tint layers and keeps only the moving ones (rain sheet, haze drift,
   heat shimmer); 2D is unchanged. `window.__atmosphere` is the live driver in DEV (`strike()`).
 
-**Desktop HUD (`lg:` and up).** The map is full bleed; the phone's rail, slide-out and timeline
-column render only below `lg`. `src/components/hud/` holds the desktop chrome: `VitalsHud` (clock,
-weather, rest, meters, objective chip; top-left, just right of the dock; its home bar folds it
-to a status strip of meters, a one-line objective and Rest, remembered by the `vitalsFolded`
-setting; inside a block `hdbInset` pads the HDB cutaway clear of dock, phone, timeline and
-here card, and the here card centres under the building), `Dock` (a vertical
-column down the left edge, `DOCK_WIDTH` wide; hotkeys `1`–`9`, `0` in dock order, `Esc` closes
-the newest window, all off under `isModalOpen()`, text focus and the contact gate) and `HudWindow`
-(floating panels in a row beside the dock, centred on the free map; several open at once, the
-oldest closes when the row overflows). The timeline is a fading `LogTicker` top-right until it is
+**Desktop HUD (`lg:` and up).** The 408px survivor rail sits down the left edge (clock, weather,
+Rest, `ObjectiveBar`, `ConditionPanel`, backpack, panel buttons, then Timeline / Day logs /
+Settings), with panels in the slide-out beside it; the map fills the rest. The rail, slide-out
+and phone tabs are the same markup; the timeline column renders only below `lg`. Hotkeys `1`–`9`
+follow `RAIL_KEYS` in `GameScreen.tsx` (objective, stash, craft, logbook, stats, skills, timeline
+pin, day logs, settings) and stand down under `isModalOpen()`, text focus and the contact gate;
+`Esc` closes the slide-out. Wide craft stops short of the timeline or ticker. Inside a block
+`hdbInset` pads the HDB landing strips clear of the timeline and here card. With 3D on and room to
+spare, the strips sit **over the map** instead of replacing it (`hdbOverMap`): they keep a fixed
+width (`HDB_STRIPS_W`, 460 px max) and the map left of them (`blockStripW`, ≥180 px) shows the
+tower. The selected room (`hdbSelUnit`, UI-only store state) feeds the action card
+(`HdbContextPanel`) in the here card. The timeline is a fading `LogTicker` top-right until it is
 pinned (`timelinePinned` setting) or something needs an answer (event, search, contact, combat),
 then the full `LogPanel` / `CombatPanel`. The here and target cards are a **pair at bottom
-centre** of the free map (right of the dock, left of the pinned timeline): here (collapsible) →
+centre** of the map column (left of the pinned timeline): here (collapsible) →
 target, both `HudCard` from `TargetDock.tsx`, so where you stand and where you are going read as
 one decision. The target only joins on the open map, not in a block, tunnel or the route planner.
 The phone keeps the corner-docked `TargetDock`. Bottom-anchored desktop chrome sits `HUD_BOTTOM`
-(32px) up to clear the attribution bar. `GameMap` takes `padLeft` / `padRight` / `padBottom`
+(32px) up to clear the attribution bar. `GameMap` takes `padRight` / `padBottom` (and `padLeft`, unused on desktop now)
 (camera padding via `CameraInset`, so the chase camera and focus pans centre in the open part of
 the map; `padBottom` follows the **here** card's measured height only, so picking a target never
 shoves the map out from under the cursor) and `chromeRight` (moves the 3D / Rail buttons clear of
-the timeline). During the contact gate the HUD, dock, windows and map go `inert` and dim; the
-timeline stays lit.
+the timeline). During the contact gate the rail, slide-out and map dim and stop taking input (the map goes
+`inert`); the timeline stays lit.
 
 ### The type scale
 
@@ -277,7 +289,7 @@ npm install
 npm run dev       # http://localhost:5190  (PORT env overrides; see vite.config.ts)
 npm run build     # typecheck (tsc -b) + production build
 npm run build:itch  # static zip for itch.io → release/singvive-itch.zip
-npm run lint      # oxlint (--max-warnings=25) + type-scale + zh-Hans glossary guards
+npm run lint      # oxlint (--max-warnings=24) + type-scale + zh-Hans glossary guards
 npm run preview   # serve the production build locally (Worker + assets)
 npm run db:migrate:local  # apply D1 migrations to the local honor board (first time)
 ```
@@ -440,7 +452,7 @@ rate-limits by IP. Personal top-10 stays in `localStorage` and is not bulk-uploa
 | Gate | Command | What it covers |
 |---|---|---|
 | Types | `npm run build` (`tsc -b` runs first) | All four TS projects. **`strict` is on everywhere** — app, node, vitest, worker. |
-| Lint | `npm run lint` | oxlint (`--max-warnings=25`), `scripts/check-type-scale.mjs`, `scripts/check-zh-hans-glossary.mjs` |
+| Lint | `npm run lint` | oxlint (`--max-warnings=24`), `scripts/check-type-scale.mjs`, `scripts/check-zh-hans-glossary.mjs` |
 | Tests | `npm run test` | Vitest, `environment: 'node'` |
 
 GitHub CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs `lint` → `test` → `build` on
@@ -463,7 +475,7 @@ Still thin or missing among pure modules: `goal`, `noise`, `searchSession`.
 
 ### The lint warning ratchet
 
-`--max-warnings=25` pins the current warning count. New warnings fail CI; the 25 existing ones
+`--max-warnings=24` pins the current warning count. New warnings fail CI; the 24 existing ones
 do not. They are:
 
 - 17 `react/only-export-components` — fast-refresh ergonomics only, no correctness impact.

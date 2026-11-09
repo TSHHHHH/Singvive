@@ -283,6 +283,11 @@
       "insideUnseen": "悄悄潜入——保持安静就能搜刮他们的物资。",
       "forcedEntry": "强行闯入——物资丰厚，但每次搜索都会触发战斗。",
       "twelveFloors": "12 层——逐层逐户清理，而非整体搜索。",
+      "blockStoreys": "{n} 层：只有几个平台，逐户清理。",
+      "blockWorked": "已清理：{cleared}/{doors} 户",
+      "blockWorkedShort": "已清理",
+      "blockSealed": "{n} 层封死",
+      "blockHunting": "正被追猎",
       "pickedClean": "已被搜刮干净——资源耗尽。",
       "stillHasLoot": "还有东西可搜。",
       "searchesLeft": "剩余 {n} 次搜索",
@@ -747,18 +752,12 @@
       "expandTicker": "展开时间线"
     },
     "hud": {
-      "condition": "身体状况",
       "timeline": "时间线",
       "dayLogs": "日日志",
       "settings": "设置",
-      "close": "关闭",
       "hotkey": "{label} · {key}",
       "collapse": "收起",
-      "expand": "展开",
-      "sos": "SOS",
-      "noService": "无服务。仅限紧急呼叫——但没有人接听。",
-      "foldPhone": "收起手机",
-      "unfoldPhone": "展开手机"
+      "expand": "展开"
     },
     "error": {
       "signalLost": "信号中断",
@@ -807,50 +806,26 @@
       "leave": "✕ 离开",
       "leaveBlock": "离开组屋",
       "leaveNeedSearch": "请先在时间线完成单元搜索",
-      "leaveNeedWalk": "等走到了再说",
       "leaveNeedVoidDeck": "下到 01 层（组屋底层）才能离开",
-      "heat": "热度",
       "guide": "组屋内部",
       "voidDeck": "组屋底层",
-      "corridor": "走廊",
       "quiet": "安静",
       "heatPlus": "+{n} 热度",
-      "min": "{n} 分钟",
-      "secondsApprox": "约 {n} 秒",
-      "minutesApprox": "约 {n} 分钟",
-      "blockStripe": "阻挡",
-      "gone": "没了",
-      "clearToPass": "{label}——清理后可通过",
-      "permanent": "{label}——永久，无路可通",
-      "noWayThrough": "{label}——无路可通",
-      "clearAction": "清理 {label} · {min} 分钟 · +{heat} 热度",
       "inaccessible": "{label}——无法进入",
       "storeys": "{n} 层",
-      "storeysRevealed": "已探明 {revealed}/{height} 层",
+      "storeysLandings": "{n} 层 · {m} 个平台",
+      "landingsRevealed": "已探索 {revealed}/{height} 个平台 · 共 {storeys} 层",
+      "spanSealed": "第 {nn} 层：{n} 层封死 · {label}",
+      "spanChip": "{n} 层 · {label}",
       "level": "第 {nn} 层",
-      "levelUnexplored": "第 {nn} 层——未探索",
       "storey": "楼层 {nn}",
       "shelter": "设防避难所",
       "residential": "住宅组屋",
       "slab": "板楼",
       "point": "点式",
-      "sideStair": "侧梯 {id}",
-      "stairwell": "楼梯井 {id}",
-      "sideShort": "侧",
-      "wellShort": "井",
-      "fogClimb": "楼梯 {id}——爬入未知",
-      "sideStairTitle": "走廊尽头的侧梯",
-      "internalWell": "内部楼梯井",
-      "stopsClear": "停在 {label}——清理后可通过",
-      "stopsBlocked": "停在 {label}——无路可通",
-      "huntOnStairs": "楼梯遭遇概率 {n}%",
-      "descentNeed": "下行·需 {dc}+ · 失败率约 {n}%",
-      "descentPerStorey": "下行 {n} 层 · 每层失败约 {pct}%（需 {dc}+）",
-      "climbFree": "可自由下行",
       "descentNeedsAttrs": "下行需要敏捷 + 耐力（需 {dc}+）。",
-      "stairsClearDown": "楼梯可安全下行。",
       "nextBand": " 下一阶段：{label}（{at}）。",
-      "huntChance": "每扇门与每段楼梯有 {n}% 概率触发遭遇。",
+      "huntChance": "这层每扇门与每段楼梯有 {n}% 概率触发遭遇。",
       "showDetails": "图例与感知检定",
       "hideDetails": "隐藏详情",
       "ariaShowDetails": "显示组屋详情",
@@ -862,22 +837,14 @@
       "senseArrow": "{value} → {gives} {pct}%",
       "doorCleared": "已清空",
       "doorClearedTitle": "已清空",
-      "doorBoarded": "封死",
       "doorBoardedShut": "钉死",
       "doorBoardedShutTitle": "钉死",
-      "doorOpen": "畅通",
       "scoutEncounter": "遭遇",
       "scoutRoom": "房间",
       "scoutContainers": "容器",
-      "scoutDescent": "下行",
-      "scoutLanding": "平台",
-      "scoutShaft": "竖井",
-      "scoutClear": "畅通",
       "scoutEncounterExact": "感知——破门开战的确切概率",
       "scoutEncounterEstimate": "由热度与门况估算——提高感知可锁定确切百分比",
       "scoutContainersUnread": "容器还没看清——提高敏捷才能从走廊侦察",
-      "scoutDescentWatched": "每下一层都要检定——约 {n}% 失败",
-      "scoutDescentClear": "楼梯畅通——当前热度无需检定",
       "scoutFight": "开战",
       "scoutNestFight": "里面已经有一窝——开门即战",
       "scoutDenFight": "里面窝着更大的——破门后是巨怪",
@@ -885,24 +852,17 @@
       "heatCross": " — {note}",
       "pickLine": "撬锁 · {min} 分钟 · 安静",
       "pickNeed": "撬锁——背包里要有撬锁器",
-      "fobAction": "刷门禁 · {min} 分钟 · 安静",
       "readNotice": "看布告 · {min} 分钟",
       "restShelter": "躲进去 · {h} 小时 · −{heat} 热度",
       "roofDeck": "天台",
       "roofShort": "顶",
       "unitClearedBlurb": "你已经搜过这里，里面什么都不剩了。",
-      "compactHint": "行动都在剖面图上。逐层清空单元，再从组屋底层离开。",
-      "voidHint": "沿柱间走到楼梯，然后爬进迷雾。",
-      "pathHintPhone": "点击可达格或门自动寻路。双指缩放。站在门前才能破门。",
-      "pathHintDesktop": "点击可达格或门自动寻路。未访楼层保持迷雾。站在门前才能破门。",
+      "compactHint": "行动都在楼层条上。逐层清房间，再从组屋底层离开。",
+      "voidHint": "组屋底层没有门。点一层走楼梯上去。",
       "legendYou": "你",
-      "legendHover": "悬停=路线",
       "legendBoarded": "封死",
       "legendDim": "暗=已清空",
-      "legendFog": "雾=未访",
       "legendHatch": "影线=封闭",
-      "legendBlock": "阻挡=清理后可通过",
-      "legendGone": "没了=永久",
       "unit": {
         "flat": {
           "label": "住家",
@@ -967,22 +927,30 @@
           "verb": "破门"
         }
       },
-      "blockKind": {
-        "debris": {
-          "label": "残骸",
-          "blurb": "走廊塞满杂物，可以搬开。"
+      "theme": {
+        "ordinary": {
+          "label": "平台",
+          "blurb": "这一层没什么特别。"
         },
-        "barricade": {
-          "label": "路障",
-          "blurb": "有人把平台钉死了，拆开很吵。"
+        "holdout": {
+          "label": "据点",
+          "blurb": "幸存者守着这一层，这里的门比较安稳。"
         },
-        "collapse": {
-          "label": "坍塌",
-          "blurb": "楼板塌了，无路可通。"
+        "fire": {
+          "label": "火层",
+          "blurb": "单位在燃烧，收获更好，每次搜索都会掉血。"
         },
-        "stair_gate": {
-          "label": "楼梯闸",
-          "blurb": "竖井上焊了铁栅。可以硬拆，有门禁卡就安静刷开。"
+        "nest": {
+          "label": "巢穴",
+          "blurb": "尸潮在此筑巢，仍有一户物资充足。"
+        },
+        "picked_over": {
+          "label": "被搜刮过",
+          "blurb": "大多数门已被踹开，还剩一张告示。"
+        },
+        "refuge": {
+          "label": "避难层",
+          "blurb": "开敞平台，楼梯安全，可以歇脚。"
         }
       },
       "sealKind": {
@@ -1010,7 +978,7 @@
         },
         "Awake": {
           "label": "惊醒",
-          "note": "整栋楼在动，每层都比刚才更糟。"
+          "note": "这层醒了，门和楼梯都更凶险。"
         },
         "Hunting": {
           "label": "猎杀",
@@ -1018,7 +986,7 @@
         },
         "Swarm": {
           "label": "蜂拥",
-          "note": "它们占了你这层，快出去。"
+          "note": "它们占了这层。往上走，或者出去。"
         }
       },
       "ground": {
@@ -1037,7 +1005,30 @@
         "Tool": "工具",
         "Valuables": "贵重",
         "Fob": "门禁"
-      }
+      },
+      "stripTravel": "走楼梯到 {nn} 层 · 约 {min} 分钟",
+      "travelUpFree": "上楼：不用下行检定",
+      "travelHunt": "{nn} 层：蜂拥 · {pct}% 伏击",
+      "travelCheck": "{nn} 层：失败约 {pct}%（需 {dc}+）",
+      "travelClear": "约 {pct}% 无战斗抵达",
+      "youAreHere": "你在这里",
+      "roofShut": "舱盖关闭",
+      "roofShutTip": "天台舱盖关着。从下面一层打开它。",
+      "levelHeatTip": "本层热度 {heat}/100 · {band}",
+      "levelHeat": "{nn} 层热度",
+      "blockPeak": "· 全楼最高 {n}",
+      "coolingNote": "每层有自己的热度。动静大的行动会传到上下相邻楼层。你离开的楼层每小时冷却约 {n} 热度。",
+      "unexplored": "未探索",
+      "noDoors": "无门",
+      "roomsLeft": "剩 {n} 间",
+      "legendHeat": "条=本层热度",
+      "legendScouted": "已从走廊看出",
+      "hatchBlurb": "天台舱盖就在这层上方，关着。",
+      "hatchFob": "对舱盖刷门禁 · {min} 分钟 · 安静",
+      "hatchForce": "撬开天台舱盖 · {min} 分钟 · +{heat} 热度 · 很吵",
+      "noDoorsHint": "这层没有门。点另一层走楼梯过去。",
+      "levelHint": "点你所在层的房间查看行动。点另一层走楼梯过去。",
+      "levelHintPhone": "点你所在层的房间查看行动。点另一层走楼梯过去。"
     },
     "tunnel": {
       "ariaSchematic": "隧道示意图。滚动缩放，拖动平移。",
@@ -1284,7 +1275,7 @@
     },
     "timelinePinned": {
       "label": "保持时间线展开",
-      "description": "在电脑上，时间线以会淡出的简短滚动条浮在地图上，需要你处理时会自动展开。开启后始终显示完整时间线。底部程序坞的按钮切换的是同一项。",
+      "description": "在电脑上，时间线以会淡出的简短滚动条浮在地图上，需要你处理时会自动展开。开启后始终显示完整时间线。左侧栏的“时间线”按钮切换的是同一项。",
       "options": {
         "on": "开",
         "off": "关"
@@ -1348,14 +1339,6 @@
       "accessibility": "无障碍",
       "guide": "指南",
       "data": "数据与存档"
-    },
-    "vitalsFolded": {
-      "label": "收起手机",
-      "description": "在电脑上，把左上角的手机收成一条状态栏：数值条、撤离信息和休息。点手机底部的横条即可收起或展开。",
-      "options": {
-        "on": "开",
-        "off": "关"
-      }
     },
     "railOverlay": {
       "label": "地铁图",
@@ -1465,9 +1448,9 @@
     "hdb": {
       "title": "进组屋",
       "bullets": [
-        "组屋底层会打开侧立面剖面。楼层封死时楼梯仍可见；悬停可达的楼梯或门可预览自动路径，再点击——针会一格格走。未到过的开放楼层一直迷雾，直到你爬上去。天台是一小段上了闸的额外搜刮；下来时每层都要检定。",
-        "封死的平台永久消失。走廊杂物、路障与楼梯闸可清理（热量 + 时间）。门禁卡能安静打开对应的铁栅。塌方永久——另找路。",
-        "多数搜刮门是锁着或堵着的。有撬锁器就撬（安静，试一次就消耗）；否则只能强拆并抬热度。撬棍能让砸门便宜些。房间类型各干一件事：搜刮、门上的陷阱、每找一次就烧的活火、巢穴或窝点战斗、空避难所会泄掉热度、布告栏，或据点服务。往下走时每层掷一次敏捷 + 耐力——开战会把你停在那层平台。只能从 01 层离开。"
+        "从组屋底层进入后，大楼会以楼层条的形式排在 3D 楼体旁。悬停某一层会点亮对应楼层；点击即走楼梯过去。楼有多高就有多少层，但只有少数楼层可进——其间是封死的楼层段。每层各有特点：普通住户、据守户、火灾层、巢穴层、被搜刮过的楼层，或（20 层以上的塔楼）楼梯从不伏击的避难层。天台在舱盖后面：可以大声撬开，也可以用在住户里找到的门禁安静打开。",
+        "每层都有自己的热度。你在哪层行动，哪层就升温；动静大的行动（拆路障、触发陷阱、战斗、撬舱盖）会传到上下相邻楼层。热度会提高该层的遭遇概率、房间威胁与下行难度。处于蜂拥的楼层会伏击任何经过的人。你不在的楼层会慢慢冷却（每小时约 5），离开大楼后全楼热度减半。",
+        "多数有物资的门是锁着或封了路障的。有撬锁器可以撬锁（安静，尝试即消耗）；否则只能硬破并升高热度。撬棍让硬破更省力。点你所在层的房间查看行动。下楼时每经过一层都要以该层热度掷敏捷 + 耐力——一旦打起来你就停在那层。上楼不用检定。只能从 01 层离开。若有楼层处于蜂拥时离开，噪音会传到街上。大楼会记住：清过的楼在地图上变暗，地点卡显示已清的门数。"
       ]
     },
     "tunnels": {

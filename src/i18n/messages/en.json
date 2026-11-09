@@ -283,6 +283,11 @@
       "insideUnseen": "Inside unseen — their stores, if you stay quiet.",
       "forcedEntry": "Forced entry — rich stores, every search draws a fight.",
       "twelveFloors": "12 floors — cleared unit by unit, not searched.",
+      "blockStoreys": "{n} storeys: a handful of landings, cleared unit by unit.",
+      "blockWorked": "Worked: {cleared}/{doors} doors",
+      "blockWorkedShort": "Worked",
+      "blockSealed": "{n} storeys sealed",
+      "blockHunting": "hunting",
       "pickedClean": "Picked clean — exhausted.",
       "stillHasLoot": "Still has loot.",
       "searchesLeft": "{n} search left",
@@ -747,18 +752,12 @@
       "expandTicker": "Open the timeline"
     },
     "hud": {
-      "condition": "Condition",
       "timeline": "Timeline",
       "dayLogs": "Day logs",
       "settings": "Settings",
-      "close": "Close",
       "hotkey": "{label} · {key}",
       "collapse": "Collapse",
-      "expand": "Expand",
-      "sos": "SOS",
-      "noService": "No service. Emergency calls only — and nobody is answering.",
-      "foldPhone": "Fold the phone",
-      "unfoldPhone": "Unfold the phone"
+      "expand": "Expand"
     },
     "error": {
       "signalLost": "SIGNAL LOST",
@@ -807,50 +806,26 @@
       "leave": "✕ Leave",
       "leaveBlock": "Leave the block",
       "leaveNeedSearch": "Finish the unit search in the timeline first",
-      "leaveNeedWalk": "Wait until you finish walking",
       "leaveNeedVoidDeck": "Climb down to level 01 (void deck) to leave",
-      "heat": "Heat",
       "guide": "Inside the block",
       "voidDeck": "Void deck",
-      "corridor": "Corridor",
       "quiet": "quiet",
       "heatPlus": "+{n} heat",
-      "min": "{n} min",
-      "secondsApprox": "~{n}s",
-      "minutesApprox": "~{n} min",
-      "blockStripe": "BLOCK",
-      "gone": "Gone",
-      "clearToPass": "{label} — clear to pass",
-      "permanent": "{label} — permanent, no way through",
-      "noWayThrough": "{label} — no way through",
-      "clearAction": "Clear {label} · {min} min · +{heat} heat",
       "inaccessible": "{label} — inaccessible",
       "storeys": "{n} storeys",
-      "storeysRevealed": "{revealed} of {height} storeys revealed",
+      "storeysLandings": "{n} storeys · {m} landings",
+      "landingsRevealed": "{revealed} of {height} landings explored · {storeys} storeys",
+      "spanSealed": "Storeys {nn}: {n} storeys sealed · {label}",
+      "spanChip": "{n} storeys · {label}",
       "level": "Level {nn}",
-      "levelUnexplored": "Level {nn} — unexplored",
       "storey": "Storey {nn}",
       "shelter": "Barricaded shelter",
       "residential": "Residential block",
       "slab": "slab",
       "point": "point",
-      "sideStair": "Side stair {id}",
-      "stairwell": "Stairwell {id}",
-      "sideShort": "Side",
-      "wellShort": "Well",
-      "fogClimb": "Stair {id} — climb into the unknown",
-      "sideStairTitle": "Side stair at the end of the strip",
-      "internalWell": "Internal stairwell",
-      "stopsClear": "stops at {label} — clear to pass",
-      "stopsBlocked": "stops at {label} — no way through",
-      "huntOnStairs": "{n}% hunt on the stairs",
-      "descentNeed": "going down · need {dc}+ · ~{n}% fail",
-      "descentPerStorey": "down {n} storeys · {pct}% fail each (need {dc}+)",
-      "climbFree": "climb free",
       "descentNeedsAttrs": "Going down needs Dexterity + Endurance (need {dc}+).",
-      "stairsClearDown": "Stairs are clear to climb down.",
       "nextBand": " Next: {label} at {at}.",
-      "huntChance": "{n}% chance of a hunt on every door and stair.",
+      "huntChance": "{n}% chance of a hunt on every door and stair here.",
       "showDetails": "Key and sense checks",
       "hideDetails": "Hide details",
       "ariaShowDetails": "Show block details",
@@ -862,22 +837,14 @@
       "senseArrow": "{value} → {gives} {pct}%",
       "doorCleared": "cleared",
       "doorClearedTitle": "Cleared",
-      "doorBoarded": "boarded",
       "doorBoardedShut": "boarded shut",
       "doorBoardedShutTitle": "Boarded shut",
-      "doorOpen": "open",
       "scoutEncounter": "Encounter",
       "scoutRoom": "Room",
       "scoutContainers": "Containers",
-      "scoutDescent": "Descent",
-      "scoutLanding": "Landing",
-      "scoutShaft": "Shaft",
-      "scoutClear": "Clear",
       "scoutEncounterExact": "Perception read — exact chance a fight starts when you breach",
       "scoutEncounterEstimate": "Estimate from heat + door type — raise Perception to pin the exact %",
       "scoutContainersUnread": "Containers unread — raise Dexterity to scout from the corridor",
-      "scoutDescentWatched": "Each storey down is a check — about {n}% chance to fail",
-      "scoutDescentClear": "Stairs are clear — no check at this heat",
       "scoutFight": "Fight",
       "scoutNestFight": "A pack is already in there — opening the door starts the fight",
       "scoutDenFight": "Something bigger nested here — force the door, then a Hulk",
@@ -885,24 +852,17 @@
       "heatCross": " — {note}",
       "pickLine": "Pick it · {min} min · quiet",
       "pickNeed": "Pick it — need a lockpick",
-      "fobAction": "Use the fob · {min} min · quiet",
       "readNotice": "Read the board · {min} min",
       "restShelter": "Hole up · {h} h · −{heat} heat",
       "roofDeck": "Roof deck",
       "roofShort": "RF",
       "unitClearedBlurb": "You've already been through this one. Nothing left in it.",
-      "compactHint": "Actions stay on the cutaway. Clear units floor by floor, then leave from the void deck.",
-      "voidHint": "Walk the pillars to a stair, then climb into the fog.",
-      "pathHintPhone": "Tap a reachable cell or door to auto-path. Pinch to zoom. Breach only when you stand at the door.",
-      "pathHintDesktop": "Click a reachable cell or door to auto-path. Unvisited floors stay fogged. Breach only when you stand at the door.",
+      "compactHint": "Actions stay on the strips. Work rooms landing by landing, then leave from the void deck.",
+      "voidHint": "The void deck has no doors. Pick a landing strip to take the stairs up.",
       "legendYou": "you",
-      "legendHover": "hover = route",
       "legendBoarded": "boarded",
       "legendDim": "dim = cleared",
-      "legendFog": "fog = unvisited",
       "legendHatch": "hatch = sealed",
-      "legendBlock": "BLOCK = clear to pass",
-      "legendGone": "GONE = permanent",
       "unit": {
         "flat": {
           "label": "Flat",
@@ -967,22 +927,30 @@
           "verb": "Break through"
         }
       },
-      "blockKind": {
-        "debris": {
-          "label": "Debris",
-          "blurb": "Junk packed the corridor. It can be hauled aside."
+      "theme": {
+        "ordinary": {
+          "label": "Landing",
+          "blurb": "Nothing special about this one."
         },
-        "barricade": {
-          "label": "Barricade",
-          "blurb": "Someone nailed the landing shut. Loud to break."
+        "holdout": {
+          "label": "Holdout",
+          "blurb": "Survivors keep this landing. Doors are calmer here."
         },
-        "collapse": {
-          "label": "Collapse",
-          "blurb": "The slab gave way. No way through."
+        "fire": {
+          "label": "Fire floor",
+          "blurb": "Burning units, better finds, health on every search."
         },
-        "stair_gate": {
-          "label": "Stair gate",
-          "blurb": "A welded grate across the shaft. Force it, or use a fob if you found one."
+        "nest": {
+          "label": "Nest",
+          "blurb": "Packs den here. One unit is still stocked."
+        },
+        "picked_over": {
+          "label": "Picked over",
+          "blurb": "Most doors already kicked in. One notice left."
+        },
+        "refuge": {
+          "label": "Refuge floor",
+          "blurb": "Open deck, safe stairs, somewhere to rest."
         }
       },
       "sealKind": {
@@ -1010,7 +978,7 @@
         },
         "Awake": {
           "label": "Awake",
-          "note": "The block is moving. Every floor is worse than it was."
+          "note": "This landing is up. Its doors and stairs are worse."
         },
         "Hunting": {
           "label": "Hunting",
@@ -1018,7 +986,7 @@
         },
         "Swarm": {
           "label": "Swarm",
-          "note": "The block has your floor. Get out."
+          "note": "They have this landing. Climb or get out."
         }
       },
       "ground": {
@@ -1037,7 +1005,30 @@
         "Tool": "Tool",
         "Valuables": "Valuables",
         "Fob": "Fob"
-      }
+      },
+      "stripTravel": "Take the stairs to {nn} · ~{min} min",
+      "travelUpFree": "Climbing: no descent checks",
+      "travelHunt": "{nn}: Swarm landing · {pct}% ambush",
+      "travelCheck": "{nn}: {pct}% fail (need {dc}+)",
+      "travelClear": "~{pct}% to arrive without a fight",
+      "youAreHere": "You are here",
+      "roofShut": "Hatch shut",
+      "roofShutTip": "The roof hatch is shut. Open it from the landing below.",
+      "levelHeatTip": "Landing heat {heat}/100 · {band}",
+      "levelHeat": "Heat {nn}",
+      "blockPeak": "· block peak {n}",
+      "coolingNote": "Each landing has its own heat. Loud acts carry to the landings above and below. Landings you leave cool about {n} heat an hour.",
+      "unexplored": "unexplored",
+      "noDoors": "no doors",
+      "roomsLeft": "{n} rooms left",
+      "legendHeat": "bar = landing heat",
+      "legendScouted": "read from the corridor",
+      "hatchBlurb": "The roof hatch is above this landing. It is shut.",
+      "hatchFob": "Use the fob on the hatch · {min} min · quiet",
+      "hatchForce": "Force the roof hatch · {min} min · +{heat} heat · loud",
+      "noDoorsHint": "No doors on this landing. Pick another strip to take the stairs.",
+      "levelHint": "Click a room on your strip for its actions. Click another strip to take the stairs.",
+      "levelHintPhone": "Tap a room on your strip for its actions. Tap another strip to take the stairs."
     },
     "tunnel": {
       "ariaSchematic": "Tunnel schematic. Scroll to zoom, drag to pan.",
@@ -1284,7 +1275,7 @@
     },
     "timelinePinned": {
       "label": "Keep timeline open",
-      "description": "On a computer the timeline floats over the map as a short fading ticker and opens by itself when something needs you. Turn on to keep the full timeline open. The dock button toggles the same thing.",
+      "description": "On a computer the timeline floats over the map as a short fading ticker and opens by itself when something needs you. Turn on to keep the full timeline open. The Timeline button on the left rail toggles the same thing.",
       "options": {
         "on": "On",
         "off": "Off"
@@ -1348,14 +1339,6 @@
       "accessibility": "Accessibility",
       "guide": "Guide",
       "data": "Data & save"
-    },
-    "vitalsFolded": {
-      "label": "Fold the phone",
-      "description": "On a computer, shrink the phone in the top-left to a status strip: meters, the evac line and Rest. Tap its home bar to fold or unfold it.",
-      "options": {
-        "on": "On",
-        "off": "Off"
-      }
     },
     "railOverlay": {
       "label": "Rail map",
@@ -1465,9 +1448,9 @@
     "hdb": {
       "title": "Inside the block",
       "bullets": [
-        "Void decks open a side-elevation cutaway. Stairs stay visible even on sealed storeys; hover a reachable stair or door to preview the auto-path, then click — the pin walks hop by hop. Unvisited open floors stay fogged until you climb in. The roof is a short gated deck with extra loot; coming down checks every storey.",
-        "Sealed landings are gone for good. Corridor debris, barricades, and stair gates can be cleared (heat + time). A fob on a lanyard opens a matching grate quietly. Collapses are permanent — find another route.",
-        "Most loot doors are locked or barricaded. Pick a lock if you have a lockpick (quiet, consumed on the try); otherwise Force it and raise heat. Crowbar cheapens a smash. Room types each do one thing: search, a door trap, a live fire that burns per find, a nest or den fight, an empty shelter that dumps heat, a notice board, or a holdout service. Going down rolls Dexterity + Endurance once per storey — a fight stops you on that landing. Leave only from level 01."
+        "Void decks open the block as a stack of landing strips beside the 3D tower. Hover a strip to light its storey; click it to take the stairs there. A block is as tall as it stands on the map, but only a handful of landings are open — the storeys between them are sealed spans. Each landing has a character: ordinary flats, a holdout, a fire floor, a nest, a picked-over floor, or (in towers of 20+ storeys) a refuge floor whose stairs never ambush. The roof sits behind a hatch: force it loud, or open it quietly with a fob found in a flat.",
+        "Every landing has its own heat. What you do on a landing heats that landing; loud acts (barricades, traps, fights, the hatch) carry to the landings above and below. Heat raises encounter odds, room threat and the descent DC on that landing. A landing at Swarm ambushes anyone who crosses it. Landings you are not on cool slowly (about 5 an hour), and the whole block halves while you are away.",
+        "Most loot doors are locked or barricaded. Pick a lock if you have a lockpick (quiet, consumed on the try); otherwise Force it and raise heat. A crowbar makes a smash cheaper. Click a room on your strip to see its actions. Going down rolls Dexterity + Endurance on every landing you cross, against that landing's heat — a fight stops you there. Climbing has no checks. Leave only from level 01. Walk out while any landing is at Swarm and the noise spills into the street. The block remembers: worked blocks dim on the map and the site card shows doors cleared."
       ]
     },
     "tunnels": {

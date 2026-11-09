@@ -26,6 +26,7 @@ import {
   locationServices,
 } from '../game/factions';
 import { isStreetLootPoi } from '../game/loot';
+import { hdbScar, storeysFromRoof } from '../game/hdbDungeon';
 import { loadEffectsFor } from '../game/inventory';
 import { useGame } from '../game/store';
 import { dangerColor } from './mapIcons';
@@ -691,6 +692,10 @@ function KnownCard({
   const cfg = POI_CONFIG[sel.category];
   const poiLabel = poiCategoryLabel(sel.category, locale);
   const isBlock = sel.category === 'residential';
+  // A block remembers what you did to it; its real height comes from the 3D map.
+  const workedBlock = useGame((s) => (isBlock ? s.hdbBlocks[sel.id] : undefined));
+  const blockRoof = useGame((s) => (isBlock ? s.siteRoofs[sel.id] : undefined));
+  const scar = workedBlock ? hdbScar(workedBlock) : null;
   const inSight = here;
   const mem = sel.lastSeen;
   const useMem = !inSight && !!mem;
@@ -752,7 +757,17 @@ function KnownCard({
         : t('ui.location.forcedEntry')
       : null
     : isBlock
-      ? t('ui.location.twelveFloors')
+      ? scar
+        ? [
+            t('ui.location.blockWorked', { cleared: scar.cleared, doors: scar.doors }),
+            scar.sealedStoreys > 0 ? t('ui.location.blockSealed', { n: scar.sealedStoreys }) : '',
+            scar.hunting ? t('ui.location.blockHunting') : '',
+          ]
+            .filter(Boolean)
+            .join(' · ')
+        : storeysFromRoof(blockRoof) !== null
+          ? t('ui.location.blockStoreys', { n: storeysFromRoof(blockRoof) ?? 0 })
+          : t('ui.location.twelveFloors')
       : exhausted
         ? t('ui.location.pickedClean')
         : !seesSearches
@@ -774,6 +789,20 @@ function KnownCard({
           {t('ui.location.danger')} {'●'.repeat(dngr)}
           <span className="text-white/15">{'●'.repeat(5 - dngr)}</span>
         </span>
+        {scar && scar.doors > 0 && (
+          <span
+            className="inline-flex items-center gap-1.5"
+            {...tip(t('ui.location.blockWorked', { cleared: scar.cleared, doors: scar.doors }))}
+          >
+            {t('ui.location.blockWorkedShort')}
+            <span className="relative h-1 w-14 overflow-hidden rounded-full bg-white/10">
+              <span
+                className={`absolute inset-y-0 left-0 ${scar.hunting ? 'bg-hiss' : 'bg-signal'}`}
+                style={{ width: `${Math.round(scar.clearedFrac * 100)}%` }}
+              />
+            </span>
+          </span>
+        )}
         {!isBlock && destruction !== undefined && (
           <span
             {...tip(`${t('ui.location.ruin')} — ${destructionDisplayLabel(destruction, locale)}`)}

@@ -150,23 +150,9 @@ export const SETTINGS_SCHEMA: SettingDef[] = [
     key: 'timelinePinned',
     label: 'Keep timeline open',
     description:
-      'On a computer the timeline floats over the map as a short fading ticker and opens by itself when something needs you. Turn on to keep the full timeline open. The dock button toggles the same thing.',
+      'On a computer the timeline floats over the map as a short fading ticker and opens by itself when something needs you. Turn on to keep the full timeline open. The Timeline button on the left rail toggles the same thing.',
     tab: 'gameplay',
     section: 'Timeline',
-    control: 'toggle',
-    options: [
-      { value: 'on', label: 'On' },
-      { value: 'off', label: 'Off' },
-    ],
-    default: 'off',
-  },
-  {
-    key: 'vitalsFolded',
-    label: 'Fold the phone',
-    description:
-      'On a computer, shrink the phone in the top-left to a status strip: meters, the evac line and Rest. Tap its home bar to fold or unfold it.',
-    tab: 'gameplay',
-    section: 'Map',
     control: 'toggle',
     options: [
       { value: 'on', label: 'On' },

@@ -365,16 +365,51 @@ hostility, trade, shelter, aid, and intel:
 - Crafting is a **loot sink** first — scrap and tape have somewhere to go; clean water is made, not found.
 
 ### 3.14 HDB dungeons
-- Void decks open a **vertical push-your-luck cutaway** (`game/hdbDungeon.ts`, zoom/pan via
-  `react-zoom-pan-pinch`): stair columns, units, block **heat**, noise, and tiered loot.
-  Door faces show **room type** (search, hazard, burn, fight, rest, intel, service);
-  locked / half-open / barricaded state and encounter odds live on the location card
-  (hover Room for the type blurb). Most loot doors must be Forced or Picked (lockpick,
-  consumed). The pin **walks hop-by-hop**; every downward storey is a Dex+End check
-  and a fight stops you on that landing. Sealed storeys are **permanently gone**.
-  Stairs stay visible for orientation. Auto-path stops at corridor/stair **blockades**
-  — smash them or use a **fob**. The **roof** is a short gated deck with extra loot.
+- Void decks open the block as a **stack of landing strips** (`game/hdbDungeon.ts`,
+  `components/HdbLevelStrips.tsx`): one strip per open landing, top storey first, each with its
+  own **heat** meter and its rooms. Click a strip to take the stairs there; click a room on your
+  own strip to open its action card (Force / Pick / search / rest / read / service). Room tiles
+  show the type (search, hazard, burn, fight, rest, intel, service), boarded ✕, cleared ·, and a
+  dot when Dexterity read the containers from the corridor. Most loot doors must be Forced or
+  Picked (lockpick, consumed). There is no maze: no corridor blockades, no walking pin.
+- **Heat is per landing.** What you do on a landing heats that landing (`addHeat`); loud acts
+  **spill** a share to the open landings directly above and below — door force 0, barricade
+  0.35, trap 0.25, fight end 0.5, roof hatch 0.5. A landing's heat band drives its encounter
+  odds, room threat (`floorThreat`, +1 in the top third once Awake) and descent DC
+  (`8 + 2 × dcStep`). Max heat is **danger only**: a Swarm landing ambushes doors and anyone who
+  crosses it (80% elite), never a forced move. Landings you are not on **cool 5 heat/hour**
+  (`coolLevels`, run from `advanceTime`); re-entering a block halves every landing.
+  `blockHeat` is kept as the peak (`peakHeat`) for the scar, the site card and the exit leak.
+- **Stairs.** `travelPlan(from, to)` costs 0.75 min per real storey × the load stair factor.
+  Going **down**, every open landing crossed (and the destination) rolls d20 + Dex + End against
+  that landing's DC + the load flee modifier; the first fail stops you there in a fight. Climbing
+  has no rolls, but a Swarm landing on the way still ambushes. Hot landings below you make the
+  way back to 01 the risk. The strip tooltip previews minutes, each roll's fail %, and the odds
+  of arriving clean.
+- **Roof hatch.** The roof is reached through a hatch from the landing below it: Force it
+  (20 min, +12 heat with 0.5 spill, a street noise pulse) or open it quietly with the roof fob a
+  flat on a mid landing may hold (60%).
+- **Real height sets the scale, not the content.** `hdbEnter` reads the block's 3D roof
+  (`siteRoofs`, `roof ÷ 2.8 m`, clamped 3–50; no roof → seeded 10–16 storeys). Open landings
+  are capped by height — ≤5 storeys: 3–4 · 6–12: 4–6 · 13–20: 5–7 · 21+: 6–8 — ground and roof
+  always included. The dead storeys between two landings collapse into one **sealed span row**
+  ("04–11 · slab collapsed"), a thin muted strip. Labels show the real storey number.
+- **Landing themes**, dealt from a seeded no-repeat deck (`ordinary` may repeat once):
+  `holdout` (services, calmer), `fire` (burning rooms, good loot), `nest` (dens, starts hot,
+  one stocked door), `picked_over` (mostly cleared, one notice), `refuge` (20+ storeys only;
+  safe stairs, rest drops heat). Revealed on arrival with a log line; a chip on the strip.
+- **The block on the map.** Desktop with 3D on: the strips sit over the map beside the tower,
+  each with a notch pointing at it, while the camera closes in until the tower fills about half
+  the view (and eases back out on exit). Every other building ghosts so the block reads through
+  the estate. An amber **storey band** on the extrusion marks your landing and follows strip hover.
+  Phone or 2D: the same strips as a full-screen list, the action card below.
+- **The block remembers.** `hdbScar` reads the persisted dungeon: worked blocks dim on the 3D map
+  in quarter-steps, the site card shows doors cleared · storeys sealed · hunting. Leaving while
+  any landing is at **Swarm** leaks a noise pulse (350 m) into the street.
   **Leave only from level 01.** Estate vs shelter archetypes change holdout rates.
+- **Saves.** Blocks carry `v: 2`. A maze-era block is converted on load (`migrateHdbDungeon`):
+  doors, per-landing heat and fobs carry over, the stair geometry is dropped, you re-enter on 01,
+  and an opened roof gate becomes an open hatch. Run key stays `singvive.run.v7`.
 
 ### 3.15 Noise
 - Actions emit spatial **noise pulses** (`game/noise.ts`) that temporarily boost nearby POI danger
@@ -441,7 +476,7 @@ hostility, trade, shelter, aid, and intel:
 ## 4. UI
 
 - **Desktop — left rail + map + timeline:**
-  - **Left survivor rail** (~340px): clock, weather, Rest (with sleep-quality preview), `ObjectiveBar`,
+  - **Left survivor rail** (~408px): clock, weather, Rest (with sleep-quality preview), `ObjectiveBar`,
     `ConditionPanel` (meters + body), and panel buttons **Inventory / Craft / Logbook / Stats**.
   - **Slide-out overlay** (does not reflow the map): inventory, craft, logbook, stats, objectives.
     Most panels are a 360px column beside the rail; **craft** spans the whole map instead (never

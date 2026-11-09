@@ -114,6 +114,19 @@ const FIRE_FLICKER_MS = 110;
 /** Wrecks and fires are re-picked once the sight disc moves this far. */
 const REPICK_M = 25;
 const FIRE_SOURCE = 'fires-3d-src';
+/** The storey band: a lit collar round the block you are inside, at your row. */
+const BAND_SOURCE = 'storey-band-src';
+export const BAND_LAYER = 'storey-band';
+const BAND_COLOR = '#f0a020';
+/** How far the collar stands off the wall, so it never z-fights the facade. */
+const BAND_STANDOFF_M = 1.2;
+/**
+ * The block you are inside, drawn solid on its own layer while every other
+ * building (and ruin) ghosts, so the tower reads through the estate.
+ */
+export const FOCUS_LAYER = 'focus-3d';
+const GHOST_OPACITY = 0.18;
+const SOLID_OPACITY = 0.9;
 const FIRE_GLOW_LAYER = 'fires-3d-glow';
 const FIRE_CORE_LAYER = 'fires-3d-core';
 
@@ -372,6 +385,10 @@ export class BuildingEngine {
   private pendingIndex = false;
   /** Flat basemap building layers and their original zoom ranges. */
   private flatLayers: { id: string; min: number; max: number }[] = [];
+  private band: { site: string; base: number; top: number } | null = null;
+  /** Site drawn solid while the rest ghost; the ids it was last drawn with. */
+  private focus: string | null = null;
+  private focusDrawn = '';
 
   constructor(map: MlMap) {
     this.map = map;
@@ -379,6 +396,30 @@ export class BuildingEngine {
   }
 
   /** Roof heights (metres, after ruin) of the sites matched so far, by site id. */
+  /**
+   * How badly loaded buildings would hide a point seen from `bearing` (camera on the
+   * near side, looking along it): height over distance of every building inside a
+   * ±25° cone 15–160 m back toward the camera. Lower is clearer.
+   */
+  occlusion(lat: number, lng: number, bearing: number): number {
+    const kx = 111_320 * Math.cos((lat * Math.PI) / 180);
+    const ky = 110_540;
+    const rad = (bearing * Math.PI) / 180;
+    // Unit vector from the point back toward the camera.
+    const bx = -Math.sin(rad);
+    const by = -Math.cos(rad);
+    let score = 0;
+    for (const b of this.index.values()) {
+      const dx = (b.lng - lng) * kx;
+      const dy = (b.lat - lat) * ky;
+      const d = Math.hypot(dx, dy);
+      if (d < 15 || d > 160) continue;
+      if ((dx * bx + dy * by) / d < 0.9) continue;
+      score += b.h / d;
+    }
+    return score;
+  }
+
   roofHeights(): ReadonlyMap<string, number> {
     const out = new Map<string, number>();
     for (const [id, h] of this.roofs) out.set(id, this.roofOf(id, h));
@@ -441,6 +482,25 @@ export class BuildingEngine {
       },
       slotId('buildings'),
     );
+    const solid = map.getLayer(BUILDINGS_LAYER)!;
+    map.addLayer(
+      {
+        id: FOCUS_LAYER,
+        type: 'fill-extrusion',
+        source: this.src,
+        'source-layer': this.sl,
+        minzoom: LOD_ZOOM,
+        filter: ['in', ['id'], ['literal', []]],
+        paint: {
+          'fill-extrusion-color': map.getPaintProperty(BUILDINGS_LAYER, 'fill-extrusion-color'),
+          'fill-extrusion-height': map.getPaintProperty(BUILDINGS_LAYER, 'fill-extrusion-height'),
+          'fill-extrusion-base': map.getPaintProperty(BUILDINGS_LAYER, 'fill-extrusion-base'),
+          'fill-extrusion-opacity': 1,
+          'fill-extrusion-vertical-gradient': true,
+        },
+      } as Parameters<MlMap['addLayer']>[0],
+      solid.id,
+    );
     map.addSource(RUINS_SOURCE, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
     map.addLayer(
       {
@@ -488,6 +548,24 @@ export class BuildingEngine {
       );
     glow(FIRE_GLOW_LAYER, '#ff5a14', 1, 1, 0.85);
     glow(FIRE_CORE_LAYER, '#ffb04a', 0.4, 0.9, 0.95);
+    map.addSource(BAND_SOURCE, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+    map.addLayer(
+      {
+        id: BAND_LAYER,
+        type: 'fill-extrusion',
+        source: BAND_SOURCE,
+        minzoom: LOD_ZOOM,
+        paint: {
+          'fill-extrusion-color': BAND_COLOR,
+          'fill-extrusion-height': ['get', 'top'],
+          'fill-extrusion-base': ['get', 'base'],
+          'fill-extrusion-opacity': 0.8,
+        },
+      },
+      // Under the other buildings, beside the focused block: ghosts in front
+      // then tint the band instead of hiding it behind their depth.
+      BUILDINGS_LAYER,
+    );
     // Sky and light belong to the weather: see atmosphere.ts.
 
     map.on('sourcedata', this.onSourceData);
@@ -513,17 +591,87 @@ export class BuildingEngine {
     this.fires.clear();
     if (!alive(map)) return;
     map.getContainer().style.removeProperty('--roof-lift');
+    if (map.getLayer(FOCUS_LAYER)) map.removeLayer(FOCUS_LAYER);
     if (map.getLayer(BUILDINGS_LAYER)) map.removeLayer(BUILDINGS_LAYER);
     if (map.getLayer(RUINS_LAYER)) map.removeLayer(RUINS_LAYER);
     if (map.getSource(RUINS_SOURCE)) map.removeSource(RUINS_SOURCE);
     for (const id of [FIRE_CORE_LAYER, FIRE_GLOW_LAYER]) if (map.getLayer(id)) map.removeLayer(id);
     if (map.getSource(FIRE_SOURCE)) map.removeSource(FIRE_SOURCE);
+    if (map.getLayer(BAND_LAYER)) map.removeLayer(BAND_LAYER);
+    if (map.getSource(BAND_SOURCE)) map.removeSource(BAND_SOURCE);
     for (const l of this.flatLayers) if (map.getLayer(l.id)) map.setLayerZoomRange(l.id, l.min, l.max);
     // No id: clears every state this engine put on the building layer.
     if (map.getSource(this.src)) map.removeFeatureState({ source: this.src, sourceLayer: this.sl });
   }
 
   // --- Inputs ------------------------------------------------------------------
+
+  /**
+   * Light one band of a site's building, `base`..`top` metres up: the cutaway
+   * row you are on (or pointing at). Redraws only when the band moves.
+   */
+  setFloorBand(siteId: string, base: number, top: number) {
+    const b = this.band;
+    if (b && b.site === siteId && b.base === base && b.top === top) return;
+    this.band = { site: siteId, base, top };
+    this.drawBand();
+  }
+
+  /**
+   * Draw one site's building solid and ghost the rest (null: all solid). One
+   * filter + opacity change per focus change, never per tick; re-applied only
+   * when the site's matched buildings change.
+   */
+  setFocus(siteId: string | null) {
+    if (this.focus === siteId) return;
+    this.focus = siteId;
+    this.drawFocus();
+  }
+
+  private drawFocus() {
+    if (this.destroyed || !alive(this.map)) return;
+    const ids = this.focus ? (this.siteFeatures.get(this.focus) ?? []) : [];
+    const key = ids.join(',');
+    if (key === this.focusDrawn) return;
+    this.focusDrawn = key;
+    const map = this.map;
+    const on = ids.length > 0;
+    const list = ['literal', ids] as unknown as FilterSpecification;
+    map.setFilter(FOCUS_LAYER, ['in', ['id'], list] as FilterSpecification);
+    map.setFilter(BUILDINGS_LAYER, on ? (['!', ['in', ['id'], list]] as FilterSpecification) : null);
+    const op = on ? GHOST_OPACITY : SOLID_OPACITY;
+    map.setPaintProperty(BUILDINGS_LAYER, 'fill-extrusion-opacity', op);
+    map.setPaintProperty(RUINS_LAYER, 'fill-extrusion-opacity', op);
+  }
+
+  clearFloorBand() {
+    if (!this.band) return;
+    this.band = null;
+    this.drawBand();
+  }
+
+  private drawBand() {
+    if (this.destroyed || !alive(this.map)) return;
+    const src = this.map.getSource(BAND_SOURCE) as GeoJSONSource | undefined;
+    if (!src) return;
+    const b = this.band;
+    const site = b ? this.sites.get(b.site) : undefined;
+    const ring = site ? this.ringOf(site) : null;
+    if (!b || !ring) {
+      src.setData({ type: 'FeatureCollection', features: [] });
+      return;
+    }
+    src.setData({
+      type: 'FeatureCollection',
+      features: [
+        {
+          type: 'Feature',
+          properties: { base: b.base, top: b.top },
+          geometry: { type: 'Polygon', coordinates: [standOff(ring, BAND_STANDOFF_M)] },
+        },
+      ],
+    });
+  }
 
   setInstant(instant: boolean) {
     this.instant = instant;
@@ -559,12 +707,14 @@ export class BuildingEngine {
     this.publishRoofs();
     // A site's building stands even in fog, so membership changes the reveal.
     if (fresh || gone) this.updateReveal(false);
+    // The band's block may only now be on screen (or just left it).
+    if (this.band && (fresh || gone)) this.drawBand();
   }
 
   /** What a tap at this screen point lands on, nearest first. */
   hit(point: { x: number; y: number }): BuildingHit | null {
     if (!this.map.getLayer(BUILDINGS_LAYER)) return null;
-    const layers = this.map.getLayer(RUINS_LAYER) ? [RUINS_LAYER, BUILDINGS_LAYER] : [BUILDINGS_LAYER];
+    const layers = [RUINS_LAYER, FOCUS_LAYER, BUILDINGS_LAYER].filter((l) => this.map.getLayer(l));
     const top = this.map.queryRenderedFeatures([point.x, point.y], { layers })[0];
     if (!top || top.id === undefined) return null;
     if (top.layer.id === RUINS_LAYER) {
@@ -849,6 +999,7 @@ export class BuildingEngine {
     this.applySiteStates();
     this.publishRoofs();
     this.updateReveal(false);
+    if (this.focus) this.drawFocus();
   }
 
   /** Push site colours, selection and ruin onto the buildings that are sites. */
@@ -1211,4 +1362,25 @@ export class BuildingEngine {
     const lift = pxPerMetre(z, map.getCenter().lat) * Math.sin((map.getPitch() * Math.PI) / 180) * zoomRise;
     map.getContainer().style.setProperty('--roof-lift', lift.toFixed(4));
   };
+}
+
+/** A ring pushed out from its centre by `metres`, so a collar wraps the wall. */
+function standOff(ring: LngLatPair[], metres: number): LngLatPair[] {
+  let cx = 0;
+  let cy = 0;
+  for (const [x, y] of ring) {
+    cx += x;
+    cy += y;
+  }
+  cx /= ring.length;
+  cy /= ring.length;
+  const kx = Math.cos((cy * Math.PI) / 180) * 111_320;
+  const ky = 110_540;
+  return ring.map(([x, y]) => {
+    const dx = (x - cx) * kx;
+    const dy = (y - cy) * ky;
+    const d = Math.hypot(dx, dy);
+    const k = d > 0 ? (d + metres) / d : 1;
+    return [cx + (dx * k) / kx, cy + (dy * k) / ky];
+  });
 }

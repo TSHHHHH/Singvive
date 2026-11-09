@@ -751,7 +751,8 @@ export interface CombatContext {
    * interrupted cell move to `dest` (otherwise you stay on the origin floor and
    * can fail/re-fight the same descent forever).
    */
-  hdbStairs?: { dest: { level: number; column: number } };
+  /** The landing the stair fight happened on — you stand there after. */
+  hdbStairs?: { dest: number };
   /**
    * Met in the tunnel between two stations. Winning settles the node, never the
    * station overhead; `lootMod` rides along when the fight interrupted a
@@ -834,7 +835,8 @@ export interface LootStackRef {
 /** Groups consecutive timeline lines under a location header (HDB room, tunnel node, street site, …). */
 export type LogScope =
   | { kind: 'hdb_block'; blockId: string; label: string }
-  | { kind: 'hdb_floor'; blockId: string; level: number }
+  /** `storey` is the real storey label (rows can stand for many storeys). */
+  | { kind: 'hdb_floor'; blockId: string; level: number; storey?: string }
   | { kind: 'hdb_unit'; blockId: string; level: number; unitId: string; label: string }
   | { kind: 'tunnel_run'; runId: string; label: string }
   | { kind: 'tunnel_node'; runId: string; nodeId: string; label: string }

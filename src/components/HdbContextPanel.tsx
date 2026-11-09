@@ -4,12 +4,8 @@ import type { IconName } from '../icons/keys';
 import { sumTraitMod } from '../game/character';
 import { useGame } from '../game/store';
 import {
-  adjacentBreakableBlocks,
-  adjacentEdgeBlocks,
-  BLOCK_META,
   breachOutcome,
   currentFloor,
-  descentIsChecked,
   ENTRY_META,
   encounterChanceKnown,
   encounterChanceReadout,
@@ -17,20 +13,27 @@ import {
   hasFob,
   heatBandAfter,
   isVoidDeckFloor,
+  levelBand,
+  levelHeat,
   LOCKPICK_ID,
   PICK_MINUTES,
-  retreatFailChance,
+  ROOF_FOB,
+  ROOF_HATCH_HEAT,
+  ROOF_HATCH_MINUTES,
+  roofHatchLevel,
   scaleDoorCost,
   SERVICE_ICON,
   SERVICE_LABEL,
   SHELTER_HEAT_DROP,
   SHELTER_HOURS,
+  storeyLabel,
+  THEME_META,
   UNIT_META,
   type HdbDungeon,
-  type HdbUnitNode,
 } from '../game/hdbDungeon';
-import { msgOr, useT } from '../i18n';
-import { useIsPhoneLayout } from './HdbZoomViewport';
+import { msgOr, useT, type LocaleId, type TVars } from '../i18n';
+import { HeatMeter } from './HdbLevelStrips';
+import { useIsPhoneLayout } from './useIsPhoneLayout';
 import { tip } from './tips';
 
 const CONTAINER_ICON: Record<string, IconName> = {
@@ -41,12 +44,18 @@ const CONTAINER_ICON: Record<string, IconName> = {
   Fob: 'item.lockpick',
 };
 
-/** Unit under the player on the current floor, if any. */
-export function unitUnderfoot(hdb: HdbDungeon): HdbUnitNode | null {
-  const floor = currentFloor(hdb);
-  return (
-    floor.units.find((u) => u.column === hdb.pos.column && u.available) ?? null
-  );
+/** Storey tooltip for the landing you stand on, with its theme if it has one. */
+function landingTip(
+  hdb: HdbDungeon,
+  t: (key: string, vars?: TVars) => string,
+  locale: LocaleId,
+): string {
+  const base = t('ui.hdb.storey', { nn: storeyLabel(hdb, hdb.currentLevel) });
+  const theme = currentFloor(hdb).theme;
+  if (!theme || theme === 'ordinary') return base;
+  const label = msgOr(`ui.hdb.theme.${theme}.label`, THEME_META[theme].label, undefined, locale);
+  const blurb = msgOr(`ui.hdb.theme.${theme}.blurb`, THEME_META[theme].blurb, undefined, locale);
+  return `${base} · ${label}: ${blurb}`;
 }
 
 function ScoutTile({
@@ -78,10 +87,11 @@ function ScoutTile({
 }
 
 /**
- * Consolidated HDB attention surface: unit/breach, scout tiles.
- * `full` for desktop rail + phone cutaway dock; `compact` for phone timeline foot.
- * Leave lives on the status dock in {@link HdbDungeonModal}; compact keeps a Leave
- * for when the Log tab hides the cutaway. Sense odds / symbol key expand from that dock.
+ * The HDB action card: the room picked on your landing strip (scout tiles plus
+ * Force / Pick / search / rest / read / service), else a landing summary and,
+ * below the roof, the hatch. `full` for the desktop here card and the phone
+ * strips dock; `compact` for the phone timeline foot. Leave lives on the status
+ * dock in {@link HdbDungeonModal}; compact keeps one for when the Log tab hides it.
  */
 export function HdbContextPanel({
   variant = 'full',
@@ -93,25 +103,20 @@ export function HdbContextPanel({
   const character = useGame((s) => s.character);
   const items = useGame((s) => s.items);
   const pendingSearch = useGame((s) => s.pendingSearch);
-  const hdbWalk = useGame((s) => s.hdbWalk);
+  const selUnit = useGame((s) => s.hdbSelUnit);
   const hdbBreach = useGame((s) => s.hdbBreach);
   const hdbPick = useGame((s) => s.hdbPick);
   const hdbUseService = useGame((s) => s.hdbUseService);
   const hdbUseShelter = useGame((s) => s.hdbUseShelter);
   const hdbReadNotice = useGame((s) => s.hdbReadNotice);
-  const hdbForceBlock = useGame((s) => s.hdbForceBlock);
-  const hdbUnlockGate = useGame((s) => s.hdbUnlockGate);
+  const hdbOpenRoof = useGame((s) => s.hdbOpenRoof);
   const hdbLeave = useGame((s) => s.hdbLeave);
   const isPhone = useIsPhoneLayout();
 
   if (!hdb || !character) return null;
 
-  const walking = !!hdbWalk;
   const floor = currentFloor(hdb);
-  const clearable = adjacentBreakableBlocks(hdb);
-  const impassable = adjacentEdgeBlocks(hdb).filter((e) => !e.block.breakable);
-  const sel =
-    floor.units.find((u) => u.column === hdb.pos.column && u.available) ?? null;
+  const sel = (selUnit && floor.units.find((u) => u.id === selUnit && u.available)) || null;
   const doorStatus = sel
     ? sel.state === 'cleared'
       ? t('ui.hdb.doorCleared')
@@ -119,12 +124,10 @@ export function HdbContextPanel({
     : null;
 
   if (variant === 'compact') {
-    const canLeave = hdb.currentLevel === 1 && !pendingSearch && !walking;
+    const canLeave = hdb.currentLevel === 1 && !pendingSearch;
     const leaveTitle = pendingSearch
       ? t('ui.hdb.leaveNeedSearch')
-      : walking
-        ? t('ui.hdb.leaveNeedWalk')
-        : hdb.currentLevel !== 1
+      : hdb.currentLevel !== 1
           ? t('ui.hdb.leaveNeedVoidDeck')
           : undefined;
     return (
@@ -167,130 +170,50 @@ export function HdbContextPanel({
     .reduce((n, i) => n + i.stack, 0);
 
   const heatWarn = (add: number) => {
-    const band = heatBandAfter(hdb.blockHeat, add);
+    const band = heatBandAfter(levelHeat(hdb, hdb.currentLevel), add);
     if (!band) return '';
     const note = msgOr(`ui.hdb.heatBand.${band.label}.note`, band.note, undefined, locale);
     return t('ui.hdb.heatCross', { note });
   };
 
-  const blockActions = (
-    <>
-      {clearable.map((c) => {
-        const blockLabel = msgOr(
-          `ui.hdb.blockKind.${c.block.kind}.label`,
-          BLOCK_META[c.block.kind].label,
-          undefined,
-          locale,
-        );
-        const scaled = scaleDoorCost(c.block.minutes, c.block.heat, forceOpts);
-        const mins = Math.round(scaled.minutes);
-        const warn = heatWarn(scaled.heat);
-        const fobReady =
-          c.block.kind === 'stair_gate' && hasFob(hdb, c.block.keyId);
-        return (
-          <div key={c.key} className="flex flex-col gap-1">
-            {fobReady && (
-              <button
-                type="button"
-                onClick={() => hdbUnlockGate(c.key)}
-                disabled={walking}
-                className="min-h-[44px] w-full rounded border border-signal/60 bg-signal/15 px-3 py-2 text-body text-signal hover:bg-signal/25 disabled:opacity-40 lg:min-h-0 lg:py-1.5"
-              >
-                {t('ui.hdb.fobAction', { min: FOB_MINUTES })}
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => hdbForceBlock(c.key)}
-              disabled={walking}
-              className="min-h-[44px] w-full rounded border border-hiss/60 bg-hiss/15 px-3 py-2 text-body text-hiss hover:bg-hiss/25 disabled:opacity-40 lg:min-h-0 lg:py-1.5"
-            >
-              {t('ui.hdb.clearAction', {
-                label: blockLabel,
-                min: mins,
-                heat: scaled.heat,
-              })}
-              {warn}
-            </button>
-          </div>
-        );
-      })}
-      {impassable.map((c) => {
-        const blockLabel = msgOr(
-          `ui.hdb.blockKind.${c.block.kind}.label`,
-          BLOCK_META[c.block.kind].label,
-          undefined,
-          locale,
-        );
-        const blockBlurb = msgOr(
-          `ui.hdb.blockKind.${c.block.kind}.blurb`,
-          BLOCK_META[c.block.kind].blurb,
-          undefined,
-          locale,
-        );
-        return (
-          <span
-            key={c.key}
-            {...tip(blockBlurb)}
-            className="min-h-[44px] w-full rounded border border-concrete-600 bg-concrete-900/80 px-3 py-2 text-body text-concrete-300 lg:min-h-0 lg:py-1.5"
-          >
-            {t('ui.hdb.noWayThrough', { label: blockLabel })}
-          </span>
-        );
-      })}
-    </>
-  );
+  const busy = !!pendingSearch;
+  const hatchHere = !hdb.roofOpen && roofHatchLevel(hdb) === hdb.currentLevel;
+  const hatchCost = scaleDoorCost(ROOF_HATCH_MINUTES, ROOF_HATCH_HEAT, forceOpts);
+  const hatchActions = hatchHere ? (
+    <div className="flex flex-col gap-1">
+      <p className="text-body text-concrete-400">{t('ui.hdb.hatchBlurb')}</p>
+      {hasFob(hdb, ROOF_FOB) && (
+        <button
+          type="button"
+          onClick={() => hdbOpenRoof('fob')}
+          disabled={busy}
+          className="min-h-[44px] w-full rounded border border-signal/60 bg-signal/15 px-3 py-2 text-body text-signal hover:bg-signal/25 disabled:opacity-40 lg:min-h-0 lg:py-1.5"
+        >
+          {t('ui.hdb.hatchFob', { min: FOB_MINUTES })}
+        </button>
+      )}
+      <button
+        type="button"
+        onClick={() => hdbOpenRoof('force')}
+        disabled={busy}
+        className="min-h-[44px] w-full rounded border border-hiss/60 bg-hiss/15 px-3 py-2 text-body text-hiss hover:bg-hiss/25 disabled:opacity-40 lg:min-h-0 lg:py-1.5"
+      >
+        {t('ui.hdb.hatchForce', {
+          min: Math.round(hatchCost.minutes),
+          heat: hatchCost.heat,
+        })}
+        {heatWarn(hatchCost.heat)}
+      </button>
+    </div>
+  ) : null;
 
-  const stair = hdb.stairs.find((s) => s.column === hdb.pos.column) ?? null;
-  const boarded = !sel
-    ? (floor.units.find((u) => u.column === hdb.pos.column) ?? null)
-    : null;
+  const levelNn = storeyLabel(hdb, hdb.currentLevel);
   const placeTitle = sel
     ? sel.label
-    : stair
-      ? stair.kind === 'side'
-        ? t('ui.hdb.sideStair', { id: stair.id })
-        : t('ui.hdb.stairwell', { id: stair.id })
-      : boarded
-        ? boarded.label
-        : isVoidDeckFloor(floor) && floor.units.length === 0
-          ? t('ui.hdb.voidDeck')
-          : t('ui.hdb.level', { nn: String(hdb.currentLevel).padStart(2, '0') });
-  const placeStatus = sel
-    ? doorStatus
-    : stair
-      ? clearable[0]
-        ? msgOr(
-            `ui.hdb.blockKind.${clearable[0].block.kind}.label`,
-            BLOCK_META[clearable[0].block.kind].label,
-            undefined,
-            locale,
-          )
-        : impassable[0]
-          ? msgOr(
-              `ui.hdb.blockKind.${impassable[0].block.kind}.label`,
-              BLOCK_META[impassable[0].block.kind].label,
-              undefined,
-              locale,
-            )
-          : t('ui.hdb.doorOpen')
-      : boarded
-        ? t('ui.hdb.doorBoarded')
-        : clearable[0]
-          ? msgOr(
-              `ui.hdb.blockKind.${clearable[0].block.kind}.label`,
-              BLOCK_META[clearable[0].block.kind].label,
-              undefined,
-              locale,
-            )
-          : impassable[0]
-            ? msgOr(
-                `ui.hdb.blockKind.${impassable[0].block.kind}.label`,
-                BLOCK_META[impassable[0].block.kind].label,
-                undefined,
-                locale,
-              )
-            : null;
+    : isVoidDeckFloor(floor) && floor.units.length === 0
+      ? t('ui.hdb.voidDeck')
+      : t('ui.hdb.level', { nn: levelNn });
+  const placeStatus = sel ? doorStatus : null;
 
   const placeHeader = (
     <div className="flex min-w-0 items-baseline gap-2">
@@ -304,11 +227,6 @@ export function HdbContextPanel({
       )}
     </div>
   );
-
-  const descentChecked = descentIsChecked(hdb);
-  const descentFailPct = descentChecked
-    ? Math.round(retreatFailChance(character.attributes, hdb) * 100)
-    : 0;
 
   const unitLabel = sel
     ? msgOr(`ui.hdb.unit.${sel.type}.label`, UNIT_META[sel.type].label, undefined, locale)
@@ -389,39 +307,7 @@ export function HdbContextPanel({
         )}
       </ScoutTile>
     </div>
-  ) : stair ? (
-    <div className="flex w-[7.5rem] shrink-0 flex-col items-center justify-start gap-1.5 self-stretch sm:w-[8.5rem]">
-      <ScoutTile
-        label={t('ui.hdb.scoutDescent')}
-        tip={t('ui.hdb.scoutDescentWatched', { n: descentFailPct })}
-      >
-        <span className={descentChecked && descentFailPct >= 50 ? 'text-hiss' : 'text-signal'}>
-          {descentChecked ? `${descentFailPct}%` : t('ui.hdb.scoutClear')}
-        </span>
-      </ScoutTile>
-
-      <ScoutTile
-        label={t('ui.hdb.scoutLanding')}
-        tip={t('ui.hdb.storey', { nn: String(hdb.currentLevel).padStart(2, '0') })}
-      >
-        <span className="tabular-nums text-concrete-100">
-          #{String(hdb.currentLevel).padStart(2, '0')}
-        </span>
-      </ScoutTile>
-
-      <ScoutTile
-        label={t('ui.hdb.scoutShaft')}
-        tip={
-          stair.kind === 'side' ? t('ui.hdb.sideStairTitle') : t('ui.hdb.internalWell')
-        }
-      >
-        <span className="inline-flex items-center gap-0.5 text-body text-concrete-200">
-          <Icon name="hdb.stairwell" size={12} />
-          {stair.kind === 'side' ? t('ui.hdb.sideShort') : t('ui.hdb.wellShort')}
-        </span>
-      </ScoutTile>
-    </div>
-  ) : null;
+    ) : null;
 
   const entryVerb = sel
     ? msgOr(`ui.hdb.entry.${sel.entry}.verb`, ENTRY_META[sel.entry].verb, undefined, locale)
@@ -443,7 +329,6 @@ export function HdbContextPanel({
   const heatBit =
     doorHeat > 0 ? t('ui.hdb.heatPlus', { n: doorHeat }) : t('ui.hdb.quiet');
   const doorWarn = doorHeat > 0 ? heatWarn(doorHeat) : '';
-  const busy = walking || !!pendingSearch;
 
   const doorButtons = sel ? (
     sel.state === 'cleared' ? (
@@ -514,6 +399,34 @@ export function HdbContextPanel({
     )
   ) : null;
 
+  const here = hdb.currentLevel;
+  const hereHeat = levelHeat(hdb, here);
+  const hereBand = levelBand(hdb, here);
+  const roomsLeft = floor.units.filter((u) => u.available && u.state !== 'cleared').length;
+  const levelSummary = (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center gap-2 text-micro uppercase text-concrete-400">
+        <span>
+          {msgOr(`ui.hdb.heatBand.${hereBand.label}.label`, hereBand.label, undefined, locale)}{' '}
+          <span className="tabular-nums">{Math.round(hereHeat)}</span>
+        </span>
+        <HeatMeter heat={hereHeat} className="w-16" />
+        {floor.units.length > 0 && (
+          <span className="tabular-nums">{t('ui.hdb.roomsLeft', { n: roomsLeft })}</span>
+        )}
+      </div>
+      <p className="text-body text-concrete-400" {...tip(landingTip(hdb, t, locale))}>
+        {floor.units.length === 0
+          ? isVoidDeckFloor(floor)
+            ? t('ui.hdb.voidHint')
+            : t('ui.hdb.noDoorsHint')
+          : isPhone
+            ? t('ui.hdb.levelHintPhone')
+            : t('ui.hdb.levelHint')}
+      </p>
+    </div>
+  );
+
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
       <div className="space-y-2 px-3 pb-2 pt-1 lg:px-0 lg:pt-0">
@@ -521,18 +434,8 @@ export function HdbContextPanel({
           {scoutColumn}
           <div className="flex min-w-0 flex-1 flex-col gap-2">
             {placeHeader}
-            {blockActions}
-            {sel ? (
-              doorButtons
-            ) : !stair && !boarded && clearable.length === 0 && impassable.length === 0 ? (
-              <p className="text-body text-concrete-400">
-                {isVoidDeckFloor(floor) && floor.units.length === 0
-                  ? t('ui.hdb.voidHint')
-                  : isPhone
-                    ? t('ui.hdb.pathHintPhone')
-                    : t('ui.hdb.pathHintDesktop')}
-              </p>
-            ) : null}
+            {sel ? doorButtons : levelSummary}
+            {!sel && hatchActions}
           </div>
         </div>
       </div>

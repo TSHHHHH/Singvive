@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { Map as MlMap, Marker } from 'maplibre-gl';
+import type { LngLat, Map as MlMap, Marker } from 'maplibre-gl';
 import type { Feature } from 'geojson';
 import type { DestructionTier, Poi, TimeOfDay, WeatherKind, MapAnnotation } from '../game/types';
 import { WeatherFx } from './WeatherFx';
@@ -47,6 +47,7 @@ import { createMarker } from '../map/markerDom';
 import { installOverlay, setData } from '../map/layers';
 import { EMPTY_FC, boxContains, circleFeature, dimHex, fc, lineFeature, padBox, toLngLatRing, type LatLngBox } from '../map/geo';
 import { BuildingEngine, LOD_ZOOM, type Site3d } from '../map/buildings';
+import { hdbScar, STOREY_M, type HdbDungeon } from '../game/hdbDungeon';
 import { VEIL_BANDS, bandOpacity, veilBands } from '../map/fogGeometry';
 
 // White outline for buildings you can see but haven't identified — stands out
@@ -204,6 +205,167 @@ function Camera3d({ on }: { on: boolean }) {
     if (duration === 0) flatten();
     else map.once('moveend', flatten);
   }, [map, on, reduced]);
+  return null;
+}
+
+/** Camera bearing that squares the view to a footprint's long side, nearest the current one. */
+function squareBearing(
+  ring: ReadonlyArray<readonly [number, number]> | undefined,
+  current: number,
+  clear?: (lat: number, lng: number, bearing: number) => number,
+): number | null {
+  if (!ring || ring.length < 3) return null;
+  let best = 0;
+  let along = 0;
+  for (let i = 0; i < ring.length; i++) {
+    const [aLat, aLng] = ring[i];
+    const [bLat, bLng] = ring[(i + 1) % ring.length];
+    const dx = (bLng - aLng) * Math.cos((aLat * Math.PI) / 180);
+    const dy = bLat - aLat;
+    const len = Math.hypot(dx, dy);
+    if (len > best) {
+      best = len;
+      along = (Math.atan2(dx, dy) * 180) / Math.PI;
+    }
+  }
+  if (best === 0) return null;
+  // Face a wall square on: long walls first, then whichever side the neighbours hide
+  // least (a tower in front would swallow the storey band), then the smaller turn.
+  const wrap = (b: number) => ((((b + 180) % 360) + 360) % 360) - 180;
+  const turn = (x: number) => Math.abs(wrap(x - current));
+  const cLat = ring.reduce((t, p) => t + p[0], 0) / ring.length;
+  const cLng = ring.reduce((t, p) => t + p[1], 0) / ring.length;
+  const options = [along + 90, along - 90, along, along + 180].map((x, i) => {
+    const b = wrap(x);
+    const hidden = clear ? clear(cLat, cLng, b) : 0;
+    return { b, cost: hidden * (i < 2 ? 1 : 1.4) + turn(b) / 180 };
+  });
+  options.sort((p, q) => p.cost - q.cost);
+  return options[0].b;
+}
+
+const BLOCK_ZOOM = 17.2;
+/** At BLOCK_ZOOM and full pitch, screen px per metre of tower height (measured). */
+const BLOCK_PX_PER_M = 170 / 86;
+/** Share of the canvas height the tower fills once the camera has closed in. */
+const BLOCK_FILL = 0.5;
+
+/** Zoom that makes a `roof`-metre tower fill BLOCK_FILL of a `boxH`-px box. */
+function blockZoom(roof: number, boxH: number): number {
+  const z = BLOCK_ZOOM + Math.log2((BLOCK_FILL * boxH) / (BLOCK_PX_PER_M * Math.max(roof, 12)));
+  return Math.min(MAX_ZOOM, Math.max(BLOCK_ZOOM, z));
+}
+
+/**
+ * Inside an HDB block, in 3D: ease onto the block on entry and back to where
+ * you were on exit, and light the storey band for the landing you are on
+ * (or pointing at). Selects scalars only; the band is redrawn when its row moves.
+ */
+function BlockView({
+  engine,
+  pois,
+  pad,
+}: {
+  engine: BuildingEngine | null;
+  pois: Poi[];
+  /** "left:right:bottom" camera inset (CameraInset's); in a block, the box beside the strips. */
+  pad: string;
+}) {
+  const map = useMapGL();
+  const reduced = useReducedMotion();
+  const siteId = useGame((s) => s.hdb?.locationId ?? null);
+  const roof = useGame((s) => (siteId ? s.siteRoofs[siteId] : undefined));
+  // "lo:hi:real" storeys of the band row, as one string so equal rows don't re-run.
+  const band = useGame((s) => {
+    const h = s.hdb;
+    if (!h) return null;
+    const level = s.hdbHoverLevel ?? h.pos.level;
+    const f = h.floors[level - 1];
+    if (!f) return null;
+    const lo = f.span?.[0] ?? f.storey ?? level;
+    const hi = f.span?.[1] ?? f.storey ?? level;
+    return `${lo}:${hi}:${h.realStoreys ?? h.floors[h.height - 1]?.storey ?? h.height}`;
+  });
+  const poisRef = useRef(pois);
+  poisRef.current = pois;
+  const roofRef = useRef(roof);
+  roofRef.current = roof;
+  const realStoreys = useGame((s) => s.hdb?.realStoreys ?? 0);
+  const on = !!engine;
+
+  // Entry: remember the camera to ease back to, and pick the bearing once.
+  const backRef = useRef<{ center: LngLat; zoom: number; pitch: number; bearing: number } | null>(null);
+  const bearingRef = useRef(0);
+  useEffect(() => {
+    if (!on || !siteId) return;
+    const site = poisRef.current.find((p) => p.id === siteId);
+    if (!site) return;
+    const back = {
+      center: map.getCenter(),
+      zoom: map.getZoom(),
+      pitch: map.getPitch(),
+      bearing: map.getBearing(),
+    };
+    backRef.current = back;
+    bearingRef.current =
+      squareBearing(site.outline, back.bearing, (lat, lng, b) =>
+        engine ? engine.occlusion(lat, lng, b) : 0,
+      ) ?? back.bearing;
+    return () => {
+      backRef.current = null;
+      // A frame late, so CameraInset's padding ease on leaving can't cut it
+      // short (its settle pass finishes the padding).
+      requestAnimationFrame(() => {
+        try {
+          map.easeTo({ ...back, duration: reduced ? 0 : 900 });
+        } catch {
+          // The map went away with the run; nothing to ease back.
+        }
+      });
+    };
+  }, [map, on, engine, siteId, reduced]);
+
+  // Close in until the tower fills half the box CameraInset leaves open (beside
+  // the strips), its foot low so the roof clears the top. Same padding as
+  // CameraInset so its settle pass leaves it be; re-framed when the box or the
+  // known roof height changes.
+  const roofM = roof ?? (realStoreys > 0 ? realStoreys * STOREY_M : STOREY_M * 12);
+  useEffect(() => {
+    if (!on || !siteId || !backRef.current) return;
+    const site = poisRef.current.find((p) => p.id === siteId);
+    if (!site) return;
+    const [left, right, bottom] = pad.split(':').map(Number);
+    const boxH = Math.max(120, map.getContainer().clientHeight - bottom);
+    map.easeTo({
+      center: [site.lng, site.lat],
+      zoom: blockZoom(roofM, boxH),
+      pitch: MAX_PITCH_3D,
+      bearing: bearingRef.current,
+      padding: { top: 0, left, right, bottom },
+      offset: [0, Math.round(boxH * 0.2)],
+      duration: reduced ? 0 : 1100,
+    });
+  }, [map, on, siteId, pad, roofM, reduced]);
+
+  useEffect(() => {
+    if (!engine) return;
+    if (!siteId || !band) {
+      engine.clearFloorBand();
+      return;
+    }
+    const [lo, hi, real] = band.split(':').map(Number);
+    const perStorey = roof && real > 0 ? roof / real : STOREY_M;
+    engine.setFloorBand(siteId, (lo - 1) * perStorey, hi * perStorey);
+  }, [engine, siteId, band, roof]);
+
+  // Ghost every other building so the block reads through the estate.
+  useEffect(() => {
+    if (!engine || !siteId) return;
+    engine.setFocus(siteId);
+    return () => engine.setFocus(null);
+  }, [engine, siteId]);
+
+  useEffect(() => () => engine?.clearFloorBand(), [engine]);
   return null;
 }
 
@@ -848,6 +1010,8 @@ interface PoiLayerProps {
   onSelect: (poi: Poi) => void;
   /** The 3D building engine, when the map is in 3D. */
   engine: BuildingEngine | null;
+  /** Quarter-steps cleared, by worked block id. */
+  worked: ReadonlyMap<string, number>;
 }
 
 /** The danger ring the player actually sees on a location: its standing level
@@ -900,7 +1064,13 @@ interface PoiLook {
 /** A sensed, unidentified site's building in 3D: neutral, like its outline. */
 const DETECTED_BUILDING = '#9a9c94';
 
-function lookOf(poi: Poi, vis: 'detected' | 'visible' | string, selected: boolean, here: boolean): PoiLook {
+function lookOf(
+  poi: Poi,
+  vis: 'detected' | 'visible' | string,
+  selected: boolean,
+  here: boolean,
+  worked = 0,
+): PoiLook {
   // Sensed but unidentified: the building outline still shows (in neutral),
   // capped with a "?" badge. Locations without an outline are just the badge.
   if (vis === 'detected') {
@@ -944,16 +1114,43 @@ function lookOf(poi: Poi, vis: 'detected' | 'visible' | string, selected: boolea
       w: selected ? 2.5 : heldRing ? 2 : 1,
     },
     // Remembered sites read dimmer than the one you stand in; picked-clean darker still.
-    color3d: exhausted ? dimHex(own, 0.35) : here ? own : dimHex(own, 0.55),
+    // A worked block steps down toward that shade by the quarter of doors you opened.
+    color3d: exhausted ? dimHex(own, 0.35) : dimHex(own, workedShade(here ? 1 : 0.55, worked)),
     ruin: here ? poi.destruction : mem?.destruction ?? poi.destruction,
   };
 }
+
+/** Brightness of a block `worked` quarters cleared: from `base` down to the exhausted 0.35. */
+function workedShade(base: number, worked: number): number {
+  return base - (base - 0.35) * Math.min(4, Math.max(0, worked)) / 4;
+}
+
+/**
+ * Quarter-steps of doors cleared per worked block. Cached on the `hdbBlocks`
+ * identity so the selector stays cheap on every store tick, and keyed as a
+ * string so the map only hears about a step change.
+ */
+let workedFor: Record<string, HdbDungeon> | null = null;
+let workedKeyCache = '';
+function workedKeyOf(blocks: Record<string, HdbDungeon>): string {
+  if (blocks === workedFor) return workedKeyCache;
+  workedFor = blocks;
+  const out: string[] = [];
+  for (const [id, d] of Object.entries(blocks)) {
+    const q = Math.round(hdbScar(d).clearedFrac * 4);
+    if (q > 0) out.push(`${id}:${q}`);
+  }
+  workedKeyCache = out.sort().join(',');
+  return workedKeyCache;
+}
+
+const NO_WORKED: ReadonlyMap<string, number> = new Map();
 
 const POI_LAYERS = [POI_FILL_LAYER, 'poi-line', 'poi-line-dash'];
 const NO_ROOFS: ReadonlyMap<string, number> = new Map();
 
 const PoiLayer = memo(
-  function PoiLayer({ pois, home, blipRange, selectedId, hereId, onSelect, engine }: PoiLayerProps) {
+  function PoiLayer({ pois, home, blipRange, selectedId, hereId, onSelect, engine, worked }: PoiLayerProps) {
     const map = useMapGL();
     const box = usePaddedBounds();
 
@@ -976,8 +1173,10 @@ const PoiLayer = memo(
           .slice(0, MAX_POIS_ON_SCREEN)
           .map(({ x }) => x);
       }
-      return drawn.map(({ poi, vis }) => lookOf(poi, vis, selectedId === poi.id, poi.id === hereId));
-    }, [pois, box, home.lat, home.lng, blipRange, selectedId, hereId]);
+      return drawn.map(({ poi, vis }) =>
+        lookOf(poi, vis, selectedId === poi.id, poi.id === hereId, worked.get(poi.id) ?? 0),
+      );
+    }, [pois, box, home.lat, home.lng, blipRange, selectedId, hereId, worked]);
 
     useEffect(
       () =>
@@ -1036,8 +1235,13 @@ const PoiLayer = memo(
         setRoofs(NO_ROOFS);
         return;
       }
-      setRoofs(engine.roofHeights());
-      engine.onRoofs = setRoofs;
+      // The store hears roofs too: a block's real height sizes its cutaway.
+      const publish = (r: ReadonlyMap<string, number>) => {
+        setRoofs(r);
+        useGame.getState().setSiteRoofs(r);
+      };
+      publish(engine.roofHeights());
+      engine.onRoofs = publish;
       return () => {
         engine.onRoofs = null;
       };
@@ -1098,6 +1302,7 @@ const PoiLayer = memo(
     prev.hereId === next.hereId &&
     prev.onSelect === next.onSelect &&
     prev.engine === next.engine &&
+    prev.worked === next.worked &&
     prev.pois.length === next.pois.length &&
     prev.pois.every((p, i) => poiLooksSame(p, next.pois[i])),
 );
@@ -1184,6 +1389,16 @@ function GameMapInner({
   const setSetting = useSettings((s) => s.setSetting);
   const net = useMrtNetwork(showMrt);
   const destroyedTunnelEdges = useGame((s) => s.destroyedTunnelEdges);
+  const workedKey = useGame((s) => workedKeyOf(s.hdbBlocks));
+  const worked = useMemo<ReadonlyMap<string, number>>(() => {
+    if (!workedKey) return NO_WORKED;
+    return new Map(
+      workedKey.split(',').map((pair) => {
+        const i = pair.lastIndexOf(':');
+        return [pair.slice(0, i), Number(pair.slice(i + 1))] as const;
+      }),
+    );
+  }, [workedKey]);
 
   const toggleMrt = () => setSetting('railOverlay', showMrt ? 'off' : 'on');
   const toggle3d = () => setSetting('mapView3d', view3d ? 'off' : 'on');
@@ -1244,7 +1459,9 @@ function GameMapInner({
           hereId={hereId}
           onSelect={onSelect}
           engine={engine}
+          worked={worked}
         />
+        <BlockView engine={engine} pois={pois} pad={`${padLeft}:${padRight}:${padBottom}`} />
 
         {mapAnnotations.length > 0 && <RumourLayer annotations={mapAnnotations} />}
 

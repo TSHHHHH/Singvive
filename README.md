@@ -48,7 +48,7 @@ Then open **http://localhost:5190** (not 5173 — the port is overridden in `vit
 | `npm run build` | Typecheck (`tsc -b`) then production build — **this is the typecheck gate** |
 | `npm run build:itch` | Static itch.io zip at `release/singvive-itch.zip` (`index.html` at the archive root) |
 | `npm run test` | Vitest over the pure `src/game/` logic |
-| `npm run lint` | oxlint (`--max-warnings=25`) + type-scale guard |
+| `npm run lint` | oxlint (`--max-warnings=24`) + type-scale guard |
 | `npm run preview` | Serve the production build locally (Worker + assets) |
 | `npm run db:migrate:local` | Apply D1 migrations to the local honor board (first run) |
 | `npm run deploy` | Build and publish to Cloudflare Workers |
@@ -96,7 +96,7 @@ Full rules — combat maths, loot tables, factions, the horde clock, extraction 
 ```
 src/
   game/        pure, seed-driven logic (no React, no DOM, no fetch) + JSON content catalogs
-  components/  map, fog, inventory, combat, HDB cutaway, tunnel run, panels and modals
+  components/  map, fog, inventory, combat, HDB landing strips, tunnel run, panels and modals
   screens/     Menu, CharacterCreate, SpawnSelect, GameScreen, DeathScreen
   dev/         DEV-only content editors (loot / enemies / icons / locale)
   i18n/        message catalogs and the t / useT helpers

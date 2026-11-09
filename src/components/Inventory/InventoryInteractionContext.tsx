@@ -24,7 +24,7 @@ import {
 import { tileColor } from '../../game/itemTileColor';
 import type { Container, EquipSlot, ItemInstance } from '../../game/types';
 import { useCoarsePointer } from '../TipHint';
-import { useIsPhoneLayout } from '../HdbZoomViewport';
+import { useIsPhoneLayout } from '../useIsPhoneLayout';
 import { HOVER_DELAY_MS, LONG_PRESS_MS } from '../tips';
 import { CELL, type DragPreview } from './InventoryGrid';
 import { EQUIP_SLOTS } from './equipSlots';

@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "build:itch": "tsc -b && vite build --mode itch && node scripts/pack-itch.mjs",
-    "lint": "oxlint --max-warnings=25 && node scripts/check-type-scale.mjs && node scripts/check-zh-hans-glossary.mjs",
+    "lint": "oxlint --max-warnings=24 && node scripts/check-type-scale.mjs && node scripts/check-zh-hans-glossary.mjs",
     "lint:type": "node scripts/check-type-scale.mjs",
     "test": "vitest run",
     "bake:pois": "node --experimental-strip-types scripts/bake-pois.mjs",
@@ -25,7 +25,6 @@
     "polygon-clipping": "^0.15.7",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "react-zoom-pan-pinch": "^4.0.4",
     "seedrandom": "^3.0.5",
     "zustand": "^5.0.14"
   },

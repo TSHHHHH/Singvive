@@ -6,9 +6,9 @@ import type { IconName } from '../icons/keys';
  * A vertical, push-your-luck dungeon layered over an HDB block. Everything here
  * is pure: the store owns the live instance and applies the deltas.
  *
- * Layout is a building cutaway: full-height stair columns partition a corridor
- * of door units. Sealed landings are permanently gone; corridor/stair blockades
- * gate the maze. Individual doors may also be boarded shut.
+ * Layout is a stack of landing strips: each open landing is a row of doors with
+ * its own heat. Sealed spans are scenery. You take the stairs straight to any
+ * landing; going down rolls a descent check on every landing you cross.
  */
 
 export type HdbArchetype = 'estate' | 'shelter';
@@ -193,8 +193,51 @@ export function migrateHdbUnitType(type: string): HdbUnitType {
   return LEGACY_UNIT_TYPE[type] ?? 'flat';
 }
 
-/** Rewrite unit type strings on a persisted cutaway (and nested scout junk). */
+/** Fields the maze model carried; stripped on conversion. */
+interface LegacyMazeFields {
+  stairs?: unknown;
+  stripWidth?: unknown;
+  unitColumns?: unknown;
+  blocks?: Record<string, { kind?: string; open?: boolean }>;
+}
+
+/**
+ * Bring any persisted cutaway up to the strip model: legacy unit types, and a
+ * maze save (no `v: 2`) loses its stair / blockade geometry and starts back on
+ * the ground landing. Doors, heat and fobs carry over.
+ */
 export function migrateHdbDungeon(dungeon: HdbDungeon): HdbDungeon {
+  const typed = migrateHdbUnits(dungeon);
+  if (typed.v === 2) return typed;
+  const { stairs: _s, stripWidth: _w, unitColumns: _c, blocks, ...rest } =
+    typed as HdbDungeon & LegacyMazeFields;
+  // Old roof stairs were always gated: an opened gate means the hatch is open.
+  const roofOpen = blocks
+    ? Object.values(blocks).some((b) => b?.kind === 'gate' && b.open === true)
+    : false;
+  // Gate fobs all become the one roof fob.
+  const floors = rest.floors.map((f) => ({
+    ...f,
+    heatLevel: Math.max(0, Math.min(HEAT_MAX, f.heatLevel ?? 0)),
+    units: f.units.map((u) => (u.holdsKey ? { ...u, holdsKey: ROOF_FOB } : u)),
+  }));
+  const draft: HdbDungeon = {
+    ...rest,
+    floors,
+    v: 2,
+    pos: { level: 1 },
+    currentLevel: 1,
+    revealedLevels: rest.revealedLevels?.length ? rest.revealedLevels : [1],
+    visited: rest.visited?.length ? rest.visited : [1],
+    moveSeq: rest.moveSeq ?? 0,
+    keys: rest.keys?.length ? [ROOF_FOB] : [],
+    roofOpen,
+    blockHeat: 0,
+  };
+  return { ...draft, blockHeat: peakHeat(draft) };
+}
+
+function migrateHdbUnits(dungeon: HdbDungeon): HdbDungeon {
   return {
     ...dungeon,
     floors: dungeon.floors.map((floor) => ({
@@ -280,15 +323,6 @@ export const ENTRY_META: Record<HdbEntry, HdbEntryMeta> = {
   },
 };
 
-export type HdbStairKind = 'side' | 'internal';
-
-/** A full-height stair shaft in the building cutaway. */
-export interface HdbStair {
-  id: string;
-  kind: HdbStairKind;
-  /** Index in the shared floor strip (0 = leftmost column). */
-  column: number;
-}
 
 /** What a shelter's occupied units offer instead of loot. */
 export type ShelterService = 'trader' | 'field_doctor' | 'safe_bunk';
@@ -318,7 +352,7 @@ export interface HdbUnitNode {
   entry: HdbEntry;
   /** Set on holdouts — the service this unit runs. */
   service?: ShelterService;
-  /** Stair-gate fob found when this unit is cleared. */
+  /** Fob found when this unit is cleared (the roof hatch takes it). */
   holdsKey?: string;
   scoutedInfo?: HdbScoutInfo;
 }
@@ -350,7 +384,14 @@ export const SEAL_META: Record<SealKind, { label: string; blurb: string }> = {
 };
 
 export interface HdbFloor {
+  /** Row index in the compact stack (1 = ground). Paths, blocks and heat key off this. */
   level: number;
+  /** Real storey number shown on the label. Absent on old saves = `level`. */
+  storey?: number;
+  /** Sealed rows only: the real storeys this row stands in for. */
+  span?: [number, number];
+  /** Mid landings only. */
+  theme?: HdbFloorTheme;
   layoutType: 'slab' | 'point';
   heatLevel: number;
   units: HdbUnitNode[];
@@ -382,92 +423,47 @@ export interface HdbDungeon {
   name: string;
   archetype: HdbArchetype;
   baseDanger: number;
-  /** Storeys the block actually has — most of them you can't stand on. */
+  /** Rows in the compact stack (landings plus sealed span rows). */
   height: number;
+  /** Real storeys of the block. Absent on old saves (one row per storey) = `height`. */
+  realStoreys?: number;
   floors: HdbFloor[];
-  /** Full-height stair columns that partition the corridor. */
-  stairs: HdbStair[];
-  /** Total columns in the strip (stairs + unit slots). */
-  stripWidth: number;
-  /** Door column indices shared by every open floor. */
-  unitColumns: number[];
   /** Ground-storey massing — void deck, half-and-half, or flats at grade. */
   groundKind: HdbGroundKind;
-  /** Where the survivor is standing in the cutaway. */
+  /** The landing the survivor is standing on. */
   pos: HdbPos;
   /** Mirror of pos.level — kept for existing call sites. */
   currentLevel: number;
   /** Floors whose doors/layout the player has seen. */
   revealedLevels: number[];
-  /** Impassable edges keyed by horizKey / vertKey. */
-  blocks: Record<string, HdbBlock>;
-  /** Rises with every hour spent inside and every loud thing you do. */
+  /**
+   * Peak of the per-landing heat (`HdbFloor.heatLevel`). Derived, but written
+   * on every change so the site card, the exit leak and old readers stay cheap.
+   */
   blockHeat: number;
   /** Levels the player has actually stood on. */
   visited: number[];
-  /**
-   * Counts every stairwell attempt. Folded into the rng key so a failed
-   * descent doesn't share a roll with the next try. Stair fights resume the
-   * interrupted cell move on combatContinue — moveSeq alone used to leave you
-   * stranded on the origin floor when heat kept failing the check.
-   */
+  /** Counts every stair trip. Folded into the rng key so a retry never repeats a roll. */
   moveSeq: number;
-  /** Stair-gate fobs collected this crawl (block keys, not pack items). */
+  /** Fobs collected this crawl (block keys, not pack items). Only the roof hatch takes one. */
   keys?: string[];
+  /** The roof hatch on the landing below the roof has been opened. */
+  roofOpen?: boolean;
+  /** Strip model marker. Saves without it are converted by {@link migrateHdbDungeon}. */
+  v?: 2;
 }
 
-/** Cell in the building cutaway. */
+/** Where the survivor stands: a landing (row index, 1 = ground). */
 export interface HdbPos {
   level: number;
-  column: number;
 }
 
-export type HdbBlockKind = 'debris' | 'barricade' | 'collapse' | 'stair_gate';
-
-/** A blocked edge between two adjacent walkable cells. */
-export interface HdbBlock {
-  kind: HdbBlockKind;
-  breakable: boolean;
-  heat: number;
-  minutes: number;
-  /** When set, a matching unit `holdsKey` opens this gate quietly. */
-  keyId?: string;
-}
-
-export const BLOCK_META: Record<
-  HdbBlockKind,
-  { label: string; blurb: string; breakable: boolean }
-> = {
-  debris: {
-    label: 'Debris',
-    blurb: 'Junk packed the corridor. It can be hauled aside.',
-    breakable: true,
-  },
-  barricade: {
-    label: 'Barricade',
-    blurb: 'Someone nailed the landing shut. Loud to break.',
-    breakable: true,
-  },
-  collapse: {
-    label: 'Collapse',
-    blurb: 'The slab gave way. No way through.',
-    breakable: false,
-  },
-  stair_gate: {
-    label: 'Stair gate',
-    blurb: 'A welded grate across the shaft. It can be forced.',
-    breakable: true,
-  },
-};
-
-export const BLOCK_HEAT = 12;
-export const BLOCK_MINUTES = 20;
-
-/**
- * Minutes to walk one corridor cell (door bay). ~3–4 m of flat; cautious but
- * not crawling — outdoor walk is ~72 m/min, this is about half that.
- */
-export const CORRIDOR_MINUTES = 0.15;
+/** Fob id for the roof hatch. */
+export const ROOF_FOB = 'fob:roof';
+/** Forcing the roof hatch: loud, slow, and the landings either side hear it. */
+export const ROOF_HATCH_HEAT = 12;
+export const ROOF_HATCH_MINUTES = 20;
+export const ROOF_HATCH_NOISE = 280;
 
 /** How tall a block can run, and how much of it is ever walkable. */
 export const MIN_HEIGHT = 10;
@@ -478,18 +474,30 @@ export const MAX_OPEN_FLOORS = 8;
 // ------------------------------------------------------------- block heat --
 
 /**
- * Heat is a charge, not a clock. Nothing but the player's own noise moves it:
- * time in the block is free, so a survivor who only opens doors that are
- * already hanging can work all twelve floors without waking anything.
+ * Heat is a charge per landing. Only the player's own noise raises it, and a
+ * loud act spills a share into the landings directly above and below. Landings
+ * you are not on cool slowly with the clock ({@link COOL_PER_HOUR}).
  */
 export const HEAT_MAX = 100;
 
-/** Odds the block puts something in your way once the gauge is pinned. */
+/** Odds a landing at Swarm puts something in your way (doors and stairs). */
 export const HUNT_ELITE_CHANCE = 0.8;
 
 /** Heat the noisier things cost, for sources that aren't a door. */
 export const FIGHT_HEAT = 18;
 export const HAZARD_HEAT = 10;
+
+/** Share of a loud act's heat each neighbouring landing picks up. */
+export const SPILL = {
+  door: 0,
+  barricade: 0.35,
+  trap: 0.25,
+  fight: 0.5,
+  hatch: 0.5,
+} as const;
+
+/** Heat a landing you're not standing on loses per game hour. */
+export const COOL_PER_HOUR = 5;
 
 export interface HeatBand {
   /** Lowest heat that reads as this band. */
@@ -528,7 +536,7 @@ export const HEAT_BANDS: HeatBand[] = [
   {
     at: 45,
     label: 'Awake',
-    note: 'The block is moving. Every floor is worse than it was.',
+    note: 'This landing is up. Its doors and stairs are worse.',
     threatBonus: 2,
     dcStep: 2,
   },
@@ -542,7 +550,7 @@ export const HEAT_BANDS: HeatBand[] = [
   {
     at: HEAT_MAX,
     label: 'Swarm',
-    note: 'The block has your floor. Get out.',
+    note: 'They have this landing. Climb or get out.',
     threatBonus: 3,
     dcStep: 4,
   },
@@ -554,17 +562,35 @@ export function heatBand(heat: number): HeatBand {
   return band;
 }
 
-/** Pinned: every door and every staircase is now likely to cost a fight. */
+/** Some landing is pinned at Swarm — the site card and the exit leak read this. */
 export function isHunting(dungeon: HdbDungeon): boolean {
-  return dungeon.blockHeat >= HEAT_MAX;
+  return peakHeat(dungeon) >= HEAT_MAX;
+}
+
+/** Heat on one landing (0..HEAT_MAX). */
+export function levelHeat(dungeon: HdbDungeon, level: number): number {
+  return Math.min(HEAT_MAX, dungeon.floors[level - 1]?.heatLevel ?? 0);
+}
+
+export function levelBand(dungeon: HdbDungeon, level: number): HeatBand {
+  return heatBand(levelHeat(dungeon, level));
+}
+
+/** This landing is pinned: every door and the stairs onto it likely cost a fight. */
+export function levelHunting(dungeon: HdbDungeon, level: number): boolean {
+  return levelHeat(dungeon, level) >= HEAT_MAX;
+}
+
+/** Hottest landing in the block. */
+export function peakHeat(dungeon: HdbDungeon): number {
+  let peak = 0;
+  for (const f of dungeon.floors) if (!f.sealed) peak = Math.max(peak, f.heatLevel);
+  return Math.min(HEAT_MAX, peak);
 }
 
 /** Minutes each action inside the block costs. */
 export const BREACH_MINUTES = 15;
-/**
- * Minutes per storey on the stairs (pack on, dark, careful). ~45s — shaft hops
- * that skip sealed landings still charge by |Δlevel|.
- */
+/** Minutes per real storey on the stairs (pack on, dark, careful). ~45 s. */
 export const STAIR_MINUTES = 0.75;
 
 const LOOT_QUALITY = ['stripped', 'picked over', 'promising', 'untouched'];
@@ -584,6 +610,151 @@ export const SERVICE_ICON: Record<ShelterService, IconName> = {
 };
 
 type FloorKind = 'ground' | 'normal' | 'roof';
+
+/**
+ * A mid landing's identity. Variety comes from landings that differ, not from
+ * more doors of the same kind — a tall block never adds landings past the cap.
+ */
+export type HdbFloorTheme = 'ordinary' | 'holdout' | 'fire' | 'nest' | 'picked_over' | 'refuge';
+
+export interface HdbThemeMeta {
+  label: string;
+  /** One-line effect for the chip tooltip. */
+  blurb: string;
+  /** Log line on first arrival. */
+  reveal: string;
+  icon: IconName;
+  /** Multiplier on door encounter odds for every door on the landing. */
+  encounterMod: number;
+  /** Added to the loot mod of every door on the landing. */
+  lootMod: number;
+  /** One door of this type is guaranteed on the landing. */
+  promises?: HdbUnitType;
+  /** Stair hunts never ambush on the way onto this landing. */
+  safeStairs?: boolean;
+}
+
+export const THEME_META: Record<HdbFloorTheme, HdbThemeMeta> = {
+  ordinary: {
+    label: 'Landing',
+    blurb: 'Nothing special about this one.',
+    reveal: 'An ordinary landing.',
+    icon: 'hdb.unit',
+    encounterMod: 1,
+    lootMod: 0,
+  },
+  holdout: {
+    label: 'Holdout',
+    blurb: 'Survivors keep this landing. Doors are calmer here.',
+    reveal: 'Someone has strung wire across this corridor. People live here.',
+    icon: 'hdb.service',
+    encounterMod: 0.7,
+    lootMod: 0,
+    promises: 'holdout',
+  },
+  fire: {
+    label: 'Fire floor',
+    blurb: 'Burning units, better finds, health on every search.',
+    reveal: 'Smoke rolls along the ceiling. Something on this landing is still burning.',
+    icon: 'hdb.burning',
+    encounterMod: 1,
+    lootMod: 1,
+    promises: 'burning',
+  },
+  nest: {
+    label: 'Nest',
+    blurb: 'Packs den here. One unit is still stocked.',
+    reveal: 'The smell hits first. This landing belongs to them.',
+    icon: 'hdb.nest',
+    encounterMod: 1.3,
+    lootMod: 0,
+    promises: 'stocked',
+  },
+  picked_over: {
+    label: 'Picked over',
+    blurb: 'Most doors already kicked in. One notice left.',
+    reveal: 'Doors hang off their hinges. Someone got here first.',
+    icon: 'hdb.notice',
+    encounterMod: 0.8,
+    lootMod: -1,
+    promises: 'notice',
+  },
+  refuge: {
+    label: 'Refuge floor',
+    blurb: 'Open deck, safe stairs, somewhere to rest.',
+    reveal: 'The refuge floor: open to the wind, sightlines both ways.',
+    icon: 'hdb.shelter',
+    encounterMod: 0.5,
+    lootMod: 0,
+    promises: 'shelter',
+    safeStairs: true,
+  },
+};
+
+/** Door mix per theme; `ordinary` falls back to the archetype weights. */
+const THEME_WEIGHTS: Partial<Record<HdbFloorTheme, readonly (readonly [HdbUnitType, number])[]>> = {
+  holdout: [
+    ['holdout', 30],
+    ['flat', 20],
+    ['shelter', 14],
+    ['pantry', 12],
+    ['notice', 8],
+    ['storeroom', 8],
+    ['trapped', 4],
+    ['nest', 2],
+    ['den', 2],
+  ],
+  fire: [
+    ['burning', 40],
+    ['flat', 15],
+    ['trapped', 15],
+    ['stocked', 12],
+    ['storeroom', 10],
+    ['nest', 4],
+    ['den', 4],
+  ],
+  nest: [
+    ['nest', 30],
+    ['den', 20],
+    ['flat', 18],
+    ['trapped', 10],
+    ['storeroom', 8],
+    ['pantry', 8],
+    ['stocked', 6],
+  ],
+  picked_over: [
+    ['flat', 50],
+    ['pantry', 10],
+    ['trapped', 8],
+    ['storeroom', 6],
+    ['nest', 4],
+  ],
+  refuge: [
+    ['shelter', 40],
+    ['holdout', 20],
+    ['pantry', 20],
+    ['storeroom', 20],
+  ],
+};
+
+/** Leaving a hunting block leaks noise onto the street. */
+export const HDB_LEAK_RADIUS_M = 350;
+export const HDB_LEAK_INTENSITY = 1;
+
+/** Metres per HDB storey when reading a basemap building height. */
+export const STOREY_M = 2.8;
+export const MIN_REAL_STOREYS = 3;
+export const MAX_REAL_STOREYS = 50;
+/** Only towers this tall get a refuge floor (as real HDB blocks do). */
+export const REFUGE_MIN_STOREYS = 20;
+
+/** A refuge floor is an open deck: one or two units, not a corridor of doors. */
+function refugeSlots(rng: Rng, slots: number[]): number[] {
+  if (slots.length <= 2) return slots;
+  const keep = rng.int(1, 2);
+  const start = rng.int(0, slots.length - keep);
+  return slots.slice(start, start + keep);
+}
 
 const WALK_IN: ReadonlySet<HdbUnitType> = new Set(['holdout', 'notice', 'nest']);
 const MUST_BREACH: ReadonlySet<HdbUnitType> = new Set([
@@ -669,92 +840,17 @@ function unitTypeWeights(
   ] as const;
 }
 
-function roofUnitColumns(rng: Rng, unitColumns: number[]): number[] {
-  if (unitColumns.length <= 2) return unitColumns;
-  const keep = rng.int(2, Math.min(4, unitColumns.length));
-  const start = rng.int(0, unitColumns.length - keep);
-  return unitColumns.slice(start, start + keep);
+function roofSlots(rng: Rng, slots: number[]): number[] {
+  if (slots.length <= 2) return slots;
+  const keep = rng.int(2, Math.min(4, slots.length));
+  const start = rng.int(0, slots.length - keep);
+  return slots.slice(start, start + keep);
 }
 
-interface StripLayout {
-  stairs: HdbStair[];
-  stripWidth: number;
-  unitColumns: number[];
-}
-
-/**
- * Lay a corridor strip the way a real HDB reads in section: optional end
- * stairs, up to two internal stairwells, and door bays between them.
- */
-function buildStrip(rng: Rng, layoutType: HdbFloor['layoutType']): StripLayout {
-  const unitSlotCount =
-    layoutType === 'slab' ? rng.int(6, 8) : rng.int(4, 5);
-
-  // Side stairs: weighted toward both ends, rare to have none.
-  const sideRoll = rng.next();
-  let hasLeft = false;
-  let hasRight = false;
-  if (sideRoll < 0.15) {
-    // none
-  } else if (sideRoll < 0.4) {
-    if (rng.chance(0.5)) hasLeft = true;
-    else hasRight = true;
-  } else {
-    hasLeft = true;
-    hasRight = true;
-  }
-
-  const nInternal = rng.int(0, 2);
-  const nBays = nInternal + 1;
-
-  // Spread doors across bays — prefer at least 2 per bay when the strip allows.
-  const baySizes: number[] = Array(nBays).fill(0);
-  let remaining = unitSlotCount;
-  const minPerBay = unitSlotCount >= nBays * 2 ? 2 : 1;
-  for (let i = 0; i < nBays; i++) {
-    baySizes[i] = minPerBay;
-    remaining -= minPerBay;
-  }
-  while (remaining > 0) {
-    baySizes[rng.int(0, nBays - 1)] += 1;
-    remaining -= 1;
-  }
-
-  // Maze needs at least one shaft or the block is a single sealed landing.
-  if (!hasLeft && !hasRight && nInternal === 0) {
-    hasLeft = true;
-  }
-
-  const stairs: HdbStair[] = [];
-  const unitColumns: number[] = [];
-  let col = 0;
-
-  if (hasLeft) {
-    stairs.push({ id: 'L', kind: 'side', column: col });
-    col += 1;
-  }
-
-  for (let b = 0; b < nBays; b++) {
-    for (let u = 0; u < baySizes[b]; u++) {
-      unitColumns.push(col);
-      col += 1;
-    }
-    if (b < nInternal) {
-      stairs.push({
-        id: String.fromCharCode(65 + b),
-        kind: 'internal',
-        column: col,
-      });
-      col += 1;
-    }
-  }
-
-  if (hasRight) {
-    stairs.push({ id: 'R', kind: 'side', column: col });
-    col += 1;
-  }
-
-  return { stairs, stripWidth: col, unitColumns };
+/** Rooms on a full landing: a slab corridor runs longer than a point block's lift lobby. */
+function roomSlots(rng: Rng, layoutType: HdbFloor['layoutType']): number[] {
+  const n = layoutType === 'slab' ? rng.int(4, 6) : rng.int(3, 4);
+  return Array.from({ length: n }, (_, i) => i);
 }
 
 function rollGroundKind(rng: Rng): HdbGroundKind {
@@ -766,10 +862,10 @@ function rollGroundKind(rng: Rng): HdbGroundKind {
 }
 
 /**
- * Which door columns get flats on the ground storey. Open void = none; partial
+ * Which room slots get flats on the ground storey. Open void = none; partial
  * keeps a contiguous run (lobby / shop side) and leaves the rest as pillars.
  */
-function groundUnitColumns(
+function groundSlots(
   rng: Rng,
   groundKind: HdbGroundKind,
   unitColumns: number[],
@@ -784,251 +880,169 @@ function groundUnitColumns(
   return unitColumns.slice(unitColumns.length - keepCount);
 }
 
-/** Build the block: a tall stack, most of it shut, with a walkable maze. */
+/** Walkable landings for a block of this many real storeys (ground and roof included). */
+export function landingRange(storeys: number): [number, number] {
+  let range: [number, number];
+  if (storeys <= 5) range = [3, 4];
+  else if (storeys <= 12) range = [4, 6];
+  else if (storeys <= 20) range = [5, 7];
+  else range = [MIN_OPEN_FLOORS + 1, MAX_OPEN_FLOORS];
+  return [Math.min(range[0], storeys), Math.min(range[1], storeys)];
+}
+
+/** Real storeys from a basemap roof height (metres). Null when the roof isn't known. */
+export function storeysFromRoof(roofM: number | null | undefined): number | null {
+  if (!roofM || !Number.isFinite(roofM) || roofM <= 0) return null;
+  return Math.max(MIN_REAL_STOREYS, Math.min(MAX_REAL_STOREYS, Math.round(roofM / STOREY_M)));
+}
+
+/**
+ * Deal one theme per mid landing from a deck without repeats. Only `ordinary`
+ * appears twice; a refuge floor exists only in towers tall enough to need one.
+ */
+function dealThemes(rng: Rng, count: number, storeys: number): HdbFloorTheme[] {
+  const specials: HdbFloorTheme[] = ['holdout', 'fire', 'nest', 'picked_over'];
+  if (storeys >= REFUGE_MIN_STOREYS) specials.push('refuge');
+  const deck = rng.shuffle([...specials, 'ordinary', 'ordinary'] as HdbFloorTheme[]);
+  return Array.from({ length: count }, (_, i) => deck[i] ?? 'ordinary');
+}
+
+function rollSeal(rng: Rng): HdbSeal {
+  const kind = rng.chance(0.58)
+    ? rng.pick(['collapsed', 'flooded'] as const)
+    : rng.pick(['welded', 'burnt'] as const);
+  return { kind };
+}
+
+export interface GenerateDungeonOpts {
+  /** Real storeys of the block on the map; absent = seeded fallback. */
+  storeys?: number | null;
+}
+
+/**
+ * Build the block. Real height sets the scale, not the amount of content:
+ * `floors[]` is a compact stack of rows — capped walkable landings, with one
+ * sealed row standing in for each run of dead storeys between two landings.
+ */
 export function generateDungeon(
   rng: Rng,
   loc: LocationState,
   archetype: HdbArchetype,
+  opts: GenerateDungeonOpts = {},
 ): HdbDungeon {
   const layoutType: HdbFloor['layoutType'] = rng.chance(0.6) ? 'slab' : 'point';
-  const height = rng.int(MIN_HEIGHT, MAX_HEIGHT);
-  const strip = buildStrip(rng.fork('strip'), layoutType);
+  const realStoreys =
+    opts.storeys && opts.storeys >= 1
+      ? Math.max(MIN_REAL_STOREYS, Math.min(MAX_REAL_STOREYS, Math.round(opts.storeys)))
+      : rng.int(MIN_HEIGHT, MAX_HEIGHT);
+  const slots = roomSlots(rng.fork('strip'), layoutType);
   const groundKind = rollGroundKind(rng.fork('ground'));
-  const groundCols = groundUnitColumns(rng.fork('groundCols'), groundKind, strip.unitColumns);
+  const groundCols = groundSlots(rng.fork('groundCols'), groundKind, slots);
 
-  // Lobby and roof are always open; fill mid storeys up to a handful of landings.
+  // Ground and roof are always landings; mid landings are a seeded pick of real storeys.
   const oRng = rng.fork('open');
-  const open = new Set<number>([1, height]);
-  const openCount = oRng.int(MIN_OPEN_FLOORS, MAX_OPEN_FLOORS);
-  const mid = oRng.shuffle(
-    Array.from({ length: Math.max(0, height - 2) }, (_, i) => i + 2),
+  const [minL, maxL] = landingRange(realStoreys);
+  const landingCount = oRng.int(minL, maxL);
+  const midPool = oRng.shuffle(
+    Array.from({ length: Math.max(0, realStoreys - 2) }, (_, i) => i + 2),
   );
-  for (const l of mid) {
-    if (open.size >= openCount) break;
-    open.add(l);
-  }
+  const landingStoreys = [
+    1,
+    ...midPool.slice(0, Math.max(0, landingCount - 2)).sort((a, b) => a - b),
+    realStoreys,
+  ];
+  const themes = dealThemes(rng.fork('themes'), Math.max(0, landingStoreys.length - 2), realStoreys);
 
+  // Rows: each landing, plus one sealed span row for every gap between two landings.
+  type RowPlan = { storey: number; span?: [number, number]; theme?: HdbFloorTheme };
+  const rows: RowPlan[] = [];
+  landingStoreys.forEach((storey, i) => {
+    if (i > 0) {
+      const prev = landingStoreys[i - 1];
+      if (storey - prev > 1) rows.push({ storey: prev + 1, span: [prev + 1, storey - 1] });
+    }
+    const isMid = i > 0 && i < landingStoreys.length - 1;
+    rows.push({ storey, ...(isMid ? { theme: themes[i - 1] } : {}) });
+  });
+
+  const height = rows.length;
   const floors: HdbFloor[] = [];
-  const roofCols = roofUnitColumns(rng.fork('roofCols'), strip.unitColumns);
+  const roofCols = roofSlots(rng.fork('roofCols'), slots);
 
-  for (let level = 1; level <= height; level++) {
+  rows.forEach((row, idx) => {
+    const level = idx + 1;
     const fRng = rng.fork(`floor:${level}`);
-    const isOpenFloor = open.has(level);
     const isRoof = level === height;
-    let sealed: HdbSeal | null = null;
-    if (!isOpenFloor) {
-      // Flavour only — sealed storeys never open. Maze gates live in `blocks`.
-      const kind = fRng.chance(0.58)
-        ? fRng.pick(['collapsed', 'flooded'] as const)
-        : fRng.pick(['welded', 'burnt'] as const);
-      sealed = { kind };
+    if (row.span) {
+      // Flavour only — sealed storeys never open.
+      floors.push({
+        level,
+        storey: row.storey,
+        span: row.span,
+        layoutType,
+        heatLevel: 0,
+        sealed: rollSeal(fRng),
+        units: [],
+      });
+      return;
     }
 
-    let units: HdbUnitNode[] = [];
-    if (isOpenFloor) {
-      const kind: FloorKind = level === 1 ? 'ground' : isRoof ? 'roof' : 'normal';
-      const cols =
-        level === 1 ? groundCols : isRoof ? roofCols : strip.unitColumns;
-      units = cols.length ? buildUnits(fRng, level, archetype, cols, kind) : [];
-    }
+    const kind: FloorKind = level === 1 ? 'ground' : isRoof ? 'roof' : 'normal';
+    let cols = level === 1 ? groundCols : isRoof ? roofCols : slots;
+    if (row.theme === 'refuge') cols = refugeSlots(fRng.fork('refugeCols'), cols);
+    const units = cols.length
+      ? buildUnits(fRng, level, row.storey, archetype, cols, kind, row.theme)
+      : [];
 
     floors.push({
       level,
+      storey: row.storey,
       layoutType,
       heatLevel: 0,
-      sealed,
+      sealed: null,
       units,
+      ...(row.theme ? { theme: row.theme } : {}),
       ...(level === 1 ? { groundKind } : {}),
-      ...(isRoof && isOpenFloor ? { roof: true } : {}),
+      ...(isRoof ? { roof: true } : {}),
     });
-  }
+  });
 
-  const pos: HdbPos = { level: 1, column: 0 };
-  const draft: HdbDungeon = {
+  hideRoofFob(rng.fork('blocks'), floors);
+  return {
+    v: 2,
     locationId: loc.id,
     name: loc.name,
     archetype,
     baseDanger: Math.max(1, Math.round(loc.currentDanger)),
     height,
+    realStoreys,
     floors,
-    stairs: strip.stairs,
-    stripWidth: strip.stripWidth,
-    unitColumns: strip.unitColumns,
     groundKind,
-    pos,
+    pos: { level: 1 },
     currentLevel: 1,
     revealedLevels: [1],
-    blocks: {},
     blockHeat: 0,
     visited: [1],
     moveSeq: 0,
     keys: [],
   };
-
-  draft.blocks = buildMazeBlocks(rng.fork('blocks'), draft, open);
-  return draft;
 }
 
 /**
- * Lay corridor debris and stair gates, then peel blocks until the start can
- * still reach a fair share of open landings.
+ * Most blocks leave the roof hatch's fob behind one door on a landing below
+ * the roof. Mutates the freshly built floors (generation only).
  */
-function buildMazeBlocks(
-  rng: Rng,
-  dungeon: HdbDungeon,
-  open: Set<number>,
-): Record<string, HdbBlock> {
-  const blocks: Record<string, HdbBlock> = {};
-  const openLevels = [...open].sort((a, b) => a - b);
-  const stairCols = dungeon.stairs.map((s) => s.column);
-
-  // Stair gates between consecutive open landings on each shaft.
-  for (const col of stairCols) {
-    for (let i = 0; i + 1 < openLevels.length; i++) {
-      const a = openLevels[i];
-      const b = openLevels[i + 1];
-      // Only gate if every level between is sealed or the pair is adjacent.
-      let clear = true;
-      for (let l = a + 1; l < b; l++) {
-        if (open.has(l)) {
-          clear = false;
-          break;
-        }
-      }
-      if (!clear) continue;
-      const toRoof = b === dungeon.height;
-      if (toRoof || rng.chance(0.42)) {
-        blocks[vertKey(col, a, b)] = {
-          kind: 'stair_gate',
-          breakable: true,
-          heat: BLOCK_HEAT,
-          minutes: BLOCK_MINUTES,
-        };
-      }
-    }
-  }
-
-  // Corridor obstacles on open floors — the main maze pressure.
-  for (const level of openLevels) {
-    let placed = 0;
-    const max = level === 1 ? 2 : 3;
-    for (let c = 0; c + 1 < dungeon.stripWidth && placed < max; c++) {
-      const chance = level === 1 ? 0.14 : 0.26;
-      if (!rng.chance(chance)) continue;
-      const kind: HdbBlockKind = rng.chance(0.18) ? 'collapse' : rng.chance(0.5) ? 'barricade' : 'debris';
-      const meta = BLOCK_META[kind];
-      blocks[horizKey(level, c, c + 1)] = {
-        kind,
-        breakable: meta.breakable,
-        heat: BLOCK_HEAT,
-        minutes: BLOCK_MINUTES,
-      };
-      placed += 1;
-    }
-  }
-
-  // Peel until start reaches enough open floors (or we run out of breakable gates).
-  const need = Math.min(openLevels.length, Math.max(3, Math.ceil(openLevels.length * 0.55)));
-  let guard = 0;
-  while (guard++ < 40) {
-    const probe = { ...dungeon, blocks };
-    const reached = reachableOpenLevels(probe, dungeon.pos);
-    if (reached.size >= need) break;
-    // Prefer removing a stair gate that unlocks the most, else any breakable block.
-    const keys = Object.keys(blocks).filter((k) => blocks[k].breakable);
-    if (keys.length === 0) break;
-    const stairKeys = keys.filter((k) => k.startsWith('v:'));
-    const pick = (stairKeys.length ? stairKeys : keys)[rng.int(0, (stairKeys.length ? stairKeys : keys).length - 1)];
-    delete blocks[pick];
-  }
-
-  // Roof is optional extra loot — every shaft up stays gated even if peel opened the rest.
-  for (const col of stairCols) {
-    for (let i = 0; i + 1 < openLevels.length; i++) {
-      const a = openLevels[i];
-      const b = openLevels[i + 1];
-      if (b !== dungeon.height) continue;
-      const key = vertKey(col, a, b);
-      if (!blocks[key]) {
-        blocks[key] = {
-          kind: 'stair_gate',
-          breakable: true,
-          heat: BLOCK_HEAT,
-          minutes: BLOCK_MINUTES,
-        };
-      }
-    }
-  }
-
-  assignGateFobs(rng, dungeon, blocks);
-  return blocks;
-}
-
-/**
- * About half the remaining stair gates get a fob on the lower landing.
- * The key unit is always on the approach side from the void deck.
- */
-function assignGateFobs(
-  rng: Rng,
-  dungeon: HdbDungeon,
-  blocks: Record<string, HdbBlock>,
-): void {
-  for (const [key, block] of Object.entries(blocks)) {
-    if (block.kind !== 'stair_gate' || !block.breakable) continue;
-    if (!rng.chance(0.5)) continue;
-    const m = /^v:\d+:(\d+)-(\d+)$/.exec(key);
-    if (!m) continue;
-    const lo = Number(m[1]);
-    const floor = dungeon.floors[lo - 1];
-    const candidates = floor?.units.filter((u) => u.available && !u.holdsKey) ?? [];
-    if (candidates.length === 0) continue;
-    const unit = candidates[rng.int(0, candidates.length - 1)];
-    const keyId = `fob:${key}`;
-    block.keyId = keyId;
-    unit.holdsKey = keyId;
-  }
-}
-
-export function posKey(p: HdbPos): string {
-  return `${p.level}:${p.column}`;
-}
-
-export function samePos(a: HdbPos, b: HdbPos): boolean {
-  return a.level === b.level && a.column === b.column;
-}
-
-export function horizKey(level: number, a: number, b: number): string {
-  const lo = Math.min(a, b);
-  const hi = Math.max(a, b);
-  return `h:${level}:${lo}-${hi}`;
-}
-
-export function vertKey(col: number, a: number, b: number): string {
-  const lo = Math.min(a, b);
-  const hi = Math.max(a, b);
-  return `v:${col}:${lo}-${hi}`;
-}
-
-export function isStairColumn(dungeon: HdbDungeon, column: number): boolean {
-  return dungeon.stairs.some((s) => s.column === column);
+function hideRoofFob(rng: Rng, floors: HdbFloor[]): void {
+  if (!rng.chance(0.6)) return;
+  const candidates = floors
+    .filter((f) => !f.sealed && !f.roof)
+    .flatMap((f) => f.units.filter((u) => u.available && !u.service));
+  if (candidates.length === 0) return;
+  candidates[rng.int(0, candidates.length - 1)].holdsKey = ROOF_FOB;
 }
 
 export function isLevelRevealed(dungeon: HdbDungeon, level: number): boolean {
   return dungeon.revealedLevels.includes(level);
-}
-
-export function edgeBlock(
-  dungeon: HdbDungeon,
-  from: HdbPos,
-  to: HdbPos,
-): HdbBlock | null {
-  if (from.level === to.level) {
-    return dungeon.blocks[horizKey(from.level, from.column, to.column)] ?? null;
-  }
-  if (from.column === to.column) {
-    return dungeon.blocks[vertKey(from.column, from.level, to.level)] ?? null;
-  }
-  return null;
 }
 
 /**
@@ -1065,21 +1079,29 @@ function rollAvailable(rng: Rng, type: HdbUnitType): boolean {
 function buildUnits(
   rng: Rng,
   level: number,
+  realStorey: number,
   archetype: HdbArchetype,
   unitColumns: number[],
   kind: FloorKind,
+  theme?: HdbFloorTheme,
 ): HdbUnitNode[] {
   const units: HdbUnitNode[] = [];
   const n = unitColumns.length;
   const stack = rng.int(1, 6) * 100;
   const base = stack + rng.int(1, 40);
-  const storey = String(level).padStart(2, '0');
-  const weights = unitTypeWeights(archetype, kind);
+  const storey = String(realStorey).padStart(2, '0');
+  const weights = (theme && THEME_WEIGHTS[theme]) || unitTypeWeights(archetype, kind);
+  // Themed landings promise one door of their kind; it lands on a seeded slot.
+  const promised = theme ? THEME_META[theme].promises : undefined;
+  const promisedAt = promised ? rng.int(0, n - 1) : -1;
 
   for (let i = 0; i < n; i++) {
     const column = unitColumns[i];
-    const type = rng.weighted(weights);
-    const available = rollAvailable(rng, type);
+    const type = i === promisedAt && promised ? promised : rng.weighted(weights);
+    let available = rollAvailable(rng, type);
+    // Picked-over landings: most doors are already kicked in and stripped.
+    if (theme === 'picked_over' && i !== promisedAt && rng.chance(0.5)) available = false;
+    if (i === promisedAt) available = true;
     const unit: HdbUnitNode = {
       id: `L${level}-c${column}`,
       type,
@@ -1103,8 +1125,10 @@ function buildUnits(
  * Capped at 5 because that's the top of the ordinary zombie roster — an
  * uncapped value used to climb forever and buy nothing above Brute.
  */
-export function floorThreat(dungeon: HdbDungeon, _level?: number): number {
-  const raw = dungeon.baseDanger + heatBand(dungeon.blockHeat).threatBonus;
+export function floorThreat(dungeon: HdbDungeon, level: number): number {
+  const band = levelBand(dungeon, level);
+  const high = storeyOf(dungeon, level) > (realStoreysOf(dungeon) * 2) / 3;
+  const raw = dungeon.baseDanger + band.threatBonus + (high && band.threatBonus >= 1 ? 1 : 0);
   return Math.max(0, Math.min(5, raw));
 }
 
@@ -1112,9 +1136,10 @@ export function floorThreat(dungeon: HdbDungeon, _level?: number): number {
  * Heat-forward base for door encounter odds (before entry-type multiplier).
  * Continuous heat plus band steps so every point on the gauge matters.
  */
-export function heatEncounterBase(dungeon: HdbDungeon): number {
-  const frac = Math.min(1, dungeon.blockHeat / HEAT_MAX);
-  const band = heatBand(dungeon.blockHeat).threatBonus;
+export function heatEncounterBase(dungeon: HdbDungeon, level: number): number {
+  const heat = levelHeat(dungeon, level);
+  const frac = Math.min(1, heat / HEAT_MAX);
+  const band = heatBand(heat).threatBonus;
   return Math.max(0.05, Math.min(0.85, 0.1 + frac * 0.5 + band * 0.04));
 }
 
@@ -1222,14 +1247,21 @@ export function breachOutcome(
   const unitMeta = UNIT_META[unit.type];
   const known = unit.scoutedInfo;
   const typeEnc = unitMeta.encounterMod ?? 1;
-  const base = heatEncounterBase(dungeon) * meta.encounterMod * typeEnc;
+  const theme = dungeon.floors[level - 1]?.theme;
+  const themeMeta = theme ? THEME_META[theme] : null;
+  const base =
+    heatEncounterBase(dungeon, level) * meta.encounterMod * typeEnc * (themeMeta?.encounterMod ?? 1);
   const encounterChance = Math.max(
     0.02,
     Math.min(0.9, known && known.threatCount === 0 ? base * 0.35 : base),
   );
   const roofBonus = dungeon.floors[level - 1]?.roof ? 2 : 0;
   const lootMod =
-    unitMeta.lootMod + meta.lootMod + Math.floor((level - 1) / 2) + roofBonus;
+    unitMeta.lootMod +
+    meta.lootMod +
+    Math.floor((level - 1) / 2) +
+    roofBonus +
+    (themeMeta?.lootMod ?? 0);
   return {
     encounterChance,
     lootMod,
@@ -1302,20 +1334,15 @@ export function encounterChanceReadout(
 }
 
 /** The DC for walking back down. Exported so the HUD can show it before you commit. */
-export function retreatDc(dungeon: HdbDungeon): number {
-  return 8 + heatBand(dungeon.blockHeat).dcStep * 2;
-}
-
-/** Every downward storey is checked — Quiet is DC 8, not a free drop. */
-export function descentIsChecked(_dungeon: HdbDungeon): boolean {
-  return true;
+export function retreatDc(dungeon: HdbDungeon, level: number): number {
+  return 8 + levelBand(dungeon, level).dcStep * 2;
 }
 
 /** The parts that add up to floorThreat, for a HUD that has to explain itself. */
-export function threatBreakdown(dungeon: HdbDungeon, level?: number) {
+export function threatBreakdown(dungeon: HdbDungeon, level: number) {
   return {
     base: dungeon.baseDanger,
-    heat: heatBand(dungeon.blockHeat).threatBonus,
+    heat: levelBand(dungeon, level).threatBonus,
     total: floorThreat(dungeon, level),
   };
 }
@@ -1324,9 +1351,13 @@ export function threatBreakdown(dungeon: HdbDungeon, level?: number) {
  * Exact fail rate for the descent check (d20 + Dex + End vs DC; nat 20 always
  * succeeds). Exported so stair tooltips can preview the odds before you commit.
  */
-export function retreatFailChance(attrs: Attributes, dungeon: HdbDungeon): number {
-  if (!descentIsChecked(dungeon)) return 0;
-  const dc = retreatDc(dungeon);
+export function retreatFailChance(
+  attrs: Attributes,
+  dungeon: HdbDungeon,
+  level: number,
+  dcMod = 0,
+): number {
+  const dc = retreatDc(dungeon, level) + dcMod;
   const mod = attrs.dexterity + attrs.endurance;
   let fails = 0;
   for (let roll = 1; roll <= 20; roll++) {
@@ -1336,31 +1367,6 @@ export function retreatFailChance(attrs: Attributes, dungeon: HdbDungeon): numbe
   return fails / 20;
 }
 
-/**
- * Hover line for a path that changes storey: hunt % when Swarm, descent
- * target + fail % when going down with heat. Null when stairs are free.
- */
-export function stairTravelHint(
-  dungeon: HdbDungeon,
-  path: HdbPos[],
-  attrs: Attributes,
-): string | null {
-  if (!pathUsesStairs(path)) return null;
-  const bits: string[] = [];
-  if (isHunting(dungeon)) {
-    bits.push(`${Math.round(HUNT_ELITE_CHANCE * 100)}% hunt on the stairs`);
-  }
-  const dropped = pathStoreysDropped(path);
-  if (dropped > 0 && descentIsChecked(dungeon)) {
-    const failPct = Math.round(retreatFailChance(attrs, dungeon) * 100);
-    bits.push(
-      `down ${dropped} · need ${retreatDc(dungeon)}+ each · ~${failPct}% fail`,
-    );
-  } else if (!isHunting(dungeon) && !pathDescends(path)) {
-    bits.push('climb free');
-  }
-  return bits.length ? bits.join(' · ') : null;
-}
 
 export interface RetreatCheck {
   roll: number;
@@ -1377,11 +1383,12 @@ export function retreatCheck(
   rng: Rng,
   attrs: Attributes,
   dungeon: HdbDungeon,
+  level: number,
   dcMod = 0,
 ): RetreatCheck {
   const roll = rng.d20();
   const total = roll + attrs.dexterity + attrs.endurance;
-  const dc = retreatDc(dungeon) + dcMod;
+  const dc = retreatDc(dungeon, level) + dcMod;
   return { roll, total, dc, success: roll === 20 || total >= dc };
 }
 
@@ -1390,29 +1397,6 @@ export function isOpen(dungeon: HdbDungeon, level: number): boolean {
   return dungeon.floors[level - 1]?.sealed === null;
 }
 
-export function neighbors(dungeon: HdbDungeon, pos: HdbPos): HdbPos[] {
-  if (!isOpen(dungeon, pos.level)) return [];
-  const out: HdbPos[] = [];
-
-  for (const dc of [-1, 1] as const) {
-    const column = pos.column + dc;
-    if (column < 0 || column >= dungeon.stripWidth) continue;
-    if (edgeBlock(dungeon, pos, { level: pos.level, column })) continue;
-    out.push({ level: pos.level, column });
-  }
-
-  // Stairs skip sealed landings — you ride the shaft to the next open floor.
-  if (isStairColumn(dungeon, pos.column)) {
-    for (const dir of [-1, 1] as const) {
-      const level = nextOpenLevel(dungeon, pos.level, dir);
-      if (level === null) continue;
-      if (edgeBlock(dungeon, pos, { level, column: pos.column })) continue;
-      out.push({ level, column: pos.column });
-    }
-  }
-
-  return out;
-}
 
 /** Next open storey above/below, or null at the end of the shaft. */
 export function nextOpenLevel(
@@ -1428,344 +1412,156 @@ export function nextOpenLevel(
   return null;
 }
 
-/** BFS shortest path. Null if the target is cut off. */
-export function findPath(
-  dungeon: HdbDungeon,
-  from: HdbPos,
-  to: HdbPos,
-): HdbPos[] | null {
-  if (samePos(from, to)) return [from];
-  if (!isOpen(dungeon, to.level)) return null;
-
-  const q: HdbPos[] = [from];
-  const prev = new Map<string, string | null>();
-  prev.set(posKey(from), null);
-
-  while (q.length) {
-    const cur = q.shift()!;
-    for (const n of neighbors(dungeon, cur)) {
-      const k = posKey(n);
-      if (prev.has(k)) continue;
-      prev.set(k, posKey(cur));
-      if (samePos(n, to)) {
-        const path: HdbPos[] = [n];
-        let walk: string | null = posKey(cur);
-        while (walk) {
-          const [lv, col] = walk.split(':').map(Number);
-          path.push({ level: lv, column: col });
-          walk = prev.get(walk) ?? null;
-        }
-        path.reverse();
-        return path;
-      }
-      q.push(n);
-    }
-  }
-  return null;
+/** Real storey number of a row (old saves: the row itself). */
+export function storeyOf(dungeon: HdbDungeon, level: number): number {
+  return dungeon.floors[level - 1]?.storey ?? level;
 }
 
-/** Same as neighbors, but corridor / stair blocks do not stop you. */
-function neighborsIgnoringBlocks(dungeon: HdbDungeon, pos: HdbPos): HdbPos[] {
-  if (!isOpen(dungeon, pos.level)) return [];
-  const out: HdbPos[] = [];
-
-  for (const dc of [-1, 1] as const) {
-    const column = pos.column + dc;
-    if (column < 0 || column >= dungeon.stripWidth) continue;
-    out.push({ level: pos.level, column });
-  }
-
-  if (isStairColumn(dungeon, pos.column)) {
-    for (const dir of [-1, 1] as const) {
-      const level = nextOpenLevel(dungeon, pos.level, dir);
-      if (level === null) continue;
-      out.push({ level, column: pos.column });
-    }
-  }
-
-  return out;
+export function realStoreysOf(dungeon: HdbDungeon): number {
+  return dungeon.realStoreys ?? storeyOf(dungeon, dungeon.height);
 }
 
-/** Ideal route if every corridor block and stair gate were gone. */
-export function findPathIgnoringBlocks(
-  dungeon: HdbDungeon,
-  from: HdbPos,
-  to: HdbPos,
-): HdbPos[] | null {
-  if (samePos(from, to)) return [from];
-  if (!isOpen(dungeon, to.level)) return null;
-
-  const q: HdbPos[] = [from];
-  const prev = new Map<string, string | null>();
-  prev.set(posKey(from), null);
-
-  while (q.length) {
-    const cur = q.shift()!;
-    for (const n of neighborsIgnoringBlocks(dungeon, cur)) {
-      const k = posKey(n);
-      if (prev.has(k)) continue;
-      prev.set(k, posKey(cur));
-      if (samePos(n, to)) {
-        const path: HdbPos[] = [n];
-        let walk: string | null = posKey(cur);
-        while (walk) {
-          const [lv, col] = walk.split(':').map(Number);
-          path.push({ level: lv, column: col });
-          walk = prev.get(walk) ?? null;
-        }
-        path.reverse();
-        return path;
-      }
-      q.push(n);
-    }
-  }
-  return null;
+/** Two-digit storey label for a row: "07", or "08–11" for a sealed span. */
+export function storeyLabel(dungeon: HdbDungeon, level: number): string {
+  const f = dungeon.floors[level - 1];
+  const pad = (n: number) => String(n).padStart(2, '0');
+  if (f?.span && f.span[0] !== f.span[1]) return `${pad(f.span[0])}–${pad(f.span[1])}`;
+  return pad(storeyOf(dungeon, level));
 }
 
-export function blockKeyBetween(from: HdbPos, to: HdbPos): string | null {
-  if (from.level === to.level) return horizKey(from.level, from.column, to.column);
-  if (from.column === to.column) return vertKey(from.column, from.level, to.level);
-  return null;
-}
-
-export interface PathAttempt {
-  /** Cells to walk, including the start. Length 1 means you are already stopped at a block. */
-  path: HdbPos[];
-  /** True when the full route to the click target is clear. */
-  reached: boolean;
-  blockedBy: HdbBlock | null;
-  blockedKey: string | null;
-}
-
-/**
- * Prefer a clear path. If a blockade sits on the ideal route, walk up to the
- * cell before it and surface the block so the player can clear (or give up).
- */
-export function findPathToward(
-  dungeon: HdbDungeon,
-  from: HdbPos,
-  to: HdbPos,
-): PathAttempt | null {
-  if (!isOpen(dungeon, to.level)) return null;
-  if (samePos(from, to)) {
-    return { path: [from], reached: true, blockedBy: null, blockedKey: null };
-  }
-
-  const clear = findPath(dungeon, from, to);
-  if (clear) {
-    return { path: clear, reached: true, blockedBy: null, blockedKey: null };
-  }
-
-  const ideal = findPathIgnoringBlocks(dungeon, from, to);
-  if (!ideal || ideal.length < 2) return null;
-
-  const path: HdbPos[] = [ideal[0]];
-  for (let i = 1; i < ideal.length; i++) {
-    const prev = ideal[i - 1];
-    const next = ideal[i];
-    const block = edgeBlock(dungeon, prev, next);
-    if (block) {
-      return {
-        path,
-        reached: false,
-        blockedBy: block,
-        blockedKey: blockKeyBetween(prev, next),
-      };
-    }
-    path.push(next);
-  }
-
-  return { path, reached: true, blockedBy: null, blockedKey: null };
-}
-
-export function pathMinutes(path: HdbPos[], stairMult = 1): number {
-  if (path.length <= 1) return 0;
-  let m = 0;
-  for (let i = 1; i < path.length; i++) {
-    m += hopMinutes(path[i - 1], path[i], stairMult);
-  }
-  return m;
-}
-
-export function hopMinutes(from: HdbPos, to: HdbPos, stairMult = 1): number {
-  const dLevel = Math.abs(to.level - from.level);
-  return dLevel === 0 ? CORRIDOR_MINUTES : STAIR_MINUTES * dLevel * stairMult;
-}
-
-export function hopWalkMs(from: HdbPos, to: HdbPos): number {
-  return from.level !== to.level ? STAIR_WALK_MS : CORRIDOR_WALK_MS;
-}
-
-export function hopStoreysDropped(from: HdbPos, to: HdbPos): number {
-  return Math.max(0, from.level - to.level);
-}
-
-export function pathStoreysDropped(path: HdbPos[]): number {
+/** Real storeys sealed off in the whole block. */
+export function sealedStoreys(dungeon: HdbDungeon): number {
   let n = 0;
-  for (let i = 1; i < path.length; i++) n += hopStoreysDropped(path[i - 1], path[i]);
+  for (const f of dungeon.floors) {
+    if (!f.sealed) continue;
+    n += f.span ? f.span[1] - f.span[0] + 1 : 1;
+  }
   return n;
 }
 
-/** True when the path includes at least one downward stair step. */
-export function pathDescends(path: HdbPos[]): boolean {
-  for (let i = 1; i < path.length; i++) {
-    if (path[i].level < path[i - 1].level) return true;
-  }
-  return false;
+/** Real storeys one row stands for (1 unless it is a sealed span). */
+export function rowStoreys(floor: HdbFloor): number {
+  return floor.span ? floor.span[1] - floor.span[0] + 1 : 1;
 }
 
-/** True when the path includes any stair step. */
-export function pathUsesStairs(path: HdbPos[]): boolean {
-  for (let i = 1; i < path.length; i++) {
-    if (path[i].level !== path[i - 1].level) return true;
-  }
-  return false;
+/** Walkable landings in the block (rows that are not sealed). */
+export function landingCount(dungeon: HdbDungeon): number {
+  return dungeon.floors.filter((f) => !f.sealed).length;
 }
 
-function reachableOpenLevels(dungeon: HdbDungeon, from: HdbPos): Set<number> {
-  const seen = new Set<string>();
-  const levels = new Set<number>();
-  const q: HdbPos[] = [from];
-  seen.add(posKey(from));
-  levels.add(from.level);
-  while (q.length) {
-    const cur = q.shift()!;
-    for (const n of neighbors(dungeon, cur)) {
-      const k = posKey(n);
-      if (seen.has(k)) continue;
-      seen.add(k);
-      levels.add(n.level);
-      q.push(n);
+/** Landings you have swept or stood on. */
+export function revealedLandings(dungeon: HdbDungeon): number {
+  return dungeon.revealedLevels.filter((l) => !dungeon.floors[l - 1]?.sealed).length;
+}
+
+/** Stair hunts skip the way onto this landing (refuge floors). */
+export function isSafeLanding(dungeon: HdbDungeon, level: number): boolean {
+  const theme = dungeon.floors[level - 1]?.theme;
+  return !!theme && !!THEME_META[theme].safeStairs;
+}
+
+export interface HdbScar {
+  /** Doors you can still open, ever. */
+  doors: number;
+  cleared: number;
+  /** 0..1 of `doors` that are done. */
+  clearedFrac: number;
+  sealedStoreys: number;
+  realStoreys: number;
+  hunting: boolean;
+}
+
+/** What a worked block shows on the map and its site card. Pure, from the saved cutaway. */
+export function hdbScar(dungeon: HdbDungeon): HdbScar {
+  let doors = 0;
+  let cleared = 0;
+  for (const f of dungeon.floors) {
+    if (f.sealed) continue;
+    for (const u of f.units) {
+      if (!u.available) continue;
+      doors += 1;
+      if (u.state === 'cleared') cleared += 1;
     }
   }
-  return levels;
-}
-
-/**
- * Cells you can auto-path to from the current position.
- * Fog: unrevealed floors only expose stair cells (so you can climb into them).
- */
-export function reachableCells(dungeon: HdbDungeon): HdbPos[] {
-  const from = dungeon.pos;
-  const seen = new Set<string>();
-  const out: HdbPos[] = [];
-  const q: HdbPos[] = [from];
-  seen.add(posKey(from));
-
-  while (q.length) {
-    const cur = q.shift()!;
-    for (const n of neighbors(dungeon, cur)) {
-      const k = posKey(n);
-      if (seen.has(k)) continue;
-      seen.add(k);
-      const revealed = isLevelRevealed(dungeon, n.level);
-      const stair = isStairColumn(dungeon, n.column);
-      // Unknown storeys: only stair mouths are clickable / traversable targets.
-      if (!revealed && !stair) continue;
-      out.push(n);
-      q.push(n);
-    }
-  }
-  return out;
-}
-
-/**
- * Cells you can *attempt* — clear path or route that stops at a blockade.
- * Same fog rule as reachableCells.
- */
-export function attemptableCells(dungeon: HdbDungeon): HdbPos[] {
-  const from = dungeon.pos;
-  const seen = new Set<string>();
-  const out: HdbPos[] = [];
-  const q: HdbPos[] = [from];
-  seen.add(posKey(from));
-
-  while (q.length) {
-    const cur = q.shift()!;
-    for (const n of neighborsIgnoringBlocks(dungeon, cur)) {
-      const k = posKey(n);
-      if (seen.has(k)) continue;
-      seen.add(k);
-      const revealed = isLevelRevealed(dungeon, n.level);
-      const stair = isStairColumn(dungeon, n.column);
-      if (!revealed && !stair) continue;
-      out.push(n);
-      q.push(n);
-    }
-  }
-  return out;
-}
-
-/** @deprecated Prefer reachableCells — kept for any leftover level-only UI. */
-export function reachableLevels(dungeon: HdbDungeon): number[] {
-  const levels = new Set<number>();
-  for (const c of reachableCells(dungeon)) {
-    if (c.level !== dungeon.pos.level) levels.add(c.level);
-  }
-  return [...levels].sort((a, b) => a - b);
-}
-
-/** Move the survivor and reveal the floor they land on. */
-export function moveTo(dungeon: HdbDungeon, pos: HdbPos): HdbDungeon {
-  const visited = dungeon.visited.includes(pos.level)
-    ? dungeon.visited
-    : [...dungeon.visited, pos.level];
-  const revealedLevels = dungeon.revealedLevels.includes(pos.level)
-    ? dungeon.revealedLevels
-    : [...dungeon.revealedLevels, pos.level];
   return {
-    ...dungeon,
-    pos,
-    currentLevel: pos.level,
-    visited,
-    revealedLevels,
+    doors,
+    cleared,
+    clearedFrac: doors ? cleared / doors : 0,
+    sealedStoreys: sealedStoreys(dungeon),
+    realStoreys: realStoreysOf(dungeon),
+    hunting: isHunting(dungeon),
   };
 }
 
-/** Clear a breakable edge block. */
-export function clearBlock(
-  dungeon: HdbDungeon,
-  key: string,
-): HdbDungeon {
-  if (!dungeon.blocks[key]) return dungeon;
-  const blocks = { ...dungeon.blocks };
-  delete blocks[key];
-  return { ...dungeon, blocks };
+/** Stand on a landing: position, mirror, visited and revealed all follow. */
+export function moveTo(dungeon: HdbDungeon, level: number): HdbDungeon {
+  return {
+    ...dungeon,
+    pos: { level },
+    currentLevel: level,
+    visited: dungeon.visited.includes(level) ? dungeon.visited : [...dungeon.visited, level],
+    revealedLevels: dungeon.revealedLevels.includes(level)
+      ? dungeon.revealedLevels
+      : [...dungeon.revealedLevels, level],
+  };
 }
 
-/** Edge blocks touching the current cell (clearable and permanent). */
-export function adjacentEdgeBlocks(
-  dungeon: HdbDungeon,
-): { key: string; block: HdbBlock; toward: HdbPos }[] {
-  const out: { key: string; block: HdbBlock; toward: HdbPos }[] = [];
-  const pos = dungeon.pos;
-  for (const n of [
-    { level: pos.level, column: pos.column - 1 },
-    { level: pos.level, column: pos.column + 1 },
-  ]) {
-    if (n.column < 0 || n.column >= dungeon.stripWidth) continue;
-    const key = horizKey(pos.level, pos.column, n.column);
-    const block = dungeon.blocks[key];
-    if (block) out.push({ key, block, toward: n });
-  }
-  if (isStairColumn(dungeon, pos.column)) {
-    for (const dir of [-1, 1] as const) {
-      const level = nextOpenLevel(dungeon, pos.level, dir);
-      if (level === null) continue;
-      const toward = { level, column: pos.column };
-      const key = vertKey(pos.column, pos.level, level);
-      const block = dungeon.blocks[key];
-      if (block) out.push({ key, block, toward });
-    }
-  }
-  return out;
+export interface StairCrossing {
+  level: number;
+  band: HeatBand;
+  /** Going down: the descent check is rolled on this landing. */
+  descent: boolean;
+  /** Pinned at Swarm and not a refuge: the elite ambush can trigger here. */
+  hunt: boolean;
 }
 
-/** Breakable blocks on an edge touching the current cell. */
-export function adjacentBreakableBlocks(
+export interface TravelPlan {
+  minutes: number;
+  /** Open landings passed (excluding `from`), ending with the destination. */
+  crossings: StairCrossing[];
+}
+
+/**
+ * The stair trip between two landings. Down is the risk: every landing crossed
+ * (and the one you stop on) rolls the descent check against its own heat. Any
+ * Swarm landing on the way can ambush, in either direction.
+ */
+export function travelPlan(
   dungeon: HdbDungeon,
-): { key: string; block: HdbBlock; toward: HdbPos }[] {
-  return adjacentEdgeBlocks(dungeon).filter((e) => e.block.breakable);
+  from: number,
+  to: number,
+  stairMult = 1,
+): TravelPlan {
+  const storeys = Math.abs(storeyOf(dungeon, to) - storeyOf(dungeon, from));
+  const minutes = storeys * STAIR_MINUTES * stairMult;
+  const crossings: StairCrossing[] = [];
+  if (from === to) return { minutes: 0, crossings };
+  const dir: 1 | -1 = to > from ? 1 : -1;
+  for (let l = from + dir; dir > 0 ? l <= to : l >= to; l += dir) {
+    if (!isOpen(dungeon, l)) continue;
+    crossings.push({
+      level: l,
+      band: levelBand(dungeon, l),
+      descent: dir < 0,
+      hunt: levelHunting(dungeon, l) && !isSafeLanding(dungeon, l),
+    });
+  }
+  return { minutes, crossings };
+}
+
+/** Odds the whole trip goes through without a fight (descent fails + hunts). */
+export function travelClearChance(
+  attrs: Attributes,
+  dungeon: HdbDungeon,
+  plan: TravelPlan,
+  dcMod = 0,
+): number {
+  let ok = 1;
+  for (const c of plan.crossings) {
+    if (c.hunt) ok *= 1 - HUNT_ELITE_CHANCE;
+    if (c.descent) ok *= 1 - retreatFailChance(attrs, dungeon, c.level, dcMod);
+  }
+  return ok;
 }
 
 /** Convenience for the UI — the floor the player is standing on. */
@@ -1787,30 +1583,63 @@ export function updateUnit(
   return { ...dungeon, floors };
 }
 
-/** Raise the block's heat and mirror it onto the floor the noise came from. */
-export function addHeat(dungeon: HdbDungeon, amount: number, level: number): HdbDungeon {
-  if (amount <= 0) return dungeon;
-  return {
-    ...dungeon,
-    blockHeat: Math.min(HEAT_MAX, dungeon.blockHeat + amount),
-    floors: dungeon.floors.map((f) =>
-      f.level === level ? { ...f, heatLevel: f.heatLevel + amount } : f,
-    ),
-  };
+function withHeat(dungeon: HdbDungeon, floors: HdbFloor[]): HdbDungeon {
+  const next = { ...dungeon, floors };
+  return { ...next, blockHeat: peakHeat(next) };
 }
 
-/** Lower the block's heat (shelter rest). Floor 0. */
+/**
+ * Heat a landing. `spill` (0..1) is the share each neighbouring open landing
+ * picks up — loud acts carry up and down the stairwell. Capped at HEAT_MAX.
+ */
+export function addHeat(
+  dungeon: HdbDungeon,
+  amount: number,
+  level: number,
+  spill = 0,
+): HdbDungeon {
+  if (amount <= 0) return dungeon;
+  const above = spill > 0 ? nextOpenLevel(dungeon, level, 1) : null;
+  const below = spill > 0 ? nextOpenLevel(dungeon, level, -1) : null;
+  const side = Math.round(amount * spill);
+  const floors = dungeon.floors.map((f) => {
+    const add = f.level === level ? amount : f.level === above || f.level === below ? side : 0;
+    return add > 0 ? { ...f, heatLevel: Math.min(HEAT_MAX, f.heatLevel + add) } : f;
+  });
+  return withHeat(dungeon, floors);
+}
+
+/** Lower one landing's heat (shelter rest). Floor 0. */
 export function dropHeat(dungeon: HdbDungeon, amount: number, level: number): HdbDungeon {
   if (amount <= 0) return dungeon;
-  const next = Math.max(0, dungeon.blockHeat - amount);
-  const dropped = dungeon.blockHeat - next;
-  return {
-    ...dungeon,
-    blockHeat: next,
-    floors: dungeon.floors.map((f) =>
-      f.level === level ? { ...f, heatLevel: Math.max(0, f.heatLevel - dropped) } : f,
-    ),
-  };
+  const floors = dungeon.floors.map((f) =>
+    f.level === level ? { ...f, heatLevel: Math.max(0, f.heatLevel - amount) } : f,
+  );
+  return withHeat(dungeon, floors);
+}
+
+/** Halve every landing (re-entry after time away). */
+export function halveHeat(dungeon: HdbDungeon): HdbDungeon {
+  const floors = dungeon.floors.map((f) =>
+    f.heatLevel > 0 ? { ...f, heatLevel: Math.floor(f.heatLevel / 2) } : f,
+  );
+  return withHeat(dungeon, floors);
+}
+
+/**
+ * Landings you're not on settle by {@link COOL_PER_HOUR}. Fractions are kept
+ * so short actions add up. Returns the same object when nothing changes.
+ */
+export function coolLevels(dungeon: HdbDungeon, minutes: number, here: number): HdbDungeon {
+  const drop = (COOL_PER_HOUR * minutes) / 60;
+  if (drop <= 0) return dungeon;
+  let changed = false;
+  const floors = dungeon.floors.map((f) => {
+    if (f.level === here || f.heatLevel <= 0) return f;
+    changed = true;
+    return { ...f, heatLevel: Math.max(0, f.heatLevel - drop) };
+  });
+  return changed ? withHeat(dungeon, floors) : dungeon;
 }
 
 export function hasFob(dungeon: HdbDungeon, keyId: string | undefined): boolean {
@@ -1822,19 +1651,22 @@ export function grantFob(dungeon: HdbDungeon, keyId: string): HdbDungeon {
   return { ...dungeon, keys: [...(dungeon.keys ?? []), keyId] };
 }
 
-/** True when a persisted block has the maze cutaway topology. */
-export function hasStripTopology(dungeon: HdbDungeon | null | undefined): boolean {
-  return (
-    !!dungeon &&
-    dungeon.stripWidth > 0 &&
-    Array.isArray(dungeon.stairs) &&
-    Array.isArray(dungeon.unitColumns) &&
-    dungeon.unitColumns.length > 0 &&
-    !!dungeon.groundKind &&
-    !!dungeon.pos &&
-    Array.isArray(dungeon.revealedLevels) &&
-    !!dungeon.blocks
-  );
+/** Saved in the strip model (no maze geometry). */
+export function isStripModel(dungeon: HdbDungeon | null | undefined): boolean {
+  return dungeon?.v === 2;
+}
+
+/** The open landing directly below the roof — where the hatch is. */
+export function roofHatchLevel(dungeon: HdbDungeon): number | null {
+  if (!isOpen(dungeon, dungeon.height)) return null;
+  return nextOpenLevel(dungeon, dungeon.height, -1);
+}
+
+/** Can the stairs take you onto this landing from where you stand? */
+export function canTravelTo(dungeon: HdbDungeon, level: number): boolean {
+  if (level === dungeon.pos.level || !isOpen(dungeon, level)) return false;
+  if (level === dungeon.height && dungeon.floors[level - 1]?.roof) return !!dungeon.roofOpen;
+  return true;
 }
 
 /** Ground storey with open pillar bays (full or partial void deck). */
@@ -1846,9 +1678,3 @@ export function isRoofFloor(floor: HdbFloor): boolean {
   return !!floor.roof;
 }
 
-/** Clickable fog rule: door cells only when the floor is revealed. */
-export function canTargetCell(dungeon: HdbDungeon, target: HdbPos): boolean {
-  if (!isOpen(dungeon, target.level)) return false;
-  if (isLevelRevealed(dungeon, target.level)) return true;
-  return isStairColumn(dungeon, target.column);
-}

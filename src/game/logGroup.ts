@@ -94,7 +94,7 @@ export function sectionLabelKey(
     case 'hdb_floor':
       return {
         key: 'ui.log.sectionCorridor',
-        vars: { level: String(scope.level).padStart(2, '0') },
+        vars: { level: scope.storey ?? String(scope.level).padStart(2, '0') },
       };
     case 'hdb_unit':
       return { key: 'ui.log.sectionUnit', vars: { label: scope.label } };
@@ -111,8 +111,10 @@ export function hdbBlockScope(blockId: string, label: string): LogScope {
   return { kind: 'hdb_block', blockId, label };
 }
 
-export function hdbFloorScope(blockId: string, level: number): LogScope {
-  return { kind: 'hdb_floor', blockId, level };
+export function hdbFloorScope(blockId: string, level: number, storey?: string): LogScope {
+  return storey === undefined
+    ? { kind: 'hdb_floor', blockId, level }
+    : { kind: 'hdb_floor', blockId, level, storey };
 }
 
 export function hdbUnitScope(

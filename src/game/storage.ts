@@ -256,7 +256,7 @@ export function loadRun(): SavedRun | null {
     migrateFirearmSave(parsed);
     // Migration: body-zone slots (hands/legs/feet) added after v6; old saves omit them.
     parsed.equipment = coerceEquipment(parsed.equipment);
-    // Migration: HDB unit types renamed (residential→flat, …).
+    // Migration: HDB unit types renamed (residential→flat, …); maze blocks become strips.
     if (parsed.hdbBlocks) {
       const next: Record<string, HdbDungeon> = {};
       for (const [id, block] of Object.entries(parsed.hdbBlocks)) {

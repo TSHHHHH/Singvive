@@ -47,10 +47,6 @@ import { MrtRoutePlanner } from '../components/MrtRoutePlanner';
 import { TunnelRunView } from '../components/TunnelRunView';
 import type { GuideTopic } from '../content/guideContent';
 import { useSetting, useSettings } from '../game/settings';
-import { Dock, DOCK_WIDTH, type DockItem } from '../components/hud/Dock';
-import { HudWindow } from '../components/hud/HudWindow';
-import { VitalsHud } from '../components/hud/VitalsHud';
-import { useVitalsAlarm } from '../components/hud/vitalsAlarm';
 import { LogTicker } from '../components/LogTicker';
 import { isModalOpen } from '../components/modalStack';
 import { itemDef } from '../game/loot';
@@ -183,53 +179,39 @@ function sidePanelLabelKey(id: SidePanel): string {
 }
 
 /**
- * Desktop HUD windows: every slide-out body plus Condition, which on a phone
- * lives on the hub tab instead.
+ * Desktop rail shortcuts, in 1–9 hotkey order: the slide-out panels, then the
+ * timeline pin, day logs and settings.
  */
-type HudWin = SidePanel | 'condition';
-
-/** Preferred window width, px. The row shrinks them if it has to. */
-const HUD_WIN_WIDTH: Record<HudWin, number> = {
-  objective: 384,
-  condition: 384,
-  inventory: 720,
-  craft: 880,
-  logbook: 400,
-  stats: 400,
-  skills: 420,
-};
-
-/** Dock order, which is also the 1–9, 0 hotkey order. */
-const DOCK_ORDER = [
+const RAIL_KEYS = [
   'objective',
-  'condition',
   'inventory',
   'craft',
   'logbook',
-  'timeline',
   'stats',
   'skills',
+  'timeline',
   'dayLogs',
   'settings',
 ] as const;
-type DockId = (typeof DOCK_ORDER)[number];
-const DOCK_HOTKEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
+type RailKey = (typeof RAIL_KEYS)[number];
+const RAIL_HOTKEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
+const railHotkey = (id: RailKey): string => RAIL_HOTKEYS[RAIL_KEYS.indexOf(id)];
 
-/** Gap between HUD windows, and between them and the screen edge, px. */
+/** Gap between HUD pieces, and between them and the screen edge, px. */
 const HUD_GAP = 12;
 const HUD_EDGE = 16;
-/** Width the vertical dock reserves down the left of the map, px. */
-const DOCK_RESERVE_X = HUD_EDGE + DOCK_WIDTH + HUD_GAP;
+/** Desktop survivor rail width, px (matches `lg:w-[408px]`). */
+const RAIL_W = 408;
 /** Bottom-anchored desktop HUD clears MapLibre's ~24px attribution bar, px. */
 const HUD_BOTTOM = 32;
 /** The collapsed ticker's width, px (22rem). */
 const TICKER_W = 352;
-/** The desktop phone (VitalsHud) width, px (20rem). */
-const VITALS_W = 320;
-/** Narrowest the HDB cutaway may get before it gives up a reserve, px. */
+/** Narrowest the HDB view may get before it gives up the ticker reserve, px. */
 const HDB_MIN_W = 440;
-/** The folded desktop phone's height, px (status bar + meters + objective line). */
-const VITALS_FOLDED_H = 130;
+/** Narrowest map strip worth keeping beside the landing strips to show the block in 3D. */
+const BLOCK_STRIP_MIN_W = 180;
+/** Desktop 3D: widest the landing strips get beside the block. */
+const HDB_STRIPS_W = 460;
 
 function timelineWidth(vw: number): number {
   return Math.round(Math.max(320, Math.min(480, vw * 0.32)));
@@ -377,11 +359,7 @@ export function GameScreen() {
   const [trekTarget, setTrekTarget] = useState<{ lat: number; lng: number } | null>(null);
   const [mobileView, setMobileView] = useState<MobileView>('map');
   const [sidePanel, setSidePanel] = useState<SidePanel | null>(null);
-  // Desktop: the open dock windows, oldest first.
-  const [hudWindows, setHudWindows] = useState<HudWin[]>([]);
   const isPhone = useIsPhone();
-  const isPhoneRef = useRef(isPhone);
-  isPhoneRef.current = isPhone;
   // Craft takes the map's width; the others keep the 360px column. Remembering
   // the last panel keeps that width stable through the 200 ms close, so the
   // workbench does not snap narrow while it is still sliding out.
@@ -419,24 +397,15 @@ export function GameScreen() {
     [peekRestPreview, currentPositionId, hdb, items, hour, day, hordeLevel, currentPos.lat, currentPos.lng],
   );
 
-  /** Desktop: bring a dock window up (it joins the end of the row). */
-  const openHudWindow = useCallback((id: HudWin) => {
-    setHudWindows((ws) => (ws.includes(id) ? ws : [...ws, id]));
-  }, []);
-
   const goToPhoneTab = useCallback((tab: PhoneTab) => {
     setHereSheetOpen(false);
-    if (!isPhoneRef.current) {
-      if (tab === 'inventory' || tab === 'craft') openHudWindow(tab);
-      return;
-    }
     if (tab === 'inventory' || tab === 'craft') {
       setSidePanel(tab);
       return;
     }
     setSidePanel(null);
     setMobileView(tab);
-  }, [openHudWindow]);
+  }, []);
 
   const focusStashOnMap = useCallback((lat: number, lng: number) => {
     setMapFocus((prev) => ({ lat, lng, token: (prev?.token ?? 0) + 1 }));
@@ -444,14 +413,12 @@ export function GameScreen() {
   }, [goToPhoneTab]);
 
   useEffect(() => {
-    if (inventoryOpenToken <= 0) return;
-    if (isPhoneRef.current) setSidePanel('inventory');
-    else openHudWindow('inventory');
-  }, [inventoryOpenToken, openHudWindow]);
+    if (inventoryOpenToken > 0) setSidePanel('inventory');
+  }, [inventoryOpenToken]);
 
   // Escape closes the slide-out unless a higher modal owns the screen.
   useEffect(() => {
-    if (!sidePanel || !isPhone) return;
+    if (!sidePanel) return;
     if (
       settingsOpen ||
       dayLogsOpen ||
@@ -464,6 +431,7 @@ export function GameScreen() {
       return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
+      if (isModalOpen()) return;
       e.preventDefault();
       setSidePanel(null);
     };
@@ -471,7 +439,6 @@ export function GameScreen() {
     return () => window.removeEventListener('keydown', onKey);
   }, [
     sidePanel,
-    isPhone,
     settingsOpen,
     dayLogsOpen,
     guideTopic,
@@ -910,47 +877,29 @@ export function GameScreen() {
   // itself reads the same cached copy through mrtRouteBetween.
   const mrtNet = useMrtNetwork();
 
-  // ---- desktop HUD: dock, floating windows, timeline / ticker -------------
+  // ---- desktop HUD: rail shortcuts, timeline / ticker ---------------------
   const vw = useViewportWidth();
-  const vitalsAlarm = useVitalsAlarm();
   const setSetting = useSettings((s) => s.setSetting);
   const timelinePinned = useSetting('timelinePinned') === 'on';
-  const vitalsFolded = useSetting('vitalsFolded') === 'on';
   // Anything that wants an answer opens the timeline by itself.
   const timelineFull =
     timelinePinned || inCombat || awaitingStance || !!pendingEvent || !!pendingSearch;
   const tlW = timelineWidth(vw);
 
-  const toggleHudWindow = useCallback(
-    (id: HudWin) => {
-      setHudWindows((ws) => {
-        if (ws.includes(id)) return ws.filter((w) => w !== id);
-        const next = [...ws, id];
-        // The row runs edge to edge, short of the timeline when it is open.
-        // When the newcomer does not fit, the oldest windows make room.
-        const room = vw - HUD_EDGE * 2 - (timelineFull ? tlW + HUD_GAP : 0);
-        const used = () =>
-          next.reduce((sum, w) => sum + HUD_WIN_WIDTH[w], 0) + HUD_GAP * (next.length - 1);
-        while (next.length > 1 && used() > room) next.shift();
-        return next;
-      });
-    },
-    [vw, timelineFull, tlW],
-  );
-
-  const activateDock = useCallback(
-    (id: DockId) => {
+  const activateRail = useCallback(
+    (id: RailKey) => {
       if (id === 'timeline') setSetting('timelinePinned', timelinePinned ? 'off' : 'on');
       else if (id === 'dayLogs') setDayLogsOpen(true);
       else if (id === 'settings') setSettingsOpen(true);
-      else toggleHudWindow(id);
+      else setSidePanel((p) => (p === id ? null : id));
     },
-    [setSetting, timelinePinned, toggleHudWindow],
+    [setSetting, timelinePinned],
   );
 
-  // 1–9, 0 toggle the dock in order; Esc closes the newest window. Both stand
-  // down for modals, text fields and the contact gate. Camera keys are letters,
-  // arrows and +/-, so nothing here overlaps them.
+  // 1–9 toggle the rail's panels and shortcuts in order (Esc closing the
+  // slide-out lives with the slide-out). They stand down for modals, text
+  // fields and the contact gate. Camera keys are letters, arrows and +/-, so
+  // nothing here overlaps them.
   const overlayOpen =
     settingsOpen ||
     dayLogsOpen ||
@@ -972,21 +921,15 @@ export function GameScreen() {
           el.isContentEditable)
       )
         return;
-      if (e.key === 'Escape') {
-        if (hudWindows.length === 0) return;
-        e.preventDefault();
-        setHudWindows((ws) => ws.slice(0, -1));
-        return;
-      }
       if (awaitingStance) return;
-      const i = DOCK_HOTKEYS.indexOf(e.key);
+      const i = RAIL_HOTKEYS.indexOf(e.key);
       if (i < 0) return;
       e.preventDefault();
-      activateDock(DOCK_ORDER[i]);
+      activateRail(RAIL_KEYS[i]);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [isPhone, overlayOpen, hudWindows.length, awaitingStance, activateDock]);
+  }, [isPhone, overlayOpen, awaitingStance, activateRail]);
 
   // The here card shrinks to its title on request, and opens again wherever
   // you arrive next.
@@ -1013,6 +956,7 @@ export function GameScreen() {
     pairObs.current = ro;
   }, []);
 
+  const view3d = useSetting('mapView3d') === 'on';
   if (!spawn) return null;
 
   const selHere = sel ? sel.id === currentPositionId : false;
@@ -1213,24 +1157,38 @@ export function GameScreen() {
   const desktopTarget = !tunnel && !hdb && !mrtPlanner;
 
   /**
-   * Desktop: the HDB cutaway is drawn in the space the HUD leaves: right of the
-   * dock and phone, left of the timeline (or ticker), above the here card.
-   * When that is too narrow the ticker reserve goes first (it is see-through and
-   * fades), then the phone's: a folded phone moves the building down instead;
-   * an unfolded one is left over it (folding it is the fix on small screens).
+   * Desktop: the HDB landing strips are drawn in the space the HUD leaves inside the
+   * map column (the rail sits left of it): left of the timeline (or ticker),
+   * above the here card. When that is too narrow the ticker reserve goes (it is
+   * see-through and fades).
    */
   const hdbInset = (() => {
-    let top = HUD_EDGE;
+    const top = HUD_EDGE;
     const bottom = (pairH > 0 ? pairH + HUD_GAP : 0) + HUD_BOTTOM;
-    let left = DOCK_RESERVE_X + VITALS_W + HUD_GAP;
+    const left = HUD_EDGE;
     let right = HUD_EDGE + (timelineFull ? tlW : TICKER_W) + HUD_GAP;
-    if (vw - left - right < HDB_MIN_W && !timelineFull) right = HUD_EDGE;
-    if (vw - left - right < HDB_MIN_W) {
-      left = DOCK_RESERVE_X;
-      if (vitalsFolded) top = HUD_EDGE + VITALS_FOLDED_H + HUD_GAP;
-    }
+    if (vw - RAIL_W - left - right < HDB_MIN_W && !timelineFull) right = HUD_EDGE;
     return { top, right, bottom, left };
   })();
+
+  /**
+   * Desktop, 3D: the map stays up behind the landing strips and the space left
+   * of them shows the block itself (camera eased onto it, the hovered storey
+   * lit). The strips keep a fixed width; the tower takes what is left. Only
+   * when that is worth having; otherwise the strips take the view.
+   */
+  const mapW = vw - RAIL_W;
+  const blockStripW = (() => {
+    if (isPhone || !view3d) return 0;
+    const avail = mapW - hdbInset.left - hdbInset.right;
+    const strips = Math.min(HDB_STRIPS_W, Math.max(HDB_MIN_W - 80, Math.round(avail * 0.55)));
+    const w = avail - strips - HUD_GAP;
+    return w >= BLOCK_STRIP_MIN_W ? w : 0;
+  })();
+  const hdbOverMap = !!hdb && blockStripW > 0;
+  const hdbPanelInset = hdbOverMap
+    ? { ...hdbInset, left: hdbInset.left + blockStripW + HUD_GAP }
+    : hdbInset;
 
   const hereTitle: ReactNode = hdb ? (
     <span className="inline-flex items-center gap-1.5 normal-case tracking-normal">
@@ -1285,195 +1243,11 @@ export function GameScreen() {
   const deskGate = contactGate && !isPhone;
 
   // ---- desktop HUD -----------------------------------------------------------
-  const hudWinTitle = (id: HudWin) =>
-    id === 'condition' ? t('ui.hud.condition') : t(sidePanelLabelKey(id));
-  const hudWinIcon = (id: HudWin): IconName =>
-    id === 'condition' ? 'action.status' : SIDE_PANEL_ICONS[id];
-  const hudWinBody = (id: HudWin): ReactNode => {
-    switch (id) {
-      case 'condition':
-        return <ConditionPanel onOpenGuide={setGuideTopic} showSurvivorStats />;
-      case 'inventory':
-        return (
-          <div className="space-y-3">
-            <InventoryPanel layout="equipStash" />
-            <InventoryPanel layout="backpack" />
-          </div>
-        );
-      case 'craft':
-        return <CraftingPanel />;
-      case 'logbook':
-        return <StashLogbook onFocusLocation={focusStashOnMap} />;
-      case 'stats':
-        return <StatsPanel />;
-      case 'skills':
-        return <SkillsPanel />;
-      case 'objective':
-        return (
-          <ObjectivesPanel
-            evacZoneName={evacZone?.name ?? null}
-            evacDist={evacDist}
-            atEvac={atEvac}
-            vibe={readiness.vibe}
-            vibeLine={readiness.vibeLine}
-            manifestRevealed={evacManifestRevealed}
-            evacCurrent={readiness.current}
-            evacRequired={readiness.required}
-            evacRatio={readiness.ratio}
-            evacBias={evacDemandBias ?? 'balanced'}
-            dayMult={dayMult}
-            projectedScore={projectedScore}
-            projectedEvacBonus={projectedEvacBonus}
-            windowText={windowText}
-            urgent={evacUrgent}
-            doom={doom}
-            doomColor={doomColor}
-            doomLabel={doomLabel}
-            townName={hereTown?.name ?? null}
-            townTier={hereTownTier}
-            onEvac={callEvac}
-            onOpenGuide={setGuideTopic}
-            intelNoteCount={intelNoteCount}
-            rumourCount={rumourCount}
-          />
-        );
-    }
-  };
-
-  const dockLabel = (id: DockId): string =>
-    id === 'timeline'
-      ? t('ui.hud.timeline')
-      : id === 'dayLogs'
-        ? t('ui.hud.dayLogs')
-        : id === 'settings'
-          ? t('ui.hud.settings')
-          : hudWinTitle(id);
-  const dockIcon = (id: DockId): IconName =>
-    id === 'timeline'
-      ? 'action.log'
-      : id === 'dayLogs'
-        ? 'action.dayLogs'
-        : id === 'settings'
-          ? 'action.settings'
-          : hudWinIcon(id);
-  const dockItems: DockItem[] = DOCK_ORDER.map((id, i) => ({
-    id,
-    icon: dockIcon(id),
-    label: dockLabel(id),
-    hotkey: DOCK_HOTKEYS[i],
-    active:
-      id === 'timeline'
-        ? timelineFull
-        : id === 'dayLogs'
-          ? dayLogsOpen
-          : id === 'settings'
-            ? settingsOpen
-            : hudWindows.includes(id),
-    badge:
-      id === 'condition' && vitalsAlarm
-        ? 'hiss'
-        : id === 'objective' && evacUrgent
-          ? 'hiss'
-          : id === 'objective' && atEvac
-            ? 'signal'
-            : null,
-    onClick: () => activateDock(id),
-  }));
-
-  const objectiveBarProps = {
-    evacZoneName: evacZone?.name ?? null,
-    evacDist,
-    atEvac,
-    windowText,
-    evacCooldownHours,
-    urgent: evacUrgent,
-    doom,
-    doomColor,
-    doomLabel,
-    townName: hereTown?.name ?? null,
-    townTier: hereTownTier,
-    dayMult,
-    vibe: readiness.vibe,
-    vibeLine: readiness.vibeLine,
-    manifestRevealed: evacManifestRevealed,
-    evacRatio: readiness.ratio,
-    evacReady: readiness.ready,
-    evacCurrent: readiness.current,
-    evacRequired: readiness.required,
-    onOpen: () => toggleHudWindow('objective'),
-    intelNoteCount,
-    rumourCount,
-  };
-  const deskRestButton = (
-    <button
-      onClick={rest}
-      className="shrink-0 rounded border border-white/15 px-2.5 py-1 text-body transition hover:bg-white/5"
-      {...tip(sleepPreview.conditions.summary)}
-    >
-      <Icon name="action.sleep" /> {t('ui.game.rest')}
-    </button>
-  );
+  const railTip = (label: string, id: RailKey) =>
+    tip(t('ui.hud.hotkey', { label, key: railHotkey(id) }), { label: true });
 
   const desktopHud = (
     <>
-      {/* Always-on readout, top-left, just right of the dock. */}
-      <div
-        className={`pointer-events-none absolute z-[720] ${backgrounded}`}
-        style={{ left: DOCK_RESERVE_X, top: HUD_EDGE }}
-        inert={deskGate}
-      >
-        <VitalsHud
-          day={day}
-          hour={hour}
-          band={time}
-          weatherRow={
-            <div className="flex items-center justify-between gap-2">
-              <WeatherBadge weather={weather} />
-              <div className="flex shrink-0 items-center gap-2">
-                <SleepQualityIndicator preview={sleepPreview} />
-                {deskRestButton}
-              </div>
-            </div>
-          }
-          objective={<ObjectiveBar {...objectiveBarProps} />}
-          objectiveCompact={<ObjectiveBar {...objectiveBarProps} compact />}
-          restButton={deskRestButton}
-          folded={vitalsFolded}
-          onToggleFold={() => setSetting('vitalsFolded', vitalsFolded ? 'off' : 'on')}
-          onOpenCondition={() => toggleHudWindow('condition')}
-          conditionOpen={hudWindows.includes('condition')}
-          conditionLabel={t('ui.hud.condition')}
-        />
-      </div>
-
-      {/* Open windows: a row beside the dock, centred on the free map, oldest
-          on the left. They sit over the here / target pair while open. */}
-      {hudWindows.length > 0 && (
-        <div
-          className={`pointer-events-none absolute z-[730] flex items-end justify-center ${backgrounded}`}
-          style={{
-            left: DOCK_RESERVE_X,
-            top: HUD_EDGE,
-            bottom: HUD_BOTTOM,
-            right: HUD_EDGE + (timelineFull ? tlW + HUD_GAP : 0),
-            gap: HUD_GAP,
-          }}
-          inert={deskGate}
-        >
-          {hudWindows.map((id) => (
-            <HudWindow
-              key={id}
-              icon={hudWinIcon(id)}
-              title={hudWinTitle(id)}
-              widthPx={HUD_WIN_WIDTH[id]}
-              onClose={() => setHudWindows((ws) => ws.filter((w) => w !== id))}
-            >
-              {hudWinBody(id)}
-            </HudWindow>
-          ))}
-        </div>
-      )}
-
       {/* Timeline: the full panel when pinned or when something needs an
           answer; otherwise a fading ticker. During the contact gate it is the
           one lit thing on the screen. */}
@@ -1514,14 +1288,6 @@ export function GameScreen() {
         </div>
       )}
 
-      {/* The dock: a column down the left edge. */}
-      <div
-        className={`pointer-events-none absolute z-[750] ${backgrounded}`}
-        style={{ left: HUD_EDGE, top: HUD_EDGE }}
-        inert={deskGate}
-      >
-        <Dock items={dockItems} />
-      </div>
     </>
   );
 
@@ -1540,7 +1306,7 @@ export function GameScreen() {
 
       {/* Click map / timeline to dismiss any slide-out. Phone: leave the status
           bar and bottom nav clear so vitals stay readable and tabs stay usable. */}
-      {isPhone && sidePanel && (
+      {sidePanel && (
         <div
           className="absolute inset-x-0 z-[690] max-lg:bottom-[calc(var(--mobile-nav-h)+env(safe-area-inset-bottom,0px))] max-lg:top-[var(--mobile-status-bar-h)] lg:inset-0"
           aria-hidden
@@ -1555,9 +1321,8 @@ export function GameScreen() {
            On desktop it also stacks above the slide-out so that panel tucks in
            behind it — opaque, so nothing shows through mid-slide. On mobile the
            slide-out covers the whole screen, so the rail stays below it. */}
-      {isPhone && (
       <aside
-        className={`relative flex-col border-white/10 bg-concrete-900/70 lg:z-[750] lg:flex lg:h-full lg:w-[340px] lg:shrink-0 lg:border-r lg:bg-concrete-900 ${
+        className={`relative flex-col border-white/10 bg-concrete-900/70 lg:z-[750] lg:flex lg:h-full lg:w-[408px] lg:shrink-0 lg:border-r lg:bg-concrete-900 ${
           mobileView === 'hub' ? show(true) : 'hidden'
         } lg:flex ${backgrounded}`}
       >
@@ -1622,6 +1387,7 @@ export function GameScreen() {
                 : PANEL_BUTTONS
               ).map((id) => {
                 const active = sidePanel === id;
+                const label = t(sidePanelLabelKey(id));
                 return (
                   <button
                     key={id}
@@ -1631,12 +1397,42 @@ export function GameScreen() {
                         ? 'border-signal bg-signal/15 text-signal'
                         : 'border-white/15 text-white/70 hover:bg-white/5'
                     }`}
+                    {...(isPhone ? {} : railTip(label, id))}
                   >
-                    <Icon name={SIDE_PANEL_ICONS[id]} /> {t(sidePanelLabelKey(id))}
+                    <Icon name={SIDE_PANEL_ICONS[id]} /> {label}
                   </button>
                 );
               })}
             </div>
+
+            {/* Desktop: the timeline folds to a ticker, so its pin, day logs and
+                settings keep a home here. */}
+            {!isPhone && (
+              <div className="grid grid-cols-3 gap-1.5">
+                {(['timeline', 'dayLogs', 'settings'] as const).map((id) => {
+                  const active =
+                    id === 'timeline' ? timelinePinned : id === 'dayLogs' ? dayLogsOpen : settingsOpen;
+                  const label = t(`ui.hud.${id}`);
+                  const icon: IconName =
+                    id === 'timeline' ? 'action.log' : id === 'dayLogs' ? 'action.dayLogs' : 'action.settings';
+                  return (
+                    <button
+                      key={id}
+                      onClick={() => activateRail(id)}
+                      aria-pressed={active}
+                      className={`truncate rounded border px-1 py-1.5 text-body transition ${
+                        active
+                          ? 'border-signal bg-signal/15 text-signal'
+                          : 'border-white/15 text-white/70 hover:bg-white/5'
+                      }`}
+                      {...railTip(label, id)}
+                    >
+                      <Icon name={icon} /> {label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
 
@@ -1644,7 +1440,6 @@ export function GameScreen() {
             they're actually about: the target floats over the marker it
             describes, and "here" sits at the foot of the timeline. */}
       </aside>
-      )}
 
       {/* ================= COLUMN 2: the slide-out =================
            Toggled from the rail's panel buttons, closable from its own header.
@@ -1656,19 +1451,23 @@ export function GameScreen() {
           the whole map instead of the 360px column — pinned to the timeline's
           edge, never narrower than the column it replaces (at 1024px the map
           strip is thinner than 360px, so the min-width is what wins there).
-          Closed, it parks its own width plus the 340px rail off the left edge,
+          Closed, it parks its own width plus the 408px rail off the left edge,
           so it slides out from behind the rail instead of fading in on top. */}
-      {isPhone && (
       <div
-        className={`absolute left-0 z-[700] w-full transition-[transform,width,right] duration-200 ease-out max-lg:bottom-[calc(var(--mobile-nav-h)+env(safe-area-inset-bottom,0px))] max-lg:top-[var(--mobile-status-bar-h)] lg:inset-y-0 lg:left-[340px] ${
-          wideSlideOut
-            ? 'lg:right-[max(35vw,320px)] lg:w-auto lg:min-w-[360px]'
-            : 'lg:w-[360px]'
+        className={`absolute left-0 z-[700] w-full transition-[transform,width,right] duration-200 ease-out max-lg:bottom-[calc(var(--mobile-nav-h)+env(safe-area-inset-bottom,0px))] max-lg:top-[var(--mobile-status-bar-h)] lg:inset-y-0 lg:left-[408px] ${
+          wideSlideOut ? 'lg:w-auto lg:min-w-[360px]' : 'lg:w-[360px]'
         } ${
           sidePanel
             ? 'translate-x-0'
-            : 'pointer-events-none -translate-x-full lg:-translate-x-[calc(100%+340px)]'
+            : 'pointer-events-none -translate-x-full lg:-translate-x-[calc(100%+408px)]'
         } ${backgrounded}`}
+        // Wide craft runs to the timeline (or the ticker, so its close button
+        // never ends up under it).
+        style={
+          !isPhone && wideSlideOut
+            ? { right: HUD_EDGE + (timelineFull ? tlW : TICKER_W) + HUD_GAP }
+            : undefined
+        }
       >
         <div className="flex h-full flex-col border-r border-white/15 bg-concrete-900 shadow-signage">
           <div className="flex shrink-0 items-center justify-between border-b border-white/10 p-3">
@@ -1725,7 +1524,6 @@ export function GameScreen() {
           </div>
         </div>
       </div>
-      )}
 
       {/* ================= COLUMN 3: map — or the HDB block / the tunnel, each
            of which takes the whole view for the duration =================
@@ -1754,9 +1552,9 @@ export function GameScreen() {
         >
           {tunnel ? (
             <TunnelRunView />
-          ) : hdb ? (
+          ) : hdb && !hdbOverMap ? (
             <HdbDungeonModal onOpenGuide={setGuideTopic} inset={hdbInset} />
-          ) : mrtPlanner ? (
+          ) : mrtPlanner && !hdb ? (
             <MrtRoutePlanner
               fromStationId={mrtPlanner.fromStationId}
               initialToStationId={mrtPlanner.toStationId}
@@ -1793,8 +1591,13 @@ export function GameScreen() {
                 travelPathBlocked={travelPathBlocked}
                 focusTarget={mapFocus}
                 mapAnnotations={mapAnnotations}
-                padRight={isPhone || !timelineFull ? 0 : tlW + HUD_EDGE}
-                padLeft={isPhone ? 0 : DOCK_RESERVE_X}
+                padRight={
+                  hdbOverMap
+                    ? Math.max(0, mapW - hdbInset.left - blockStripW)
+                    : isPhone || !timelineFull
+                      ? 0
+                      : tlW + HUD_EDGE
+                }
                 padBottom={isPhone ? 0 : pairH > 0 ? pairH + HUD_BOTTOM : HUD_BOTTOM}
                 chromeRight={
                   isPhone ? 0 : HUD_EDGE + (timelineFull ? tlW : TICKER_W) + HUD_GAP / 2
@@ -1802,6 +1605,14 @@ export function GameScreen() {
                 onSelect={selectPoi}
                 onPickGround={pickGround}
               />
+              {/* Desktop 3D, inside a block: the landing strips over the map, the
+                  block itself showing in the strip left of it. The layer
+                  takes every click, so the map strip is a view, not a board. */}
+              {hdbOverMap && (
+                <div className="absolute inset-0 z-[550]">
+                  <HdbDungeonModal onOpenGuide={setGuideTopic} inset={hdbPanelInset} overMap />
+                </div>
+              )}
               {/* Phone: docked bottom-right so the travel line into the target
                   stays visible. Desktop pairs it with the here card below. */}
               {isPhone && targetSlot && (
@@ -1831,8 +1642,8 @@ export function GameScreen() {
               className="pointer-events-none absolute z-[600] flex items-end justify-center gap-2"
               style={{
                 // Inside a block the card sits under the building, not the map.
-                left: hdb ? hdbInset.left : DOCK_RESERVE_X,
-                right: hdb ? hdbInset.right : HUD_EDGE + (timelineFull ? tlW + HUD_GAP : 0),
+                left: hdb ? hdbPanelInset.left : HUD_EDGE,
+                right: hdb ? hdbPanelInset.right : HUD_EDGE + (timelineFull ? tlW + HUD_GAP : 0),
                 bottom: HUD_BOTTOM,
               }}
             >

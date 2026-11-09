@@ -609,13 +609,6 @@ select optgroup {
     animation: combat-outcome-dead 0.55s ease-out 1;
     box-shadow: none;
   }
-  .hdb-route-ribbon {
-    animation: none;
-    opacity: 0.95;
-  }
-  .hdb-route-dest {
-    animation: none;
-  }
 }
 
 /* The same rules, reachable from the in-app Reduce motion setting: a media
@@ -722,44 +715,6 @@ select optgroup {
 .motion-reduce-forced .combat-fx--force-motion .combat-outcome-dead {
   animation: combat-outcome-dead 0.55s ease-out 1;
   box-shadow: none;
-}
-.motion-reduce-forced .hdb-route-ribbon {
-  animation: none;
-  opacity: 0.95;
-}
-.motion-reduce-forced .hdb-route-dest {
-  animation: none;
-}
-
-/* HDB hover route — soft live telemetry pulse on the ribbon. */
-@keyframes hdb-route-breathe {
-  0%,
-  100% {
-    opacity: 0.82;
-  }
-  50% {
-    opacity: 1;
-  }
-}
-.hdb-route-ribbon {
-  animation: hdb-route-breathe 2s ease-in-out infinite;
-}
-.hdb-route-ribbon--blocked {
-  animation-duration: 1.25s;
-}
-@keyframes hdb-route-dest-pulse {
-  0%,
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.55;
-    transform: scale(1.25);
-  }
-}
-.hdb-route-dest {
-  animation: hdb-route-dest-pulse 1.6s ease-in-out infinite;
 }
 
 /* The extraction beacon's pulse. Lives here rather than in the marker's own
