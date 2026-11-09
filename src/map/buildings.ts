@@ -35,9 +35,10 @@ const RISE_MS = 600;
 /** After tiles load, wait this long before indexing their buildings. */
 const INDEX_DEBOUNCE_MS = 300;
 /**
- * The camera counts as settled after this long without a `move`. Indexing and
- * rises wait for it, so buildings come up after the camera lands instead of
- * under it, and the index scan never lands mid-pan.
+ * The camera counts as settled after this long without a `move`. The index
+ * scan (10–20 ms) waits for it so it never lands mid-pan. Reveals do not wait:
+ * they are cheap and follow the walker's sight disc, so holding them would
+ * only pile them up for the moment the player arrives.
  */
 const SETTLE_MS = 220;
 /** A pan slower than this is a camera easing out, not motion. */
@@ -166,7 +167,6 @@ export class BuildingEngine {
   private deferSince = 0;
   private settleTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingIndex = false;
-  private pendingReveal = false;
   /** Flat basemap building layers and their original zoom ranges. */
   private flatLayers: { id: string; min: number; max: number }[] = [];
 
@@ -376,11 +376,7 @@ export class BuildingEngine {
       this.deferSince = 0;
       if (this.pendingIndex) {
         this.pendingIndex = false;
-        this.pendingReveal = false;
         this.indexBuildings(); // runs the reveal itself
-      } else if (this.pendingReveal) {
-        this.pendingReveal = false;
-        this.updateReveal(false);
       }
     }, SETTLE_MS);
   }
@@ -408,13 +404,6 @@ export class BuildingEngine {
   private updateReveal(instant: boolean) {
     const map = this.map;
     if (this.destroyed || !this.live || !this.index.size || !map.getLayer(BUILDINGS_LAYER)) return;
-    // Reduced motion snaps instead of rising, but still waits: a block
-    // popping up under a moving camera is the jolt either way.
-    if (!instant && this.moving()) {
-      this.pendingReveal = true;
-      this.waitForSettle();
-      return;
-    }
     const cosLat = Math.cos((this.live.lat * Math.PI) / 180);
     // Only explored discs that can touch the loaded area are worth testing.
     const b = map.getBounds();

@@ -220,6 +220,7 @@ function Buildings3d({
 
   useEffect(() => {
     const e = new BuildingEngine(map);
+    if (import.meta.env.DEV) (window as unknown as { __buildings?: BuildingEngine }).__buildings = e;
     setEngine(e);
     onEngine(e);
     return () => {
@@ -245,6 +246,67 @@ function Buildings3d({
     map.getCanvas().style.cursor = now ? 'pointer' : '';
   });
   return null;
+}
+
+/** How often the sight disc catches up with the walking pin (ms). */
+const SIGHT_STEP_MS = 100;
+
+/**
+ * Where the player can see from: `home`, or during a glide the pin's spot on
+ * the same clock as `PlayerMarker`, sampled every SIGHT_STEP_MS. The fog edge
+ * and the buildings then move with the walker, so arrival has nothing left to
+ * reveal. Cosmetic only: POI visibility still keys off the store's position.
+ */
+function useSightCenter(home: { lat: number; lng: number }, travelAnim: TravelAnim | null) {
+  const [sight, setSight] = useState(home);
+  useEffect(() => {
+    if (!travelAnim) {
+      setSight(home);
+      return;
+    }
+    const path =
+      travelAnim.path.length >= 2
+        ? travelAnim.path
+        : [
+            { lat: travelAnim.fromLat, lng: travelAnim.fromLng },
+            { lat: travelAnim.toLat, lng: travelAnim.toLng },
+          ];
+    const { startedAt, durationMs } = travelAnim;
+    const sample = () => {
+      const t = Math.min(1, (Date.now() - startedAt) / durationMs);
+      const at = pointAlongPath(path, travelEase(t));
+      setSight((cur) => (cur.lat === at.lat && cur.lng === at.lng ? cur : at));
+    };
+    sample();
+    const id = setInterval(sample, SIGHT_STEP_MS);
+    return () => clearInterval(id);
+  }, [home, travelAnim]);
+  return sight;
+}
+
+/** The fog and the 3D buildings, both centred on where the player can see from. */
+function SightLayers({
+  home,
+  travelAnim,
+  exploredArea,
+  radius,
+  view3d,
+  onEngine,
+}: {
+  home: { lat: number; lng: number };
+  travelAnim: TravelAnim | null;
+  exploredArea: ExploredCircle[];
+  radius: number;
+  view3d: boolean;
+  onEngine: (engine: BuildingEngine | null) => void;
+}) {
+  const sight = useSightCenter(home, travelAnim);
+  return (
+    <>
+      <FogOverlay exploredArea={exploredArea} currentRevealCenter={sight} currentRevealRadius={radius} />
+      {view3d && <Buildings3d exploredArea={exploredArea} home={sight} radius={radius} onEngine={onEngine} />}
+    </>
+  );
 }
 
 const containerSize = (map: MlMap) => {
@@ -1096,7 +1158,15 @@ function GameMapInner({
         <GroundPicker onPick={onPickGround} engine={engine} onSite={selectSite} />
         {/* Soft-cost forest wash — under fog so only explored ground shows green. */}
         <VegetationOverlay />
-        <FogOverlay exploredArea={exploredArea} currentRevealCenter={home} currentRevealRadius={fogRevealRadius} />
+        {/* Fog + 3D buildings. Overlays draw by slot, not mount order. */}
+        <SightLayers
+          home={home}
+          travelAnim={travelAnim}
+          exploredArea={exploredArea}
+          radius={fogRevealRadius}
+          view3d={view3d}
+          onEngine={setEngine}
+        />
         <NeighbourhoodWash />
 
         {/* Travelable range — a planning ring, not vision. Never hit-tested:
@@ -1131,9 +1201,6 @@ function GameMapInner({
         <NoiseWaves pulses={noisePulses} />
         <PlayerMarker home={home} travelAnim={travelAnim} veilRadiusM={veilRadiusM} veilAlpha={veilAlpha} />
         {showMrt && net && <MrtOverlay net={net} destroyedEdges={destroyedTunnelEdges} />}
-        {view3d && (
-          <Buildings3d exploredArea={exploredArea} home={home} radius={fogRevealRadius} onEngine={setEngine} />
-        )}
       </MapView>
 
       {/* ---- 3D + rail network toggles, rail legend ---- */}

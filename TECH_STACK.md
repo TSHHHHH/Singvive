@@ -66,10 +66,13 @@ goes flat. MapLibre zoom is the old Leaflet zoom − 1 (the saved zoom key moved
   only then renders children. Overlays call `installOverlay(map, slot, …)`; the basemap's labels
   are moved under the fog.
 - **Fog** (`fogGeometry.ts`) is the world minus the union of explored discs, in three soft bands.
-  The union is cached; only the live sight disc is subtracted per update.
+  The union is cached; only the live sight disc is subtracted per update. During a glide the
+  sight disc follows the pin (`useSightCenter` in `GameMap.tsx`, every 100 ms), so fog and
+  buildings reveal along the walk and arrival has nothing left to change.
 - **3D** (`buildings.ts`, setting `mapView3d`) extrudes the basemap's buildings from `LOD_ZOOM` 15.
   A building stands only inside an explored or live disc (feature-state `rise`, animated unless
-  reduced motion). Sites are matched to their building and coloured through feature-state; taps on
+  reduced motion; never held for the camera — only the 10–20 ms tile index scan waits for it to
+  settle). Sites are matched to their building and coloured through feature-state; taps on
   a site's building select it, other buildings walk to them. Badges lift to the roof through the
   `--roof` / `--roof-lift` CSS variables. Spawn select and the route planner stay 2D.
 
