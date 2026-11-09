@@ -933,13 +933,25 @@ select optgroup {
   position: absolute;
   inset: 0;
 }
-.wx-rain-back,
-.wx-rain-front,
-.wx-heat-shimmer,
-.wx-haze-drift {
+.wx-root > .wx-rain-far,
+.wx-root > .wx-rain-back,
+.wx-root > .wx-rain-near,
+.wx-root > .wx-rain-front,
+.wx-root > .wx-heat-shimmer,
+.wx-root > .wx-haze-drift {
+  /* `.wx-root > div` sets inset: 0, so these need the same specificity or the
+     sheet starts at the screen edge and its travel opens a gap at the top. */
   inset: -380px;
   will-change: transform;
   backface-visibility: hidden;
+}
+/* Rain only needs room above the screen for its travel (<=269px) plus the
+   slant (~90px at 4deg on a 2560px screen), and the slant at the sides and
+   bottom: three sheets at this size cost about 1.8x what one did at -380px. */
+.wx-root > .wx-rain-far,
+.wx-root > .wx-rain-back,
+.wx-root > .wx-rain-near {
+  inset: -380px -120px -120px;
 }
 .wx-flash {
   will-change: opacity;
@@ -956,12 +968,28 @@ select optgroup {
 
    Full mode pairs a single sheet with a static wet tint (see WeatherFx) so we
    never stack two oversized rain layers. */
+@keyframes wx-fall-far {
+  from {
+    transform: rotate(2.5deg) translate3d(0, 0, 0);
+  }
+  to {
+    transform: rotate(2.5deg) translate3d(0, 100.8px, 0);
+  }
+}
 @keyframes wx-fall-back {
   from {
     transform: rotate(3deg) translate3d(0, 0, 0);
   }
   to {
     transform: rotate(3deg) translate3d(0, 168px, 0);
+  }
+}
+@keyframes wx-fall-near {
+  from {
+    transform: rotate(4deg) translate3d(0, 0, 0);
+  }
+  to {
+    transform: rotate(4deg) translate3d(0, 268.8px, 0);
   }
 }
 @keyframes wx-fall-front {
@@ -972,19 +1000,43 @@ select optgroup {
     transform: rotate(5deg) translate3d(0, 232px, 0);
   }
 }
+.wx-rain-far,
 .wx-rain-back,
+.wx-rain-near,
 .wx-rain-front {
   animation-timing-function: linear;
   animation-iteration-count: infinite;
 }
 
-/* Primary sheet: sparse, dim — atmosphere, not a pinstripe grid */
-.wx-rain-back {
-  animation-name: wx-fall-back;
-  animation-duration: 0.95s;
+/* Depth: one tile at three scales. Scale is distance — far streaks are short,
+   thin, dense and dim; near ones long, sparse and bright — and each layer falls
+   at its own speed (far ~220px/s, mid ~360, near ~640), so drops overtake one
+   another instead of sliding down as one sheet. Durations are deliberately
+   unrelated so the layers never line up. */
+.wx-rain-far,
+.wx-rain-back,
+.wx-rain-near {
   background-image: url(/weather/rain-sheet.svg);
   background-repeat: repeat;
+}
+.wx-rain-far {
+  animation-name: wx-fall-far;
+  animation-duration: 0.46s;
+  background-size: 115.2px 100.8px;
+  background-position: 37px 0;
+  opacity: 0.6;
+}
+/* Mid sheet; also the only one in subtle rain. */
+.wx-rain-back {
+  animation-name: wx-fall-back;
+  animation-duration: 0.47s;
   background-size: 192px 168px;
+}
+.wx-rain-near {
+  animation-name: wx-fall-near;
+  animation-duration: 0.42s;
+  background-size: 307.2px 268.8px;
+  background-position: 91px 0;
 }
 
 /* Spare sheet (subtle storm / legacy): longer gaps, still soft */
@@ -1123,6 +1175,7 @@ select optgroup {
 /* Phones: drop the second animated sheet where Full still has a spare —
    one layer carries the read fine and halves fill cost on weak GPUs. */
 @media (max-width: 767px) {
+  .wx-rain-near,
   .wx-rain-front,
   .wx-haze-drift,
   .wx-heat-shimmer {

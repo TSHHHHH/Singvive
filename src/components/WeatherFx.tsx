@@ -12,8 +12,8 @@ import { useAtmosphere, type WeatherDom } from './useAtmosphere';
 // with `transform`/`opacity` only. Those two properties are handled on the
 // compositor, so the layer is rasterised once and the map canvas underneath
 // is never invalidated — the same rule the vignettes in index.css follow.
-// Full weather caps at one oversized animated sheet; static tints stay
-// viewport-sized. Total cost: <=3 DOM nodes, 0 JS per frame.
+// Moving sheets are oversized (rain: three depth sheets); static tints stay
+// viewport-sized. Total cost: <=6 DOM nodes, 0 JS per frame.
 //
 // The layers live in index.css (.wx-*).
 //
@@ -28,18 +28,21 @@ import { useAtmosphere, type WeatherDom } from './useAtmosphere';
 // across the map, worse to look at than the thing it is sparing you. When
 // motion is off we swap in still tints instead — see `stillLayersFor`.
 
+/** Rain falls in depth layers at their own speeds (index.css, .wx-rain-*). */
+const RAIN_SUBTLE = ['wx-rain-far', 'wx-rain-back'];
+const RAIN_FULL = ['wx-rain-far', 'wx-rain-back', 'wx-rain-near'];
+
 /** Which layers each weather kind puts up. `day`-only effects gate on time.
  *
- * Full caps at one oversized animated sheet per kind (rain/haze/heat shimmer);
- * clear is a single static wash. Static tints (wet, overcast, glare) are free. */
+ * Haze and heat full add one animated sheet; rain is three thin depth sheets
+ * (two in subtle), together ~1.8x the fill of the old single sheet. Clear is a single
+ * static wash. Static tints (wet, overcast, glare) are free. */
 function layersFor(kind: WeatherKind, time: TimeOfDay, subtle: boolean): string[] {
   switch (kind) {
     case 'rain':
-      return subtle ? ['wx-rain-back'] : ['wx-wet-still', 'wx-rain-back'];
+      return subtle ? RAIN_SUBTLE : ['wx-wet-still', ...RAIN_FULL];
     case 'thunderstorm':
-      return subtle
-        ? ['wx-rain-back', 'wx-flash']
-        : ['wx-overcast', 'wx-rain-back', 'wx-flash'];
+      return subtle ? [...RAIN_SUBTLE, 'wx-flash'] : ['wx-overcast', ...RAIN_FULL, 'wx-flash'];
     case 'haze':
       return subtle ? ['wx-haze'] : ['wx-haze', 'wx-haze-drift'];
     case 'cloudy':
@@ -76,7 +79,7 @@ function stillLayersFor(kind: WeatherKind, time: TimeOfDay): string[] {
 }
 
 /** Layers that move. In 3D these are all the overlay keeps; the light does the rest. */
-const MOVING = new Set(['wx-rain-back', 'wx-haze-drift', 'wx-heat-shimmer']);
+const MOVING = new Set(['wx-rain-far', 'wx-rain-back', 'wx-rain-near', 'wx-haze-drift', 'wx-heat-shimmer']);
 
 /**
  * Full-bleed weather overlay. Renders nothing when the effect list is empty or
