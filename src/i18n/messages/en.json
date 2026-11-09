@@ -741,7 +741,24 @@
       "sectionTunnelNode": "{label}",
       "sectionSite": "{name}",
       "sectionExpand": "Expand section",
-      "sectionCollapse": "Collapse section"
+      "sectionCollapse": "Collapse section",
+      "pin": "Keep the timeline open",
+      "unpin": "Shrink to the ticker",
+      "expandTicker": "Open the timeline"
+    },
+    "hud": {
+      "condition": "Condition",
+      "timeline": "Timeline",
+      "dayLogs": "Day logs",
+      "settings": "Settings",
+      "close": "Close",
+      "hotkey": "{label} · {key}",
+      "collapse": "Collapse",
+      "expand": "Expand",
+      "sos": "SOS",
+      "noService": "No service. Emergency calls only — and nobody is answering.",
+      "foldPhone": "Fold the phone",
+      "unfoldPhone": "Unfold the phone"
     },
     "error": {
       "signalLost": "SIGNAL LOST",
@@ -1265,6 +1282,14 @@
         "recent10": "Recent 10"
       }
     },
+    "timelinePinned": {
+      "label": "Keep timeline open",
+      "description": "On a computer the timeline floats over the map as a short fading ticker and opens by itself when something needs you. Turn on to keep the full timeline open. The dock button toggles the same thing.",
+      "options": {
+        "on": "On",
+        "off": "Off"
+      }
+    },
     "clockFormat": {
       "label": "Clock",
       "description": "How the time reads on the clock, the timeline and the day logs.",
@@ -1323,6 +1348,14 @@
       "accessibility": "Accessibility",
       "guide": "Guide",
       "data": "Data & save"
+    },
+    "vitalsFolded": {
+      "label": "Fold the phone",
+      "description": "On a computer, shrink the phone in the top-left to a status strip: meters, the evac line and Rest. Tap its home bar to fold or unfold it.",
+      "options": {
+        "on": "On",
+        "off": "Off"
+      }
     },
     "railOverlay": {
       "label": "Rail map",

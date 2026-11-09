@@ -741,7 +741,24 @@
       "sectionTunnelNode": "{label}",
       "sectionSite": "{name}",
       "sectionExpand": "展开分组",
-      "sectionCollapse": "收起分组"
+      "sectionCollapse": "收起分组",
+      "pin": "保持时间线展开",
+      "unpin": "收起为滚动条",
+      "expandTicker": "展开时间线"
+    },
+    "hud": {
+      "condition": "身体状况",
+      "timeline": "时间线",
+      "dayLogs": "日日志",
+      "settings": "设置",
+      "close": "关闭",
+      "hotkey": "{label} · {key}",
+      "collapse": "收起",
+      "expand": "展开",
+      "sos": "SOS",
+      "noService": "无服务。仅限紧急呼叫——但没有人接听。",
+      "foldPhone": "收起手机",
+      "unfoldPhone": "展开手机"
     },
     "error": {
       "signalLost": "信号中断",
@@ -1265,6 +1282,14 @@
         "recent10": "最近 10 条"
       }
     },
+    "timelinePinned": {
+      "label": "保持时间线展开",
+      "description": "在电脑上，时间线以会淡出的简短滚动条浮在地图上，需要你处理时会自动展开。开启后始终显示完整时间线。底部程序坞的按钮切换的是同一项。",
+      "options": {
+        "on": "开",
+        "off": "关"
+      }
+    },
     "clockFormat": {
       "label": "时钟",
       "description": "时钟、时间线与日日志里时间的显示格式。",
@@ -1323,6 +1348,14 @@
       "accessibility": "无障碍",
       "guide": "指南",
       "data": "数据与存档"
+    },
+    "vitalsFolded": {
+      "label": "收起手机",
+      "description": "在电脑上，把左上角的手机收成一条状态栏：数值条、撤离信息和休息。点手机底部的横条即可收起或展开。",
+      "options": {
+        "on": "开",
+        "off": "关"
+      }
     },
     "railOverlay": {
       "label": "地铁图",

@@ -1,10 +1,20 @@
-import type { LngLat, Map as MlMap, MapSourceDataEvent } from 'maplibre-gl';
+import type { Feature, FeatureCollection } from 'geojson';
+import {
+  Marker,
+  type FilterSpecification,
+  type GeoJSONSource,
+  type LngLat,
+  type Map as MlMap,
+  type MapSourceDataEvent,
+} from 'maplibre-gl';
+import polygonClipping, { type MultiPolygon, type Polygon } from 'polygon-clipping';
 import type { ExploredCircle } from '../game/fog';
-import type { PoiCategory } from '../game/types';
+import type { DestructionTier, PoiCategory } from '../game/types';
 import { BASEMAP, GROUND_COLOR, slotId } from './mapStyle';
 import { FOG_COLOUR, FOG_TOTAL } from './fogGeometry';
 import { anchorOf, dimHex, inDisc, mixHex, pointInRing, pxPerMetre, toLngLatRing, type Disc, type LngLatPair } from './geo';
 import { alive } from './layers';
+import { breakBuilding, type RuinKind } from './ruinModel';
 
 /**
  * The 3D run map's buildings: the basemap's own footprints extruded to their
@@ -19,6 +29,15 @@ import { alive } from './layers';
  *   in, which then takes the site's colour, lifts its badge to the roof and
  *   takes its taps. A small shop inside a tower (TENANT_MAX_M) keeps a plain
  *   street-level badge: colouring a 200 m tower as a 7-Eleven breaks the read.
+ * - **Ruin.** A visited street site's building wears its ruin tier: Damaged
+ *   is scorched, Ravaged is cut down to a stump, Gutted is swapped for a
+ *   broken model (ruinModel.ts) near the player and a low stump further out.
+ *   Height cuts are a feature-state factor (`ruin`), never a filter.
+ * - **City damage.** The rest of the city is hit too, picked by a stable hash
+ *   of the feature id: some buildings are scorched, a few have collapsed
+ *   (stumps, with broken models for the nearest), and a handful burn (ground
+ *   glow, flames and a smoke column on the nearest). A site's own states
+ *   override these.
  * - **Zoom.** Below LOD_ZOOM the basemap's flat building fills draw instead;
  *   heights grow in across one zoom level, so pinching in raises the city.
  *
@@ -56,6 +75,106 @@ const BASE_BUILDING_COLOR = '#2a2e2a';
  */
 const FLAT_COLOR = dimHex(mixHex(GROUND_COLOR, FOG_COLOUR, FOG_TOTAL), 0.7);
 
+/** Ruin models: a separate extrusion layer of broken pieces. */
+export const RUINS_LAYER = 'ruins-3d';
+const RUINS_SOURCE = 'ruins-3d-src';
+/** Soot the site colour is pulled toward, by ruin tier. */
+const SCORCH_COLOR = '#17140f';
+const SCORCH_BY_TIER: Record<DestructionTier, number> = { 0: 0, 1: 0.3, 2: 0.45, 3: 0.55 };
+/** Broken-model piece shades; the site colour is mixed in so its state still reads. */
+const RUIN_COLORS: Record<RuinKind, string> = {
+  shell: '#27241f',
+  slab: '#3a352d',
+  pillar: '#302c26',
+  rubble: '#3f392f',
+};
+const RUIN_SITE_TINT = 0.4;
+/** Only the nearest Gutted sites get a broken model; the rest stay stumps. */
+const MAX_RUINS = 30;
+const RUIN_RANGE_M = 900;
+/** Model generation budget per slice, so a burst of sites never hitches. */
+const RUIN_BUDGET_MS = 8;
+/** Lower than this there is nothing to break: it just stays a stump. */
+const RUIN_MIN_H = 6;
+
+/** Share of ordinary buildings that are scorched, collapsed, burning. */
+const SCORCH_SHARE = 0.07;
+const COLLAPSE_SHARE = 0.03;
+const FIRE_SHARE = 0.01;
+const BURN_COLOR = '#2c1a10';
+/** Shorter than this a building has nothing to collapse / no roof worth a fire. */
+const COLLAPSE_MIN_H = 10;
+const FIRE_MIN_H = 6;
+/** Broken models for collapsed ordinary buildings, after the sites' own. */
+const MAX_WRECKS = 24;
+/** Fires with a glow and a smoke column; the rest just look burnt. */
+const MAX_FIRES = 14;
+const FIRE_RANGE_M = 1600;
+const FIRE_FLICKER_MS = 110;
+/** Wrecks and fires are re-picked once the sight disc moves this far. */
+const REPICK_M = 25;
+const FIRE_SOURCE = 'fires-3d-src';
+const FIRE_GLOW_LAYER = 'fires-3d-glow';
+const FIRE_CORE_LAYER = 'fires-3d-core';
+
+/** Stable 0..1 hash of a site id, so a ruin looks the same every visit. */
+function hash01(id: string, salt: number): number {
+  let h = 0x811c9dc5 ^ salt;
+  for (let i = 0; i < id.length; i++) {
+    h ^= id.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  h ^= h >>> 13;
+  h = Math.imul(h, 0x5bd1e995);
+  h ^= h >>> 15;
+  return (h >>> 0) / 4294967296;
+}
+
+/** How much of a ruined building still stands (height × this). */
+function stumpFactor(siteId: string, tier: DestructionTier): number {
+  if (tier === 2) return 0.5 + 0.25 * hash01(siteId, 3);
+  if (tier === 3) return 0.18 + 0.14 * hash01(siteId, 3);
+  return 1;
+}
+
+/** How much of a collapsed ordinary building still stands. */
+const ambientStump = (key: string): number => 0.3 + 0.3 * hash01(key, 3);
+
+/** Flames and a smoke column, one marker per fire (index.css .fx-*). */
+function smokeElement(seed: number): { el: HTMLDivElement; puffs: HTMLDivElement } {
+  const el = document.createElement('div');
+  el.style.pointerEvents = 'none';
+  const puffs = document.createElement('div');
+  puffs.className = 'fx-smoke';
+  const salt = Math.floor(seed * 1e6);
+  // Flames first so the smoke rolls over them.
+  for (let i = 0; i < 3; i++) {
+    const flame = document.createElement('div');
+    flame.className = 'fx-flame';
+    flame.style.setProperty('--fx-dx', `${(i - 1) * 9}px`);
+    flame.style.animationDelay = `${(-i * 0.17 - seed).toFixed(2)}s`;
+    flame.style.animationDuration = `${(0.35 + 0.2 * hash01(String(i), salt + 1)).toFixed(2)}s`;
+    if (i !== 1) flame.style.height = '22px';
+    puffs.appendChild(flame);
+  }
+  // One wind direction per fire, with a little spread per puff.
+  const lean = seed < 0.5 ? -1 : 1;
+  for (let i = 0; i < 12; i++) {
+    const puff = document.createElement('div');
+    puff.className = 'fx-puff';
+    puff.style.animationDelay = `${(-i * 0.58 - seed * 7).toFixed(2)}s`;
+    puff.style.setProperty('--fx-drift', `${Math.round(lean * (25 + 45 * hash01(String(i), salt)))}px`);
+    puffs.appendChild(puff);
+  }
+  el.appendChild(puffs);
+  return { el, puffs };
+}
+
+const metresBetween = (aLat: number, aLng: number, bLat: number, bLng: number): number => {
+  const k = Math.cos((aLat * Math.PI) / 180);
+  return Math.hypot((aLat - bLat) * 111_320, (aLng - bLng) * 111_320 * k);
+};
+
 /**
  * Largest building (metres) a site of this kind can *be*. Taller, and the
  * site is a tenant (a shop in a tower block): it keeps a street-level marker.
@@ -83,6 +202,8 @@ export interface Site3d {
   /** The building's colour while it stands for this site. */
   color: string;
   selected: boolean;
+  /** Known ruin tier (visited street sites); absent draws it intact. */
+  ruin?: DestructionTier;
 }
 
 export type BuildingHit = { kind: 'site'; id: string } | { kind: 'building'; lat: number; lng: number };
@@ -102,7 +223,7 @@ interface Box {
   part: boolean;
 }
 
-/** Height (or base) × rise, grown in across the LOD zoom band. */
+/** Height (or base) × rise × ruin, grown in across the LOD zoom band. */
 function heightExpr(base: boolean) {
   const own = base
     ? ['coalesce', ['get', 'render_min_height'], ['get', 'min_height'], 0]
@@ -114,8 +235,67 @@ function heightExpr(base: boolean) {
     LOD_ZOOM,
     0,
     LOD_ZOOM + ZOOM_RISE_SPAN,
-    ['*', own, ['coalesce', ['feature-state', 'rise'], 0]],
+    ['*', own, ['coalesce', ['feature-state', 'rise'], 0], ['coalesce', ['feature-state', 'ruin'], ['feature-state', 'aruin'], 1]],
   ] as unknown as number;
+}
+
+/** A ruin piece's own base / top × rise, on the same zoom ramp. */
+function pieceExpr(prop: 'base' | 'top') {
+  return [
+    'interpolate',
+    ['linear'],
+    ['zoom'],
+    LOD_ZOOM,
+    0,
+    LOD_ZOOM + ZOOM_RISE_SPAN,
+    ['*', ['get', prop], ['coalesce', ['feature-state', 'rise'], 0]],
+  ] as unknown as number;
+}
+
+/** Selected → gold; otherwise the fogged flat colour while down, `color` once standing. */
+function standingColor(color: unknown) {
+  return [
+    'case',
+    ['boolean', ['feature-state', 'selected'], false],
+    SELECTED_COLOR,
+    ['interpolate', ['linear'], ['coalesce', ['feature-state', 'rise'], 0], 0, FLAT_COLOR, 1, ['to-color', color]],
+  ] as unknown as string;
+}
+
+interface RuinModel {
+  pieces: Feature[];
+  /** Tallest piece: where the badge sits. */
+  top: number;
+  /** Building parts flattened with it (collapsed ordinary buildings only). */
+  parts: FeatureId[];
+  /** The building it stands in for (collapsed ordinary buildings only). */
+  owner?: FeatureId;
+}
+
+/** A building wanted as a broken model: a Gutted site, or `b:<id>` for the city's. */
+interface Wreck {
+  key: string;
+  ids: FeatureId[];
+  h: number;
+  site?: string;
+  lat?: number;
+  lng?: number;
+}
+
+interface Indexed {
+  lat: number;
+  lng: number;
+  h: number;
+  part: boolean;
+}
+
+interface Fire {
+  lat: number;
+  lng: number;
+  h: number;
+  phase: number;
+  smoke: Marker;
+  puffs: HTMLDivElement;
 }
 
 const ringBox = (ring: ReadonlyArray<ReadonlyArray<number>>): [number, number, number, number] => {
@@ -155,9 +335,32 @@ export class BuildingEngine {
   private featureToSite = new Map<FeatureId, string>();
   /** Feature-state currently applied to site buildings, keyed by id. */
   private applied = new Map<FeatureId, string>();
+  /** Effective roofs (after ruin) last sent through onRoofs. */
+  private published = new Map<string, number>();
+
+  // Gutted sites' broken models.
+  private ruinCache = new Map<string, RuinModel>();
+  private ruinShown = new Set<string>();
+  private ruinWant: Wreck[] = [];
+  private ruinTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Piece state applied, by site: colour|selected. */
+  private ruinApplied = new Map<string, string>();
+  private nextPieceId = 1;
+  /** Building feature → the wreck key whose pieces rise with it. */
+  private wreckOf = new Map<FeatureId, string>();
+
+  // City damage (see markDamage).
+  private partIds = new Set<FeatureId>();
+  private collapsedIds = new Set<FeatureId>();
+  private fireIds = new Set<FeatureId>();
+  /** Buildings whose scorch / stump state is already on. */
+  private damaged = new Set<FeatureId>();
+  private lastPick: { lat: number; lng: number } | null = null;
+  private fires = new Map<FeatureId, Fire>();
+  private fireTimer: ReturnType<typeof setInterval> | null = null;
 
   /** Buildings in the loaded z15+ tiles: id → anchor. */
-  private index = new Map<FeatureId, { lat: number; lng: number }>();
+  private index = new Map<FeatureId, Indexed>();
   private rise = new Map<FeatureId, Rise>();
   private rising = new Set<FeatureId>();
   private riseRaf = 0;
@@ -175,9 +378,27 @@ export class BuildingEngine {
     this.install();
   }
 
-  /** Roof heights (metres) of the sites matched so far, by site id. */
+  /** Roof heights (metres, after ruin) of the sites matched so far, by site id. */
   roofHeights(): ReadonlyMap<string, number> {
-    return new Map(this.roofs);
+    const out = new Map<string, number>();
+    for (const [id, h] of this.roofs) out.set(id, this.roofOf(id, h));
+    return out;
+  }
+
+  private roofOf(id: string, h: number): number {
+    const tier = this.sites.get(id)?.ruin ?? 0;
+    if (tier === 3 && this.ruinShown.has(id)) return this.ruinCache.get(id)?.top ?? 0;
+    return h * stumpFactor(id, tier);
+  }
+
+  /** Tell the badges when a roof moved (matching, a ruin tier, a model swap). */
+  private publishRoofs() {
+    const next = this.roofHeights();
+    let changed = next.size !== this.published.size;
+    if (!changed) for (const [id, h] of next) if (this.published.get(id) !== h) changed = true;
+    if (!changed) return;
+    this.published = new Map(next);
+    this.onRoofs?.(next);
   }
 
   // --- Lifecycle ---------------------------------------------------------------
@@ -200,20 +421,18 @@ export class BuildingEngine {
         'source-layer': this.sl,
         minzoom: LOD_ZOOM,
         paint: {
-          'fill-extrusion-color': [
-            'case',
-            ['boolean', ['feature-state', 'selected'], false],
-            SELECTED_COLOR,
+          'fill-extrusion-color': standingColor([
+            'coalesce',
+            ['feature-state', 'color'],
             [
-              'interpolate',
-              ['linear'],
-              ['coalesce', ['feature-state', 'rise'], 0],
-              0,
-              FLAT_COLOR,
-              1,
-              ['to-color', ['coalesce', ['feature-state', 'color'], BASE_BUILDING_COLOR]],
+              'case',
+              ['boolean', ['feature-state', 'burn'], false],
+              BURN_COLOR,
+              ['boolean', ['feature-state', 'scorch'], false],
+              SCORCH_COLOR,
+              BASE_BUILDING_COLOR,
             ],
-          ],
+          ]),
           'fill-extrusion-height': heightExpr(false),
           'fill-extrusion-base': heightExpr(true),
           'fill-extrusion-opacity': 0.9,
@@ -222,6 +441,53 @@ export class BuildingEngine {
       },
       slotId('buildings'),
     );
+    map.addSource(RUINS_SOURCE, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+    map.addLayer(
+      {
+        id: RUINS_LAYER,
+        type: 'fill-extrusion',
+        source: RUINS_SOURCE,
+        minzoom: LOD_ZOOM,
+        paint: {
+          'fill-extrusion-color': standingColor(['coalesce', ['feature-state', 'color'], RUIN_COLORS.shell]),
+          'fill-extrusion-height': pieceExpr('top'),
+          'fill-extrusion-base': pieceExpr('base'),
+          'fill-extrusion-opacity': 0.9,
+          'fill-extrusion-vertical-gradient': true,
+        },
+      },
+      slotId('buildings'),
+    );
+    // Fire light on the ground, under the extrusions so buildings stand in it.
+    map.addSource(FIRE_SOURCE, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+    const glow = (id: string, color: string, k: number, blur: number, op: number) =>
+      map.addLayer(
+        {
+          id,
+          type: 'circle',
+          source: FIRE_SOURCE,
+          minzoom: 13,
+          paint: {
+            'circle-color': color,
+            'circle-radius': [
+              'interpolate',
+              ['exponential', 2],
+              ['zoom'],
+              12,
+              ['*', ['get', 's'], k * pxPerMetre(12, 1.35)],
+              20,
+              ['*', ['get', 's'], k * pxPerMetre(20, 1.35)],
+            ],
+            'circle-blur': blur,
+            'circle-opacity': ['*', op, ['get', 'w']],
+            'circle-pitch-alignment': 'map',
+            'circle-pitch-scale': 'map',
+          },
+        },
+        BUILDINGS_LAYER,
+      );
+    glow(FIRE_GLOW_LAYER, '#ff5a14', 1, 1, 0.85);
+    glow(FIRE_CORE_LAYER, '#ffb04a', 0.4, 0.9, 0.95);
     // Sky and light belong to the weather: see atmosphere.ts.
 
     map.on('sourcedata', this.onSourceData);
@@ -241,9 +507,17 @@ export class BuildingEngine {
     if (this.indexTimer) clearTimeout(this.indexTimer);
     if (this.settleTimer) clearTimeout(this.settleTimer);
     if (this.riseRaf) cancelAnimationFrame(this.riseRaf);
+    if (this.ruinTimer) clearTimeout(this.ruinTimer);
+    if (this.fireTimer) clearInterval(this.fireTimer);
+    for (const f of this.fires.values()) f.smoke.remove();
+    this.fires.clear();
     if (!alive(map)) return;
     map.getContainer().style.removeProperty('--roof-lift');
     if (map.getLayer(BUILDINGS_LAYER)) map.removeLayer(BUILDINGS_LAYER);
+    if (map.getLayer(RUINS_LAYER)) map.removeLayer(RUINS_LAYER);
+    if (map.getSource(RUINS_SOURCE)) map.removeSource(RUINS_SOURCE);
+    for (const id of [FIRE_CORE_LAYER, FIRE_GLOW_LAYER]) if (map.getLayer(id)) map.removeLayer(id);
+    if (map.getSource(FIRE_SOURCE)) map.removeSource(FIRE_SOURCE);
     for (const l of this.flatLayers) if (map.getLayer(l.id)) map.setLayerZoomRange(l.id, l.min, l.max);
     // No id: clears every state this engine put on the building layer.
     if (map.getSource(this.src)) map.removeFeatureState({ source: this.src, sourceLayer: this.sl });
@@ -266,6 +540,7 @@ export class BuildingEngine {
     this.explored = explored;
     this.live = { lat: live.lat, lng: live.lng, r: live.radius };
     this.updateReveal(false);
+    this.pickDamage();
   }
 
   /** The sites drawn on screen now (already fog- and viewport-culled). */
@@ -279,7 +554,9 @@ export class BuildingEngine {
     const gone = [...this.sites.keys()].some((id) => !next.has(id));
     this.sites = next;
     if (fresh) this.matchSites();
+    this.pickRuins();
     this.applySiteStates();
+    this.publishRoofs();
     // A site's building stands even in fog, so membership changes the reveal.
     if (fresh || gone) this.updateReveal(false);
   }
@@ -287,8 +564,15 @@ export class BuildingEngine {
   /** What a tap at this screen point lands on, nearest first. */
   hit(point: { x: number; y: number }): BuildingHit | null {
     if (!this.map.getLayer(BUILDINGS_LAYER)) return null;
-    const top = this.map.queryRenderedFeatures([point.x, point.y], { layers: [BUILDINGS_LAYER] })[0];
+    const layers = this.map.getLayer(RUINS_LAYER) ? [RUINS_LAYER, BUILDINGS_LAYER] : [BUILDINGS_LAYER];
+    const top = this.map.queryRenderedFeatures([point.x, point.y], { layers })[0];
     if (!top || top.id === undefined) return null;
+    if (top.layer.id === RUINS_LAYER) {
+      const { site, owner } = top.properties as { site?: unknown; owner?: unknown };
+      if (typeof site === 'string') return this.sites.has(site) ? { kind: 'site', id: site } : null;
+      const known = typeof owner === 'string' || typeof owner === 'number' ? this.index.get(owner) : undefined;
+      return known ? { kind: 'building', lat: known.lat, lng: known.lng } : null;
+    }
     const site = this.featureToSite.get(top.id);
     if (site !== undefined && this.sites.has(site)) return { kind: 'site', id: site };
     // Only a standing building blocks the ground behind it.
@@ -345,6 +629,7 @@ export class BuildingEngine {
     }
     this.lastCam = now;
     this.placeBadges();
+    this.placeSmoke();
   };
 
   /** `isMoving()` is false between per-frame jumpTo calls, so time the gaps. */
@@ -379,14 +664,23 @@ export class BuildingEngine {
   private indexBuildings() {
     const map = this.map;
     if (!map.getSource(this.src) || map.getZoom() < LOD_ZOOM) return;
-    const next = new Map<FeatureId, { lat: number; lng: number }>();
+    const next = new Map<FeatureId, Indexed>();
+    this.partIds.clear();
+    this.collapsedIds.clear();
+    this.fireIds.clear();
     for (const f of map.querySourceFeatures(this.src, { sourceLayer: this.sl })) {
       if (f.id === undefined || next.has(f.id)) continue;
       const at = anchorOf(f.geometry);
-      if (at) next.set(f.id, { lat: at[1], lng: at[0] });
+      if (!at) continue;
+      const props = f.properties as Record<string, unknown>;
+      const h = Number(props.render_height ?? props.height ?? 0);
+      const c: Indexed = { lat: at[1], lng: at[0], h: Number.isFinite(h) ? h : 0, part: props.kind === 'building_part' };
+      next.set(f.id, c);
+      this.markDamage(f.id, c);
     }
     const first = this.index.size === 0;
     this.index = next;
+    this.pickDamage(true);
     // The first reveal (entering 3D, loading a run) is instant; tiles that
     // load later rise in.
     this.updateReveal(first);
@@ -429,6 +723,7 @@ export class BuildingEngine {
         this.rise.set(id, { from: want, to: want, start: now, v: want });
         this.rising.delete(id);
         map.setFeatureState({ source: this.src, sourceLayer: this.sl, id }, { rise: want });
+        this.risePieces(id, want);
       } else {
         const v = cur?.v ?? 0;
         this.rise.set(id, { from: v, to: want, start: now, v });
@@ -451,6 +746,7 @@ export class BuildingEngine {
       const e = 1 - (1 - t) ** 3; // ease-out: quick start, soft landing
       r.v = t >= 1 ? r.to : r.from + (r.to - r.from) * e;
       this.map.setFeatureState({ source: this.src, sourceLayer: this.sl, id }, { rise: r.v });
+      this.risePieces(id, r.v);
       if (t >= 1) this.rising.delete(id);
     }
     if (this.rising.size) this.riseRaf = requestAnimationFrame(this.stepRise);
@@ -549,33 +845,354 @@ export class BuildingEngine {
       changed = true;
     }
     if (!changed) return;
-    this.onRoofs?.(this.roofHeights());
+    this.pickRuins();
     this.applySiteStates();
+    this.publishRoofs();
     this.updateReveal(false);
   }
 
-  /** Push site colours and selection onto the buildings that are sites. */
+  /** Push site colours, selection and ruin onto the buildings that are sites. */
   private applySiteStates() {
     const map = this.map;
     if (this.destroyed || !map.getLayer(BUILDINGS_LAYER)) return;
-    const want = new Map<FeatureId, { color: string; selected: boolean }>();
+    const want = new Map<FeatureId, { color: string; selected: boolean; ruin: number }>();
     for (const [site, ids] of this.siteFeatures) {
       const s = this.sites.get(site);
       if (!s) continue;
-      for (const id of ids) want.set(id, { color: s.color, selected: s.selected });
+      const tier = s.ruin ?? 0;
+      const color = tier ? mixHex(s.color, SCORCH_COLOR, SCORCH_BY_TIER[tier]) : s.color;
+      // A broken model stands in for the box, which lies flat under it.
+      const ruin = tier === 3 && this.ruinShown.has(site) ? 0 : stumpFactor(site, tier);
+      for (const id of ids) want.set(id, { color, selected: s.selected, ruin });
     }
     for (const id of [...this.applied.keys()]) {
       if (want.has(id)) continue;
       const target = { source: this.src, sourceLayer: this.sl, id };
       map.removeFeatureState(target, 'color');
       map.removeFeatureState(target, 'selected');
+      map.removeFeatureState(target, 'ruin');
       this.applied.delete(id);
     }
     for (const [id, s] of want) {
-      const key = `${s.color}|${s.selected ? 1 : 0}`;
+      const key = `${s.color}|${s.selected ? 1 : 0}|${s.ruin}`;
       if (this.applied.get(id) === key) continue;
       map.setFeatureState({ source: this.src, sourceLayer: this.sl, id }, s);
       this.applied.set(id, key);
+    }
+    this.applyPieceStates();
+  }
+
+  // --- City damage ---------------------------------------------------------------
+
+  /**
+   * Fold one freshly indexed building into the city's damage: soot, a stump, a
+   * fire. Picks are a stable hash of the feature id, so the same buildings are
+   * wrecked every visit. A site's own states override these (see heightExpr).
+   */
+  private markDamage(id: FeatureId, c: Indexed) {
+    if (c.part) {
+      this.partIds.add(id);
+      return;
+    }
+    const key = String(id);
+    const fire = c.h >= FIRE_MIN_H && hash01(key, 7) < FIRE_SHARE;
+    const collapse = c.h >= COLLAPSE_MIN_H && hash01(key, 2) < COLLAPSE_SHARE;
+    if (fire) this.fireIds.add(id);
+    if (collapse && !fire) this.collapsedIds.add(id);
+    if (this.damaged.has(id)) return;
+    if (!fire && !collapse && hash01(key, 1) >= SCORCH_SHARE) return;
+    this.damaged.add(id);
+    const state: Record<string, unknown> = { scorch: true };
+    if (collapse) state.aruin = ambientStump(key);
+    this.map.setFeatureState({ source: this.src, sourceLayer: this.sl, id }, state);
+  }
+
+  /** Re-pick wrecks and fires once the sight disc has moved far enough. */
+  private pickDamage(force = false) {
+    const live = this.live;
+    if (!live) return;
+    const last = this.lastPick;
+    if (!force && last && metresBetween(last.lat, last.lng, live.lat, live.lng) < REPICK_M) return;
+    this.lastPick = { lat: live.lat, lng: live.lng };
+    this.pickRuins();
+    this.pickFires();
+  }
+
+  // --- Ruin models --------------------------------------------------------------
+
+  /**
+   * The wrecks that get a broken model: the nearest Gutted sites, then the
+   * nearest collapsed ordinary buildings. Everything else stays a stump.
+   */
+  private pickRuins() {
+    if (this.destroyed || !this.live || !this.map.getLayer(RUINS_LAYER)) return;
+    const live = this.live;
+    const sites: Array<[number, Wreck]> = [];
+    for (const [id, s] of this.sites) {
+      const ids = this.siteFeatures.get(id);
+      const h = this.roofs.get(id) ?? 0;
+      if (s.ruin !== 3 || !ids || h < RUIN_MIN_H) continue;
+      const d = metresBetween(live.lat, live.lng, s.lat, s.lng);
+      if (d <= RUIN_RANGE_M) sites.push([d, { key: id, ids, h, site: id }]);
+    }
+    const city: Array<[number, Wreck]> = [];
+    for (const id of this.collapsedIds) {
+      const c = this.index.get(id);
+      if (!c || this.featureToSite.has(id)) continue;
+      const d = metresBetween(live.lat, live.lng, c.lat, c.lng);
+      if (d <= RUIN_RANGE_M) city.push([d, { key: `b:${id}`, ids: [id], h: c.h, lat: c.lat, lng: c.lng }]);
+    }
+    sites.sort((a, b) => a[0] - b[0]);
+    city.sort((a, b) => a[0] - b[0]);
+    const next = [...sites.slice(0, MAX_RUINS), ...city.slice(0, MAX_WRECKS)].map(([, w]) => w);
+    const keep = new Set(next.map((w) => w.key));
+    let dropped = false;
+    for (const key of [...this.ruinShown]) {
+      if (keep.has(key)) continue;
+      this.flattenUnder(key, false);
+      this.ruinShown.delete(key);
+      dropped = true;
+    }
+    this.ruinWant = next;
+    if (dropped) this.afterRuinChange();
+    if (!this.ruinTimer && next.some((w) => !this.ruinShown.has(w.key))) this.ruinTimer = setTimeout(this.pumpRuins, 0);
+  }
+
+  /** Build wanted models within a time budget; the rest next slice. */
+  private pumpRuins = () => {
+    this.ruinTimer = null;
+    if (this.destroyed || !alive(this.map) || !this.map.getLayer(RUINS_LAYER)) return;
+    // Lower-zoom tiles reuse feature ids for other buildings (see LOD_ZOOM).
+    if (this.map.getZoom() < LOD_ZOOM) return;
+    const t0 = performance.now();
+    let added = false;
+    for (const w of this.ruinWant) {
+      if (this.ruinShown.has(w.key)) continue;
+      if (performance.now() - t0 > RUIN_BUDGET_MS) {
+        this.ruinTimer = setTimeout(this.pumpRuins, 16);
+        break;
+      }
+      let model = this.ruinCache.get(w.key);
+      if (!model) {
+        const built = this.makeRuin(w);
+        if (!built) continue; // its tiles are not in yet: the next pick retries
+        model = built;
+        this.ruinCache.set(w.key, model);
+      }
+      if (!model.pieces.length) continue; // nothing usable: stays a stump
+      this.ruinShown.add(w.key);
+      this.flattenUnder(w.key, true);
+      added = true;
+    }
+    if (added) this.afterRuinChange();
+  };
+
+  private makeRuin(w: Wreck): RuinModel | null {
+    const polys: Polygon[] = [];
+    const filter = ['in', ['id'], ['literal', w.ids]] as unknown as FilterSpecification;
+    for (const f of this.map.querySourceFeatures(this.src, { sourceLayer: this.sl, filter })) {
+      const g = f.geometry;
+      if (g.type === 'Polygon') polys.push(g.coordinates as Polygon);
+      else if (g.type === 'MultiPolygon') polys.push(...(g.coordinates as Polygon[]));
+    }
+    if (!polys.length) return null;
+    let footprint: MultiPolygon;
+    try {
+      // Tile pieces of one building overlap in the tile buffer; fuse them.
+      footprint = polygonClipping.union(polys[0], ...polys.slice(1));
+    } catch {
+      return { pieces: [], top: 0, parts: [] }; // degenerate footprint: stays a stump
+    }
+    // A collapsed building takes the towers drawn as parts inside it down
+    // too, and the tallest of them sets how tall the wreck can stand.
+    const parts: FeatureId[] = [];
+    let h = w.h;
+    const { lat, lng } = w;
+    if (!w.site && lat !== undefined && lng !== undefined) {
+      for (const id of this.partIds) {
+        const p = this.index.get(id);
+        if (!p || Math.abs(p.lat - lat) > 0.003 || Math.abs(p.lng - lng) > 0.003) continue;
+        if (!footprint.some((poly) => pointInRing(p.lng, p.lat, poly[0]))) continue;
+        parts.push(id);
+        h = Math.max(h, p.h);
+      }
+    }
+    const pieces = breakBuilding(footprint, h, Math.floor(hash01(w.key, 9) * 2 ** 31));
+    let top = 0;
+    const owner = w.site ? null : w.ids[0];
+    const features = pieces.map((p): Feature => {
+      if (p.top > top) top = p.top;
+      return {
+        type: 'Feature',
+        id: this.nextPieceId++,
+        geometry: { type: 'Polygon', coordinates: p.poly },
+        properties: { site: w.site ?? null, owner, kind: p.kind, base: p.base, top: p.top },
+      };
+    });
+    return { pieces: features, top, parts, owner: w.ids[0] };
+  }
+
+  /**
+   * A collapsed building's own box (and its towers) lies flat under its model,
+   * and stands back up as a stump when the model goes. Sites do this through
+   * applySiteStates instead.
+   */
+  private flattenUnder(key: string, on: boolean) {
+    const model = this.ruinCache.get(key);
+    if (!key.startsWith('b:') || !model || model.owner === undefined || !this.map.getSource(this.src)) return;
+    const target = (id: FeatureId) => ({ source: this.src, sourceLayer: this.sl, id });
+    this.map.setFeatureState(target(model.owner), { aruin: on ? 0 : ambientStump(String(model.owner)) });
+    for (const id of model.parts) this.map.setFeatureState(target(id), { aruin: on ? 0 : 1 });
+  }
+
+  /** A model came or went: redraw the pieces, re-flatten boxes, move badges. */
+  private afterRuinChange() {
+    const features: Feature[] = [];
+    this.wreckOf.clear();
+    for (const key of this.ruinShown) {
+      const model = this.ruinCache.get(key);
+      if (!model) continue;
+      features.push(...model.pieces);
+      const ids = key.startsWith('b:') ? [model.owner] : this.siteFeatures.get(key) ?? [];
+      for (const id of ids) if (id !== undefined) this.wreckOf.set(id, key);
+    }
+    const fc: FeatureCollection = { type: 'FeatureCollection', features };
+    (this.map.getSource(RUINS_SOURCE) as GeoJSONSource | undefined)?.setData(fc);
+    // New data starts without feature-state: colour and rise go back on.
+    this.ruinApplied.clear();
+    for (const [id, key] of this.wreckOf) this.setPieceRise(key, this.rise.get(id)?.v ?? 0);
+    this.applySiteStates();
+    this.publishRoofs();
+  }
+
+  /** Pieces rise with the building they stand in for. */
+  private risePieces(feature: FeatureId, v: number) {
+    const key = this.wreckOf.get(feature);
+    if (key !== undefined) this.setPieceRise(key, v);
+  }
+
+  private setPieceRise(key: string, rise: number) {
+    for (const f of this.ruinCache.get(key)?.pieces ?? []) {
+      this.map.setFeatureState({ source: RUINS_SOURCE, id: f.id as number }, { rise });
+    }
+  }
+
+  /** Piece colours: their own shade (a site's colour mixed in), and selection. */
+  private applyPieceStates() {
+    if (!this.map.getSource(RUINS_SOURCE)) return;
+    for (const key of this.ruinShown) {
+      const model = this.ruinCache.get(key);
+      if (!model) continue;
+      const s = key.startsWith('b:') ? null : this.sites.get(key);
+      if (!s && !key.startsWith('b:')) continue;
+      const stateKey = s ? `${s.color}|${s.selected ? 1 : 0}` : 'city';
+      if (this.ruinApplied.get(key) === stateKey) continue;
+      for (const f of model.pieces) {
+        const own = RUIN_COLORS[(f.properties as { kind: RuinKind }).kind];
+        this.map.setFeatureState(
+          { source: RUINS_SOURCE, id: f.id as number },
+          s ? { color: mixHex(own, s.color, RUIN_SITE_TINT), selected: s.selected } : { color: own },
+        );
+      }
+      this.ruinApplied.set(key, stateKey);
+    }
+  }
+
+  // --- Fires -------------------------------------------------------------------
+
+  /** Keep a glow and a smoke column on the nearest burning buildings. */
+  private pickFires() {
+    if (this.destroyed || !this.live || !this.map.getLayer(FIRE_GLOW_LAYER)) return;
+    const live = this.live;
+    const near: Array<[number, FeatureId]> = [];
+    for (const id of this.fireIds) {
+      const c = this.index.get(id);
+      if (!c || this.featureToSite.has(id)) continue;
+      const d = metresBetween(live.lat, live.lng, c.lat, c.lng);
+      if (d <= FIRE_RANGE_M) near.push([d, id]);
+    }
+    near.sort((a, b) => a[0] - b[0]);
+    const want = new Set(near.slice(0, MAX_FIRES).map(([, id]) => id));
+    for (const [id, f] of this.fires) {
+      if (want.has(id)) continue;
+      f.smoke.remove();
+      this.map.setFeatureState({ source: this.src, sourceLayer: this.sl, id }, { burn: false });
+      this.fires.delete(id);
+    }
+    for (const id of want) {
+      if (this.fires.has(id)) continue;
+      const c = this.index.get(id);
+      if (!c) continue;
+      const at = this.footprintCentre(id) ?? { lat: c.lat, lng: c.lng };
+      const phase = hash01(String(id), 5);
+      const { el, puffs } = smokeElement(phase);
+      const smoke = new Marker({ element: el, anchor: 'center' }).setLngLat([at.lng, at.lat]).addTo(this.map);
+      this.map.setFeatureState({ source: this.src, sourceLayer: this.sl, id }, { burn: true });
+      this.fires.set(id, { ...at, h: c.h, phase: phase * Math.PI * 2, smoke, puffs });
+    }
+    if (this.fires.size && !this.fireTimer) {
+      this.fireTimer = setInterval(this.flickerFires, FIRE_FLICKER_MS);
+    } else if (!this.fires.size && this.fireTimer) {
+      clearInterval(this.fireTimer);
+      this.fireTimer = null;
+    }
+    this.flickerFires();
+  }
+
+  /** An indexed anchor is one tile's clipped piece; smoke leaves the whole roof's centre. */
+  private footprintCentre(id: FeatureId): { lat: number; lng: number } | null {
+    let x0 = Infinity;
+    let x1 = -Infinity;
+    let y0 = Infinity;
+    let y1 = -Infinity;
+    const filter = ['==', ['id'], id] as unknown as FilterSpecification;
+    for (const f of this.map.querySourceFeatures(this.src, { sourceLayer: this.sl, filter })) {
+      const g = f.geometry;
+      const rings = g.type === 'Polygon' ? g.coordinates : g.type === 'MultiPolygon' ? g.coordinates.flat() : [];
+      for (const ring of rings) {
+        for (const [x, y] of ring) {
+          if (x < x0) x0 = x;
+          if (x > x1) x1 = x;
+          if (y < y0) y0 = y;
+          if (y > y1) y1 = y;
+        }
+      }
+    }
+    return x0 === Infinity ? null : { lat: (y0 + y1) / 2, lng: (x0 + x1) / 2 };
+  }
+
+  /** Two out-of-step sines per fire read as flicker without looking periodic. */
+  private flickerFires = () => {
+    if (this.destroyed || !alive(this.map)) return;
+    const t = performance.now() / 1000;
+    const features: Feature[] = [];
+    for (const f of this.fires.values()) {
+      const w = 0.62 + 0.24 * Math.sin(t * 6.1 + f.phase) + 0.14 * Math.sin(t * 14.3 + f.phase * 3);
+      features.push({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [f.lng, f.lat] },
+        properties: { w, s: 38 + Math.min(f.h, 80) * 0.6 },
+      });
+    }
+    (this.map.getSource(FIRE_SOURCE) as GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features });
+    this.placeSmoke();
+  };
+
+  /** Smoke leaves the roof of a standing burning building (none in fog or zoomed out). */
+  private placeSmoke() {
+    if (!this.fires.size) return;
+    const map = this.map;
+    const z = map.getZoom();
+    const zoomRise = Math.min(1, Math.max(0, (z - LOD_ZOOM) / ZOOM_RISE_SPAN));
+    const lift = Math.sin((map.getPitch() * Math.PI) / 180) * zoomRise;
+    const scale = Math.min(1.8, Math.max(0.45, 2 ** (z - 16.5)));
+    for (const [id, f] of this.fires) {
+      const rise = z < LOD_ZOOM ? 0 : this.rise.get(id)?.v ?? 0;
+      const el = f.smoke.getElement();
+      el.style.display = rise > 0.5 ? '' : 'none';
+      if (rise <= 0.5) continue;
+      f.smoke.setOffset([0, -f.h * rise * pxPerMetre(z, f.lat) * lift]);
+      f.puffs.style.transform = `scale(${scale.toFixed(2)})`;
     }
   }
 

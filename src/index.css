@@ -1319,3 +1319,83 @@ select optgroup {
   outline: 2px solid #f0c040;
   outline-offset: 2px;
 }
+
+/* Burning buildings in the 3D run map (map/buildings.ts): flames and a smoke
+   column on a roof-anchored marker. Ported from the 3D demo. */
+.fx-smoke {
+  position: relative;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+/* Thick black smoke. Its underside is lit orange by the fire, then it goes
+   pure soot as it climbs, swells and leans with the wind. It reads against
+   lit towers and the orange horizon; over black ground it just darkens. */
+.fx-puff {
+  position: absolute;
+  left: -26px;
+  top: -26px;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(8, 6, 5, 0.92) 0%, rgba(14, 11, 9, 0.7) 45%, transparent 72%);
+  filter: blur(5px);
+  opacity: 0;
+  animation: fx-rise 7s cubic-bezier(0.3, 0.6, 0.6, 1) infinite;
+}
+@keyframes fx-rise {
+  0% {
+    transform: translate(0, 0) scale(0.4);
+    opacity: 0;
+    background-color: rgba(255, 110, 30, 0.55);
+  }
+  8% {
+    opacity: 1;
+  }
+  22% {
+    background-color: rgba(255, 110, 30, 0);
+  }
+  70% {
+    opacity: 0.85;
+  }
+  100% {
+    transform: translate(var(--fx-drift, 40px), -280px) scale(4.4);
+    opacity: 0;
+    background-color: rgba(255, 110, 30, 0);
+  }
+}
+
+/* Flames licking off the roof under the smoke. */
+.fx-flame {
+  position: absolute;
+  left: -9px;
+  top: -26px;
+  width: 18px;
+  height: 30px;
+  border-radius: 50% 50% 45% 45% / 60% 60% 40% 40%;
+  background: radial-gradient(ellipse at 50% 75%, #fff4c0 0%, #ffbe3a 30%, #ff5a14 62%, transparent 75%);
+  filter: blur(1.5px);
+  mix-blend-mode: screen;
+  transform-origin: 50% 100%;
+  animation: fx-flicker 0.45s ease-in-out infinite alternate;
+}
+@keyframes fx-flicker {
+  0% {
+    transform: translate(var(--fx-dx, 0), 0) scale(0.85, 0.8) skewX(-4deg);
+    opacity: 0.8;
+  }
+  50% {
+    transform: translate(var(--fx-dx, 0), -2px) scale(1.05, 1.15) skewX(3deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--fx-dx, 0), 1px) scale(0.95, 0.95) skewX(-2deg);
+    opacity: 0.85;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fx-puff {
+    animation-duration: 9s;
+  }
+}

@@ -35,6 +35,8 @@ export function LogPanel({
   onFocusMap,
   onOpenGuide,
   liveNodes = 'timeline',
+  pinned,
+  onTogglePin,
 }: {
   onOpenSettings?: () => void;
   onOpenDayLogs?: () => void;
@@ -43,6 +45,10 @@ export function LogPanel({
   onOpenGuide?: (topic: GuideTopic) => void;
   /** When `map`, hide live event / contact / search controls (phone Map owns them). */
   liveNodes?: LiveNodesHost;
+  /** Desktop HUD: the timeline is held open rather than shrinking to the ticker. */
+  pinned?: boolean;
+  /** Desktop HUD: toggle between the full timeline and the ticker. */
+  onTogglePin?: () => void;
 }) {
   const { locale, t } = useT();
   const log = useGame((s) => s.log);
@@ -158,6 +164,20 @@ export function LogPanel({
               className={`${CTRL} text-white/40 hover:bg-white/5 hover:text-white/70`}
             >
               <Icon name="action.settings" />
+            </button>
+          )}
+          {onTogglePin && (
+            <button
+              onClick={onTogglePin}
+              aria-pressed={!!pinned}
+              {...tip(pinned ? t('ui.log.unpin') : t('ui.log.pin'), { label: true })}
+              className={`${CTRL} ${
+                pinned
+                  ? 'bg-signal/20 text-signal'
+                  : 'text-white/40 hover:bg-white/5 hover:text-white/70'
+              }`}
+            >
+              {pinned ? '⤡' : '⤢'}
             </button>
           )}
         </div>

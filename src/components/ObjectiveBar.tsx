@@ -36,6 +36,8 @@ interface Props {
   intelNoteCount?: number;
   /** Active rumoured pins on the map. */
   rumourCount?: number;
+  /** One line (where to · how long) for the folded desktop phone. */
+  compact?: boolean;
 }
 
 const VIBE_FILL: Record<EvacVibe, string> = {
@@ -97,8 +99,42 @@ export function ObjectiveBar({
   onOpen,
   intelNoteCount = 0,
   rumourCount = 0,
+  compact = false,
 }: Props) {
   const { t } = useT();
+  const countdown = atEvac
+    ? t('ui.objective.atEvac')
+    : windowText
+      ? `${windowText}`
+      : evacZoneName
+        ? `${evacDist} m`
+        : evacCooldownHours != null
+          ? `${evacCooldownHours}h`
+          : '—';
+  const countdownCls = `shrink-0 text-body tabular-nums ${
+    urgent ? 'animate-pulse text-hiss' : 'text-concrete-200'
+  }`;
+  const reach = evacZoneName ? (
+    <ReachLine zone={evacZoneName} />
+  ) : (
+    <span className="text-white/40">
+      {evacCooldownHours != null
+        ? t('ui.objective.channelDark')
+        : t('ui.objective.noWindowSurvive')}
+    </span>
+  );
+
+  if (compact) {
+    return (
+      <button
+        onClick={onOpen}
+        className="flex w-full items-center justify-between gap-2 rounded border border-signal/35 bg-signal/[0.07] px-2.5 py-1.5 text-left transition hover:bg-signal/[0.12]"
+      >
+        <span className="min-w-0 truncate text-body text-concrete-50">{reach}</span>
+        <span className={countdownCls}>{countdown}</span>
+      </button>
+    );
+  }
   // Post-reveal the strip drops the vibe word for the real fill — the label
   // and the bar beside it must not disagree about what is known.
   const vibeShort = manifestRevealed
@@ -121,34 +157,10 @@ export function ObjectiveBar({
         <span className="text-label uppercase text-signal/70">
           <Icon name="action.objectives" /> {t('ui.objective.title')}
         </span>
-        <span
-          className={`shrink-0 text-body tabular-nums ${
-            urgent ? 'animate-pulse text-hiss' : 'text-concrete-200'
-          }`}
-        >
-          {atEvac
-            ? t('ui.objective.atEvac')
-            : windowText
-              ? `${windowText}`
-              : evacZoneName
-                ? `${evacDist} m`
-                : evacCooldownHours != null
-                  ? `${evacCooldownHours}h`
-                  : '—'}
-        </span>
+        <span className={countdownCls}>{countdown}</span>
       </div>
 
-      <div className="mt-0.5 truncate text-read text-concrete-50">
-        {evacZoneName ? (
-          <ReachLine zone={evacZoneName} />
-        ) : (
-          <span className="text-white/40">
-            {evacCooldownHours != null
-              ? t('ui.objective.channelDark')
-              : t('ui.objective.noWindowSurvive')}
-          </span>
-        )}
-      </div>
+      <div className="mt-0.5 truncate text-read text-concrete-50">{reach}</div>
       {townName && townTier && (
         <div className="mt-0.5 truncate text-micro text-white/40">
           {t('ui.town.here', { name: townName, tier: t(`ui.town.${townTier}`) })}

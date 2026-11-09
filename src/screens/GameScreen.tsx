@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { useShallow } from 'zustand/react/shallow';
 import { useGame } from '../game/store';
 import { GameMap } from '../components/GameMap';
-import { TargetDock } from '../components/TargetDock';
+import { HudCard, TargetDock } from '../components/TargetDock';
 import { useMrtNetwork } from '../components/useMrtNetwork';
 import {
   displayLine,
@@ -46,7 +46,13 @@ import { TraderModal } from '../components/TraderModal';
 import { MrtRoutePlanner } from '../components/MrtRoutePlanner';
 import { TunnelRunView } from '../components/TunnelRunView';
 import type { GuideTopic } from '../content/guideContent';
-import { useSetting } from '../game/settings';
+import { useSetting, useSettings } from '../game/settings';
+import { Dock, DOCK_WIDTH, type DockItem } from '../components/hud/Dock';
+import { HudWindow } from '../components/hud/HudWindow';
+import { VitalsHud } from '../components/hud/VitalsHud';
+import { useVitalsAlarm } from '../components/hud/vitalsAlarm';
+import { LogTicker } from '../components/LogTicker';
+import { isModalOpen } from '../components/modalStack';
 import { itemDef } from '../game/loot';
 import { estimateExpedition, withVegetationTravel } from '../game/travel';
 import { unplayableMessage, walkabilityOf } from '../game/playable';
@@ -174,6 +180,69 @@ function sidePanelLabelKey(id: SidePanel): string {
   if (id === 'stats') return 'ui.phone.stats';
   if (id === 'skills') return 'ui.phone.skills';
   return 'ui.phone.objectives';
+}
+
+/**
+ * Desktop HUD windows: every slide-out body plus Condition, which on a phone
+ * lives on the hub tab instead.
+ */
+type HudWin = SidePanel | 'condition';
+
+/** Preferred window width, px. The row shrinks them if it has to. */
+const HUD_WIN_WIDTH: Record<HudWin, number> = {
+  objective: 384,
+  condition: 384,
+  inventory: 720,
+  craft: 880,
+  logbook: 400,
+  stats: 400,
+  skills: 420,
+};
+
+/** Dock order, which is also the 1–9, 0 hotkey order. */
+const DOCK_ORDER = [
+  'objective',
+  'condition',
+  'inventory',
+  'craft',
+  'logbook',
+  'timeline',
+  'stats',
+  'skills',
+  'dayLogs',
+  'settings',
+] as const;
+type DockId = (typeof DOCK_ORDER)[number];
+const DOCK_HOTKEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
+
+/** Gap between HUD windows, and between them and the screen edge, px. */
+const HUD_GAP = 12;
+const HUD_EDGE = 16;
+/** Width the vertical dock reserves down the left of the map, px. */
+const DOCK_RESERVE_X = HUD_EDGE + DOCK_WIDTH + HUD_GAP;
+/** Bottom-anchored desktop HUD clears MapLibre's ~24px attribution bar, px. */
+const HUD_BOTTOM = 32;
+/** The collapsed ticker's width, px (22rem). */
+const TICKER_W = 352;
+/** The desktop phone (VitalsHud) width, px (20rem). */
+const VITALS_W = 320;
+/** Narrowest the HDB cutaway may get before it gives up a reserve, px. */
+const HDB_MIN_W = 440;
+/** The folded desktop phone's height, px (status bar + meters + objective line). */
+const VITALS_FOLDED_H = 130;
+
+function timelineWidth(vw: number): number {
+  return Math.round(Math.max(320, Math.min(480, vw * 0.32)));
+}
+
+function useViewportWidth(): number {
+  const [w, setW] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1280));
+  useEffect(() => {
+    const on = () => setW(window.innerWidth);
+    window.addEventListener('resize', on);
+    return () => window.removeEventListener('resize', on);
+  }, []);
+  return w;
 }
 
 /**
@@ -308,6 +377,11 @@ export function GameScreen() {
   const [trekTarget, setTrekTarget] = useState<{ lat: number; lng: number } | null>(null);
   const [mobileView, setMobileView] = useState<MobileView>('map');
   const [sidePanel, setSidePanel] = useState<SidePanel | null>(null);
+  // Desktop: the open dock windows, oldest first.
+  const [hudWindows, setHudWindows] = useState<HudWin[]>([]);
+  const isPhone = useIsPhone();
+  const isPhoneRef = useRef(isPhone);
+  isPhoneRef.current = isPhone;
   // Craft takes the map's width; the others keep the 360px column. Remembering
   // the last panel keeps that width stable through the 200 ms close, so the
   // workbench does not snap narrow while it is still sliding out.
@@ -345,15 +419,24 @@ export function GameScreen() {
     [peekRestPreview, currentPositionId, hdb, items, hour, day, hordeLevel, currentPos.lat, currentPos.lng],
   );
 
+  /** Desktop: bring a dock window up (it joins the end of the row). */
+  const openHudWindow = useCallback((id: HudWin) => {
+    setHudWindows((ws) => (ws.includes(id) ? ws : [...ws, id]));
+  }, []);
+
   const goToPhoneTab = useCallback((tab: PhoneTab) => {
     setHereSheetOpen(false);
+    if (!isPhoneRef.current) {
+      if (tab === 'inventory' || tab === 'craft') openHudWindow(tab);
+      return;
+    }
     if (tab === 'inventory' || tab === 'craft') {
       setSidePanel(tab);
       return;
     }
     setSidePanel(null);
     setMobileView(tab);
-  }, []);
+  }, [openHudWindow]);
 
   const focusStashOnMap = useCallback((lat: number, lng: number) => {
     setMapFocus((prev) => ({ lat, lng, token: (prev?.token ?? 0) + 1 }));
@@ -361,14 +444,14 @@ export function GameScreen() {
   }, [goToPhoneTab]);
 
   useEffect(() => {
-    if (inventoryOpenToken > 0) setSidePanel('inventory');
-  }, [inventoryOpenToken]);
-
-  const isPhone = useIsPhone();
+    if (inventoryOpenToken <= 0) return;
+    if (isPhoneRef.current) setSidePanel('inventory');
+    else openHudWindow('inventory');
+  }, [inventoryOpenToken, openHudWindow]);
 
   // Escape closes the slide-out unless a higher modal owns the screen.
   useEffect(() => {
-    if (!sidePanel) return;
+    if (!sidePanel || !isPhone) return;
     if (
       settingsOpen ||
       dayLogsOpen ||
@@ -388,6 +471,7 @@ export function GameScreen() {
     return () => window.removeEventListener('keydown', onKey);
   }, [
     sidePanel,
+    isPhone,
     settingsOpen,
     dayLogsOpen,
     guideTopic,
@@ -826,6 +910,109 @@ export function GameScreen() {
   // itself reads the same cached copy through mrtRouteBetween.
   const mrtNet = useMrtNetwork();
 
+  // ---- desktop HUD: dock, floating windows, timeline / ticker -------------
+  const vw = useViewportWidth();
+  const vitalsAlarm = useVitalsAlarm();
+  const setSetting = useSettings((s) => s.setSetting);
+  const timelinePinned = useSetting('timelinePinned') === 'on';
+  const vitalsFolded = useSetting('vitalsFolded') === 'on';
+  // Anything that wants an answer opens the timeline by itself.
+  const timelineFull =
+    timelinePinned || inCombat || awaitingStance || !!pendingEvent || !!pendingSearch;
+  const tlW = timelineWidth(vw);
+
+  const toggleHudWindow = useCallback(
+    (id: HudWin) => {
+      setHudWindows((ws) => {
+        if (ws.includes(id)) return ws.filter((w) => w !== id);
+        const next = [...ws, id];
+        // The row runs edge to edge, short of the timeline when it is open.
+        // When the newcomer does not fit, the oldest windows make room.
+        const room = vw - HUD_EDGE * 2 - (timelineFull ? tlW + HUD_GAP : 0);
+        const used = () =>
+          next.reduce((sum, w) => sum + HUD_WIN_WIDTH[w], 0) + HUD_GAP * (next.length - 1);
+        while (next.length > 1 && used() > room) next.shift();
+        return next;
+      });
+    },
+    [vw, timelineFull, tlW],
+  );
+
+  const activateDock = useCallback(
+    (id: DockId) => {
+      if (id === 'timeline') setSetting('timelinePinned', timelinePinned ? 'off' : 'on');
+      else if (id === 'dayLogs') setDayLogsOpen(true);
+      else if (id === 'settings') setSettingsOpen(true);
+      else toggleHudWindow(id);
+    },
+    [setSetting, timelinePinned, toggleHudWindow],
+  );
+
+  // 1–9, 0 toggle the dock in order; Esc closes the newest window. Both stand
+  // down for modals, text fields and the contact gate. Camera keys are letters,
+  // arrows and +/-, so nothing here overlaps them.
+  const overlayOpen =
+    settingsOpen ||
+    dayLogsOpen ||
+    !!guideTopic ||
+    howToPlayOpen ||
+    traderOpen ||
+    !!ghostOffer;
+  useEffect(() => {
+    if (isPhone || overlayOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
+      if (isModalOpen()) return;
+      const el = e.target as HTMLElement | null;
+      if (
+        el &&
+        (el.tagName === 'INPUT' ||
+          el.tagName === 'TEXTAREA' ||
+          el.tagName === 'SELECT' ||
+          el.isContentEditable)
+      )
+        return;
+      if (e.key === 'Escape') {
+        if (hudWindows.length === 0) return;
+        e.preventDefault();
+        setHudWindows((ws) => ws.slice(0, -1));
+        return;
+      }
+      if (awaitingStance) return;
+      const i = DOCK_HOTKEYS.indexOf(e.key);
+      if (i < 0) return;
+      e.preventDefault();
+      activateDock(DOCK_ORDER[i]);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isPhone, overlayOpen, hudWindows.length, awaitingStance, activateDock]);
+
+  // The here card shrinks to its title on request, and opens again wherever
+  // you arrive next.
+  const [hereCollapsed, setHereCollapsed] = useState(false);
+  const [hereCollapsedAt, setHereCollapsedAt] = useState(currentPositionId);
+  if (hereCollapsedAt !== currentPositionId) {
+    setHereCollapsedAt(currentPositionId);
+    setHereCollapsed(false);
+  }
+
+  // Desktop: the here card's height, so the map centres the pin in the ground
+  // above the bottom-centre pair instead of under it.
+  const [pairH, setPairH] = useState(0);
+  const pairObs = useRef<ResizeObserver | null>(null);
+  const pairRef = useCallback((el: HTMLDivElement | null) => {
+    pairObs.current?.disconnect();
+    pairObs.current = null;
+    if (!el) {
+      setPairH(0);
+      return;
+    }
+    const ro = new ResizeObserver(() => setPairH(Math.round(el.offsetHeight)));
+    ro.observe(el);
+    pairObs.current = ro;
+  }, []);
+
   if (!spawn) return null;
 
   const selHere = sel ? sel.id === currentPositionId : false;
@@ -1022,6 +1209,29 @@ export function GameScreen() {
     </>
   ) : null;
 
+  /** Desktop: the target card only pairs with "here" while the open map shows. */
+  const desktopTarget = !tunnel && !hdb && !mrtPlanner;
+
+  /**
+   * Desktop: the HDB cutaway is drawn in the space the HUD leaves: right of the
+   * dock and phone, left of the timeline (or ticker), above the here card.
+   * When that is too narrow the ticker reserve goes first (it is see-through and
+   * fades), then the phone's: a folded phone moves the building down instead;
+   * an unfolded one is left over it (folding it is the fix on small screens).
+   */
+  const hdbInset = (() => {
+    let top = HUD_EDGE;
+    const bottom = (pairH > 0 ? pairH + HUD_GAP : 0) + HUD_BOTTOM;
+    let left = DOCK_RESERVE_X + VITALS_W + HUD_GAP;
+    let right = HUD_EDGE + (timelineFull ? tlW : TICKER_W) + HUD_GAP;
+    if (vw - left - right < HDB_MIN_W && !timelineFull) right = HUD_EDGE;
+    if (vw - left - right < HDB_MIN_W) {
+      left = DOCK_RESERVE_X;
+      if (vitalsFolded) top = HUD_EDGE + VITALS_FOLDED_H + HUD_GAP;
+    }
+    return { top, right, bottom, left };
+  })();
+
   const hereTitle: ReactNode = hdb ? (
     <span className="inline-flex items-center gap-1.5 normal-case tracking-normal">
       <Icon name="hdb.enterBlock" />
@@ -1071,6 +1281,250 @@ export function GameScreen() {
     contactGate && !isPhone ? 'pointer-events-none select-none opacity-25 saturate-50' : ''
   }`;
 
+  /** Desktop contact gate: everything but the timeline stops taking input. */
+  const deskGate = contactGate && !isPhone;
+
+  // ---- desktop HUD -----------------------------------------------------------
+  const hudWinTitle = (id: HudWin) =>
+    id === 'condition' ? t('ui.hud.condition') : t(sidePanelLabelKey(id));
+  const hudWinIcon = (id: HudWin): IconName =>
+    id === 'condition' ? 'action.status' : SIDE_PANEL_ICONS[id];
+  const hudWinBody = (id: HudWin): ReactNode => {
+    switch (id) {
+      case 'condition':
+        return <ConditionPanel onOpenGuide={setGuideTopic} showSurvivorStats />;
+      case 'inventory':
+        return (
+          <div className="space-y-3">
+            <InventoryPanel layout="equipStash" />
+            <InventoryPanel layout="backpack" />
+          </div>
+        );
+      case 'craft':
+        return <CraftingPanel />;
+      case 'logbook':
+        return <StashLogbook onFocusLocation={focusStashOnMap} />;
+      case 'stats':
+        return <StatsPanel />;
+      case 'skills':
+        return <SkillsPanel />;
+      case 'objective':
+        return (
+          <ObjectivesPanel
+            evacZoneName={evacZone?.name ?? null}
+            evacDist={evacDist}
+            atEvac={atEvac}
+            vibe={readiness.vibe}
+            vibeLine={readiness.vibeLine}
+            manifestRevealed={evacManifestRevealed}
+            evacCurrent={readiness.current}
+            evacRequired={readiness.required}
+            evacRatio={readiness.ratio}
+            evacBias={evacDemandBias ?? 'balanced'}
+            dayMult={dayMult}
+            projectedScore={projectedScore}
+            projectedEvacBonus={projectedEvacBonus}
+            windowText={windowText}
+            urgent={evacUrgent}
+            doom={doom}
+            doomColor={doomColor}
+            doomLabel={doomLabel}
+            townName={hereTown?.name ?? null}
+            townTier={hereTownTier}
+            onEvac={callEvac}
+            onOpenGuide={setGuideTopic}
+            intelNoteCount={intelNoteCount}
+            rumourCount={rumourCount}
+          />
+        );
+    }
+  };
+
+  const dockLabel = (id: DockId): string =>
+    id === 'timeline'
+      ? t('ui.hud.timeline')
+      : id === 'dayLogs'
+        ? t('ui.hud.dayLogs')
+        : id === 'settings'
+          ? t('ui.hud.settings')
+          : hudWinTitle(id);
+  const dockIcon = (id: DockId): IconName =>
+    id === 'timeline'
+      ? 'action.log'
+      : id === 'dayLogs'
+        ? 'action.dayLogs'
+        : id === 'settings'
+          ? 'action.settings'
+          : hudWinIcon(id);
+  const dockItems: DockItem[] = DOCK_ORDER.map((id, i) => ({
+    id,
+    icon: dockIcon(id),
+    label: dockLabel(id),
+    hotkey: DOCK_HOTKEYS[i],
+    active:
+      id === 'timeline'
+        ? timelineFull
+        : id === 'dayLogs'
+          ? dayLogsOpen
+          : id === 'settings'
+            ? settingsOpen
+            : hudWindows.includes(id),
+    badge:
+      id === 'condition' && vitalsAlarm
+        ? 'hiss'
+        : id === 'objective' && evacUrgent
+          ? 'hiss'
+          : id === 'objective' && atEvac
+            ? 'signal'
+            : null,
+    onClick: () => activateDock(id),
+  }));
+
+  const objectiveBarProps = {
+    evacZoneName: evacZone?.name ?? null,
+    evacDist,
+    atEvac,
+    windowText,
+    evacCooldownHours,
+    urgent: evacUrgent,
+    doom,
+    doomColor,
+    doomLabel,
+    townName: hereTown?.name ?? null,
+    townTier: hereTownTier,
+    dayMult,
+    vibe: readiness.vibe,
+    vibeLine: readiness.vibeLine,
+    manifestRevealed: evacManifestRevealed,
+    evacRatio: readiness.ratio,
+    evacReady: readiness.ready,
+    evacCurrent: readiness.current,
+    evacRequired: readiness.required,
+    onOpen: () => toggleHudWindow('objective'),
+    intelNoteCount,
+    rumourCount,
+  };
+  const deskRestButton = (
+    <button
+      onClick={rest}
+      className="shrink-0 rounded border border-white/15 px-2.5 py-1 text-body transition hover:bg-white/5"
+      {...tip(sleepPreview.conditions.summary)}
+    >
+      <Icon name="action.sleep" /> {t('ui.game.rest')}
+    </button>
+  );
+
+  const desktopHud = (
+    <>
+      {/* Always-on readout, top-left, just right of the dock. */}
+      <div
+        className={`pointer-events-none absolute z-[720] ${backgrounded}`}
+        style={{ left: DOCK_RESERVE_X, top: HUD_EDGE }}
+        inert={deskGate}
+      >
+        <VitalsHud
+          day={day}
+          hour={hour}
+          band={time}
+          weatherRow={
+            <div className="flex items-center justify-between gap-2">
+              <WeatherBadge weather={weather} />
+              <div className="flex shrink-0 items-center gap-2">
+                <SleepQualityIndicator preview={sleepPreview} />
+                {deskRestButton}
+              </div>
+            </div>
+          }
+          objective={<ObjectiveBar {...objectiveBarProps} />}
+          objectiveCompact={<ObjectiveBar {...objectiveBarProps} compact />}
+          restButton={deskRestButton}
+          folded={vitalsFolded}
+          onToggleFold={() => setSetting('vitalsFolded', vitalsFolded ? 'off' : 'on')}
+          onOpenCondition={() => toggleHudWindow('condition')}
+          conditionOpen={hudWindows.includes('condition')}
+          conditionLabel={t('ui.hud.condition')}
+        />
+      </div>
+
+      {/* Open windows: a row beside the dock, centred on the free map, oldest
+          on the left. They sit over the here / target pair while open. */}
+      {hudWindows.length > 0 && (
+        <div
+          className={`pointer-events-none absolute z-[730] flex items-end justify-center ${backgrounded}`}
+          style={{
+            left: DOCK_RESERVE_X,
+            top: HUD_EDGE,
+            bottom: HUD_BOTTOM,
+            right: HUD_EDGE + (timelineFull ? tlW + HUD_GAP : 0),
+            gap: HUD_GAP,
+          }}
+          inert={deskGate}
+        >
+          {hudWindows.map((id) => (
+            <HudWindow
+              key={id}
+              icon={hudWinIcon(id)}
+              title={hudWinTitle(id)}
+              widthPx={HUD_WIN_WIDTH[id]}
+              onClose={() => setHudWindows((ws) => ws.filter((w) => w !== id))}
+            >
+              {hudWinBody(id)}
+            </HudWindow>
+          ))}
+        </div>
+      )}
+
+      {/* Timeline: the full panel when pinned or when something needs an
+          answer; otherwise a fading ticker. During the contact gate it is the
+          one lit thing on the screen. */}
+      {timelineFull ? (
+        <aside
+          className={`absolute z-[760] flex min-h-0 flex-col overflow-hidden rounded-lg border border-white/15 bg-concrete-900/90 p-2.5 shadow-signage backdrop-blur-sm transition-shadow duration-300 ${
+            contactGate
+              ? 'ring-2 ring-inset ring-hiss shadow-[0_0_60px_-5px_rgba(217,45,45,0.55)]'
+              : inCombat
+                ? 'ring-1 ring-inset ring-hiss/50'
+                : ''
+          }`}
+          style={{ right: HUD_EDGE, top: HUD_EDGE, bottom: HUD_BOTTOM, width: tlW }}
+        >
+          {inCombat && !contactGate ? (
+            <CombatPanel onOpenGuide={setGuideTopic} />
+          ) : (
+            <LogPanel
+              onOpenSettings={() => setSettingsOpen(true)}
+              onOpenDayLogs={() => setDayLogsOpen(true)}
+              onFocusMap={focusStashOnMap}
+              onOpenGuide={setGuideTopic}
+              liveNodes="timeline"
+              pinned={timelinePinned}
+              onTogglePin={() => setSetting('timelinePinned', timelinePinned ? 'off' : 'on')}
+            />
+          )}
+        </aside>
+      ) : (
+        <div
+          className="pointer-events-none absolute z-[740]"
+          style={{ right: HUD_EDGE, top: HUD_EDGE, width: TICKER_W }}
+        >
+          <LogTicker
+            onExpand={() => setSetting('timelinePinned', 'on')}
+            onFocusMap={focusStashOnMap}
+          />
+        </div>
+      )}
+
+      {/* The dock: a column down the left edge. */}
+      <div
+        className={`pointer-events-none absolute z-[750] ${backgrounded}`}
+        style={{ left: HUD_EDGE, top: HUD_EDGE }}
+        inert={deskGate}
+      >
+        <Dock items={dockItems} />
+      </div>
+    </>
+  );
+
   const shellClass = [
     'relative flex h-full min-h-0 min-w-0 flex-col lg:flex-row',
     phoneFight ? 'phone-fight-open' : '',
@@ -1086,7 +1540,7 @@ export function GameScreen() {
 
       {/* Click map / timeline to dismiss any slide-out. Phone: leave the status
           bar and bottom nav clear so vitals stay readable and tabs stay usable. */}
-      {sidePanel && (
+      {isPhone && sidePanel && (
         <div
           className="absolute inset-x-0 z-[690] max-lg:bottom-[calc(var(--mobile-nav-h)+env(safe-area-inset-bottom,0px))] max-lg:top-[var(--mobile-status-bar-h)] lg:inset-0"
           aria-hidden
@@ -1101,6 +1555,7 @@ export function GameScreen() {
            On desktop it also stacks above the slide-out so that panel tucks in
            behind it — opaque, so nothing shows through mid-slide. On mobile the
            slide-out covers the whole screen, so the rail stays below it. */}
+      {isPhone && (
       <aside
         className={`relative flex-col border-white/10 bg-concrete-900/70 lg:z-[750] lg:flex lg:h-full lg:w-[340px] lg:shrink-0 lg:border-r lg:bg-concrete-900 ${
           mobileView === 'hub' ? show(true) : 'hidden'
@@ -1189,6 +1644,7 @@ export function GameScreen() {
             they're actually about: the target floats over the marker it
             describes, and "here" sits at the foot of the timeline. */}
       </aside>
+      )}
 
       {/* ================= COLUMN 2: the slide-out =================
            Toggled from the rail's panel buttons, closable from its own header.
@@ -1202,6 +1658,7 @@ export function GameScreen() {
           strip is thinner than 360px, so the min-width is what wins there).
           Closed, it parks its own width plus the 340px rail off the left edge,
           so it slides out from behind the rail instead of fading in on top. */}
+      {isPhone && (
       <div
         className={`absolute left-0 z-[700] w-full transition-[transform,width,right] duration-200 ease-out max-lg:bottom-[calc(var(--mobile-nav-h)+env(safe-area-inset-bottom,0px))] max-lg:top-[var(--mobile-status-bar-h)] lg:inset-y-0 lg:left-[340px] ${
           wideSlideOut
@@ -1268,15 +1725,19 @@ export function GameScreen() {
           </div>
         </div>
       </div>
+      )}
 
       {/* ================= COLUMN 3: map — or the HDB block / the tunnel, each
            of which takes the whole view for the duration =================
            Phone: only while Map is the active tab. Status / Log fully replace
            this column — do not keep HDB/tunnel mounted beside them. */}
       <div
-        className={`relative min-h-0 min-w-0 overflow-hidden lg:flex lg:flex-1 ${
+        // lg:isolate — the map's own z-indexes (player pin 1000, marker
+        // stacks) stay inside the map, under the desktop HUD's 720–760.
+        className={`relative min-h-0 min-w-0 overflow-hidden lg:isolate lg:flex lg:flex-1 ${
           mobileView === 'map' ? show(true) : 'hidden'
         } lg:flex ${phoneFight ? '' : backgrounded}`}
+        inert={deskGate}
       >
         {/* Phone active fight: CombatPanel owns the Map tab (no map peek). */}
         {phoneFight && (
@@ -1294,7 +1755,7 @@ export function GameScreen() {
           {tunnel ? (
             <TunnelRunView />
           ) : hdb ? (
-            <HdbDungeonModal onOpenGuide={setGuideTopic} />
+            <HdbDungeonModal onOpenGuide={setGuideTopic} inset={hdbInset} />
           ) : mrtPlanner ? (
             <MrtRoutePlanner
               fromStationId={mrtPlanner.fromStationId}
@@ -1332,11 +1793,18 @@ export function GameScreen() {
                 travelPathBlocked={travelPathBlocked}
                 focusTarget={mapFocus}
                 mapAnnotations={mapAnnotations}
+                padRight={isPhone || !timelineFull ? 0 : tlW + HUD_EDGE}
+                padLeft={isPhone ? 0 : DOCK_RESERVE_X}
+                padBottom={isPhone ? 0 : pairH > 0 ? pairH + HUD_BOTTOM : HUD_BOTTOM}
+                chromeRight={
+                  isPhone ? 0 : HUD_EDGE + (timelineFull ? tlW : TICKER_W) + HUD_GAP / 2
+                }
                 onSelect={selectPoi}
                 onPickGround={pickGround}
               />
-              {/* Docked bottom-right so the travel line into the target stays visible. */}
-              {targetSlot && (
+              {/* Phone: docked bottom-right so the travel line into the target
+                  stays visible. Desktop pairs it with the here card below. */}
+              {isPhone && targetSlot && (
                 <TargetDock title={targetSlot.title} onClose={targetSlot.onClose}>
                   {targetSlot.body}
                 </TargetDock>
@@ -1353,11 +1821,61 @@ export function GameScreen() {
               )}
             </>
           )}
+          {/* Desktop: where you stand and where you are going, side by side at
+              bottom centre of the free map (right of the dock, left of the
+              open timeline), so the two read as one from → to decision. The
+              here card covers whatever fills the view (map, block or tunnel);
+              the target only exists on the open map. */}
+          {!isPhone && (hereSlot || (desktopTarget && targetSlot)) && (
+            <div
+              className="pointer-events-none absolute z-[600] flex items-end justify-center gap-2"
+              style={{
+                // Inside a block the card sits under the building, not the map.
+                left: hdb ? hdbInset.left : DOCK_RESERVE_X,
+                right: hdb ? hdbInset.right : HUD_EDGE + (timelineFull ? tlW + HUD_GAP : 0),
+                bottom: HUD_BOTTOM,
+              }}
+            >
+              {hereSlot && (
+                // Measured for the camera inset. Only the here card counts: it
+                // changes when you arrive (the camera moves anyway), while
+                // picking a target must not shove the map out from under the
+                // cursor.
+                <div ref={pairRef} className="flex min-w-0 max-w-[28rem] flex-1 flex-col">
+                  <HudCard
+                    title={hereTitle}
+                    collapsed={hereCollapsed}
+                    onToggleCollapse={() => setHereCollapsed((c) => !c)}
+                  >
+                    {hereSlot}
+                  </HudCard>
+                </div>
+              )}
+              {hereSlot && desktopTarget && targetSlot && (
+                <span
+                  className="shrink-0 self-center text-title text-signal/70 [text-shadow:0_1px_4px_rgba(0,0,0,0.9)]"
+                  aria-hidden
+                >
+                  →
+                </span>
+              )}
+              {desktopTarget && targetSlot && (
+                <HudCard
+                  title={targetSlot.title}
+                  onClose={targetSlot.onClose}
+                  className="min-w-0 max-w-[28rem] flex-1"
+                >
+                  {targetSlot.body}
+                </HudCard>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
       {/* ================= COLUMN 4: timeline — or the encounter panel, which
            takes the column over for the duration of a fight ================= */}
+      {isPhone && (
       <aside
         className={`min-w-0 overflow-hidden border-white/10 bg-concrete-900/70 p-3 max-lg:flex-col lg:flex lg:w-[35vw] lg:min-w-[320px] lg:shrink-0 lg:border-l lg:p-2.5 ${
           mobileView === 'log' ? show(true) : 'hidden'
@@ -1406,6 +1924,9 @@ export function GameScreen() {
           </RailSection>
         </div>
       </aside>
+      )}
+
+      {!isPhone && desktopHud}
 
       {/* Phone map chrome — interrupt cards stay mounted off-Map (CSS hidden)
           so search keeps ticking; they only cover the Map tab. */}
