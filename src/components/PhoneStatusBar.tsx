@@ -12,8 +12,8 @@ import { useT } from '../i18n';
 import { tip } from './tips';
 import { useClockAdvance } from './useClockAdvance';
 
-/** Tiny icon + fill used in the phone chrome strip. */
-function MiniMeter({
+/** Tiny icon + fill used in the phone chrome strip and the desktop vitals HUD. */
+export function MiniMeter({
   icon,
   value,
   max,

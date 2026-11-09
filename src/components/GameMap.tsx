@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Map as MlMap, Marker } from 'maplibre-gl';
 import type { Feature } from 'geojson';
-import type { Poi, TimeOfDay, WeatherKind, MapAnnotation } from '../game/types';
+import type { DestructionTier, Poi, TimeOfDay, WeatherKind, MapAnnotation } from '../game/types';
 import { WeatherFx } from './WeatherFx';
 import { Atmosphere3d } from './Atmosphere3d';
 import type { WeatherDom } from './useAtmosphere';
@@ -618,6 +618,14 @@ interface Props {
   focusTarget?: { lat: number; lng: number; token: number } | null;
   /** Smudged-map rumoured sites — fuzzy pins until the target POI is found. */
   mapAnnotations?: MapAnnotation[];
+  /** Desktop HUD: px of the right edge covered by the open timeline. */
+  padRight?: number;
+  /** Desktop HUD: px of the left edge covered by the dock. */
+  padLeft?: number;
+  /** Desktop HUD: px of the bottom covered by the here / target cards. */
+  padBottom?: number;
+  /** Desktop HUD: px the map's own top-right buttons shift left (timeline / ticker). */
+  chromeRight?: number;
   onSelect: (poi: Poi) => void;
   onPickGround: (lat: number, lng: number) => void;
 }
@@ -630,6 +638,29 @@ function FocusCamera({ target }: { target: { lat: number; lng: number; token: nu
     map.easeTo({ center: [target.lng, target.lat], duration: 750 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, target?.token, target?.lat, target?.lng]);
+  return null;
+}
+
+/**
+ * Desktop HUD: keep the camera's centre in the part of the map the chrome
+ * leaves open, so following the pin and focus pans land where you can see
+ * them. A chase-camera jump can cut an ease short, so the padding is re-set
+ * once the camera settles.
+ */
+function CameraInset({ left, right, bottom }: { left: number; right: number; bottom: number }) {
+  const map = useMapGL();
+  useEffect(() => {
+    const padding = { top: 0, left, right, bottom };
+    map.easeTo({ padding, duration: 400 });
+    const settle = () => {
+      const p = map.getPadding();
+      if (p.left !== left || p.right !== right || p.bottom !== bottom) map.setPadding(padding);
+    };
+    map.once('moveend', settle);
+    return () => {
+      map.off('moveend', settle);
+    };
+  }, [map, left, right, bottom]);
   return null;
 }
 
@@ -845,6 +876,7 @@ function poiLooksSame(a: Poi, b: Poi): boolean {
       a.isFactionOutpost === b.isFactionOutpost &&
       a.factionId === b.factionId &&
       a.isFactionRevealed === b.isFactionRevealed &&
+      a.destruction === b.destruction &&
       // Compared at both `here` settings so the memo holds regardless of which
       // one this location is rendered at.
       Math.round(ringDanger(a, true)) === Math.round(ringDanger(b, true)) &&
@@ -861,6 +893,8 @@ interface PoiLook {
   outline: Record<string, unknown> | null;
   /** Its building's colour in 3D. */
   color3d: string;
+  /** Known ruin tier, which its 3D building wears. */
+  ruin?: DestructionTier;
 }
 
 /** A sensed, unidentified site's building in 3D: neutral, like its outline. */
@@ -911,6 +945,7 @@ function lookOf(poi: Poi, vis: 'detected' | 'visible' | string, selected: boolea
     },
     // Remembered sites read dimmer than the one you stand in; picked-clean darker still.
     color3d: exhausted ? dimHex(own, 0.35) : here ? own : dimHex(own, 0.55),
+    ruin: here ? poi.destruction : mem?.destruction ?? poi.destruction,
   };
 }
 
@@ -1020,6 +1055,7 @@ const PoiLayer = memo(
             category: l.poi.category,
             color: l.color3d,
             selected: l.poi.id === selectedId,
+            ruin: l.ruin,
           }),
         ),
       );
@@ -1107,6 +1143,10 @@ function GameMapInner({
   travelPathBlocked,
   focusTarget,
   mapAnnotations = [],
+  padRight = 0,
+  padLeft = 0,
+  padBottom = 0,
+  chromeRight = 0,
   onSelect,
   onPickGround,
 }: Props) {
@@ -1164,6 +1204,7 @@ function GameMapInner({
       >
         <ZoomMemory />
         <FocusCamera target={focusTarget} />
+        <CameraInset left={padLeft} right={padRight} bottom={padBottom} />
         <Camera3d on={view3d} />
         <KeyboardCamera home={home} />
         {view3d && <Atmosphere3d kind={weather} time={time} dom={weatherDom} />}
@@ -1218,7 +1259,10 @@ function GameMapInner({
       </MapView>
 
       {/* ---- 3D + rail network toggles, rail legend ---- */}
-      <div className="absolute right-2 top-2 z-[500] flex gap-1.5">
+      <div
+        className="absolute right-2 top-2 z-[500] flex gap-1.5 transition-[right] duration-200"
+        style={chromeRight ? { right: chromeRight } : undefined}
+      >
         <button
           onClick={toggle3d}
           aria-pressed={view3d}
@@ -1246,7 +1290,10 @@ function GameMapInner({
       </div>
 
       {showMrt && net && (
-        <div className="absolute right-2 top-11 z-[500]">
+        <div
+          className="absolute right-2 top-11 z-[500]"
+          style={chromeRight ? { right: chromeRight } : undefined}
+        >
           <MrtLineLegend net={net} destroyedCount={destroyedTunnelEdges.length} />
         </div>
       )}

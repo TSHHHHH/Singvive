@@ -401,8 +401,14 @@ function StairGateBadge({
  */
 export function HdbDungeonModal({
   onOpenGuide,
+  inset,
 }: {
   onOpenGuide?: (topic: GuideTopic) => void;
+  /**
+   * Desktop: px kept clear on each side for the floating HUD (dock and phone,
+   * timeline, the here card), so the building is drawn in the space they leave.
+   */
+  inset?: { top: number; right: number; bottom: number; left: number };
 } = {}) {
   const { locale, t } = useT();
   const hdb = useGame((s) => s.hdb);
@@ -465,7 +471,19 @@ export function HdbDungeonModal({
   );
 
   return (
-    <div className="flex h-full w-full flex-col bg-concrete-950">
+    <div
+      className="box-border flex h-full w-full flex-col bg-concrete-950"
+      style={
+        !isPhone && inset
+          ? {
+              paddingTop: inset.top,
+              paddingRight: inset.right,
+              paddingBottom: inset.bottom,
+              paddingLeft: inset.left,
+            }
+          : undefined
+      }
+    >
       <div className="min-h-0 flex-1 overflow-hidden">
         {isPhone ? (
           <HdbZoomViewport

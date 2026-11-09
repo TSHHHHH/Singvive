@@ -335,7 +335,8 @@ hostility, trade, shelter, aid, and intel:
 - Searching a site is a **real-time fogged grid** (`game/searchSession.ts`), not an instant loot dump.
   Street POIs roll a **destruction tier** on first visit (shown instead of loot richness); haul size
   scales with footprint (~3–7 finds) and item **condition** sits on that ruin's band (Intact =
-  Brand New … Gutted = Old & Torn).
+  Brand New … Gutted = Old & Torn). In the 3D view the site's building shows the same tier:
+  scorched, cut down, or broken open.
   Click fogged cells to prioritize them; finds reveal one by one; Take / Take all claim into the pack
   (overflow to on-site stash). **Done** or **Leave** abandons unclaimed finds. Leaving early still
   spends a **partial search charge**.

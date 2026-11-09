@@ -21,10 +21,16 @@ export function DigitalClock({
   day,
   hour,
   band,
+  variant = 'panel',
 }: {
   day: number;
   hour: number;
   band: TimeOfDay;
+  /**
+   * `lock`: the desktop HUD phone's lock screen — big centred time, day and
+   * band above it, no LCD card. Same spent-time cue, as a glow.
+   */
+  variant?: 'panel' | 'lock';
 }) {
   const clock = useClockFormat();
   const fx = useClockAdvance(day, hour);
@@ -41,6 +47,48 @@ export function DigitalClock({
   const icon: IconName = night ? 'time.night' : dusk ? 'time.dusk' : 'time.day';
   const color = BAND_COLOR[band];
   const pulse = fx ? (fx.kind === 'band' ? 'clock-pulse-band' : 'clock-pulse-tick') : '';
+  const delta = fx && (
+    <span className="clock-delta-chip pointer-events-none absolute -top-1.5 right-0" aria-hidden>
+      +{formatDuration(Math.round(fx.deltaHours * 60))}
+    </span>
+  );
+
+  if (variant === 'lock') {
+    return (
+      <div className="flex flex-col items-center leading-none">
+        <span
+          className={`flex items-center gap-1.5 text-label uppercase text-white/50 ${
+            fx?.dayChanged || fx?.kind === 'band' ? 'clock-label-flash' : ''
+          }`}
+        >
+          <Icon name={icon} size={12} />
+          Day {day} · {TIME_LABEL[band]}
+        </span>
+        <span
+          key={fx?.nonce ?? 'idle'}
+          className={`relative mt-1 flex items-baseline gap-1 overflow-visible ${
+            fx ? `clock-pulse-phone ${pulse}` : ''
+          }`}
+          style={{ '--clock-accent': color } as CSSProperties}
+        >
+          <span
+            className="text-banner tabular-nums"
+            style={{ color, textShadow: `0 0 18px ${color}55` }}
+          >
+            {hh}
+            <span className="animate-pulse">:</span>
+            {mm}
+          </span>
+          {meridiem && (
+            <span className="text-plate uppercase" style={{ color }}>
+              {meridiem}
+            </span>
+          )}
+          {delta}
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -80,11 +128,7 @@ export function DigitalClock({
             {meridiem}
           </span>
         )}
-        {fx && (
-          <span className="clock-delta-chip pointer-events-none absolute -top-1.5 right-0" aria-hidden>
-            +{formatDuration(Math.round(fx.deltaHours * 60))}
-          </span>
-        )}
+        {delta}
       </div>
     </div>
   );

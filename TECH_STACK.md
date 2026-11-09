@@ -76,6 +76,17 @@ goes flat. MapLibre zoom is the old Leaflet zoom − 1 (the saved zoom key moved
   settle). Sites are matched to their building and coloured through feature-state; taps on
   a site's building select it, other buildings walk to them. Badges lift to the roof through the
   `--roof` / `--roof-lift` CSS variables. Spawn select and the route planner stay 2D.
+  A visited street site's building wears its ruin tier: Damaged is scorched, Ravaged is cut to a
+  stump (feature-state `ruin`, a height factor), Gutted swaps for a procedural broken model
+  (`map/ruinModel.ts`, own `ruins-3d` layer) on the nearest 30 within 900 m and stays a low stump
+  beyond. Models build within an 8 ms budget per slice and are cached per site.
+  The rest of the city is damaged by a stable hash of the feature id (same buildings every run,
+  not seeded): 7% scorched (`scorch`), 3% of 10 m+ buildings collapsed (`aruin` stump; the
+  nearest 24 within 900 m get broken models too, flattening the building parts inside them),
+  1% burning (`burn`). The nearest 14 fires within 1.6 km get a flickering ground glow
+  (`fires-3d-glow` / `-core` circle layers under the extrusions) and a flames + smoke `Marker`
+  (`.fx-*` in `index.css`) lifted to the roof. A site's own `color` / `ruin` states override
+  all of it. Wrecks and fires re-pick only when the sight disc moves 25 m or tiles re-index.
 - **Keyboard camera** (`components/KeyboardCamera.tsx`, bindings in `map/cameraKeys.ts`, settings
   `mapKeys` / `mapKeyPanSpeed`). MapLibre's own `keyboard` handler stays off; this is a held-key
   velocity loop on `KeyboardEvent.code` (WASD/arrows pan, Shift faster, Q/E rotate in 3D, +/−
@@ -91,6 +102,29 @@ goes flat. MapLibre zoom is the old Leaflet zoom − 1 (the saved zoom key moved
   (`.wx-bolt`) and cue thunder in `ambience.strike`; reduced motion turns strikes off. In 3D,
   `WeatherFx` drops its flat tint layers and keeps only the moving ones (rain sheet, haze drift,
   heat shimmer); 2D is unchanged. `window.__atmosphere` is the live driver in DEV (`strike()`).
+
+**Desktop HUD (`lg:` and up).** The map is full bleed; the phone's rail, slide-out and timeline
+column render only below `lg`. `src/components/hud/` holds the desktop chrome: `VitalsHud` (clock,
+weather, rest, meters, objective chip; top-left, just right of the dock; its home bar folds it
+to a status strip of meters, a one-line objective and Rest, remembered by the `vitalsFolded`
+setting; inside a block `hdbInset` pads the HDB cutaway clear of dock, phone, timeline and
+here card, and the here card centres under the building), `Dock` (a vertical
+column down the left edge, `DOCK_WIDTH` wide; hotkeys `1`–`9`, `0` in dock order, `Esc` closes
+the newest window, all off under `isModalOpen()`, text focus and the contact gate) and `HudWindow`
+(floating panels in a row beside the dock, centred on the free map; several open at once, the
+oldest closes when the row overflows). The timeline is a fading `LogTicker` top-right until it is
+pinned (`timelinePinned` setting) or something needs an answer (event, search, contact, combat),
+then the full `LogPanel` / `CombatPanel`. The here and target cards are a **pair at bottom
+centre** of the free map (right of the dock, left of the pinned timeline): here (collapsible) →
+target, both `HudCard` from `TargetDock.tsx`, so where you stand and where you are going read as
+one decision. The target only joins on the open map, not in a block, tunnel or the route planner.
+The phone keeps the corner-docked `TargetDock`. Bottom-anchored desktop chrome sits `HUD_BOTTOM`
+(32px) up to clear the attribution bar. `GameMap` takes `padLeft` / `padRight` / `padBottom`
+(camera padding via `CameraInset`, so the chase camera and focus pans centre in the open part of
+the map; `padBottom` follows the **here** card's measured height only, so picking a target never
+shoves the map out from under the cursor) and `chromeRight` (moves the 3D / Rail buttons clear of
+the timeline). During the contact gate the HUD, dock, windows and map go `inert` and dim; the
+timeline stays lit.
 
 ### The type scale
 

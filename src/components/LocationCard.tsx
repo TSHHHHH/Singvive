@@ -115,11 +115,16 @@ function CardSplit({
   info: ReactNode;
   compact?: boolean;
 }) {
+  // Phone: actions first, stacked. Desktop (the bottom-centre here card): the
+  // place reads first and the buttons sit in a row under it; anything that is
+  // not a button (faction services) takes a full row.
   return (
-    <div className={`flex gap-3 ${compact ? 'flex-col' : 'flex-col lg:flex-row'}`}>
+    <div className={`flex gap-3 ${compact ? 'flex-col' : 'flex-col lg:flex-col-reverse'}`}>
       <div
         className={`flex flex-col gap-2 ${
-          compact ? 'w-full' : 'w-full shrink-0 lg:w-[38%]'
+          compact
+            ? 'w-full'
+            : 'w-full lg:grid lg:grid-cols-[repeat(auto-fit,minmax(8.5rem,1fr))] lg:[&>:not(button)]:col-span-full'
         }`}
       >
         {actions}
