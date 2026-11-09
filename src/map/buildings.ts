@@ -222,16 +222,7 @@ export class BuildingEngine {
       },
       slotId('buildings'),
     );
-    map.setSky({
-      'sky-color': '#0b0d0a',
-      'horizon-color': '#1c221c',
-      'fog-color': '#0b0d0a',
-      'sky-horizon-blend': 0.6,
-      'horizon-fog-blend': 0.7,
-      'fog-ground-blend': 0.85,
-      'atmosphere-blend': 0,
-    });
-    map.setLight({ anchor: 'viewport', color: '#ffffff', intensity: 0.4, position: [1.5, 210, 35] });
+    // Sky and light belong to the weather: see atmosphere.ts.
 
     map.on('sourcedata', this.onSourceData);
     map.on('idle', this.onIdle);

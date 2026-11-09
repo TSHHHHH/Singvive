@@ -447,6 +447,11 @@ hostility, trade, shelter, aid, and intel:
     narrower than 360px) and reflows its recipes into as many columns as that width allows.
   - **Centre map** with target dock, trek/location sheets, noise/weather FX; HDB cutaway or tunnel run
     take over when active.
+  - **Weather in 3D.** With the 3D view on, weather lights the city instead of tinting the screen:
+    warm sun on clear days, flat grey under overcast, cold blue-grey in rain, amber soup in haze,
+    harsh orange in a heatwave. Dusk turns it orange, night blue and dim. Haze and rain thicken the
+    far distance. Thunderstorms throw lightning that lights every building for a moment, followed
+    by thunder. Purely visual; the 2D view keeps the flat overlays.
   - **Right timeline** — game log; contact Fight/Flee gate dims the rest of the UI until chosen.
 - **Mobile — phone chrome:** a **status bar** (vitals) sits above the map. Bottom tabs are
   **Map / Hub / Inventory / Craft / Log**. On the map, the selected location / trek slides up as a

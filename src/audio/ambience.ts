@@ -81,6 +81,7 @@ class AmbienceEngine {
   private bedBase = 0;
   private cutoffBase = 900;
   private nextGustAt = 0;
+  private skyThunder = false;
 
   /** 0 = muted, 1 = full. Takes effect immediately. */
   setVolume(v: number): void {
@@ -111,6 +112,20 @@ class AmbienceEngine {
   update(p: AmbienceParams): void {
     this.params = p;
     this.applyLayers();
+  }
+
+  /**
+   * While lightning is drawn on the map, the flashes own the storm's thunder:
+   * the random roll stops and each strike calls `strike`.
+   */
+  setSkyThunder(on: boolean): void {
+    this.skyThunder = on;
+  }
+
+  /** Thunder for a strike just seen, `delay` seconds behind the flash. */
+  strike(delay: number): void {
+    if (!this.ready() || this.params.underground || this.params.weather !== 'thunderstorm') return;
+    this.thunder(delay);
   }
 
   stinger(kind: StingerKind): void {
@@ -363,7 +378,7 @@ class AmbienceEngine {
       this.gecko();
     }
     if (Math.random() < (0.004 + night * 0.01 + p.dread * 0.006) * dt) this.clank();
-    if (p.weather === 'thunderstorm' && Math.random() < 0.025 * dt) this.thunder();
+    if (!this.skyThunder && p.weather === 'thunderstorm' && Math.random() < 0.025 * dt) this.thunder();
   }
 
   // ---- voices ----------------------------------------------------------------
@@ -594,9 +609,9 @@ class AmbienceEngine {
     src.stop(t + 1.5);
   }
 
-  private thunder(): void {
+  private thunder(delay = rand(0.05, 0.6)): void {
     const ctx = this.ctx!;
-    const t = ctx.currentTime + rand(0.05, 0.6);
+    const t = ctx.currentTime + delay;
     const src = ctx.createBufferSource();
     src.buffer = this.brown;
     const lp = ctx.createBiquadFilter();
