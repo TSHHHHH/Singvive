@@ -1,17 +1,13 @@
-import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { CircleMarker, Marker, Polyline, Tooltip, useMap, useMapEvents } from 'react-leaflet';
-import L from 'leaflet';
+import { useEffect, useMemo, useRef, type ReactNode } from 'react';
+import { Marker, Popup, type MapLayerMouseEvent } from 'maplibre-gl';
+import type { Feature } from 'geojson';
 import { typeCss } from '../ui/type';
-import {
-  getMrtNetwork,
-  linesAt,
-  loadMrtNetwork,
-  stationColor,
-  type MrtNetwork,
-  type MrtStation,
-} from '../game/mrt';
+import { linesAt, stationColor, type MrtNetwork, type MrtStation } from '../game/mrt';
 import { edgeKey } from '../game/mrtDamage';
 import { useT } from '../i18n';
+import { useMapGL, useMapEvent } from '../map/hooks';
+import { installOverlay, setData, alive } from '../map/layers';
+import { fc } from '../map/geo';
 
 /**
  * The rail network drawn over the map — and over the tunnel planner, which
@@ -19,37 +15,21 @@ import { useT } from '../i18n';
  * shapes, official colours, codes on the dots once you're zoomed in far
  * enough to read them.
  *
- * Deliberately drawn *over* the fog. The MRT map is the one piece of the city
- * everybody already carries in their head — the fog hides what's in a station,
- * never where the line runs. Collapsed hops keep the same livery but draw
- * dashed and muted — still walkable, a brutal crawl rather than a wall.
+ * Deliberately drawn *over* the fog (slot `mrt`). The MRT map is the one piece
+ * of the city everybody already carries in their head — the fog hides what's
+ * in a station, never where the line runs. Collapsed hops keep the same livery
+ * but draw dashed and muted — still walkable, a brutal crawl rather than a wall.
  */
 
-/**
- * The network, fetching it once if it isn't in memory yet. `enabled` is for
- * callers that shouldn't pay for the file until the player asks to see it.
- */
-export function useMrtNetwork(enabled = true): MrtNetwork | null {
-  const [net, setNet] = useState<MrtNetwork | null>(getMrtNetwork);
-  useEffect(() => {
-    if (!enabled || net) return;
-    let live = true;
-    void loadMrtNetwork().then((n) => {
-      if (live) setNet(n);
-    });
-    return () => {
-      live = false;
-    };
-  }, [enabled, net]);
-  return net;
-}
 
-/** Above the fog (250) but below the pins (600). */
-const MRT_PANE = 'mrt';
-const MRT_PANE_Z = 450;
+/** Station dots; ground-click handlers skip hits on this layer. */
+export const MRT_STATION_LAYER = 'mrt-stations';
 
-/** Zoom at which station codes stop being clutter and start being useful. */
-const LABEL_ZOOM = 15;
+const SRC_TRACKS = 'mrt-tracks';
+const SRC_STATIONS = 'mrt-stations';
+
+/** Zoom at which station codes stop being clutter (MapLibre zoom; Leaflet 15). */
+const LABEL_ZOOM = 14;
 
 interface Props {
   net: MrtNetwork;
@@ -64,48 +44,30 @@ interface Props {
   fromStationId?: string;
   toStationId?: string | null;
   onStationClick?: (station: MrtStation) => void;
-  /** Zoom at which name labels appear. World map stays at 15; planner can go lower. */
+  /** Zoom at which name labels appear. World map stays at 14; planner can go lower. */
   labelZoom?: number;
 }
 
-/** Re-renders on pan/zoom so the labels can track the viewport. */
-function useViewport() {
-  const map = useMap();
-  const [view, setView] = useState(() => ({ zoom: map.getZoom(), bounds: map.getBounds() }));
-  useMapEvents({
-    moveend: () => setView({ zoom: map.getZoom(), bounds: map.getBounds() }),
-    zoomend: () => setView({ zoom: map.getZoom(), bounds: map.getBounds() }),
-  });
-  return view;
-}
-
-const labelIconCache = new Map<string, L.DivIcon>();
-
-function labelIcon(station: MrtStation, color: string): L.DivIcon {
-  const key = `${station.codes.join(',')}|${color}`;
-  const cached = labelIconCache.get(key);
-  if (cached) return cached;
-
+function labelElement(station: MrtStation, color: string): HTMLDivElement {
+  const el = document.createElement('div');
+  el.style.width = '0';
+  el.style.height = '0';
+  el.style.pointerEvents = 'none';
+  el.style.zIndex = '0';
   const codes = station.codes
     .map(
       (c) =>
         `<span style="background:${color};color:#08080a;border-radius:3px;padding:0 3px;font-weight:var(--type-plate-weight);">${c}</span>`,
     )
     .join(' ');
-  const icon = L.divIcon({
-    className: '',
-    html: `<div style="
-      transform:translate(14px,-50%);
-      display:flex;align-items:center;gap:4px;white-space:nowrap;
-      ${typeCss('micro')}color:#e8e5dd;
-      text-shadow:0 1px 3px #000,0 0 6px #000;
-      pointer-events:none;
-    ">${codes}<span>${station.name}</span></div>`,
-    iconSize: [0, 0],
-    iconAnchor: [0, 0],
-  });
-  labelIconCache.set(key, icon);
-  return icon;
+  const inner = document.createElement('div');
+  inner.style.cssText = `transform:translate(14px,-50%);display:flex;align-items:center;gap:4px;white-space:nowrap;${typeCss('micro')}color:#e8e5dd;text-shadow:0 1px 3px #000,0 0 6px #000;pointer-events:none;`;
+  inner.innerHTML = codes;
+  const name = document.createElement('span');
+  name.textContent = station.name;
+  inner.appendChild(name);
+  el.appendChild(inner);
+  return el;
 }
 
 function nearestVertex(path: [number, number][], lat: number, lng: number): number {
@@ -127,11 +89,7 @@ function nearestVertex(path: [number, number][], lat: number, lng: number): numb
  * Slice track geometry between two stations on a line. Falls back to a straight
  * chord when the bake has no shape (or the stations sit on different pieces).
  */
-function hopGeometry(
-  shapes: [number, number][][],
-  a: MrtStation,
-  b: MrtStation,
-): [number, number][] {
+function hopGeometry(shapes: [number, number][][], a: MrtStation, b: MrtStation): [number, number][] {
   let bestPath: [number, number][] | null = null;
   let bestScore = Infinity;
   for (const path of shapes) {
@@ -158,14 +116,6 @@ function hopGeometry(
   ];
 }
 
-interface TrackSeg {
-  key: string;
-  path: [number, number][];
-  color: string;
-  destroyed: boolean;
-  active: boolean;
-}
-
 export function MrtOverlay({
   net,
   destroyedEdges = [],
@@ -176,8 +126,7 @@ export function MrtOverlay({
   labelZoom = LABEL_ZOOM,
 }: Props) {
   const { t } = useT();
-  const map = useMap();
-  const { zoom, bounds } = useViewport();
+  const map = useMapGL();
   const destroyed = useMemo(() => new Set(destroyedEdges), [destroyedEdges]);
   const routeIndex = useMemo(() => {
     if (!routeIds || routeIds.length === 0) return null;
@@ -186,37 +135,59 @@ export function MrtOverlay({
     return idx;
   }, [routeIds]);
 
-  // A pane of its own, so the whole network sits above the fog in one move
-  // rather than fighting the draw order layer by layer.
-  const renderer = useMemo(() => {
-    if (!map.getPane(MRT_PANE)) {
-      const pane = map.createPane(MRT_PANE);
-      pane.style.zIndex = String(MRT_PANE_Z);
-    }
-    return L.svg({ pane: MRT_PANE });
-  }, [map]);
-
-  useEffect(() => {
-    const pane = map.getPane(MRT_PANE);
-    if (pane) pane.style.zIndex = String(MRT_PANE_Z);
-  }, [map]);
+  useEffect(
+    () =>
+      installOverlay(map, 'mrt', { [SRC_TRACKS]: 'geojson', [SRC_STATIONS]: 'geojson' }, [
+        {
+          id: 'mrt-track',
+          type: 'line',
+          source: SRC_TRACKS,
+          filter: ['!', ['get', 'dead']],
+          layout: { 'line-cap': 'round', 'line-join': 'round', 'line-sort-key': ['get', 'sort'] },
+          paint: { 'line-color': ['get', 'color'], 'line-width': ['get', 'w'], 'line-opacity': ['get', 'op'] },
+        },
+        {
+          id: 'mrt-track-dead',
+          type: 'line',
+          source: SRC_TRACKS,
+          filter: ['get', 'dead'],
+          layout: { 'line-cap': 'butt', 'line-join': 'round' },
+          // Dash units are line widths: Leaflet's '6 8' at weight 3.
+          paint: {
+            'line-color': ['get', 'color'],
+            'line-width': ['get', 'w'],
+            'line-opacity': ['get', 'op'],
+            'line-dasharray': [2, 2.7],
+          },
+        },
+        {
+          id: MRT_STATION_LAYER,
+          type: 'circle',
+          source: SRC_STATIONS,
+          layout: { 'circle-sort-key': ['get', 'r'] },
+          paint: {
+            'circle-radius': ['get', 'r'],
+            'circle-color': ['get', 'fill'],
+            'circle-stroke-color': ['get', 'stroke'],
+            'circle-stroke-width': 2,
+          },
+        },
+      ]),
+    [map],
+  );
 
   /**
    * One stroke per adjacent hop. Intact = solid livery; collapsed = same colour,
-   * dashed and muted. Avoids a second “damage” polyline sitting beside the track.
+   * dashed and muted. Avoids a second "damage" polyline sitting beside the track.
    */
-  const tracks = useMemo(() => {
-    const out: TrackSeg[] = [];
+  useEffect(() => {
+    const out: Feature[] = [];
     const seen = new Set<string>();
     for (const line of net.lines) {
       // Branches share parent track geometry — still emit hops so a collapsed
       // CG/CE edge shows on the same stroke as EW.
       const shapes =
-        line.shape.length > 0
-          ? line.shape
-          : line.parent
-            ? (net.lineByCode.get(line.parent)?.shape ?? [])
-            : [];
+        line.shape.length > 0 ? line.shape : line.parent ? (net.lineByCode.get(line.parent)?.shape ?? []) : [];
       for (let i = 1; i < line.stations.length; i++) {
         const a = net.byCode.get(line.stations[i - 1]);
         const b = net.byCode.get(line.stations[i]);
@@ -225,8 +196,7 @@ export function MrtOverlay({
         const dead = destroyed.has(key);
         const ia = routeIndex?.get(a.id);
         const ib = routeIndex?.get(b.id);
-        const active =
-          ia !== undefined && ib !== undefined && Math.abs(ia - ib) === 1;
+        const active = ia !== undefined && ib !== undefined && Math.abs(ia - ib) === 1;
         // Prefer drawing the destroyed style when both a trunk and branch hop
         // share the same undirected edge. Active hops win the last draw.
         const drawKey = `${key}:${active ? 'a' : dead ? 'd' : 'n'}`;
@@ -239,105 +209,140 @@ export function MrtOverlay({
         }
         seen.add(drawKey);
         out.push({
-          key: `${line.code}:${key}:${i}`,
-          path: hopGeometry(shapes, a, b),
-          color: line.color,
-          destroyed: dead,
-          active,
+          type: 'Feature',
+          geometry: { type: 'LineString', coordinates: hopGeometry(shapes, a, b).map(([la, ln]) => [ln, la]) },
+          properties: {
+            color: active ? '#e8c547' : line.color,
+            w: active ? 5 : 3,
+            op: dead ? (active ? 0.9 : 0.45) : active ? 1 : 0.85,
+            dead,
+            sort: active ? 1 : 0,
+          },
         });
       }
     }
-    return out;
-  }, [net, destroyed, routeIndex]);
+    setData(map, SRC_TRACKS, fc(out));
+  }, [map, net, destroyed, routeIndex]);
 
-  const labelled = net.stations.filter((s) => {
-    if (!bounds.contains([s.lat, s.lng])) return false;
-    if (s.id === fromStationId || s.id === toStationId) return true;
-    return zoom >= labelZoom;
-  });
-  const labelledIds = useMemo(() => new Set(labelled.map((s) => s.id)), [labelled]);
-  const pad = bounds.pad(0.2);
-  const stations = net.stations.filter(
-    (s) =>
-      s.id === fromStationId ||
-      s.id === toStationId ||
-      (!!routeIndex?.has(s.id) || pad.contains([s.lat, s.lng])),
-  );
+  useEffect(() => {
+    const feats: Feature[] = net.stations.map((s) => {
+      const color = stationColor(net, s);
+      const interchange = s.codes.length > 1;
+      const isFrom = s.id === fromStationId;
+      const isTo = !!toStationId && s.id === toStationId;
+      const onPath = !!routeIndex?.has(s.id);
+      let radius = interchange ? 6 : 4;
+      if (onPath) radius = Math.max(radius, 5);
+      if (isFrom || isTo) radius = 7;
+      return {
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [s.lng, s.lat] },
+        properties: {
+          id: s.id,
+          r: radius,
+          stroke: isFrom ? '#2bc4d9' : isTo ? '#e8c547' : '#08080a',
+          fill: isFrom ? '#2bc4d9' : isTo ? '#e8c547' : interchange ? '#e8e5dd' : color,
+        },
+      };
+    });
+    setData(map, SRC_STATIONS, fc(feats));
+  }, [map, net, fromStationId, toStationId, routeIndex]);
 
-  return (
-    <>
-      {tracks.map(({ key, path, color, destroyed: dead, active }) => (
-        <Polyline
-          key={key}
-          positions={path}
-          renderer={renderer}
-          pane={MRT_PANE}
-          interactive={false}
-          pathOptions={{
-            color: active ? '#e8c547' : color,
-            weight: active ? 5 : 3,
-            opacity: dead ? (active ? 0.9 : 0.45) : active ? 1 : 0.85,
-            dashArray: dead ? '6 8' : undefined,
-            lineCap: dead ? 'butt' : 'round',
-            lineJoin: 'round',
-          }}
-        />
-      ))}
+  // --- Labels: DOM markers for stations in view, past the label zoom. -------
+  const labels = useRef(new Map<string, { marker: Marker; key: string }>());
+  const labelArgs = useRef({ net, fromStationId, toStationId, labelZoom });
+  labelArgs.current = { net, fromStationId, toStationId, labelZoom };
 
-      {stations.map((s) => {
-        const color = stationColor(net, s);
-        const interchange = s.codes.length > 1;
-        const isFrom = s.id === fromStationId;
-        const isTo = !!toStationId && s.id === toStationId;
-        const onPath = !!routeIndex?.has(s.id);
-        let radius = interchange ? 6 : 4;
-        if (onPath) radius = Math.max(radius, 5);
-        if (isFrom || isTo) radius = 7;
-        const stroke = isFrom ? '#2bc4d9' : isTo ? '#e8c547' : '#08080a';
-        const fill = isFrom ? '#2bc4d9' : isTo ? '#e8c547' : interchange ? '#e8e5dd' : color;
-        return (
-          <Fragment key={s.id}>
-            <CircleMarker
-              center={[s.lat, s.lng]}
-              radius={radius}
-              renderer={renderer}
-              pane={MRT_PANE}
-              eventHandlers={
-                onStationClick
-                  ? { click: () => onStationClick(s) }
-                  : undefined
-              }
-              pathOptions={{
-                color: stroke,
-                weight: 2,
-                fillColor: fill,
-                fillOpacity: 1,
-              }}
-            >
-              <Tooltip direction="top" offset={[0, -6]}>
-                <span className="font-bold">{s.name}</span>
-                {isFrom
-                  ? t('ui.mrt.tooltipHere')
-                  : isTo
-                    ? t('ui.mrt.tooltipDestination')
-                    : ''}
-                <br />
-                {s.codes.join(' · ')} — {linesAt(net, s).map((l) => l.name).join(', ')}
-              </Tooltip>
-            </CircleMarker>
-            {labelledIds.has(s.id) && (
-              <Marker
-                position={[s.lat, s.lng]}
-                icon={labelIcon(s, isFrom ? '#2bc4d9' : isTo ? '#e8c547' : color)}
-                interactive={false}
-                zIndexOffset={-500}
-              />
-            )}
-          </Fragment>
-        );
-      })}
-    </>
-  );
+  const syncLabels = useRef(() => {});
+  syncLabels.current = () => {
+    if (!alive(map)) return;
+    const { net: n, fromStationId: from, toStationId: to, labelZoom: lz } = labelArgs.current;
+    const zoom = map.getZoom();
+    const b = map.getBounds();
+    const want = new Set<string>();
+    for (const s of n.stations) {
+      if (!b.contains([s.lng, s.lat])) continue;
+      const pinned = s.id === from || s.id === to;
+      if (!pinned && zoom < lz) continue;
+      want.add(s.id);
+      const color = s.id === from ? '#2bc4d9' : s.id === to ? '#e8c547' : stationColor(n, s);
+      const key = `${s.codes.join(',')}|${color}`;
+      const had = labels.current.get(s.id);
+      if (had && had.key === key) continue;
+      had?.marker.remove();
+      const marker = new Marker({ element: labelElement(s, color), anchor: 'top-left' })
+        .setLngLat([s.lng, s.lat])
+        .addTo(map);
+      labels.current.set(s.id, { marker, key });
+    }
+    for (const [id, l] of labels.current) {
+      if (!want.has(id)) {
+        l.marker.remove();
+        labels.current.delete(id);
+      }
+    }
+  };
+  useMapEvent('moveend', () => syncLabels.current());
+  useEffect(() => {
+    syncLabels.current();
+  }, [net, fromStationId, toStationId, labelZoom]);
+  useEffect(() => {
+    const all = labels.current;
+    return () => {
+      for (const l of all.values()) l.marker.remove();
+      all.clear();
+    };
+  }, []);
+
+  // --- Hover card + click ----------------------------------------------------
+  const tipArgs = useRef({ net, fromStationId, toStationId, onStationClick, t });
+  tipArgs.current = { net, fromStationId, toStationId, onStationClick, t };
+
+  useEffect(() => {
+    const popup = new Popup({ closeButton: false, closeOnClick: false, offset: 10, className: 'map-tip', anchor: 'bottom' });
+    const stationAt = (e: MapLayerMouseEvent) => {
+      const id = e.features?.[0]?.properties?.id as string | undefined;
+      return id ? tipArgs.current.net.stations.find((s) => s.id === id) : undefined;
+    };
+    const show = (e: MapLayerMouseEvent) => {
+      const s = stationAt(e);
+      if (!s) return;
+      const { net: n, fromStationId: from, toStationId: to, t: tr, onStationClick: click } = tipArgs.current;
+      map.getCanvas().style.cursor = click ? 'pointer' : '';
+      const box = document.createElement('div');
+      const name = document.createElement('span');
+      name.className = 'font-bold';
+      name.textContent = s.name;
+      box.appendChild(name);
+      const suffix = s.id === from ? tr('ui.mrt.tooltipHere') : to && s.id === to ? tr('ui.mrt.tooltipDestination') : '';
+      if (suffix) box.appendChild(document.createTextNode(suffix));
+      box.appendChild(document.createElement('br'));
+      box.appendChild(
+        document.createTextNode(`${s.codes.join(' · ')} — ${linesAt(n, s).map((l) => l.name).join(', ')}`),
+      );
+      popup.setLngLat([s.lng, s.lat]).setDOMContent(box).addTo(map);
+    };
+    const hide = () => {
+      map.getCanvas().style.cursor = '';
+      popup.remove();
+    };
+    const click = (e: MapLayerMouseEvent) => {
+      const s = stationAt(e);
+      if (s) tipArgs.current.onStationClick?.(s);
+    };
+    map.on('mousemove', MRT_STATION_LAYER, show);
+    map.on('mouseleave', MRT_STATION_LAYER, hide);
+    map.on('click', MRT_STATION_LAYER, click);
+    return () => {
+      popup.remove();
+      if (!alive(map)) return;
+      map.off('mousemove', MRT_STATION_LAYER, show);
+      map.off('mouseleave', MRT_STATION_LAYER, hide);
+      map.off('click', MRT_STATION_LAYER, click);
+    };
+  }, [map]);
+
+  return null;
 }
 
 /** The lines a legend should list: branches ride under their parent's name. */
@@ -360,19 +365,13 @@ export function MrtLineLegend({
     <div className="max-w-[45vw] rounded border border-white/15 bg-concrete-900/95 p-2 text-micro text-white/70 shadow-signage">
       {legendLines(net).map((line) => (
         <div key={line.code} className="flex items-center gap-1.5">
-          <span
-            className="inline-block h-0.5 w-4 shrink-0 rounded"
-            style={{ background: line.color }}
-          />
+          <span className="inline-block h-0.5 w-4 shrink-0 rounded" style={{ background: line.color }} />
           <span className="truncate">{line.name}</span>
         </div>
       ))}
       {destroyedCount > 0 && (
         <div className="mt-1 flex items-center gap-1.5 border-t border-white/10 pt-1 text-white/55">
-          <span
-            className="inline-block h-0 w-4 shrink-0 border-t-2 border-dashed border-white/50"
-            aria-hidden
-          />
+          <span className="inline-block h-0 w-4 shrink-0 border-t-2 border-dashed border-white/50" aria-hidden />
           <span>{t('ui.mrt.legendCollapsed')}</span>
         </div>
       )}

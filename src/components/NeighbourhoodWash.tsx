@@ -1,7 +1,7 @@
-import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Marker, Polygon, useMap, useMapEvents } from 'react-leaflet';
-import L from 'leaflet';
+import { Marker, type ExpressionSpecification } from 'maplibre-gl';
+import type { Feature } from 'geojson';
 import { typeCss } from '../ui/type';
 import {
   TOWNS,
@@ -13,20 +13,20 @@ import {
 } from '../game/townField';
 import { useGame } from '../game/store';
 import { useT } from '../i18n';
-
-const TOWN_PANE = 'singvive-towns';
-const TOWN_PANE_Z = 430;
+import { useMapGL, useMapEvent } from '../map/hooks';
+import { installOverlay, setData } from '../map/layers';
+import { fc, toLngLatRing } from '../map/geo';
 
 /**
  * Zoom at which the map stops being a street and becomes a situation overlay.
- * 13+ stays clean; 12 and below is the island front.
+ * 12+ stays clean; below it is the island front. (MapLibre zoom: Leaflet − 1.)
  */
-export const ISLAND_STATUS_ZOOM = 13;
+export const ISLAND_STATUS_ZOOM = 12;
 
-/** Match Leaflet's `.leaflet-zoom-anim` duration so the wash eases with the tiles. */
+/** The wash fades across this much zoom, so it eases in with the pinch. */
+const FADE_SPAN = 0.5;
 const FADE_MS = 250;
-const FADE_EASE = 'cubic-bezier(0, 0, 0.25, 1)';
-const FADE_TRANSITION = `opacity ${FADE_MS}ms ${FADE_EASE}`;
+const FADE_TRANSITION = `opacity ${FADE_MS}ms cubic-bezier(0, 0, 0.25, 1)`;
 
 const TIER_FILL_OPACITY: Record<TownTier, number> = {
   stirring: 0.32,
@@ -109,193 +109,152 @@ function useTownAreas(): TownArea[] | null {
   return areas;
 }
 
-function islandOverlayOn(zoom: number): boolean {
-  return zoom < ISLAND_STATUS_ZOOM;
-}
+const islandOverlayOn = (zoom: number) => zoom < ISLAND_STATUS_ZOOM;
 
-function ensureTownPane(map: L.Map): HTMLElement {
-  const existing = map.getPane(TOWN_PANE);
-  if (existing) return existing;
-  const pane = map.createPane(TOWN_PANE);
-  pane.style.zIndex = String(TOWN_PANE_Z);
-  pane.style.pointerEvents = 'none';
-  pane.classList.toggle('is-wash-off', !islandOverlayOn(map.getZoom()));
-  return pane;
-}
-
-function useMapZoom(): number {
-  const map = useMap();
-  const [zoom, setZoom] = useState(() => map.getZoom());
-  useMapEvents({
-    // Recalc after the animation — per-frame zoom rebuilt polygons + labels.
-    zoomend: (e) => setZoom(e.target.getZoom()),
+/** Whether the island overlay is on, and whether labels should shrink. Updates only on change. */
+function useIslandZoom(): { island: boolean; dense: boolean } {
+  const map = useMapGL();
+  const read = () => {
+    const z = map.getZoom();
+    return { island: islandOverlayOn(z), dense: z < 10 };
+  };
+  const [state, setState] = useState(read);
+  useMapEvent('zoom', () => {
+    const next = read();
+    setState((s) => (s.island === next.island && s.dense === next.dense ? s : next));
   });
-  return zoom;
+  return state;
 }
 
-/**
- * Fade the town pane with Leaflet's zoom animation. Class is toggled from
- * `zoomanim` (destination zoom) so the ease starts with the tiles. Layers stay
- * mounted so fade-in has painted polygons. `filter: opacity()` groups Leaflet's
- * zoom-transformed canvas; pane `opacity` alone leaves those layers painted.
- */
-function TownPaneGate() {
-  const map = useMap();
-  ensureTownPane(map);
+/** Zoom-driven fade: full value below the threshold, gone by it. */
+const zoomFade = (value: ExpressionSpecification | number): ExpressionSpecification => [
+  'interpolate',
+  ['linear'],
+  ['zoom'],
+  ISLAND_STATUS_ZOOM - FADE_SPAN,
+  value,
+  ISLAND_STATUS_ZOOM,
+  0,
+];
 
-  useLayoutEffect(() => {
-    const pane = map.getPane(TOWN_PANE);
-    if (!pane) return;
-    pane.style.pointerEvents = 'none';
+function TownPolygonLayer({ areas, pressureByTown }: { areas: TownArea[]; pressureByTown: Map<string, number> }) {
+  const map = useMapGL();
 
-    let animating = false;
+  useEffect(
+    () =>
+      installOverlay(map, 'wash', { 'town-src': 'geojson' }, [
+        {
+          id: 'town-fill',
+          type: 'fill',
+          source: 'town-src',
+          paint: { 'fill-color': ['get', 'color'], 'fill-opacity': zoomFade(['get', 'op']) },
+        },
+        {
+          id: 'town-line',
+          type: 'line',
+          source: 'town-src',
+          paint: { 'line-color': '#050508', 'line-width': 1, 'line-opacity': zoomFade(0.55) },
+        },
+      ]),
+    [map],
+  );
 
-    const apply = (zoom: number, instant: boolean) => {
-      if (instant) pane.classList.add('is-wash-instant');
-      pane.classList.toggle('is-wash-off', !islandOverlayOn(zoom));
-      if (instant) {
-        void pane.getBoundingClientRect();
-        pane.classList.remove('is-wash-instant');
+  useEffect(() => {
+    const features: Feature[] = [];
+    for (const area of areas) {
+      const tier = townTier(pressureByTown.get(area.townId) ?? 0);
+      for (const rings of area.polygons) {
+        features.push({
+          type: 'Feature',
+          properties: { color: TIER_SWATCH[tier], op: TIER_FILL_OPACITY[tier] },
+          geometry: { type: 'Polygon', coordinates: rings.map(toLngLatRing) },
+        });
       }
-    };
-
-    apply(map.getZoom(), true);
-
-    const onAnim = (e: L.ZoomAnimEvent) => {
-      animating = true;
-      if (typeof e.zoom === 'number') apply(e.zoom, false);
-    };
-    const onZoom = () => {
-      // Wheel/dblclick: zoomanim already set the destination. Pinch has no
-      // zoomanim, so follow live zoom.
-      if (animating) return;
-      apply(map.getZoom(), false);
-    };
-    const onEnd = () => {
-      animating = false;
-      apply(map.getZoom(), false);
-    };
-
-    map.on('zoomanim', onAnim);
-    map.on('zoom', onZoom);
-    map.on('zoomend', onEnd);
-    return () => {
-      map.off('zoomanim', onAnim);
-      map.off('zoom', onZoom);
-      map.off('zoomend', onEnd);
-    };
-  }, [map]);
+    }
+    setData(map, 'town-src', fc(features));
+  }, [map, areas, pressureByTown]);
 
   return null;
 }
 
-function TownPolygonLayer({
-  areas,
-  pressureByTown,
-}: {
-  areas: TownArea[];
-  pressureByTown: Map<string, number>;
-}) {
-  const map = useMap();
-  ensureTownPane(map);
-
-  return (
-    <>
-      {areas.flatMap((area) => {
-        const tier = townTier(pressureByTown.get(area.townId) ?? 0);
-        return area.polygons.map((rings, i) => (
-          <Polygon
-            key={`${area.name}-${i}`}
-            positions={rings}
-            pane={TOWN_PANE}
-            interactive={false}
-            pathOptions={{
-              stroke: true,
-              color: '#050508',
-              weight: 1,
-              opacity: 0.55,
-              fillColor: TIER_SWATCH[tier],
-              fillOpacity: TIER_FILL_OPACITY[tier],
-              interactive: false,
-            }}
-          />
-        ));
-      })}
-    </>
-  );
+function labelHtml(name: string, tierName: string, color: string, scale: number) {
+  return `<div style="
+      transform:translate(-50%,-50%);
+      text-align:center;pointer-events:none;
+      text-shadow:0 1px 3px #000,0 0 8px #000;
+    ">
+      <div style="
+        ${typeCss('label', { scale })}
+        text-transform:uppercase;color:${color};white-space:nowrap;opacity:0.95;
+      ">${name}</div>
+      <div style="
+        ${typeCss('micro', { scale })}
+        text-transform:uppercase;color:${color};opacity:0.8;margin-top:1px;
+      ">${tierName}</div>
+    </div>`;
 }
 
-function TownLabelLayer({
-  pressures,
-  zoom,
-}: {
-  pressures: number[];
-  zoom: number;
-}) {
+/**
+ * Town names over the wash. Kept as DOM markers (type stays on the type.ts
+ * scale, no glyph fonts); built once, restyled in place, faded with CSS.
+ */
+function TownLabelLayer({ pressures, island, dense }: { pressures: number[]; island: boolean; dense: boolean }) {
   const { t } = useT();
-  const map = useMap();
-  ensureTownPane(map);
+  const map = useMapGL();
+  const markers = useRef(new Map<string, { marker: Marker; inner: HTMLDivElement }>());
 
-  // Dense zooms shrink the labels, but as a fraction of the role rather than
-  // four magic pixel values — so they still track the Font size setting.
-  const labelScale = zoom < 11 ? 0.85 : 1;
-  return (
-    <>
-      {TOWNS.map((town, i) => {
-        const tier = townTier(pressures[i] ?? 0);
-        const color = TIER_LABEL[tier];
-        const tierName = t(`ui.town.${tier}`);
-        const icon = L.divIcon({
-          className: '',
-          html: `<div style="
-              transform:translate(-50%,-50%);
-              text-align:center;pointer-events:none;
-              text-shadow:0 1px 3px #000,0 0 8px #000;
-            ">
-              <div style="
-                ${typeCss('label', { scale: labelScale })}
-                text-transform:uppercase;color:${color};white-space:nowrap;opacity:0.95;
-              ">${town.name}</div>
-              <div style="
-                ${typeCss('micro', { scale: labelScale })}
-                text-transform:uppercase;color:${color};opacity:0.8;margin-top:1px;
-              ">${tierName}</div>
-            </div>`,
-          iconSize: [0, 0],
-          iconAnchor: [0, 0],
-        });
-        return (
-          <Marker
-            key={town.id}
-            position={[town.lat, town.lng]}
-            icon={icon}
-            interactive={false}
-            pane={TOWN_PANE}
-            alt={`${town.name} · ${tierName}`}
-          />
-        );
-      })}
-    </>
-  );
+  useEffect(() => {
+    const own = markers.current;
+    for (const town of TOWNS) {
+      const el = document.createElement('div');
+      el.style.width = '0';
+      el.style.height = '0';
+      el.style.pointerEvents = 'none';
+      const inner = document.createElement('div');
+      inner.style.transition = FADE_TRANSITION;
+      el.appendChild(inner);
+      const marker = new Marker({ element: el, anchor: 'top-left' }).setLngLat([town.lng, town.lat]).addTo(map);
+      own.set(town.id, { marker, inner });
+    }
+    return () => {
+      for (const { marker } of own.values()) marker.remove();
+      own.clear();
+    };
+  }, [map]);
+
+  // Dense zooms shrink the labels as a fraction of the role, so they still
+  // track the Font size setting.
+  const scale = dense ? 0.85 : 1;
+  useEffect(() => {
+    TOWNS.forEach((town, i) => {
+      const m = markers.current.get(town.id);
+      if (!m) return;
+      const tier = townTier(pressures[i] ?? 0);
+      const tierName = t(`ui.town.${tier}`);
+      m.inner.innerHTML = labelHtml(town.name, tierName, TIER_LABEL[tier], scale);
+      m.inner.setAttribute('aria-label', `${town.name} · ${tierName}`);
+    });
+  }, [pressures, scale, t]);
+
+  useEffect(() => {
+    for (const { inner } of markers.current.values()) inner.style.opacity = island ? '1' : '0';
+  }, [island]);
+
+  return null;
 }
 
 function TownStatusLegend({ visible }: { visible: boolean }) {
   const { t } = useT();
-  const map = useMap();
+  const map = useMapGL();
   return createPortal(
     <div
       className="pointer-events-none absolute bottom-3 left-3 z-[500] rounded border border-white/15 bg-black/75 px-2.5 py-2 text-body leading-relaxed text-white/75 backdrop-blur-sm"
       style={{ opacity: visible ? 1 : 0, transition: FADE_TRANSITION }}
     >
-      <div className="mb-1 text-plate uppercase text-white/90">
-        {t('ui.town.legendTitle')}
-      </div>
+      <div className="mb-1 text-plate uppercase text-white/90">{t('ui.town.legendTitle')}</div>
       {TOWN_TIER_ORDER.map((tier) => (
         <div key={tier} className="mt-0.5 flex items-center gap-2">
-          <span
-            className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm"
-            style={{ background: TIER_SWATCH[tier] }}
-          />
+          <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: TIER_SWATCH[tier] }} />
           {t(`ui.town.${tier}`)}
         </div>
       ))}
@@ -313,8 +272,7 @@ export function NeighbourhoodWash() {
   const seed = useGame((s) => s.seed);
   const groundZeroId = useGame((s) => s.groundZeroId);
   const hordeLevel = useGame((s) => s.hordeLevel);
-  const zoom = useMapZoom();
-  const island = islandOverlayOn(zoom);
+  const { island, dense } = useIslandZoom();
   const areas = useTownAreas();
 
   const pressures = useMemo(() => {
@@ -335,11 +293,8 @@ export function NeighbourhoodWash() {
 
   return (
     <>
-      <TownPaneGate />
-      {areas && areas.length > 0 && (
-        <TownPolygonLayer areas={areas} pressureByTown={pressureByTown} />
-      )}
-      <TownLabelLayer pressures={pressures} zoom={zoom} />
+      {areas && areas.length > 0 && <TownPolygonLayer areas={areas} pressureByTown={pressureByTown} />}
+      <TownLabelLayer pressures={pressures} island={island} dense={dense} />
       <TownStatusLegend visible={island} />
     </>
   );

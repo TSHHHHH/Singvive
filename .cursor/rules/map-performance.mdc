@@ -1,12 +1,12 @@
 ---
-description: Leaflet map and React performance rules for components and GameScreen
+description: MapLibre map and React performance rules for components and GameScreen
 globs: src/components/**,src/screens/**
 alwaysApply: false
 ---
 
 # Map & UI performance
 
-Client-side scale pressure is Leaflet DOM, `pois.json` parse, and localStorage — not combat resolution.
+Client-side scale pressure is the WebGL map and its DOM markers, `pois.json` parse, and localStorage — not combat resolution.
 
 ## Store subscriptions
 
@@ -16,12 +16,12 @@ Client-side scale pressure is Leaflet DOM, `pois.json` parse, and localStorage �
 
 ## POI layers
 
-- **Viewport-cull** POIs: `getBounds().pad(0.2)` — never map every `locations` entry to a Marker/Polygon
-- Hidden POIs must not become Leaflet layers
+- **Viewport-cull** POIs: bounds padded 0.2, cap 450 — never map every `locations` entry to a Marker/feature
+- Hidden POIs must not become markers or GeoJSON features
 
 ## Code splitting
 
-- Keep Leaflet out of the menu chunk — `React.lazy` for spawn/game/create/death screens
+- Keep MapLibre out of the menu chunk — `React.lazy` for spawn/game/create/death screens
 - Do not add a second mapping library
 
 ## State updates
@@ -31,8 +31,13 @@ Client-side scale pressure is Leaflet DOM, `pois.json` parse, and localStorage �
 
 ## Fog
 
-- Fog is a tiled canvas GridLayer with in-place tile refresh
-- Do not remount tiles on energy ticks or replace with one fullscreen canvas
+- Fog is ground polygons (`src/map/fogGeometry.ts`): cached explored union minus the live disc
+- Do not rebuild the explored union on energy ticks
+
+## 3D buildings
+
+- Drive the extrusion with feature-state only (rise, colour, selected) — never re-add or re-filter the layer per tick
+- Overlays go through `installOverlay` slots, not raw `addLayer` with ad-hoc `beforeId`
 
 ## Example
 

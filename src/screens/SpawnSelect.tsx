@@ -1,6 +1,4 @@
 import { useEffect, useState } from 'react';
-import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
-import L from 'leaflet';
 import { useShallow } from 'zustand/react/shallow';
 import { useGame } from '../game/store';
 import { useSetting, useSettings } from '../game/settings';
@@ -16,35 +14,20 @@ import {
 import { prefetchBake } from '../game/bakedPois';
 import { playerIcon } from '../components/mapIcons';
 import { UnplayableLegend, UnplayableOverlay } from '../components/UnplayableOverlay';
-import { MrtLineLegend, MrtOverlay, useMrtNetwork } from '../components/MrtOverlay';
-import {
-  TILE_ATTRIBUTION,
-  TILE_MAX_NATIVE_ZOOM,
-  TILE_SUBDOMAINS,
-  TILE_URL,
-} from '../components/tileConfig';
+import { MrtLineLegend, MrtOverlay } from '../components/MrtOverlay';
+import { useMrtNetwork } from '../components/useMrtNetwork';
+import { MapView } from '../map/MapView';
+import { useMapGL, useMapEvent } from '../map/hooks';
+import { MapMarker } from '../map/markers';
+import { SG_BOX } from '../map/mapStyle';
 import { Icon } from '../icons/Icon';
 import { useT } from '../i18n';
 import { tip } from '../components/tips';
-
-const bounds = L.latLngBounds(
-  [SG_BOUNDS.minLat, SG_BOUNDS.minLng],
-  [SG_BOUNDS.maxLat, SG_BOUNDS.maxLng],
-);
 
 interface Picked {
   lat: number;
   lng: number;
   name: string;
-}
-
-function SizeFix() {
-  const map = useMap();
-  useEffect(() => {
-    const t = setTimeout(() => map.invalidateSize(), 80);
-    return () => clearTimeout(t);
-  }, [map]);
-  return null;
 }
 
 function ClickCatcher({
@@ -54,29 +37,24 @@ function ClickCatcher({
   onPick: (lat: number, lng: number) => void;
   onReject: (msg: string) => void;
 }) {
-  useMapEvents({
-    click(e) {
-      const { lat, lng } = e.latlng;
-      const reason = walkabilityOf(lat, lng);
-      if (reason !== 'ok') {
-        onReject(unplayableMessage(reason, 'spawn'));
-        return;
-      }
-      onPick(lat, lng);
-    },
+  useMapEvent('click', (e) => {
+    const { lat, lng } = e.lngLat;
+    const reason = walkabilityOf(lat, lng);
+    if (reason !== 'ok') {
+      onReject(unplayableMessage(reason, 'spawn'));
+      return;
+    }
+    onPick(lat, lng);
   });
   return null;
 }
 
-/**
- * Concurrent pan+zoom via setView. Prefer this over flyTo — flyTo re-zooms every
- * frame and desyncs ImageOverlay terrain washes on the spawn map.
- */
+/** Concurrent pan+zoom (easeTo, not flyTo's zoom-out arc). MapLibre zoom 14 = Leaflet 15. */
 function FocusSpawn({ lat, lng }: { lat: number; lng: number }) {
-  const map = useMap();
+  const map = useMapGL();
   useEffect(() => {
-    const targetZoom = Math.max(map.getZoom(), 15);
-    map.setView([lat, lng], targetZoom, { animate: true, duration: 0.8 });
+    const targetZoom = Math.max(map.getZoom(), 14);
+    map.easeTo({ center: [lng, lat], zoom: targetZoom, duration: 800 });
   }, [map, lat, lng]);
   return null;
 }
@@ -248,23 +226,14 @@ export function SpawnSelect() {
       )}
 
       <div className="relative min-h-0 flex-1 overflow-hidden rounded-lg border border-white/10">
-        <MapContainer
-          center={SG_CENTER}
-          zoom={12}
-          minZoom={11}
-          maxBounds={bounds}
-          maxBoundsViscosity={1}
+        <MapView
+          center={{ lat: SG_CENTER[0], lng: SG_CENTER[1] }}
+          zoom={11}
+          minZoom={10}
+          bounds={SG_BOX}
           className="h-full w-full"
           style={{ background: '#0b0d0a' }}
         >
-          <TileLayer
-            attribution={TILE_ATTRIBUTION}
-            url={TILE_URL}
-            subdomains={TILE_SUBDOMAINS}
-            maxZoom={20}
-            maxNativeZoom={TILE_MAX_NATIVE_ZOOM}
-          />
-          <SizeFix />
           {zones && <UnplayableOverlay zones={zones} />}
           {showMrt && mrtNet && <MrtOverlay net={mrtNet} />}
           <ClickCatcher
@@ -278,11 +247,11 @@ export function SpawnSelect() {
           />
           {picked && (
             <>
-              <Marker position={[picked.lat, picked.lng]} icon={playerIcon()} />
+              <MapMarker lat={picked.lat} lng={picked.lng} icon={playerIcon()} zIndex={10} />
               <FocusSpawn lat={picked.lat} lng={picked.lng} />
             </>
           )}
-        </MapContainer>
+        </MapView>
 
         <button
           onClick={toggleMrt}

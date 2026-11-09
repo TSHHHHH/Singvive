@@ -33,9 +33,6 @@ cutaways, tunnel runs, extraction, and an in-game guide are all implemented end 
 npm install
 ```
 
-Copy `.env.example` to `.env.local` and set `VITE_CARTO_API_KEY` — without it the CARTO basemap
-tiles are watermarked, but the game still runs.
-
 ```bash
 npm run dev
 ```
@@ -51,7 +48,7 @@ Then open **http://localhost:5190** (not 5173 — the port is overridden in `vit
 | `npm run build` | Typecheck (`tsc -b`) then production build — **this is the typecheck gate** |
 | `npm run build:itch` | Static itch.io zip at `release/singvive-itch.zip` (`index.html` at the archive root) |
 | `npm run test` | Vitest over the pure `src/game/` logic |
-| `npm run lint` | oxlint (`--max-warnings=27`) + type-scale guard |
+| `npm run lint` | oxlint (`--max-warnings=25`) + type-scale guard |
 | `npm run preview` | Serve the production build locally (Worker + assets) |
 | `npm run db:migrate:local` | Apply D1 migrations to the local honor board (first run) |
 | `npm run deploy` | Build and publish to Cloudflare Workers |
@@ -118,7 +115,7 @@ given seed, forked per system, and testable without a DOM. No React, no `fetch`,
 
 ## Stack
 
-React 19 · TypeScript 6 (strict) · Vite 8 · Zustand 5 · Leaflet + react-leaflet · Tailwind 3 ·
+React 19 · TypeScript 6 (strict) · Vite 8 · Zustand 5 · MapLibre GL (2D/3D) · Tailwind 3 ·
 oxlint · Vitest · Cloudflare Workers + D1. Run state is localStorage; the only runtime API is
 same-origin `/api/scores`.
 

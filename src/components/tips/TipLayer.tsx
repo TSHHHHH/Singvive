@@ -130,7 +130,7 @@ function TipLayerInner() {
       const tipped = el?.closest?.('[data-tip]') as HTMLElement | null;
       if (tipped) return tipped;
       // Nothing in the app sets `title` any more, but third-party DOM does —
-      // leaflet's zoom and attribution controls, for instance. Adopt any stray
+      // MapLibre's navigation and attribution controls, for instance. Adopt any stray
       // native title the first time it is hovered so the grey OS tooltip never
       // appears anywhere. `[title]` matches the attribute only, so SVG <title>
       // children (BodyDoll's body parts) are deliberately left alone.

@@ -19,8 +19,8 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         output: {
           manualChunks(id) {
-            if (id.includes('node_modules/leaflet') || id.includes('react-leaflet')) {
-              return 'leaflet';
+            if (id.includes('node_modules/maplibre-gl') || id.includes('node_modules/polygon-clipping')) {
+              return 'maplibre';
             }
           },
         },

@@ -1,6 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { MapContainer, TileLayer, useMap } from 'react-leaflet';
-import L from 'leaflet';
 import {
   findRoutes,
   routeStationIds,
@@ -11,14 +9,11 @@ import { estimateTunnelWalk, formatDuration } from '../game/travel';
 import { loadEffectsFor } from '../game/inventory';
 import { sumTraitMod } from '../game/character';
 import { useGame } from '../game/store';
-import { MrtLineLegend, MrtOverlay, useMrtNetwork } from './MrtOverlay';
-import {
-  TILE_ATTRIBUTION,
-  TILE_MAX_NATIVE_ZOOM,
-  TILE_SUBDOMAINS,
-  TILE_URL,
-} from './tileConfig';
-import { SG_BOUNDS } from '../game/singapore';
+import { MrtLineLegend, MrtOverlay } from './MrtOverlay';
+import { useMrtNetwork } from './useMrtNetwork';
+import { MapView } from '../map/MapView';
+import { useMapGL } from '../map/hooks';
+import { SG_BOX } from '../map/mapStyle';
 import { useT, type TVars } from '../i18n';
 
 /**
@@ -26,20 +21,6 @@ import { useT, type TVars } from '../i18n';
  * fewest-intact routes (and a shorter collapsed shortcut if one exists), then
  * descend into one crawl.
  */
-
-const bounds = L.latLngBounds(
-  [SG_BOUNDS.minLat, SG_BOUNDS.minLng],
-  [SG_BOUNDS.maxLat, SG_BOUNDS.maxLng],
-);
-
-function SizeFix() {
-  const map = useMap();
-  useEffect(() => {
-    const t = setTimeout(() => map.invalidateSize(), 80);
-    return () => clearTimeout(t);
-  }, [map]);
-  return null;
-}
 
 function FitTo({
   from,
@@ -50,21 +31,35 @@ function FitTo({
   to: MrtStation | null;
   route: MrtRoute | null;
 }) {
-  const map = useMap();
+  const map = useMapGL();
   useEffect(() => {
-    const pts: [number, number][] = [[from.lat, from.lng]];
-    if (to) pts.push([to.lat, to.lng]);
+    // [lng, lat]; MapLibre zooms are Leaflet's minus one (512 px tiles).
+    const pts: [number, number][] = [[from.lng, from.lat]];
+    if (to) pts.push([to.lng, to.lat]);
     if (route) {
       for (const leg of route.legs) {
-        pts.push([leg.from.lat, leg.from.lng]);
-        for (const s of leg.stops) pts.push([s.lat, s.lng]);
+        pts.push([leg.from.lng, leg.from.lat]);
+        for (const s of leg.stops) pts.push([s.lng, s.lat]);
       }
     }
     if (pts.length === 1) {
-      map.setView(pts[0], 13);
+      map.jumpTo({ center: pts[0], zoom: 12 });
       return;
     }
-    map.fitBounds(L.latLngBounds(pts), { padding: [40, 40], maxZoom: 15 });
+    let w = Infinity, s = Infinity, e = -Infinity, n = -Infinity;
+    for (const [x, y] of pts) {
+      w = Math.min(w, x);
+      e = Math.max(e, x);
+      s = Math.min(s, y);
+      n = Math.max(n, y);
+    }
+    map.fitBounds(
+      [
+        [w, s],
+        [e, n],
+      ],
+      { padding: 40, maxZoom: 14 },
+    );
   }, [map, from, to, route]);
   return null;
 }
@@ -188,24 +183,13 @@ export function MrtRoutePlanner({
       </div>
 
       <div className="relative min-h-0 flex-1">
-        <MapContainer
-          center={[from.lat, from.lng]}
-          zoom={12}
-          preferCanvas
-          zoomControl={false}
+        <MapView
+          center={from}
+          zoom={11}
           className="h-full w-full"
           style={{ background: '#08080a' }}
-          maxBounds={bounds}
-          maxBoundsViscosity={1}
+          bounds={SG_BOX}
         >
-          <TileLayer
-            url={TILE_URL}
-            attribution={TILE_ATTRIBUTION}
-            subdomains={TILE_SUBDOMAINS}
-            maxNativeZoom={TILE_MAX_NATIVE_ZOOM}
-            maxZoom={20}
-          />
-          <SizeFix />
           <FitTo from={from} to={to} route={route} />
           <MrtOverlay
             net={net}
@@ -213,14 +197,14 @@ export function MrtRoutePlanner({
             routeIds={routeIds}
             fromStationId={from.id}
             toStationId={toId}
-            labelZoom={13}
+            labelZoom={12}
             onStationClick={(s) => {
               if (s.id === from.id) return;
               setToId(s.id);
               setRouteIdx(0);
             }}
           />
-        </MapContainer>
+        </MapView>
 
         <div className="pointer-events-none absolute right-2 top-2 z-[500]">
           <MrtLineLegend

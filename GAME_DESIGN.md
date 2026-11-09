@@ -145,7 +145,13 @@ currency, and the survivor is always moving — the map is explored, not surveye
 - **Discover-on-visit → permanent memory.** Arriving charts a location forever as **last-known intel**
   (stale danger, faction, looted state). Because danger regenerates while you're away, old intel can
   be dangerously wrong — the card flags "intel may be stale".
-- A canvas **fog overlay** darkens everything you haven't lit up by visiting.
+- A near-black **fog** darkens everything you haven't lit up by visiting.
+- **3D view** (setting *3D map*, on by default; the on-map **3D** button toggles it). The run map tilts
+  and the real buildings stand — but only where you have been or can see now. Unexplored blocks
+  lie flat under the fog, so the city rises as you chart it. A site's own building takes its state
+  colour (detected sites neutral, remembered ones dimmer, picked-clean darker); tap it to select the
+  site. Sites with no building are just their badge, lifted to roof height. Turn it off for a flat,
+  north-up map on slower phones. The spawn screen and route planner are always flat.
 
 ### 3.4 Time, travel, wilds & the day/night cycle
 - A day is **24 in-game hours**, starting at **08:00**. Travel is **one-way relocation** (nomadic):
@@ -264,7 +270,7 @@ hostility, trade, shelter, aid, and intel:
   within 220 m and takes its name and codes. Leftover station elements — OSM maps a big station as
   several — become *"<name> Entrance"*: searchable, but not a way into the tunnels.
 - **Map overlay.** A *Rail map* toggle draws the whole network — one centreline per line, dots per
-  station, code badges from z15 — in its own Leaflet pane **above the fog**. Collapsed segments for
+  station, code badges from z15 — in its own map slot **above the fog**. Collapsed segments for
   *this run* draw as dashed broken strokes on top, so after spawn you can read tunnel condition
   without opening the planner. The MRT map is the one thing every commuter here already knows by
   heart; fog hides what's *inside* a station, never where the line runs. The preference persists
@@ -524,8 +530,7 @@ Generic survival add-ons. Fine later; they do not answer “why this game.”
   snapshot: new shops in OSM won't appear until the next bake.
 - Many Singapore shops are mapped as **point nodes**, not buildings, so not every POI has a drawable
   outline — those render as a category badge instead.
-- The active basemap is CARTO Dark Matter (`VITE_CARTO_API_KEY` in `.env.local`). Stadia needs an
-  API key off-localhost; Esri looks soft (no `@2x`, no z20). **Any replacement must support both
-  `{r}` (retina) and native z20**, or Leaflet upscales and the map goes soft — set
-  `TILE_MAX_NATIVE_ZOOM` to what the provider serves.
+- The basemap is CARTO's Dark Matter **vector** style (keyless). The 3D view needs building heights
+  from it; any replacement must carry them (OpenFreeMap Dark does, as `render_height`). OSM
+  building heights are uneven — some blocks are missing heights or mapped as one tall mass.
 
