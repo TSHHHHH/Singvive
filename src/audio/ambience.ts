@@ -5,16 +5,21 @@ import type { TimeOfDay, WeatherKind } from '../game/types';
 // there are no asset files to ship, cache or license.
 //
 // Layers (always-on, crossfaded from `update`):
-//   bed      brown-noise city wind; lower and hollower after dark, a rumble below ground
-//   rain     filtered white noise, scaled by weather
+//   bed      brown-noise city wind that gusts; lower and hollower after dark, a rumble below ground
+//   rain     a soft low wash plus scheduled droplet ticks (raw white noise reads as static)
 //   insects  tropical night chorus (AM'd high partials) — not underground, not in a storm
 //   heart    heartbeat when HP is low, faster as it drops
-// One-shots (rolled once a second, cosmetic Math.random is fine outside src/game):
+// One-shots (rolled 4× a second, cosmetic Math.random is fine outside src/game):
 //   groan    distant infected; rate and closeness rise with horde pressure and darkness
+//   koel     the rising "ko-EL" of the Asian koel — daytime, falls silent as the horde closes
+//   crow     house crows cawing over empty streets — daytime
 //   gecko    "chik-chik-chik" — the house gecko every Singaporean knows
 //   clank    metal knocked over somewhere you can't see
 //   thunder  storm only
 //   drip     tunnels only, with echo
+//
+// The beds stay quiet on purpose: they are the room, and the one-shots must
+// read clearly over them.
 // Stingers: nightfall (far-off PWS-style siren + drone), contact (dissonant hit).
 //
 // Browsers only start audio after a user gesture, so nothing plays until
@@ -64,6 +69,7 @@ class AmbienceEngine {
   private bedGain: GainNode | null = null;
   private bedFilter: BiquadFilterNode | null = null;
   private rainGain: GainNode | null = null;
+  private dropBus: GainNode | null = null;
   private insectGain: GainNode | null = null;
 
   private params: AmbienceParams = DEFAULT_PARAMS;
@@ -71,6 +77,10 @@ class AmbienceEngine {
   private tick: number | null = null;
   private nextBeatAt = 0;
   private started = false;
+  /** Wind level and cutoff before gusting; set by `applyLayers`. */
+  private bedBase = 0;
+  private cutoffBase = 900;
+  private nextGustAt = 0;
 
   /** 0 = muted, 1 = full. Takes effect immediately. */
   setVolume(v: number): void {
@@ -159,17 +169,28 @@ class AmbienceEngine {
     this.bedGain.gain.value = 0;
     bed.connect(this.bedFilter).connect(this.bedGain).connect(master);
 
-    // rain
+    // rain: a low wash that swells slowly (the droplets on top come from `step`)
     const rain = this.loop(this.noise);
     const hp = ctx.createBiquadFilter();
     hp.type = 'highpass';
-    hp.frequency.value = 900;
+    hp.frequency.value = 350;
     const lp = ctx.createBiquadFilter();
     lp.type = 'lowpass';
-    lp.frequency.value = 6500;
+    lp.frequency.value = 2400;
+    const swellG = ctx.createGain();
+    swellG.gain.value = 1;
+    const rainSwell = ctx.createOscillator();
+    rainSwell.frequency.value = 0.06;
+    const rainSwellDepth = ctx.createGain();
+    rainSwellDepth.gain.value = 0.35;
+    rainSwell.connect(rainSwellDepth).connect(swellG.gain);
+    rainSwell.start();
     this.rainGain = ctx.createGain();
     this.rainGain.gain.value = 0;
-    rain.connect(hp).connect(lp).connect(this.rainGain).connect(master);
+    rain.connect(hp).connect(lp).connect(swellG).connect(this.rainGain).connect(master);
+    this.dropBus = ctx.createGain();
+    this.dropBus.gain.value = 1;
+    this.dropBus.connect(master);
 
     // insects: two close high partials, amplitude-chopped by a fast LFO
     this.insectGain = ctx.createGain();
@@ -253,28 +274,42 @@ class AmbienceEngine {
     const p = this.params;
     const night = p.band === 'night' ? 1 : p.band === 'dusk' ? 0.5 : 0;
 
-    let bed = 0.05 + night * 0.04 + p.dread * 0.03;
+    let bed = 0.035 + night * 0.03 + p.dread * 0.02;
     let cutoff = 900 - night * 480 - p.dread * 150;
     if (p.underground) {
       bed = 0.11;
       cutoff = 170;
     }
+    this.bedBase = bed;
+    this.cutoffBase = Math.max(120, cutoff);
     this.bedGain.gain.setTargetAtTime(bed, t, GLIDE);
-    this.bedFilter.frequency.setTargetAtTime(Math.max(120, cutoff), t, GLIDE);
+    this.bedFilter.frequency.setTargetAtTime(this.cutoffBase, t, GLIDE);
 
-    const rain = p.underground
-      ? 0
-      : p.weather === 'thunderstorm'
-        ? 0.13
-        : p.weather === 'rain'
-          ? 0.075
-          : 0;
-    this.rainGain.gain.setTargetAtTime(rain, t, GLIDE);
+    this.rainGain.gain.setTargetAtTime(this.rainLevel() * 0.45, t, GLIDE);
 
     // Insects fall silent when the horde is thick — the quiet is the warning.
     const wet = p.weather === 'thunderstorm' || p.weather === 'rain';
     const insects = p.underground || wet ? 0 : night * 0.014 * (1 - p.dread * 0.8);
     this.insectGain.gain.setTargetAtTime(insects, t, GLIDE * 1.5);
+  }
+
+  /** 0 dry, ~0.06 rain, ~0.11 storm. */
+  private rainLevel(): number {
+    const p = this.params;
+    if (p.underground) return 0;
+    return p.weather === 'thunderstorm' ? 0.11 : p.weather === 'rain' ? 0.06 : 0;
+  }
+
+  /** Every few seconds the wind picks a new strength, so the bed breathes. */
+  private gust(): void {
+    const ctx = this.ctx!;
+    const now = ctx.currentTime;
+    if (now < this.nextGustAt || !this.bedGain || !this.bedFilter) return;
+    this.nextGustAt = now + rand(2.5, 7);
+    // Below ground the air barely moves.
+    const g = this.params.underground ? rand(0.85, 1.15) : rand(0.45, 1.7);
+    this.bedGain.gain.setTargetAtTime(this.bedBase * g, now, rand(0.8, 2));
+    this.bedFilter.frequency.setTargetAtTime(this.cutoffBase * (0.7 + 0.45 * g), now, 1.2);
   }
 
   // ---- event loop ----------------------------------------------------------
@@ -299,16 +334,32 @@ class AmbienceEngine {
     const dark = 1 - p.sight;
 
     this.heartbeat();
+    this.gust();
 
     const groanRate =
-      0.012 + p.dread * 0.05 + night * 0.035 + dark * 0.03 + (p.inCombat ? 0.08 : 0);
+      0.025 + p.dread * 0.06 + night * 0.04 + dark * 0.03 + (p.inCombat ? 0.08 : 0);
     if (Math.random() < groanRate * dt) this.groan();
 
     if (p.underground) {
       if (Math.random() < 0.2 * dt) this.drip();
       return;
     }
-    if (night > 0 && p.weather !== 'thunderstorm' && Math.random() < 0.012 * night * dt) {
+
+    // Droplets for the next tick window, scheduled ahead so they never bunch.
+    const rain = this.rainLevel();
+    if (rain > 0) {
+      const n = Math.round((rain > 0.08 ? 45 : 22) * dt * rand(0.7, 1.3));
+      const t0 = this.ctx!.currentTime + 0.05;
+      for (let i = 0; i < n; i++) this.drop(t0 + Math.random() * dt, rain);
+    }
+
+    // Birds own the daylight; the horde thins them out, rain mostly hushes them.
+    const day = p.band === 'day' ? 1 : p.band === 'dusk' ? 0.4 : 0;
+    const birds = day * (1 - p.dread * 0.8) * (p.weather === 'thunderstorm' ? 0 : rain > 0 ? 0.35 : 1);
+    if (birds > 0 && Math.random() < 0.03 * birds * dt) this.koel();
+    if (birds > 0 && Math.random() < 0.035 * birds * dt) this.crow();
+
+    if (night > 0 && p.weather !== 'thunderstorm' && Math.random() < 0.02 * night * dt) {
       this.gecko();
     }
     if (Math.random() < (0.004 + night * 0.01 + p.dread * 0.006) * dt) this.clank();
@@ -389,9 +440,10 @@ class AmbienceEngine {
     vibD.gain.value = f0 * 0.03;
     vib.connect(vibD).connect(src.frequency);
 
-    // Two vowel formants ("uhhh" → "aww") summed.
+    // Two vowel formants ("uhhh" → "aww") summed. Wide enough to keep the
+    // throat in it; narrow ones whistle and get lost under the wind.
     const sum = ctx.createGain();
-    for (const [f, q, g] of [[rand(480, 650), 6, 1], [rand(950, 1250), 9, 0.5]] as const) {
+    for (const [f, q, g] of [[rand(480, 650), 3.5, 1], [rand(950, 1250), 5, 0.6]] as const) {
       const bp = ctx.createBiquadFilter();
       bp.type = 'bandpass';
       bp.frequency.setValueAtTime(f, t);
@@ -403,14 +455,106 @@ class AmbienceEngine {
     }
     const lp = ctx.createBiquadFilter();
     lp.type = 'lowpass';
-    lp.frequency.value = 500 + close * 2200;
-    const g = this.out(rand(-0.9, 0.9), 0.4 + close * 0.6, 0.9 - close * 0.4);
-    this.env(g, t, 0.05 + close * 0.22, rand(0.25, 0.6), dur * 0.4, dur * 0.6);
+    lp.frequency.value = 800 + close * 2600;
+    const g = this.out(rand(-0.9, 0.9), 0.45 + close * 0.55, 0.9 - close * 0.4);
+    this.env(g, t, 0.12 + close * 0.3, rand(0.25, 0.6), dur * 0.4, dur * 0.6);
     sum.connect(lp).connect(g);
     src.start(t);
     vib.start(t);
     src.stop(t + dur * 1.2 + 0.1);
     vib.stop(t + dur * 1.2 + 0.1);
+  }
+
+  /** One raindrop on a hard surface: a tiny filtered click, panned anywhere. */
+  private drop(t: number, level: number): void {
+    const ctx = this.ctx!;
+    const src = ctx.createBufferSource();
+    src.buffer = this.noise;
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = rand(1800, 6000);
+    bp.Q.value = rand(2, 5);
+    const pan = ctx.createStereoPanner();
+    pan.pan.value = rand(-1, 1);
+    const g = ctx.createGain();
+    this.env(g, t, level * rand(0.6, 2.2), 0.001, 0.003, rand(0.02, 0.06));
+    src.connect(bp).connect(g).connect(pan).connect(this.dropBus!);
+    src.start(t, rand(0, 3.5));
+    src.stop(t + 0.1);
+  }
+
+  /** Asian koel: "ko-EL, ko-EL, ko-EL", each call a little higher and more urgent. */
+  private koel(): void {
+    const ctx = this.ctx!;
+    const t0 = ctx.currentTime + 0.05;
+    const n = Math.floor(rand(3, 7));
+    const g = this.out(rand(-0.9, 0.9), 0.55, 0.7);
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 3000;
+    lp.connect(g);
+    let f = rand(620, 760);
+    let t = t0;
+    for (let i = 0; i < n; i++) {
+      const vol = 0.05 + (i / n) * 0.035;
+      // "ko": short and low
+      const a = ctx.createOscillator();
+      a.type = 'sine';
+      a.frequency.setValueAtTime(f, t);
+      const ae = ctx.createGain();
+      this.env(ae, t, vol * 0.7, 0.015, 0.06, 0.06);
+      a.connect(ae).connect(lp);
+      a.start(t);
+      a.stop(t + 0.16);
+      // "EL": a rising slur
+      const tb = t + 0.17;
+      const b = ctx.createOscillator();
+      b.type = 'triangle';
+      b.frequency.setValueAtTime(f * 1.15, tb);
+      b.frequency.exponentialRampToValueAtTime(f * 1.55, tb + 0.24);
+      const be = ctx.createGain();
+      this.env(be, tb, vol, 0.03, 0.15, 0.1);
+      b.connect(be).connect(lp);
+      b.start(tb);
+      b.stop(tb + 0.32);
+      t += rand(0.62, 0.78);
+      f *= rand(1.04, 1.08);
+    }
+  }
+
+  /** House crows: two to four harsh "kaaw"s, falling at the end. */
+  private crow(): void {
+    const ctx = this.ctx!;
+    const t0 = ctx.currentTime + 0.05;
+    const n = Math.floor(rand(2, 5));
+    const g = this.out(rand(-1, 1), 0.5, 0.8);
+    for (let i = 0; i < n; i++) {
+      const t = t0 + i * rand(0.42, 0.6);
+      const dur = rand(0.26, 0.38);
+      const f = rand(380, 520);
+      const o = ctx.createOscillator();
+      o.type = 'sawtooth';
+      o.frequency.setValueAtTime(f, t);
+      o.frequency.linearRampToValueAtTime(f * 1.05, t + dur * 0.3);
+      o.frequency.exponentialRampToValueAtTime(f * 0.72, t + dur);
+      // Fast roughness so it rasps instead of buzzing.
+      const rough = ctx.createOscillator();
+      rough.frequency.value = rand(55, 80);
+      const roughD = ctx.createGain();
+      roughD.gain.value = f * 0.12;
+      rough.connect(roughD).connect(o.frequency);
+      const bp = ctx.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.value = rand(1100, 1500);
+      bp.Q.value = 2.5;
+      const e = ctx.createGain();
+      this.env(e, t, 0.22, 0.02, dur * 0.5, dur * 0.5);
+      o.connect(bp).connect(e).connect(g);
+      o.start(t);
+      rough.start(t);
+      o.stop(t + dur + 0.05);
+      rough.stop(t + dur + 0.05);
+    }
   }
 
   private gecko(): void {
@@ -427,7 +571,7 @@ class AmbienceEngine {
       o.frequency.setValueAtTime(2600, t);
       o.frequency.exponentialRampToValueAtTime(1700, t + 0.04);
       const e = ctx.createGain();
-      this.env(e, t, 0.035 * (1 - i / (n * 1.6)), 0.004, 0.012, 0.04);
+      this.env(e, t, 0.06 * (1 - i / (n * 1.6)), 0.004, 0.012, 0.04);
       o.connect(e).connect(g);
       o.start(t);
       o.stop(t + 0.08);

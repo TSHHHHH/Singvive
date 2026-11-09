@@ -27,11 +27,11 @@ import { Icon } from '../icons/Icon';
 import { pathFromProgress, pathUntil, pointAlongPath } from '../game/route';
 import { useAnimatedNumber, useThrottledNumber } from '../hooks/useAnimatedNumber';
 import {
+  CAMERA_CUT_SCREENS,
   CAMERA_EDGE,
-  CAMERA_INTERVAL_MS,
   CAMERA_LEAD,
-  CAMERA_LERP,
-  CAMERA_MIN_PX,
+  CAMERA_SETTLE_PX,
+  chaseStep,
   travelEase,
 } from '../ui/travelMotion';
 import { tip } from './tips';
@@ -254,8 +254,9 @@ const containerSize = (map: MlMap) => {
 
 /**
  * The player's marker. When a `travelAnim` is active it glides along the
- * land route (or straight chord) with a held ease and soft throttled camera
- * lead; otherwise it sits at `home` and smoothly pans there on discrete jumps.
+ * land route (or straight chord) with a held ease and a per-frame camera
+ * chase; otherwise it sits at `home`, and the camera only moves when home
+ * lands outside the safe band.
  */
 function PlayerMarker({
   home,
@@ -296,13 +297,88 @@ function PlayerMarker({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map]);
 
+  // One camera chase for the marker's whole life. The glide and the arrival
+  // only move its target, so the camera never restarts mid-motion: it keeps
+  // its speed through the arrival and eases out on its own. A drag or zoom by
+  // the player hands the camera back to them until the next glide.
+  const chase = useRef({
+    target: null as { lat: number; lng: number } | null,
+    held: false,
+    gliding: false,
+    raf: 0,
+    last: 0,
+    kick: () => {},
+  });
   useEffect(() => {
+    const c = chase.current;
+    const frame = (now: number) => {
+      c.raf = 0;
+      const target = c.target;
+      if (!target || c.held) return;
+      const dt = c.last ? Math.min(0.1, (now - c.last) / 1000) : 1 / 60;
+      c.last = now;
+      const center = map.getCenter();
+      const tp = map.project([target.lng, target.lat]);
+      const cp = map.project(center);
+      if (Math.hypot(tp.x - cp.x, tp.y - cp.y) <= CAMERA_SETTLE_PX) {
+        // Settled. Mid-glide the target keeps moving and kicks the loop
+        // again; after arrival the chase is done.
+        c.last = 0;
+        if (!c.gliding) c.target = null;
+        return;
+      }
+      const k = chaseStep(dt);
+      map.jumpTo({
+        center: [center.lng + (target.lng - center.lng) * k, center.lat + (target.lat - center.lat) * k],
+      });
+      c.raf = requestAnimationFrame(frame);
+    };
+    c.kick = () => {
+      if (!c.raf && !c.held) c.raf = requestAnimationFrame(frame);
+    };
+    // Only gestures carry `originalEvent`; our own jumpTo does not.
+    const onStart = (e: { originalEvent?: unknown }) => {
+      if (!e.originalEvent) return;
+      c.held = true;
+      c.target = null;
+    };
+    map.on('movestart', onStart);
+    return () => {
+      map.off('movestart', onStart);
+      if (c.raf) cancelAnimationFrame(c.raf);
+      c.raf = 0;
+      c.kick = () => {};
+    };
+  }, [map]);
+
+  useEffect(() => {
+    const c = chase.current;
     if (!travelAnim) {
       place(home.lat, home.lng);
-      // Discrete move (spawn/MRT): follow at the current zoom, don't reset it.
-      map.easeTo({ center: [home.lng, home.lat], duration: 600 });
+      if (c.held) {
+        // The player moved the map during the glide; leave it where they put it.
+        c.held = false;
+        c.target = null;
+        return;
+      }
+      const size = containerSize(map);
+      const p = map.project([home.lng, home.lat]);
+      const margin = Math.min(size.x, size.y) * CAMERA_EDGE;
+      const outside = p.x < margin || p.y < margin || p.x > size.x - margin || p.y > size.y - margin;
+      if (c.target || outside) {
+        const far = Math.hypot(p.x - size.x / 2, p.y - size.y / 2) > Math.max(size.x, size.y) * CAMERA_CUT_SCREENS;
+        if (far) {
+          // A discrete move across the island (spawn, MRT): cut, don't swoop.
+          c.target = null;
+          map.jumpTo({ center: [home.lng, home.lat] });
+          return;
+        }
+        c.target = { lat: home.lat, lng: home.lng };
+        c.kick();
+      }
       return;
     }
+    c.held = false;
     const path =
       travelAnim.path.length >= 2
         ? travelAnim.path
@@ -324,8 +400,8 @@ function PlayerMarker({
     const end = path[path.length - 1];
     const shortOnScreen = inBand(map.project([path[0].lng, path[0].lat])) && inBand(map.project([end.lng, end.lat]));
 
-    let following = false;
-    let lastCamAt = 0;
+    c.gliding = true;
+    c.target = null;
 
     const tick = () => {
       const t = Math.min(1, (Date.now() - startedAt) / durationMs);
@@ -333,29 +409,20 @@ function PlayerMarker({
       const { lat, lng } = pointAlongPath(path, e);
       place(lat, lng);
 
-      // Soft lead: chase a point ahead of the walker at ~12 Hz, never every rAF.
-      if (!shortOnScreen) {
-        const now = Date.now();
-        if (now - lastCamAt >= CAMERA_INTERVAL_MS) {
-          lastCamAt = now;
+      // Soft lead: once the pin nears the edge, the chase aims a little ahead
+      // of it for the rest of the glide.
+      if (!shortOnScreen && !c.held) {
+        if (!c.target) {
           const p = map.project([lng, lat]);
           const size = containerSize(map);
           const margin = Math.min(size.x, size.y) * CAMERA_EDGE;
           if (p.x < margin || p.y < margin || p.x > size.x - margin || p.y > size.y - margin) {
-            following = true;
+            c.target = { lat, lng };
           }
-          if (following) {
-            const leadT = Math.min(1, e + CAMERA_LEAD * (1 - e));
-            const lead = pointAlongPath(path, leadT);
-            const center = map.getCenter();
-            const nextLat = center.lat + (lead.lat - center.lat) * CAMERA_LERP;
-            const nextLng = center.lng + (lead.lng - center.lng) * CAMERA_LERP;
-            const nextPt = map.project([nextLng, nextLat]);
-            const curPt = map.project(center);
-            if (Math.hypot(nextPt.x - curPt.x, nextPt.y - curPt.y) >= CAMERA_MIN_PX) {
-              map.jumpTo({ center: [nextLng, nextLat] });
-            }
-          }
+        }
+        if (c.target) {
+          c.target = pointAlongPath(path, Math.min(1, e + CAMERA_LEAD * (1 - e)));
+          c.kick();
         }
       }
 
@@ -363,6 +430,7 @@ function PlayerMarker({
     };
     rafRef.current = requestAnimationFrame(tick);
     return () => {
+      c.gliding = false;
       if (rafRef.current !== undefined) cancelAnimationFrame(rafRef.current);
     };
     // `place` reads refs only.

@@ -1,4 +1,4 @@
-import type { Map as MlMap, MapSourceDataEvent } from 'maplibre-gl';
+import type { LngLat, Map as MlMap, MapSourceDataEvent } from 'maplibre-gl';
 import type { ExploredCircle } from '../game/fog';
 import type { PoiCategory } from '../game/types';
 import { BASEMAP, GROUND_COLOR, slotId } from './mapStyle';
@@ -34,6 +34,16 @@ const ZOOM_RISE_SPAN = 1;
 const RISE_MS = 600;
 /** After tiles load, wait this long before indexing their buildings. */
 const INDEX_DEBOUNCE_MS = 300;
+/**
+ * The camera counts as settled after this long without a `move`. Indexing and
+ * rises wait for it, so buildings come up after the camera lands instead of
+ * under it, and the index scan never lands mid-pan.
+ */
+const SETTLE_MS = 220;
+/** A pan slower than this is a camera easing out, not motion. */
+const CREEP_PX_PER_S = 30;
+/** A long pan still gets its buildings after this long. */
+const MAX_DEFER_MS = 2000;
 
 export const BUILDINGS_LAYER = 'buildings-3d';
 export const SELECTED_COLOR = '#f0c040';
@@ -151,6 +161,12 @@ export class BuildingEngine {
   private rising = new Set<FeatureId>();
   private riseRaf = 0;
   private indexTimer: ReturnType<typeof setTimeout> | null = null;
+  private lastMoveAt = 0;
+  private lastCam: { c: LngLat; z: number; b: number; p: number; t: number } | null = null;
+  private deferSince = 0;
+  private settleTimer: ReturnType<typeof setTimeout> | null = null;
+  private pendingIndex = false;
+  private pendingReveal = false;
   /** Flat basemap building layers and their original zoom ranges. */
   private flatLayers: { id: string; min: number; max: number }[] = [];
 
@@ -219,7 +235,7 @@ export class BuildingEngine {
 
     map.on('sourcedata', this.onSourceData);
     map.on('idle', this.onIdle);
-    map.on('move', this.placeBadges);
+    map.on('move', this.onMove);
     this.placeBadges();
     this.scheduleIndex();
   }
@@ -230,8 +246,9 @@ export class BuildingEngine {
     const map = this.map;
     map.off('sourcedata', this.onSourceData);
     map.off('idle', this.onIdle);
-    map.off('move', this.placeBadges);
+    map.off('move', this.onMove);
     if (this.indexTimer) clearTimeout(this.indexTimer);
+    if (this.settleTimer) clearTimeout(this.settleTimer);
     if (this.riseRaf) cancelAnimationFrame(this.riseRaf);
     if (!alive(map)) return;
     map.getContainer().style.removeProperty('--roof-lift');
@@ -304,8 +321,68 @@ export class BuildingEngine {
     this.indexTimer = setTimeout(() => {
       this.indexTimer = null;
       if (this.destroyed) return;
+      if (this.moving()) {
+        this.pendingIndex = true;
+        this.waitForSettle();
+        return;
+      }
       this.indexBuildings();
     }, INDEX_DEBOUNCE_MS);
+  }
+
+  // --- Waiting for the camera ---------------------------------------------------
+
+  private onMove = () => {
+    // A camera easing out creeps for a while; only real motion holds rises.
+    const map = this.map;
+    const cam = this.lastCam;
+    const t = performance.now();
+    const now = { c: map.getCenter(), z: map.getZoom(), b: map.getBearing(), p: map.getPitch(), t };
+    if (
+      !cam ||
+      Math.abs(now.z - cam.z) > 0.01 ||
+      Math.abs(now.b - cam.b) > 0.2 ||
+      Math.abs(now.p - cam.p) > 0.2
+    ) {
+      this.lastMoveAt = t;
+    } else {
+      const a = map.project(cam.c);
+      const b = map.project(now.c);
+      // Speed, not distance per event, so 60 Hz and 144 Hz screens agree.
+      const pxPerS = (Math.hypot(a.x - b.x, a.y - b.y) * 1000) / Math.max(1, t - cam.t);
+      if (pxPerS > CREEP_PX_PER_S) this.lastMoveAt = t;
+    }
+    this.lastCam = now;
+    this.placeBadges();
+  };
+
+  /** `isMoving()` is false between per-frame jumpTo calls, so time the gaps. */
+  private moving(): boolean {
+    const now = performance.now();
+    if (now - this.lastMoveAt >= SETTLE_MS) return false;
+    return !this.deferSince || now - this.deferSince < MAX_DEFER_MS;
+  }
+
+  private waitForSettle() {
+    if (this.settleTimer) return;
+    if (!this.deferSince) this.deferSince = performance.now();
+    this.settleTimer = setTimeout(() => {
+      this.settleTimer = null;
+      if (this.destroyed) return;
+      if (this.moving()) {
+        this.waitForSettle();
+        return;
+      }
+      this.deferSince = 0;
+      if (this.pendingIndex) {
+        this.pendingIndex = false;
+        this.pendingReveal = false;
+        this.indexBuildings(); // runs the reveal itself
+      } else if (this.pendingReveal) {
+        this.pendingReveal = false;
+        this.updateReveal(false);
+      }
+    }, SETTLE_MS);
   }
 
   /**
@@ -331,6 +408,13 @@ export class BuildingEngine {
   private updateReveal(instant: boolean) {
     const map = this.map;
     if (this.destroyed || !this.live || !this.index.size || !map.getLayer(BUILDINGS_LAYER)) return;
+    // Reduced motion snaps instead of rising, but still waits: a block
+    // popping up under a moving camera is the jolt either way.
+    if (!instant && this.moving()) {
+      this.pendingReveal = true;
+      this.waitForSettle();
+      return;
+    }
     const cosLat = Math.cos((this.live.lat * Math.PI) / 180);
     // Only explored discs that can touch the loaded area are worth testing.
     const b = map.getBounds();
