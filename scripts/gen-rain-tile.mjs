@@ -17,7 +17,7 @@ const OUT_FILE = resolve(OUT_DIR, 'rain-sheet.svg');
 
 const TILE_W = 192;
 const TILE_H = 168;
-const STREAK_COUNT = 108;
+const STREAK_COUNT = 8;
 const SEED = (() => {
   let h = 2166136261;
   for (const ch of 'singvive-rain-v1') {

@@ -75,6 +75,15 @@ goes flat. MapLibre zoom is the old Leaflet zoom − 1 (the saved zoom key moved
   settle). Sites are matched to their building and coloured through feature-state; taps on
   a site's building select it, other buildings walk to them. Badges lift to the roof through the
   `--roof` / `--roof-lift` CSS variables. Spawn select and the route planner stay 2D.
+- **Atmosphere** (`atmosphere.ts`, mounted by `Atmosphere3d` in 3D only) owns `setSky` / `setLight`.
+  Each weather has a preset (sky, light colour/intensity/angle, distance haze) and dusk/night tint
+  it; the `weatherFx` setting scales the weather share (off 0, subtle 0.6, full 1) while time of day
+  always applies. Changes tween over ~1.8 s; light is a shader uniform, so no re-tessellation.
+  Distance haze is a DOM gradient at the top of the view (`.wx-depth`), faded in with pitch
+  (`tiltShare`). Thunderstorms schedule lightning strikes that flash the light and a sky bloom
+  (`.wx-bolt`) and cue thunder in `ambience.strike`; reduced motion turns strikes off. In 3D,
+  `WeatherFx` drops its flat tint layers and keeps only the moving ones (rain sheet, haze drift,
+  heat shimmer); 2D is unchanged. `window.__atmosphere` is the live driver in DEV (`strike()`).
 
 ### The type scale
 

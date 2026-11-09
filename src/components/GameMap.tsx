@@ -3,6 +3,8 @@ import type { Map as MlMap, Marker } from 'maplibre-gl';
 import type { Feature } from 'geojson';
 import type { Poi, TimeOfDay, WeatherKind, MapAnnotation } from '../game/types';
 import { WeatherFx } from './WeatherFx';
+import { Atmosphere3d } from './Atmosphere3d';
+import type { WeatherDom } from './useAtmosphere';
 import { TimeOfDayFx } from './TimeOfDayFx';
 import { poiIcon, playerIcon, unknownIcon, evacIcon, dangerColor, rumourIcon, trekTargetIcon } from './mapIcons';
 import { POI_CONFIG } from '../game/poi';
@@ -1116,6 +1118,10 @@ function GameMapInner({
     pitch: view3d ? PITCH_3D : 0,
   }));
   const [engine, setEngine] = useState<BuildingEngine | null>(null);
+  // WeatherFx renders the 3D weather's DOM; Atmosphere3d drives it from the map.
+  const boltRef = useRef<HTMLDivElement>(null);
+  const depthRef = useRef<HTMLDivElement>(null);
+  const [weatherDom] = useState<WeatherDom>(() => ({ bolt: boltRef, depth: depthRef }));
   // Building taps carry an id; resolve it against the latest locations.
   const poisRef = useRef(pois);
   poisRef.current = pois;
@@ -1155,6 +1161,7 @@ function GameMapInner({
         <ZoomMemory />
         <FocusCamera target={focusTarget} />
         <Camera3d on={view3d} />
+        {view3d && <Atmosphere3d kind={weather} time={time} dom={weatherDom} />}
         <GroundPicker onPick={onPickGround} engine={engine} onSite={selectSite} />
         {/* Soft-cost forest wash — under fog so only explored ground shows green. */}
         <VegetationOverlay />
@@ -1238,7 +1245,7 @@ function GameMapInner({
       )}
 
       {/* ---- the sky, over everything on the map but under the chrome ---- */}
-      <WeatherFx kind={weather} time={time} />
+      <WeatherFx kind={weather} time={time} view3d={view3d} dom={weatherDom} />
       <TimeOfDayFx time={time} />
 
       {/* ---- diegetic vignettes: the frame tells you how bad it is ---- */}

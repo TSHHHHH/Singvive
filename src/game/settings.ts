@@ -115,7 +115,7 @@ export const SETTINGS_SCHEMA: SettingDef[] = [
     key: 'weatherFx',
     label: 'Weather effects',
     description:
-      'Rain, glare and haze drawn over the map. Purely visual — costs GPU fill rate, so it is off unless you ask for it.',
+      'Rain, glare and haze drawn over the map; in 3D, weather also lights the buildings and storms bring lightning. Purely visual — costs GPU fill rate, so it is off unless you ask for it.',
     tab: 'display',
     options: [
       { value: 'off', label: 'Off' },
