@@ -1,5 +1,3 @@
-@import 'leaflet/dist/leaflet.css';
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -75,18 +73,6 @@ html[lang='zh-Hans'] .text-micro,
 html[lang='zh-Hans'] .text-label {
   font-size: 0.6875rem;
 }
-
-/* In-run basemap: Dark Matter is already muted; a small lift keeps streets
-   readable under the fog veil (phones in ambient light especially). */
-.apoc-tiles {
-  filter: brightness(1.22) contrast(1.1);
-}
-@media (max-width: 640px) {
-  .apoc-tiles {
-    filter: brightness(1.4) contrast(1.15);
-  }
-}
-
 
 /* Hairline rule used to separate bureau panels. */
 .rule {
@@ -811,7 +797,7 @@ select optgroup {
 }
 
 /* The player's teardrop pin. Same reason as the beacon above: kept out of the
-   marker HTML so the icon stays one cached L.DivIcon.
+   marker HTML so the icon stays one cached MapIcon.
 
    `pointer-events: none` is the whole trick behind the hover fade. Doing it the
    obvious way — `.player-pin:hover { opacity: .2 }` plus click-through — flickers,
@@ -819,14 +805,14 @@ select optgroup {
    goes opaque, and is hovered again. So the pin is *never* interactive (nothing
    underneath is ever blocked) and the fade is driven from the map's own
    mousemove in GameMap, which toggles `.is-faded`. */
-/* Doubled class to outrank Leaflet's own `.leaflet-interactive { pointer-events:
-   auto }`, which the marker element also carries. */
+/* Doubled class to outrank `.maplibregl-marker`, which the element also carries. */
 .player-pin.player-pin {
   pointer-events: none;
   transition: opacity 0.15s ease;
 }
+/* `!important`: MapLibre's Marker writes an inline opacity on every move. */
 .player-pin.is-faded {
-  opacity: 0.22;
+  opacity: 0.22 !important;
 }
 /* Legend-row pin — matches text-xs line box, not map marker scale. */
 .player-pin--xs {
@@ -1170,29 +1156,6 @@ select optgroup {
     rgba(18, 14, 10, 0.14)
   );
 }
-/* Edge of sight after dark (GameMap NightVeil). Disc is sized from JS; the
-   spread shadow blacks out everything past it. Transition matches the zoom. */
-.night-veil {
-  pointer-events: none !important;
-}
-.night-veil-disc {
-  --veil: rgba(2, 4, 10, 0.8);
-  position: absolute;
-  left: 0;
-  top: 0;
-  border-radius: 50%;
-  background: radial-gradient(closest-side, transparent 58%, var(--veil) 100%);
-  box-shadow: 0 0 0 200vmax var(--veil);
-  transition:
-    width 250ms cubic-bezier(0, 0, 0.25, 1),
-    height 250ms cubic-bezier(0, 0, 0.25, 1),
-    margin 250ms cubic-bezier(0, 0, 0.25, 1);
-}
-@media (prefers-reduced-motion: reduce) {
-  .night-veil-disc {
-    transition: none;
-  }
-}
 .tod-night {
   background:
     linear-gradient(to bottom, rgba(6, 12, 26, 0.42), rgba(4, 10, 22, 0.24) 52%, rgba(2, 6, 16, 0.36)),
@@ -1219,21 +1182,19 @@ select optgroup {
   background: rgba(255, 228, 176, 0.18);
 }
 
-/* Noise rings used to animate here, but the map runs `preferCanvas` — there is
-   no SVG path for these rules to bite on. The wave is driven per-frame on its
-   own canvas renderer instead; see components/NoiseWaves.tsx. */
-
 /* Long-press peek: stop iOS/Android from opening a native callout on tipped
    controls (HDB cells, status meters) instead of pinning the in-game tip. */
 [data-tip] {
   -webkit-touch-callout: none;
 }
 
-/* Leaflet keeps its own tooltip in its own map pane, with map-coordinate
-   anchoring the global TipLayer can't do. Rather than rewrite the MRT station
-   hovers, dress leaflet's tooltip in the same bureau panel as `data-tip`:
-   concrete ground, hard 1px frame, 10px signage type, near-square corners. */
-.leaflet-tooltip {
+/* MRT station hovers are map-anchored popups (className `map-tip`), which
+   the global TipLayer can't position. Dress them in the same bureau panel as
+   `data-tip`: concrete ground, hard 1px frame, signage type, square corners. */
+.maplibregl-popup.map-tip {
+  pointer-events: none;
+}
+.maplibregl-popup.map-tip .maplibregl-popup-content {
   padding: 0.25rem 0.5rem;
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 2px;
@@ -1249,33 +1210,23 @@ select optgroup {
     0 8px 24px -10px rgba(0, 0, 0, 0.95);
 }
 
-/* The default tooltip arrow is a CSS triangle that can't pick up the frame, so
-   it reads as a stray light wedge against the panel. Drop it. */
-.leaflet-tooltip::before {
+/* The default arrow is a CSS triangle that can't pick up the frame, so it
+   reads as a stray light wedge against the panel. Drop it. */
+.maplibregl-popup.map-tip .maplibregl-popup-tip {
   display: none;
 }
 
-/* Island neighbourhood wash — fade with Leaflet's zoom animation. Opacity is
-   set on the pane from `zoomanim`; keep this duration in sync with FADE_MS. */
-.leaflet-pane.leaflet-singvive-towns-pane {
-  pointer-events: none;
-  /* filter:opacity groups Leaflet's zoom-transformed canvas; opacity alone
-     leaves those compositor layers painted. Keep duration in sync with FADE_MS. */
-  transition:
-    filter 250ms cubic-bezier(0, 0, 0.25, 1),
-    opacity 250ms cubic-bezier(0, 0, 0.25, 1);
+/* 3D run map: a site badge rides its building's roof. The marker carries the
+   roof height (`--roof`, metres); the building engine keeps the container's
+   `--roof-lift` (px per metre at the current zoom and pitch) current. One
+   variable per frame moves every badge. `translate` stacks with the marker's
+   own transform instead of replacing it. */
+.maplibregl-marker.has-roof > * {
+  translate: 0 calc(var(--roof, 0) * var(--roof-lift, 0) * -1px);
 }
-.leaflet-pane.leaflet-singvive-towns-pane.is-wash-off {
-  filter: opacity(0);
-  opacity: 0;
-}
-.leaflet-pane.leaflet-singvive-towns-pane.is-wash-instant {
-  transition: none;
-}
-/* During tile zoom, Leaflet sets transition:transform only on zoom-animated
-   children — add opacity so canvas/labels ease with the pane. */
-.leaflet-zoom-anim .leaflet-singvive-towns-pane .leaflet-zoom-animated {
-  transition:
-    transform 0.25s cubic-bezier(0, 0, 0.25, 1),
-    opacity 0.25s cubic-bezier(0, 0, 0.25, 1) !important;
+/* The selected site, where there's no outline to thicken: a gold ring. */
+.maplibregl-marker.is-picked > * {
+  border-radius: 50%;
+  outline: 2px solid #f0c040;
+  outline-offset: 2px;
 }

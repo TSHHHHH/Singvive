@@ -14,7 +14,7 @@ Singvive is a browser-based zombie-apocalypse survival roguelike played on the r
 |---------|--------|
 | Framework | React 19 + TypeScript (strict) + Vite 8 |
 | State | Zustand 5 (single store façade in `src/game/store.ts`) |
-| Map | Leaflet + react-leaflet (dark CARTO tiles, canvas renderer) |
+| Map | MapLibre GL JS (CARTO Dark Matter vector style, 2D/3D, polygon fog) |
 | Real-world data | Baked `public/pois.json` (and `mrt` / `zones` / `towns`). Live Overpass is fallback only. |
 | Determinism | `seedrandom` wrapped in a forkable `Rng` class |
 | Styling | Tailwind CSS 3 (apocalyptic palette: `rot`, `blood`, `toxic`) |

@@ -11,7 +11,7 @@
 | Concern | Choice |
 |---|---|
 | Framework | React 19 + TypeScript 6 + Vite 8 |
-| Map | Leaflet + react-leaflet, **CARTO "Dark Matter"** tiles (`VITE_CARTO_API_KEY`, retina `{r}` / `@2x`, native z20; Stadia + Esri kept in `tileConfig.ts` as alternatives), canvas renderer + custom fog overlay |
+| Map | **MapLibre GL JS** v5 (WebGL, plain — no React wrapper; `src/map/`), **CARTO "Dark Matter" vector style** (keyless; OpenFreeMap Dark as fallback), GeoJSON overlays in ordered slots, polygon fog (`polygon-clipping`), 3D building extrusions |
 | Real data | OpenStreetMap → `public/pois.json` (`bake:pois`), `public/mrt.json` (`bake:mrt`), `public/zones.json` (`bake:zones`); URA planning areas → `public/towns.json` (`bake:towns`); live Overpass as POI runtime fallback |
 | State | Zustand 5 (single store); `window.__game` in DEV |
 | Inventory DnD | Custom pointer-drag over a cell grid (backpack ↔ stash ↔ equipment) |
@@ -54,11 +54,27 @@ seed, forked per-system (`rng.fork('loot'|'faction'|'event'|'human'|'wound'…)`
 the DOM. Exceptions: cosmetic flavour helpers may use `Math.random` (non-gameplay), and `rng.ts`
 itself uses it only to mint a fresh seed string.
 
-**Note on tiles:** Active basemap is **CARTO Dark Matter** (`{r}` retina, native z20). Raster tiles
-need `VITE_CARTO_API_KEY` in `.env.local` (copy from `.env.example`; baked in at `vite build`) or
-CARTO watermarks them. Stadia is sharper but keyless only on `localhost`; Esri is a last-resort
-fallback (no `@2x`, caps at z16). **Any replacement must support both `{r}` and native z20**, or
-the map goes soft — `TILE_MAX_NATIVE_ZOOM` must match what the provider actually serves.
+**Note on the map:** the basemap is CARTO's **Dark Matter vector style** (`src/map/mapStyle.ts`).
+Vector tiles need no API key and are never watermarked. They are built to z15 and overzoomed past
+it, and their buildings carry `height` / `min_height`. `OPENFREEMAP_DARK` (OpenMapTiles schema,
+`render_height`) is the drop-in fallback. A replacement must carry building heights or the 3D view
+goes flat. MapLibre zoom is the old Leaflet zoom − 1 (the saved zoom key moved to
+`singvive.mapZoom.gl`).
+
+- **`src/map/MapView.tsx`** creates the one map per screen, installs the overlay **slots**
+  (`terrain, labels, fog, wash, hazard, ring, poi, trail, noise, veil, mrt, buildings, top`) and
+  only then renders children. Overlays call `installOverlay(map, slot, …)`; the basemap's labels
+  are moved under the fog.
+- **Fog** (`fogGeometry.ts`) is the world minus the union of explored discs, in three soft bands.
+  The union is cached; only the live sight disc is subtracted per update. During a glide the
+  sight disc follows the pin (`useSightCenter` in `GameMap.tsx`, every 100 ms), so fog and
+  buildings reveal along the walk and arrival has nothing left to change.
+- **3D** (`buildings.ts`, setting `mapView3d`) extrudes the basemap's buildings from `LOD_ZOOM` 15.
+  A building stands only inside an explored or live disc (feature-state `rise`, animated unless
+  reduced motion; never held for the camera — only the 10–20 ms tile index scan waits for it to
+  settle). Sites are matched to their building and coloured through feature-state; taps on
+  a site's building select it, other buildings walk to them. Badges lift to the roof through the
+  `--roof` / `--roof-lift` CSS variables. Spawn select and the route planner stay 2D.
 
 ### The type scale
 
@@ -86,7 +102,7 @@ Three consumers, one definition:
   (`text-body leading-relaxed` for prose) when it has a reason to.
 - **`src/index.css`** — reaches the scale through the `--type-<role>-{size,leading,tracking,weight}`
   custom properties, emitted by an `addBase` plugin. It must never name a literal size.
-- **Imperative label builders** — the Leaflet `divIcon` HTML in `mapIcons.ts`, `MrtOverlay.tsx`
+- **Imperative label builders** — the marker HTML in `mapIcons.ts`, `MrtOverlay.tsx`
   and `NeighbourhoodWash.tsx` call `typeCss(role, { scale })`, which returns a declaration string.
   `scale` is how a dense map zoom shrinks a label without inventing a step off the scale.
 
@@ -208,18 +224,17 @@ running client.
 
 ```bash
 npm install
-# copy .env.example → .env.local and set VITE_CARTO_API_KEY (CARTO raster watermark otherwise)
 npm run dev       # http://localhost:5190  (PORT env overrides; see vite.config.ts)
 npm run build     # typecheck (tsc -b) + production build
 npm run build:itch  # static zip for itch.io → release/singvive-itch.zip
-npm run lint      # oxlint (--max-warnings=27) + type-scale + zh-Hans glossary guards
+npm run lint      # oxlint (--max-warnings=25) + type-scale + zh-Hans glossary guards
 npm run preview   # serve the production build locally (Worker + assets)
 npm run db:migrate:local  # apply D1 migrations to the local honor board (first time)
 ```
 
 ### itch.io upload
 
-`npm run build:itch` is a static build (`vite build --mode itch`, `base: './'`, no Cloudflare plugin) packed so `index.html` is at the root of `release/singvive-itch.zip`. Upload that zip as an HTML project. `VITE_CARTO_API_KEY` from `.env.local` is baked in the same way as the Workers build. The worldwide honor board stays on the Worker — `/api/scores` is absent inside the itch player, and the client treats that as offline. Runs still save in the player's `localStorage`.
+`npm run build:itch` is a static build (`vite build --mode itch`, `base: './'`, no Cloudflare plugin) packed so `index.html` is at the root of `release/singvive-itch.zip`. Upload that zip as an HTML project. The worldwide honor board stays on the Worker — `/api/scores` is absent inside the itch player, and the client treats that as offline. Runs still save in the player's `localStorage`.
 
 ### Refreshing map data
 
@@ -362,9 +377,6 @@ settings under **Workers → singvive → Settings → Builds**:
 | Deploy command | `npm run deploy` | Matches `package.json` (`build` + `wrangler deploy`) |
 | Preview deploy | `npx wrangler versions upload` | Default non-production path |
 
-Bake `VITE_CARTO_API_KEY` as a **Workers Builds → Build variables and secrets** entry (same name as
-`.env.local`). Vite inlines it at build time; a Worker runtime secret will not clear CARTO watermarks.
-
 The worldwide board is an honor list: the client posts the score; the Worker sanitizes names and
 rate-limits by IP. Personal top-10 stays in `localStorage` and is not bulk-uploaded.
 
@@ -378,7 +390,7 @@ rate-limits by IP. Personal top-10 stays in `localStorage` and is not bulk-uploa
 | Gate | Command | What it covers |
 |---|---|---|
 | Types | `npm run build` (`tsc -b` runs first) | All four TS projects. **`strict` is on everywhere** — app, node, vitest, worker. |
-| Lint | `npm run lint` | oxlint (`--max-warnings=27`), `scripts/check-type-scale.mjs`, `scripts/check-zh-hans-glossary.mjs` |
+| Lint | `npm run lint` | oxlint (`--max-warnings=25`), `scripts/check-type-scale.mjs`, `scripts/check-zh-hans-glossary.mjs` |
 | Tests | `npm run test` | Vitest, `environment: 'node'` |
 
 GitHub CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs `lint` → `test` → `build` on
@@ -401,11 +413,11 @@ Still thin or missing among pure modules: `goal`, `noise`, `searchSession`.
 
 ### The lint warning ratchet
 
-`--max-warnings=27` pins the current warning count. New warnings fail CI; the 27 existing ones
+`--max-warnings=25` pins the current warning count. New warnings fail CI; the 25 existing ones
 do not. They are:
 
-- ~18 `react/only-export-components` — fast-refresh ergonomics only, no correctness impact.
-- ~8 `react-hooks/exhaustive-deps` — each needs a judgement call, because adding a missing
+- 17 `react/only-export-components` — fast-refresh ergonomics only, no correctness impact.
+- 7 `react-hooks/exhaustive-deps` — each needs a judgement call, because adding a missing
   dependency changes when an effect re-runs. Do not bulk-fix these.
 - 1 `eslint/no-control-regex`.
 
@@ -510,8 +522,8 @@ still unchecked; a generated key union from `en.json` would finish the job.
 
 ### Client-side scale pressure
 
-Per `AGENTS.md`: the Worker is scores only, and all scale pressure is in the browser — Leaflet
-DOM, the 3.8 MB `public/pois.json` parse, and localStorage. Land A* and walkability scans are
+Per `AGENTS.md`: the Worker is scores only, and all scale pressure is in the browser — the WebGL
+map and its DOM markers, the 3.8 MB `public/pois.json` parse, and localStorage. Land A* and walkability scans are
 the CPU hotspots, not combat resolution. The guardrails that keep this working (viewport
-culling, tiled canvas fog, debounced persist, location identity preservation) are listed in
+culling, cached polygon fog, debounced persist, location identity preservation) are listed in
 `AGENTS.md` under "Performance / scale" — read that before touching the map.

@@ -3,7 +3,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useGame } from '../game/store';
 import { GameMap } from '../components/GameMap';
 import { TargetDock } from '../components/TargetDock';
-import { useMrtNetwork } from '../components/MrtOverlay';
+import { useMrtNetwork } from '../components/useMrtNetwork';
 import {
   displayLine,
   mrtRouteBetween,

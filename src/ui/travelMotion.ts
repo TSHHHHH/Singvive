@@ -37,13 +37,22 @@ export function travelEase(t: number): number {
   return u < 0.5 ? 4 * u * u * u : 1 - (-2 * u + 2) ** 3 / 2;
 }
 
-/** Camera sample interval — avoid per-frame pan spam (fog tiles / markers). */
-export const CAMERA_INTERVAL_MS = 80;
 /** How far ahead of the walker (fraction of remaining path) the camera aims. */
 export const CAMERA_LEAD = 0.12;
-/** Per-sample chase strength toward the lead point. */
-export const CAMERA_LERP = 0.42;
+/**
+ * Camera chase time constant (s): every frame the centre closes
+ * `1 - exp(-dt / CAMERA_TAU_S)` of the gap to its target, so speed is the
+ * same at any frame rate and the follow eases out instead of stepping.
+ */
+export const CAMERA_TAU_S = 0.28;
 /** Edge band that engages soft follow (fraction of shorter viewport side). */
 export const CAMERA_EDGE = 0.32;
-/** Ignore pans smaller than this (container px). */
-export const CAMERA_MIN_PX = 10;
+/** The chase stops once the centre is this close to its target (container px). */
+export const CAMERA_SETTLE_PX = 0.5;
+/** A discrete jump this many screens away cuts instead of chasing. */
+export const CAMERA_CUT_SCREENS = 3;
+
+/** Share of the gap a chase closes over `dtS` seconds. */
+export function chaseStep(dtS: number, tauS = CAMERA_TAU_S): number {
+  return 1 - Math.exp(-Math.max(0, dtS) / tauS);
+}

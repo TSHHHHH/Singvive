@@ -1323,6 +1323,14 @@
         "off": "Off"
       }
     },
+    "mapView3d": {
+      "label": "3D map",
+      "description": "Tilt the run map and raise the buildings you have seen. Turn off for a flat top-down map on slower phones. The on-map 3D button toggles the same thing.",
+      "options": {
+        "on": "On",
+        "off": "Off"
+      }
+    },
     "reduceMotion": {
       "label": "Reduce motion",
       "description": "Stop drifting rain, pulses and shimmer. Auto follows your system setting.",

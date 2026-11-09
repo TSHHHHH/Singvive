@@ -160,6 +160,20 @@ export const SETTINGS_SCHEMA: SettingDef[] = [
     default: 'off',
   },
   {
+    key: 'mapView3d',
+    label: '3D map',
+    description:
+      'Tilt the run map and raise the buildings you have seen. Turn off for a flat top-down map on slower phones. The on-map 3D button toggles the same thing.',
+    tab: 'gameplay',
+    section: 'Map',
+    control: 'toggle',
+    options: [
+      { value: 'on', label: 'On' },
+      { value: 'off', label: 'Off' },
+    ],
+    default: 'on',
+  },
+  {
     key: 'reduceMotion',
     label: 'Reduce motion',
     description:

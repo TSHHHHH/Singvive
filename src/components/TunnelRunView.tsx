@@ -33,7 +33,7 @@ import {
   type TunnelNode,
   type TunnelRun,
 } from '../game/tunnelRun';
-import { useMrtNetwork } from './MrtOverlay';
+import { useMrtNetwork } from './useMrtNetwork';
 import { CrawlPids } from './StationStrip';
 import { msgOr, useT } from '../i18n';
 import { tip } from './tips';

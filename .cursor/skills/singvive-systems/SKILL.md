@@ -109,6 +109,6 @@ Do **not** run `npm run bake:*` unless explicitly updating committed map data.
 ## Performance guardrails
 
 - GameScreen: scalar store selectors only — not whole `combat` object
-- POI layers: viewport-culled (`getBounds().pad(0.2)`)
+- POI layers: viewport-culled (bounds padded 0.2, cap 450)
 - `locationsForSave`: strip bake-known outlines; rehydrate on continue
 - Prefetch bake on spawn screen — no extra full-island scans
