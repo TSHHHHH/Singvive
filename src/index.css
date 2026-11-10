@@ -1297,7 +1297,7 @@ select optgroup {
   width: 24px;
   height: 100%;
   background: linear-gradient(
-    to bottom,
+    to top,
     color-mix(in srgb, var(--beacon-c) 85%, transparent) 0%,
     color-mix(in srgb, var(--beacon-c) 40%, transparent) 45%,
     transparent 100%
@@ -1311,7 +1311,7 @@ select optgroup {
   width: 3px;
   height: 100%;
   border-radius: 2px;
-  background: linear-gradient(to bottom, #fff 0%, var(--beacon-c) 20%, transparent 100%);
+  background: linear-gradient(to top, #fff 0%, var(--beacon-c) 20%, transparent 100%);
   opacity: 0.95;
 }
 .beacon__base {
@@ -1320,22 +1320,10 @@ select optgroup {
   height: 14px;
   border-radius: 50%;
   background: radial-gradient(closest-side, var(--beacon-c), transparent);
-  opacity: 0.4;
-}
-/* The light pours from the top, where the site's badge rides: a glow
-   behind the badge, and the shaft fades down to a faint mark on the ground. */
-.beacon__crown {
-  top: -22px;
-  width: 64px;
-  height: 44px;
-  border-radius: 50%;
-  background: radial-gradient(closest-side, color-mix(in srgb, var(--beacon-c) 75%, transparent), transparent);
-  filter: blur(4px);
-  animation: beacon-breathe 2.8s ease-in-out infinite;
-  animation-delay: var(--beacon-phase, 0s);
+  opacity: 0.85;
 }
 /* The extraction zone is the run's goal: a wider, brighter shaft with a pulse
-   falling down it, so it never reads as just another outpost. */
+   climbing it, so it never reads as just another outpost. */
 .beacon--evac {
   height: calc(var(--beacon-h, 0px) * 1.35);
 }
@@ -1344,11 +1332,6 @@ select optgroup {
 }
 .beacon--evac .beacon__core {
   width: 5px;
-}
-.beacon--evac .beacon__crown {
-  top: -28px;
-  width: 84px;
-  height: 56px;
 }
 .beacon--evac .beacon__base {
   width: 48px;
@@ -1361,7 +1344,7 @@ select optgroup {
   height: 28px;
   border-radius: 50%;
   background: radial-gradient(closest-side, #fff, var(--beacon-c) 45%, transparent);
-  animation: beacon-fall 2.4s linear infinite;
+  animation: beacon-climb 2.4s linear infinite;
 }
 @keyframes beacon-breathe {
   0%,
@@ -1372,22 +1355,21 @@ select optgroup {
     opacity: 1;
   }
 }
-@keyframes beacon-fall {
+@keyframes beacon-climb {
   0% {
-    bottom: 95%;
+    bottom: 0%;
     opacity: 0;
   }
   10% {
     opacity: 1;
   }
   100% {
-    bottom: 10%;
+    bottom: 85%;
     opacity: 0;
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .beacon__halo,
-  .beacon__crown {
+  .beacon__halo {
     animation: none;
     opacity: 0.85;
   }
