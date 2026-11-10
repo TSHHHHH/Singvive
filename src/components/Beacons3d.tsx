@@ -13,7 +13,7 @@ function beaconElement(b: Beacon, phase: number): HTMLDivElement {
   el.style.setProperty('--beacon-c', b.color);
   el.style.setProperty('--beacon-phase', `${(-phase).toFixed(2)}s`);
   el.innerHTML =
-    '<div class="beacon__halo"></div><div class="beacon__core"></div>' +
+    '<div class="beacon__halo"></div><div class="beacon__core"></div><div class="beacon__crown"></div>' +
     (b.kind === 'evac' ? '<div class="beacon__pulse"></div>' : '') +
     '<div class="beacon__base"></div>';
   return el;
