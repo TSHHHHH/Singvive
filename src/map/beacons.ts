@@ -9,7 +9,8 @@ import { pxPerMetre } from './geo';
  *
  * The pillar is a DOM marker (components/Beacons3d.tsx + index.css .beacon),
  * not an extrusion, so it stays lit over towers, fog and night alike. Its
- * height follows the camera here; everything else is CSS.
+ * height follows the camera here; everything else is CSS. The site's own
+ * badge rides the top of its beam (MapMarker `beacon`, index.css .on-beacon).
  */
 
 export type BeaconKind = 'evac' | 'outpost';
@@ -43,6 +44,16 @@ export function beaconHeightPx(zoom: number, lat: number, pitchDeg: number): num
 }
 
 /**
+ * The beacon a site carries, if any: evac wins over outpost. Only outposts the
+ * player knows about get one.
+ */
+export function beaconKindOf(poi: Poi, evacZoneId: string | null): BeaconKind | null {
+  if (poi.id === evacZoneId) return 'evac';
+  if (poi.isFactionOutpost && poi.factionId && poi.discovered) return 'outpost';
+  return null;
+}
+
+/**
  * Which sites carry a beacon: the extraction zone, then every known faction
  * outpost in its faction's colour. A site that is both gets the evac light.
  */
@@ -51,7 +62,7 @@ export function landmarkBeacons(pois: readonly Poi[], evacZoneId: string | null)
   const evac = evacZoneId ? pois.find((p) => p.id === evacZoneId) : undefined;
   if (evac) out.push({ id: evac.id, lat: evac.lat, lng: evac.lng, color: EVAC_BEACON_COLOR, kind: 'evac' });
   for (const p of pois) {
-    if (!p.isFactionOutpost || !p.factionId || !p.discovered || p.id === evacZoneId) continue;
+    if (beaconKindOf(p, evacZoneId) !== 'outpost' || !p.factionId) continue;
     out.push({ id: p.id, lat: p.lat, lng: p.lng, color: FACTION_CONFIG[p.factionId].color, kind: 'outpost' });
   }
   return out;

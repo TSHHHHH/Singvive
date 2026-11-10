@@ -6,6 +6,7 @@ import {
   BEACON_MIN_PX,
   EVAC_BEACON_COLOR,
   beaconHeightPx,
+  beaconKindOf,
   beaconsKey,
   landmarkBeacons,
 } from './beacons';
@@ -61,5 +62,14 @@ describe('beaconHeightPx', () => {
     expect(beaconHeightPx(11, 1.35, 50)).toBe(BEACON_MIN_PX);
     expect(beaconHeightPx(16, 1.35, 0)).toBe(BEACON_MIN_PX);
     expect(beaconHeightPx(19, 1.35, 60)).toBe(BEACON_MAX_PX);
+  });
+});
+
+describe('beaconKindOf', () => {
+  it('matches the beacons the map draws', () => {
+    expect(beaconKindOf(poi('e', { factionId, isFactionOutpost: true }), 'e')).toBe('evac');
+    expect(beaconKindOf(poi('o', { factionId, isFactionOutpost: true }), 'e')).toBe('outpost');
+    expect(beaconKindOf(poi('h', { factionId, isFactionOutpost: true, discovered: false }), null)).toBeNull();
+    expect(beaconKindOf(poi('s'), 'e')).toBeNull();
   });
 });

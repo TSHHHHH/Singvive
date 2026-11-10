@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { Marker } from 'maplibre-gl';
 import type { MapIcon } from '../components/mapIcons';
+import type { BeaconKind } from './beacons';
 import { useMapGL } from './hooks';
 import { createMarker, setMarkerIcon } from './markerDom';
 
@@ -21,13 +22,29 @@ interface MapMarkerProps {
   ring?: boolean;
   /** Optional native hover title (TipLayer adopts it). */
   title?: string;
+  /**
+   * The landmark beacon this site carries (3D). The badge rides the top of
+   * the beam by the container's `--beacon-h`, which Beacons3d keeps current.
+   */
+  beacon?: BeaconKind | null;
 }
 
 /**
  * A DOM marker. The element is rebuilt only when the icon *identity* changes
  * (icons are cached per look), never on a re-render.
  */
-export function MapMarker({ lat, lng, icon, onClick, zIndex, opacity, roof = 0, ring = false, title }: MapMarkerProps) {
+export function MapMarker({
+  lat,
+  lng,
+  icon,
+  onClick,
+  zIndex,
+  opacity,
+  roof = 0,
+  ring = false,
+  title,
+  beacon = null,
+}: MapMarkerProps) {
   const map = useMapGL();
   const ref = useRef<Marker | null>(null);
   const click = useRef(onClick);
@@ -69,7 +86,9 @@ export function MapMarker({ lat, lng, icon, onClick, zIndex, opacity, roof = 0, 
     if (roof > 0) el.style.setProperty('--roof', roof.toFixed(1));
     else el.style.removeProperty('--roof');
     el.classList.toggle('is-picked', ring);
-  }, [roof, ring]);
+    el.classList.toggle('on-beacon', !!beacon);
+    el.classList.toggle('on-beacon--evac', beacon === 'evac');
+  }, [roof, ring, beacon]);
 
   useEffect(() => {
     ref.current?.setLngLat([lng, lat]);

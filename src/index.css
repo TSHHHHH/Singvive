@@ -1378,6 +1378,15 @@ select optgroup {
   }
 }
 
+/* A landmark's badge rides the top of its beacon instead of its roof. Same
+   specificity as .has-roof and later, so it wins on a site that has both. */
+.maplibregl-marker.on-beacon > * {
+  translate: 0 calc(var(--beacon-h, 0px) * -1);
+}
+.maplibregl-marker.on-beacon--evac > * {
+  translate: 0 calc(var(--beacon-h, 0px) * -1.35);
+}
+
 /* Burning buildings in the 3D run map (map/buildings.ts): flames and a smoke
    column on a roof-anchored marker. Ported from the 3D demo. */
 .fx-smoke {
