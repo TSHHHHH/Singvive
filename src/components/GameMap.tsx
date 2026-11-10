@@ -41,6 +41,7 @@ import { MapView } from '../map/MapView';
 import { RUN_BOX } from '../map/mapStyle';
 import { KeyboardCamera } from './KeyboardCamera';
 import { EdgeVignette } from './EdgeVignette';
+import { Beacons3d } from './Beacons3d';
 import { useLayerEvent, useMapEvent, useMapGL } from '../map/hooks';
 import { MapMarker } from '../map/markers';
 import { createMarker } from '../map/markerDom';
@@ -1464,6 +1465,9 @@ function GameMapInner({
         <BlockView engine={engine} pois={pois} pad={`${padLeft}:${padRight}:${padBottom}`} />
 
         {mapAnnotations.length > 0 && <RumourLayer annotations={mapAnnotations} />}
+
+        {/* Light pillars over evac and faction outposts, readable from afar when tilted. */}
+        {view3d && <Beacons3d pois={pois} evacZoneId={evacZoneId} />}
 
         {/* extraction beacon — always visible so the goal is never lost */}
         {evacPoi && (

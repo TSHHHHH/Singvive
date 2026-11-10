@@ -1275,6 +1275,109 @@ select optgroup {
   outline-offset: 2px;
 }
 
+/* Landmark beacons in the 3D run map (map/beacons.ts, components/Beacons3d.tsx):
+   a column of light over the evac zone and each faction outpost. The marker
+   is anchored at its foot; `--beacon-h` (container) sets its screen height,
+   `--beacon-c` its colour. Screen-blended so it lights what it crosses. */
+.beacon {
+  position: relative;
+  width: 36px;
+  height: var(--beacon-h, 0px);
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+.beacon > * {
+  position: absolute;
+  left: 50%;
+  translate: -50% 0;
+  pointer-events: none;
+}
+.beacon__halo {
+  bottom: 0;
+  width: 24px;
+  height: 100%;
+  background: linear-gradient(
+    to top,
+    color-mix(in srgb, var(--beacon-c) 85%, transparent) 0%,
+    color-mix(in srgb, var(--beacon-c) 40%, transparent) 45%,
+    transparent 100%
+  );
+  filter: blur(5px);
+  animation: beacon-breathe 2.8s ease-in-out infinite;
+  animation-delay: var(--beacon-phase, 0s);
+}
+.beacon__core {
+  bottom: 0;
+  width: 3px;
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(to top, #fff 0%, var(--beacon-c) 20%, transparent 100%);
+  opacity: 0.95;
+}
+.beacon__base {
+  bottom: -7px;
+  width: 36px;
+  height: 14px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, var(--beacon-c), transparent);
+  opacity: 0.85;
+}
+/* The extraction zone is the run's goal: a wider, brighter shaft with a pulse
+   climbing it, so it never reads as just another outpost. */
+.beacon--evac {
+  height: calc(var(--beacon-h, 0px) * 1.35);
+}
+.beacon--evac .beacon__halo {
+  width: 40px;
+}
+.beacon--evac .beacon__core {
+  width: 5px;
+}
+.beacon--evac .beacon__base {
+  width: 48px;
+  height: 18px;
+  bottom: -9px;
+}
+.beacon__pulse {
+  bottom: 0;
+  width: 12px;
+  height: 28px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, #fff, var(--beacon-c) 45%, transparent);
+  animation: beacon-climb 2.4s linear infinite;
+}
+@keyframes beacon-breathe {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@keyframes beacon-climb {
+  0% {
+    bottom: 0%;
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  100% {
+    bottom: 85%;
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .beacon__halo {
+    animation: none;
+    opacity: 0.85;
+  }
+  .beacon__pulse {
+    display: none;
+  }
+}
+
 /* Burning buildings in the 3D run map (map/buildings.ts): flames and a smoke
    column on a roof-anchored marker. Ported from the 3D demo. */
 .fx-smoke {
