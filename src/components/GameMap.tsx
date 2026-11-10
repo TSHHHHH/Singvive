@@ -41,6 +41,8 @@ import { MapView } from '../map/MapView';
 import { RUN_BOX } from '../map/mapStyle';
 import { KeyboardCamera } from './KeyboardCamera';
 import { EdgeVignette } from './EdgeVignette';
+import { Beacons3d } from './Beacons3d';
+import { beaconKindOf } from '../map/beacons';
 import { useLayerEvent, useMapEvent, useMapGL } from '../map/hooks';
 import { MapMarker } from '../map/markers';
 import { createMarker } from '../map/markerDom';
@@ -1012,6 +1014,8 @@ interface PoiLayerProps {
   engine: BuildingEngine | null;
   /** Quarter-steps cleared, by worked block id. */
   worked: ReadonlyMap<string, number>;
+  /** The extraction zone, whose badge (like an outpost's) rides its 3D beacon. */
+  evacZoneId: string | null;
 }
 
 /** The danger ring the player actually sees on a location: its standing level
@@ -1150,7 +1154,7 @@ const POI_LAYERS = [POI_FILL_LAYER, 'poi-line', 'poi-line-dash'];
 const NO_ROOFS: ReadonlyMap<string, number> = new Map();
 
 const PoiLayer = memo(
-  function PoiLayer({ pois, home, blipRange, selectedId, hereId, onSelect, engine, worked }: PoiLayerProps) {
+  function PoiLayer({ pois, home, blipRange, selectedId, hereId, onSelect, engine, worked, evacZoneId }: PoiLayerProps) {
     const map = useMapGL();
     const box = usePaddedBounds();
 
@@ -1289,6 +1293,7 @@ const PoiLayer = memo(
             opacity={l.opacity}
             roof={engine ? roofs.get(l.poi.id) ?? 0 : 0}
             ring={!!engine && l.poi.id === selectedId}
+            beacon={engine ? beaconKindOf(l.poi, evacZoneId) : null}
             onClick={() => onSelect(l.poi)}
           />
         ))}
@@ -1303,6 +1308,7 @@ const PoiLayer = memo(
     prev.onSelect === next.onSelect &&
     prev.engine === next.engine &&
     prev.worked === next.worked &&
+    prev.evacZoneId === next.evacZoneId &&
     prev.pois.length === next.pois.length &&
     prev.pois.every((p, i) => poiLooksSame(p, next.pois[i])),
 );
@@ -1460,14 +1466,25 @@ function GameMapInner({
           onSelect={onSelect}
           engine={engine}
           worked={worked}
+          evacZoneId={evacZoneId}
         />
         <BlockView engine={engine} pois={pois} pad={`${padLeft}:${padRight}:${padBottom}`} />
 
         {mapAnnotations.length > 0 && <RumourLayer annotations={mapAnnotations} />}
 
+        {/* Light pillars over evac and faction outposts, readable from afar when tilted. */}
+        {view3d && <Beacons3d pois={pois} evacZoneId={evacZoneId} />}
+
         {/* extraction beacon — always visible so the goal is never lost */}
         {evacPoi && (
-          <MapMarker lat={evacPoi.lat} lng={evacPoi.lng} icon={evacIcon()} zIndex={900} onClick={() => onSelect(evacPoi)} />
+          <MapMarker
+            lat={evacPoi.lat}
+            lng={evacPoi.lng}
+            icon={evacIcon()}
+            zIndex={900}
+            beacon={view3d ? 'evac' : null}
+            onClick={() => onSelect(evacPoi)}
+          />
         )}
 
         <NoiseWaves pulses={noisePulses} />
