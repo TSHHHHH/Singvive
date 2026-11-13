@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useGame } from '../game/store';
 import {
@@ -11,7 +11,6 @@ import {
   canPickTrait,
   getTrait,
   isCurse,
-  isIncompatible,
   isLegalTraitBuild,
   isSignature,
   pickBlockReason,
@@ -29,14 +28,16 @@ import {
 } from '../game/traitPresets';
 import { randomSurvivorName, SURVIVOR_NAME_MAX } from '../game/randomNames';
 import { previewStartingSkills, SKILL_IDS, SKILL_LABELS } from '../game/skills';
+import { TRAIT_TAG_LABELS, TRAIT_TAG_ORDER, traitTags, type TraitTag } from '../game/traitTags';
 import type { Occupation, Trait } from '../game/types';
 import { Icon } from '../icons/Icon';
 import { TipHint, useCoarsePointer } from '../components/TipHint';
-import { traitHoverText, traitName, useT } from '../i18n';
+import { traitDescription, traitEffects, traitHoverText, traitName, useT } from '../i18n';
 import { tip } from '../components/tips';
 
 type Side = 'positive' | 'negative';
 type PointSort = 'asc' | 'desc';
+type Step = 'background' | 'traits';
 
 const TRAIT_TIP_PANEL =
   'max-w-[20rem] whitespace-pre-line break-words rounded border border-white/20 ' +
@@ -58,12 +59,22 @@ function sortTraitsByPoints(items: Trait[], dir: PointSort): Trait[] {
   });
 }
 
+function SectionLabel({ children, right }: { children: ReactNode; right?: ReactNode }) {
+  return (
+    <div className="mb-1.5 flex items-baseline justify-between gap-2">
+      <span className="text-label uppercase text-white/40">{children}</span>
+      {right}
+    </div>
+  );
+}
+
 export function CharacterCreate() {
   const { commitCharacter, resetToMenu } = useGame(
     useShallow((s) => ({ commitCharacter: s.commitCharacter, resetToMenu: s.resetToMenu })),
   );
   const { locale, t } = useT();
   const coarsePointer = useCoarsePointer();
+  const [step, setStep] = useState<Step>('background');
   const [name, setName] = useState('');
   const [traitIds, setTraitIds] = useState<string[]>([]);
   const [pickedId, setPickedId] = useState<string | null>(null);
@@ -72,9 +83,13 @@ export function CharacterCreate() {
   const [presetNameDraft, setPresetNameDraft] = useState('');
   const [presetMsg, setPresetMsg] = useState<string | null>(null);
   const [pointSort, setPointSort] = useState<PointSort>('desc');
+  const [side, setSide] = useState<Side>('negative');
+  const [tagFilter, setTagFilter] = useState<TraitTag | null>(null);
+  const [focusId, setFocusId] = useState<string | null>(null);
 
   const attrs = attributesFromTraits(traitIds);
   const budgetRemaining = TRAIT_BUDGET - traitBudgetUsed(traitIds);
+  const legal = isLegalTraitBuild(traitIds);
 
   const picked = pickedId ? getOccupation(pickedId) : null;
   const matchesOccupation = picked != null && sameTraits(traitIds, picked.traitIds);
@@ -85,8 +100,6 @@ export function CharacterCreate() {
   const matchesPreset =
     selectedMyPreset != null && sameTraits(traitIds, selectedMyPreset.traitIds);
 
-  const positiveTraits = TRAITS.filter((t) => t.category === 'positive');
-  const negativeTraits = TRAITS.filter((t) => t.category === 'negative');
   const positiveCount = traitIds.filter((id) => getTrait(id).category === 'positive').length;
   const negativeCount = traitIds.filter((id) => getTrait(id).category === 'negative').length;
 
@@ -102,23 +115,13 @@ export function CharacterCreate() {
             ? 'Blank slate'
             : 'Custom';
 
-  const remixHint = matchesOccupation
-    ? `Loaded ${picked.name} — swap a trait to make it yours.`
-    : matchesPreset
-      ? `Loaded “${selectedMyPreset.name}” — edit freely, then save if you like it.`
-      : picked || selectedMyPreset
-        ? 'Build diverged from the seed. Revert to restore, or save as a preset.'
-        : 'Load a job seed or pick traits from scratch. You start at 0 points.';
-
   const budgetHint =
-    budgetRemaining === 0 &&
-    traitIds.length === 2 &&
-    (matchesOccupation || (picked != null && !matchesOccupation))
+    budgetRemaining === 0 && traitIds.length === 2 && picked != null
       ? 'A full signature + curse spends the whole pool. Swap the curse, or pick a cheaper signature, to free a point.'
       : null;
 
   const start = () => {
-    if (!isLegalTraitBuild(traitIds)) return;
+    if (!legal) return;
     commitCharacter({
       name: name.trim() || 'Survivor',
       attributes: attrs,
@@ -160,7 +163,7 @@ export function CharacterCreate() {
 
   const toggleTrait = (id: string) => {
     if (traitIds.includes(id)) {
-      setTraitIds(traitIds.filter((t) => t !== id));
+      setTraitIds(traitIds.filter((x) => x !== id));
     } else if (canPickTrait(id, traitIds)) {
       setTraitIds([...traitIds, id]);
     }
@@ -189,6 +192,164 @@ export function CharacterCreate() {
     setPresetMsg(`Saved “${saved.name}”.`);
   };
 
+  // ── Shared pieces ────────────────────────────────────────────────────────
+
+  const pointsBadge = (
+    <div className="flex items-baseline gap-2">
+      <span className="text-label uppercase text-white/40">Points left</span>
+      <span
+        className={`text-title tabular-nums ${budgetRemaining < 0 ? 'text-hiss' : 'text-signal'}`}
+      >
+        {budgetRemaining}
+      </span>
+    </div>
+  );
+
+  const stepper = (
+    <ol className="flex items-center gap-2 text-plate uppercase">
+      {(
+        [
+          ['background', '1 · Background'],
+          ['traits', '2 · Traits'],
+        ] as const
+      ).map(([id, label], i) => (
+        <li key={id} className="flex items-center gap-2">
+          {i > 0 && <span className="text-white/20">—</span>}
+          <button
+            type="button"
+            onClick={() => setStep(id)}
+            aria-current={step === id ? 'step' : undefined}
+            className={step === id ? 'text-signal' : 'text-white/40 hover:text-white/70'}
+          >
+            {label}
+          </button>
+        </li>
+      ))}
+    </ol>
+  );
+
+  const attributeRow = (
+    <div className="grid grid-cols-5 gap-1">
+      {ATTRIBUTE_KEYS.map((k) => {
+        const delta = attrs[k] - BASE_ATTRIBUTE;
+        return (
+          <div
+            key={k}
+            {...tip(`${t(`ui.attributes.${k}`)} — ${ATTRIBUTE_BLURB[k]}`)}
+            className="flex min-w-0 flex-col items-center rounded border border-white/10 bg-white/5 px-1 py-1.5"
+          >
+            <Icon name={ATTRIBUTE_ICONS[k]} size={14} title={t(`ui.attributes.${k}`)} />
+            <span className="mt-0.5 flex items-baseline gap-0.5">
+              <span className="text-read font-bold tabular-nums">{attrs[k]}</span>
+              {delta !== 0 && (
+                <span
+                  className={`text-micro tabular-nums ${delta > 0 ? 'text-signal' : 'text-hiss'}`}
+                >
+                  {delta > 0 ? `+${delta}` : delta}
+                </span>
+              )}
+            </span>
+            <span className="w-full truncate text-center text-micro uppercase text-white/40">
+              {t(`ui.attributes.${k}`)}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  const startingSkills = previewStartingSkills(traitIds);
+  const skillsLine = (
+    <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+      {SKILL_IDS.map((id) => {
+        const level = startingSkills[id].level;
+        if (level <= 0) return null;
+        return (
+          <span key={id} className="text-body text-concrete-50">
+            {SKILL_LABELS[id]} <span className="tabular-nums text-signal">{level}</span>
+          </span>
+        );
+      })}
+      {SKILL_IDS.every((id) => startingSkills[id].level <= 0) && (
+        <span className="text-body text-white/40">—</span>
+      )}
+    </div>
+  );
+
+  const selectedChips =
+    traitIds.length === 0 ? (
+      <p className="text-micro text-white/35">No traits yet.</p>
+    ) : (
+      <div className="flex flex-wrap gap-1">
+        {traitIds.map((id) => {
+          const trait = getTrait(id);
+          return (
+            <button
+              key={id}
+              type="button"
+              onClick={() => toggleTrait(id)}
+              onMouseEnter={() => setFocusId(id)}
+              {...tip(`Remove ${traitName(id, locale)}`)}
+              className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-micro transition hover:opacity-80 ${
+                trait.category === 'positive'
+                  ? 'border-signal/30 bg-signal/10 text-signal'
+                  : 'border-hiss/30 bg-hiss/10 text-hiss'
+              }`}
+            >
+              <Icon name={trait.icon} size={11} />
+              {traitName(id, locale)}
+              <span className="opacity-50">×</span>
+            </button>
+          );
+        })}
+      </div>
+    );
+
+  /** The build summary — the right rail on desktop, below the picker on mobile. */
+  const summary = (
+    <div className="flex flex-col gap-3 rounded border border-white/15 bg-concrete-900/80 p-3">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <span className="text-label uppercase text-white/40">Identity</span>
+          <p className="truncate text-read font-bold uppercase tracking-wide text-signal">
+            {identityLabel}
+          </p>
+        </div>
+        <div className="flex shrink-0 gap-3 pt-3">
+          <button
+            type="button"
+            onClick={revert}
+            className="text-label uppercase text-white/40 hover:text-white/80"
+          >
+            ⟳ {picked || selectedMyPreset ? 'Revert' : 'Reset'}
+          </button>
+          <button
+            type="button"
+            onClick={clearBuild}
+            className="text-label uppercase text-white/40 hover:text-white/80"
+          >
+            Clear
+          </button>
+        </div>
+      </div>
+      <div>
+        <SectionLabel>Traits · click to remove</SectionLabel>
+        {selectedChips}
+        {budgetHint && <p className="mt-1 text-micro text-white/40">{budgetHint}</p>}
+      </div>
+      <div>
+        <SectionLabel>Attributes</SectionLabel>
+        {attributeRow}
+      </div>
+      <div>
+        <SectionLabel>{t('ui.skills.starting')}</SectionLabel>
+        {skillsLine}
+      </div>
+    </div>
+  );
+
+  // ── Step 1: background ───────────────────────────────────────────────────
+
   const nameField = (
     <label className="flex flex-col items-start gap-1 text-left">
       <span className="text-label uppercase text-white/40">Name</span>
@@ -212,65 +373,7 @@ export function CharacterCreate() {
     </label>
   );
 
-  const attributeGrid = (
-    <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-5">
-      {ATTRIBUTE_KEYS.map((k) => {
-        const delta = attrs[k] - BASE_ATTRIBUTE;
-        return (
-          <div key={k} className="min-w-0 rounded border border-white/10 bg-white/5 px-2 py-2">
-            <div className="flex items-center justify-between gap-1">
-              <span className="flex min-w-0 items-center gap-1 text-label uppercase">
-                <Icon
-                  name={ATTRIBUTE_ICONS[k]}
-                  size={13}
-                  title={t(`ui.attributes.${k}`)}
-                  className="shrink-0"
-                />
-                <span className="truncate">{t(`ui.attributes.${k}`)}</span>
-              </span>
-              <span className="flex shrink-0 items-baseline gap-1">
-                <span className="text-title tabular-nums">{attrs[k]}</span>
-                {delta !== 0 && (
-                  <span
-                    className={`text-micro tabular-nums ${
-                      delta > 0 ? 'text-signal' : 'text-hiss'
-                    }`}
-                  >
-                    {delta > 0 ? `+${delta}` : delta}
-                  </span>
-                )}
-              </span>
-            </div>
-            <p className="mt-1 text-micro text-white/40">{ATTRIBUTE_BLURB[k]}</p>
-          </div>
-        );
-      })}
-    </div>
-  );
-
-  const startingSkills = previewStartingSkills(traitIds);
-  const skillsPreview = (
-    <div className="rounded border border-white/10 bg-white/5 px-2.5 py-2">
-      <div className="mb-1.5 text-plate uppercase text-white/40">{t('ui.skills.starting')}</div>
-      <div className="flex flex-wrap gap-x-3 gap-y-1">
-        {SKILL_IDS.map((id) => {
-          const level = startingSkills[id].level;
-          if (level <= 0) return null;
-          return (
-            <span key={id} className="text-body text-concrete-50">
-              {SKILL_LABELS[id]}{' '}
-              <span className="tabular-nums text-signal">{level}</span>
-            </span>
-          );
-        })}
-        {SKILL_IDS.every((id) => startingSkills[id].level <= 0) && (
-          <span className="text-body text-white/40">—</span>
-        )}
-      </div>
-    </div>
-  );
-
-  const renderOccupationSeed = (o: Occupation) => {
+  const renderJobCard = (o: Occupation) => {
     const selected = matchesOccupation && pickedId === o.id;
     const basedOn = !matchesOccupation && pickedId === o.id;
     return (
@@ -278,7 +381,8 @@ export function CharacterCreate() {
         key={o.id}
         type="button"
         onClick={() => selectOccupation(o)}
-        className={`flex flex-col rounded border px-2.5 py-2 text-left transition ${
+        aria-pressed={selected}
+        className={`flex flex-col rounded border px-3 py-2 text-left transition ${
           selected
             ? 'border-signal bg-signal/15'
             : basedOn
@@ -287,7 +391,8 @@ export function CharacterCreate() {
         }`}
       >
         <span className="text-plate uppercase">{o.name}</span>
-        <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+        <span className="mt-0.5 line-clamp-2 text-micro text-white/55">{o.tagline}</span>
+        <span className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
           {o.traitIds.map((id) => {
             const tr = getTrait(id);
             return (
@@ -307,115 +412,195 @@ export function CharacterCreate() {
     );
   };
 
-  const renderSelectedChips = () => {
-    if (traitIds.length === 0) {
-      return <p className="text-micro text-white/35">No traits yet — load a job or pick from the grid.</p>;
-    }
-    return (
-      <div className="flex flex-wrap gap-1">
-        {traitIds.map((id) => {
-          const trait = getTrait(id);
-          return (
+  const presetsBlock = (
+    <div>
+      <SectionLabel>
+        My presets ({myPresets.length}/{MAX_TRAIT_PRESETS})
+      </SectionLabel>
+      {myPresets.length === 0 ? (
+        <p className="rounded border border-dashed border-white/10 px-3 py-2 text-body text-white/35">
+          No saved builds yet — save one from the Traits step.
+        </p>
+      ) : (
+        <div className="flex flex-wrap gap-1.5">
+          {myPresets.map((p) => {
+            const selected = matchesPreset && selectedPresetId === p.id;
+            const basedOn = !matchesPreset && selectedPresetId === p.id;
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => selectMyPreset(p)}
+                className={`rounded border px-2.5 py-1.5 text-left transition ${
+                  selected
+                    ? 'border-signal bg-signal/15'
+                    : basedOn
+                      ? 'border-signal/40 bg-signal/5'
+                      : 'border-white/10 bg-white/[0.03] hover:border-signal/50'
+                }`}
+              >
+                <span className="text-plate uppercase">{p.name}</span>
+                <span className="ml-2 text-micro text-white/45">{p.traitIds.length} traits</span>
+                {!isLegalTraitBuild(p.traitIds) && (
+                  <span className="ml-2 text-micro text-hiss">needs fixing</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {selectedMyPreset && matchesPreset && (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <input
+            value={presetNameDraft}
+            onChange={(e) => setPresetNameDraft(e.target.value)}
+            maxLength={32}
+            className="w-40 rounded border border-white/15 bg-black/40 px-2 py-1 text-body outline-none focus:border-signal"
+            placeholder="Rename…"
+          />
+          <button
+            type="button"
+            onClick={() => {
+              const next = renamePreset(selectedMyPreset.id, presetNameDraft);
+              if (!next) {
+                setPresetMsg('Could not rename — empty or duplicate name.');
+                return;
+              }
+              refreshPresets();
+              setPresetMsg(null);
+            }}
+            className="text-label uppercase text-white/50 hover:text-white/80"
+          >
+            Rename
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              deletePreset(selectedMyPreset.id);
+              refreshPresets();
+              setSelectedPresetId(null);
+              setTraitIds([]);
+              setPresetNameDraft('');
+            }}
+            className="text-label uppercase text-hiss/70 hover:text-hiss"
+          >
+            Delete
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
+  const jobDetail = picked ? (
+    <div className="rounded border border-white/10 bg-white/[0.03] p-3">
+      <p className="text-plate uppercase text-signal">{picked.name}</p>
+      <p className="mt-1 text-body leading-relaxed text-white/60">{picked.blurb}</p>
+      <div className="mt-2 grid grid-cols-2 gap-2 text-micro">
+        <div>
+          <span className="block uppercase text-white/40">Good at</span>
+          <span className="text-signal">{picked.goodAt.join(', ')}</span>
+        </div>
+        <div>
+          <span className="block uppercase text-white/40">Struggles with</span>
+          <span className="text-hiss">{picked.strugglesWith.join(', ')}</span>
+        </div>
+      </div>
+    </div>
+  ) : (
+    <p className="rounded border border-dashed border-white/10 p-3 text-body text-white/40">
+      Jobs are starting builds. Pick one to see who they were, then fine-tune its traits in the
+      next step — or skip the jobs and build from scratch.
+    </p>
+  );
+
+  const backgroundStep = (
+    <div className="flex min-w-0 flex-col gap-4">
+      {nameField}
+      <div>
+        <SectionLabel
+          right={
             <button
-              key={id}
               type="button"
-              onClick={() => toggleTrait(id)}
-              {...tip(`Remove ${traitName(id, locale)}`)}
-              className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-micro transition hover:opacity-80 ${
-                trait.category === 'positive'
-                  ? 'border-signal/30 bg-signal/10 text-signal'
-                  : 'border-hiss/30 bg-hiss/10 text-hiss'
+              onClick={clearBuild}
+              className={`text-label uppercase ${
+                !picked && !selectedMyPreset && traitIds.length === 0
+                  ? 'text-signal'
+                  : 'text-white/40 hover:text-white/80'
               }`}
             >
-              <Icon name={trait.icon} size={11} />
-              {traitName(id, locale)}
-              <span className="opacity-50">×</span>
+              Blank slate
             </button>
-          );
-        })}
+          }
+        >
+          Who were you before it fell?
+        </SectionLabel>
+        <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
+          {OCCUPATIONS.map(renderJobCard)}
+        </div>
       </div>
-    );
+      {presetsBlock}
+    </div>
+  );
+
+  // ── Step 2: traits ───────────────────────────────────────────────────────
+
+  const tileClass = (tr: Trait, selected: boolean, blocked: boolean): string => {
+    if (selected && tr.category === 'positive') return 'border-signal bg-signal/30';
+    if (selected) return 'border-hiss bg-hiss/30';
+    if (blocked) return 'border-white/5 bg-white/[0.02] opacity-40 cursor-not-allowed';
+    return tr.category === 'positive'
+      ? 'border-signal/20 bg-signal/[0.04] hover:border-signal/55 hover:bg-signal/[0.1]'
+      : 'border-hiss/20 bg-hiss/[0.04] hover:border-hiss/55 hover:bg-hiss/[0.1]';
   };
 
-  const tileClass = (t: Trait): string => {
-    const selected = traitIds.includes(t.id);
-    const incompatible = !selected && isIncompatible(t.id, traitIds);
-    const disabled = !selected && !canPickTrait(t.id, traitIds);
-
-    if (selected && t.category === 'positive') {
-      return 'border-2 border-signal bg-signal/30';
-    }
-    if (selected && t.category === 'negative') {
-      return 'border-2 border-hiss bg-hiss/30';
-    }
-    if (incompatible || disabled) {
-      return 'border-2 border-white/5 bg-white/[0.02] opacity-40 cursor-not-allowed';
-    }
-    return t.category === 'positive'
-      ? 'border-2 border-signal/20 bg-signal/[0.04] hover:border-signal/55 hover:bg-signal/[0.1]'
-      : 'border-2 border-hiss/20 bg-hiss/[0.04] hover:border-hiss/55 hover:bg-hiss/[0.1]';
-  };
-
-  const renderTile = (t: Trait, side: Side) => {
-    const selected = traitIds.includes(t.id);
-    const accent = side === 'positive' ? 'text-signal' : 'text-hiss';
-    const sign = side === 'positive' ? '−' : '+';
-    const blocked = !selected && !canPickTrait(t.id, traitIds);
-    const why = blocked ? pickBlockReason(t.id, traitIds) : null;
-    const detail = traitHoverText(t.id, locale);
-    const tipText = why ? `${detail}\n(${why})` : detail;
-    const label = traitName(t.id, locale);
-
-    const body = (
-      <button
-        type="button"
-        onClick={() => {
-          if (!blocked) toggleTrait(t.id);
-        }}
-        aria-pressed={selected}
-        aria-disabled={blocked}
-        className={`flex min-w-0 flex-1 items-center gap-2.5 text-left ${
-          blocked ? 'cursor-not-allowed' : ''
-        }`}
-      >
-        <Icon name={t.icon} size={28} className="shrink-0" />
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-plate uppercase">
-            {label}
-          </span>
-          <span className={`text-read font-semibold tabular-nums ${accent}`}>
-            {sign}
-            {Math.abs(t.cost)} pt
-          </span>
-          {why && <span className="mt-0.5 block text-micro text-white/45">{why}</span>}
-        </span>
-      </button>
-    );
+  const renderTile = (tr: Trait) => {
+    const selected = traitIds.includes(tr.id);
+    const isPos = tr.category === 'positive';
+    const blocked = !selected && !canPickTrait(tr.id, traitIds);
+    const why = blocked ? pickBlockReason(tr.id, traitIds) : null;
+    const label = traitName(tr.id, locale);
 
     return (
       <div
-        key={t.id}
-        className={`flex items-center gap-1.5 rounded px-2 py-2 transition ${tileClass(t)}`}
+        key={tr.id}
+        onMouseEnter={() => setFocusId(tr.id)}
+        className={`flex items-center gap-1 rounded border-2 transition ${tileClass(tr, selected, blocked)}`}
       >
-        {coarsePointer ? (
-          body
-        ) : (
+        <button
+          type="button"
+          onClick={() => {
+            setFocusId(tr.id);
+            if (!blocked) toggleTrait(tr.id);
+          }}
+          onFocus={() => setFocusId(tr.id)}
+          aria-pressed={selected}
+          aria-disabled={blocked}
+          className={`flex min-w-0 flex-1 items-center gap-1.5 px-1.5 py-1.5 text-left lg:gap-2 lg:px-2 ${
+            blocked ? 'cursor-not-allowed' : ''
+          }`}
+        >
+          <Icon name={tr.icon} size={20} className="shrink-0" />
+          <span className="min-w-0 flex-1 text-plate uppercase leading-tight max-lg:tracking-normal lg:truncate">
+            {label}
+          </span>
+          <span
+            className={`shrink-0 text-body font-semibold tabular-nums ${isPos ? 'text-signal' : 'text-hiss'}`}
+          >
+            {isPos ? '−' : '+'}
+            {Math.abs(tr.cost)}
+          </span>
+        </button>
+        {coarsePointer && (
           <TipHint
-            tip={tipText}
+            tip={why ? `${traitHoverText(tr.id, locale)}\n(${why})` : traitHoverText(tr.id, locale)}
             tipClassName={TRAIT_TIP_PANEL}
             placement="top"
-            className="min-w-0 flex-1"
+            className="shrink-0 pr-1"
           >
-            {body}
-          </TipHint>
-        )}
-
-        {coarsePointer && (
-          <TipHint tip={tipText} tipClassName={TRAIT_TIP_PANEL} placement="top" className="shrink-0">
             <button
               type="button"
               aria-label={`About ${label}`}
-              className="inline-flex h-7 w-7 items-center justify-center rounded border border-white/20 text-body font-semibold text-white/55 transition active:border-signal/50 active:text-signal"
+              className="inline-flex h-6 w-6 items-center justify-center rounded border border-white/20 text-body font-semibold text-white/55 transition active:border-signal/50 active:text-signal"
             >
               ?
             </button>
@@ -425,308 +610,263 @@ export function CharacterCreate() {
     );
   };
 
-  const renderColumn = (side: Side) => {
-    const isPos = side === 'positive';
-    const list = isPos ? positiveTraits : negativeTraits;
-    const groups = isPos
+  const sideTraits = TRAITS.filter(
+    (tr) => tr.category === side && (tagFilter == null || traitTags(tr.id).includes(tagFilter)),
+  );
+  const groups =
+    side === 'positive'
       ? [
-          { label: 'Signature', items: sortTraitsByPoints(list.filter(isSignature), pointSort) },
+          { label: 'Signature · max 1', items: sideTraits.filter(isSignature) },
           {
             label: 'Notable',
-            items: sortTraitsByPoints(
-              list.filter((tr) => !isSignature(tr) && tr.cost >= 2),
-              pointSort,
-            ),
+            items: sideTraits.filter((tr) => !isSignature(tr) && tr.cost >= 2),
           },
-          {
-            label: 'Minor',
-            items: sortTraitsByPoints(
-              list.filter((tr) => tr.cost === 1),
-              pointSort,
-            ),
-          },
+          { label: 'Minor', items: sideTraits.filter((tr) => tr.cost === 1) },
         ]
       : [
-          { label: 'Curses', items: sortTraitsByPoints(list.filter(isCurse), pointSort) },
-          {
-            label: 'Flaws',
-            items: sortTraitsByPoints(
-              list.filter((tr) => !isCurse(tr)),
-              pointSort,
-            ),
-          },
+          { label: 'Curses · max 1', items: sideTraits.filter(isCurse) },
+          { label: 'Flaws', items: sideTraits.filter((tr) => !isCurse(tr)) },
         ];
+
+  const sideTab = (id: Side) => {
+    const isPos = id === 'positive';
+    const active = side === id;
+    const count = isPos ? positiveCount : negativeCount;
     return (
-      <div className="flex min-w-0 flex-col">
-        <div className="mb-2 flex items-baseline justify-between border-b border-white/10 pb-1">
-          <span
-            className={`text-read font-bold uppercase tracking-widest ${isPos ? 'text-signal' : 'text-hiss'}`}
-          >
-            {isPos ? 'Positive (−)' : 'Negative (+)'}
-          </span>
-          <span className="text-label uppercase text-white/40">
-            {isPos ? 'Spend' : 'Earn'} · {isPos ? positiveCount : negativeCount} picked
-          </span>
-        </div>
-        <div className="flex flex-col gap-3">
-          {groups.map((g) =>
-            g.items.length === 0 ? null : (
-              <div key={g.label}>
-                <span className="mb-1 block text-label uppercase text-white/35">
-                  {g.label}
-                </span>
-                <div className="grid grid-cols-2 gap-1.5 xl:grid-cols-3">
-                  {g.items.map((tr) => renderTile(tr, side))}
-                </div>
-              </div>
-            ),
-          )}
-        </div>
-      </div>
+      <button
+        key={id}
+        type="button"
+        role="tab"
+        aria-selected={active}
+        onClick={() => setSide(id)}
+        className={`flex flex-1 items-baseline justify-center gap-2 border-b-2 px-3 py-2 text-read font-bold uppercase tracking-widest transition ${
+          active
+            ? isPos
+              ? 'border-signal text-signal'
+              : 'border-hiss text-hiss'
+            : 'border-white/10 text-white/40 hover:text-white/70'
+        }`}
+      >
+        {isPos ? 'Positives' : 'Negatives'}
+        <span className="hidden text-label font-normal normal-case tracking-normal opacity-70 sm:inline">
+          {isPos ? 'spend points' : 'earn points'}
+          {count > 0 ? ` · ${count} picked` : ''}
+        </span>
+      </button>
     );
   };
 
-  return (
-    <div className="mx-auto w-full max-w-6xl p-6">
+  const filterChip = (tag: TraitTag | null) => {
+    const active = tagFilter === tag;
+    return (
       <button
+        key={tag ?? 'all'}
         type="button"
-        onClick={resetToMenu}
-        className="text-body text-white/40 hover:text-white/70"
+        onClick={() => setTagFilter(tag)}
+        aria-pressed={active}
+        className={`rounded-full border px-2.5 py-0.5 text-label uppercase transition ${
+          active
+            ? 'border-signal bg-signal/15 text-signal'
+            : 'border-white/15 text-white/50 hover:border-white/30 hover:text-white/80'
+        }`}
       >
-        {t('ui.common.back')}
+        {tag ? TRAIT_TAG_LABELS[tag] : 'All'}
       </button>
+    );
+  };
 
-      <div className="mt-2 text-center">
-        <h2 className="text-marquee uppercase tracking-signage text-signal">
-          Before It Fell
-        </h2>
-        <p className="mt-1 text-body leading-relaxed text-white/45">
-          Jobs are starting seeds — load one, then swap traits on the grid.
-          <br />
-          Negatives earn points; positives spend them. Max one signature, one curse, two negatives.
-          <br />
-          Hover a trait for details — on touch, tap ?.
-        </p>
+  const traitsStep = (
+    <div className="flex min-w-0 flex-col gap-2">
+      <div role="tablist" className="flex">
+        {sideTab('negative')}
+        {sideTab('positive')}
       </div>
-
-      <div className="mt-4 flex flex-wrap items-end justify-center gap-6">
-        {nameField}
-        <div className="flex flex-col items-center">
-          <span className="text-label uppercase text-white/40">Points left</span>
-          <span
-            className={`text-marquee tabular-nums ${
-              budgetRemaining < 0 ? 'text-hiss' : 'text-signal'
-            }`}
-          >
-            {budgetRemaining}
-          </span>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap gap-1">
+          {filterChip(null)}
+          {TRAIT_TAG_ORDER.map(filterChip)}
         </div>
-        <button
-          type="button"
-          onClick={revert}
-          className="mb-1 text-plate uppercase text-white/40 hover:text-white/80"
-        >
-          ⟳ {picked || selectedMyPreset ? 'Revert seed' : 'Reset'}
-        </button>
-        <button
-          type="button"
-          onClick={clearBuild}
-          className="mb-1 text-plate uppercase text-white/40 hover:text-white/80"
-        >
-          Clear
-        </button>
-      </div>
-
-      <div className="mt-5 space-y-3">
-        <div>
-          <span className="mb-1.5 block text-label uppercase text-white/40">
-            Job seeds
-          </span>
-          <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
-            {OCCUPATIONS.map(renderOccupationSeed)}
-          </div>
-        </div>
-
-        <div>
-          <span className="mb-1.5 block text-label uppercase text-white/40">
-            My presets ({myPresets.length}/{MAX_TRAIT_PRESETS})
-          </span>
-          {myPresets.length === 0 ? (
-            <p className="rounded border border-dashed border-white/10 px-3 py-3 text-body text-white/35">
-              No saved builds yet. Mix traits below, then Save as preset.
-            </p>
-          ) : (
-            <div className="flex flex-wrap gap-1.5">
-              {myPresets.map((p) => {
-                const selected = matchesPreset && selectedPresetId === p.id;
-                const basedOn = !matchesPreset && selectedPresetId === p.id;
-                return (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => selectMyPreset(p)}
-                    className={`rounded border px-2.5 py-1.5 text-left transition ${
-                      selected
-                        ? 'border-signal bg-signal/15'
-                        : basedOn
-                          ? 'border-signal/40 bg-signal/5'
-                          : 'border-white/10 bg-white/[0.03] hover:border-signal/50'
-                    }`}
-                  >
-                    <span className="text-plate uppercase">{p.name}</span>
-                    <span className="ml-2 text-micro text-white/45">{p.traitIds.length} traits</span>
-                    {!isLegalTraitBuild(p.traitIds) && (
-                      <span className="ml-2 text-micro text-hiss">needs fixing</span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="mt-4 rounded border border-white/15 bg-concrete-900/80 px-4 py-3">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <span className="text-label uppercase text-white/40">Identity</span>
-            <p className="text-read font-bold uppercase tracking-wide text-signal">{identityLabel}</p>
-            <p className="mt-1 text-body text-white/50">{remixHint}</p>
-            {budgetHint && <p className="mt-1 text-micro text-white/40">{budgetHint}</p>}
-            {matchesOccupation && picked && (
-              <p className="mt-2 text-body leading-relaxed text-white/60">{picked.blurb}</p>
-            )}
-          </div>
-          {selectedMyPreset && matchesPreset && (
-            <div className="flex flex-col items-end gap-1">
-              <button
-                type="button"
-                onClick={() => {
-                  deletePreset(selectedMyPreset.id);
-                  refreshPresets();
-                  setSelectedPresetId(null);
-                  setTraitIds([]);
-                  setPresetNameDraft('');
-                }}
-                className="text-label uppercase text-hiss/70 hover:text-hiss"
-              >
-                Delete preset
-              </button>
-              <div className="flex flex-wrap items-center justify-end gap-1">
-                <input
-                  value={presetNameDraft}
-                  onChange={(e) => setPresetNameDraft(e.target.value)}
-                  maxLength={32}
-                  className="w-36 rounded border border-white/15 bg-black/40 px-2 py-1 text-body outline-none focus:border-signal"
-                  placeholder="Rename…"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    const next = renamePreset(selectedMyPreset.id, presetNameDraft);
-                    if (!next) {
-                      setPresetMsg('Could not rename — empty or duplicate name.');
-                      return;
-                    }
-                    refreshPresets();
-                    setPresetMsg(null);
-                  }}
-                  className="text-label uppercase text-white/50 hover:text-white/80"
-                >
-                  Rename
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-        <div className="mt-3 border-t border-white/10 pt-2.5">
-          <span className="mb-1 block text-label uppercase text-white/40">
-            Selected · click to remove
-          </span>
-          {renderSelectedChips()}
-        </div>
-      </div>
-
-      <div className="mt-5 flex items-center justify-end gap-2">
-        <span className="text-label uppercase text-white/40">Sort</span>
         <div
           className="inline-flex overflow-hidden rounded border border-white/15"
           role="group"
           aria-label="Sort traits by points"
         >
-          <button
-            type="button"
-            onClick={() => setPointSort('asc')}
-            aria-pressed={pointSort === 'asc'}
-            {...tip('Points low → high within each group')}
-            className={`px-2.5 py-1 text-plate uppercase transition ${
-              pointSort === 'asc' ? 'bg-white/15 text-white' : 'text-white/40 hover:text-white/70'
-            }`}
-          >
-            Pts ↑
-          </button>
-          <button
-            type="button"
-            onClick={() => setPointSort('desc')}
-            aria-pressed={pointSort === 'desc'}
-            {...tip('Points high → low within each group')}
-            className={`border-l border-white/15 px-2.5 py-1 text-plate uppercase transition ${
-              pointSort === 'desc' ? 'bg-white/15 text-white' : 'text-white/40 hover:text-white/70'
-            }`}
-          >
-            Pts ↓
-          </button>
+          {(['asc', 'desc'] as const).map((dir) => (
+            <button
+              key={dir}
+              type="button"
+              onClick={() => setPointSort(dir)}
+              aria-pressed={pointSort === dir}
+              {...tip(dir === 'asc' ? 'Points low → high' : 'Points high → low')}
+              className={`px-2 py-0.5 text-label uppercase transition ${
+                dir === 'desc' ? 'border-l border-white/15' : ''
+              } ${pointSort === dir ? 'bg-white/15 text-white' : 'text-white/40 hover:text-white/70'}`}
+            >
+              Pts {dir === 'asc' ? '↑' : '↓'}
+            </button>
+          ))}
         </div>
       </div>
-
-      <div className="mt-3 grid gap-6 lg:grid-cols-2">
-        {renderColumn('negative')}
-        {renderColumn('positive')}
+      <div className="flex flex-col gap-2.5">
+        {groups.map((g) =>
+          g.items.length === 0 ? null : (
+            <div key={g.label}>
+              <span className="mb-1 block text-label uppercase text-white/35">{g.label}</span>
+              <div className="grid grid-cols-2 gap-1 sm:grid-cols-3 xl:grid-cols-4">
+                {sortTraitsByPoints(g.items, pointSort).map(renderTile)}
+              </div>
+            </div>
+          ),
+        )}
+        {sideTraits.length === 0 && (
+          <p className="text-body text-white/40">No traits on this side match that filter.</p>
+        )}
       </div>
+    </div>
+  );
 
-      <div className="mt-6">
-        <div className="mb-2 flex items-baseline justify-between border-b border-white/10 pb-1">
-          <span className="text-read font-bold uppercase tracking-widest text-white/60">
-            Attributes
-          </span>
-          <span className="text-label uppercase text-white/40">
-            Set by your modifiers
-          </span>
-        </div>
-        {attributeGrid}
+  const focusTrait = focusId ? getTrait(focusId) : null;
+  const focusBlockedWhy =
+    focusTrait && !traitIds.includes(focusTrait.id) && !canPickTrait(focusTrait.id, traitIds)
+      ? pickBlockReason(focusTrait.id, traitIds)
+      : null;
+  const traitDetail = focusTrait ? (
+    <div className="rounded border border-white/15 bg-concrete-900/80 p-3">
+      <div className="flex items-center gap-2">
+        <Icon name={focusTrait.icon} size={24} className="shrink-0" />
+        <span className="min-w-0 flex-1 truncate text-plate uppercase">
+          {traitName(focusTrait.id, locale)}
+        </span>
+        <span
+          className={`text-read font-semibold tabular-nums ${
+            focusTrait.category === 'positive' ? 'text-signal' : 'text-hiss'
+          }`}
+        >
+          {focusTrait.category === 'positive' ? '−' : '+'}
+          {Math.abs(focusTrait.cost)} pt
+        </span>
       </div>
+      <p className="mt-1.5 text-body italic leading-snug text-white/50">
+        {traitDescription(focusTrait.id, locale)}
+      </p>
+      <ul className="mt-1.5 space-y-0.5 text-body text-concrete-50">
+        {traitEffects(focusTrait.id, locale).map((line) => (
+          <li key={line}>• {line}</li>
+        ))}
+      </ul>
+      {focusBlockedWhy && <p className="mt-1.5 text-micro text-hiss">{focusBlockedWhy}</p>}
+    </div>
+  ) : (
+    <p className="rounded border border-dashed border-white/10 p-3 text-body text-white/40">
+      Hover a trait to see what it does. Negatives earn points, positives spend them — end at 0
+      or above.
+    </p>
+  );
 
-      <div className="mt-4">
-        {skillsPreview}
-      </div>
-
-      <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+  const savePresetRow = (
+    <div>
+      <div className="flex items-center gap-1.5">
         <input
           value={presetNameDraft}
           onChange={(e) => setPresetNameDraft(e.target.value)}
           maxLength={32}
           placeholder="Preset name"
-          className="w-44 rounded border border-white/15 bg-black/40 px-2 py-1.5 text-body outline-none focus:border-signal"
+          className="min-w-0 flex-1 rounded border border-white/15 bg-black/40 px-2 py-1 text-body outline-none focus:border-signal"
         />
         <button
           type="button"
           onClick={handleSavePreset}
-          disabled={!isLegalTraitBuild(traitIds)}
-          className="rounded border border-signal/40 px-3 py-1.5 text-label uppercase text-signal hover:bg-signal/10 disabled:cursor-not-allowed disabled:opacity-40"
+          disabled={!legal}
+          className="shrink-0 rounded border border-signal/40 px-2.5 py-1 text-label uppercase text-signal hover:bg-signal/10 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          Save as preset
+          Save preset
         </button>
       </div>
-      {presetMsg && <p className="mt-2 text-center text-micro text-white/50">{presetMsg}</p>}
+      {presetMsg && <p className="mt-1 text-micro text-white/50">{presetMsg}</p>}
+    </div>
+  );
 
+  const primaryButton =
+    step === 'background' ? (
+      <button
+        type="button"
+        onClick={() => setStep('traits')}
+        className="w-full rounded-lg bg-signal/80 px-6 py-2.5 font-bold uppercase tracking-widest text-black transition hover:bg-signal"
+      >
+        Next: traits →
+      </button>
+    ) : (
       <button
         type="button"
         onClick={start}
-        disabled={!isLegalTraitBuild(traitIds)}
-        className="mx-auto mt-6 block w-full max-w-sm rounded-lg bg-signal/80 px-6 py-3 font-bold uppercase tracking-widest text-black transition hover:bg-signal disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/30"
+        disabled={!legal}
+        className="w-full rounded-lg bg-signal/80 px-6 py-2.5 font-bold uppercase tracking-widest text-black transition hover:bg-signal disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/30"
       >
         Next →
       </button>
+    );
+
+  const secondaryAction =
+    step === 'background' ? (
+      legal && traitIds.length > 0 ? (
+        <button
+          type="button"
+          onClick={start}
+          className="text-label uppercase text-white/40 hover:text-white/80"
+        >
+          Skip — start with this build
+        </button>
+      ) : null
+    ) : (
+      <button
+        type="button"
+        onClick={() => setStep('background')}
+        className="text-label uppercase text-white/40 hover:text-white/80"
+      >
+        ← Background
+      </button>
+    );
+
+  return (
+    <div className="mx-auto flex min-h-full w-full max-w-7xl flex-col px-4 pb-24 pt-3 lg:h-full lg:px-6 lg:pb-4">
+      <header className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-b border-white/10 pb-2">
+        <div className="flex items-center gap-4">
+          <button
+            type="button"
+            onClick={resetToMenu}
+            className="text-body text-white/40 hover:text-white/70"
+          >
+            {t('ui.common.back')}
+          </button>
+          <h2 className="text-title uppercase tracking-signage text-signal">Before It Fell</h2>
+        </div>
+        {stepper}
+        <div className="hidden lg:block">{pointsBadge}</div>
+      </header>
+
+      <div className="mt-3 grid min-h-0 flex-1 gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
+        <main className="min-h-0 lg:overflow-y-auto lg:pr-1">
+          {step === 'background' ? backgroundStep : traitsStep}
+        </main>
+        <aside className="flex min-h-0 flex-col gap-3 lg:overflow-y-auto">
+          {summary}
+          {step === 'background' ? jobDetail : traitDetail}
+          {step === 'traits' && savePresetRow}
+          <div className="hidden flex-col items-center gap-2 lg:mt-auto lg:flex">
+            {primaryButton}
+            {secondaryAction}
+          </div>
+        </aside>
+      </div>
+
+      {/* Mobile: the primary action stays in reach without scrolling to the end. */}
+      <div className="fixed inset-x-0 bottom-0 z-10 flex items-center gap-3 border-t border-white/10 bg-concrete-950/95 px-4 py-2.5 backdrop-blur lg:hidden">
+        <div className="shrink-0">{pointsBadge}</div>
+        <div className="flex min-w-0 flex-1 flex-col items-end gap-1">
+          {primaryButton}
+          {secondaryAction}
+        </div>
+      </div>
     </div>
   );
 }
