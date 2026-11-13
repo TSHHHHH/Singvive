@@ -62,6 +62,7 @@ import {
   weatherEncounterMod,
   weatherThirstMult,
   weatherTravelMult,
+  timeAccuracyPenalty,
 } from './weather';
 
 export type SheetFormat = 'flat' | 'pct' | 'mult' | 'kg';
@@ -199,7 +200,7 @@ function row(
 
 /** The night/dusk hit already baked into `environmentCombatMods`. */
 function baseTimePenalty(weather: WeatherState): number {
-  return weather.time === 'night' ? -2 : weather.time === 'dusk' ? -1 : 0;
+  return timeAccuracyPenalty(weather.time);
 }
 
 /** Time-of-day aim as combat applies it: base penalty, then lit/unlit delta. */

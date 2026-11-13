@@ -235,7 +235,14 @@ currency, and the survivor is always moving — the map is explored, not surveye
   turns — one that would have landed on a bare survivor — **scuffs the armour that stopped it**, so
   good gear pays upkeep instead of being free to own. Protective stats also fade faster with wear
   than a weapon's edge does (floor 40%, vs 75%), and heavy plate costs **combat speed and carry**.
-- **Environment:** night/dusk and rain/storm/haze shift odds toward the enemy.
+- **Environment:** night/dusk and rain/storm/haze shift odds toward the enemy. After dark the dead
+  swing at **+2** (dusk +1); the survivor's own swing loses **1** at night and another **1** if
+  unlit (a worn light turns that into +1). Rain, haze and midday heat cost 1, a storm 2.
+- **Pacing rule:** penalties to the *survivor's* accuracy lengthen a fight without making any single
+  swing more dangerous, so they are kept small and the danger of a bad situation is carried by the
+  enemy's side of the roll. **Guarded**, the stance every fight opens in, has **no accuracy cost**
+  — it buys +2 defence and softer limb hits with tempo and damage. `npm run sim:combat` reports swings per fight, whiff rate and
+  damage taken for a ladder of loadouts; run it before and after touching combat numbers.
 - **Same loop for humans:** hostile-faction/event combat reuses the zombie loop with a **human
   stat block** (`kind: 'human'`, no infection, higher defense; drops gear on death).
 - **Infected animals** (`kind: 'animal'`) use the same loop and **can infect**. They are not the
