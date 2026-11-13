@@ -64,6 +64,7 @@ export function DeathScreen() {
               : 'Gone.',
           seed,
           escaped,
+          kills,
         });
         if (cancelled) return;
         if (result.ok) {
@@ -82,7 +83,7 @@ export function DeathScreen() {
     return () => {
       cancelled = true;
     };
-  }, [character?.name, day, deathCause, escaped, finalScore, seed]);
+  }, [character?.name, day, deathCause, escaped, finalScore, kills, seed]);
 
   const localRows = highScores.slice(0, 5).map((h) => ({
     name: h.name,

@@ -2,7 +2,7 @@
 
 ## Cursor Cloud specific instructions
 
-SINGVIVE is a **Vite 8 + React 19 + TypeScript 6** SPA (Tailwind 3) with a thin **Cloudflare Worker + D1** honor-board for worldwide scores. Gameplay still runs entirely in the browser; map data (`public/pois.json`, `public/mrt.json`, `public/zones.json`, `public/towns.json`) is pre-baked and committed, so a run works offline. The only runtime API is same-origin `/api/scores`.
+SINGVIVE is a **Vite 8 + React 19 + TypeScript 6** SPA (Tailwind 3) with a thin **Cloudflare Worker + D1** honor-board for worldwide scores. Gameplay still runs entirely in the browser; map data (`public/pois.json`, `public/mrt.json`, `public/zones.json`, `public/towns.json`) is pre-baked and committed, so a run works offline. The only runtime API is same-origin `/api/scores` plus `/api/runs` (run registration the board checks scores against — see TECH_STACK.md § Deploying).
 
 Docs are split three ways: **`README.md`** (overview + quickstart), **`GAME_DESIGN.md`** (design source of truth — vision, loop, every system rule), **`TECH_STACK.md`** (architecture, DEV tooling, run/deploy, testing & CI, known debt). Put new content in the right one; the README stays a summary.
 

@@ -469,8 +469,14 @@ hostility, trade, shelter, aid, and intel:
   - `singvive.legacy_run` — last dead survivor for ghost encounters
   - plus zoom / MRT overlay prefs
 - **Worldwide honor board** — death and extract also `POST /api/scores` (Cloudflare Worker + D1).
-  Failures are silent; the personal list still writes. Lists do not sync. Client-computed scores are
-  accepted (rate-limited, sanitized names) — not anti-cheat.
+  Failures are silent; the personal list still writes. Lists do not sync. The score is still
+  computed in the browser, so the board is hardened rather than cheat-proof: a run registers with
+  the Worker when it reaches the screen (`POST /api/runs`), and a score only posts against that
+  registration — once, for the same seed, after a plausible amount of real time, and only if the
+  kills and days can explain it (`worker/scoreRules.ts`). A run that never reached the Worker
+  (played fully offline) stays on the personal list only.
+- **One tab per browser.** A second tab shows "Already open" until the first closes
+  (`useSingleInstance`) — two tabs on one save could write a dead run back.
 - **Score** = `(kills×25 + carried loot value + days×50) × dayMult` (+ optional `2000×dayMult` on
   extract). Permadeath clears the run; death still posts a score.
 

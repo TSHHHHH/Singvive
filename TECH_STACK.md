@@ -447,6 +447,23 @@ settings under **Workers → singvive → Settings → Builds**:
 The worldwide board is an honor list: the client posts the score; the Worker sanitizes names and
 rate-limits by IP. Personal top-10 stays in `localStorage` and is not bulk-uploaded.
 
+**Board hardening.** `POST /api/runs` registers a run (random id in D1 `runs`, 30 per address per
+hour); `POST /api/scores` needs that id plus `kills`, and is refused unless the run exists, matches
+the seed, has not posted, and passes `worker/scoreRules.ts` (day cap from the horde clock, kill and
+loot ceilings, minimum real time per day, score must equal the formula). The Worker keeps its own
+copy of the formula; `src/api/scoreRules.test.ts` fails if the game drifts from it. POSTs from
+another origin get 403 and bodies are capped at 2 KB.
+
+**Migrations are not part of the deploy.** Workers Builds runs `npm run deploy` only, so apply a new
+file in `migrations/` with `npm run db:migrate` *before* merging the code that needs it. Keep
+migrations additive so the live Worker survives the gap.
+
+**Security headers** live in `public/_headers` (Workers Assets). The CSP ships as
+`Content-Security-Policy-Report-Only`: it blocks nothing and logs violations to the browser
+console. Once a full run on the live site logs none, rename the header to
+`Content-Security-Policy` to enforce it. New third-party hosts (tiles, fonts, APIs) must be added
+there.
+
 ---
 
 
