@@ -1807,6 +1807,7 @@
     "stackable": false,
     "maxStack": 1,
     "color": "#5a6b4a",
+    "weightReduction": 0.15,
     "slot": "bag",
     "packGrid": {
       "w": 3,
@@ -1829,6 +1830,7 @@
     "stackable": false,
     "maxStack": 1,
     "color": "#3a5a7a",
+    "weightReduction": 0.2,
     "slot": "bag",
     "packGrid": {
       "w": 5,
@@ -1868,6 +1870,7 @@
     "stackable": false,
     "maxStack": 1,
     "color": "#6a5a3a",
+    "weightReduction": 0.35,
     "slot": "bag",
     "packGrid": {
       "w": 5,
@@ -1907,6 +1910,7 @@
     "stackable": false,
     "maxStack": 1,
     "color": "#4a5a3a",
+    "weightReduction": 0.45,
     "slot": "bag",
     "packGrid": {
       "w": 7,
@@ -3091,6 +3095,7 @@
     "stackable": false,
     "maxStack": 1,
     "color": "#4a4a52",
+    "weightReduction": 0.2,
     "slot": "bag",
     "packGrid": {
       "w": 7,

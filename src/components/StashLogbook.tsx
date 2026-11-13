@@ -1,3 +1,4 @@
+import { isCarried } from '../game/inventory';
 import { useGame } from '../game/store';
 import { itemDef } from '../game/loot';
 import { POI_CONFIG } from '../game/poi';
@@ -21,7 +22,7 @@ export function StashLogbook({ onFocusLocation }: Props) {
   // group stashed items by their location container (exclude backpack + equipment)
   const byLocation = new Map<string, ItemInstance[]>();
   for (const inst of items) {
-    if (inst.container === 'backpack' || inst.container.startsWith('equip:')) continue;
+    if (isCarried(inst.container) || inst.container.startsWith('equip:')) continue;
     if (!locations[inst.container]) continue;
     const arr = byLocation.get(inst.container) ?? [];
     arr.push(inst);

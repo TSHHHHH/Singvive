@@ -378,8 +378,13 @@ export function CombatPanel({
             )}
             <button
               onClick={combatBreakOff}
-              {...tip(t('ui.combat.breakOffTitle'))}
-              className="h-7 shrink-0 rounded border border-hiss/50 px-2 text-plate uppercase text-hiss hover:bg-hiss/10"
+              disabled={!load.canFlee}
+              {...tip(load.canFlee ? t('ui.combat.breakOffTitle') : t('ui.load.noFlee'))}
+              className={`h-7 shrink-0 rounded border px-2 text-plate uppercase ${
+                load.canFlee
+                  ? 'border-hiss/50 text-hiss hover:bg-hiss/10'
+                  : 'cursor-not-allowed border-white/10 text-white/30'
+              }`}
             >
               {t('ui.combat.breakOff')}
             </button>

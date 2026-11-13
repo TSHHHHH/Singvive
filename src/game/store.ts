@@ -121,7 +121,6 @@ import {
 } from './loot';
 import {
   addToGrid,
-  arrangeOverflowClause,
   canPlace,
   canEquip,
   canTearForRags,
@@ -136,12 +135,18 @@ import {
   findSlot,
   footprint,
   packGridForBag,
-  tryArrangeInGrid,
+  addToCarry,
+  arrangeOrLoose,
+  carrySlot,
+  isCarried,
+  LOOSE,
+  LOAD_SPRAIN_CHANCE_PER_KM,
   isBroken,
   isTwoHandedEquipped,
   limbArmorForZone,
   loadEffects,
   loadEffectsFor,
+  type LoadEffects,
   newUid,
   OWN_CLOTHES_TEARS,
   TEAR_CONDITION_COST,
@@ -185,6 +190,7 @@ import {
 } from './crafting';
 import {
   applyPartDamage,
+  applyStrainInjury,
   applyWound,
   armCombatPenalty,
   checkDeath,
@@ -1178,6 +1184,46 @@ export const useGame = create<State>((set, get) => {
     pushLog('The pack is pulling at every step.', 'info');
   };
 
+  /** Pinned (over the hard cap): refuse the move and say why. */
+  const pinnedByLoad = (load: LoadEffects): boolean => {
+    if (load.canTravel) return false;
+    pushLog(
+      'You can barely stand under all this, let alone walk. Drop or stash something first.',
+      'bad',
+    );
+    return true;
+  };
+
+  /**
+   * The walk itself under a Heavy or worse load: footsteps that carry (noise
+   * at the far end) and, when Straining, wear on legs and back per km.
+   */
+  const applyLoadOnWalk = (
+    load: LoadEffects,
+    distM: number,
+    dest: { lat: number; lng: number },
+    rng: Rng,
+  ) => {
+    if (load.arrivalNoise > 0) {
+      get().emitNoise(dest.lat, dest.lng, 250, load.arrivalNoise);
+    }
+    if (load.injuryPerKm <= 0) return;
+    const km = distM / 1000;
+    let sprain = false;
+    for (let k = 0; k < Math.ceil(km); k++) {
+      const share = Math.min(1, km - k);
+      if (rng.chance(LOAD_SPRAIN_CHANCE_PER_KM * share)) sprain = true;
+    }
+    const cur = get();
+    set({ bodyParts: applyStrainInjury(cur.bodyParts, load.injuryPerKm * km, rng, sprain) });
+    pushLog(
+      sprain
+        ? 'Something in your leg gives under the weight. Every step after that is worse.'
+        : 'The load grinds at your knees and back the whole way.',
+      'bad',
+    );
+  };
+
   // Set by an en-route roll in travel(); consumed on arrival to spring a road
   // ambush before the site can be searched.
   let roadAmbush: {
@@ -1429,20 +1475,12 @@ export const useGame = create<State>((set, get) => {
       'batteries', 'instant_noodles', 'painkillers',
     ];
     const defId = rng.pick(pool);
-    const res = addToGrid(get().items, 'backpack', defId, 1);
+    const res = addToCarry(get().items, defId, 1);
     const flavorKey = mode === 'road' ? 'roadFind' : 'trekFind';
-    if (res.leftover === 0) {
-      set({ items: res.items });
-      return {
-        text: `${flavor(flavorKey, { name: destName ?? 'open ground' })} (${itemDef(defId).name})`,
-        tone: 'good',
-      };
-    }
+    set({ items: res.items });
     return {
-      text: destName
-        ? `Something useful on the way to ${destName}, but you can't carry it.`
-        : 'Something useful in the open, but you can\'t carry it.',
-      tone: 'info',
+      text: `${flavor(flavorKey, { name: destName ?? 'open ground' })} (${itemDef(defId).name})`,
+      tone: 'good',
     };
   };
 
@@ -1677,7 +1715,7 @@ export const useGame = create<State>((set, get) => {
   };
 
   const hasBackpackItem = (defId: string): boolean =>
-    get().items.some((i) => i.container === 'backpack' && i.defId === defId);
+    get().items.some((i) => isCarried(i.container) && i.defId === defId);
 
   /** Sleeping bag (or other sleepGear) in the pack or the stash at the current site. */
   const hasSleepingBagNearby = (): boolean => {
@@ -1685,7 +1723,7 @@ export const useGame = create<State>((set, get) => {
     const pos = s.currentPositionId;
     return s.items.some((i) => {
       if (!itemDef(i.defId).sleepGear) return false;
-      return i.container === 'backpack' || (pos != null && i.container === pos);
+      return isCarried(i.container) || (pos != null && i.container === pos);
     });
   };
 
@@ -1753,7 +1791,10 @@ export const useGame = create<State>((set, get) => {
    * row, so it needs a version that doesn't round-trip through the store.
    */
   const consumeOneOf = (items: ItemInstance[], defId: string): ItemInstance[] => {
-    const inst = items.find((i) => i.container === 'backpack' && i.defId === defId);
+    // Loose first: using it up is the cheapest way to shed awkward weight.
+    const inst =
+      items.find((i) => i.container === LOOSE && i.defId === defId) ??
+      items.find((i) => i.container === 'backpack' && i.defId === defId);
     if (!inst) return items;
     return inst.stack > 1
       ? items.map((i) => (i.uid === inst.uid ? { ...i, stack: i.stack - 1 } : i))
@@ -1986,39 +2027,22 @@ export const useGame = create<State>((set, get) => {
     bumpStats({ poisSearched: 1 });
   };
 
-  /** Move a found session instance into pack, then site stash. */
+  /** Move a found session instance into the pack, then carried loose. */
   const relocateFoundItem = (
     items: ItemInstance[],
     uid: string,
-    stashLocationId: string,
-  ): { items: ItemInstance[]; stashed: boolean; lost: boolean; defId: string; count: number } | null => {
+  ): { items: ItemInstance[]; loose: boolean; defId: string; count: number } | null => {
     const inst = items.find((i) => i.uid === uid);
     if (!inst) return null;
     const without = items.filter((i) => i.uid !== uid);
-    const packed = addToGrid(without, 'backpack', inst.defId, inst.stack, inst.condition);
-    if (packed.leftover === 0) {
-      return {
-        items: packed.items,
-        stashed: false,
-        lost: false,
-        defId: inst.defId,
-        count: inst.stack,
-      };
-    }
-    const spilled = addToGrid(
-      packed.items,
-      stashLocationId,
+    const carried = addToCarry(
+      without,
       inst.defId,
-      packed.leftover,
+      inst.stack,
       inst.condition,
+      inst.contaminationRisk,
     );
-    return {
-      items: spilled.items,
-      stashed: spilled.leftover < packed.leftover,
-      lost: spilled.leftover > 0,
-      defId: inst.defId,
-      count: inst.stack,
-    };
+    return { items: carried.items, loose: carried.loose > 0, defId: inst.defId, count: inst.stack };
   };
 
   const closeSearchSession = (
@@ -2544,7 +2568,7 @@ export const useGame = create<State>((set, get) => {
     return {
       heatMult: sumTraitMod(s.character!.traitIds, 'hdbDoorHeatMult') + skillPackage().hdbDoorHeatMult,
       minutesMult: sumTraitMod(s.character!.traitIds, 'hdbBreachMinutesMult') + skillPackage().hdbBreachMinutesMult,
-      crowbar: s.items.some((i) => i.container === 'backpack' && i.defId === 'crowbar'),
+      crowbar: s.items.some((i) => isCarried(i.container) && i.defId === 'crowbar'),
     };
   };
 
@@ -3064,41 +3088,30 @@ export const useGame = create<State>((set, get) => {
     const bias = Math.max(0, Math.min(1, lootMod / 3));
 
     let items = s.items;
-    const tempHeld: LootStack[] = [];
-    const lost: LootStack[] = [];
+    let wentLoose = false;
     for (const stack of loot) {
       const condition = conditionRoll(rng, stack.defId, bias);
-      const packed = addToGrid(items, 'backpack', stack.defId, stack.count, condition);
-      items = packed.items;
-      if (packed.leftover === 0) continue;
-      // Mid-crawl: never touch the far-station stash. Overflow goes to a temp
-      // grid the player must resolve before continuing.
-      const spilled = addToGrid(items, TEMP_STASH, stack.defId, packed.leftover, condition);
-      items = spilled.items;
-      const held = packed.leftover - spilled.leftover;
-      if (held > 0) tempHeld.push({ defId: stack.defId, count: held });
-      if (spilled.leftover > 0) lost.push({ defId: stack.defId, count: spilled.leftover });
+      // Pack first, then carried loose. The temp pile is still there to drop
+      // things into, but nothing is left behind for want of grid space.
+      const carried = addToCarry(items, stack.defId, stack.count, condition);
+      items = carried.items;
+      if (carried.loose > 0) wentLoose = true;
     }
     items = stampFirearmLoot(items, rng);
-    const missed = [...tempHeld, ...lost];
-    const openInv = tempHeld.length > 0;
     set({
       items,
-      inventoryOpenToken: openInv ? s.inventoryOpenToken + 1 : s.inventoryOpenToken,
+      inventoryOpenToken: wentLoose ? s.inventoryOpenToken + 1 : s.inventoryOpenToken,
     });
-    bumpHaul(loot, missed);
+    bumpHaul(loot, []);
     pushLog(
       loot.length ? `You strip ${node.name}.` : `${node.name} was picked over long ago.`,
       loot.length ? 'good' : 'info',
-      loot.length ? { loot, leftover: missed } : undefined,
+      loot.length ? { loot, leftover: [] } : undefined,
       undefined,
       nodeScope,
     );
-    if (tempHeld.length > 0) {
-      pushLog(flavor('packSpill'), 'info', undefined, undefined, nodeScope);
-    }
-    if (lost.length > 0) {
-      pushLog(flavor('packLost'), 'bad', undefined, undefined, nodeScope);
+    if (wentLoose) {
+      pushLog('No room in the pack — the rest you carry loose.', 'info', undefined, undefined, nodeScope);
     }
   };
 
@@ -3344,7 +3357,7 @@ export const useGame = create<State>((set, get) => {
     if (kind === 'corpse') {
       const drops = ghostDrops(legacy);
       let items = get().items;
-      for (const defId of drops) items = addToGrid(items, 'backpack', defId, 1).items;
+      for (const defId of drops) items = addToCarry(items, defId, 1).items;
       set({ items });
       pushLog(
         drops.length
@@ -3899,6 +3912,7 @@ export const useGame = create<State>((set, get) => {
 
       const weather = weatherKindFor(s.seed, s.day);
       const load = loadOf(s);
+      if (pinnedByLoad(load)) return;
 
       const route = routeLandPath(s.currentPos, { lat: loc.lat, lng: loc.lng });
       if (!route) {
@@ -4031,6 +4045,7 @@ export const useGame = create<State>((set, get) => {
         pushLog('Dense forest slows you — nature reserve overgrowth.', 'info');
       }
       noteOverload(s.day, load.ratio);
+      applyLoadOnWalk(load, dist, { lat: loc.lat, lng: loc.lng }, encRng.fork('load'));
       if (get().escort?.toId === loc.id) {
         set({ escort: null });
         pushLog(
@@ -4192,6 +4207,7 @@ export const useGame = create<State>((set, get) => {
 
       const weather = weatherKindFor(s.seed, s.day);
       const load = loadOf(s);
+      if (pinnedByLoad(load)) return;
 
       // Open ground obeys the same one-push limit as everything else — it's an
       // escape hatch from bad geometry, not from the stamina economy.
@@ -4302,6 +4318,7 @@ export const useGame = create<State>((set, get) => {
         pushLog('You push through dense forest — every step costs.', 'info');
       }
       noteOverload(s.day, load.ratio);
+      applyLoadOnWalk(load, dist, { lat, lng }, encRng.fork('load'));
       if (applyCrossingOutcome(outcome, veg.energyCost * load.energyMult, encRng)) return;
       if (trekFindLog) pushLog(trekFindLog.text, trekFindLog.tone);
       set({
@@ -4324,6 +4341,7 @@ export const useGame = create<State>((set, get) => {
       const s = get();
       const from = s.currentPositionId ? s.locations[s.currentPositionId] : null;
       if (!from || s.combat || s.pendingEvent || s.tunnel || s.hdb) return;
+      if (pinnedByLoad(loadOf(s))) return;
       if (!from.isMrtStation || !from.mrtStationId) {
         pushLog('You have to be on a platform to get into the tunnels.', 'bad');
         return;
@@ -4402,6 +4420,7 @@ export const useGame = create<State>((set, get) => {
       const s = get();
       const run = s.tunnel;
       if (!run || s.combat || s.pendingEvent) return;
+      if (pinnedByLoad(loadOf(s))) return;
       if (nodeNeedsChoice(currentNode(run))) {
         pushLog('The bore is blocked until you pick a way through.', 'info');
         return;
@@ -4516,7 +4535,7 @@ export const useGame = create<State>((set, get) => {
         return;
       }
       consumeBackpackItem(offer.wantDefId);
-      const r = addToGrid(get().items, 'backpack', offer.giveDefId, 1);
+      const r = addToCarry(get().items, offer.giveDefId, 1);
       set({ items: r.items, tunnelOffer: null });
       shiftStanding('sta', 1);
       pushLog(
@@ -4685,26 +4704,16 @@ export const useGame = create<State>((set, get) => {
       const give = itemDef(offer.giveDefId);
 
       const held = s.items.filter(
-        (i) => i.container === 'backpack' && i.defId === offer.wantDefId,
+        (i) => isCarried(i.container) && i.defId === offer.wantDefId,
       ).reduce((n, i) => n + i.stack, 0);
       if (held < offer.wantCount) {
         pushLog(`They want ${offer.wantCount}× ${want.name}. You have ${held}.`, 'bad');
         return;
       }
 
-      // Check the goods will fit *before* taking payment — a trade that eats
-      // your tins and then can't hand you the medkit is a robbery with extra
-      // steps.
       let items = s.items;
       for (let n = 0; n < offer.wantCount; n++) items = consumeOneOf(items, offer.wantDefId);
-      const packed = addToGrid(items, 'backpack', offer.giveDefId, offer.giveCount);
-      if (packed.leftover > 0) {
-        pushLog(
-          `No room in the pack for ${offer.giveCount}× ${give.name}. They wait while you sort yourself out.`,
-          'bad',
-        );
-        return;
-      }
+      const packed = addToCarry(items, offer.giveDefId, offer.giveCount);
 
       const taken = [...t.taken, offerId];
       set({
@@ -4978,7 +4987,7 @@ export const useGame = create<State>((set, get) => {
         return;
       }
       const tributeId = FACTION_CONFIG.muster.tribute.find((id) =>
-        s.items.some((i) => i.container === 'backpack' && i.defId === id && i.stack > 0),
+        s.items.some((i) => isCarried(i.container) && i.defId === id && i.stack > 0),
       );
       if (!tributeId) {
         pushLog(
@@ -5130,7 +5139,7 @@ export const useGame = create<State>((set, get) => {
       if (!session) return;
       const slot = session.slots.find((sl) => sl.uid === uid && sl.state === 'found');
       if (!slot) return;
-      const moved = relocateFoundItem(s.items, uid, session.stashLocationId);
+      const moved = relocateFoundItem(s.items, uid);
       if (!moved) return;
       const nextSlots = session.slots.map((sl) =>
         sl.uid === uid ? { ...sl, state: 'taken' as const } : sl,
@@ -5140,9 +5149,8 @@ export const useGame = create<State>((set, get) => {
         items: moved.items,
         pendingSearch: next,
       });
-      if (moved.lost) pushLog(`No room for the ${itemDef(moved.defId).name}.`, 'bad');
-      else if (moved.stashed) {
-        pushLog(`${itemDef(moved.defId).name} goes in the stash — pack is full.`, 'info');
+      if (moved.loose) {
+        pushLog(`No room in the pack — you carry the ${itemDef(moved.defId).name} loose.`, 'info');
       }
       // Nothing left to search or take — close the session without a Done click.
       if (!hasFoggedOrSearching(next) && !next.slots.some((sl) => sl.state === 'found')) {
@@ -5158,20 +5166,13 @@ export const useGame = create<State>((set, get) => {
       if (!session) return true;
       let items = s.items;
       let working = session;
-      let stashed = false;
-      // Stop at the first find that fits nowhere rather than destroying it — the
-      // rest stay on the ground until the player makes room.
-      let blocked = false;
+      let loose = false;
       for (const slot of session.slots) {
         if (slot.state !== 'found' || !slot.uid) continue;
-        const moved = relocateFoundItem(items, slot.uid, working.stashLocationId);
+        const moved = relocateFoundItem(items, slot.uid);
         if (!moved) continue;
-        if (moved.lost) {
-          blocked = true;
-          break;
-        }
         items = moved.items;
-        if (moved.stashed) stashed = true;
+        if (moved.loose) loose = true;
         working = {
           ...working,
           slots: working.slots.map((sl) =>
@@ -5180,14 +5181,13 @@ export const useGame = create<State>((set, get) => {
         };
       }
       set({ items, pendingSearch: working });
-      if (stashed) pushLog('Pack full — extras went onto the site stash.', 'info');
-      if (blocked) pushLog('No room left — the rest stays where it lies.', 'bad');
+      if (loose) pushLog('Pack full — you carry the rest loose.', 'info');
       if (!hasFoggedOrSearching(working) && !working.slots.some((sl) => sl.state === 'found')) {
         closeSearchSession(working, 'complete');
-        return !blocked;
+        return true;
       }
       persist();
-      return !blocked;
+      return true;
     },
 
     abortSearch: () => {
@@ -5326,14 +5326,9 @@ export const useGame = create<State>((set, get) => {
           case 'gain': {
             const cur = get();
             const def = itemDef(e.defId);
-            const r = addToGrid(cur.items, 'backpack', e.defId, e.count ?? 1);
-            if (r.leftover > 0 && (e.count ?? 1) === r.leftover) {
-              pushLog(`${def.name} — but your pack is full.`, 'info');
-            } else {
-              set({ items: r.items });
-              const got = (e.count ?? 1) - r.leftover;
-              pushLog(`You come away with ${got}× ${def.name}.`, 'good');
-            }
+            const r = addToCarry(cur.items, e.defId, e.count ?? 1);
+            set({ items: r.items });
+            pushLog(`You come away with ${e.count ?? 1}× ${def.name}.`, 'good');
             return true;
           }
           case 'treat': {
@@ -5849,7 +5844,7 @@ export const useGame = create<State>((set, get) => {
       const inst = s.items.find((i) => i.uid === uid);
       if (!inst) return false;
       const allowed = (c: string) =>
-        c === 'backpack' ||
+        isCarried(c) ||
         c === TEMP_STASH ||
         (c === s.currentPositionId && !s.tunnel);
       // Location stash only while standing there (and not mid-tunnel); temp + pack always ok.
@@ -5883,7 +5878,7 @@ export const useGame = create<State>((set, get) => {
       const inst = s.items.find((i) => i.uid === uid);
       if (!inst || inst.container === toContainer) return;
       const allowed =
-        toContainer === 'backpack' ||
+        isCarried(toContainer) ||
         toContainer === TEMP_STASH ||
         toContainer === s.currentPositionId;
       if (!allowed) {
@@ -5896,14 +5891,22 @@ export const useGame = create<State>((set, get) => {
       }
       const others = s.items.filter((i) => i.uid !== uid);
       const def = itemDef(inst.defId);
-      const slot = findSlot(toContainer, others, def);
+      // Taking something into the pack never fails: no room in the grid means
+      // you carry it loose. Only stashes and the temp pile can be full.
+      const slot =
+        toContainer === 'backpack' && inst.container !== LOOSE
+          ? carrySlot(others, def)
+          : (() => {
+              const g = findSlot(toContainer, others, def);
+              return g ? { container: toContainer, ...g } : null;
+            })();
       if (!slot) {
-        pushLog('No space there.', 'bad');
+        pushLog(toContainer === 'backpack' ? 'No room in the pack grid.' : 'No space there.', 'bad');
         return;
       }
       set({
         items: s.items.map((i) =>
-          i.uid === uid ? { ...i, container: toContainer, x: slot.x, y: slot.y, rotated: slot.rotated } : i,
+          i.uid === uid ? { ...i, container: slot.container, x: slot.x, y: slot.y, rotated: slot.rotated } : i,
         ),
       });
       persist();
@@ -5946,9 +5949,6 @@ export const useGame = create<State>((set, get) => {
         pushLog(`Can't make that — ${check.reason.toLowerCase()}.`, 'bad');
         return;
       }
-      // Check the pack has room for the output *before* burning hours and
-      // inputs — the inputs coming out first is what usually makes the space,
-      // so the dry run has to consume them too.
       const spendInputs = (from: ItemInstance[]): ItemInstance[] => {
         let out = from;
         for (const [defId, need] of Object.entries(inputs)) {
@@ -5956,58 +5956,26 @@ export const useGame = create<State>((set, get) => {
         }
         return out;
       };
-      const dryRun = addToGrid(
-        spendInputs(s.items),
-        'backpack',
-        recipe.outputDefId,
-        recipe.outputCount,
-      );
-      if (dryRun.leftover > 0) {
-        pushLog(
-          `No room in the pack for ${recipe.outputCount}× ${itemDef(recipe.outputDefId).name} — make space first.`,
-          'bad',
-        );
-        return;
-      }
-
       if (advanceTime(recipe.hours)) return;
 
       let items = spendInputs(get().items);
       const contaminated =
         waterInputId === 'dirty_water' ? DIRTY_WATER_DRINK_INFECTION : undefined;
-      const made = addToGrid(
+      const made = addToCarry(
         items,
-        'backpack',
         recipe.outputDefId,
         recipe.outputCount,
         undefined,
         contaminated,
       );
       const outName = itemDef(recipe.outputDefId).name;
-      if (made.leftover === recipe.outputCount) {
-        // The inputs are already gone; refusing now would eat them for nothing.
-        const here = s.currentPositionId;
-        const spilled = here
-          ? addToGrid(
-              items,
-              here,
-              recipe.outputDefId,
-              recipe.outputCount,
-              undefined,
-              contaminated,
-            )
-          : { items, leftover: recipe.outputCount };
-        set({ items: spilled.items });
-        pushLog(
-          spilled.leftover > 0
-            ? `Made ${outName}, but there was nowhere to put it.`
-            : `Made ${outName} — no room in the pack, so it's in the stash.`,
-          spilled.leftover > 0 ? 'bad' : 'info',
-        );
-      } else {
-        set({ items: made.items });
-        pushLog(`Made ${recipe.outputCount}× ${outName}.`, 'good');
-      }
+      set({ items: made.items });
+      pushLog(
+        made.loose > 0
+          ? `Made ${recipe.outputCount}× ${outName} — no room in the pack, so you carry it loose.`
+          : `Made ${recipe.outputCount}× ${outName}.`,
+        'good',
+      );
       applyPracticeXp('trades', PRACTICE_XP.craft);
       persist();
     },
@@ -6042,14 +6010,10 @@ export const useGame = create<State>((set, get) => {
       const items = now.items.map((i) => (i.uid === uid ? torn : i));
       const equipment = equippedSlot ? { ...now.equipment, [equippedSlot]: torn } : now.equipment;
 
-      const made = addToGrid(items, 'backpack', 'cloth_rags', TEAR_RAGS_YIELD);
-      if (made.leftover === TEAR_RAGS_YIELD) {
-        pushLog('No room in the pack for the strips — make space first.', 'bad');
-        return;
-      }
+      const made = addToCarry(items, 'cloth_rags', TEAR_RAGS_YIELD);
       set({ items: made.items, equipment });
       pushLog(
-        `Cut up the ${def.name} for ${TEAR_RAGS_YIELD - made.leftover}× ${itemDef('cloth_rags').name}. It won't protect you like it did.`,
+        `Cut up the ${def.name} for ${TEAR_RAGS_YIELD}× ${itemDef('cloth_rags').name}. It won't protect you like it did.`,
         'info',
       );
       persist();
@@ -6064,11 +6028,7 @@ export const useGame = create<State>((set, get) => {
       if (advanceTime(TEAR_HOURS)) return;
 
       const now = get();
-      const made = addToGrid(now.items, 'backpack', 'cloth_rags', TEAR_RAGS_YIELD);
-      if (made.leftover === TEAR_RAGS_YIELD) {
-        pushLog('No room in the pack for the strips — make space first.', 'bad');
-        return;
-      }
+      const made = addToCarry(now.items, 'cloth_rags', TEAR_RAGS_YIELD);
       const left = now.clothingTears - 1;
       set({ items: made.items, clothingTears: left });
       pushLog(
@@ -6177,12 +6137,7 @@ export const useGame = create<State>((set, get) => {
 
       const stow = (prev: ItemInstance | null): boolean => {
         if (!prev) return true;
-        const backSlot = findSlot('backpack', nextItems, itemDef(prev.defId));
-        if (!backSlot) return false;
-        nextItems = [
-          ...nextItems,
-          { ...prev, container: 'backpack', x: backSlot.x, y: backSlot.y, rotated: backSlot.rotated },
-        ];
+        nextItems = [...nextItems, { ...prev, ...carrySlot(nextItems, itemDef(prev.defId)) }];
         return true;
       };
 
@@ -6214,15 +6169,15 @@ export const useGame = create<State>((set, get) => {
         const packItems = nextItems.filter((i) => i.container === 'backpack');
         const rest = nextItems.filter((i) => i.container !== 'backpack');
         const toPack = prevBag ? [...packItems, prevBag] : packItems;
-        const arranged = tryArrangeInGrid(grid, toPack);
-        if (!arranged.ok) {
+        const arranged = arrangeOrLoose(grid, toPack);
+        const spilled = arranged.filter((i) => i.container === LOOSE).length;
+        if (spilled > 0) {
           pushLog(
-            `Too much in the pack to swap to ${def.name}. Drop or stash some items first.${arrangeOverflowClause(arranged.overflow)}`,
-            'bad',
+            `${def.name} can't hold it all — ${spilled === 1 ? 'one thing goes' : `${spilled} things go`} loose.`,
+            'info',
           );
-          return;
         }
-        nextItems = [...rest, ...arranged.items];
+        nextItems = [...rest, ...arranged];
         syncBackpackBonuses(traitW, nextEquip);
       } else {
         syncBackpackBonuses(traitW, nextEquip);
@@ -6247,31 +6202,19 @@ export const useGame = create<State>((set, get) => {
         const grid = packGridForBag(traitW, null);
         const packItems = s.items.filter((i) => i.container === 'backpack');
         const rest = s.items.filter((i) => i.container !== 'backpack');
-        const arranged = tryArrangeInGrid(grid, [...packItems, inst]);
-        if (!arranged.ok) {
-          pushLog(
-            `Too much in the pack to take the bag off. Drop or stash some items first.${arrangeOverflowClause(arranged.overflow)}`,
-            'bad',
-          );
-          return;
+        const arranged = arrangeOrLoose(grid, [...packItems, inst]);
+        if (arranged.some((i) => i.container === LOOSE)) {
+          pushLog('Pockets can\'t hold it all — the rest you carry loose.', 'info');
         }
         syncBackpackBonuses(traitW, nextEquip);
-        set({ items: [...rest, ...arranged.items], equipment: nextEquip });
+        set({ items: [...rest, ...arranged], equipment: nextEquip });
         persist();
         return;
       }
 
-      const backSlot = findSlot('backpack', s.items, itemDef(inst.defId));
-      if (!backSlot) {
-        pushLog('Backpack is full.', 'bad');
-        return;
-      }
       const nextEquip = { ...s.equipment, [slot]: null };
       set({
-        items: [
-          ...s.items,
-          { ...inst, container: 'backpack', x: backSlot.x, y: backSlot.y, rotated: backSlot.rotated },
-        ],
+        items: [...s.items, { ...inst, ...carrySlot(s.items, itemDef(inst.defId)) }],
         equipment: nextEquip,
       });
       persist();
@@ -6327,6 +6270,10 @@ export const useGame = create<State>((set, get) => {
     combatBreakOff: () => {
       const s = get();
       if (!s.combat || s.combat.over) return;
+      if (!loadOf(s).canFlee) {
+        pushLog('Not with this much on you. You stand and fight, or drop something and run.', 'bad');
+        return;
+      }
       const wasAwaiting = s.combat.awaitingStance;
       const weather = { kind: weatherKindFor(s.seed, s.day), time: timeOfDay(s.hour) };
       set({
@@ -6619,7 +6566,7 @@ export const useGame = create<State>((set, get) => {
           return;
         }
         consumeBackpackItem('jewellery');
-        const r = addToGrid(get().items, 'backpack', 'medkit', 1);
+        const r = addToCarry(get().items, 'medkit', 1);
         set({ items: r.items });
         pushLog('You trade jewellery for a medkit. Gold is worth less every day.', 'good', undefined, undefined, unitLogScope);
       }
@@ -6760,7 +6707,7 @@ export const useGame = create<State>((set, get) => {
         return;
       }
       consumeBackpackItem(wantDefId);
-      const r = addToGrid(get().items, 'backpack', giveDefId, 1);
+      const r = addToCarry(get().items, giveDefId, 1);
       set({ items: r.items, ghostOffer: null });
       pushLog(`Trade made: ${itemDef(giveDefId).name}. They wish you better luck.`, 'good');
       persist();
@@ -7173,6 +7120,10 @@ export const useGame = create<State>((set, get) => {
       const s = get();
       if (!s.combat || s.combat.over || !s._combatRng) return;
       const load = loadOf(s);
+      if (!load.canFlee) {
+        pushLog('Not with this much on you. You stand and fight, or drop something and run.', 'bad');
+        return;
+      }
       const pStats = playerCombatStats(
         s.character!.attributes,
         s.character!.traitIds,
@@ -7314,7 +7265,7 @@ export const useGame = create<State>((set, get) => {
       // grant human drops on a win
       if (outcome === 'win' && context.drops?.length) {
         let items = get().items;
-        for (const defId of context.drops) items = addToGrid(items, 'backpack', defId, 1).items;
+        for (const defId of context.drops) items = addToCarry(items, defId, 1).items;
         set({ items });
         pushLog(`Looted the ${zombie.name}'s body.`, 'good');
       }
@@ -7635,13 +7586,8 @@ export const useGame = create<State>((set, get) => {
         const orphans = s.items.filter((i) => i.container.startsWith('search:'));
         if (orphans.length > 0) {
           let items = s.items.filter((i) => !i.container.startsWith('search:'));
-          const stashId = s.currentPositionId;
           for (const inst of orphans) {
-            const packed = addToGrid(items, 'backpack', inst.defId, inst.stack, inst.condition);
-            items = packed.items;
-            if (packed.leftover > 0 && stashId) {
-              items = addToGrid(items, stashId, inst.defId, packed.leftover, inst.condition).items;
-            }
+            items = addToCarry(items, inst.defId, inst.stack, inst.condition).items;
           }
           set({ items });
         }

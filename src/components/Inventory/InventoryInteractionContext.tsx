@@ -14,6 +14,8 @@ import { itemDef } from '../../game/loot';
 import { normalizeAmmoDefId } from '../../game/firearms';
 import {
   BACKPACK,
+  isCarried,
+  LOOSE,
   canEquip,
   canPlace,
   dimsFor,
@@ -306,6 +308,22 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
         return { type: 'slot', slot, valid };
       }
     }
+    const looseEl = gridRefs.current[LOOSE];
+    if (looseEl) {
+      const r = looseEl.getBoundingClientRect();
+      if (clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom) {
+        const { w, h } = footprint(def, rotated);
+        return {
+          type: 'grid',
+          container: LOOSE,
+          cellX: 0,
+          cellY: 0,
+          w,
+          h,
+          valid: inst.container !== LOOSE,
+        };
+      }
+    }
     const { w, h } = footprint(def, rotated);
     const grids = [
       BACKPACK,
@@ -391,7 +409,7 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
       const slot = EQUIP_SLOTS.find(({ slot: s }) => live.equipment[s]?.uid === inst.uid)?.slot;
       if (slot) return;
       if (!live.stashContainer) return;
-      const dest = inst.container === BACKPACK ? live.stashContainer : BACKPACK;
+      const dest = isCarried(inst.container) ? live.stashContainer : BACKPACK;
       live.transferItem(inst.uid, dest);
       setSelectedUid(inst.uid);
       return;
@@ -761,8 +779,16 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
         });
       }
     }
+    if (target.container === BACKPACK || target.container === LOOSE) {
+      const toLoose = target.container === BACKPACK;
+      actions.push({
+        id: 'loose',
+        label: toLoose ? t('ui.inventory.carryLoose') : t('ui.inventory.pack'),
+        onSelect: () => live.transferItem(target.uid, toLoose ? LOOSE : BACKPACK),
+      });
+    }
     if (live.stashContainer) {
-      const toStash = target.container === BACKPACK;
+      const toStash = isCarried(target.container);
       actions.push({
         id: 'transfer',
         label: toStash ? t('ui.inventory.stash') : t('ui.inventory.pack'),

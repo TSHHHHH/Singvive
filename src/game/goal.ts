@@ -1,7 +1,7 @@
 import type { ItemEffect, ItemInstance, LocationState } from './types';
 import { Rng } from './rng';
 import { itemDef } from './loot';
-import { conditionScale } from './inventory';
+import { conditionScale, isCarried } from './inventory';
 import { haversine } from './overpass';
 import { isWalkable } from './playable';
 
@@ -87,7 +87,7 @@ export function backpackEvacValue(
 ): number {
   let total = 0;
   for (const inst of items) {
-    if (inst.container !== 'backpack') continue;
+    if (!isCarried(inst.container)) continue;
     const def = itemDef(inst.defId);
     if (def.effect.kind === 'magazine') {
       const cap = def.effect.capacity;

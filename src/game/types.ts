@@ -426,11 +426,18 @@ export interface ItemDef {
    * Required on `slot: 'bag'`. Traits still add/remove columns on the right.
    */
   packGrid?: PackGrid;
+  /**
+   * 0..1 share of the weight of everything packed in this bag's grid that the
+   * survivor doesn't feel. Only read on `slot: 'bag'` while equipped. The reason
+   * to keep playing the grid: packed is lighter than carried loose.
+   */
+  weightReduction?: number;
 }
 
 /**
  * Where an item lives. 'backpack' is the carried pack (5×4 pockets, or the
- * equipped bag's packGrid); any other value is a location id whose 4×4 on-site
+ * equipped bag's packGrid); 'loose' is what's carried outside the grid (no
+ * limit, heavier, see `LOOSE` in inventory.ts); any other value is a location id whose 4×4 on-site
  * stash the item is cached in.
  */
 export type Container = string;

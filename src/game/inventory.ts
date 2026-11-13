@@ -41,6 +41,18 @@ export const BACKPACK_DIMS = { w: DEFAULT_PACK_GRID.w, h: DEFAULT_PACK_GRID.h };
 export const STASH_DIMS = { w: 3, h: 3 };
 /** Compact grid for an in-progress sequential search (timeline stash). */
 export const SEARCH_DIMS = { w: 8, h: 5 };
+/**
+ * Carried loose: everything on the survivor that isn't in the bag grid. No
+ * grid and no limit; items sit at x/y 0 and the UI lists them. Weight is the
+ * only thing stopping you, and loose weight counts extra (`LOOSE_WEIGHT_MULT`).
+ */
+export const LOOSE = 'loose';
+
+/** True for containers that travel with the survivor (pack grid or loose). */
+export function isCarried(container: Container): boolean {
+  return container === BACKPACK || container === LOOSE;
+}
+
 /** Transient overflow while crawling a tunnel — not a location stash. */
 export const TEMP_STASH = 'temp:crawl';
 export const TEMP_STASH_DIMS = { w: 4, h: 4 };
@@ -126,6 +138,7 @@ export function canPlace(
   candidate: { x: number; y: number; w: number; h: number },
   ignoreUid?: string,
 ): boolean {
+  if (container === LOOSE) return true;
   const dims = dimsFor(container);
   if (candidate.x < 0 || candidate.y < 0) return false;
   if (candidate.x + candidate.w > dims.w) return false;
@@ -152,6 +165,7 @@ export function findSlot(
   items: ItemInstance[],
   def: ItemDef,
 ): { x: number; y: number; rotated: boolean } | null {
+  if (container === LOOSE) return { x: 0, y: 0, rotated: false };
   const dims = dimsFor(container);
   for (const rotated of def.w === def.h ? [false] : [false, true]) {
     const { w, h } = footprint(def, rotated);
@@ -212,6 +226,33 @@ export function addToGrid(
   }
 
   return { items: next, leftover: remaining };
+}
+
+/**
+ * Pick something up: into the pack grid first, anything that doesn't fit is
+ * carried loose. Never fails — weight is the only limit on what you carry.
+ */
+export function addToCarry(
+  items: ItemInstance[],
+  defId: string,
+  count: number,
+  condition?: number,
+  contaminationRisk?: number,
+): { items: ItemInstance[]; loose: number } {
+  const packed = addToGrid(items, BACKPACK, defId, count, condition, contaminationRisk);
+  if (packed.leftover === 0) return { items: packed.items, loose: 0 };
+  const rest = addToGrid(packed.items, LOOSE, defId, packed.leftover, condition, contaminationRisk);
+  return { items: rest.items, loose: packed.leftover };
+}
+
+/** Grid slot in the pack, or the loose pile when the pack has no room. */
+export function carrySlot(
+  items: ItemInstance[],
+  def: ItemDef,
+): { container: Container; x: number; y: number; rotated: boolean } {
+  const slot = findSlot(BACKPACK, items, def);
+  if (slot) return { container: BACKPACK, ...slot };
+  return { container: LOOSE, x: 0, y: 0, rotated: false };
 }
 
 export type ArrangeResult =
@@ -309,6 +350,21 @@ export function tryArrangeInGrid(
   const stable = packKeepThenSlot(grid, instances);
   if (stable.ok) return stable;
   return packGreedy(grid, instances);
+}
+
+/**
+ * Pack `instances` onto `grid`, and carry loose whatever won't fit. Used when
+ * a bag changes: a smaller bag no longer refuses, it just spills.
+ */
+export function arrangeOrLoose(grid: PackGrid, instances: ItemInstance[]): ItemInstance[] {
+  const fit = tryArrangeInGrid(grid, instances);
+  if (fit.ok) return fit.items;
+  const placed: MaskRect[] = [];
+  const out: ItemInstance[] = [];
+  for (const inst of [...instances].sort(byGreedyPackOrder)) {
+    out.push(placeOnMask(grid, placed, inst) ?? { ...inst, container: LOOSE, x: 0, y: 0, rotated: false });
+  }
+  return out;
 }
 
 /** English fragment for refuse logs — names of items the greedy pack could not place. */
@@ -756,18 +812,47 @@ export function maxCarry(
 
 /** Pack ratio at and below which load does nothing. ~14 kg on a 25 kg character. */
 export const LOAD_COMFORT = 0.55;
+/** Loose items are awkward: they count this much more than their weight. */
+export const LOOSE_WEIGHT_MULT = 1.25;
+/** Load at which the survivor can't flee a fight any more. */
+export const LOAD_NO_FLEE = 1.5;
+/** Load past which the survivor can't walk at all: drop something. */
+export const LOAD_HARD_CAP = 2;
 
-/**
- * Weight on the survivor: backpack contents plus worn gear (bag empty-weight,
- * armour, weapons). Equipped items leave the grid, so they would otherwise be free.
- */
-export function carriedWeight(items: ItemInstance[], equipment: Equipment): number {
-  let kg = containerWeight(items, BACKPACK);
+/** Share of packed weight the equipped bag takes off, 0..0.9. */
+export function bagWeightReduction(equipment: Equipment): number {
+  const bag = equipment.bag;
+  if (!bag || isBroken(bag)) return 0;
+  return Math.min(0.9, Math.max(0, itemDef(bag.defId).weightReduction ?? 0));
+}
+
+/** Raw kg in each place on the survivor, before the bag and loose factors. */
+export function carriedBreakdown(
+  items: ItemInstance[],
+  equipment: Equipment,
+): { packKg: number; looseKg: number; wornKg: number } {
+  let packKg = 0;
+  let looseKg = 0;
+  for (const i of items) {
+    if (i.container === BACKPACK) packKg += itemWeight(i);
+    else if (i.container === LOOSE) looseKg += itemWeight(i);
+  }
+  let wornKg = 0;
   for (const slot of ALL_EQUIP_SLOTS) {
     const inst = equipment[slot];
-    if (inst) kg += itemWeight(inst);
+    if (inst) wornKg += itemWeight(inst);
   }
-  return kg;
+  return { packKg, looseKg, wornKg };
+}
+
+/**
+ * Weight the survivor feels: packed contents (less the bag's reduction), loose
+ * items (×1.25), and worn gear (bag empty-weight, armour, weapons). Equipped
+ * items leave the grid, so they would otherwise be free.
+ */
+export function carriedWeight(items: ItemInstance[], equipment: Equipment): number {
+  const { packKg, looseKg, wornKg } = carriedBreakdown(items, equipment);
+  return packKg * (1 - bagWeightReduction(equipment)) + looseKg * LOOSE_WEIGHT_MULT + wornKg;
 }
 
 export function loadRatio(
@@ -782,19 +867,46 @@ export function loadRatio(
   return carriedWeight(items, equipment) / cap;
 }
 
+export type LoadTier = 'light' | 'burdened' | 'heavy' | 'straining' | 'pinned';
+
+export function loadTier(ratio: number): LoadTier {
+  if (!Number.isFinite(ratio) || ratio > LOAD_HARD_CAP) return 'pinned';
+  if (ratio > LOAD_NO_FLEE) return 'straining';
+  if (ratio > 1) return 'heavy';
+  if (ratio > LOAD_COMFORT) return 'burdened';
+  return 'light';
+}
+
 /**
- * 0 below comfort, linear up to capacity (quiet), then quadratic.
- * At 80% travel is ~×1.24; at 150% ~×2 / energy ~×2.2 / combat speed ~half.
+ * 0 below comfort, linear up to capacity (quiet), then quadratic. Capped at
+ * the hard cap: past it you can't move, so nothing scales further.
+ * At 80% travel is ~×1.24; at 150% ~×2 / energy ~×2.2 / combat speed ~half;
+ * at 200% travel ~×3.7 / energy ~×4.2.
  */
 export function loadStrain(ratio: number): number {
-  if (!Number.isFinite(ratio) || ratio <= LOAD_COMFORT) return 0;
+  if (!Number.isFinite(ratio)) ratio = LOAD_HARD_CAP;
+  if (ratio <= LOAD_COMFORT) return 0;
   if (ratio <= 1) return (0.35 * (ratio - LOAD_COMFORT)) / (1 - LOAD_COMFORT);
-  return 0.35 + (ratio - 1) ** 2 * 1.8;
+  const r = Math.min(ratio, LOAD_HARD_CAP);
+  return 0.35 + (r - 1) ** 2 * 1.8;
 }
+
+/**
+ * Body HP lost per km walked while Straining: 1 at 150%, 3 at 200%. Split
+ * between the legs and the torso by the store.
+ */
+export function loadInjuryPerKm(ratio: number): number {
+  if (!(ratio > LOAD_NO_FLEE)) return 0;
+  return 1 + 4 * (Math.min(ratio, LOAD_HARD_CAP) - LOAD_NO_FLEE);
+}
+
+/** Chance per km walked while Straining of a sprained leg (a heavy leg hit). */
+export const LOAD_SPRAIN_CHANCE_PER_KM = 0.05;
 
 export interface LoadEffects {
   ratio: number;
   strain: number;
+  tier: LoadTier;
   /** Walk time and inverse of travelable range. */
   travelMult: number;
   /** Extra meter drain while moving. The silent killer. */
@@ -804,6 +916,14 @@ export interface LoadEffects {
   attackMod: number;
   dodgeMod: number;
   fleeDcMod: number;
+  /** False from Straining: too much on you to run. */
+  canFlee: boolean;
+  /** False when Pinned: over the hard cap, you can't walk. */
+  canTravel: boolean;
+  /** Body HP lost per km walked (Straining only). */
+  injuryPerKm: number;
+  /** Extra noise intensity on arrival (Heavy and worse: footsteps, rattling). */
+  arrivalNoise: number;
   /** Additive encounter chance. */
   encounterMod: number;
   /** Search duration multiplier (higher = slower rummage). */
@@ -816,16 +936,22 @@ export interface LoadEffects {
 
 export function loadEffects(ratio: number): LoadEffects {
   const strain = loadStrain(ratio);
+  const tier = loadTier(ratio);
   const travelMult = 1 + 1.25 * strain;
   return {
     ratio,
     strain,
+    tier,
     travelMult,
     energyMult: 1 + 1.5 * strain,
     combatSpeedMult: 1 / (1 + 1.25 * strain),
     attackMod: -Math.round(2 * strain),
     dodgeMod: Math.max(-0.4, -0.2 * strain),
     fleeDcMod: Math.round(5 * strain),
+    canFlee: tier !== 'straining' && tier !== 'pinned',
+    canTravel: tier !== 'pinned',
+    injuryPerKm: loadInjuryPerKm(ratio),
+    arrivalNoise: tier === 'light' || tier === 'burdened' ? 0 : 1,
     encounterMod: 0.15 * strain,
     searchMult: 1 + 0.5 * strain,
     stairMult: 1 + strain,

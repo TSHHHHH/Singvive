@@ -139,8 +139,13 @@ export function EncounterPrompt({
       <button
         type="button"
         onClick={combatBreakOff}
-        {...tip(STANCES.disengage.description)}
-        className="flex w-full items-center gap-1.5 rounded border border-hiss/50 px-2 py-1 text-left text-body text-hiss transition hover:bg-hiss/10"
+        disabled={!load.canFlee}
+        {...tip(load.canFlee ? STANCES.disengage.description : t('ui.load.noFlee'))}
+        className={`flex w-full items-center gap-1.5 rounded border px-2 py-1 text-left text-body transition ${
+          load.canFlee
+            ? 'border-hiss/50 text-hiss hover:bg-hiss/10'
+            : 'cursor-not-allowed border-white/10 text-white/30'
+        }`}
       >
         <Icon name={STANCES.disengage.icon} size={13} className="shrink-0" />
         <span className="min-w-0 flex-1 whitespace-normal break-words">

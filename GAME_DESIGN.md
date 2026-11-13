@@ -337,10 +337,27 @@ hostility, trade, shelter, aid, and intel:
   riot shield, gloves, boots, torch, hard hat).
 - **Own clothes:** you can tear strips off what you're wearing **four times** (`OWN_CLOTHES_TEARS`)
   for improvised dressings — a lifeline, not a rag farm.
-- **Weight:** every item has a weight; worn gear counts too. `maxCarry = Strength×3 + Endurance×2`
-  (+ equipped bonuses). There is no pickup cap. Below ~55% of capacity load does nothing; it taxes
-  quietly up to 100%, then quadratically. Hover the carry bar or survivor Carry cell for live
-  penalties (travel, energy, combat, stairs, search). The HUD never says Encumbered.
+- **Weight, not space, is the limit.** Nothing is ever left behind for lack of grid room: whatever
+  doesn't fit the pack grid is **carried loose** (`LOOSE` container, no grid, listed under the pack).
+  Search Take / Take all, travel finds, crafting, trades, event gains and bag swaps all fill the grid
+  first, then go loose. Loose items count **×1.25** weight, can't be reached mid-fight (reloads come
+  from the pack), and can be dragged into the grid or the stash at any time.
+- **Bags cut weight.** An equipped bag takes `weightReduction` off everything packed in its grid:
+  pockets/tote 0%, daypack 15%, school bag and duffel 20%, hiking pack 35%, military rucksack 45%
+  (a broken bag stops helping). This is why the grid is still worth playing.
+- **Load** = (packed × (1 − bag cut) + loose × 1.25 + worn) ÷ `maxCarry`, where
+  `maxCarry = Strength×3 + Endurance×2` (+ equipped bonuses, × torso condition).
+
+  | Tier | Load | Effect |
+  |---|---|---|
+  | Light | ≤ 55% | none |
+  | Burdened | 55–100% | quiet tax: travel up to ×1.44, energy ×1.5, combat speed ×0.7, attack −1 |
+  | Heavy | 100–150% | travel ×1.44 → ×2, energy → ×2.2, attack −2, flee DC +4, loud arrival (noise pulse) |
+  | Straining | 150–200% | travel → ×3.7, energy → ×4.2, attack −4, **can't flee**; each km walked costs legs and torso 1 → 3 HP (no bleeding; the torso stops at 1 HP) and has a 5% sprain chance |
+  | Pinned | > 200% | **can't travel** (overland, tunnels) until you drop or stash something |
+
+  The carry bar spans 0–200%, names the tier and lists its top penalties once you're past Light;
+  the survivor Carry cell turns red and names the tier from Heavy. Hover either for the full list.
 
 ### 3.10 Search sessions
 - Searching a site is a **real-time fogged grid** (`game/searchSession.ts`), not an instant loot dump.
@@ -349,7 +366,7 @@ hostility, trade, shelter, aid, and intel:
   Brand New … Gutted = Old & Torn). In the 3D view the site's building shows the same tier:
   scorched, cut down, or broken open.
   Click fogged cells to prioritize them; finds reveal one by one; Take / Take all claim into the pack
-  (overflow to on-site stash). **Done** or **Leave** abandons unclaimed finds. Leaving early still
+  (overflow is carried loose). **Done** or **Leave** abandons unclaimed finds. Leaving early still
   spends a **partial search charge**.
 
 ### 3.11 Decentralized stashes & the logbook

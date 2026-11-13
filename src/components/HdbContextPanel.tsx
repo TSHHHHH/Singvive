@@ -1,3 +1,4 @@
+import { isCarried } from '../game/inventory';
 import { Icon } from '../icons/Icon';
 import type { IconName } from '../icons/keys';
 import { sumTraitMod } from '../game/character';
@@ -133,10 +134,10 @@ export function HdbContextPanel({
   const forceOpts = {
     heatMult: sumTraitMod(character.traitIds, 'hdbDoorHeatMult'),
     minutesMult: sumTraitMod(character.traitIds, 'hdbBreachMinutesMult'),
-    crowbar: items.some((i) => i.container === 'backpack' && i.defId === 'crowbar'),
+    crowbar: items.some((i) => isCarried(i.container) && i.defId === 'crowbar'),
   };
   const lockpickCount = items
-    .filter((i) => i.container === 'backpack' && i.defId === LOCKPICK_ID)
+    .filter((i) => isCarried(i.container) && i.defId === LOCKPICK_ID)
     .reduce((n, i) => n + i.stack, 0);
 
   const heatWarn = (add: number) => {

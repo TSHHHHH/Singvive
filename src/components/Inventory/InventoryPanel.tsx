@@ -9,8 +9,11 @@ import {
   hasCondition,
   isTwoHandedEquipped,
   canEquip,
+  bagWeightReduction,
   carriedWeight,
+  isCarried,
   loadEffectsFor,
+  LOOSE,
   maxCarry,
   TEMP_STASH,
   TEAR_CONDITION_COST,
@@ -37,6 +40,9 @@ import { ItemInspectBody } from './ItemInspectBody';
 import { useInventoryInteraction } from './InventoryInteractionContext';
 import { TipHint } from '../TipHint';
 import { LOAD_TIP_CLASS, LoadTipBody } from '../loadTip';
+import { loadDebuffBrief, loadTierLabel, loadTierShown, loadTierTone } from '../loadTier';
+import { LoosePile } from './LoosePile';
+import { torsoCarryMult } from '../../game/survival';
 import { useT } from '../../i18n';
 import { tip } from '../tips';
 
@@ -99,6 +105,7 @@ export function InventoryPanel({
   const items = useGame((s) => s.items);
   const equipment = useGame((s) => s.equipment);
   const character = useGame((s) => s.character);
+  const bodyParts = useGame((s) => s.bodyParts);
   const currentPositionId = useGame((s) => s.currentPositionId);
   const locations = useGame((s) => s.locations);
   const applyItem = useGame((s) => s.applyItem);
@@ -180,15 +187,18 @@ export function InventoryPanel({
   const holsterCap = holstered ? magazineSizeFor(itemDef(holstered.defId)) : 0;
 
   const carryMod = character ? sumTraitMod(character.traitIds, 'carryCapacityMod') : 0;
-  const carry = character ? maxCarry(character.attributes, equipment, carryMod) : 0;
+  const torsoCarry = torsoCarryMult(bodyParts);
+  const carry = character ? maxCarry(character.attributes, equipment, carryMod, torsoCarry) : 0;
   const loadKg = carriedWeight(items, equipment);
   const fx = character
-    ? loadEffectsFor(items, character.attributes, equipment, carryMod)
+    ? loadEffectsFor(items, character.attributes, equipment, carryMod, torsoCarry)
     : null;
-  const loadPct = carry > 0 ? (loadKg / carry) * 100 : 0;
+  // Bar spans 0..200% (the hard cap): the midpoint is your limit.
+  const loadPct = carry > 0 ? (loadKg / carry) * 50 : 0;
   const barClass =
     !fx || fx.strain <= 0 ? 'bg-signal' : fx.ratio < 1 ? 'bg-amber-400' : 'bg-hiss';
-  const overloaded = !!fx && fx.ratio > 1;
+  const bagCut = Math.round(bagWeightReduction(equipment) * 100);
+  const debuffs = fx ? loadDebuffBrief(fx, t) : [];
 
   const gridHandlers = {
     onItemPointerDown,
@@ -296,15 +306,31 @@ export function InventoryPanel({
                             onClick={() =>
                               transferItem(
                                 inspected.uid,
-                                inspected.container === BACKPACK ? stashContainer : BACKPACK,
+                                isCarried(inspected.container) ? stashContainer : BACKPACK,
                               )
                             }
                             className="w-full rounded bg-white/10 px-1.5 py-1 text-body leading-tight hover:bg-white/20"
                           >
                             →{' '}
-                            {inspected.container === BACKPACK
+                            {isCarried(inspected.container)
                               ? t('ui.inventory.stash')
                               : t('ui.inventory.pack')}
+                          </button>
+                        )}
+                        {(inspected.container === BACKPACK || inspected.container === LOOSE) && (
+                          <button
+                            onClick={() =>
+                              transferItem(
+                                inspected.uid,
+                                inspected.container === LOOSE ? BACKPACK : LOOSE,
+                              )
+                            }
+                            className="w-full rounded bg-white/10 px-1.5 py-1 text-body leading-tight hover:bg-white/20"
+                          >
+                            →{' '}
+                            {inspected.container === LOOSE
+                              ? t('ui.inventory.pack')
+                              : t('ui.inventory.carryLoose')}
                           </button>
                         )}
                         <button
@@ -465,6 +491,18 @@ export function InventoryPanel({
             {...gridHandlers}
           />
 
+          <LoosePile
+            items={items}
+            selectedUid={selectedUid}
+            draggingUid={dragUid}
+            dropActive={drag?.target?.type === 'grid' && drag.target.container === LOOSE}
+            dropValid={
+              drag?.target?.type === 'grid' && drag.target.container === LOOSE && drag.target.valid
+            }
+            pileRef={(el) => registerGrid(LOOSE, el)}
+            {...gridHandlers}
+          />
+
           <div className="flex items-center gap-2 text-body">
             <TipHint
               className="flex min-w-0 flex-1 items-center gap-2"
@@ -487,9 +525,14 @@ export function InventoryPanel({
                   style={{ width: `${Math.min(100, loadPct)}%` }}
                 />
               </div>
-              <span className={overloaded ? 'font-semibold text-hiss' : 'text-white/60'}>
+              <span className={`tabular-nums ${fx ? loadTierTone(fx) : 'text-white/60'} ${fx && loadTierShown(fx) ? 'font-semibold' : ''}`}>
                 {t('ui.inventory.loadKg', { load: loadKg.toFixed(1), carry })}
               </span>
+              {bagCut > 0 && (
+                <span className="shrink-0 text-micro text-emerald-300/80">
+                  {t('ui.inventory.bagCut', { n: bagCut })}
+                </span>
+              )}
             </TipHint>
             {holstered && (
               <span className={holsterLoaded === 0 ? 'font-semibold text-hiss' : 'text-white/50'}>
@@ -497,6 +540,16 @@ export function InventoryPanel({
               </span>
             )}
           </div>
+          {fx && fx.strain > 0 && (
+            <div className={`-mt-2 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-micro ${loadTierTone(fx)}`}>
+              <span className="rounded border border-current px-1 font-bold uppercase tracking-widest">
+                {loadTierLabel(fx, t)}
+              </span>
+              {debuffs.map((d) => (
+                <span key={d}>{d}</span>
+              ))}
+            </div>
+          )}
         </>
       )}
 
