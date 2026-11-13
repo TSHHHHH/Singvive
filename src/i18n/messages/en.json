@@ -130,6 +130,10 @@
         }
       }
     },
+    "instance": {
+      "title": "ALREADY OPEN",
+      "blurb": "SINGVIVE is running in another tab. Close it and this one takes over where you left off."
+    },
     "death": {
       "escaped": "YOU ESCAPED",
       "died": "YOU DIED",

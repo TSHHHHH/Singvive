@@ -13,6 +13,7 @@ export type SubmitScoreInput = {
   cause: string;
   seed: string;
   escaped: boolean;
+  kills: number;
 };
 
 export type SubmitScoreResult =
@@ -74,12 +75,72 @@ export async function fetchOnlineScores(limit = 20): Promise<OnlineScore[] | nul
   }
 }
 
+const RUN_TOKEN_KEY = 'singvive.runToken.v1';
+
+type RunToken = { seed: string; runId: string };
+
+function readRunToken(seed: string): string | null {
+  try {
+    const raw = localStorage.getItem(RUN_TOKEN_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<RunToken>;
+    return parsed.seed === seed && typeof parsed.runId === 'string' ? parsed.runId : null;
+  } catch {
+    return null;
+  }
+}
+
+const registering = new Map<string, Promise<string | null>>();
+
+/**
+ * Registers the run with the Worker and keeps the id it hands back. The
+ * worldwide board only takes a score that carries one, and checks the real
+ * time since it was issued — so this is called as soon as a run is on screen,
+ * new or continued, and is a no-op once the run has its id. Offline it fails
+ * quietly and the next load tries again; the run itself never depends on it.
+ */
+export function ensureRunRegistered(seed: string): Promise<string | null> {
+  if (!seed) return Promise.resolve(null);
+  const have = readRunToken(seed);
+  if (have) return Promise.resolve(have);
+  const existing = registering.get(seed);
+  if (existing) return existing;
+
+  const pending = (async () => {
+    try {
+      const res = await fetch('/api/runs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ seed }),
+      });
+      if (!res.ok) return null;
+      const data = (await res.json()) as { runId?: unknown };
+      if (typeof data.runId !== 'string') return null;
+      try {
+        localStorage.setItem(RUN_TOKEN_KEY, JSON.stringify({ seed, runId: data.runId }));
+      } catch {
+        /* ignore */
+      }
+      return data.runId;
+    } catch {
+      return null;
+    } finally {
+      registering.delete(seed);
+    }
+  })();
+  registering.set(seed, pending);
+  return pending;
+}
+
 export async function submitOnlineScore(input: SubmitScoreInput): Promise<SubmitScoreResult> {
+  // A run that never reached the Worker has no id to post under.
+  const runId = readRunToken(input.seed);
+  if (!runId) return { ok: false, reason: 'offline' };
   try {
     const res = await fetch('/api/scores', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input),
+      body: JSON.stringify({ ...input, runId }),
     });
     if (res.status === 429) return { ok: false, reason: 'limited' };
     if (!res.ok) return { ok: false, reason: res.status >= 500 ? 'offline' : 'invalid' };

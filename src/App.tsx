@@ -6,6 +6,9 @@ import { useReducedMotion } from './hooks/useReducedMotion';
 import { Menu } from './screens/Menu';
 import { TipLayer } from './components/tips';
 import { flushPersist } from './game/persistRun';
+import { ensureRunRegistered } from './api/scores';
+import { useSingleInstance } from './hooks/useSingleInstance';
+import { useT } from './i18n';
 import { DevToolsMenu } from './dev/DevToolsMenu';
 import { DevLootBrowser } from './dev/LootBrowser';
 import { DevEnemyBrowser } from './dev/EnemyBrowser';
@@ -79,6 +82,31 @@ function PersistFlush() {
   return null;
 }
 
+/**
+ * Registers the run with the score Worker as soon as it is on screen — new or
+ * continued. The worldwide board only accepts a score against a registered run.
+ */
+function RunRegistration() {
+  const seed = useGame((s) => (s.phase === 'game' ? s.seed : ''));
+  useEffect(() => {
+    if (seed) void ensureRunRegistered(seed);
+  }, [seed]);
+  return null;
+}
+
+/** Shown in a second tab while another one holds the game. */
+function AlreadyOpen() {
+  const { t } = useT();
+  return (
+    <div className="flex h-full w-full items-center justify-center bg-concrete-950 p-6">
+      <div className="w-full max-w-md text-center">
+        <h1 className="text-marquee text-hiss">{t('ui.instance.title')}</h1>
+        <p className="mt-2 text-read text-white/50">{t('ui.instance.blurb')}</p>
+      </div>
+    </div>
+  );
+}
+
 function ScreenFallback() {
   return (
     <div className="flex h-full w-full items-center justify-center bg-concrete-950 text-read text-white/40">
@@ -89,6 +117,18 @@ function ScreenFallback() {
 
 export default function App() {
   const phase = useGame((s) => s.phase);
+  const instance = useSingleInstance();
+
+  if (instance !== 'owner') {
+    return (
+      <div className="h-full w-full overflow-hidden">
+        <FontSizeSync />
+        <MotionSync />
+        <LocaleSync />
+        {instance === 'blocked' ? <AlreadyOpen /> : <ScreenFallback />}
+      </div>
+    );
+  }
 
   return (
     <div className="h-full w-full overflow-hidden">
@@ -96,6 +136,7 @@ export default function App() {
       <MotionSync />
       <LocaleSync />
       <PersistFlush />
+      <RunRegistration />
       <TipLayer />
       {phase === 'menu' && <Menu />}
       <Suspense fallback={<ScreenFallback />}>
