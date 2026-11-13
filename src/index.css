@@ -1445,32 +1445,61 @@ select optgroup {
   height: 0;
   pointer-events: none;
 }
-/* Thick black smoke. Its underside is lit orange by the fire, then it goes
-   pure soot as it climbs, swells and leans with the wind. It reads against
-   lit towers and the orange horizon; over black ground it just darkens. */
+/* The fire's light on the underside of the smoke: one glow per column. */
+.fx-smoke::before {
+  content: '';
+  position: absolute;
+  left: -34px;
+  top: -52px;
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 110, 30, 0.5) 0%, rgba(255, 110, 30, 0.18) 45%, transparent 70%);
+  will-change: opacity;
+  animation: fx-glow 0.9s ease-in-out infinite alternate;
+}
+@keyframes fx-glow {
+  from {
+    opacity: 0.55;
+  }
+  to {
+    opacity: 1;
+  }
+}
+/* Thick black smoke: pure soot that climbs, swells and leans with the wind.
+   It reads against lit towers and the orange horizon; over black ground it
+   just darkens.
+
+   Compositor-only on purpose. Each puff animates `transform` and `opacity`
+   and nothing else, with no `filter`: the soft edge is the gradient's own.
+   Animating a colour or blurring per puff repaints every puff on the main
+   thread every frame, and there are over a hundred of them on screen. */
 .fx-puff {
   position: absolute;
-  left: -26px;
-  top: -26px;
-  width: 52px;
-  height: 52px;
+  left: -30px;
+  top: -30px;
+  width: 60px;
+  height: 60px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(8, 6, 5, 0.92) 0%, rgba(14, 11, 9, 0.7) 45%, transparent 72%);
-  filter: blur(5px);
+  background: radial-gradient(
+    circle,
+    rgba(8, 6, 5, 0.9) 0%,
+    rgba(11, 9, 7, 0.72) 30%,
+    rgba(14, 11, 9, 0.34) 52%,
+    rgba(14, 11, 9, 0.1) 66%,
+    transparent 74%
+  );
   opacity: 0;
+  will-change: transform, opacity;
   animation: fx-rise 7s cubic-bezier(0.3, 0.6, 0.6, 1) infinite;
 }
 @keyframes fx-rise {
   0% {
     transform: translate(0, 0) scale(0.4);
     opacity: 0;
-    background-color: rgba(255, 110, 30, 0.55);
   }
   8% {
     opacity: 1;
-  }
-  22% {
-    background-color: rgba(255, 110, 30, 0);
   }
   70% {
     opacity: 0.85;
@@ -1478,7 +1507,6 @@ select optgroup {
   100% {
     transform: translate(var(--fx-drift, 40px), -280px) scale(4.4);
     opacity: 0;
-    background-color: rgba(255, 110, 30, 0);
   }
 }
 

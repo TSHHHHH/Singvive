@@ -97,7 +97,7 @@ goes flat. MapLibre zoom is the old Leaflet zoom − 1 (the saved zoom key moved
   The rest of the city is damaged by a stable hash of the feature id (same buildings every run,
   not seeded): 7% scorched (`scorch`), 3% of 10 m+ buildings collapsed (`aruin` stump; the
   nearest 24 within 900 m get broken models too, flattening the building parts inside them),
-  1% burning (`burn`). The nearest 14 fires within 1.6 km get a flickering ground glow
+  1% burning (`burn`). The nearest 14 fires within 1.6 km get a still ground glow (redrawn only when the set changes: a glow flickered by `setData` repaints the whole map)
   (`fires-3d-glow` / `-core` circle layers under the extrusions) and a flames + smoke `Marker`
   (`.fx-*` in `index.css`) lifted to the roof. A site's own `color` / `ruin` states override
   all of it. Wrecks and fires re-pick only when the sight disc moves 25 m or tiles re-index.
