@@ -570,11 +570,13 @@ function PlayerMarker({
   travelAnim,
   veilRadiusM,
   veilAlpha,
+  onMove,
 }: {
   home: { lat: number; lng: number };
   travelAnim: TravelAnim | null;
   veilRadiusM: number;
   veilAlpha: number;
+  onMove?: (lat: number, lng: number) => void;
 }) {
   const map = useMapGL();
   const rafRef = useRef<number | undefined>(undefined);
@@ -582,6 +584,8 @@ function PlayerMarker({
   const posRef = useRef(home);
   const veilRef = useRef({ radiusM: veilRadiusM, on: veilAlpha > 0 });
   veilRef.current = { radiusM: veilRadiusM, on: veilAlpha > 0 };
+  const moveRef = useRef(onMove);
+  moveRef.current = onMove;
 
   // The veil rides the pin: rebuilt wherever the pin is set.
   const place = (lat: number, lng: number) => {
@@ -589,6 +593,7 @@ function PlayerMarker({
     markerRef.current?.setLngLat([lng, lat]);
     const v = veilRef.current;
     if (v.on) setData(map, VEIL_SRC, veilBands(lat, lng, v.radiusM));
+    moveRef.current?.(lat, lng);
   };
 
   useEffect(() => {
@@ -866,6 +871,12 @@ interface Props {
   padLeft?: number;
   /** Desktop HUD: px of the bottom covered by the here / target cards. */
   padBottom?: number;
+  /** Desktop HUD: px of headroom the floating here card needs above the pin. */
+  padTop?: number;
+  /** The loaded map, for chrome that follows it (null when it goes away). */
+  onMap?: (map: MlMap | null) => void;
+  /** Every move of the player pin, glide included. */
+  onPinMove?: (lat: number, lng: number) => void;
   /** Desktop HUD: px the map's own top-right buttons shift left (timeline / ticker). */
   chromeRight?: number;
   /** Island view: the whole island in frame (the rail's island-front button). */
@@ -952,20 +963,30 @@ function IslandCamera({ on, onExit }: { on: boolean; onExit?: () => void }) {
  * them. A chase-camera jump can cut an ease short, so the padding is re-set
  * once the camera settles.
  */
-function CameraInset({ left, right, bottom }: { left: number; right: number; bottom: number }) {
+function CameraInset({ top, left, right, bottom }: { top: number; left: number; right: number; bottom: number }) {
   const map = useMapGL();
   useEffect(() => {
-    const padding = { top: 0, left, right, bottom };
+    const padding = { top, left, right, bottom };
     map.easeTo({ padding, duration: 400 });
     const settle = () => {
       const p = map.getPadding();
-      if (p.left !== left || p.right !== right || p.bottom !== bottom) map.setPadding(padding);
+      if (p.top !== top || p.left !== left || p.right !== right || p.bottom !== bottom) map.setPadding(padding);
     };
     map.once('moveend', settle);
     return () => {
       map.off('moveend', settle);
     };
-  }, [map, left, right, bottom]);
+  }, [map, top, left, right, bottom]);
+  return null;
+}
+
+/** Hands the loaded map to whoever hosts the screen (and takes it back). */
+function MapHandle({ onMap }: { onMap: (map: MlMap | null) => void }) {
+  const map = useMapGL();
+  useEffect(() => {
+    onMap(map);
+    return () => onMap(null);
+  }, [map, onMap]);
   return null;
 }
 
@@ -1529,6 +1550,9 @@ function GameMapInner({
   padRight = 0,
   padLeft = 0,
   padBottom = 0,
+  padTop = 0,
+  onMap,
+  onPinMove,
   chromeRight = 0,
   islandView = false,
   onIslandViewExit,
@@ -1605,7 +1629,8 @@ function GameMapInner({
         <ZoomMemory />
         <FocusCamera target={focusTarget} />
         <IslandCamera on={islandView} onExit={onIslandViewExit} />
-        <CameraInset left={padLeft} right={padRight} bottom={padBottom} />
+        <CameraInset top={padTop} left={padLeft} right={padRight} bottom={padBottom} />
+        {onMap && <MapHandle onMap={onMap} />}
         <Camera3d on={view3d} />
         <KeyboardCamera home={home} />
         {view3d && <Atmosphere3d kind={weather} time={time} dom={weatherDom} />}
@@ -1666,7 +1691,13 @@ function GameMapInner({
         )}
 
         <NoiseWaves pulses={noisePulses} />
-        <PlayerMarker home={home} travelAnim={travelAnim} veilRadiusM={veilRadiusM} veilAlpha={veilAlpha} />
+        <PlayerMarker
+          home={home}
+          travelAnim={travelAnim}
+          veilRadiusM={veilRadiusM}
+          veilAlpha={veilAlpha}
+          onMove={onPinMove}
+        />
         {showMrt && net && <MrtOverlay net={net} destroyedEdges={destroyedTunnelEdges} />}
       </MapView>
 
