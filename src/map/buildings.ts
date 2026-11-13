@@ -110,7 +110,6 @@ const MAX_WRECKS = 24;
 /** Fires with a glow and a smoke column; the rest just look burnt. */
 const MAX_FIRES = 14;
 const FIRE_RANGE_M = 1600;
-const FIRE_FLICKER_MS = 110;
 /** Wrecks and fires are re-picked once the sight disc moves this far. */
 const REPICK_M = 25;
 const FIRE_SOURCE = 'fires-3d-src';
@@ -153,6 +152,9 @@ function stumpFactor(siteId: string, tier: DestructionTier): number {
 /** How much of a collapsed ordinary building still stands. */
 const ambientStump = (key: string): number => 0.3 + 0.3 * hash01(key, 3);
 
+/** Puffs per smoke column, spread evenly over one 7 s climb. */
+const SMOKE_PUFFS = 8;
+
 /** Flames and a smoke column, one marker per fire (index.css .fx-*). */
 function smokeElement(seed: number): { el: HTMLDivElement; puffs: HTMLDivElement } {
   const el = document.createElement('div');
@@ -172,10 +174,10 @@ function smokeElement(seed: number): { el: HTMLDivElement; puffs: HTMLDivElement
   }
   // One wind direction per fire, with a little spread per puff.
   const lean = seed < 0.5 ? -1 : 1;
-  for (let i = 0; i < 12; i++) {
+  for (let i = 0; i < SMOKE_PUFFS; i++) {
     const puff = document.createElement('div');
     puff.className = 'fx-puff';
-    puff.style.animationDelay = `${(-i * 0.58 - seed * 7).toFixed(2)}s`;
+    puff.style.animationDelay = `${(-i * (7 / SMOKE_PUFFS) - seed * 7).toFixed(2)}s`;
     puff.style.setProperty('--fx-drift', `${Math.round(lean * (25 + 45 * hash01(String(i), salt)))}px`);
     puffs.appendChild(puff);
   }
@@ -390,7 +392,6 @@ export class BuildingEngine {
   private damaged = new Set<FeatureId>();
   private lastPick: { lat: number; lng: number } | null = null;
   private fires = new Map<FeatureId, Fire>();
-  private fireTimer: ReturnType<typeof setInterval> | null = null;
 
   /** Buildings in the loaded z15+ tiles: id → anchor. */
   private index = new Map<FeatureId, Indexed>();
@@ -606,7 +607,6 @@ export class BuildingEngine {
     if (this.settleTimer) clearTimeout(this.settleTimer);
     if (this.riseRaf) cancelAnimationFrame(this.riseRaf);
     if (this.ruinTimer) clearTimeout(this.ruinTimer);
-    if (this.fireTimer) clearInterval(this.fireTimer);
     for (const f of this.fires.values()) f.smoke.remove();
     this.fires.clear();
     if (!alive(map)) return;
@@ -922,6 +922,7 @@ export class BuildingEngine {
         this.rising.add(id);
       }
     }
+    if (snap) this.placeSmoke();
     if (this.rising.size && !this.riseRaf) this.riseRaf = requestAnimationFrame(this.stepRise);
   }
 
@@ -941,6 +942,8 @@ export class BuildingEngine {
       this.risePieces(id, r.v);
       if (t >= 1) this.rising.delete(id);
     }
+    // Smoke stands on a roof: it follows the rise, and leaves when it sinks.
+    this.placeSmoke();
     if (this.rising.size) this.riseRaf = requestAnimationFrame(this.stepRise);
   };
 
@@ -1332,13 +1335,7 @@ export class BuildingEngine {
       this.map.setFeatureState({ source: this.src, sourceLayer: this.sl, id }, { burn: true });
       this.fires.set(id, { ...at, h: c.h, phase: phase * Math.PI * 2, smoke, puffs });
     }
-    if (this.fires.size && !this.fireTimer) {
-      this.fireTimer = setInterval(this.flickerFires, FIRE_FLICKER_MS);
-    } else if (!this.fires.size && this.fireTimer) {
-      clearInterval(this.fireTimer);
-      this.fireTimer = null;
-    }
-    this.flickerFires();
+    this.drawFires();
   }
 
   /** An indexed anchor is one tile's clipped piece; smoke leaves the whole roof's centre. */
@@ -1363,22 +1360,26 @@ export class BuildingEngine {
     return x0 === Infinity ? null : { lat: (y0 + y1) / 2, lng: (x0 + x1) / 2 };
   }
 
-  /** Two out-of-step sines per fire read as flicker without looking periodic. */
-  private flickerFires = () => {
+  /**
+   * The ground glow, redrawn only when the set of fires changes. It holds
+   * still on purpose: a glow that flickered through `setData` repainted the
+   * whole map (every extrusion, every blurred card above it) nine times a
+   * second for as long as one fire was in range. The flicker is the DOM
+   * flames' job (index.css .fx-flame), which the compositor animates alone.
+   */
+  private drawFires() {
     if (this.destroyed || !alive(this.map)) return;
-    const t = performance.now() / 1000;
     const features: Feature[] = [];
     for (const f of this.fires.values()) {
-      const w = 0.62 + 0.24 * Math.sin(t * 6.1 + f.phase) + 0.14 * Math.sin(t * 14.3 + f.phase * 3);
       features.push({
         type: 'Feature',
         geometry: { type: 'Point', coordinates: [f.lng, f.lat] },
-        properties: { w, s: 38 + Math.min(f.h, 80) * 0.6 },
+        properties: { w: 0.6 + 0.16 * Math.sin(f.phase), s: 38 + Math.min(f.h, 80) * 0.6 },
       });
     }
     (this.map.getSource(FIRE_SOURCE) as GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features });
     this.placeSmoke();
-  };
+  }
 
   /** Smoke leaves the roof of a standing burning building (none in fog or zoomed out). */
   private placeSmoke() {
