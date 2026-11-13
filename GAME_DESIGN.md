@@ -138,10 +138,14 @@ currency, and the survivor is always moving — the map is explored, not surveye
 - You have **no knowledge** of any location until you stand in it. Undiscovered places show only as
   anonymous **"?" blips** (no name, category or danger). Their **building outline is still drawn** (in
   neutral) if OSM has one; locations without an outline are just their circular badge.
-- The on-map ring is **not vision — it's travelable range**: how far you can comfortably push right
-  now, derived from walking speed (END/DEX + leg injuries), current **energy**, weather and load. It
-  shrinks as you tire or get hurt. **Perception/awareness** extends how far out you *sense* blips
-  (never their identity).
+- The on-map rings are **not vision — they're travelable range**. The **inner, dashed ring** is how
+  far you can comfortably push right now, derived from walking speed (END/DEX + leg injuries),
+  current **energy**, weather and load. It shrinks as you tire or get hurt. The **outer, solid ring**
+  is the **max travel range**: the same sum when rested and unhindered (full energy, sound legs, no
+  overload, fair weather), so only your build and worn gear move it. The outer ring is what opens the
+  fog and stands the 3D buildings, so the city holds still while energy ticks; ground and buildings
+  between the two rings are **dimmed**, the walkable disc reads brighter. **Perception/awareness**
+  extends how far out you *sense* blips (never their identity).
 - **Discover-on-visit → permanent memory.** Arriving charts a location forever as **last-known intel**
   (stale danger, faction, looted state). Because danger regenerates while you're away, old intel can
   be dangerously wrong — the card flags "intel may be stale".

@@ -74,7 +74,7 @@ import {
 } from '../game/inventory';
 import { haversine } from '../game/overpass';
 import { rollWeather, timeOfDay, weatherEncounterMod } from '../game/weather';
-import { awareness, blipMargin, travelableRange } from '../game/fog';
+import { awareness, blipMargin, maxTravelRange, travelableRange } from '../game/fog';
 import {
   equipAwarenessMod,
   equipLightPower,
@@ -601,6 +601,14 @@ export function GameScreen() {
           )
         : 400,
     [character, meters.energy, legFactor, weather, load],
+  );
+  // Outer ring, fog and 3D building rise: the rested range of this build and
+  // gear. Energy, injuries, load and weather never move it.
+  const gearSpeed =
+    equipTravelSpeedFactor(equipment) * (1 + sumTraitMod(character?.traitIds ?? [], 'travelSpeedMod'));
+  const maxRange = useMemo(
+    () => (character ? maxTravelRange(character.attributes, gearSpeed) : 400),
+    [character, gearSpeed],
   );
   // Fog + planning ring: hold setout range for the whole glide, then ease to
   // the post-trip range on arrival (energy already spent at departure).
@@ -1639,6 +1647,7 @@ export function GameScreen() {
                 selectedId={sel?.id ?? null}
                 hereId={currentPositionId}
                 travelRange={mapRangeTarget}
+                maxTravelRange={maxRange}
                 blipRange={blipRange}
                 veilRadiusM={blipRange}
                 veilAlpha={nightVeilAlpha}
