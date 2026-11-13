@@ -50,7 +50,7 @@ import { installOverlay, setData } from '../map/layers';
 import { EMPTY_FC, boxContains, circleFeature, dimHex, fc, lineFeature, padBox, toLngLatRing, type LatLngBox } from '../map/geo';
 import { BuildingEngine, LOD_ZOOM, type Site3d } from '../map/buildings';
 import { hdbScar, STOREY_M, type HdbDungeon } from '../game/hdbDungeon';
-import { VEIL_BANDS, bandOpacity, veilBands } from '../map/fogGeometry';
+import { FOG_COLOUR, REACH_SHADE, VEIL_BANDS, bandOpacity, reachShade, veilBands } from '../map/fogGeometry';
 
 // White outline for buildings you can see but haven't identified — stands out
 // against the dark map like the "?" blips do.
@@ -432,11 +432,15 @@ function Buildings3d({
   exploredArea,
   home,
   radius,
+  reach,
   onEngine,
 }: {
   exploredArea: ExploredCircle[];
   home: { lat: number; lng: number };
+  /** max travel range: buildings inside it stand */
   radius: number;
+  /** current travel range: standing buildings past it are dimmed */
+  reach: number;
   onEngine: (engine: BuildingEngine | null) => void;
 }) {
   const map = useMapGL();
@@ -459,8 +463,8 @@ function Buildings3d({
   }, [engine, reduced]);
 
   useEffect(() => {
-    engine?.setReveal(exploredArea, { lat: home.lat, lng: home.lng, radius });
-  }, [engine, exploredArea, home.lat, home.lng, radius]);
+    engine?.setReveal(exploredArea, { lat: home.lat, lng: home.lng, radius }, reach);
+  }, [engine, exploredArea, home.lat, home.lng, radius, reach]);
 
   // Pointer over a site's building, like over a 2D outline.
   const over = useRef(false);
@@ -509,27 +513,43 @@ function useSightCenter(home: { lat: number; lng: number }, travelAnim: TravelAn
   return sight;
 }
 
-/** The fog and the 3D buildings, both centred on where the player can see from. */
+/**
+ * The fog, the 3D buildings and the two range rings, all centred on where the
+ * player can see from. `maxRange` (stable) opens the fog and stands the
+ * buildings; `reach` (energy-driven) only draws the inner ring and dims what
+ * lies past it.
+ */
 function SightLayers({
   home,
   travelAnim,
   exploredArea,
-  radius,
+  maxRange,
+  reach,
+  ringReach,
+  ringMax,
   view3d,
   onEngine,
 }: {
   home: { lat: number; lng: number };
   travelAnim: TravelAnim | null;
   exploredArea: ExploredCircle[];
-  radius: number;
+  /** throttled, for the fog and the buildings */
+  maxRange: number;
+  reach: number;
+  /** per-frame tweens, for the ring lines */
+  ringReach: number;
+  ringMax: number;
   view3d: boolean;
   onEngine: (engine: BuildingEngine | null) => void;
 }) {
   const sight = useSightCenter(home, travelAnim);
   return (
     <>
-      <FogOverlay exploredArea={exploredArea} currentRevealCenter={sight} currentRevealRadius={radius} />
-      {view3d && <Buildings3d exploredArea={exploredArea} home={sight} radius={radius} onEngine={onEngine} />}
+      <FogOverlay exploredArea={exploredArea} currentRevealCenter={sight} currentRevealRadius={maxRange} />
+      {view3d && <Buildings3d exploredArea={exploredArea} home={sight} radius={maxRange} reach={reach} onEngine={onEngine} />}
+      {/* Never hit-tested: the fills cover everywhere you can walk, so a
+          clickable ring would swallow every ground pick inside your range. */}
+      <RangeRing home={sight} travelRange={ringReach} maxRange={ringMax} />
     </>
   );
 }
@@ -804,8 +824,10 @@ interface Props {
   selectedId: string | null;
   /** id of the location the player is standing at (live data), if any */
   hereId: string | null;
-  /** planning ring: how far the survivor can comfortably travel right now */
+  /** inner ring: how far the survivor can comfortably travel right now */
   travelRange: number;
+  /** outer ring: the rested, unhindered range. Drives fog and 3D building rise. */
+  maxTravelRange: number;
   /** how far out anonymous "?" blips are sensed */
   blipRange: number;
   /** after dark: edge of sight in metres, and how black it is past it (0 = day) */
@@ -1042,13 +1064,38 @@ function TravelPath({
   return null;
 }
 
-/** The planning ring. Non-interactive: taps inside it are ground picks. */
-const RangeRing = memo(function RangeRing({ home, travelRange }: { home: { lat: number; lng: number }; travelRange: number }) {
+/**
+ * The planning rings. Outer, solid and faint: the max travel range, the edge
+ * of what the map shows. Inner, dashed: how far you can push on this energy.
+ * Ground past the inner ring is shaded, so the walkable disc reads brighter.
+ * Non-interactive: taps inside are ground picks.
+ */
+const RangeRing = memo(function RangeRing({
+  home,
+  travelRange,
+  maxRange,
+}: {
+  home: { lat: number; lng: number };
+  travelRange: number;
+  maxRange: number;
+}) {
   const map = useMapGL();
   useEffect(
     () =>
-      installOverlay(map, 'ring', { 'range-src': 'geojson' }, [
+      installOverlay(map, 'ring', { 'reach-shade-src': 'geojson', 'range-max-src': 'geojson', 'range-src': 'geojson' }, [
+        {
+          id: 'reach-shade',
+          type: 'fill',
+          source: 'reach-shade-src',
+          paint: { 'fill-color': FOG_COLOUR, 'fill-opacity': REACH_SHADE, 'fill-antialias': false },
+        },
         { id: 'range-fill', type: 'fill', source: 'range-src', paint: { 'fill-color': '#e8e5dd', 'fill-opacity': 0.03 } },
+        {
+          id: 'range-max-line',
+          type: 'line',
+          source: 'range-max-src',
+          paint: { 'line-color': '#e8e5dd', 'line-width': 1, 'line-opacity': 0.34 },
+        },
         {
           id: 'range-line',
           type: 'line',
@@ -1059,8 +1106,13 @@ const RangeRing = memo(function RangeRing({ home, travelRange }: { home: { lat: 
     [map],
   );
   useEffect(() => {
-    setData(map, 'range-src', travelRange > 0 ? fc([circleFeature(home.lat, home.lng, travelRange, {}, 96)]) : EMPTY_FC);
+    const on = travelRange > 0;
+    setData(map, 'range-src', on ? fc([circleFeature(home.lat, home.lng, travelRange, {}, 96)]) : EMPTY_FC);
+    setData(map, 'reach-shade-src', reachShade(home.lat, home.lng, travelRange));
   }, [map, home.lat, home.lng, travelRange]);
+  useEffect(() => {
+    setData(map, 'range-max-src', maxRange > 0 ? fc([circleFeature(home.lat, home.lng, maxRange, {}, 96)]) : EMPTY_FC);
+  }, [map, home.lat, home.lng, maxRange]);
   return null;
 });
 
@@ -1456,6 +1508,7 @@ function GameMapInner({
   selectedId,
   hereId,
   travelRange,
+  maxTravelRange,
   blipRange,
   veilRadiusM,
   veilAlpha,
@@ -1485,8 +1538,12 @@ function GameMapInner({
 }: Props) {
   const evacPoi = evacZoneId ? pois.find((p) => p.id === evacZoneId) : null;
   // Tween lives here so GameScreen does not re-render at 60 fps after travel.
-  const ringRange = useAnimatedNumber(travelRange, 600);
-  const fogRevealRadius = useThrottledNumber(ringRange, 80);
+  // The outer ring only moves when the build or gear changes; the inner one
+  // follows energy and can never pass it.
+  const ringMax = useAnimatedNumber(Math.max(maxTravelRange, travelRange), 600);
+  const ringRange = Math.min(useAnimatedNumber(travelRange, 600), ringMax);
+  const fogRevealRadius = useThrottledNumber(ringMax, 80);
+  const reachRadius = useThrottledNumber(ringRange, 80);
   const pathIdSet = useMemo(() => new Set(pathHazardIds), [pathHazardIds]);
   const view3d = useSetting('mapView3d') === 'on';
   const [initial] = useState(() => ({
@@ -1562,16 +1619,14 @@ function GameMapInner({
           home={home}
           travelAnim={travelAnim}
           exploredArea={exploredArea}
-          radius={fogRevealRadius}
+          maxRange={fogRevealRadius}
+          reach={reachRadius}
+          ringReach={ringRange}
+          ringMax={ringMax}
           view3d={view3d}
           onEngine={setEngine}
         />
         <NeighbourhoodWash />
-
-        {/* Travelable range — a planning ring, not vision. Never hit-tested:
-            its fill covers everywhere you can walk, so a clickable ring would
-            swallow every ground pick inside your own range. */}
-        <RangeRing home={home} travelRange={ringRange} />
 
         {/* Drawn under the pins — ground, not a destination. */}
         <HazardRings hazards={hazards} pathIds={pathIdSet} />

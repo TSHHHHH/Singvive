@@ -118,3 +118,19 @@ export function veilBands(lat: number, lng: number, radius: number, bands = VEIL
     }),
   };
 }
+
+/** How dark the ground gets past the current travel range (one flat fill). */
+export const REACH_SHADE = 0.42;
+
+/**
+ * Everything outside the current travel range, as one holed rectangle: the
+ * ground you can see but cannot walk to on this energy. No clipping needed.
+ */
+export function reachShade(lat: number, lng: number, radius: number): FeatureCollection {
+  const outer = WORLD[0] as LngLatPair[];
+  const hole = (discPolygon({ lat, lng, r: Math.max(1, radius) }, 96)[0] as LngLatPair[]).slice().reverse();
+  return {
+    type: 'FeatureCollection',
+    features: [{ type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [outer, hole] } }],
+  };
+}

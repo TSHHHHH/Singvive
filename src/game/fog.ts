@@ -1,6 +1,7 @@
 import type { Attributes, LocationState, LocationMemory, WeatherKind } from './types';
 import { walkSpeed } from './travel';
 import { weatherTravelMult } from './weather';
+import { METER_MAX } from './survival';
 
 // ---------------------------------------------------------------------------
 // Blind-exploration fog of war.
@@ -103,6 +104,17 @@ export function travelableRange(
   // full energy (100) commits ~10 minutes of walking; scales down as you tire
   const commitMinutes = Math.max(0, energy) * MINUTES_PER_10_ENERGY / 10;
   return Math.round((speed * commitMinutes) / (wMult * loadMult));
+}
+
+/**
+ * The outer, stable ring: the furthest this survivor could push when rested
+ * and unhindered. Full energy, sound legs, no overload, fair weather; only
+ * the build and worn gear (`gearFactor`) move it. It drives what the map
+ * reveals and which 3D buildings stand, so none of that shifts as energy,
+ * injuries, load or weather come and go. Never smaller than the live range.
+ */
+export function maxTravelRange(attrs: Attributes, gearFactor = 1): number {
+  return travelableRange(attrs, METER_MAX, gearFactor, 'clear');
 }
 
 /** Extra blip-sensing margin beyond the travel ring, from awareness. */

@@ -265,13 +265,30 @@ function pieceExpr(prop: 'base' | 'top') {
   ] as unknown as number;
 }
 
+/**
+ * How far a standing building beyond the current travel range fades towards
+ * the fogged colour. Shape stays (height is the max range's business); only
+ * brightness says "you cannot walk there on this energy".
+ */
+export const FAR_DIM = 0.58;
+
 /** Selected → gold; otherwise the fogged flat colour while down, `color` once standing. */
 function standingColor(color: unknown) {
   return [
     'case',
     ['boolean', ['feature-state', 'selected'], false],
     SELECTED_COLOR,
-    ['interpolate', ['linear'], ['coalesce', ['feature-state', 'rise'], 0], 0, FLAT_COLOR, 1, ['to-color', color]],
+    [
+      'interpolate',
+      ['linear'],
+      ['coalesce', ['feature-state', 'rise'], 0],
+      0,
+      FLAT_COLOR,
+      1,
+      // Past the current travel range a standing building sinks part-way back
+      // towards the fogged colour (feature-state `far`, 0 or FAR_DIM).
+      ['interpolate', ['linear'], ['coalesce', ['feature-state', 'far'], 0], 0, ['to-color', color], 1, FLAT_COLOR],
+    ],
   ] as unknown as string;
 }
 
@@ -338,6 +355,9 @@ export class BuildingEngine {
   // Reveal inputs.
   private explored: readonly ExploredCircle[] = [];
   private live: Disc | null = null;
+  /** The current travel range: standing buildings outside it are dimmed. */
+  private reach: Disc | null = null;
+  private far = new Set<FeatureId>();
 
   // Sites and their matched buildings.
   private sites = new Map<string, Site3d>();
@@ -678,15 +698,26 @@ export class BuildingEngine {
   }
 
   /** `explored` is compared by identity; pass the store's array as-is. */
-  setReveal(explored: readonly ExploredCircle[], live: { lat: number; lng: number; radius: number }) {
+  /**
+   * `live` decides which buildings stand (pass the stable max travel range);
+   * `reachRadius` is the current, energy-driven range and only dims what lies
+   * beyond it, so an energy tick never moves a wall.
+   */
+  setReveal(
+    explored: readonly ExploredCircle[],
+    live: { lat: number; lng: number; radius: number },
+    reachRadius: number = live.radius,
+  ) {
     const same =
       explored === this.explored &&
       this.live?.lat === live.lat &&
       this.live.lng === live.lng &&
-      this.live.r === live.radius;
+      this.live.r === live.radius &&
+      this.reach?.r === reachRadius;
     if (same) return;
     this.explored = explored;
     this.live = { lat: live.lat, lng: live.lng, r: live.radius };
+    this.reach = { lat: live.lat, lng: live.lng, r: reachRadius };
     this.updateReveal(false);
     this.pickDamage();
   }
@@ -861,7 +892,18 @@ export class BuildingEngine {
 
     const snap = instant || this.instant;
     const now = performance.now();
+    const reach = this.reach;
     for (const [id, c] of this.index) {
+      if (reach) {
+        const far = !inDisc(c.lat, c.lng, reach, cosLat);
+        if (far !== this.far.has(id)) {
+          if (far) this.far.add(id);
+          else this.far.delete(id);
+          map.setFeatureState({ source: this.src, sourceLayer: this.sl, id }, { far: far ? FAR_DIM : 0 });
+          const key = this.wreckOf.get(id);
+          if (key !== undefined) this.setPieceFar(key, far);
+        }
+      }
       const cur = this.rise.get(id);
       const curTo = cur?.to ?? 0;
       const want =
@@ -1211,7 +1253,10 @@ export class BuildingEngine {
     (this.map.getSource(RUINS_SOURCE) as GeoJSONSource | undefined)?.setData(fc);
     // New data starts without feature-state: colour and rise go back on.
     this.ruinApplied.clear();
-    for (const [id, key] of this.wreckOf) this.setPieceRise(key, this.rise.get(id)?.v ?? 0);
+    for (const [id, key] of this.wreckOf) {
+      this.setPieceRise(key, this.rise.get(id)?.v ?? 0);
+      this.setPieceFar(key, this.far.has(id));
+    }
     this.applySiteStates();
     this.publishRoofs();
   }
@@ -1225,6 +1270,12 @@ export class BuildingEngine {
   private setPieceRise(key: string, rise: number) {
     for (const f of this.ruinCache.get(key)?.pieces ?? []) {
       this.map.setFeatureState({ source: RUINS_SOURCE, id: f.id as number }, { rise });
+    }
+  }
+
+  private setPieceFar(key: string, far: boolean) {
+    for (const f of this.ruinCache.get(key)?.pieces ?? []) {
+      this.map.setFeatureState({ source: RUINS_SOURCE, id: f.id as number }, { far: far ? FAR_DIM : 0 });
     }
   }
 
