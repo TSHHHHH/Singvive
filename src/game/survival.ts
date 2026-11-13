@@ -612,6 +612,36 @@ export function applyPartDamage(
   });
 }
 
+/**
+ * Carrying too much: grinding wear on the legs and back, not a wound. Two
+ * thirds of `hp` goes to the legs, a third to the torso; no bleeding or
+ * fractures. Legs can give out (crippled at 0); the torso stops at 1 HP, so
+ * weight alone leaves you broken, never Critical. A `sprain` adds a hard hit
+ * of a quarter of one leg's max HP to that leg.
+ */
+export function applyStrainInjury(
+  parts: BodyParts,
+  hp: number,
+  rng: Rng,
+  sprain = false,
+): BodyParts {
+  if (hp <= 0 && !sprain) return parts;
+  const next: BodyParts = { ...parts };
+  const hurt = (id: BodyPartId, amount: number, floor: number) => {
+    const p = next[id];
+    const after = Math.max(Math.min(floor, p.hp), p.hp - amount);
+    next[id] = { ...p, hp: after, crippled: after <= 0 ? true : p.crippled };
+  };
+  hurt('leftLeg', hp / 3, 0);
+  hurt('rightLeg', hp / 3, 0);
+  hurt('torso', hp / 3, 1);
+  if (sprain) {
+    const leg: BodyPartId = rng.chance(0.5) ? 'leftLeg' : 'rightLeg';
+    hurt(leg, next[leg].maxHp * 0.25, 0);
+  }
+  return next;
+}
+
 /** Weighted-random wound — for encounters outside combat hit-zone resolution. */
 export function applyWound(
   parts: BodyParts,

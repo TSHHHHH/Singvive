@@ -1,3 +1,4 @@
+import { isCarried } from '../game/inventory';
 import { useGame } from '../game/store';
 import { Icon } from '../icons/Icon';
 import { ATTRIBUTE_ICONS, ATTRIBUTE_LABELS } from '../game/character';
@@ -31,7 +32,7 @@ export function PendingEventChoices({
   const { t } = useT();
 
   const hasItem = (defId?: string) =>
-    !defId || items.some((i) => i.container === 'backpack' && i.defId === defId);
+    !defId || items.some((i) => isCarried(i.container) && i.defId === defId);
 
   return (
     <div className={`flex flex-col gap-1 ${className}`}>

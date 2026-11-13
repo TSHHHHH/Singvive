@@ -323,8 +323,8 @@
       "equipped": "Equipped",
       "candidate": "Candidate",
       "inspect": "Inspect",
-      "bagWontFit": "Won't fit — drop or stash some items first.",
-      "bagWontUnequip": "Too much in the pack to take this bag off.",
+      "bagWontFit": "Won't all fit — what doesn't goes loose.",
+      "bagWontUnequip": "Your pockets can't hold it all — the rest goes loose.",
       "selectItem": "Select",
       "move": "Move",
       "useOrEquip": "Use / equip",
@@ -346,6 +346,11 @@
       "rotateHint": "Or press R while dragging",
       "carry": "Carry",
       "encumbered": "Encumbered",
+      "loose": "Carried loose",
+      "looseHint": "Doesn't fit the pack. Counts ×{mult} weight, rattles, and can't be reached in a fight. Drag into the grid to pack it.",
+      "looseEmpty": "Nothing loose. Anything that won't fit the pack lands here.",
+      "carryLoose": "Carry loose",
+      "bagCut": "Bag −{n}%",
       "loadKg": "{load} / {carry} kg",
       "loadEncumbered": "{load} / {carry} kg · Encumbered",
       "rounds": "{n} rounds",
@@ -387,7 +392,18 @@
       "flee": "+{n} flee DC",
       "encounters": "+{n}% encounters",
       "stairs": "+{n}% stair time",
-      "search": "+{n}% search time"
+      "search": "+{n}% search time",
+      "noFlee": "Can't flee",
+      "injury": "Hurts legs and back {n} HP/km",
+      "loud": "Loud footsteps",
+      "pinned": "Can't travel — over twice your limit",
+      "tier": {
+        "light": "Light",
+        "burdened": "Burdened",
+        "heavy": "Heavy",
+        "straining": "Straining",
+        "pinned": "Pinned"
+      }
     },
     "slots": {
       "head": "Head",
@@ -1451,9 +1467,9 @@
       "bullets": [
         "At a place, start a search: a fogged grid reveals finds one by one in real time. Street sites usually turn up a handful of items — condition tracks how wrecked the place looks.",
         "First visit sizes up the footprint and ruin (Intact → Gutted). Ruin sets the condition band: Intact is Brand New, Damaged is Slightly Used, Ravaged is Heavily Used, Gutted is Old & Torn. A hot site does not turn junk into mint gear.",
-        "Click a fogged cell to search it next. Click found items (or Take all) into your pack; overflow goes to the tiny on-site stash (3×3).",
-        "Equipped bags change the pack's cell shape, not just its size — holes cannot hold loot. A smaller or hole-punched bag only equips if the current haul can be rearranged into it.",
-        "Worn kit counts toward load. Hover the carry bar — a heavy pack never stops a pickup, it just makes travel, fights, and searches cost more.",
+        "Click a fogged cell to search it next. Click found items (or Take all) into your pack; what doesn't fit the grid you carry loose. Nothing is ever left behind for lack of space.",
+        "Equipped bags change the pack's cell shape, not just its size — holes cannot hold loot. A bag also takes weight off what is packed in it (daypack 15% up to military rucksack 45%), so packing well lets you carry more. Loose items count ×1.25, rattle, and can't be reached mid-fight.",
+        "Worn kit counts toward load. Over your limit you are Heavy (slower, louder); past 150% you are Straining (can't flee, every km hurts legs and back); past 200% you are Pinned and can't walk until you drop something. The carry bar names the tier and its penalties.",
         "Each site has limited searches. Leaving early still spends a partial charge. Take what you want — Done or Leave abandons the rest.",
         "Map notes turn up in searches — decipher them from the pack to mark hidden sites. Faction outposts also offer daily intel when you are Known; notes are portable and one-shot.",
         "Faction-held ground shows a coloured ring on the map once you have learned who runs it (outposts use the faction emblem)."

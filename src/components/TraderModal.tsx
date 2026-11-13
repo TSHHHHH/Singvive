@@ -1,3 +1,4 @@
+import { isCarried } from '../game/inventory';
 import { useGame } from '../game/store';
 import { itemDef } from '../game/loot';
 import { Icon } from '../icons/Icon';
@@ -28,7 +29,7 @@ export function TraderModal() {
 
   const held = (defId: string) =>
     items
-      .filter((i) => i.container === 'backpack' && i.defId === defId)
+      .filter((i) => isCarried(i.container) && i.defId === defId)
       .reduce((n, i) => n + i.stack, 0);
 
   return (

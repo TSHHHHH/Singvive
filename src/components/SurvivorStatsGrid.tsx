@@ -24,6 +24,7 @@ import {
 import { useT } from '../i18n';
 import { TipHint } from './TipHint';
 import { LOAD_TIP_CLASS, loadModifierLines } from './loadTip';
+import { loadTierLabel, loadTierShown } from './loadTier';
 import {
   sheetLinesAsModifiers,
   sheetRow,
@@ -40,12 +41,14 @@ interface StatCellProps {
   value: string;
   tip?: string;
   modifiers?: MeterModifier[];
+  /** Overrides the signal colour on the value (e.g. red when overloaded). */
+  valueClass?: string;
 }
 
-function StatCell({ label, value, tip: tipText, modifiers }: StatCellProps) {
+function StatCell({ label, value, tip: tipText, modifiers, valueClass }: StatCellProps) {
   const inner = (
     <>
-      <div className="text-read font-bold tabular-nums text-signal">{value}</div>
+      <div className={`text-read font-bold tabular-nums ${valueClass ?? 'text-signal'}`}>{value}</div>
       <div className="text-plate uppercase text-white/40">{label}</div>
     </>
   );
@@ -194,8 +197,13 @@ export function SurvivorStatsGrid() {
           tip={t('ui.survivor.travelTip')}
         />
         <StatCell
-          label={t('ui.survivor.carry')}
+          label={
+            loadTierShown(fx)
+              ? `${t('ui.survivor.carry')} · ${loadTierLabel(fx, t)}`
+              : t('ui.survivor.carry')
+          }
           value={`${loadKg.toFixed(1)}/${carry} kg`}
+          valueClass={loadTierShown(fx) ? 'text-hiss' : undefined}
           modifiers={loadModifierLines(fx, t)}
         />
         <StatCell

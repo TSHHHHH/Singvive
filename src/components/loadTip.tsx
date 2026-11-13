@@ -22,6 +22,11 @@ export function loadModifierLines(fx: LoadEffects, t: TFn): MeterModifier[] {
     return [{ text: t('ui.load.light'), good: true }];
   }
   const out: MeterModifier[] = [];
+  if (!fx.canTravel) out.push({ text: t('ui.load.pinned'), good: false });
+  if (fx.injuryPerKm > 0) {
+    out.push({ text: t('ui.load.injury', { n: fx.injuryPerKm.toFixed(1) }), good: false });
+  }
+  if (!fx.canFlee) out.push({ text: t('ui.load.noFlee'), good: false });
   const travel = pctDelta(fx.travelMult);
   if (travel) out.push({ text: t('ui.load.travel', { n: travel }), good: false });
   const energy = pctDelta(fx.energyMult);
@@ -37,6 +42,7 @@ export function loadModifierLines(fx: LoadEffects, t: TFn): MeterModifier[] {
   if (stairs) out.push({ text: t('ui.load.stairs', { n: stairs }), good: false });
   const search = pctDelta(fx.searchMult);
   if (search) out.push({ text: t('ui.load.search', { n: search }), good: false });
+  if (fx.arrivalNoise > 0) out.push({ text: t('ui.load.loud'), good: false });
   return out;
 }
 

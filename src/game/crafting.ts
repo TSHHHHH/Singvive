@@ -1,3 +1,4 @@
+import { isCarried } from './inventory';
 import type { ItemInstance } from './types';
 import { ITEMS, itemDef } from './loot';
 import recipesCatalog from './data/recipes.json' with { type: 'json' };
@@ -104,7 +105,7 @@ export const FIELD_REPAIRS: { defId: string; melee: boolean; amount: number }[] 
 /** How many of a def sit in the backpack, counting stack sizes. */
 export function countOf(items: ItemInstance[], defId: string): number {
   return items
-    .filter((i) => i.container === 'backpack' && i.defId === defId)
+    .filter((i) => isCarried(i.container) && i.defId === defId)
     .reduce((n, i) => n + i.stack, 0);
 }
 

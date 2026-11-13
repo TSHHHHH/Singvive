@@ -600,13 +600,15 @@ export function GameScreen() {
   const travelRange = useMemo(
     () =>
       character
-        ? travelableRange(
-            character.attributes,
-            meters.energy,
-            legFactor,
-            weather,
-            load?.travelMult ?? 1,
-          )
+        ? load && !load.canTravel
+          ? 0
+          : travelableRange(
+              character.attributes,
+              meters.energy,
+              legFactor,
+              weather,
+              load?.travelMult ?? 1,
+            )
         : 400,
     [character, meters.energy, legFactor, weather, load],
   );
