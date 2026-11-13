@@ -103,6 +103,20 @@ export function timeOfDay(hour: number): TimeOfDay {
 }
 
 /**
+ * What the hour alone takes off the survivor's swing, in d20 points.
+ *
+ * Was −2 at night and −1 at dusk, on top of the −1 for fighting unlit
+ * (`darkAimDelta`), on top of rain, tiredness and wounds. Each was fair alone;
+ * stacked on the default Guarded stance they left a day-two survivor landing
+ * about two swings in five, and fights ran twice as long without getting any
+ * more dangerous per swing. The dark still costs a point — and still gives the
+ * dead +2 — so night stays the worse time to fight, just not the slower one.
+ */
+export function timeAccuracyPenalty(time: TimeOfDay): number {
+  return time === 'night' ? -1 : 0;
+}
+
+/**
  * Combat modifiers from the environment.
  * Returns adjustments applied to the ZOMBIE (positive = zombies stronger).
  * Night and storms favour the dead; clear daylight favours the survivor.
@@ -113,16 +127,14 @@ export function environmentCombatMods(weather: WeatherState): {
   note: string;
 } {
   let zombieAttack = 0;
-  let playerAccuracy = 0;
+  let playerAccuracy = timeAccuracyPenalty(weather.time);
   const notes: string[] = [];
 
   if (weather.time === 'night') {
     zombieAttack += 2;
-    playerAccuracy -= 2;
     notes.push('darkness');
   } else if (weather.time === 'dusk') {
     zombieAttack += 1;
-    playerAccuracy -= 1;
     notes.push('low light');
   }
 

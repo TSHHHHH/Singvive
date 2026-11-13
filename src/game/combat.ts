@@ -18,7 +18,7 @@ import type {
   Zombie,
 } from './types';
 import type { Rng } from './rng';
-import { environmentCombatMods } from './weather';
+import { environmentCombatMods, timeAccuracyPenalty } from './weather';
 import { itemDef } from './loot';
 import { equipLightPower, hasTraitFlag, sumTraitMod } from './character';
 import { darkAimDelta } from './nightSight';
@@ -178,10 +178,16 @@ export const STANCES: Record<StanceId, StanceDef> = {
     id: 'guarded',
     name: 'Guarded',
     icon: 'stance.guarded',
-    description: 'Cover up. +3 defence, +2% dodge, −2 to hit, limb damage taken ×0.75.',
-    attackMod: -2,
+    description: 'Cover up. +2 defence, +2% dodge, slower swings, limb damage taken ×0.75.',
+    // No accuracy cost. Every fight opens here, and at −2 to hit the opening
+    // stance nearly doubled the length of a fight while saving almost nothing,
+    // because the enemy got that many more swings. It pays in tempo and reach
+    // (no +2 damage, slower fill) instead of in whiffs. Defence came down from
+    // +3 to +2 in the same change so a shorter fight costs about what the long
+    // one did — `npm run sim:combat` is the check.
+    attackMod: 0,
     damageMod: 0,
-    defenseMod: 3,
+    defenseMod: 2,
     limbDamageMult: 0.75,
     dodgeMod: 0.02,
     critChanceBonus: 0,
@@ -699,8 +705,7 @@ export function resolvePlayerAction(
   // Night owl ignores the time-of-day accuracy hit; Afraid of the Dark stacks extra.
   let envAccuracy = env.playerAccuracy;
   if (weather.time === 'night' || weather.time === 'dusk') {
-    const timePenalty = weather.time === 'night' ? -2 : -1;
-    if (player.nightAccuracyPenaltyRemoved) envAccuracy -= timePenalty;
+    if (player.nightAccuracyPenaltyRemoved) envAccuracy -= timeAccuracyPenalty(weather.time);
     else envAccuracy += darkAimDelta(weather.time, player.lightPower ?? 0);
     envAccuracy += player.nightAccuracyExtra;
   }
