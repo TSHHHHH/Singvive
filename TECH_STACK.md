@@ -88,6 +88,10 @@ goes flat. MapLibre zoom is the old Leaflet zoom − 1 (the saved zoom key moved
   block solid on `focus-3d` (same paint, under `buildings-3d`) and ghosts every other building and
   ruin to 0.18 opacity. The band sits between the two, so ghosts in front tint it instead of
   hiding it behind their depth. One filter + opacity change per focus change, never per tick.
+  Orbit: a drag on the over-map backdrop (`[data-block-orbit]`, the HDB shell itself, never its
+  children) turns bearing 0.4°/px and pitch 0.2°/px (25° to `MAX_PITCH_3D`) with `jumpTo`, centre
+  fixed on the site; the wheel steps zoom ±0.25 in [BLOCK_ZOOM−1, MAX_ZOOM]. Document listeners in
+  `BlockView`, because the over-map layer swallows map input. The chosen bearing survives re-framing.
   `engine.onRoofs` also feeds `siteRoofs` in the store so `hdbEnter` sizes the block from its
   real roof. Worked blocks dim through `hdbScar`, keyed on quarter-steps cached per `hdbBlocks`.
   The rest of the city is damaged by a stable hash of the feature id (same buildings every run,
@@ -115,7 +119,9 @@ goes flat. MapLibre zoom is the old Leaflet zoom − 1 (the saved zoom key moved
 
 **Desktop HUD (`lg:` and up).** The 408px survivor rail sits down the left edge (clock, weather,
 Rest, `ObjectiveBar`, `ConditionPanel`, backpack, panel buttons, then Timeline / Day logs /
-Settings), with panels in the slide-out beside it; the map fills the rest. The rail, slide-out
+Settings, and a pinned map footer: the island-front button, which carries the horde tier and
+fits the whole island in view via GameMap's `islandViewToken`, plus the 3D and Rail map toggles.
+The phone keeps those toggles on the map, `showModeToggles`), with panels in the slide-out beside it; the map fills the rest. The rail, slide-out
 and phone tabs are the same markup; the timeline column renders only below `lg`. Hotkeys `1`–`9`
 follow `RAIL_KEYS` in `GameScreen.tsx` (objective, stash, craft, logbook, stats, skills, timeline
 pin, day logs, settings) and stand down under `isModalOpen()`, text focus and the contact gate;
@@ -164,8 +170,7 @@ Three consumers, one definition:
   (`text-body leading-relaxed` for prose) when it has a reason to.
 - **`src/index.css`** — reaches the scale through the `--type-<role>-{size,leading,tracking,weight}`
   custom properties, emitted by an `addBase` plugin. It must never name a literal size.
-- **Imperative label builders** — the marker HTML in `mapIcons.ts`, `MrtOverlay.tsx`
-  and `NeighbourhoodWash.tsx` call `typeCss(role, { scale })`, which returns a declaration string.
+- **Imperative label builders** — the marker HTML in `mapIcons.ts` and `MrtOverlay.tsx` call `typeCss(role, { scale })`, which returns a declaration string.
   `scale` is how a dense map zoom shrinks a label without inventing a step off the scale.
 
 Sizes are **rem, never px**. A px value silently opts out of the player's Font size setting

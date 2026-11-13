@@ -18,6 +18,8 @@ interface Props {
   doom: number;
   doomColor: string;
   doomLabel: string;
+  /** Desktop draws the island front at the foot of the rail instead. */
+  showDoom?: boolean;
   /** Neighbourhood you are standing in — omitted on legacy runs with no town field. */
   townName: string | null;
   townTier: 'stirring' | 'restless' | 'massing' | 'fallen' | 'lost' | null;
@@ -86,6 +88,7 @@ export function ObjectiveBar({
   doom,
   doomColor,
   doomLabel,
+  showDoom = true,
   townName,
   townTier,
   dayMult,
@@ -209,6 +212,7 @@ export function ObjectiveBar({
             </div>
           </div>
         </div>
+        {showDoom && (
         <div className="flex w-14 shrink-0 flex-col items-end gap-0.5">
           <div className="h-1 w-full overflow-hidden rounded bg-black/50">
             <div
@@ -218,6 +222,7 @@ export function ObjectiveBar({
           </div>
           <span className="text-label uppercase text-white/35">{doomLabel}</span>
         </div>
+        )}
       </div>
     </button>
   );

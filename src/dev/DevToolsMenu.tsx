@@ -91,7 +91,8 @@ export function DevToolsMenu() {
   return (
     <div
       ref={rootRef}
-      className="fixed bottom-3 left-3 z-[2000] flex flex-col items-start gap-1 max-lg:bottom-auto max-lg:top-14"
+      // Desktop: top-left of the map, clear of the rail's map footer; the panel opens downward.
+      className="fixed left-3 top-14 z-[2000] flex flex-col items-start gap-1 lg:left-[420px] lg:top-3 lg:flex-col-reverse"
     >
       {panelOpen && (
         <div className="mb-1 min-w-[10.5rem] overflow-hidden rounded border border-signal/40 bg-concrete-900/95 shadow-lg">

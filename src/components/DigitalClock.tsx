@@ -6,6 +6,9 @@ import { useClockFormat } from '../game/settings';
 import { formatDuration } from '../game/travel';
 import type { TimeOfDay } from '../game/types';
 import { useClockAdvance } from './useClockAdvance';
+import { RollingDigits } from './clockDigits';
+import { useTickingClock } from './useTickingClock';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 
 const BAND_COLOR: Record<TimeOfDay, string> = {
   day: '#e8e5dd',
@@ -34,8 +37,11 @@ export function DigitalClock({
 }) {
   const clock = useClockFormat();
   const fx = useClockAdvance(day, hour);
-  const h24 = ((Math.floor(hour) % 24) + 24) % 24;
-  const m = Math.floor((hour - Math.floor(hour)) * 60);
+  const still = useReducedMotion();
+  // The face runs through elapsed time; the day label reads the face too, so it
+  // turns over at the same instant the hour rolls past midnight.
+  const face = useTickingClock(day, hour);
+  const { h24, m } = face;
   const twelve = clock === '12';
   // 12-hour reads better unpadded — "8:30 pm", not "08:30 pm".
   const hh = twelve ? String(h24 % 12 === 0 ? 12 : h24 % 12) : String(h24).padStart(2, '0');
@@ -62,7 +68,7 @@ export function DigitalClock({
           }`}
         >
           <Icon name={icon} size={12} />
-          Day {day} · {TIME_LABEL[band]}
+          Day {face.day} · {TIME_LABEL[band]}
         </span>
         <span
           key={fx?.nonce ?? 'idle'}
@@ -75,9 +81,9 @@ export function DigitalClock({
             className="text-banner tabular-nums"
             style={{ color, textShadow: `0 0 18px ${color}55` }}
           >
-            {hh}
+            <RollingDigits text={hh} still={still} />
             <span className="animate-pulse">:</span>
-            {mm}
+            <RollingDigits text={mm} still={still} />
           </span>
           {meridiem && (
             <span className="text-plate uppercase" style={{ color }}>
@@ -105,7 +111,7 @@ export function DigitalClock({
         <span
           className={`text-label uppercase text-white/35 ${fx?.dayChanged ? 'clock-label-flash' : ''}`}
         >
-          Day {day}
+          Day {face.day}
         </span>
         <span
           className={`mt-0.5 text-plate uppercase text-white/45 ${fx?.kind === 'band' ? 'clock-label-flash' : ''}`}
@@ -119,9 +125,9 @@ export function DigitalClock({
           className="text-marquee tabular-nums"
           style={{ color, textShadow: `0 0 8px ${color}66` }}
         >
-          {hh}
+          <RollingDigits text={hh} still={still} />
           <span className="animate-pulse">:</span>
-          {mm}
+          <RollingDigits text={mm} still={still} />
         </span>
         {meridiem && (
           <span className="text-plate uppercase" style={{ color }}>

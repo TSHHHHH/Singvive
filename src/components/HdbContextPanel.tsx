@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react';
 import { Icon } from '../icons/Icon';
 import type { IconName } from '../icons/keys';
 import { sumTraitMod } from '../game/character';
@@ -13,7 +12,6 @@ import {
   hasFob,
   heatBandAfter,
   isVoidDeckFloor,
-  levelBand,
   levelHeat,
   LOCKPICK_ID,
   PICK_MINUTES,
@@ -32,9 +30,10 @@ import {
   type HdbDungeon,
 } from '../game/hdbDungeon';
 import { msgOr, useT, type LocaleId, type TVars } from '../i18n';
-import { HeatMeter } from './HdbLevelStrips';
 import { useIsPhoneLayout } from './useIsPhoneLayout';
 import { tip } from './tips';
+import { Chip, Ledger, LedgerRow, Note, PlaceHead, PlaceStack } from './placeCard';
+import { BTN } from './placeCardStyle';
 
 const CONTAINER_ICON: Record<string, IconName> = {
   Medical: 'meter.infection',
@@ -56,34 +55,6 @@ function landingTip(
   const label = msgOr(`ui.hdb.theme.${theme}.label`, THEME_META[theme].label, undefined, locale);
   const blurb = msgOr(`ui.hdb.theme.${theme}.blurb`, THEME_META[theme].blurb, undefined, locale);
   return `${base} · ${label}: ${blurb}`;
-}
-
-function ScoutTile({
-  label,
-  tip: tipText,
-  unread,
-  children,
-}: {
-  label: string;
-  tip: string;
-  unread?: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <div
-      {...tip(tipText)}
-      className={`flex w-full min-h-[3.25rem] flex-col items-center justify-center gap-0.5 rounded border px-2 py-1.5 text-center ${
-        unread
-          ? 'border-concrete-700/80 bg-concrete-950/40 text-concrete-500'
-          : 'border-white/15 bg-concrete-900/60 text-concrete-100'
-      }`}
-    >
-      <div className="flex min-h-[1.25rem] max-w-full items-center justify-center text-body font-semibold leading-tight">
-        {children}
-      </div>
-      <span className="text-label uppercase text-concrete-500">{label}</span>
-    </div>
-  );
 }
 
 /**
@@ -132,14 +103,14 @@ export function HdbContextPanel({
           : undefined;
     return (
       <div className="space-y-2 text-body">
-        <p className="text-concrete-300">{t('ui.hdb.compactHint')}</p>
+        <p className="text-concrete-200">{t('ui.hdb.compactHint')}</p>
         <div className="flex justify-end">
           <button
             type="button"
             onClick={() => hdbLeave()}
             disabled={!canLeave}
             {...tip(leaveTitle)}
-            className="rounded border border-white/15 px-2.5 py-1 text-body text-concrete-300 hover:bg-white/5 disabled:opacity-40"
+            className={`${BTN.secondary} w-auto`}
           >
             {t('ui.hdb.leaveBlock')}
           </button>
@@ -148,7 +119,6 @@ export function HdbContextPanel({
     );
   }
 
-  const containerUnread = !sel?.scoutedInfo?.containerCategory;
   const selVerb = sel ? UNIT_META[sel.type].verb : null;
   const showEncounter =
     selVerb === 'search' || selVerb === 'hazard' || selVerb === 'burn';
@@ -180,24 +150,25 @@ export function HdbContextPanel({
   const hatchHere = !hdb.roofOpen && roofHatchLevel(hdb) === hdb.currentLevel;
   const hatchCost = scaleDoorCost(ROOF_HATCH_MINUTES, ROOF_HATCH_HEAT, forceOpts);
   const hatchActions = hatchHere ? (
-    <div className="flex flex-col gap-1">
-      <p className="text-body text-concrete-400">{t('ui.hdb.hatchBlurb')}</p>
+    <div className="flex flex-col gap-2">
+      <Note>{t('ui.hdb.hatchBlurb')}</Note>
       {hasFob(hdb, ROOF_FOB) && (
         <button
           type="button"
           onClick={() => hdbOpenRoof('fob')}
           disabled={busy}
-          className="min-h-[44px] w-full rounded border border-signal/60 bg-signal/15 px-3 py-2 text-body text-signal hover:bg-signal/25 disabled:opacity-40 lg:min-h-0 lg:py-1.5"
+          className={BTN.secondary}
         >
-          {t('ui.hdb.hatchFob', { min: FOB_MINUTES })}
+          <Icon name="item.lockpick" /> {t('ui.hdb.hatchFob', { min: FOB_MINUTES })}
         </button>
       )}
       <button
         type="button"
         onClick={() => hdbOpenRoof('force')}
         disabled={busy}
-        className="min-h-[44px] w-full rounded border border-hiss/60 bg-hiss/15 px-3 py-2 text-body text-hiss hover:bg-hiss/25 disabled:opacity-40 lg:min-h-0 lg:py-1.5"
+        className={BTN.danger}
       >
+        <Icon name="hdb.breach" />{' '}
         {t('ui.hdb.hatchForce', {
           min: Math.round(hatchCost.minutes),
           heat: hatchCost.heat,
@@ -213,20 +184,6 @@ export function HdbContextPanel({
     : isVoidDeckFloor(floor) && floor.units.length === 0
       ? t('ui.hdb.voidDeck')
       : t('ui.hdb.level', { nn: levelNn });
-  const placeStatus = sel ? doorStatus : null;
-
-  const placeHeader = (
-    <div className="flex min-w-0 items-baseline gap-2">
-      <span className="truncate text-body font-semibold tabular-nums tracking-wide text-concrete-50">
-        {placeTitle}
-      </span>
-      {placeStatus && (
-        <span className="shrink-0 text-plate uppercase text-concrete-400">
-          {placeStatus}
-        </span>
-      )}
-    </div>
-  );
 
   const unitLabel = sel
     ? msgOr(`ui.hdb.unit.${sel.type}.label`, UNIT_META[sel.type].label, undefined, locale)
@@ -234,23 +191,42 @@ export function HdbContextPanel({
   const unitBlurb = sel
     ? msgOr(`ui.hdb.unit.${sel.type}.blurb`, UNIT_META[sel.type].blurb, undefined, locale)
     : '';
+  const containerCat = sel?.scoutedInfo?.containerCategory;
+  const containerLabel = containerCat
+    ? msgOr(`ui.hdb.container.${containerCat}`, containerCat, undefined, locale)
+    : null;
 
-  const scoutColumn = sel ? (
-    <div className="flex w-[7.5rem] shrink-0 flex-col items-center justify-start gap-1.5 self-stretch sm:w-[8.5rem]">
+  const roomsLeft = floor.units.filter((u) => u.available && u.state !== 'cleared').length;
+
+  const head = (
+    <PlaceHead
+      icon={sel ? UNIT_META[sel.type].icon : floor.units.length ? 'hdb.unit' : 'hdb.stairwell'}
+      title={<span className="tabular-nums">{placeTitle}</span>}
+      meta={
+        sel ? (
+          <span {...tip(unitBlurb)}>{unitLabel}</span>
+        ) : floor.units.length > 0 ? (
+          <span className="tabular-nums">{t('ui.hdb.roomsLeft', { n: roomsLeft })}</span>
+        ) : undefined
+      }
+      aside={doorStatus ? <Chip>{doorStatus}</Chip> : undefined}
+    />
+  );
+
+  const scoutLedger = sel ? (
+    <Ledger>
       {selVerb === 'fight' && (
-        <ScoutTile
+        <LedgerRow
+          icon="combat.encounter"
           label={t('ui.hdb.scoutEncounter')}
-          tip={
-            sel?.type === 'den'
-              ? t('ui.hdb.scoutDenFight')
-              : t('ui.hdb.scoutNestFight')
-          }
+          tip={sel.type === 'den' ? t('ui.hdb.scoutDenFight') : t('ui.hdb.scoutNestFight')}
         >
           <span className="text-hiss">{t('ui.hdb.scoutFight')}</span>
-        </ScoutTile>
+        </LedgerRow>
       )}
       {encounter && (
-        <ScoutTile
+        <LedgerRow
+          icon="combat.encounter"
           label={t('ui.hdb.scoutEncounter')}
           tip={
             encounter.exact
@@ -261,53 +237,28 @@ export function HdbContextPanel({
           <span className={encounter.pct >= 50 ? 'text-hiss' : 'text-signal'}>
             {encounter.label}
           </span>
-        </ScoutTile>
+        </LedgerRow>
       )}
-
-      <ScoutTile label={t('ui.hdb.scoutRoom')} tip={unitBlurb}>
-        <span className="inline-flex max-w-full items-center gap-0.5 text-body text-concrete-200">
-          <Icon name={UNIT_META[sel.type].icon} size={12} />
-          <span className="truncate">{unitLabel}</span>
-        </span>
-      </ScoutTile>
-
-      <ScoutTile
+      <LedgerRow
+        icon="action.inventory"
         label={t('ui.hdb.scoutContainers')}
         tip={
-          sel.scoutedInfo?.containerCategory
-            ? `${msgOr(
-                `ui.hdb.container.${sel.scoutedInfo.containerCategory}`,
-                sel.scoutedInfo.containerCategory,
-                undefined,
-                locale,
-              )} · ${sel.scoutedInfo.lootQuality}`
+          containerLabel
+            ? `${containerLabel} · ${sel.scoutedInfo?.lootQuality}`
             : t('ui.hdb.scoutContainersUnread')
         }
-        unread={containerUnread}
       >
-        {sel.scoutedInfo?.containerCategory ? (
-          <span className="inline-flex max-w-full items-center gap-0.5 text-astral">
-            <Icon
-              name={
-                CONTAINER_ICON[sel.scoutedInfo.containerCategory] ?? 'action.inventory'
-              }
-              size={12}
-            />
-            <span className="truncate text-body">
-              {msgOr(
-                `ui.hdb.container.${sel.scoutedInfo.containerCategory}`,
-                sel.scoutedInfo.containerCategory,
-                undefined,
-                locale,
-              )}
-            </span>
+        {containerCat && containerLabel ? (
+          <span className="inline-flex items-center gap-1.5 text-astral">
+            <Icon name={CONTAINER_ICON[containerCat] ?? 'action.inventory'} />
+            {containerLabel}
           </span>
         ) : (
-          <span className="text-concrete-500">?</span>
+          <span className="text-concrete-400">?</span>
         )}
-      </ScoutTile>
-    </div>
-    ) : null;
+      </LedgerRow>
+    </Ledger>
+  ) : null;
 
   const entryVerb = sel
     ? msgOr(`ui.hdb.entry.${sel.entry}.verb`, ENTRY_META[sel.entry].verb, undefined, locale)
@@ -332,15 +283,13 @@ export function HdbContextPanel({
 
   const doorButtons = sel ? (
     sel.state === 'cleared' ? (
-      <span className="text-body text-concrete-400">
-        {t('ui.hdb.unitClearedBlurb')}
-      </span>
+      <Note>{t('ui.hdb.unitClearedBlurb')}</Note>
     ) : selVerb === 'service' && sel.service ? (
       <button
         type="button"
         onClick={() => hdbUseService(sel.id)}
         disabled={busy}
-        className="min-h-[44px] w-full rounded bg-signal/80 px-3 py-2 text-body font-bold text-black hover:bg-signal disabled:opacity-30 lg:min-h-0 lg:py-1.5"
+        className={BTN.primary}
       >
         <Icon name={SERVICE_ICON[sel.service]} />{' '}
         {msgOr(`ui.hdb.service.${sel.service}`, SERVICE_LABEL[sel.service], undefined, locale)}
@@ -350,7 +299,7 @@ export function HdbContextPanel({
         type="button"
         onClick={() => hdbReadNotice(sel.id)}
         disabled={busy}
-        className="min-h-[44px] w-full rounded bg-signal/80 px-3 py-2 text-body font-bold text-black hover:bg-signal disabled:opacity-30 lg:min-h-0 lg:py-1.5"
+        className={BTN.primary}
       >
         <Icon name="hdb.notice" /> {t('ui.hdb.readNotice', { min: 15 })}
       </button>
@@ -359,32 +308,19 @@ export function HdbContextPanel({
         type="button"
         onClick={() => hdbUseShelter(sel.id)}
         disabled={busy}
-        className="min-h-[44px] w-full rounded bg-signal/80 px-3 py-2 text-body font-bold text-black hover:bg-signal disabled:opacity-30 lg:min-h-0 lg:py-1.5"
+        className={BTN.primary}
       >
         <Icon name="hdb.shelter" />{' '}
         {t('ui.hdb.restShelter', { h: SHELTER_HOURS, heat: SHELTER_HEAT_DROP })}
       </button>
     ) : (
-      <div className="flex flex-col gap-1">
-        {sel.entry === 'locked' && sel.state !== 'breached' && (
-          <button
-            type="button"
-            onClick={() => hdbPick(sel.id)}
-            disabled={busy || lockpickCount < 1}
-            className="min-h-[44px] w-full rounded border border-signal/50 bg-signal/10 px-3 py-2 text-body font-bold text-signal hover:bg-signal/20 disabled:opacity-30 lg:min-h-0 lg:py-1.5"
-          >
-            <Icon name="item.lockpick" />{' '}
-            {lockpickCount < 1
-              ? t('ui.hdb.pickNeed')
-              : t('ui.hdb.pickLine', { min: PICK_MINUTES })}
-          </button>
-        )}
+      <div className="flex flex-col gap-2">
         {sel.state !== 'breached' && (
           <button
             type="button"
             onClick={() => hdbBreach(sel.id)}
             disabled={busy}
-            className="min-h-[44px] w-full rounded bg-signal/80 px-3 py-2 text-body font-bold text-black hover:bg-signal disabled:opacity-30 lg:min-h-0 lg:py-1.5"
+            className={BTN.primary}
           >
             <Icon name={doorHeat > 0 ? 'hdb.breach' : 'hdb.unit'} />{' '}
             {t('ui.hdb.breachLine', {
@@ -395,27 +331,27 @@ export function HdbContextPanel({
             {doorWarn}
           </button>
         )}
+        {sel.entry === 'locked' && sel.state !== 'breached' && (
+          <button
+            type="button"
+            onClick={() => hdbPick(sel.id)}
+            disabled={busy || lockpickCount < 1}
+            className={BTN.secondary}
+          >
+            <Icon name="item.lockpick" />{' '}
+            {lockpickCount < 1
+              ? t('ui.hdb.pickNeed')
+              : t('ui.hdb.pickLine', { min: PICK_MINUTES })}
+          </button>
+        )}
       </div>
     )
   ) : null;
 
-  const here = hdb.currentLevel;
-  const hereHeat = levelHeat(hdb, here);
-  const hereBand = levelBand(hdb, here);
-  const roomsLeft = floor.units.filter((u) => u.available && u.state !== 'cleared').length;
-  const levelSummary = (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex items-center gap-2 text-micro uppercase text-concrete-400">
-        <span>
-          {msgOr(`ui.hdb.heatBand.${hereBand.label}.label`, hereBand.label, undefined, locale)}{' '}
-          <span className="tabular-nums">{Math.round(hereHeat)}</span>
-        </span>
-        <HeatMeter heat={hereHeat} className="w-16" />
-        {floor.units.length > 0 && (
-          <span className="tabular-nums">{t('ui.hdb.roomsLeft', { n: roomsLeft })}</span>
-        )}
-      </div>
-      <p className="text-body text-concrete-400" {...tip(landingTip(hdb, t, locale))}>
+  // Heat lives on the status dock and the strip; the card only adds what is left to open.
+  const levelHint = (
+    <div {...tip(landingTip(hdb, t, locale))}>
+      <Note>
         {floor.units.length === 0
           ? isVoidDeckFloor(floor)
             ? t('ui.hdb.voidHint')
@@ -423,21 +359,27 @@ export function HdbContextPanel({
           : isPhone
             ? t('ui.hdb.levelHintPhone')
             : t('ui.hdb.levelHint')}
-      </p>
+      </Note>
     </div>
   );
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
-      <div className="space-y-2 px-3 pb-2 pt-1 lg:px-0 lg:pt-0">
-        <div className="flex items-stretch gap-2">
-          {scoutColumn}
-          <div className="flex min-w-0 flex-1 flex-col gap-2">
-            {placeHeader}
-            {sel ? doorButtons : levelSummary}
-            {!sel && hatchActions}
-          </div>
-        </div>
+      <div className="px-3 pb-2 pt-1 lg:px-0 lg:pt-0">
+        <PlaceStack>
+          {head}
+          {sel ? (
+            <>
+              {scoutLedger}
+              {doorButtons}
+            </>
+          ) : (
+            <>
+              {levelHint}
+              {hatchActions}
+            </>
+          )}
+        </PlaceStack>
       </div>
     </div>
   );

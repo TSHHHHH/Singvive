@@ -38,6 +38,8 @@ import type { FactionService, LocationState } from '../game/types';
 import type { IconName } from '../icons/keys';
 import { riskLabel, type TrekRisk } from '../game/wilds';
 import { HazardOnRoute } from './HazardOnRoute';
+import { BtnSub, Chip, Dots, Ledger, LedgerRow, LedgerRule, Note, PlaceHead, PlaceStack } from './placeCard';
+import { BTN, tint } from './placeCardStyle';
 import {
   destructionDisplayLabel,
   poiCategoryLabel,
@@ -135,31 +137,47 @@ function CardSplit({
   );
 }
 
-function RouteHazardBlock({
+/** The route's read, as one ledger row. */
+function RouteRow({ routeRisk }: { routeRisk?: TrekRisk | null }) {
+  const { t } = useT();
+  if (!routeRisk) return null;
+  const label = riskLabel(routeRisk.encounterChance);
+  return (
+    <LedgerRow icon="combat.encounter" label={t('ui.location.route')}>
+      <span style={{ color: label.color }}>{label.text}</span>
+    </LedgerRow>
+  );
+}
+
+/**
+ * Everything under the ledger: named pockets, then the lines that bite. Renders
+ * nothing when there is nothing to say, so the stack keeps its rhythm.
+ */
+function RouteNotes({
   routeRisk,
   routeBlind,
+  night,
+  outOfRange,
+  noDryRoute,
 }: {
   routeRisk?: TrekRisk | null;
   routeBlind?: boolean;
+  /** Message key for the after-dark line, when there is one. */
+  night?: string | null;
+  outOfRange?: boolean;
+  noDryRoute?: boolean;
 }) {
   const { t } = useT();
-  if (!routeRisk && !routeBlind) return null;
-  const label = routeRisk ? riskLabel(routeRisk.encounterChance) : null;
+  const hazards = routeRisk?.hazards ?? [];
+  if (!hazards.length && !routeBlind && !night && !outOfRange && !noDryRoute) return null;
   return (
-    <>
-      {routeRisk && (
-        <div className="mt-1 flex justify-between text-body text-white/55">
-          <span>{t('ui.location.route')}</span>
-          <span style={{ color: label?.color }}>{label?.text}</span>
-        </div>
-      )}
-      {routeRisk && <HazardOnRoute hazards={routeRisk.hazards} />}
-      {routeBlind && (
-        <div className="mt-2 text-body text-white/35">
-          You can't see far enough to read that ground. Anything could be sitting on it.
-        </div>
-      )}
-    </>
+    <div className="flex flex-col gap-1">
+      <HazardOnRoute hazards={hazards} />
+      {routeBlind && <Note>{t('ui.trek.blind')}</Note>}
+      {night && <Note tone="warn" icon="time.night">{t(night)}</Note>}
+      {outOfRange && <Note tone="warn" icon="status.blocked">{t('ui.location.beyondRange')}</Note>}
+      {noDryRoute && <Note tone="warn" icon="status.blocked">{t('ui.trek.noDry')}</Note>}
+    </div>
   );
 }
 
@@ -174,45 +192,36 @@ function UnknownCard({
 }: Props) {
   const { t } = useT();
   return (
-    <>
-      <div className="flex items-center gap-2">
-        <Icon name="poi.unknown" size={22} className="opacity-60" />
-        <div className="min-w-0 flex-1">
-          <div className="font-bold text-white/70">{t('ui.location.unknownLocation')}</div>
-          <div className="text-body text-white/40">
-            Commit blind — no danger intel until you arrive.
-          </div>
-        </div>
-      </div>
-      {est && (
-        <div className="mt-2 flex justify-between rounded bg-black/30 p-2 text-body text-white/55">
-          <span><Icon name="action.travel" /> {t('ui.location.travelThere')}</span>
-          <span className="text-white/80">
-            {formatDuration(est.travelMin)}
-            {est.vegetationSlowed && <span className="text-white/45"> · forest</span>}
-          </span>
-        </div>
+    <PlaceStack>
+      <PlaceHead
+        icon="poi.unknown"
+        title={t('ui.location.unknownLocation')}
+        meta={t('ui.location.commitBlind')}
+      />
+      {(est || routeRisk) && (
+        <Ledger>
+          {est && (
+            <LedgerRow icon="action.travel" label={t('ui.location.travelThere')}>
+              {formatDuration(est.travelMin)}
+              {est.vegetationSlowed && (
+                <span className="text-concrete-400"> · {t('ui.location.forest')}</span>
+              )}
+            </LedgerRow>
+          )}
+          <RouteRow routeRisk={routeRisk} />
+        </Ledger>
       )}
-      <RouteHazardBlock routeRisk={routeRisk} routeBlind={routeBlind} />
-      {est?.arrivalAtNight && (
-        <div className="mt-1 text-body text-hiss">
-          🌙 You'd arrive after dark — far more dangerous.
-        </div>
-      )}
-      {outOfRange && (
-        <div className="mt-1 text-body text-hiss">
-          ⛔ Beyond your range — hop closer, rest, or walk the tunnels.
-        </div>
-      )}
-      {noDryRoute && (
-        <div className="mt-1 text-body text-hiss">
-          ⛔ No dry route — water or sealed ground blocks the way.
-        </div>
-      )}
+      <RouteNotes
+        routeRisk={routeRisk}
+        routeBlind={routeBlind}
+        night={est?.arrivalAtNight ? 'ui.location.arriveDark' : null}
+        outOfRange={outOfRange}
+        noDryRoute={noDryRoute}
+      />
       <button
         disabled={energyLow || outOfRange || !!noDryRoute}
         onClick={onTravel}
-        className="mt-3 w-full rounded bg-signal/80 py-2 text-read font-bold text-black hover:bg-signal disabled:opacity-30"
+        className={BTN.primary}
       >
         {energyLow
           ? t('ui.location.tooExhausted')
@@ -222,7 +231,7 @@ function UnknownCard({
               ? t('ui.location.tooFar')
               : t('ui.location.headUnknown')}
       </button>
-    </>
+    </PlaceStack>
   );
 }
 
@@ -236,17 +245,17 @@ function StationCodes({ sel }: { sel: LocationState }) {
   if (!net || !station) return null;
 
   return (
-    <div className="mt-2 flex flex-wrap items-center gap-1 text-body">
+    <div className="flex flex-wrap items-center gap-1 text-body">
       {station.codes.map((code) => (
         <span
           key={code}
-          className="rounded px-1.5 py-0.5 font-bold text-black"
+          className="rounded px-1.5 py-0.5 font-bold tabular-nums text-black"
           style={{ background: net.lineByCode.get(code.slice(0, 2))?.color ?? '#9c9890' }}
         >
           {code}
         </span>
       ))}
-      <span className="truncate text-white/45">
+      <span className="ml-1 truncate text-concrete-400">
         {linesAt(net, station)
           .map((l) => l.name)
           .join(' · ')}
@@ -262,15 +271,9 @@ function StationCodes({ sel }: { sel: LocationState }) {
 function PlanTunnelsButton({ onPlan }: { onPlan: () => void }) {
   const { t } = useT();
   return (
-    <button
-      type="button"
-      onClick={onPlan}
-      className="w-full rounded border border-astral/40 bg-astral/10 py-2 text-read font-semibold text-astral hover:bg-astral/20"
-    >
+    <button type="button" onClick={onPlan} className={BTN.tinted} style={tint('#2bc4d9')}>
       <Icon name="action.mrt" /> {t('ui.location.route')}
-      <span className="block text-body font-normal opacity-75">
-        {t('ui.location.pickStation')}
-      </span>
+      <BtnSub>{t('ui.location.pickStation')}</BtnSub>
     </button>
   );
 }
@@ -284,17 +287,9 @@ function TunnelButton({ seg, onTunnel }: { seg: MrtSegment | null; onTunnel: () 
   const net = getMrtNetwork();
   const line = net && seg ? displayLine(net, seg.line) : null;
   return (
-    <button
-      onClick={onTunnel}
-      className="w-full rounded border py-2 text-read font-semibold hover:brightness-125"
-      style={{
-        borderColor: `${line?.color ?? '#2bc4d9'}66`,
-        background: `${line?.color ?? '#2bc4d9'}1a`,
-        color: line?.color ?? '#2bc4d9',
-      }}
-    >
+    <button onClick={onTunnel} className={BTN.tinted} style={tint(line?.color ?? '#2bc4d9')}>
       <Icon name="action.mrt" /> {t('ui.location.planTunnels')}
-      <span className="block text-body font-normal opacity-75">
+      <BtnSub>
         {seg?.collapsed
           ? t('ui.location.collapsedBore')
           : seg
@@ -303,7 +298,7 @@ function TunnelButton({ seg, onTunnel }: { seg: MrtSegment | null; onTunnel: () 
                 meters: seg.meters,
               })
             : t('ui.location.tunnelMetaRoute')}
-      </span>
+      </BtnSub>
     </button>
   );
 }
@@ -385,47 +380,37 @@ function FactionClaim({
   if (compact) {
     return (
       <div
-        className="mt-2 rounded border px-2 py-1.5 text-body"
-        style={{
-          color: faction.color,
-          borderColor: `${faction.color}66`,
-          background: `${faction.color}14`,
-        }}
+        className="flex items-start justify-between gap-3 rounded border px-2 py-1.5 text-body"
+        style={tint(faction.color)}
       >
-        <div className="flex items-start justify-between gap-3">
-          <span className="min-w-0 leading-snug">
-            <Icon name={faction.icon} /> {faction.shortName} {place}
+        <span className="flex min-w-0 items-center gap-1.5">
+          <Icon name={faction.icon} className="shrink-0" />
+          <span className="min-w-0">
+            {faction.shortName} {place}
           </span>
-          <span className="shrink-0 pt-px opacity-80">
-            {standLabel} {score}
-          </span>
-        </div>
+        </span>
+        <span className="shrink-0 tabular-nums opacity-80">
+          {standLabel} {score}
+        </span>
       </div>
     );
   }
 
+  // Same height as the head's icon box plus its two text lines, so the claim
+  // sits beside the name instead of pushing the ledger down.
   return (
     <div
-      className="flex w-[6.5rem] shrink-0 flex-col items-center gap-1 rounded border px-2 py-1.5"
-      style={{
-        color: faction.color,
-        borderColor: `${faction.color}88`,
-        background: `linear-gradient(180deg, ${faction.color}28 0%, ${faction.color}0d 100%)`,
-      }}
+      className="flex w-28 shrink-0 flex-col items-center gap-1 rounded border px-2 py-1.5"
+      style={tint(faction.color)}
     >
-      <Icon name={faction.icon} size={26} />
-      <div className="w-full text-center leading-tight">
-        <div className="truncate text-body font-bold tracking-wide">{faction.shortName}</div>
+      <Icon name={faction.icon} size={20} />
+      <div className="w-full text-center">
+        <div className="truncate text-body font-semibold">{faction.shortName}</div>
         <div className="truncate text-micro opacity-75">{place}</div>
       </div>
-      <div
-        className="mt-0.5 w-full rounded border px-1.5 py-1"
-        style={{ borderColor: `${faction.color}44`, background: `${faction.color}12` }}
-      >
-        <ReputationLadder standing={standing} color={faction.color} />
-        <div className="mt-0.5 text-center text-micro font-semibold tabular-nums opacity-90">
-          {standLabel} {score}
-        </div>
+      <ReputationLadder standing={standing} color={faction.color} />
+      <div className="text-micro tabular-nums opacity-80">
+        {standLabel} {score}
       </div>
     </div>
   );
@@ -510,25 +495,25 @@ function FactionHubActions({ sel }: { sel: LocationState }) {
   return (
     <>
       <div className="mt-1 border-t border-white/10 pt-2">
-        <div className="mb-1.5 text-label uppercase text-white/35">
+        <div className="mb-1.5 text-label uppercase text-concrete-400">
           {t('ui.location.services')}
         </div>
         <div className="flex flex-col gap-2">
           {!cleared && (
-            <p className="text-body text-white/50">{t('ui.location.approachGateFirst')}</p>
+            <Note>{t('ui.location.approachGateFirst')}</Note>
           )}
           {services.includes('trade') && (
             <button
               disabled={!cleared || !canTrade}
               onClick={() => openTrader(sel.id)}
-              className="w-full rounded border px-2 py-2 text-read hover:brightness-125 disabled:opacity-30"
-              style={{ borderColor: `${cfg.color}66`, background: `${cfg.color}1a`, color: cfg.color }}
+              className={BTN.tinted}
+              style={tint(cfg.color)}
             >
               <Icon name={cfg.icon} />{' '}
               {sel.factionId === 'syndicate_88'
                 ? t('ui.location.fence')
                 : t(SERVICE_META.trade.labelKey)}
-              <span className="block text-body font-normal opacity-75">
+              <BtnSub>
                 {!cleared
                   ? t('ui.location.gateFirst')
                   : canTrade
@@ -536,33 +521,33 @@ function FactionHubActions({ sel }: { sel: LocationState }) {
                       ? t('ui.location.fenceHint')
                       : t(SERVICE_META.trade.hintKey)
                     : t(SERVICE_META.trade.lockedKey)}
-              </span>
+              </BtnSub>
             </button>
           )}
           {services.includes('rest') && (
             <button
               disabled={!cleared || !canRest}
               onClick={outpostRest}
-              className="w-full rounded border border-white/15 px-2 py-2 text-read hover:bg-white/5 disabled:opacity-30"
+              className={BTN.secondary}
             >
               <Icon name={SERVICE_META.rest.icon} /> {t(SERVICE_META.rest.labelKey)}
-              <span className="block text-body font-normal opacity-60">
+              <BtnSub>
                 {!cleared
                   ? t('ui.location.gateFirst')
                   : canRest
                     ? t(SERVICE_META.rest.hintKey)
                     : t(SERVICE_META.rest.lockedKey)}
-              </span>
+              </BtnSub>
             </button>
           )}
           {services.includes('aid') && (
             <button
               disabled={!cleared || !canAid || (sel.aidUsedDay ?? -1) >= day}
               onClick={factionAid}
-              className="w-full rounded border border-white/15 px-2 py-2 text-read hover:bg-white/5 disabled:opacity-30"
+              className={BTN.secondary}
             >
               <Icon name={SERVICE_META.aid.icon} /> {t(SERVICE_META.aid.labelKey)}
-              <span className="block text-body font-normal opacity-60">
+              <BtnSub>
                 {!cleared
                   ? t('ui.location.gateFirst')
                   : (sel.aidUsedDay ?? -1) >= day
@@ -570,17 +555,17 @@ function FactionHubActions({ sel }: { sel: LocationState }) {
                     : canAid
                       ? t(SERVICE_META.aid.hintKey)
                       : t(SERVICE_META.aid.lockedKey)}
-              </span>
+              </BtnSub>
             </button>
           )}
           {services.includes('intel') && (
             <button
               disabled={!cleared || !canIntel || (sel.intelUsedDay ?? -1) >= day}
               onClick={factionIntel}
-              className="w-full rounded border border-white/15 px-2 py-2 text-read hover:bg-white/5 disabled:opacity-30"
+              className={BTN.secondary}
             >
               <Icon name={SERVICE_META.intel.icon} /> {t(SERVICE_META.intel.labelKey)}
-              <span className="block text-body font-normal opacity-60">
+              <BtnSub>
                 {!cleared
                   ? t('ui.location.gateFirst')
                   : (sel.intelUsedDay ?? -1) >= day
@@ -588,18 +573,18 @@ function FactionHubActions({ sel }: { sel: LocationState }) {
                     : canIntel
                       ? t(SERVICE_META.intel.hintKey)
                       : t(SERVICE_META.intel.lockedKey)}
-              </span>
+              </BtnSub>
             </button>
           )}
           {services.includes('feed') && (
             <button
               disabled={!cleared || !canFeed || (sel.feedUsedDay ?? -1) >= day}
               onClick={factionFeed}
-              className="w-full rounded border px-2 py-2 text-read hover:brightness-125 disabled:opacity-30"
-              style={{ borderColor: `${cfg.color}66`, background: `${cfg.color}1a`, color: cfg.color }}
+              className={BTN.tinted}
+              style={tint(cfg.color)}
             >
               <Icon name={SERVICE_META.feed.icon} /> {t(SERVICE_META.feed.labelKey)}
-              <span className="block text-body font-normal opacity-75">
+              <BtnSub>
                 {!cleared
                   ? t('ui.location.gateFirst')
                   : (sel.feedUsedDay ?? -1) >= day
@@ -607,15 +592,15 @@ function FactionHubActions({ sel }: { sel: LocationState }) {
                     : canFeed
                       ? t(SERVICE_META.feed.hintKey)
                       : t(SERVICE_META.feed.lockedKey)}
-              </span>
+              </BtnSub>
             </button>
           )}
           {services.includes('escort') && (
-            <div className="rounded border border-white/15 px-2 py-2">
-              <div className="text-read">
+            <div className="rounded border border-white/15 px-3 py-1.5 text-body">
+              <div className="text-concrete-50">
                 <Icon name={SERVICE_META.escort.icon} /> {t(SERVICE_META.escort.labelKey)}
               </div>
-              <p className="mt-0.5 text-body opacity-60">
+              <p className="mt-0.5 text-concrete-400">
                 {!cleared
                   ? t('ui.location.gateFirst')
                   : !canEscort
@@ -627,7 +612,7 @@ function FactionHubActions({ sel }: { sel: LocationState }) {
               {cleared && canEscort && !escortDest && (
                 <div className="mt-1.5 flex flex-col gap-1">
                   {escortDests.length === 0 ? (
-                    <p className="text-body text-white/45">{t('ui.location.escortNoDest')}</p>
+                    <Note>{t('ui.location.escortNoDest')}</Note>
                   ) : (
                     escortDests.map((d) => (
                       <button
@@ -636,7 +621,7 @@ function FactionHubActions({ sel }: { sel: LocationState }) {
                         className="w-full rounded border border-white/10 px-2 py-1 text-left text-body hover:bg-white/5"
                       >
                         {d.name}
-                        <span className="ml-1 opacity-50">
+                        <span className="ml-1 tabular-nums text-concrete-400">
                           {Math.round(haversine(sel.lat, sel.lng, d.lat, d.lng))} m
                         </span>
                       </button>
@@ -650,16 +635,16 @@ function FactionHubActions({ sel }: { sel: LocationState }) {
             <button
               disabled={!cleared}
               onClick={searchKinDeck}
-              className="w-full rounded border border-white/15 px-2 py-2 text-read hover:bg-white/5 disabled:opacity-30"
+              className={BTN.secondary}
             >
               <Icon name="hdb.enterBlock" /> {t('ui.location.walkTheDecks')}
-              <span className="block text-body font-normal opacity-60">
+              <BtnSub>
                 {!cleared
                   ? t('ui.location.gateFirst')
                   : sel.kinDeckUsed
                     ? t('ui.location.walkTheDecksAgain')
                     : t('ui.location.walkTheDecksHint')}
-              </span>
+              </BtnSub>
             </button>
           )}
         </div>
@@ -776,25 +761,26 @@ function KnownCard({
             ? t('ui.location.searchesLeft', { n: searchesLabel })
             : t('ui.location.searchesLeftPlural', { n: searchesLabel });
 
-  const metaLine = (
-    <div className="mt-1 text-body text-white/45">
-      <div>
-        {poiLabel} · {sel.size}
-      </div>
-      <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5">
-        <span
-          style={{ color: dangerColor(dngr) }}
-          {...tip(`${t('ui.location.danger')} ${dngr} of 5`)}
+  const dangerRow = (
+    <LedgerRow
+      icon="combat.encounter"
+      label={t('ui.location.danger')}
+      tip={`${t('ui.location.danger')} ${dngr} of 5`}
+    >
+      <Dots filled={dngr} of={5} color={dangerColor(dngr)} />
+    </LedgerRow>
+  );
+
+  const siteRows = (
+    <>
+      {scar && scar.doors > 0 && (
+        <LedgerRow
+          icon="hdb.unit"
+          label={t('ui.location.blockWorkedShort')}
+          tip={t('ui.location.blockWorked', { cleared: scar.cleared, doors: scar.doors })}
         >
-          {t('ui.location.danger')} {'●'.repeat(dngr)}
-          <span className="text-white/15">{'●'.repeat(5 - dngr)}</span>
-        </span>
-        {scar && scar.doors > 0 && (
-          <span
-            className="inline-flex items-center gap-1.5"
-            {...tip(t('ui.location.blockWorked', { cleared: scar.cleared, doors: scar.doors }))}
-          >
-            {t('ui.location.blockWorkedShort')}
+          <span className="inline-flex items-center gap-2">
+            {scar.cleared}/{scar.doors}
             <span className="relative h-1 w-14 overflow-hidden rounded-full bg-white/10">
               <span
                 className={`absolute inset-y-0 left-0 ${scar.hunting ? 'bg-hiss' : 'bg-signal'}`}
@@ -802,39 +788,29 @@ function KnownCard({
               />
             </span>
           </span>
-        )}
-        {!isBlock && destruction !== undefined && (
-          <span
-            {...tip(`${t('ui.location.ruin')} — ${destructionDisplayLabel(destruction, locale)}`)}
-          >
-            {t('ui.location.ruin')} {destructionDisplayLabel(destruction, locale)}{' '}
-            {'●'.repeat(destruction + 1)}
-            <span className="text-white/15">{'●'.repeat(3 - destruction)}</span>
-          </span>
-        )}
-      </div>
-    </div>
+        </LedgerRow>
+      )}
+      {!isBlock && destruction !== undefined && (
+        <LedgerRow icon="hdb.collapse" label={t('ui.location.ruin')}>
+          <span className="text-concrete-200">{destructionDisplayLabel(destruction, locale)}</span>{' '}
+          <Dots filled={destruction + 1} of={4} />
+        </LedgerRow>
+      )}
+    </>
   );
 
   const actions = (
     <>
       {searchingHere ? (
-        <button
-          onClick={() => abortSearch()}
-          className="w-full rounded border border-white/20 bg-white/5 px-2 py-2 text-read font-bold hover:bg-white/10"
-        >
+        <button onClick={() => abortSearch()} className={BTN.secondary}>
           <Icon name="action.search" /> {t('ui.location.searching')}
-          <span className="block text-body font-normal opacity-75">
+          <BtnSub>
             ~{formatDuration(searchEtaMin)} left — {t('ui.location.leaveStopEarly')}
-          </span>
+          </BtnSub>
         </button>
       ) : occupied ? (
         raidingHere ? (
-          <button
-            disabled={sel.exhausted}
-            onClick={raidSearch}
-            className="w-full rounded bg-signal/90 px-2 py-2 text-read font-bold text-black hover:bg-signal disabled:opacity-30"
-          >
+          <button disabled={sel.exhausted} onClick={raidSearch} className={BTN.primary}>
             <Icon name="action.search" />{' '}
             {sel.exhausted
               ? t('ui.location.nothingLeft')
@@ -842,52 +818,36 @@ function KnownCard({
                 ? t('ui.location.searchWhileUnseen')
                 : t('ui.location.tearThrough')}
             {!sel.exhausted && (
-              <span className="block text-body font-normal opacity-75">
+              <BtnSub>
                 {!seesSearches
                   ? t('ui.location.stillHasLoot')
                   : Math.abs(searches - 1) < 0.05
                     ? t('ui.location.searchesLeft', { n: searchesLabel })
                     : t('ui.location.searchesLeftPlural', { n: searchesLabel })}
-              </span>
+              </BtnSub>
             )}
           </button>
         ) : gateCleared ? null : (
           <>
-            <button
-              onClick={onEnter}
-              className="w-full rounded bg-signal/90 px-2 py-2 text-read font-bold text-black hover:bg-signal"
-            >
+            <button onClick={onEnter} className={BTN.primary}>
               <Icon name="action.search" /> {t('ui.location.approachGate')}
             </button>
-            <button
-              onClick={sneakEnter}
-              className="w-full rounded border border-white/20 px-2 py-2 text-read hover:bg-white/5"
-            >
+            <button onClick={sneakEnter} className={BTN.secondary}>
               <Icon name="action.search" /> {t('ui.location.sneakIn')}
-              <span className="block text-body font-normal opacity-60">{t('ui.location.sneakHint')}</span>
+              <BtnSub>{t('ui.location.sneakHint')}</BtnSub>
             </button>
-            <button
-              onClick={forceEnter}
-              className="w-full rounded border border-hiss/50 px-2 py-2 text-read text-hiss hover:bg-hiss/10"
-            >
+            <button onClick={forceEnter} className={BTN.danger}>
               <Icon name="combat.hostiles" /> {t('ui.location.forceEnter')}
-              <span className="block text-body font-normal opacity-60">{t('ui.location.forceHint')}</span>
+              <BtnSub>{t('ui.location.forceHint')}</BtnSub>
             </button>
           </>
         )
       ) : isBlock ? (
-        <button
-          onClick={onEnterBlock ?? onEnter}
-          className="w-full rounded bg-signal/90 px-2 py-2 text-read font-bold text-black hover:bg-signal"
-        >
+        <button onClick={onEnterBlock ?? onEnter} className={BTN.primary}>
           <Icon name="hdb.enterBlock" /> {t('ui.location.enterBlock')}
         </button>
       ) : (
-        <button
-          disabled={sel.exhausted}
-          onClick={onEnter}
-          className="w-full rounded bg-signal/80 px-2 py-2 text-read font-bold text-black hover:bg-signal disabled:opacity-30"
-        >
+        <button disabled={sel.exhausted} onClick={onEnter} className={BTN.primary}>
           {sel.exhausted
             ? t('ui.location.nothingLeftToSearch')
             : sel.cleared
@@ -895,126 +855,104 @@ function KnownCard({
               : t('ui.location.goInsideSearch')}
         </button>
       )}
-      <button
-        onClick={onOpenStash}
-        className="w-full rounded border border-white/15 px-2 py-2 text-read hover:bg-white/5"
-      >
+      <button onClick={onOpenStash} className={BTN.secondary}>
         <Icon name="action.stash" /> {t('ui.location.openStashHere')}
       </button>
       {here && occupied && <FactionHubActions sel={sel} />}
     </>
   );
 
-  // Target / last-seen card keeps a compact single column — travel estimate
-  // is the decision, not territory hierarchy.
+  // Target / last-seen card: the travel estimate is the decision, so the
+  // ledger leads with what the trip costs.
   if (!here) {
+    const travelValue = est ? (
+      <span>
+        {formatDuration(est.travelMin)}
+        {est.weatherSlowed && <span className="text-astral"> · {t('ui.location.rain')}</span>}
+        {est.vegetationSlowed && (
+          <span className="text-concrete-400"> · {t('ui.location.forest')}</span>
+        )}
+      </span>
+    ) : null;
+    const territory = occupied
+      ? sel.isFactionOutpost
+        ? t('ui.location.factionOutpost')
+        : t('ui.location.factionTerritory')
+      : siteStatus;
     return (
-      <>
-        <div className="flex items-start gap-2">
-          <Icon name={cfg.icon} size={22} className="mt-0.5 shrink-0" />
-          <div className="min-w-0 flex-1">
-            <div className="font-bold leading-snug">{sel.name}</div>
-            <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-body text-white/40">
-              <span>
-                {poiLabel} · {sel.size}
-              </span>
-              <span className="rounded bg-white/10 px-1.5 py-0.5 text-white/50">
-                {t('ui.location.lastSeen')}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <StationCodes sel={sel} />
-
-        {faction && <FactionClaim sel={sel} faction={faction} compact />}
-
-        <div className="mt-2 flex items-center justify-between text-body">
-          <span className="text-white/50">
-            {t('ui.location.metersFromSpawn', { m: Math.round(sel.distanceFromSpawn) })}
-          </span>
-          <span style={{ color: dangerColor(dngr) }} {...tip(`${t('ui.location.danger')} ${dngr} of 5`)}>
-            {t('ui.location.danger')} {'●'.repeat(dngr)}
-            <span className="text-white/15">{'●'.repeat(5 - dngr)}</span>
-          </span>
-        </div>
-        <div className="mt-1 text-body text-white/40">
-          {occupied
-            ? sel.isFactionOutpost
-              ? t('ui.location.factionOutpost')
-              : t('ui.location.factionTerritory')
-            : siteStatus}
-          {useMem && (
-            <span className="text-concrete-400">
-              {' '}
-              · {t('ui.location.lastSeenDanger', { n: dngr })}
-              {mem && mem.currentDanger !== sel.currentDanger
-                ? t('ui.location.mayBeStale')
-                : t('ui.location.intelTag')}
-            </span>
-          )}
-        </div>
-
-        {est && (
-          <div className="mt-2 rounded bg-black/30 p-2 text-body text-white/55">
-            <div className="flex justify-between">
-              <span><Icon name="action.travel" /> {t('ui.location.travelHere')}</span>
-              {est.travelMult > 1 && loadFx ? (
-                <TipHint
-                  className="text-white/80"
-                  placement="top"
-                  tipClassName={LOAD_TIP_CLASS}
-                  tip={<LoadTipBody fx={loadFx} t={t} title={t('ui.location.travelHere')} />}
-                >
-                  <span>
-                    {formatDuration(est.travelMin)}
-                    {est.weatherSlowed && (
-                      <span className="text-astral"> · {t('ui.location.rain')}</span>
-                    )}
-                    {est.vegetationSlowed && (
-                      <span className="text-white/45"> · {t('ui.location.forest')}</span>
-                    )}
-                  </span>
-                </TipHint>
-              ) : (
-                <span className="text-white/80">
-                  {formatDuration(est.travelMin)}
-                  {est.weatherSlowed && (
-                    <span className="text-astral"> · {t('ui.location.rain')}</span>
-                  )}
-                  {est.vegetationSlowed && (
-                    <span className="text-white/45"> · {t('ui.location.forest')}</span>
-                  )}
-                </span>
-              )}
-            </div>
-            <div className="flex justify-between">
-              <span><Icon name="action.search" /> {t('ui.location.searchOnceInside')}</span>
-              <span className="text-white/80">{formatDuration(est.searchMin)}</span>
-            </div>
-            {(est.arrivalAtNight || est.doneAtNight) && (
-              <div className="mt-1 text-hiss">
-                🌙 You'll be out after dark — far more dangerous.
+      <PlaceStack>
+        <PlaceHead
+          icon={cfg.icon}
+          title={sel.name}
+          meta={
+            <>
+              <div>
+                {poiLabel} · {sel.size} ·{' '}
+                {t('ui.location.metersFromSpawn', { m: Math.round(sel.distanceFromSpawn) })}
               </div>
-            )}
+              <div>
+                {territory}
+                {useMem && (
+                  <>
+                    {' '}
+                    · {t('ui.location.lastSeenDanger', { n: dngr })}
+                    {mem && mem.currentDanger !== sel.currentDanger
+                      ? t('ui.location.mayBeStale')
+                      : t('ui.location.intelTag')}
+                  </>
+                )}
+              </div>
+            </>
+          }
+          aside={<Chip>{t('ui.location.lastSeen')}</Chip>}
+        />
+
+        {(sel.isMrtStation || faction) && (
+          <div className="flex flex-col gap-2">
+            <StationCodes sel={sel} />
+            {faction && <FactionClaim sel={sel} faction={faction} compact />}
           </div>
         )}
-        <RouteHazardBlock routeRisk={routeRisk} routeBlind={routeBlind} />
-        <div className="mt-3 flex flex-col gap-2">
-          {outOfRange && !canTunnel && (
-            <div className="text-body text-hiss">
-              ⛔ Beyond your range — hop closer, rest, or walk the tunnels.
-            </div>
+
+        <Ledger>
+          {dangerRow}
+          {est && travelValue && (
+            <>
+              <LedgerRule />
+              <LedgerRow icon="action.travel" label={t('ui.location.travelHere')}>
+                {est.travelMult > 1 && loadFx ? (
+                  <TipHint
+                    placement="top"
+                    tipClassName={LOAD_TIP_CLASS}
+                    tip={<LoadTipBody fx={loadFx} t={t} title={t('ui.location.travelHere')} />}
+                  >
+                    {travelValue}
+                  </TipHint>
+                ) : (
+                  travelValue
+                )}
+              </LedgerRow>
+              <LedgerRow icon="action.search" label={t('ui.location.searchOnceInside')}>
+                {formatDuration(est.searchMin)}
+              </LedgerRow>
+            </>
           )}
-          {noDryRoute && (
-            <div className="text-body text-hiss">
-              ⛔ No dry route — water or sealed ground blocks the way.
-            </div>
-          )}
+          <RouteRow routeRisk={routeRisk} />
+        </Ledger>
+
+        <RouteNotes
+          routeRisk={routeRisk}
+          routeBlind={routeBlind}
+          night={est && (est.arrivalAtNight || est.doneAtNight) ? 'ui.location.outAfterDark' : null}
+          outOfRange={!!outOfRange && !canTunnel}
+          noDryRoute={!!noDryRoute}
+        />
+
+        <div className="flex flex-col gap-2">
           <button
             disabled={energyLow || outOfRange || !!noDryRoute}
             onClick={onTravel}
-            className="w-full rounded bg-signal/80 py-2 text-read font-bold text-black hover:bg-signal disabled:opacity-30"
+            className={BTN.primary}
           >
             {energyLow
               ? t('ui.location.tooExhausted')
@@ -1025,48 +963,48 @@ function KnownCard({
                   : `${t('ui.location.travelHere')} · ${est ? formatDuration(est.travelMin) : ''}`}
           </button>
           {canTunnel && <TunnelButton seg={tunnelSeg ?? null} onTunnel={onTunnel} />}
-          {tunnelHint && <div className="text-body text-white/45">{tunnelHint}</div>}
+          {tunnelHint && <Note>{tunnelHint}</Note>}
         </div>
-      </>
+      </PlaceStack>
     );
   }
 
   return (
-    <>
+    <PlaceStack>
       <CardSplit
         compact={compact}
         actions={actions}
         info={
-          <>
-            <div className={`flex gap-2 ${compact ? 'flex-col' : 'items-stretch'}`}>
-              <div className="flex min-w-0 flex-1 gap-2">
-                <div
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded border border-white/10 bg-black/30"
-                  aria-hidden
-                >
-                  <Icon name={cfg.icon} size={24} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate font-bold leading-tight">{sel.name}</div>
-                  {metaLine}
-                  <StationCodes sel={sel} />
-                  {siteStatus && (
-                    <div className="mt-1 text-body text-white/40">{siteStatus}</div>
-                  )}
-                </div>
+          <PlaceStack>
+            <PlaceHead
+              icon={cfg.icon}
+              title={sel.name}
+              meta={
+                <>
+                  <div>
+                    {poiLabel} · {sel.size}
+                  </div>
+                  {siteStatus && <div>{siteStatus}</div>}
+                </>
+              }
+              aside={faction && !compact ? <FactionClaim sel={sel} faction={faction} /> : undefined}
+            />
+            {(sel.isMrtStation || (faction && compact)) && (
+              <div className="flex flex-col gap-2">
+                <StationCodes sel={sel} />
+                {faction && compact && <FactionClaim sel={sel} faction={faction} compact />}
               </div>
-              {faction && <FactionClaim sel={sel} faction={faction} />}
-            </div>
-            <div className="mt-2 text-body text-white/45">{cfg.blurb}</div>
-          </>
+            )}
+            <Ledger>
+              {dangerRow}
+              {siteRows}
+            </Ledger>
+            <p className="text-body text-concrete-400">{cfg.blurb}</p>
+          </PlaceStack>
         }
       />
       {/* Route planner is the primary way into long-range tunnel travel. */}
-      {onPlanTunnels && sel.isMrtStation && (
-        <div className="mt-3">
-          <PlanTunnelsButton onPlan={onPlanTunnels} />
-        </div>
-      )}
-    </>
+      {onPlanTunnels && sel.isMrtStation && <PlanTunnelsButton onPlan={onPlanTunnels} />}
+    </PlaceStack>
   );
 }

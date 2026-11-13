@@ -346,6 +346,56 @@ select optgroup {
   animation: combat-outcome-dead 0.55s ease-out 1;
 }
 
+/* Clock figures roll like a mechanical face: old digit drops out, new drops in. */
+.clock-digit {
+  clip-path: inset(0 -1em);
+}
+@keyframes clock-digit-in {
+  from {
+    transform: translateY(-60%);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+@keyframes clock-digit-out {
+  from {
+    transform: none;
+    opacity: 1;
+  }
+  to {
+    transform: translateY(60%);
+    opacity: 0;
+  }
+}
+.clock-digit-in {
+  animation: clock-digit-in 0.22s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.clock-digit-out {
+  position: absolute;
+  inset: 0;
+  animation: clock-digit-out 0.22s ease-in both;
+}
+/* Reduced motion: same swap, opacity only. */
+@keyframes clock-digit-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes clock-digit-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+.clock-digit-in.clock-digit-fade {
+  animation: clock-digit-fade-in 0.2s ease-out both;
+}
+.clock-digit-out.clock-digit-fade {
+  animation: clock-digit-fade-out 0.2s ease-in both;
+}
+
 /* Clock spent-time cue. One-shot; remount via nonce. Accent comes from --clock-accent. */
 @keyframes clock-pulse-tick {
   0% {

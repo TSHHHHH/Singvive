@@ -102,6 +102,7 @@ import {
 import { sightFactor, sightLimitedRange, swarmSenseRange, veilAlpha } from '../game/nightSight';
 import type { LocationState } from '../game/types';
 import type { IconName } from '../icons/keys';
+import { BTN } from '../components/placeCardStyle';
 
 type MobileView = 'map' | 'hub' | 'log';
 type PhoneTab = MobileView | 'inventory' | 'craft';
@@ -206,6 +207,8 @@ const RAIL_W = 408;
 const HUD_BOTTOM = 32;
 /** The collapsed ticker's width, px (22rem). */
 const TICKER_W = 352;
+/** The ticker's header button (text-label + py-1 + hairline). */
+const TICKER_HEAD_H = 24;
 /** Narrowest the HDB view may get before it gives up the ticker reserve, px. */
 const HDB_MIN_W = 440;
 /** Narrowest map strip worth keeping beside the landing strips to show the block in 3D. */
@@ -957,6 +960,10 @@ export function GameScreen() {
   }, []);
 
   const view3d = useSetting('mapView3d') === 'on';
+  const showRail = useSetting('railOverlay') === 'on';
+  const [islandView, setIslandView] = useState(false);
+  // The map unmounts under a block, tunnel or planner; the island view ends with it.
+  if (islandView && (tunnel || hdb || mrtPlanner)) setIslandView(false);
   if (!spawn) return null;
 
   const selHere = sel ? sel.id === currentPositionId : false;
@@ -1130,7 +1137,7 @@ export function GameScreen() {
       {atEvac && (
         <button
           onClick={callEvac}
-          className="mt-2 w-full rounded-lg bg-signal/80 py-2 text-read font-bold text-black transition hover:bg-signal"
+          className={`${BTN.primary} mt-2`}
         >
           <Icon name="action.evac" />{' '}
           {t(evacManifestRevealed ? 'ui.game.callEvac' : 'ui.game.raiseChannel')}
@@ -1163,11 +1170,16 @@ export function GameScreen() {
    * see-through and fades).
    */
   const hdbInset = (() => {
-    const top = HUD_EDGE;
+    let top = HUD_EDGE;
     const bottom = (pairH > 0 ? pairH + HUD_GAP : 0) + HUD_BOTTOM;
     const left = HUD_EDGE;
     let right = HUD_EDGE + (timelineFull ? tlW : TICKER_W) + HUD_GAP;
-    if (vw - RAIL_W - left - right < HDB_MIN_W && !timelineFull) right = HUD_EDGE;
+    if (vw - RAIL_W - left - right < HDB_MIN_W && !timelineFull) {
+      // The ticker now floats over the strips' column: start the dock below
+      // its header button so Leave is never under it.
+      right = HUD_EDGE;
+      top = HUD_EDGE + TICKER_HEAD_H + HUD_GAP;
+    }
     return { top, right, bottom, left };
   })();
 
@@ -1357,6 +1369,7 @@ export function GameScreen() {
               doom={doom}
               doomColor={doomColor}
               doomLabel={doomLabel}
+              showDoom={isPhone}
               townName={hereTown?.name ?? null}
               townTier={hereTownTier}
               dayMult={dayMult}
@@ -1435,6 +1448,60 @@ export function GameScreen() {
             )}
           </div>
         </div>
+
+        {/* Desktop: how the map is drawn, at the foot of the rail. The island
+            front pulls the camera back over the whole island. */}
+        {!isPhone && (
+          <div className="flex shrink-0 gap-1.5 border-t border-white/10 p-2.5">
+            <button
+              onClick={() => setIslandView((v) => !v)}
+              aria-pressed={islandView}
+              disabled={!!(tunnel || hdb || mrtPlanner)}
+              className={`flex min-w-0 flex-1 items-center gap-2 rounded border px-2 py-1.5 text-left transition-colors disabled:opacity-40 ${
+                islandView ? 'border-signal bg-signal/15' : 'border-white/15 hover:bg-white/5 disabled:hover:bg-transparent'
+              }`}
+              {...tip(t(islandView ? 'ui.hud.islandBackTip' : 'ui.hud.islandTip'), { label: true })}
+            >
+              <Icon name="action.map" />
+              <span className="flex min-w-0 flex-1 flex-col gap-1">
+                <span className="flex items-baseline justify-between gap-2 text-body">
+                  <span className={`truncate ${islandView ? 'text-signal' : 'text-white/70'}`}>
+                    {t('ui.town.legendTitle')}
+                  </span>
+                  <span className="shrink-0 tabular-nums" style={{ color: doomColor }}>
+                    {doomLabel} · {Math.round(doom)}%
+                  </span>
+                </span>
+                <span className="block h-1 overflow-hidden rounded bg-black/50">
+                  <span
+                    className="block h-full transition-[width] duration-500"
+                    style={{ width: `${Math.min(100, doom)}%`, background: doomColor }}
+                  />
+                </span>
+              </span>
+            </button>
+            <button
+              onClick={() => setSetting('mapView3d', view3d ? 'off' : 'on')}
+              aria-pressed={view3d}
+              className={`rounded border px-2.5 text-body transition-colors ${
+                view3d ? 'border-signal bg-signal/15 text-signal' : 'border-white/15 text-white/70 hover:bg-white/5'
+              }`}
+              {...tip(t('ui.hud.view3dTip'), { label: true })}
+            >
+              3D
+            </button>
+            <button
+              onClick={() => setSetting('railOverlay', showRail ? 'off' : 'on')}
+              aria-pressed={showRail}
+              className={`flex items-center gap-1.5 rounded border px-2.5 text-body transition-colors ${
+                showRail ? 'border-signal bg-signal/15 text-signal' : 'border-white/15 text-white/70 hover:bg-white/5'
+              }`}
+              {...tip(t('ui.hud.railTip'), { label: true })}
+            >
+              <Icon name="action.mrt" /> {t('ui.hud.railMap')}
+            </button>
+          </div>
+        )}
 
         {/* The two location slots used to be pinned here. They've moved to where
             they're actually about: the target floats over the marker it
@@ -1602,6 +1669,9 @@ export function GameScreen() {
                 chromeRight={
                   isPhone ? 0 : HUD_EDGE + (timelineFull ? tlW : TICKER_W) + HUD_GAP / 2
                 }
+                islandView={islandView}
+                onIslandViewExit={() => setIslandView(false)}
+                showModeToggles={isPhone}
                 onSelect={selectPoi}
                 onPickGround={pickGround}
               />

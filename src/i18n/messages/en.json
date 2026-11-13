@@ -300,7 +300,11 @@
       "intelTag": " (intel)",
       "rain": "rain",
       "heavy": "heavy",
-      "forest": "forest"
+      "forest": "forest",
+      "commitBlind": "Commit blind — no danger intel until you arrive",
+      "arriveDark": "You would arrive after dark, when the streets are far more dangerous",
+      "outAfterDark": "You would be out after dark, when the streets are far more dangerous",
+      "beyondRange": "Beyond your range — hop closer, rest or walk the tunnels"
     },
     "inventory": {
       "equip": "Equip",
@@ -757,7 +761,13 @@
       "settings": "Settings",
       "hotkey": "{label} · {key}",
       "collapse": "Collapse",
-      "expand": "Expand"
+      "expand": "Expand",
+      "close": "Close",
+      "islandTip": "Pull back to the whole island · hover an area for its name",
+      "islandBackTip": "Back to where you were",
+      "view3dTip": "Tilt the map and raise the buildings",
+      "railTip": "Show the MRT & LRT network",
+      "railMap": "Rail map"
     },
     "error": {
       "signalLost": "SIGNAL LOST",
@@ -1220,9 +1230,9 @@
       "energyHit": "−{n} energy",
       "blind": "You can't see far enough to read that ground. Anything could be sitting on it.",
       "dark": "Too dark to read the ground. Whatever sits past your light won't show until you walk into it.",
-      "night": "🌙 You'd be caught out there after dark, with no door to close.",
-      "outOfRange": "⛔ Further than you can push in one go — pick somewhere nearer.",
-      "noDry": "⛔ No dry route — water or sealed ground blocks the way.",
+      "night": "You'd be caught out there after dark, with no door to close.",
+      "outOfRange": "Further than you can push in one go — pick somewhere nearer.",
+      "noDry": "No dry route — water or sealed ground blocks the way.",
       "tooExhausted": "Too exhausted — sleep first",
       "noDryRoute": "No dry route",
       "tooClose": "Too close to bother",

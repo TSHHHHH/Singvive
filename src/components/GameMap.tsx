@@ -24,7 +24,7 @@ import { NoiseWaves } from './NoiseWaves';
 import { MrtOverlay, MrtLineLegend, MRT_STATION_LAYER } from './MrtOverlay';
 import { useMrtNetwork } from './useMrtNetwork';
 import { VegetationOverlay } from './UnplayableOverlay';
-import { NeighbourhoodWash } from './NeighbourhoodWash';
+import { ISLAND_STATUS_ZOOM, NeighbourhoodWash } from './NeighbourhoodWash';
 import { Icon } from '../icons/Icon';
 import { pathFromProgress, pathUntil, pointAlongPath } from '../game/route';
 import { useAnimatedNumber, useThrottledNumber } from '../hooks/useAnimatedNumber';
@@ -38,7 +38,7 @@ import {
 } from '../ui/travelMotion';
 import { tip } from './tips';
 import { MapView } from '../map/MapView';
-import { RUN_BOX } from '../map/mapStyle';
+import { RUN_BOX, SG_BOX } from '../map/mapStyle';
 import { KeyboardCamera } from './KeyboardCamera';
 import { EdgeVignette } from './EdgeVignette';
 import { Beacons3d } from './Beacons3d';
@@ -189,7 +189,7 @@ function Camera3d({ on }: { on: boolean }) {
       if (toggled) {
         // Below LOD_ZOOM the buildings lie flat, so step in far enough to see them.
         const zoom = Math.max(map.getZoom(), DEFAULT_ZOOM_3D);
-        map.easeTo({ pitch: PITCH_3D, zoom, duration });
+        map.easeTo({ pitch: PITCH_3D, zoom, duration, essential: true });
       }
       return;
     }
@@ -203,7 +203,7 @@ function Camera3d({ on }: { on: boolean }) {
       flatten();
       return;
     }
-    map.easeTo({ pitch: 0, bearing: 0, duration });
+    map.easeTo({ pitch: 0, bearing: 0, duration, essential: true });
     if (duration === 0) flatten();
     else map.once('moveend', flatten);
   }, [map, on, reduced]);
@@ -251,6 +251,14 @@ const BLOCK_ZOOM = 17.2;
 const BLOCK_PX_PER_M = 170 / 86;
 /** Share of the canvas height the tower fills once the camera has closed in. */
 const BLOCK_FILL = 0.5;
+/** Top padding (share of the box) that drops the block's foot below the box centre. */
+const BLOCK_FOOT_DROP = 0.4;
+/** Dragging beside the tower: degrees of bearing / pitch per px, and the lowest tilt. */
+const ORBIT_DEG_PER_PX = 0.4;
+const ORBIT_PITCH_PER_PX = 0.2;
+const ORBIT_MIN_PITCH = 25;
+/** Zoom per wheel notch beside the tower. */
+const ORBIT_ZOOM_STEP = 0.25;
 
 /** Zoom that makes a `roof`-metre tower fill BLOCK_FILL of a `boxH`-px box. */
 function blockZoom(roof: number, boxH: number): number {
@@ -328,8 +336,10 @@ function BlockView({
   }, [map, on, engine, siteId, reduced]);
 
   // Close in until the tower fills half the box CameraInset leaves open (beside
-  // the strips), its foot low so the roof clears the top. Same padding as
-  // CameraInset so its settle pass leaves it be; re-framed when the box or the
+  // the strips), its foot low so the roof clears the top. The foot is dropped
+  // with top padding, not an offset, so the map's centre stays on the block and
+  // turning the camera orbits it. CameraInset's settle pass checks only
+  // left/right/bottom, so it leaves the top be. Re-framed when the box or the
   // known roof height changes.
   const roofM = roof ?? (realStoreys > 0 ? realStoreys * STOREY_M : STOREY_M * 12);
   useEffect(() => {
@@ -343,11 +353,57 @@ function BlockView({
       zoom: blockZoom(roofM, boxH),
       pitch: MAX_PITCH_3D,
       bearing: bearingRef.current,
-      padding: { top: 0, left, right, bottom },
-      offset: [0, Math.round(boxH * 0.2)],
+      padding: { top: Math.round(boxH * BLOCK_FOOT_DROP), left, right, bottom },
       duration: reduced ? 0 : 1100,
     });
   }, [map, on, siteId, pad, roofM, reduced]);
+
+  // Orbit: the strips layer takes every pointer event, so drags on its empty
+  // part beside the tower (`data-block-orbit`) turn and tilt the camera about
+  // the block, and the wheel there zooms. Bearing is kept for re-framing.
+  useEffect(() => {
+    if (!on || !siteId) return;
+    let drag: { id: number; x: number; y: number; bearing: number; pitch: number } | null = null;
+    const isSurface = (t: EventTarget | null) => t instanceof Element && t.hasAttribute('data-block-orbit');
+    const down = (e: PointerEvent) => {
+      if (drag || (e.pointerType === 'mouse' && e.button !== 0) || !isSurface(e.target)) return;
+      map.stop();
+      drag = { id: e.pointerId, x: e.clientX, y: e.clientY, bearing: map.getBearing(), pitch: map.getPitch() };
+      (e.target as Element).setPointerCapture?.(e.pointerId);
+      e.preventDefault();
+    };
+    const move = (e: PointerEvent) => {
+      if (!drag || e.pointerId !== drag.id) return;
+      const pitch = drag.pitch - (e.clientY - drag.y) * ORBIT_PITCH_PER_PX;
+      map.jumpTo({
+        bearing: drag.bearing + (e.clientX - drag.x) * ORBIT_DEG_PER_PX,
+        pitch: Math.min(MAX_PITCH_3D, Math.max(ORBIT_MIN_PITCH, pitch)),
+      });
+    };
+    const up = (e: PointerEvent) => {
+      if (!drag || e.pointerId !== drag.id) return;
+      drag = null;
+      bearingRef.current = map.getBearing();
+    };
+    const wheel = (e: WheelEvent) => {
+      if (!isSurface(e.target)) return;
+      e.preventDefault();
+      const zoom = map.getZoom() - Math.sign(e.deltaY) * ORBIT_ZOOM_STEP;
+      map.easeTo({ zoom: Math.min(MAX_ZOOM, Math.max(BLOCK_ZOOM - 1, zoom)), duration: reduced ? 0 : 160 });
+    };
+    document.addEventListener('pointerdown', down);
+    document.addEventListener('pointermove', move);
+    document.addEventListener('pointerup', up);
+    document.addEventListener('pointercancel', up);
+    document.addEventListener('wheel', wheel, { passive: false });
+    return () => {
+      document.removeEventListener('pointerdown', down);
+      document.removeEventListener('pointermove', move);
+      document.removeEventListener('pointerup', up);
+      document.removeEventListener('pointercancel', up);
+      document.removeEventListener('wheel', wheel);
+    };
+  }, [map, on, siteId, reduced]);
 
   useEffect(() => {
     if (!engine) return;
@@ -790,6 +846,12 @@ interface Props {
   padBottom?: number;
   /** Desktop HUD: px the map's own top-right buttons shift left (timeline / ticker). */
   chromeRight?: number;
+  /** Island view: the whole island in frame (the rail's island-front button). */
+  islandView?: boolean;
+  /** Island view ended by the map itself (zoomed back in by hand). */
+  onIslandViewExit?: () => void;
+  /** The 3D / rail toggles on the map itself. Desktop moves them to the rail. */
+  showModeToggles?: boolean;
   onSelect: (poi: Poi) => void;
   onPickGround: (lat: number, lng: number) => void;
 }
@@ -802,6 +864,63 @@ function FocusCamera({ target }: { target: { lat: number; lng: number; token: nu
     map.easeTo({ center: [target.lng, target.lat], duration: 750 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, target?.token, target?.lat, target?.lng]);
+  return null;
+}
+
+interface SavedCamera {
+  center: [number, number];
+  zoom: number;
+  pitch: number;
+  bearing: number;
+}
+
+/**
+ * Island view: pull back until the whole island fits, so the island front
+ * reads at once; leaving it flies back to the view you had. Zooming in past
+ * the island overlay by hand also ends the mode.
+ * Moves are `essential` so MapLibre follows the game's Reduce motion setting
+ * rather than second-guessing it with the OS flag.
+ */
+function IslandCamera({ on, onExit }: { on: boolean; onExit?: () => void }) {
+  const map = useMapGL();
+  const reduced = useReducedMotion();
+  const saved = useRef<SavedCamera | null>(null);
+  const first = useRef(true);
+
+  useEffect(() => {
+    const toggled = !first.current;
+    first.current = false;
+    if (!toggled) return;
+    const duration = reduced ? 0 : 1400;
+    if (on) {
+      const c = map.getCenter();
+      saved.current = { center: [c.lng, c.lat], zoom: map.getZoom(), pitch: map.getPitch(), bearing: map.getBearing() };
+      const cam = map.cameraForBounds(
+        [
+          [SG_BOX.west, SG_BOX.south],
+          [SG_BOX.east, SG_BOX.north],
+        ],
+        { padding: 24, bearing: map.getBearing(), pitch: map.getPitch() },
+      );
+      if (!cam) return;
+      map.flyTo({ ...cam, pitch: map.getPitch(), duration, curve: 1.2, essential: true });
+      return;
+    }
+    const back = saved.current;
+    saved.current = null;
+    if (!back) return;
+    // The 3D toggle may have changed while out at island level; keep the pitch it set.
+    map.flyTo({ center: back.center, zoom: back.zoom, bearing: back.bearing, pitch: map.getPitch(), duration, curve: 1.2, essential: true });
+  }, [map, on, reduced]);
+
+  const exitRef = useRef(onExit);
+  exitRef.current = onExit;
+  useMapEvent('zoomend', () => {
+    if (on && map.getZoom() >= ISLAND_STATUS_ZOOM) {
+      saved.current = null;
+      exitRef.current?.();
+    }
+  });
   return null;
 }
 
@@ -1358,6 +1477,9 @@ function GameMapInner({
   padLeft = 0,
   padBottom = 0,
   chromeRight = 0,
+  islandView = false,
+  onIslandViewExit,
+  showModeToggles = true,
   onSelect,
   onPickGround,
 }: Props) {
@@ -1425,6 +1547,7 @@ function GameMapInner({
       >
         <ZoomMemory />
         <FocusCamera target={focusTarget} />
+        <IslandCamera on={islandView} onExit={onIslandViewExit} />
         <CameraInset left={padLeft} right={padRight} bottom={padBottom} />
         <Camera3d on={view3d} />
         <KeyboardCamera home={home} />
@@ -1492,7 +1615,8 @@ function GameMapInner({
         {showMrt && net && <MrtOverlay net={net} destroyedEdges={destroyedTunnelEdges} />}
       </MapView>
 
-      {/* ---- 3D + rail network toggles, rail legend ---- */}
+      {/* ---- 3D + rail network toggles (phone; desktop keeps them on the rail), rail legend ---- */}
+      {showModeToggles && (
       <div
         className="absolute right-2 top-2 z-[500] flex gap-1.5 transition-[right] duration-200"
         style={chromeRight ? { right: chromeRight } : undefined}
@@ -1522,10 +1646,11 @@ function GameMapInner({
           <Icon name="action.mrt" size={14} /> Rail map
         </button>
       </div>
+      )}
 
       {showMrt && net && (
         <div
-          className="absolute right-2 top-11 z-[500]"
+          className={`absolute right-2 z-[500] ${showModeToggles ? 'top-11' : 'top-2'}`}
           style={chromeRight ? { right: chromeRight } : undefined}
         >
           <MrtLineLegend net={net} destroyedCount={destroyedTunnelEdges.length} />

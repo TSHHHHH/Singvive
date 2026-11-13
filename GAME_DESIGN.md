@@ -401,7 +401,8 @@ hostility, trade, shelter, aid, and intel:
 - **The block on the map.** Desktop with 3D on: the strips sit over the map beside the tower,
   each with a notch pointing at it, while the camera closes in until the tower fills about half
   the view (and eases back out on exit). Every other building ghosts so the block reads through
-  the estate. An amber **storey band** on the extrusion marks your landing and follows strip hover.
+  the estate. Drag the empty map beside the tower to turn and tilt the camera around it; scroll
+  to zoom. An amber **storey band** on the extrusion marks your landing and follows strip hover.
   Phone or 2D: the same strips as a full-screen list, the action card below.
 - **The block remembers.** `hdbScar` reads the persisted dungeon: worked blocks dim on the 3D map
   in quarter-steps, the site card shows doors cleared · storeys sealed · hunting. Leaving while
@@ -433,8 +434,10 @@ hostility, trade, shelter, aid, and intel:
   Fallen → Lost (the island meter itself tops out as Swarming → Overrun).
   Lost is walkable, not a wall: extra trek/search pressure, dusk-rate night swarm in daylight,
   spawn snaps you into a roofed site. The spawn map stays clean; the run map paints a neighbourhood
-  status overlay when you zoom out until the island fits (zoom ≤12) — real URA planning-area shapes,
-  town name, tier, and a legend. Street zoom stays clear. Old saves without `groundZeroId`
+  status overlay when you zoom out until the island fits (zoom ≤12) — real URA planning-area shapes
+  coloured by tier, and a legend. Hovering an area names it and its tier (no always-on labels).
+  On desktop the rail's **Island front** button shows the horde tier and pulls the camera back
+  over the whole island. Street zoom stays clear. Old saves without `groundZeroId`
   keep the flat global meter.
   `hordeIntensity()` / local `pressureAt()` feed hazard-cell density (20% → 42%), the **horde pocket**
   share of hazards (~33% → ~45%), a severity bump above 45, pocket radius (up to +40%), trek encounter

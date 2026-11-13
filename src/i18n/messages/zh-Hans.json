@@ -300,7 +300,11 @@
       "intelTag": "（情报）",
       "rain": "雨",
       "heavy": "大雨",
-      "forest": "森林"
+      "forest": "森林",
+      "commitBlind": "盲目前进——到达前没有任何危险情报",
+      "arriveDark": "你会在天黑后才到达，那时街上危险得多",
+      "outAfterDark": "你会在天黑后还在外面，那时街上危险得多",
+      "beyondRange": "超出你的范围——先走近一点、休息，或者走隧道"
     },
     "inventory": {
       "equip": "装备",
@@ -757,7 +761,13 @@
       "settings": "设置",
       "hotkey": "{label} · {key}",
       "collapse": "收起",
-      "expand": "展开"
+      "expand": "展开",
+      "close": "关闭",
+      "islandTip": "拉远查看全岛 · 悬停区域查看名称",
+      "islandBackTip": "回到原来的视角",
+      "view3dTip": "倾斜地图并立起建筑",
+      "railTip": "显示地铁与轻轨网络",
+      "railMap": "铁路图"
     },
     "error": {
       "signalLost": "信号中断",
@@ -1220,9 +1230,9 @@
       "energyHit": "−{n} 精力",
       "blind": "你看不清那边的地面，什么都可能趴在那儿。",
       "dark": "太黑了，看不清路。光照不到的地方有什么，要走进去才知道。",
-      "night": "🌙 天黑后你会被困在外头，连门都关不上。",
-      "outOfRange": "⛔ 超出你一次性可到达的范围——选个近一点的地方。",
-      "noDry": "⛔ 没有干燥路线——水域或禁区挡住了去路。",
+      "night": "天黑后你会被困在外头，连门都关不上。",
+      "outOfRange": "超出你一次性可到达的范围——选个近一点的地方。",
+      "noDry": "没有干燥路线——水域或禁区挡住了去路。",
       "tooExhausted": "太疲惫了——先休息",
       "noDryRoute": "没有干燥路线",
       "tooClose": "太近无需特地前往",

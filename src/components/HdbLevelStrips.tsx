@@ -94,10 +94,10 @@ export function HeatMeter({
       className={`relative block h-1.5 overflow-hidden rounded-sm bg-concrete-800 ${className}`}
     >
       <span
-        className={`block h-full transition-all duration-300 ${BAND_FILL[idx]} ${
+        className={`block h-full w-full origin-left transition-transform duration-300 ${BAND_FILL[idx]} ${
           hunting ? 'pulse-danger' : ''
         }`}
-        style={{ width: `${Math.min(100, (heat / HEAT_MAX) * 100)}%` }}
+        style={{ transform: `scaleX(${Math.min(1, heat / HEAT_MAX)})` }}
       />
       {HEAT_BANDS.slice(1).map((b) => (
         <span
@@ -140,19 +140,19 @@ function RoomTile({
       )}`
     : '';
   const panel = !unit.available
-    ? 'border-concrete-700 bg-[#2a2a2c] text-concrete-500'
+    ? 'border-concrete-800 bg-concrete-900 text-concrete-600'
     : unit.state === 'cleared'
-      ? 'border-concrete-700 bg-[#1c1c1e] text-concrete-600 opacity-60'
+      ? 'border-concrete-800 bg-transparent text-concrete-600'
       : unit.state === 'breached'
-        ? 'border-signal/70 bg-[#3a2a1a]'
-        : 'border-concrete-500 bg-[#323028]';
-  const size = phone ? 'h-9 w-9' : 'h-8 w-8';
+        ? 'border-concrete-200 bg-concrete-800'
+        : 'border-concrete-600 bg-concrete-800';
+  const size = phone ? 'h-14 w-12' : 'h-12 w-11';
   const face = !unit.available ? (
-    <span className="text-body font-bold leading-none">✕</span>
+    <Icon name="hdb.unavailable" size={14} />
   ) : unit.state === 'cleared' ? (
-    <span className="text-body font-bold leading-none">·</span>
+    <Icon name="choice.check" size={14} />
   ) : (
-    <Icon name={meta.icon} size={phone ? 15 : 14} className={unitFaceClass(unit.type)} />
+    <Icon name={meta.icon} size={phone ? 18 : 16} className={unitFaceClass(unit.type)} />
   );
   const scouted = unit.available && unit.state !== 'cleared' && !!unit.scoutedInfo?.containerCategory;
   const body = (
@@ -161,12 +161,12 @@ function RoomTile({
       {scouted && (
         <span className="absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-astral" />
       )}
-      <span className="absolute -bottom-px left-0 right-0 truncate text-center text-micro leading-none tabular-nums text-concrete-400">
+      <span className="w-full truncate px-0.5 text-center text-micro leading-none tabular-nums text-concrete-400">
         {unit.label.replace(/^#/, '')}
       </span>
     </>
   );
-  const cls = `relative flex shrink-0 items-center justify-center rounded-sm border pb-1.5 ${size} ${panel} ${
+  const cls = `relative flex shrink-0 flex-col items-center justify-center gap-1.5 rounded-sm border ${size} ${panel} ${
     selected ? 'ring-2 ring-signal ring-offset-1 ring-offset-concrete-950' : ''
   }`;
   if (!selectable || !unit.available) {
@@ -185,7 +185,7 @@ function RoomTile({
       }}
       aria-pressed={selected}
       {...tip(`${unit.label} · ${state}${read}`)}
-      className={`${cls} transition hover:brightness-125`}
+      className={`${cls} transition-colors hover:border-concrete-50`}
     >
       {body}
     </button>
@@ -258,7 +258,7 @@ export function HdbLevelStrips({ phone }: { phone: boolean }) {
                   ? t('ui.hdb.spanSealed', { nn: label, n: span, label: sealLabel })
                   : t('ui.hdb.inaccessible', { label: sealLabel }),
               )}
-              className={`flex shrink-0 items-center gap-2 rounded-sm border border-dashed border-concrete-700 bg-concrete-950/80 px-2 text-micro uppercase text-concrete-500 ${
+              className={`flex shrink-0 items-center gap-2 rounded-sm border border-dashed border-concrete-800 bg-concrete-950/80 px-2 text-micro uppercase text-concrete-400 ${
                 phone ? 'h-6' : 'h-5'
               }`}
               style={{
@@ -316,38 +316,40 @@ export function HdbLevelStrips({ phone }: { phone: boolean }) {
             onMouseEnter={() => setHoverRow(level)}
             onFocus={() => setHoverRow(level)}
             {...tip(title, { follow: true })}
-            className={`relative flex shrink-0 items-center gap-2 rounded-sm border px-2 transition ${
+            className={`relative flex shrink-0 items-center gap-2 rounded-sm border px-2 transition-colors ${
               phone ? 'min-h-[3.25rem] py-1.5' : 'min-h-[2.75rem] flex-1 py-1'
             } ${
               here
-                ? 'border-signal/70 bg-signal/10'
-                : roof
-                  ? 'border-concrete-600 bg-[#1a2836]/90'
-                  : revealed
-                    ? 'border-concrete-600 bg-concrete-900/90'
-                    : 'border-concrete-700 bg-concrete-950/90'
-            } ${canGo ? 'cursor-pointer hover:border-astral/70' : ''} ${
-              hovered && !here ? 'border-astral/70' : ''
+                ? 'border-signal/70 bg-concrete-800'
+                : revealed
+                  ? 'border-concrete-600 bg-concrete-900'
+                  : 'border-concrete-800 bg-concrete-950'
+            } ${canGo ? 'cursor-pointer hover:border-concrete-400' : ''} ${
+              hovered && !here ? 'border-concrete-400' : ''
             }`}
           >
             {/* Pointer notch toward the tower (desktop over-map). */}
             {!phone && (
               <span
                 aria-hidden
-                className={`absolute -left-[5px] top-1/2 h-2 w-2 -translate-y-1/2 rotate-45 border-b border-l ${
+                className={`absolute -left-[5px] top-1/2 h-2 w-2 -translate-y-1/2 rotate-45 border-b border-l transition-colors ${
                   here
-                    ? 'border-signal/70 bg-[#2a2516]'
-                    : hovered
-                      ? 'border-astral/70 bg-concrete-900'
-                      : 'border-concrete-600 bg-concrete-900'
+                    ? 'border-signal/70 bg-concrete-800'
+                    : `${hovered ? 'border-concrete-400' : revealed ? 'border-concrete-600' : 'border-concrete-800'} ${
+                        revealed ? 'bg-concrete-900' : 'bg-concrete-950'
+                      }`
                 }`}
               />
             )}
 
-            <div className="flex w-10 shrink-0 flex-col items-center gap-0.5">
+            <div className="flex w-10 shrink-0 flex-col items-center gap-1">
               <span
-                className={`text-plate font-bold tabular-nums ${
-                  here ? 'text-signal' : revealed ? 'text-concrete-100' : 'text-concrete-500'
+                className={`min-w-8 rounded-sm border px-1 text-center text-plate tabular-nums ${
+                  here
+                    ? 'border-signal/70 text-signal'
+                    : revealed
+                      ? 'border-concrete-600 text-concrete-50'
+                      : 'border-concrete-800 text-concrete-400'
                 }`}
               >
                 {roof ? t('ui.hdb.roofShort') : label}
@@ -358,16 +360,20 @@ export function HdbLevelStrips({ phone }: { phone: boolean }) {
             <div className="flex min-w-0 flex-1 flex-col gap-1">
               <div className="flex min-w-0 items-center gap-1.5">
                 <span
-                  className="flex shrink-0 items-center gap-1 text-micro uppercase leading-none"
+                  className="flex w-20 shrink-0 items-center gap-1 text-micro uppercase leading-none"
                   {...tip(t('ui.hdb.levelHeatTip', { heat: Math.round(heat), band: bandLabel }))}
                 >
-                  <span className={bandText(idx, hunting)}>{bandLabel}</span>
-                  <span className="tabular-nums text-concrete-500">{Math.round(heat)}</span>
+                  {Math.round(heat) > 0 && (
+                    <>
+                      <span className={`truncate ${bandText(idx, hunting)}`}>{bandLabel}</span>
+                      <span className="tabular-nums text-concrete-400">{Math.round(heat)}</span>
+                    </>
+                  )}
                 </span>
                 <HeatMeter heat={heat} className="min-w-8 flex-1" />
                 {theme && (
                   <span
-                    className="shrink-0 rounded-sm border border-concrete-600 px-1 py-0.5 text-micro uppercase leading-none text-concrete-300"
+                    className="shrink-0 rounded-sm border border-concrete-600 px-1 py-0.5 text-micro uppercase leading-none text-concrete-200"
                     {...tip(`${theme.label}: ${theme.blurb}`)}
                   >
                     {theme.label}
@@ -386,7 +392,7 @@ export function HdbLevelStrips({ phone }: { phone: boolean }) {
                   )
                 ) : (
                   <span
-                    className="shrink-0 text-micro tabular-nums text-concrete-500"
+                    className="shrink-0 text-micro tabular-nums text-concrete-400"
                     {...tip(t('ui.hdb.roomsLeft', { n: left }))}
                   >
                     {left}/{units.length}

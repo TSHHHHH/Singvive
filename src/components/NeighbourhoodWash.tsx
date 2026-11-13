@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Marker, type ExpressionSpecification } from 'maplibre-gl';
+import type { ExpressionSpecification } from 'maplibre-gl';
 import type { Feature } from 'geojson';
-import { typeCss } from '../ui/type';
 import {
   TOWNS,
   TOWN_TIER_ORDER,
@@ -13,7 +12,7 @@ import {
 } from '../game/townField';
 import { useGame } from '../game/store';
 import { useT } from '../i18n';
-import { useMapGL, useMapEvent } from '../map/hooks';
+import { useLayerEvent, useMapGL, useMapEvent } from '../map/hooks';
 import { installOverlay, setData } from '../map/layers';
 import { fc, toLngLatRing } from '../map/geo';
 
@@ -111,19 +110,12 @@ function useTownAreas(): TownArea[] | null {
 
 const islandOverlayOn = (zoom: number) => zoom < ISLAND_STATUS_ZOOM;
 
-/** Whether the island overlay is on, and whether labels should shrink. Updates only on change. */
-function useIslandZoom(): { island: boolean; dense: boolean } {
+/** Whether the island overlay is on. Updates only on change. */
+function useIslandZoom(): boolean {
   const map = useMapGL();
-  const read = () => {
-    const z = map.getZoom();
-    return { island: islandOverlayOn(z), dense: z < 10 };
-  };
-  const [state, setState] = useState(read);
-  useMapEvent('zoom', () => {
-    const next = read();
-    setState((s) => (s.island === next.island && s.dense === next.dense ? s : next));
-  });
-  return state;
+  const [island, setIsland] = useState(() => islandOverlayOn(map.getZoom()));
+  useMapEvent('zoom', () => setIsland(islandOverlayOn(map.getZoom())));
+  return island;
 }
 
 /** Zoom-driven fade: full value below the threshold, gone by it. */
@@ -137,6 +129,8 @@ const zoomFade = (value: ExpressionSpecification | number): ExpressionSpecificat
   0,
 ];
 
+const HOVER: ExpressionSpecification = ['boolean', ['feature-state', 'hover'], false];
+
 function TownPolygonLayer({ areas, pressureByTown }: { areas: TownArea[]; pressureByTown: Map<string, number> }) {
   const map = useMapGL();
 
@@ -147,13 +141,20 @@ function TownPolygonLayer({ areas, pressureByTown }: { areas: TownArea[]; pressu
           id: 'town-fill',
           type: 'fill',
           source: 'town-src',
-          paint: { 'fill-color': ['get', 'color'], 'fill-opacity': zoomFade(['get', 'op']) },
+          paint: {
+            'fill-color': ['get', 'color'],
+            'fill-opacity': zoomFade(['case', HOVER, ['min', 0.92, ['+', ['get', 'op'], 0.14]], ['get', 'op']]),
+          },
         },
         {
           id: 'town-line',
           type: 'line',
           source: 'town-src',
-          paint: { 'line-color': '#050508', 'line-width': 1, 'line-opacity': zoomFade(0.55) },
+          paint: {
+            'line-color': ['case', HOVER, '#e8e5dd', '#050508'],
+            'line-width': ['case', HOVER, 1.5, 1],
+            'line-opacity': zoomFade(['case', HOVER, 0.85, 0.55]),
+          },
         },
       ]),
     [map],
@@ -161,86 +162,86 @@ function TownPolygonLayer({ areas, pressureByTown }: { areas: TownArea[]; pressu
 
   useEffect(() => {
     const features: Feature[] = [];
-    for (const area of areas) {
+    areas.forEach((area, id) => {
       const tier = townTier(pressureByTown.get(area.townId) ?? 0);
       for (const rings of area.polygons) {
+        // Every polygon of one area shares its id, so hover lights the whole area.
         features.push({
           type: 'Feature',
-          properties: { color: TIER_SWATCH[tier], op: TIER_FILL_OPACITY[tier] },
+          id,
+          properties: { color: TIER_SWATCH[tier], op: TIER_FILL_OPACITY[tier], name: area.name, tier },
           geometry: { type: 'Polygon', coordinates: rings.map(toLngLatRing) },
         });
       }
-    }
+    });
     setData(map, 'town-src', fc(features));
   }, [map, areas, pressureByTown]);
 
-  return null;
+  return <TownHoverTip />;
 }
 
-function labelHtml(name: string, tierName: string, color: string, scale: number) {
-  return `<div style="
-      transform:translate(-50%,-50%);
-      text-align:center;pointer-events:none;
-      text-shadow:0 1px 3px #000,0 0 8px #000;
-    ">
-      <div style="
-        ${typeCss('label', { scale })}
-        text-transform:uppercase;color:${color};white-space:nowrap;opacity:0.95;
-      ">${name}</div>
-      <div style="
-        ${typeCss('micro', { scale })}
-        text-transform:uppercase;color:${color};opacity:0.8;margin-top:1px;
-      ">${tierName}</div>
-    </div>`;
+interface HoverInfo {
+  id: number;
+  name: string;
+  tier: TownTier;
 }
 
 /**
- * Town names over the wash. Kept as DOM markers (type stays on the type.ts
- * scale, no glyph fonts); built once, restyled in place, faded with CSS.
+ * Hovering an area names it and its tier. Replaces always-on labels, which
+ * piled up over the island. Content changes only when the area does; the
+ * position is written straight to the element.
  */
-function TownLabelLayer({ pressures, island, dense }: { pressures: number[]; island: boolean; dense: boolean }) {
+function TownHoverTip() {
   const { t } = useT();
   const map = useMapGL();
-  const markers = useRef(new Map<string, { marker: Marker; inner: HTMLDivElement }>());
+  const [hover, setHover] = useState<HoverInfo | null>(null);
+  const hoverId = useRef<number | null>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const own = markers.current;
-    for (const town of TOWNS) {
-      const el = document.createElement('div');
-      el.style.width = '0';
-      el.style.height = '0';
-      el.style.pointerEvents = 'none';
-      const inner = document.createElement('div');
-      inner.style.transition = FADE_TRANSITION;
-      el.appendChild(inner);
-      const marker = new Marker({ element: el, anchor: 'top-left' }).setLngLat([town.lng, town.lat]).addTo(map);
-      own.set(town.id, { marker, inner });
+  const clear = () => {
+    if (hoverId.current != null) map.setFeatureState({ source: 'town-src', id: hoverId.current }, { hover: false });
+    hoverId.current = null;
+    setHover(null);
+  };
+
+  useLayerEvent('mousemove', 'town-fill', (e) => {
+    const f = e.features?.[0];
+    if (!f || typeof f.id !== 'number' || !islandOverlayOn(map.getZoom() + FADE_SPAN / 2)) {
+      clear();
+      return;
     }
-    return () => {
-      for (const { marker } of own.values()) marker.remove();
-      own.clear();
-    };
-  }, [map]);
+    if (hoverId.current !== f.id) {
+      if (hoverId.current != null) map.setFeatureState({ source: 'town-src', id: hoverId.current }, { hover: false });
+      hoverId.current = f.id;
+      map.setFeatureState({ source: 'town-src', id: f.id }, { hover: true });
+      const p = f.properties as { name: string; tier: TownTier };
+      setHover({ id: f.id, name: p.name, tier: p.tier });
+    }
+    if (boxRef.current) boxRef.current.style.transform = `translate(${e.point.x + 14}px, ${e.point.y + 14}px)`;
+  });
+  useLayerEvent('mouseleave', 'town-fill', clear);
+  useMapEvent('zoomstart', clear);
+  useMapEvent('dragstart', clear);
 
-  // Dense zooms shrink the labels as a fraction of the role, so they still
-  // track the Font size setting.
-  const scale = dense ? 0.85 : 1;
-  useEffect(() => {
-    TOWNS.forEach((town, i) => {
-      const m = markers.current.get(town.id);
-      if (!m) return;
-      const tier = townTier(pressures[i] ?? 0);
-      const tierName = t(`ui.town.${tier}`);
-      m.inner.innerHTML = labelHtml(town.name, tierName, TIER_LABEL[tier], scale);
-      m.inner.setAttribute('aria-label', `${town.name} · ${tierName}`);
-    });
-  }, [pressures, scale, t]);
-
-  useEffect(() => {
-    for (const { inner } of markers.current.values()) inner.style.opacity = island ? '1' : '0';
-  }, [island]);
-
-  return null;
+  return createPortal(
+    <div
+      ref={boxRef}
+      className="pointer-events-none absolute left-0 top-0 z-[520] rounded border border-white/20 bg-concrete-900/95 px-2 py-1.5 shadow-signage backdrop-blur-sm"
+      style={{ display: hover ? 'block' : 'none' }}
+      role="tooltip"
+    >
+      {hover && (
+        <>
+          <div className="whitespace-nowrap text-body text-concrete-50">{hover.name}</div>
+          <div className="mt-0.5 flex items-center gap-1.5 text-micro" style={{ color: TIER_LABEL[hover.tier] }}>
+            <span className="inline-block h-2 w-2 shrink-0 rounded-sm" style={{ background: TIER_SWATCH[hover.tier] }} />
+            {t(`ui.town.${hover.tier}`)}
+          </div>
+        </>
+      )}
+    </div>,
+    map.getContainer(),
+  );
 }
 
 function TownStatusLegend({ visible }: { visible: boolean }) {
@@ -272,7 +273,7 @@ export function NeighbourhoodWash() {
   const seed = useGame((s) => s.seed);
   const groundZeroId = useGame((s) => s.groundZeroId);
   const hordeLevel = useGame((s) => s.hordeLevel);
-  const { island, dense } = useIslandZoom();
+  const island = useIslandZoom();
   const areas = useTownAreas();
 
   const pressures = useMemo(() => {
@@ -294,7 +295,6 @@ export function NeighbourhoodWash() {
   return (
     <>
       {areas && areas.length > 0 && <TownPolygonLayer areas={areas} pressureByTown={pressureByTown} />}
-      <TownLabelLayer pressures={pressures} island={island} dense={dense} />
       <TownStatusLegend visible={island} />
     </>
   );

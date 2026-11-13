@@ -47,8 +47,8 @@ function SleepRoof({ active }: { active: boolean }) {
       className={`absolute left-1/2 top-0 h-[0.95em] w-full -translate-x-1/2 ${active ? 'opacity-100' : 'opacity-20'}`}
       style={{
         backgroundColor: 'currentColor',
-        WebkitMaskImage: `url(${src})`,
-        maskImage: `url(${src})`,
+        WebkitMaskImage: `url("${src}")`,
+        maskImage: `url("${src}")`,
         WebkitMaskSize: '100% 100%',
         maskSize: '100% 100%',
         WebkitMaskRepeat: 'no-repeat',

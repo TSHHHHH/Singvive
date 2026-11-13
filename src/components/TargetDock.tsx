@@ -38,31 +38,31 @@ export function HudCard({
     >
       <div
         className={
-          'min-h-0 flex-1 overflow-y-auto p-2.5 text-white/80 ' +
-          '[&_button]:py-1.5 [&_button]:text-body'
+          'min-h-0 flex-1 overflow-y-auto p-3 text-concrete-50'
         }
       >
-        <div className={`flex items-center justify-between gap-2 ${shut ? '' : 'mb-1.5'}`}>
+        <div className={`flex items-center justify-between gap-2 ${shut ? '' : 'mb-2'}`}>
           {onToggleCollapse ? (
             <button
               type="button"
               onClick={onToggleCollapse}
               aria-expanded={!shut}
-              className="-my-1 flex min-w-0 items-center gap-1.5 text-left text-label uppercase text-white/30 hover:text-white/60"
+              className="-my-1 flex min-w-0 items-center gap-1.5 py-1 text-left text-label uppercase text-concrete-400 hover:text-concrete-50"
             >
               <span className="truncate">{title}</span>
-              <span className="shrink-0 text-white/25" aria-hidden>
+              <span className="shrink-0 text-concrete-400" aria-hidden>
                 {shut ? '▴' : '▾'}
               </span>
               <span className="sr-only">{shut ? t('ui.hud.expand') : t('ui.hud.collapse')}</span>
             </button>
           ) : (
-            <span className="text-label uppercase text-white/30">{title}</span>
+            <span className="text-label uppercase text-concrete-400">{title}</span>
           )}
           {onClose && (
             <button
               onClick={onClose}
-              className="-my-1 shrink-0 px-1 text-body leading-none text-white/25 hover:text-white/60"
+              aria-label={t('ui.hud.close')}
+              className="-my-1 shrink-0 px-1 py-1 text-body leading-none text-concrete-400 hover:text-concrete-50"
             >
               ✕
             </button>

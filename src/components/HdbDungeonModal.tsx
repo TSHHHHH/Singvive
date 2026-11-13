@@ -81,7 +81,12 @@ export function HdbDungeonModal({
 
   return (
     <div
-      className={`box-border flex h-full w-full flex-col ${overMap ? '' : 'bg-concrete-950'}`}
+      // Over the map, this box's bare padding is the view of the tower beside
+      // the strips: drag there to orbit the block (BlockView in GameMap).
+      data-block-orbit={overMap ? '' : undefined}
+      className={`box-border flex h-full w-full flex-col ${
+        overMap ? 'cursor-grab active:cursor-grabbing' : 'bg-concrete-950'
+      }`}
       style={
         !isPhone && inset
           ? {
@@ -93,7 +98,7 @@ export function HdbDungeonModal({
           : undefined
       }
     >
-      <div className="flex min-h-0 flex-1 flex-col">
+      <div className={`flex min-h-0 flex-1 flex-col ${overMap ? 'cursor-auto' : ''}`}>
         <div
           className={`shrink-0 ${
             overMap
@@ -202,14 +207,14 @@ function HdbStatusDock({
   const peakShown = Math.round(peak) > Math.round(heat);
 
   return (
-    <div className="shrink-0 px-3 py-1.5">
+    <div className="shrink-0 px-3 py-2">
       <div className="flex items-center gap-2">
         <div className="flex min-w-0 flex-1 items-center gap-1.5">
           <span className="truncate text-plate uppercase text-signal" {...tip(placeMeta)}>
             {name}
           </span>
           <span
-            className="shrink-0 text-micro tabular-nums text-concrete-500"
+            className="shrink-0 text-micro tabular-nums text-concrete-400"
             {...tip(t('ui.hdb.landingsRevealed', { revealed, height, storeys }))}
           >
             {revealed}/{height}
@@ -224,16 +229,24 @@ function HdbStatusDock({
           aria-label={detailsOpen ? t('ui.hdb.ariaHideDetails') : t('ui.hdb.ariaShowDetails')}
           {...tip(detailsOpen ? t('ui.hdb.hideDetails') : t('ui.hdb.showDetails'))}
           onClick={() => setDetailsOpen((o) => !o)}
-          className="shrink-0 rounded border border-concrete-600 px-1.5 py-1 text-micro text-concrete-400 hover:bg-white/5"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-concrete-600 text-concrete-400 transition-colors hover:bg-white/5"
         >
-          {detailsOpen ? '▴' : '▾'}
+          <svg
+            viewBox="0 0 12 12"
+            width={12}
+            height={12}
+            aria-hidden
+            className={`transition-transform duration-150 ${detailsOpen ? 'rotate-180' : ''}`}
+          >
+            <path d="M3 4.5 6 7.5 9 4.5" fill="none" stroke="currentColor" strokeWidth={1.5} />
+          </svg>
         </button>
         <button
           type="button"
           onClick={onLeave}
           disabled={!canLeave}
           {...tip(leaveTitle)}
-          className="shrink-0 rounded border border-concrete-600 px-2.5 py-1 text-body hover:bg-white/5 disabled:opacity-40"
+          className="h-7 shrink-0 rounded border border-concrete-600 px-3 text-body text-concrete-50 transition-colors hover:bg-white/5 disabled:opacity-40"
         >
           {t('ui.hdb.leave')}
         </button>
@@ -242,33 +255,23 @@ function HdbStatusDock({
       <button
         type="button"
         onClick={() => setDetailsOpen((o) => !o)}
-        className="mt-1 w-full text-left"
+        className="mt-2 flex w-full flex-col gap-1 text-left"
         {...tip(t('ui.hdb.tapDetails'))}
       >
-        <div className="mb-0.5 text-body text-concrete-400">
-          <span className="text-plate uppercase text-concrete-500">
+        <span className="flex items-baseline gap-2">
+          <span className="text-plate uppercase text-concrete-400">
             {t('ui.hdb.levelHeat', { nn: levelLabel })}
-          </span>{' '}
-          <span className={`text-plate uppercase ${bandText(idx, hunting)}`}>{bandLabel}</span>{' '}
-          <span className="tabular-nums text-concrete-300">
+          </span>
+          <span className={`text-plate uppercase ${bandText(idx, hunting)}`}>{bandLabel}</span>
+          <span className="text-body tabular-nums text-concrete-200">
             {Math.round(heat)}/{HEAT_MAX}
           </span>
           {peakShown && (
-            <span className="text-concrete-500">
-              {' '}
+            <span className="text-micro tabular-nums text-concrete-400">
               {t('ui.hdb.blockPeak', { n: Math.round(peak) })}
             </span>
           )}
-          <span className="text-concrete-500"> — </span>
-          {bandNote} {t('ui.hdb.descentNeedsAttrs', { dc })}
-          {hunting && (
-            <span className="text-hiss">
-              {' '}
-              {t('ui.hdb.huntChance', { n: Math.round(HUNT_ELITE_CHANCE * 100) })}
-            </span>
-          )}
-          {nextBit}
-        </div>
+        </span>
         <span className="relative block">
           <HeatMeter heat={heat} />
           {peakShown && (
@@ -278,10 +281,19 @@ function HdbStatusDock({
             />
           )}
         </span>
+        <span className="text-body text-concrete-400">
+          {bandNote} {t('ui.hdb.descentNeedsAttrs', { dc })}
+          {nextBit && <span className="text-concrete-600">{nextBit}</span>}
+        </span>
+        {hunting && (
+          <span className="text-body text-hiss">
+            {t('ui.hdb.huntChance', { n: Math.round(HUNT_ELITE_CHANCE * 100) })}
+          </span>
+        )}
       </button>
 
       {detailsOpen && (
-        <div className="mt-1.5 space-y-1.5 border-t border-concrete-700/80 pt-1.5">
+        <div className="mt-2 space-y-2 border-t border-concrete-800 pt-2">
           <p className="text-micro text-concrete-400">
             {t('ui.hdb.coolingNote', { n: COOL_PER_HOUR })}
           </p>
@@ -292,8 +304,8 @@ function HdbStatusDock({
                 key={s.key}
                 className={`inline-flex max-w-full items-center gap-1 rounded border px-1.5 py-0.5 ${
                   senseChance(s.value) >= 0.6
-                    ? 'border-astral/30 text-astral/80'
-                    : 'border-concrete-700/80 text-concrete-500'
+                    ? 'border-concrete-600 text-concrete-200'
+                    : 'border-concrete-800 text-concrete-400'
                 }`}
               >
                 <Icon name={ATTRIBUTE_ICONS[s.key]} size={11} title={ATTRIBUTE_LABELS[s.key]} />
@@ -339,9 +351,10 @@ function HdbSymbolKey() {
       </span>
       {roomTypes}
       <span className="inline-flex items-center gap-1">
-        <span className="text-micro font-bold text-concrete-500">✕</span> {t('ui.hdb.legendBoarded')}
+        <Icon name="hdb.unavailable" size={11} className="text-concrete-400" />
+        {t('ui.hdb.legendBoarded')}
       </span>
-      <span className="inline-flex items-center gap-1 text-concrete-500">{t('ui.hdb.legendDim')}</span>
+      <span className="inline-flex items-center gap-1 text-concrete-400">{t('ui.hdb.legendDim')}</span>
       <span className="inline-flex items-center gap-1">
         <span className="h-1.5 w-1.5 rounded-full bg-astral" /> {t('ui.hdb.legendScouted')}
       </span>

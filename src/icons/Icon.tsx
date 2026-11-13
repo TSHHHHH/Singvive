@@ -60,8 +60,8 @@ export function Icon({ name, size, className = '', title }: Props) {
       style={{
         ...box,
         backgroundColor: 'currentColor',
-        WebkitMaskImage: `url(${src})`,
-        maskImage: `url(${src})`,
+        WebkitMaskImage: `url("${src}")`,
+        maskImage: `url("${src}")`,
         WebkitMaskSize: 'contain',
         maskSize: 'contain',
         WebkitMaskRepeat: 'no-repeat',

@@ -27,7 +27,7 @@ export function iconMarkup(
   return `<span style="
     display:inline-block;width:${size}px;height:${size}px;
     background-color:${color};
-    -webkit-mask-image:url(${src});mask-image:url(${src});
+    -webkit-mask-image:url(&quot;${src}&quot;);mask-image:url(&quot;${src}&quot;);
     -webkit-mask-size:contain;mask-size:contain;
     -webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
     -webkit-mask-position:center;mask-position:center;
