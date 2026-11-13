@@ -9,6 +9,12 @@ interface CardProps {
   collapsed?: boolean;
   onToggleCollapse?: () => void;
   className?: string;
+  /**
+   * See-through, for a card floating over the map (`MapCallouts`): the ground
+   * behind it stays legible as shapes while the blur keeps the text on top
+   * readable. Firms up under the pointer or keyboard focus.
+   */
+  glass?: boolean;
 }
 
 /**
@@ -25,6 +31,7 @@ export function HudCard({
   collapsed,
   onToggleCollapse,
   className = '',
+  glass = false,
 }: CardProps) {
   const { t } = useT();
   const shut = !!(collapsed && onToggleCollapse);
@@ -32,7 +39,8 @@ export function HudCard({
     <div
       className={
         'pointer-events-auto flex max-h-[min(50vh,420px)] flex-col overflow-hidden rounded-lg border ' +
-        'border-white/15 bg-concrete-900/95 shadow-signage ' +
+        (glass ? 'hud-glass border-white/20 ' : 'border-white/15 bg-concrete-900/95 ') +
+        'shadow-signage ' +
         className
       }
     >

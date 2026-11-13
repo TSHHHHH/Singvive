@@ -3,6 +3,9 @@ import { useShallow } from 'zustand/react/shallow';
 import { useGame } from '../game/store';
 import { GameMap } from '../components/GameMap';
 import { HudCard, TargetDock } from '../components/TargetDock';
+import { MapCallouts, type CalloutSlot } from '../components/MapCallouts';
+import { beaconKindOf } from '../map/beacons';
+import type { Map as MlMap } from 'maplibre-gl';
 import { useMrtNetwork } from '../components/useMrtNetwork';
 import {
   displayLine,
@@ -205,6 +208,11 @@ const HUD_EDGE = 16;
 const RAIL_W = 408;
 /** Bottom-anchored desktop HUD clears MapLibre's ~24px attribution bar, px. */
 const HUD_BOTTOM = 32;
+/** A floating map card: narrower and shorter than a docked one, so two fit. */
+const FLOAT_CARD = 'w-[22rem] max-w-[calc(100vw-2rem)] !max-h-[min(42vh,360px)]';
+/** Px a floating card keeps clear above a site badge / the player pin. */
+const BADGE_CLEAR_PX = 16;
+const PIN_CLEAR_PX = 40;
 /** The collapsed ticker's width, px (22rem). */
 const TICKER_W = 352;
 /** The ticker's header button (text-label + py-1 + hairline). */
@@ -967,6 +975,19 @@ export function GameScreen() {
     pairObs.current = ro;
   }, []);
 
+  // Desktop, open map: the here and target cards float over their own markers
+  // (MapCallouts). The map hands itself over once loaded; the pin reports its
+  // glide so the here card can ride along.
+  const [runMap, setRunMap] = useState<MlMap | null>(null);
+  const pinRef = useRef<{ lat: number; lng: number } | null>(null);
+  const calloutKick = useRef<(() => void) | null>(null);
+  const onPinMove = useCallback((lat: number, lng: number) => {
+    pinRef.current = { lat, lng };
+    calloutKick.current?.();
+  }, []);
+  // Top camera padding the floating here card asks for, so it fits above the pin.
+  const [hereHeadroom, setHereHeadroom] = useState(0);
+
   const view3d = useSetting('mapView3d') === 'on';
   const showRail = useSetting('railOverlay') === 'on';
   const [islandView, setIslandView] = useState(false);
@@ -1170,7 +1191,6 @@ export function GameScreen() {
 
   /** Desktop: the target card only pairs with "here" while the open map shows. */
   const desktopTarget = !tunnel && !hdb && !mrtPlanner;
-
   /**
    * Desktop: the HDB landing strips are drawn in the space the HUD leaves inside the
    * map column (the rail sits left of it): left of the timeline (or ticker),
@@ -1265,6 +1285,52 @@ export function GameScreen() {
   // ---- desktop HUD -----------------------------------------------------------
   const railTip = (label: string, id: RailKey) =>
     tip(t('ui.hud.hotkey', { label, key: railHotkey(id) }), { label: true });
+
+  /** Desktop, open map: the cards float over their markers instead of docking. */
+  const floatCards = !isPhone && desktopTarget && !!runMap;
+  const calloutHere: CalloutSlot | null =
+    floatCards && hereSlot
+      ? {
+          anchor: {
+            lat: here?.lat ?? currentPos.lat,
+            lng: here?.lng ?? currentPos.lng,
+            siteId: here?.id ?? null,
+            beacon: here ? beaconKindOf(here, evacZoneId) : null,
+            gap: PIN_CLEAR_PX,
+          },
+          body: (
+            <HudCard
+              glass
+              title={hereTitle}
+              collapsed={hereCollapsed}
+              onToggleCollapse={() => setHereCollapsed((c) => !c)}
+              className={FLOAT_CARD}
+            >
+              {hereSlot}
+            </HudCard>
+          ),
+        }
+      : null;
+  const calloutTarget: CalloutSlot | null =
+    floatCards && targetSlot
+      ? {
+          anchor:
+            trekTarget && trekInfo && trekEst && !inCombat
+              ? { lat: trekTarget.lat, lng: trekTarget.lng, gap: BADGE_CLEAR_PX }
+              : {
+                  lat: sel?.lat ?? currentPos.lat,
+                  lng: sel?.lng ?? currentPos.lng,
+                  siteId: sel?.id ?? null,
+                  beacon: sel ? beaconKindOf(sel, evacZoneId) : null,
+                  gap: BADGE_CLEAR_PX,
+                },
+          body: (
+            <HudCard glass title={targetSlot.title} onClose={targetSlot.onClose} className={FLOAT_CARD}>
+              {targetSlot.body}
+            </HudCard>
+          ),
+        }
+      : null;
 
   const desktopHud = (
     <>
@@ -1675,6 +1741,9 @@ export function GameScreen() {
                       : tlW + HUD_EDGE
                 }
                 padBottom={isPhone ? 0 : pairH > 0 ? pairH + HUD_BOTTOM : HUD_BOTTOM}
+                padTop={floatCards ? hereHeadroom : 0}
+                onMap={setRunMap}
+                onPinMove={onPinMove}
                 chromeRight={
                   isPhone ? 0 : HUD_EDGE + (timelineFull ? tlW : TICKER_W) + HUD_GAP / 2
                 }
@@ -1692,8 +1761,26 @@ export function GameScreen() {
                   <HdbDungeonModal onOpenGuide={setGuideTopic} inset={hdbPanelInset} overMap />
                 </div>
               )}
+              {/* Desktop: here and target float over their own markers. */}
+              {floatCards && runMap && (calloutHere || calloutTarget) && (
+                <MapCallouts
+                  map={runMap}
+                  here={calloutHere}
+                  target={calloutTarget}
+                  pinRef={pinRef}
+                  followPin={!!travelAnim}
+                  kickRef={calloutKick}
+                  inset={{
+                    top: HUD_EDGE,
+                    left: HUD_EDGE,
+                    right: HUD_EDGE + (timelineFull ? tlW + HUD_GAP : 0),
+                    bottom: HUD_BOTTOM,
+                  }}
+                  onHereHeadroom={setHereHeadroom}
+                />
+              )}
               {/* Phone: docked bottom-right so the travel line into the target
-                  stays visible. Desktop pairs it with the here card below. */}
+                  stays visible. Desktop floats it over the target instead. */}
               {isPhone && targetSlot && (
                 <TargetDock title={targetSlot.title} onClose={targetSlot.onClose}>
                   {targetSlot.body}
@@ -1711,12 +1798,11 @@ export function GameScreen() {
               )}
             </>
           )}
-          {/* Desktop: where you stand and where you are going, side by side at
-              bottom centre of the free map (right of the dock, left of the
-              open timeline), so the two read as one from → to decision. The
-              here card covers whatever fills the view (map, block or tunnel);
-              the target only exists on the open map. */}
-          {!isPhone && (hereSlot || (desktopTarget && targetSlot)) && (
+          {/* Desktop, away from the open map (inside a block, a tunnel, the
+              planner) or before the map has loaded: where you stand and where
+              you are going, side by side at bottom centre. On the open map the
+              two float over their markers instead (MapCallouts above). */}
+          {!isPhone && !floatCards && (hereSlot || (desktopTarget && targetSlot)) && (
             <div
               className="pointer-events-none absolute z-[600] flex items-end justify-center gap-2"
               style={{
