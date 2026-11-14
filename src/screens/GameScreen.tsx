@@ -1396,7 +1396,8 @@ export function GameScreen() {
 
   return (
     <InventoryInteractionProvider>
-    <div className={shellClass}>
+    {/* data-combat-shake-root: CombatFx shakes this on desktop hits. */}
+    <div className={shellClass} data-combat-shake-root="">
       <PhoneStatusBar onOpenStatus={() => goToPhoneTab('hub')} />
 
       {/* Click map / timeline to dismiss any slide-out. Phone: leave the status

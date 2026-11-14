@@ -346,6 +346,180 @@ select optgroup {
   animation: combat-outcome-dead 0.55s ease-out 1;
 }
 
+/* ---- Desktop screen-level combat FX (CombatFx.tsx) ----
+   One keyed layer per impact, unmounted when .combat-fx-life ends. Transform /
+   opacity only, so bursts stay on the compositor. The screen shake itself is a
+   Web Animation on the game shell, not a class. */
+.combat-fx-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 1500;
+  pointer-events: none;
+  overflow: hidden;
+}
+@keyframes combat-fx-life {
+  from { opacity: 0; }
+  to { opacity: 0; }
+}
+.combat-fx-life {
+  position: absolute;
+  width: 0;
+  height: 0;
+  animation: combat-fx-life 1s linear 1 forwards;
+}
+
+@keyframes combat-fx-vignette {
+  0% { opacity: 0; }
+  12% { opacity: 1; }
+  100% { opacity: 0; }
+}
+.combat-fx-vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, transparent 52%, rgba(120, 6, 6, 0.42) 82%, rgba(90, 0, 0, 0.7) 100%);
+  opacity: 0;
+  animation: combat-fx-vignette 0.75s ease-out 1 forwards;
+}
+.combat-fx-vignette--big {
+  background: radial-gradient(ellipse at center, transparent 40%, rgba(130, 6, 6, 0.45) 74%, rgba(90, 0, 0, 0.8) 100%);
+  animation-duration: 1.1s;
+}
+
+@keyframes combat-fx-splat {
+  0% { opacity: 0; transform: translate(-50%, -50%) rotate(var(--rot)) scale(0.35); }
+  7% { opacity: 0.92; transform: translate(-50%, -50%) rotate(var(--rot)) scale(1.06); }
+  14% { transform: translate(-50%, -50%) rotate(var(--rot)) scale(1); }
+  65% { opacity: 0.78; }
+  100% { opacity: 0; transform: translate(-50%, calc(-50% + 14px)) rotate(var(--rot)) scale(1); }
+}
+.combat-fx-splat {
+  position: absolute;
+  fill: #7a0a0a;
+  opacity: 0;
+  transform: translate(-50%, -50%);
+  animation: combat-fx-splat 1.35s cubic-bezier(0.2, 0.7, 0.3, 1) 1 forwards;
+}
+
+.combat-fx-spot {
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+
+@keyframes combat-fx-flash {
+  0% { opacity: 0.85; }
+  100% { opacity: 0; }
+}
+.combat-fx-flash {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.75);
+  opacity: 0;
+  animation: combat-fx-flash 0.2s ease-out 1 forwards;
+}
+.combat-fx-flash--taken {
+  background: rgba(255, 40, 40, 0.7);
+}
+
+@keyframes combat-fx-slash {
+  0% { opacity: 1; transform: translate(-50%, -50%) rotate(var(--a)) scaleX(0); }
+  45% { opacity: 1; transform: translate(-50%, -50%) rotate(var(--a)) scaleX(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) rotate(var(--a)) scaleX(1.15); }
+}
+.combat-fx-slash {
+  position: absolute;
+  width: 84px;
+  height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, #fff 35%, #fff 65%, transparent);
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.6);
+  opacity: 0;
+  animation: combat-fx-slash 0.24s ease-out 1 forwards;
+}
+
+@keyframes combat-fx-drop {
+  0% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  70% { opacity: 1; }
+  100% { opacity: 0; transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(0.6); }
+}
+.combat-fx-drop {
+  position: absolute;
+  border-radius: 50%;
+  background: #a10f0f;
+  opacity: 0;
+  animation: combat-fx-drop 0.6s cubic-bezier(0.15, 0.6, 0.4, 1) 1 forwards;
+}
+
+@keyframes combat-fx-whiff {
+  0% { opacity: 0; transform: translate(-50%, -50%) rotate(-80deg) scale(0.8); }
+  25% { opacity: 0.9; }
+  100% { opacity: 0; transform: translate(-50%, -50%) rotate(70deg) scale(1.1); }
+}
+.combat-fx-whiff {
+  position: absolute;
+  width: 74px;
+  height: 74px;
+  border-radius: 50%;
+  border-top: 3px solid rgba(232, 229, 221, 0.85);
+  border-right: 1px solid rgba(232, 229, 221, 0.25);
+  opacity: 0;
+  animation: combat-fx-whiff 0.32s ease-out 1 forwards;
+}
+.combat-fx-whiff--block {
+  border-top-color: rgba(56, 189, 248, 0.9);
+  border-right-color: rgba(56, 189, 248, 0.3);
+}
+
+@keyframes combat-fx-label {
+  0% { opacity: 0; transform: translate(-50%, 6px) scale(0.7); }
+  12% { opacity: 1; transform: translate(-50%, -4px) scale(1.15); }
+  25% { transform: translate(-50%, -8px) scale(1); }
+  70% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -30px) scale(1); }
+}
+.combat-fx-label {
+  position: absolute;
+  left: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  white-space: nowrap;
+  font-weight: 700;
+  font-size: var(--type-title-size);
+  line-height: 1;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 0 #000, 0 0 6px rgba(0, 0, 0, 0.9);
+  opacity: 0;
+  animation: combat-fx-label 0.95s ease-out 1 forwards;
+}
+.combat-fx-label-tag {
+  font-size: var(--type-label-size);
+  letter-spacing: 0.08em;
+}
+.combat-fx-label--dealt { color: #f5f1e6; }
+.combat-fx-label--crit { color: #fbbf24; }
+.combat-fx-label--taken { color: #ff4d4d; }
+.combat-fx-label--miss { color: rgba(232, 229, 221, 0.6); font-size: var(--type-read-size); letter-spacing: 0.12em; }
+.combat-fx-label--guard { color: #7dd3fc; font-size: var(--type-read-size); letter-spacing: 0.12em; }
+
+/* Reduce motion: the layer still says what happened, but only by fading —
+   nothing slides, flies or scales (spray, slash and whiff are not rendered). */
+@keyframes combat-fx-fade {
+  0% { opacity: 0; }
+  10% { opacity: 0.85; }
+  100% { opacity: 0; }
+}
+.combat-fx-layer--still .combat-fx-splat {
+  animation-name: combat-fx-fade;
+  transform: translate(-50%, -50%) rotate(var(--rot));
+}
+.combat-fx-layer--still .combat-fx-label {
+  animation-name: combat-fx-fade;
+  transform: translate(-50%, -8px);
+}
+
 /* Clock figures roll like a mechanical face: old digit drops out, new drops in. */
 .clock-digit {
   clip-path: inset(0 -1em);

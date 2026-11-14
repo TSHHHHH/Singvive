@@ -228,6 +228,19 @@ export const SETTINGS_SCHEMA: SettingDef[] = [
     default: 'auto',
   },
   {
+    key: 'combatFx',
+    label: 'Combat shake & blood',
+    description:
+      'Screen shake, blood splatter and damage numbers when blows land. Desktop only. Reduce motion keeps the fades and drops the movement.',
+    tab: 'accessibility',
+    control: 'toggle',
+    options: [
+      { value: 'on', label: 'On' },
+      { value: 'off', label: 'Off' },
+    ],
+    default: 'on',
+  },
+  {
     key: 'tooltips',
     label: 'Hover tips',
     description:
