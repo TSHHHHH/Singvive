@@ -687,8 +687,8 @@ export interface StanceDef {
   dodgeMod: number;
   critChanceBonus: number; // 0..1
   ignoresArmor: boolean;
-  /** Extra in-game hours burned per round. */
-  timeCostHours: number;
+  /** Extra in-game minutes each of your swings takes on top of `SWING_MINUTES`. */
+  extraMinutesPerSwing: number;
   /** Gauge units/second added to the player's initiative rate. */
   speedMod: number;
   fleeDcMod: number;

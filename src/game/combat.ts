@@ -168,7 +168,7 @@ export const STANCES: Record<StanceId, StanceDef> = {
     dodgeMod: -0.02,
     critChanceBonus: 0,
     ignoresArmor: false,
-    timeCostHours: 0,
+    extraMinutesPerSwing: 0,
     speedMod: 2,
     fleeDcMod: 0,
     opportunityAttack: false,
@@ -192,7 +192,7 @@ export const STANCES: Record<StanceId, StanceDef> = {
     dodgeMod: 0.02,
     critChanceBonus: 0,
     ignoresArmor: false,
-    timeCostHours: 0,
+    extraMinutesPerSwing: 0,
     speedMod: -1,
     fleeDcMod: 0,
     opportunityAttack: false,
@@ -202,7 +202,7 @@ export const STANCES: Record<StanceId, StanceDef> = {
     id: 'precision',
     name: 'Precision',
     icon: 'stance.precision',
-    description: '+15% crit, ignores armour, costs an extra hour per round.',
+    description: '+15% crit, ignores armour, slow and deliberate — each swing takes longer.',
     attackMod: 0,
     damageMod: 0,
     defenseMod: 0,
@@ -210,7 +210,7 @@ export const STANCES: Record<StanceId, StanceDef> = {
     dodgeMod: 0,
     critChanceBonus: 0.15,
     ignoresArmor: true,
-    timeCostHours: 1,
+    extraMinutesPerSwing: 0.25,
     speedMod: -3,
     fleeDcMod: 0,
     opportunityAttack: false,
@@ -228,7 +228,7 @@ export const STANCES: Record<StanceId, StanceDef> = {
     dodgeMod: 0,
     critChanceBonus: 0,
     ignoresArmor: false,
-    timeCostHours: 0,
+    extraMinutesPerSwing: 0,
     speedMod: 0,
     fleeDcMod: -4,
     opportunityAttack: true,
@@ -569,6 +569,16 @@ export function playerSpeed(
   return Math.max(2, base * weaponFactor * Math.max(0.25, loadSpeedMult));
 }
 
+/**
+ * In-game minutes one of your swings or shots takes off the clock. A blow is a
+ * few seconds of real violence, so a whole fight should cost minutes, not the
+ * hours Precision used to bill (a flat extra hour per swing turned a five-swing
+ * fight into an afternoon). Enemy turns are free: their swing lands inside
+ * the same exchange as yours. `npm run sim:combat` reports game minutes per
+ * fight.
+ */
+export const SWING_MINUTES = 0.25;
+
 /** Seconds of track time one action costs at the given speed. */
 export function secondsPerAction(speed: number): number {
   return GAUGE_FULL / Math.max(0.1, speed);
@@ -584,7 +594,7 @@ export interface PlayerActionResult {
   critical: boolean;
   /** Damage applied after soak; 0 on a miss. */
   damageDealt: number;
-  /** In-game hours the swing burned beyond the usual scuffle. */
+  /** In-game hours this swing or shot takes off the clock. */
   timeCostHours: number;
   /** Extra local danger from noise (gunfire in echoing terrain). */
   dangerNoise: number;
@@ -856,7 +866,7 @@ export function resolvePlayerAction(
     hit,
     critical: hit && crit,
     damageDealt,
-    timeCostHours: stance.timeCostHours,
+    timeCostHours: (SWING_MINUTES + stance.extraMinutesPerSwing) / 60,
     dangerNoise,
     weaponWear,
     offHandWear,
@@ -972,7 +982,7 @@ export function resolvePlayerFireAction(
     hit,
     critical: hit && crit,
     damageDealt,
-    timeCostHours: 0.05,
+    timeCostHours: SWING_MINUTES / 60,
     dangerNoise: gunshotIntensity,
     weaponWear,
     offHandWear: 0,

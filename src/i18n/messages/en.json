@@ -234,7 +234,7 @@
       "stanceHint": {
         "aggressive": "All forward pressure. +2 to hit, +2 damage, −3 defence, −2% dodge.",
         "guarded": "Cover up. +2 defence, +2% dodge, slower swings, limb damage taken ×0.75.",
-        "precision": "+15% crit, ignores armour, costs an extra hour per round.",
+        "precision": "+15% crit, ignores armour, slow and deliberate — each swing takes longer.",
         "disengage": "Break contact. Flee DC −4, but they get one parting swing at −2."
       },
       "contactHuman": "{enemy} blocks your way on the {terrain}. Nothing else happens until you decide.",
