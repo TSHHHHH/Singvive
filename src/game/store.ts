@@ -359,13 +359,19 @@ import {
   type CrossingOutcome,
 } from './wilds';
 import {
-  applySleepRecovery,
   applySleepOccupancy,
   evaluateSleepConditions,
   restAmbushPreview,
   type RestPreview,
   type SleepConditions,
 } from './sleep';
+import {
+  formatRestHours,
+  planRest,
+  restLengthHours,
+  type RestLength,
+  type RestOutcome,
+} from './restPlan';
 import { vegetationCost } from './vegetation';
 import { habitatAt, rollWildsEncounter, FLOODWATER_ANIMAL_CHANCE } from './wildsEncounter';
 import { nextSearchStreak, searchAmbushChance } from './encounterOdds';
@@ -787,7 +793,10 @@ interface State {
   callEvac: () => void;
   /** Append a short line to the run log (UI soft-rejects, etc.). */
   notify: (text: string, tone?: GameLogEntry['tone']) => void;
-  rest: () => void;
+  /** Sleep for a picked length (default: until 08:00). Applies `peekRestPlan(length)`. */
+  rest: (length?: RestLength) => void;
+  /** Exactly what `rest(length)` will do — the Rest dialog's preview. */
+  peekRestPlan: (length: RestLength) => { preview: RestPreview; outcome: RestOutcome };
   /** Preview sleep quality for the Rest button (same evaluator as rest()). */
   peekSleepConditions: () => SleepConditions;
   /** Recovery + night-priced ambush chance (same math rest() rolls). */
@@ -1509,6 +1518,33 @@ export const useGame = create<State>((set, get) => {
     };
   };
 
+  /** Trait + skill inputs to `tickInjuries`, shared by the clock and the rest planner. */
+  const injuryTickArgs = () => {
+    const traitIds = get().character?.traitIds ?? [];
+    return {
+      selfStopDisabled: hasTraitFlag(traitIds, 'bleedingSelfStopDisabled'),
+      legHealMod: sumTraitMod(traitIds, 'legHealMod') + skillPackage().legHealMod,
+      bleedStopBonus: sumTraitMod(traitIds, 'bleedStopBonus') + skillPackage().bleedStopBonus,
+    };
+  };
+
+  /** Weather + trait inputs to `tickMeters` (everything except `sleeping`). */
+  const meterTickOpts = (extraEnergyMult: number, parts: BodyParts) => {
+    const s = get();
+    const traitIds = s.character?.traitIds ?? [];
+    const skyNow = weatherKindFor(s.seed, s.day);
+    return {
+      thirstMult: weatherThirstMult(skyNow),
+      energyMult: weatherEnergyMult(skyNow) * extraEnergyMult * torsoEnergyDrainMult(parts),
+      hungerDrainMod: sumTraitMod(traitIds, 'hungerDrainMod'),
+      thirstDrainMod: sumTraitMod(traitIds, 'thirstDrainMod'),
+      energyDrainMod: sumTraitMod(traitIds, 'energyDrainMod') + skillPackage().energyDrainMod,
+      outdoorEnergyDrainMod: sumTraitMod(traitIds, 'outdoorEnergyDrainMod'),
+      outdoors: s.hdb === null,
+      heat: skyNow === 'heat',
+    };
+  };
+
   // Advance clock by `hours`: passive meter drain + location danger regen.
   // Untouched sites keep their previous object identity — a new locations dict
   // on every hour would re-render the map HUD.
@@ -1518,6 +1554,8 @@ export const useGame = create<State>((set, get) => {
     sleeping = false,
     skipNightfall = false,
     extraEnergyMult = 1,
+    /** A rest already walked hour by hour in `planRest` — apply it as-is. */
+    planned?: { meters: Meters; bodyParts: BodyParts },
   ): boolean => {
     const s = get();
     const prevBand = timeOfDay(s.hour);
@@ -1527,32 +1565,27 @@ export const useGame = create<State>((set, get) => {
 
     // Injuries slowly recover. Minor bleeds clot on their own and let the body
     // keep knitting; only a major stops recovery dead.
-    const traitIds = s.character?.traitIds ?? [];
-    const { parts: bodyParts } = tickInjuries(
-      s.bodyParts,
-      hours,
-      hasTraitFlag(traitIds, 'bleedingSelfStopDisabled'),
-      s.meters.hunger,
-      sumTraitMod(traitIds, 'legHealMod') + skillPackage().legHealMod,
-      sumTraitMod(traitIds, 'bleedStopBonus') + skillPackage().bleedStopBonus,
-    );
-    const partsAfterSystemic = tickSystemicDamage(bodyParts, s.meters, hours);
-    const skyNow = weatherKindFor(s.seed, s.day);
-    const outdoors = s.hdb === null;
-    let meters = tickMeters(s.meters, hours, {
-      sleeping,
-      thirstMult: weatherThirstMult(skyNow),
-      energyMult:
-        weatherEnergyMult(skyNow) *
-        (sleeping ? 1 : extraEnergyMult) *
-        torsoEnergyDrainMult(partsAfterSystemic),
-      hungerDrainMod: sumTraitMod(traitIds, 'hungerDrainMod'),
-      thirstDrainMod: sumTraitMod(traitIds, 'thirstDrainMod'),
-      energyDrainMod: sumTraitMod(traitIds, 'energyDrainMod') + skillPackage().energyDrainMod,
-      outdoorEnergyDrainMod: sumTraitMod(traitIds, 'outdoorEnergyDrainMod'),
-      outdoors,
-      heat: skyNow === 'heat',
-    });
+    const injury = injuryTickArgs();
+    let partsAfterSystemic: BodyParts;
+    let meters: Meters;
+    if (planned) {
+      partsAfterSystemic = planned.bodyParts;
+      meters = planned.meters;
+    } else {
+      const { parts: bodyParts } = tickInjuries(
+        s.bodyParts,
+        hours,
+        injury.selfStopDisabled,
+        s.meters.hunger,
+        injury.legHealMod,
+        injury.bleedStopBonus,
+      );
+      partsAfterSystemic = tickSystemicDamage(bodyParts, s.meters, hours);
+      meters = tickMeters(s.meters, hours, {
+        sleeping,
+        ...meterTickOpts(sleeping ? 1 : extraEnergyMult, partsAfterSystemic),
+      });
+    }
     if (restedEnergy != null) meters = { ...meters, energy: restedEnergy };
 
     // danger creeps back toward baseDanger, faster for larger locations
@@ -1770,9 +1803,10 @@ export const useGame = create<State>((set, get) => {
     };
   };
 
-  const peekRestFromState = (): RestPreview => {
+  /** Hazard pockets that shape a night here. */
+  const restPocketsFromState = () => {
     const s = get();
-    const pockets = hazardsAtPoint(
+    return hazardsAtPoint(
       s.seed,
       s.currentPos.lat,
       s.currentPos.lng,
@@ -1780,32 +1814,60 @@ export const useGame = create<State>((set, get) => {
       hordeIntensity(s.hordeLevel),
       { band: 'night', day: s.day, pressureAt: pressureFn() },
     );
-    const conditions = applySleepOccupancy(
-      evaluateSleepConditions(sleepContextFromState()),
-      pockets,
-    );
-    if (!s.character) {
-      return restAmbushPreview(conditions, 0);
-    }
-    const risk = trekRisk(s.seed, s.currentPos, s.currentPos, {
+  };
+
+  /** Night trek risk at your feet — the one source for the Rest preview and the roll. */
+  const restRiskFromState = () => {
+    const s = get();
+    const traitIds = s.character?.traitIds ?? [];
+    return trekRisk(s.seed, s.currentPos, s.currentPos, {
       band: 'night',
       hordeIntensity: hordeIntensity(s.hordeLevel),
       pressureAt: pressureFn(),
       weatherEncounterMod: 0,
       traitEncounterMod:
-        sumTraitMod(s.character.traitIds, 'encounterChanceMod') +
-          skillPackage().encounterChanceMod +
-        sumTraitMod(s.character.traitIds, 'nightEncounterChanceMod') +
-        (sumTraitMod(s.character.traitIds, 'ambushChanceMod') +
-          skillPackage().ambushChanceMod) *
-          0.15 +
+        sumTraitMod(traitIds, 'encounterChanceMod') +
+        skillPackage().encounterChanceMod +
+        sumTraitMod(traitIds, 'nightEncounterChanceMod') +
+        (sumTraitMod(traitIds, 'ambushChanceMod') + skillPackage().ambushChanceMod) * 0.15 +
         equipEncounterChanceMod(s.equipment) +
         bleedEncounterMod(s.bodyParts),
       safe: s.spawn ?? undefined,
       day: s.day,
     });
-    return restAmbushPreview(conditions, risk.encounterChance);
   };
+
+  /**
+   * Everything a rest of `length` will do, computed without touching state.
+   * `rest()` applies exactly this; the Rest dialog shows exactly this.
+   */
+  const planRestFromState = (length: RestLength) => {
+    const s = get();
+    const pockets = restPocketsFromState();
+    const conditions = applySleepOccupancy(
+      evaluateSleepConditions(sleepContextFromState()),
+      pockets,
+    );
+    const risk = s.character ? restRiskFromState() : null;
+    const preview = restAmbushPreview(conditions, risk?.encounterChance ?? 0);
+    const outcome = planRest({
+      day: s.day,
+      hour: s.hour,
+      meters: s.meters,
+      bodyParts: s.bodyParts,
+      requestedHours: restLengthHours(length, s.hour),
+      recoveryMult: conditions.recoveryMult,
+      sleepRestoreMod: sumTraitMod(s.character?.traitIds ?? [], 'sleepRestoreMod'),
+      meterOpts: meterTickOpts(1, s.bodyParts),
+      injury: injuryTickArgs(),
+      nightAmbushChance: preview.ambushChance,
+      floodSleep: conditions.floodSleep,
+      collapseSleep: conditions.collapseSleep,
+    });
+    return { preview, outcome, pockets, conditions, risk };
+  };
+
+  const peekRestFromState = (): RestPreview => planRestFromState('morning').preview;
 
   const consumeBackpackItem = (defId: string) => {
     set({ items: consumeOneOf(get().items, defId) });
@@ -5460,74 +5522,63 @@ export const useGame = create<State>((set, get) => {
       }
     },
 
-    rest: () => {
+    rest: (length = 'morning') => {
       const s = get();
-      if (s.combat || s.pendingEvent || s.travelAnim) return;
-      const hoursToMorning = ((START_HOUR - s.hour + HOURS_PER_DAY) % HOURS_PER_DAY) || HOURS_PER_DAY;
-
-      const pockets = hazardsAtPoint(
-        s.seed,
-        s.currentPos.lat,
-        s.currentPos.lng,
-        s.spawn ?? undefined,
-        hordeIntensity(s.hordeLevel),
-        { band: 'night', day: s.day, pressureAt: pressureFn() },
+      if (s.combat || s.pendingEvent || s.travelAnim || !s.character) return;
+      const { outcome, pockets, conditions, risk } = planRestFromState(length);
+      if (outcome.hours <= 0) {
+        pushLog(
+          outcome.wokeBy === 'blood'
+            ? 'You are bleeding too badly to close your eyes. Patch yourself up first.'
+            : 'Hunger and thirst keep you awake. Eat or drink something first.',
+          'bad',
+        );
+        return;
+      }
+      // Seeded by the hour you lay down, so two naps on one day roll apart.
+      const nightRng = new Rng(s.seed).fork(
+        `roughsleep:${s.day}:${s.hour.toFixed(2)}:${s.currentPos.lat.toFixed(5)}`,
       );
-      const conditions = applySleepOccupancy(
-        evaluateSleepConditions(sleepContextFromState()),
-        pockets,
-      );
-      const fullRest = sleepRestore(
-        s.meters.energy,
-        hoursToMorning,
-        s.meters,
-        sumTraitMod(s.character!.traitIds, 'sleepRestoreMod'),
-      );
-      const restedEnergy = applySleepRecovery(
-        s.meters.energy,
-        fullRest,
-        conditions.recoveryMult,
-      );
-      if (advanceTime(hoursToMorning, restedEnergy, true)) return;
+      if (
+        advanceTime(outcome.hours, outcome.after.energy, true, false, 1, {
+          meters: outcome.after,
+          bodyParts: outcome.bodyParts,
+        })
+      ) {
+        return;
+      }
       bumpStats({ nightsSlept: 1 });
 
       // you slept here — your knowledge of THIS place stays current
       const posId = get().currentPositionId;
       if (posId) discoverLocation(posId);
       const rough = conditions.recoveryMult < 0.85;
-      pushLog(flavor(rough ? 'restExposed' : 'rest'), rough ? 'bad' : 'info');
-      pushLog(conditions.summary, rough ? 'bad' : 'info');
+      const longSleep = outcome.hours >= 6;
+      pushLog(
+        longSleep
+          ? flavor(rough ? 'restExposed' : 'rest')
+          : `You rest ${formatRestHours(outcome.hours)}.`,
+        rough ? 'bad' : 'info',
+      );
+      if (longSleep) pushLog(conditions.summary, rough ? 'bad' : 'info');
       for (const note of conditions.occupancyNotes) {
         pushLog(note, 'info');
       }
+      if (outcome.wokeBy === 'hunger') pushLog('Hunger drags you awake early.', 'bad');
+      else if (outcome.wokeBy === 'thirst') pushLog('Thirst drags you awake early.', 'bad');
+      else if (outcome.wokeBy === 'blood') pushLog('You wake light-headed — the wound will not let you sleep on.', 'bad');
+      else if (outcome.wokeBy === 'restless') pushLog('Too hungry or thirsty to sleep long. You doze, then give up.', 'bad');
 
-      const g = get();
-      const nightRng = new Rng(g.seed).fork(`roughsleep:${g.day}:${g.currentPos.lat.toFixed(5)}`);
-      const risk = trekRisk(g.seed, g.currentPos, g.currentPos, {
-        band: 'night',
-        hordeIntensity: hordeIntensity(g.hordeLevel),
-        pressureAt: pressureFn(),
-        weatherEncounterMod: 0,
-        traitEncounterMod:
-          sumTraitMod(g.character!.traitIds, 'encounterChanceMod') +
-          sumTraitMod(g.character!.traitIds, 'nightEncounterChanceMod') +
-          sumTraitMod(g.character!.traitIds, 'ambushChanceMod') * 0.15 +
-          equipEncounterChanceMod(g.equipment) +
-          bleedEncounterMod(g.bodyParts),
-        safe: g.spawn ?? undefined,
-        day: g.day,
-      });
-      const preview = restAmbushPreview(conditions, risk.encounterChance);
-      if (preview.infectionDelta > 0) {
+      if (outcome.infectionDelta > 0) {
         set({
           meters: {
             ...get().meters,
-            infection: clampMeter(get().meters.infection + preview.infectionDelta),
+            infection: clampMeter(get().meters.infection + outcome.infectionDelta),
           },
         });
         pushLog('The damp gets into you.', 'bad');
       }
-      if (preview.collapseWound && nightRng.chance(0.4)) {
+      if (outcome.collapseChance > 0 && nightRng.chance(outcome.collapseChance)) {
         const leg = nightRng.chance(0.5) ? 'leftLeg' : 'rightLeg';
         set({
           bodyParts: applyPartDamage(get().bodyParts, leg, 6 + nightRng.int(0, 6), nightRng),
@@ -5535,47 +5586,51 @@ export const useGame = create<State>((set, get) => {
         pushLog('The rubble shifts under you in the night.', 'bad');
       }
 
-      if (conditions.ambush) {
-        if (nightRng.chance(preview.ambushChance)) {
-          pushLog('Something found you in the dark.', 'bad');
-          const worst = pockets.reduce<typeof pockets[number] | null>(
-            (acc, z) => (!acc || z.severity > acc.severity ? z : acc),
-            null,
-          );
-          const swarm = pockets.find((z) => z.kind === 'night_swarm');
-          const restHabitat = habitatAt(g.currentPos.lat, g.currentPos.lng);
-          const { enemy, drops } = rollWildsEncounter(nightRng, risk.combatDanger, {
-            hazard: swarm?.kind ?? worst?.kind ?? null,
-            forest: restHabitat === 'forest',
-            habitat: restHabitat,
-            floodwater: pockets.some((z) => z.kind === 'floodwater'),
-          });
-          set({
-            combat: {
-              locationId: null,
-              zombie: enemy,
-              round: 0,
-              log: [{ round: 0, tone: 'bad', text: `You wake to ${enemy.name} standing over you.` }],
-              over: false,
-              outcome: null,
-              playerHpSnapshot: totalHp(g.bodyParts),
-              context: { locationId: null, grantOnFlee: false, wilds: true, drops },
-              selectedStance: 'guarded',
-              terrain: TERRAIN.open_ground,
-              awaitingStance: true,
-              playerGauge: 0,
-              enemyGauge: 0,
-              acting: null,
-              paused: false,
-              speedIndex: 1,
-              impact: null,
-            },
-            _combatRng: nightRng.fork('fight'),
-          });
-          return;
-        }
+      if (conditions.ambush && risk && nightRng.chance(outcome.ambushChance)) {
+        const g = get();
+        pushLog('Something found you in the dark.', 'bad');
+        const worst = pockets.reduce<typeof pockets[number] | null>(
+          (acc, z) => (!acc || z.severity > acc.severity ? z : acc),
+          null,
+        );
+        const swarm = pockets.find((z) => z.kind === 'night_swarm');
+        const restHabitat = habitatAt(g.currentPos.lat, g.currentPos.lng);
+        const { enemy, drops } = rollWildsEncounter(nightRng, risk.combatDanger, {
+          hazard: swarm?.kind ?? worst?.kind ?? null,
+          forest: restHabitat === 'forest',
+          habitat: restHabitat,
+          floodwater: pockets.some((z) => z.kind === 'floodwater'),
+        });
+        set({
+          combat: {
+            locationId: null,
+            zombie: enemy,
+            round: 0,
+            log: [{ round: 0, tone: 'bad', text: `You wake to ${enemy.name} standing over you.` }],
+            over: false,
+            outcome: null,
+            playerHpSnapshot: totalHp(g.bodyParts),
+            context: { locationId: null, grantOnFlee: false, wilds: true, drops },
+            selectedStance: 'guarded',
+            terrain: TERRAIN.open_ground,
+            awaitingStance: true,
+            playerGauge: 0,
+            enemyGauge: 0,
+            acting: null,
+            paused: false,
+            speedIndex: 1,
+            impact: null,
+          },
+          _combatRng: nightRng.fork('fight'),
+        });
+        return;
       }
       persist();
+    },
+
+    peekRestPlan: (length) => {
+      const { preview, outcome } = planRestFromState(length);
+      return { preview, outcome };
     },
 
     peekSleepConditions: () => peekRestFromState().conditions,
