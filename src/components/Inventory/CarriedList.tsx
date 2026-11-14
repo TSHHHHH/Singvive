@@ -13,7 +13,6 @@ import {
   kindCounts,
   queryCarried,
   type CarriedKind,
-  type CarriedPlace,
   type CarriedSort,
 } from './carriedList';
 
@@ -38,11 +37,10 @@ const KIND_SWATCH: Record<CarriedKind, string> = {
 interface Prefs {
   sort: CarriedSort;
   desc: boolean;
-  place: CarriedPlace;
   kinds: CarriedKind[];
 }
 
-const DEFAULT_PREFS: Prefs = { sort: 'weight', desc: true, place: 'all', kinds: [] };
+const DEFAULT_PREFS: Prefs = { sort: 'weight', desc: true, kinds: [] };
 
 function loadPrefs(): Prefs {
   try {
@@ -52,7 +50,6 @@ function loadPrefs(): Prefs {
     return {
       sort: CARRIED_SORTS.includes(p.sort as CarriedSort) ? (p.sort as CarriedSort) : 'weight',
       desc: typeof p.desc === 'boolean' ? p.desc : true,
-      place: p.place === 'packed' || p.place === 'loose' ? p.place : 'all',
       kinds: Array.isArray(p.kinds) ? p.kinds : [],
     };
   } catch {
@@ -74,15 +71,12 @@ function fmtKg(kg: number): string {
 
 interface Props {
   items: ItemInstance[];
-  /** 0..0.9 share the equipped bag takes off packed weight. */
-  bagCut: number;
   selectedUid: string | null;
   draggingUid: string | null;
   /** True while something from the grid is being dragged over the list. */
   dropActive: boolean;
   dropValid: boolean;
   listRef: (el: HTMLDivElement | null) => void;
-  onTogglePlace: (inst: ItemInstance) => void;
   onItemPointerDown: (e: React.PointerEvent, inst: ItemInstance) => void;
   onItemDoubleClick?: (inst: ItemInstance) => void;
   onItemContextMenu?: (e: React.MouseEvent, inst: ItemInstance) => void;
@@ -92,22 +86,20 @@ interface Props {
 }
 
 /**
- * Everything the survivor carries, packed or loose, as one sortable,
- * filterable list — for deciding what to drop. The bag grid above stays the
- * packing minigame; this list is where you read weight.
+ * What's carried outside the bag grid, as one sortable, filterable list —
+ * for deciding what to drop or pack. No slots and no limit, so it's a list,
+ * not a grid; the bag grid above stays the packing minigame.
  *
  * The whole list is the "carry loose" drop target: drag a tile here to pull it
  * out of the grid, or drag a loose row into the grid to pack it.
  */
 export function CarriedList({
   items,
-  bagCut,
   selectedUid,
   draggingUid,
   dropActive,
   dropValid,
   listRef,
-  onTogglePlace,
   onItemPointerDown,
   onItemDoubleClick,
   onItemContextMenu,
@@ -127,8 +119,8 @@ export function CarriedList({
   };
 
   const rows = useMemo(
-    () => carriedRows(items, bagCut, (id) => itemName(id, locale)),
-    [items, bagCut, locale],
+    () => carriedRows(items, 0, (id) => itemName(id, locale)).filter((r) => !r.packed),
+    [items, locale],
   );
   const chips = useMemo(() => kindCounts(rows), [rows]);
   // A filter for a kind you no longer carry would hide everything silently.
@@ -138,13 +130,12 @@ export function CarriedList({
   );
   const shown = useMemo(
     () =>
-      queryCarried(rows, { sort: prefs.sort, desc: prefs.desc, kinds: activeKinds, place: prefs.place }, locale),
-    [rows, prefs.sort, prefs.desc, prefs.place, activeKinds, locale],
+      queryCarried(rows, { sort: prefs.sort, desc: prefs.desc, kinds: activeKinds, place: 'all' }, locale),
+    [rows, prefs.sort, prefs.desc, activeKinds, locale],
   );
   const totalKg = rows.reduce((s, r) => s + r.kg, 0);
   const shownKg = shown.reduce((s, r) => s + r.kg, 0);
-  const filtered = activeKinds.size > 0 || prefs.place !== 'all';
-  const bagPct = Math.round(bagCut * 100);
+  const filtered = activeKinds.size > 0;
 
   const toggleKind = (k: CarriedKind) => {
     const next = new Set(activeKinds);
@@ -175,7 +166,7 @@ export function CarriedList({
           className="text-label uppercase tracking-widest text-white/50"
           {...tip(t('ui.inventory.carriedHint', { mult: LOOSE_WEIGHT_MULT }))}
         >
-          {t('ui.inventory.carried')}
+          {t('ui.inventory.loose')}
           <span className="ml-1.5 tabular-nums text-white/30">{rows.length}</span>
         </span>
         <span className="text-micro tabular-nums text-white/60">
@@ -186,7 +177,7 @@ export function CarriedList({
 
       {rows.length > 0 && (
         <>
-          {/* Sort + packed/loose */}
+          {/* Sort */}
           <div className="mb-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-micro">
             <div className="flex items-center gap-0.5" role="group" aria-label={t('ui.inventory.sortBy')}>
               <span className="mr-0.5 uppercase tracking-widest text-white/30">{t('ui.inventory.sortBy')}</span>
@@ -208,21 +199,6 @@ export function CarriedList({
                   </button>
                 );
               })}
-            </div>
-            <div className="ml-auto flex overflow-hidden rounded border border-white/10" role="group">
-              {(['all', 'packed', 'loose'] as const).map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  aria-pressed={prefs.place === p}
-                  onClick={() => setPrefs({ place: p })}
-                  className={`px-1.5 py-0.5 transition-colors ${
-                    prefs.place === p ? 'bg-white/15 text-white' : 'text-white/45 hover:text-white/80'
-                  }`}
-                >
-                  {t(`ui.inventory.place.${p}`)}
-                </button>
-              ))}
             </div>
           </div>
 
@@ -268,14 +244,14 @@ export function CarriedList({
       )}
 
       {rows.length === 0 ? (
-        <p className="text-micro text-white/30">{t('ui.inventory.carriedEmpty')}</p>
+        <p className="text-micro text-white/30">{t('ui.inventory.looseEmpty')}</p>
       ) : shown.length === 0 ? (
         <p className="py-2 text-center text-micro text-white/30">
           {t('ui.inventory.carriedNoMatch')}{' '}
           <button
             type="button"
             className="text-signal/80 underline hover:text-signal"
-            onClick={() => setPrefs({ kinds: [], place: 'all' })}
+            onClick={() => setPrefs({ kinds: [] })}
           >
             {t('ui.inventory.filterClear')}
           </button>
@@ -324,29 +300,6 @@ export function CarriedList({
                   {inst.stack > 1 && (
                     <span className="shrink-0 tabular-nums text-micro text-white/50">×{inst.stack}</span>
                   )}
-                  <button
-                    type="button"
-                    onPointerDown={(e) => e.stopPropagation()}
-                    onDoubleClick={(e) => e.stopPropagation()}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onTogglePlace(inst);
-                    }}
-                    {...tip(
-                      r.packed
-                        ? bagPct > 0
-                          ? t('ui.inventory.packedTag', { n: bagPct })
-                          : t('ui.inventory.packedTagNoBag')
-                        : t('ui.inventory.looseTag', { mult: LOOSE_WEIGHT_MULT }),
-                    )}
-                    className={`w-14 shrink-0 rounded border px-1 text-center text-label uppercase tracking-wider transition-colors ${
-                      r.packed
-                        ? 'border-emerald-300/30 text-emerald-300/80 hover:bg-emerald-300/10'
-                        : 'border-amber-300/40 text-amber-200 hover:bg-amber-300/10'
-                    }`}
-                  >
-                    {t(r.packed ? 'ui.inventory.place.packed' : 'ui.inventory.place.loose')}
-                  </button>
                   {prefs.sort === 'perUnit' ? (
                     <span
                       className="w-14 shrink-0 text-right tabular-nums text-micro text-signal/90"
@@ -356,9 +309,7 @@ export function CarriedList({
                     </span>
                   ) : (
                     <span
-                      className={`w-14 shrink-0 text-right tabular-nums text-micro ${
-                        r.packed ? 'text-white/70' : 'text-amber-200/90'
-                      }`}
+                      className="w-14 shrink-0 text-right tabular-nums text-micro text-white/70"
                       {...tip(
                         inst.stack > 1 ? t('ui.inventory.perUnit', { kg: fmtKg(r.perUnitKg) }) : undefined,
                       )}

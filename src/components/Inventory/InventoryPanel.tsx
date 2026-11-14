@@ -493,7 +493,6 @@ export function InventoryPanel({
 
           <CarriedList
             items={items}
-            bagCut={bagShare}
             selectedUid={selectedUid}
             draggingUid={dragUid}
             dropActive={drag?.target?.type === 'grid' && drag.target.container === LOOSE}
@@ -501,9 +500,6 @@ export function InventoryPanel({
               drag?.target?.type === 'grid' && drag.target.container === LOOSE && drag.target.valid
             }
             listRef={(el) => registerGrid(LOOSE, el)}
-            onTogglePlace={(inst) =>
-              transferItem(inst.uid, inst.container === LOOSE ? BACKPACK : LOOSE)
-            }
             {...gridHandlers}
           />
 
