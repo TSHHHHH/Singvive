@@ -7,6 +7,7 @@ import type {
   WeatherKind,
 } from './types';
 import type { Rng } from './rng';
+import { effectiveDanger } from './noise';
 import {
   activeLocale,
   ev,
@@ -188,6 +189,10 @@ export interface EventCtx {
   standing: FactionStanding;
   /** Player language — doorway copy resolves against this locale. */
   locale?: LocaleId;
+  /** Local horde pressure at the site, 0..1. Omitted reads as calm. */
+  pressure?: number;
+  /** The last doorway scene that fired — it won't be picked again straight away. */
+  lastKind?: EventKind | string;
 }
 
 /** Attribute-check DC scaled off the site's current danger. */
@@ -243,9 +248,50 @@ const FLOODED_AT: PoiCategory[] = ['mrt', 'industrial', 'school'];
 
 /** Odds that *something* is waiting, given anything is eligible at all. */
 function doorwayChance(loc: LocationState, ctx: EventCtx): number {
-  let p = 0.4 + loc.currentDanger * 0.03;
-  if (ctx.time === 'night') p += 0.08;
+  // Effective danger, so the noise you just made is waiting at the next door.
+  let p = 0.25 + effectiveDanger(loc) * 0.07;
+  if (ctx.time === 'night') p += 0.1;
+  else if (ctx.time === 'dusk') p += 0.05;
   return Math.max(0.05, Math.min(0.8, p));
+}
+
+/**
+ * How hot the doorway is, 0 (quiet daytime street) … 1 (loud, dark, overrun).
+ * Built only from things the player can read: the danger dots, recent noise,
+ * the hour, and how far the rot has spread here.
+ */
+export function doorwayThreat(loc: LocationState, ctx: EventCtx): number {
+  const boost = loc.tempDangerBoost ?? 0;
+  let t = (Math.min(5, effectiveDanger(loc)) / 5) * 0.6;
+  t += Math.min(0.15, boost * 0.05);
+  if (ctx.time === 'night') t += 0.2;
+  else if (ctx.time === 'dusk') t += 0.1;
+  t += (ctx.pressure ?? 0) * 0.2;
+  return Math.max(0, Math.min(1, t));
+}
+
+// Scenes that sharpen as the doorway heats up, and scenes that only happen
+// where people still feel safe enough to stop and talk. Everything else (a
+// locked door, a body, a blockade, a flood) is just the building.
+const HOSTILE_KINDS: ReadonlySet<EventKind> = new Set([
+  'armed_raider',
+  'looters_fleeing',
+  'rigged_door',
+  'rival_scavenger',
+]);
+const CALM_KINDS: ReadonlySet<EventKind> = new Set([
+  'desperate_survivor',
+  'nomad_trader',
+  'quiet_tap',
+  'distress_beacon',
+  'block_tout',
+]);
+
+/** Weight multiplier for a scene at a given doorway threat. */
+export function threatWeight(kind: EventKind, threat: number): number {
+  if (HOSTILE_KINDS.has(kind)) return 0.35 + 1.65 * threat;
+  if (CALM_KINDS.has(kind)) return 1.6 - 1.3 * threat;
+  return 1;
 }
 
 // ---------------------------------------------------------------------------
@@ -1183,10 +1229,14 @@ export function rollPreScavengeEvent(
   const settled = loc.survivorSettledDay ?? -Infinity;
   if (ctx.day - settled >= SURVIVOR_MEMORY_DAYS) cands.push(['desperate_survivor', 10]);
 
-  if (!cands.length) return null;
+  // The same scene twice running reads as a turnstile, not a city.
+  const fresh = cands.length > 1 ? cands.filter(([k]) => k !== ctx.lastKind) : cands;
+  if (!fresh.length) return null;
   if (!rng.chance(doorwayChance(loc, ctx))) return null;
 
-  return BUILDERS[rng.weighted(cands)](rng, loc, ctx);
+  const threat = doorwayThreat(loc, ctx);
+  const weighted = fresh.map(([k, w]) => [k, w * threatWeight(k, threat)] as const);
+  return BUILDERS[rng.weighted(weighted)](rng, loc, ctx);
 }
 
 /** The turnstile between a manned platform and the tunnel below it. */

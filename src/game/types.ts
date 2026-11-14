@@ -11,6 +11,8 @@ export interface EventClock {
   /** The day `count` refers to. */
   day: number;
   count: number;
+  /** Kind of the last unclaimed-doorway event, so the same scene never fires twice running. */
+  lastKind?: string;
 }
 
 export function freshEventClock(): EventClock {
@@ -577,6 +579,11 @@ export interface LocationState {
   tollPaidThroughDay?: number;
   /** Day the survivor camped here was dealt with, one way or another. */
   survivorSettledDay?: number;
+  /**
+   * Search rolls since the last search ambush here (undefined: never fought
+   * here). Drives the calm-after-a-fight streak control in encounterOdds.ts.
+   */
+  searchesSinceAmbush?: number;
 
   // fog of war
   discovered: boolean; // ever seen — kept as memory even when out of sight
