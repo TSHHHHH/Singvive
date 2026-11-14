@@ -462,6 +462,7 @@
         "body": "It's gone for good. You won't find it here again.",
         "more": "+{n} more",
         "total": "{kg} kg lighter",
+        "totalLeft": "{kg} kg left behind",
         "dontAsk": "Don't ask again",
         "cancel": "Keep",
         "confirm": "Throw away",

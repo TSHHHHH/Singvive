@@ -5,6 +5,7 @@ import { itemDef } from '../../game/loot';
 import {
   BACKPACK,
   bagWeightReduction,
+  isCarried,
   itemWeight,
   LOOSE,
   LOOSE_WEIGHT_MULT,
@@ -113,7 +114,12 @@ export function DiscardConfirm({
           </p>
         )}
         <p className="mb-3 text-right text-micro tabular-nums text-white/55">
-          {t('ui.inventory.discard.total', { kg: fmtKg(kg) })}
+          {t(
+            list.some((i) => isCarried(i.container))
+              ? 'ui.inventory.discard.total'
+              : 'ui.inventory.discard.totalLeft',
+            { kg: fmtKg(kg) },
+          )}
         </p>
 
         <label className="mb-4 flex cursor-pointer items-center gap-2 text-body text-white/60">
@@ -148,3 +154,4 @@ export function DiscardConfirm({
     document.body,
   );
 }
+

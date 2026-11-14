@@ -42,6 +42,7 @@ import { LOAD_TIP_CLASS, LoadTipBody } from '../loadTip';
 import { loadTierShown, loadTierTone } from '../loadTier';
 import { CarriedList } from './CarriedList';
 import { LoadStatusIcon } from '../LoadStatusIcon';
+import { useDiscardGate } from './useDiscardGate';
 import { torsoCarryMult } from '../../game/survival';
 import { itemName, useT } from '../../i18n';
 import { tip } from '../tips';
@@ -120,6 +121,7 @@ export function InventoryPanel({
   const tearForRags = useGame((s) => s.tearForRags);
   const confirmTempStash = useGame((s) => s.confirmTempStash);
   const inCombat = useGame((s) => !!s.combat && !s.combat.over);
+  const { gate: gateDiscard, dialog: discardDialog } = useDiscardGate();
 
   const {
     selectedUid,
@@ -566,11 +568,17 @@ export function InventoryPanel({
           />
           <button
             type="button"
-            onClick={() => confirmTempStash()}
+            onClick={() =>
+              gateDiscard(
+                items.filter((i) => i.container === TEMP_STASH).map((i) => i.uid),
+                confirmTempStash,
+              )
+            }
             className="mt-2 w-full rounded bg-signal/80 py-1.5 text-body font-bold text-black hover:bg-signal"
           >
             {t('ui.inventory.confirmAbandon')}
           </button>
+          {discardDialog}
         </div>
       )}
 

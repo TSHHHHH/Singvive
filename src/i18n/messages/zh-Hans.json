@@ -461,6 +461,7 @@
         "body": "丢掉就没了，不会再在这里找到。",
         "more": "还有 {n} 件",
         "total": "减轻 {kg} kg",
+        "totalLeft": "留下 {kg} kg",
         "dontAsk": "不再询问",
         "cancel": "保留",
         "confirm": "丢弃",
