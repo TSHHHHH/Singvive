@@ -1151,12 +1151,20 @@ export function senseChance(attrValue: number): number {
   return Math.max(0.05, Math.min(0.95, 0.15 + (attrValue - 3) * 0.11));
 }
 
+export interface RoomScoutRoll {
+  unitId: string;
+  perception: { roll: number; chance: number; success: boolean };
+  dexterity: { roll: number; chance: number; success: boolean };
+}
+
 export interface FloorScout {
   dungeon: HdbDungeon;
   /** Units this sweep managed to read something about. */
   read: number;
   /** Units on the floor worth reading at all. */
   total: number;
+  /** Actual percentile checks for presentation only; never stored in the dungeon. */
+  rolls: RoomScoutRoll[];
 }
 
 /**
@@ -1172,6 +1180,7 @@ export function scoutFloor(
 ): FloorScout {
   let read = 0;
   let total = 0;
+  const rolls: RoomScoutRoll[] = [];
 
   const floors = dungeon.floors.map((floor) => {
     if (floor.level !== level) return floor;
@@ -1188,11 +1197,19 @@ export function scoutFloor(
         const uRng = rng.fork(unit.id);
         const info: HdbScoutInfo = { threatCount: -1, lootQuality: 'unreadable' };
 
-        if (uRng.chance(Math.min(0.95, senseChance(attrs.perception) + senseBonus))) {
+        // Read the same draw that chance() used, preserving the seeded sequence.
+        const check = (value: number) => {
+          const chance = Math.min(0.95, senseChance(value) + senseBonus);
+          const draw = uRng.next();
+          return { roll: Math.floor(draw * 100) + 1, chance, success: draw < chance };
+        };
+        const perception = check(attrs.perception);
+        if (perception.success) {
           const threat = floorThreat(dungeon, floor.level);
           info.threatCount = Math.max(0, Math.round(threat / 2) + uRng.int(-1, 1));
         }
-        if (uRng.chance(Math.min(0.95, senseChance(attrs.dexterity) + senseBonus))) {
+        const dexterity = check(attrs.dexterity);
+        if (dexterity.success) {
           if (unit.holdsKey) {
             info.containerCategory = 'Fob';
           } else {
@@ -1204,6 +1221,7 @@ export function scoutFloor(
               : uRng.pick(LOOT_QUALITY);
         }
 
+        rolls.push({ unitId: unit.id, perception, dexterity });
         const readAnything = info.threatCount >= 0 || !!info.containerCategory;
         if (readAnything) read += 1;
         return {
@@ -1215,7 +1233,7 @@ export function scoutFloor(
     };
   });
 
-  return { dungeon: { ...dungeon, floors }, read, total };
+  return { dungeon: { ...dungeon, floors }, read, total, rolls };
 }
 
 export interface BreachOutcome {

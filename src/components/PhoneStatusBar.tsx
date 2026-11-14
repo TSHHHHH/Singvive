@@ -11,6 +11,9 @@ import { dynamicMeterColor } from './MeterBar';
 import { useT } from '../i18n';
 import { tip } from './tips';
 import { useClockAdvance } from './useClockAdvance';
+import { ActivityBadge } from './ActivityBadge';
+import { WEATHER_ICON } from '../game/weather';
+import type { WeatherKind } from '../game/types';
 
 /** Tiny icon + fill used in the phone chrome strip and the desktop vitals HUD. */
 export function MiniMeter({
@@ -53,7 +56,9 @@ export function MiniMeter({
  * Phone-only vitals glance: day, clock, and the survival meters you need
  * without opening Status. Tap jumps to the hub.
  */
-export function PhoneStatusBar({ onOpenStatus }: { onOpenStatus: () => void }) {
+export function PhoneStatusBar({ onOpenStatus, weather, onOpenActivity }: {
+  onOpenStatus: () => void; weather: WeatherKind; onOpenActivity: () => void;
+}) {
   const { t } = useT();
   const { day, hour, meters, bodyParts } = useGame(
     useShallow((s) => ({
@@ -77,11 +82,12 @@ export function PhoneStatusBar({ onOpenStatus }: { onOpenStatus: () => void }) {
   const bleeding = countBleeding(bodyParts, 'major') + countBleeding(bodyParts, 'minor');
 
   return (
+    <div className="relative z-[720] flex shrink-0 items-center gap-1 border-b border-white/10 bg-concrete-900/95 pr-1 lg:hidden"
+      style={{ minHeight: 'var(--mobile-status-bar-h)' }}>
     <button
       type="button"
       onClick={onOpenStatus}
-      className="relative z-[720] flex shrink-0 items-center gap-2 overflow-visible border-b border-white/10 bg-concrete-900/95 px-2.5 py-1.5 lg:hidden"
-      style={{ minHeight: 'var(--mobile-status-bar-h)' }}
+      className="flex min-w-0 flex-1 items-center gap-2 overflow-visible px-2.5 py-1.5"
       aria-label={t('ui.phone.openStatus')}
     >
       <span
@@ -118,5 +124,10 @@ export function PhoneStatusBar({ onOpenStatus }: { onOpenStatus: () => void }) {
         </span>
       )}
     </button>
+    <span className="text-white/50" {...tip(t(`ui.weather.${weather}`))}>
+      <Icon name={WEATHER_ICON[weather]} size={14} />
+    </span>
+    <ActivityBadge onOpenTimeline={onOpenActivity} />
+    </div>
   );
 }

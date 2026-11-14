@@ -8,26 +8,16 @@ import { GuideInfoButton } from './GuideInfoButton';
 import { HdbContextPanel } from './HdbContextPanel';
 import { useIsPhoneLayout } from './useIsPhoneLayout';
 import { HdbLevelStrips, HeatMeter } from './HdbLevelStrips';
-import { bandText, unitFaceClass } from './hdbStripStyle';
+import { unitFaceClass } from './hdbStripStyle';
 import {
   COOL_PER_HOUR,
   currentFloor,
   GROUND_LABEL,
-  HEAT_BANDS,
-  HEAT_MAX,
-  HUNT_ELITE_CHANCE,
   landingCount,
-  levelBand,
-  levelHeat,
-  levelHunting,
-  peakHeat,
   realStoreysOf,
-  retreatDc,
   revealedLandings,
   senseChance,
-  storeyLabel,
   UNIT_META,
-  type HeatBand,
 } from '../game/hdbDungeon';
 import type { AttributeKey } from '../game/types';
 import { msgOr, useT } from '../i18n';
@@ -35,7 +25,7 @@ import { tip } from './tips';
 
 /**
  * Inside an HDB block: the landing strips (one per storey row, each with its
- * own heat and rooms) under a status dock for the landing you stand on.
+ * own heat and rooms) under a compact block identity dock.
  * Desktop 3D draws it over the map beside the block; phone and 2D full-view.
  */
 export function HdbDungeonModal({
@@ -63,7 +53,6 @@ export function HdbDungeonModal({
 
   const floor = currentFloor(hdb);
   const level = hdb.currentLevel;
-  const heat = levelHeat(hdb, level);
   const canLeave = level === 1 && !pendingSearch;
   const leaveTitle = pendingSearch
     ? t('ui.hdb.leaveNeedSearch')
@@ -109,12 +98,6 @@ export function HdbDungeonModal({
           <HdbStatusDock
             name={hdb.name}
             placeMeta={placeMeta}
-            levelLabel={storeyLabel(hdb, level)}
-            heat={heat}
-            peak={peakHeat(hdb)}
-            band={levelBand(hdb, level)}
-            dc={retreatDc(hdb, level)}
-            hunting={levelHunting(hdb, level)}
             revealed={revealedLandings(hdb)}
             height={landingCount(hdb)}
             storeys={realStoreysOf(hdb)}
@@ -155,16 +138,10 @@ export function HdbDungeonModal({
   );
 }
 
-/** Identity + this landing's heat + leave in one dock; legend / senses behind expand. */
+/** Block identity + leave; legend / senses behind expand. Heat belongs to each strip. */
 function HdbStatusDock({
   name,
   placeMeta,
-  levelLabel,
-  heat,
-  peak,
-  band,
-  dc,
-  hunting,
   revealed,
   height,
   storeys,
@@ -176,12 +153,6 @@ function HdbStatusDock({
 }: {
   name: string;
   placeMeta: string;
-  levelLabel: string;
-  heat: number;
-  peak: number;
-  band: HeatBand;
-  dc: number;
-  hunting: boolean;
   revealed: number;
   height: number;
   storeys: number;
@@ -191,20 +162,8 @@ function HdbStatusDock({
   onOpenGuide?: (topic: GuideTopic) => void;
   senses: { key: AttributeKey; value: number; gives: string }[];
 }) {
-  const { locale, t } = useT();
+  const { t } = useT();
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const idx = HEAT_BANDS.indexOf(band);
-  const next = HEAT_BANDS[idx + 1];
-  const bandLabel = msgOr(`ui.hdb.heatBand.${band.label}.label`, band.label, undefined, locale);
-  const bandNote = msgOr(`ui.hdb.heatBand.${band.label}.note`, band.note, undefined, locale);
-  const nextBit =
-    !hunting && next
-      ? t('ui.hdb.nextBand', {
-          label: msgOr(`ui.hdb.heatBand.${next.label}.label`, next.label, undefined, locale),
-          at: next.at,
-        })
-      : '';
-  const peakShown = Math.round(peak) > Math.round(heat);
 
   return (
     <div className="shrink-0 px-3 py-3 lg:px-4">
@@ -253,46 +212,6 @@ function HdbStatusDock({
           </button>
         </div>
       </div>
-
-      <button
-        type="button"
-        onClick={() => setDetailsOpen((o) => !o)}
-        className="mt-2 flex w-full flex-col gap-1 text-left"
-        {...tip(t('ui.hdb.tapDetails'))}
-      >
-        <span className="flex flex-wrap items-baseline gap-2">
-          <span className="text-plate uppercase text-concrete-400">
-            {t('ui.hdb.levelHeat', { nn: levelLabel })}
-          </span>
-          <span className={`text-plate uppercase ${bandText(idx, hunting)}`}>{bandLabel}</span>
-          <span className="text-body tabular-nums text-concrete-200">
-            {Math.round(heat)}/{HEAT_MAX}
-          </span>
-          {peakShown && (
-            <span className="text-micro tabular-nums text-concrete-400">
-              {t('ui.hdb.blockPeak', { n: Math.round(peak) })}
-            </span>
-          )}
-        </span>
-        <span className="relative block">
-          <HeatMeter heat={heat} />
-          {peakShown && (
-            <span
-              className="absolute -top-0.5 h-2.5 w-0.5 rounded-full bg-hiss/80"
-              style={{ left: `${Math.min(100, (peak / HEAT_MAX) * 100)}%` }}
-            />
-          )}
-        </span>
-        <span className="text-body text-concrete-200 lg:text-read">
-          {bandNote} {t('ui.hdb.descentNeedsAttrs', { dc })}
-          {nextBit && <span className="text-concrete-400">{nextBit}</span>}
-        </span>
-        {hunting && (
-          <span className="text-body text-hiss">
-            {t('ui.hdb.huntChance', { n: Math.round(HUNT_ELITE_CHANCE * 100) })}
-          </span>
-        )}
-      </button>
 
       {detailsOpen && (
         <div className="mt-2 space-y-2 border-t border-concrete-800 pt-2">

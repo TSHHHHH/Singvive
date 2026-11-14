@@ -4,7 +4,7 @@
 import { POI_CONFIG } from '../game/poi';
 import { FACTION_CONFIG } from '../game/factions';
 import { iconMarkup } from '../icons/markup';
-import type { Poi } from '../game/types';
+import type { Poi, PoiCategory } from '../game/types';
 import { mixHex } from '../map/geo';
 
 /**
@@ -25,6 +25,20 @@ export interface MapIcon {
 }
 
 const poiIconCache = new Map<string, MapIcon>();
+const identifiedIconCache = new Map<PoiCategory, MapIcon>();
+
+/** Identity-only pins cannot receive danger, faction or depletion state. */
+export function identifiedIcon(category: PoiCategory): MapIcon {
+  const cached = identifiedIconCache.get(category);
+  if (cached) return cached;
+  const icon: MapIcon = {
+    html: `<div style="width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#252a29;border:2px dashed #b7b3a9;box-sizing:border-box;">${iconMarkup(POI_CONFIG[category].icon, { size: 15, color: '#e8e5dd' })}</div>`,
+    size: [30, 30],
+    anchor: [15, 15],
+  };
+  identifiedIconCache.set(category, icon);
+  return icon;
+}
 
 /** Known territory colour for identified sites; outposts also carry their faction emblem. */
 export function knownFactionColor(poi: Poi): string | null {

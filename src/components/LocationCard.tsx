@@ -40,6 +40,7 @@ import { HazardOnRoute } from './HazardOnRoute';
 import { BtnSub, Dots, Ledger, LedgerRow, LedgerRule, Note, PlaceStack } from './placeCard';
 import { LocationIdentity } from './LocationIdentity';
 import { SiteFacilitiesPanel } from './SiteFacilitiesPanel';
+import { LocalMapAction } from './LocalMapAction';
 import { BTN, tint } from './placeCardStyle';
 import { SEARCH_RISK_COLOR, searchRiskLevel, type SearchRiskLevel } from '../game/encounterOdds';
 
@@ -195,6 +196,7 @@ function RouteNotes({
 }
 
 function UnknownCard({
+  sel,
   est,
   energyLow,
   outOfRange,
@@ -208,8 +210,10 @@ function UnknownCard({
   return (
     <PlaceStack>
       <LocationIdentity
-        title={t('ui.location.unknownLocation')}
-        meta={t('ui.location.commitBlind')}
+        category={sel.identified ? sel.category : undefined}
+        title={sel.identified ? sel.name : t('ui.location.unknownLocation')}
+        meta={t(sel.identified ? 'ui.exploration.conditionsUnknown' : 'ui.location.commitBlind')}
+        showFinds={false}
       />
       {(est || routeRisk) && (
         <Ledger>
@@ -243,7 +247,7 @@ function UnknownCard({
             ? t('ui.location.noDryRoute')
             : outOfRange
               ? t('ui.location.tooFar')
-              : t('ui.location.headUnknown')}
+              : t(sel.identified ? 'ui.location.travelHere' : 'ui.location.headUnknown')}
       </button>
     </PlaceStack>
   );
@@ -779,14 +783,14 @@ function KnownCard({
   // The live odds of the next search turning into a fight — only where you
   // stand, since night, noise and the site's last fight all move it.
   const hour = useGame((s) => s.hour);
-  const hordeLevel = useGame((s) => s.hordeLevel);
+  const activity = useGame((s) => s.activity);
   const skills = useGame((s) => s.skills);
   const liveLoc = useGame((s) => (here ? s.locations[sel.id] : undefined));
   const searchRisk = useMemo(
     () => (here && liveLoc ? useGame.getState().peekSearchRisk(liveLoc.id) : null),
     // Inputs the odds read; the store getter does the math.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [here, liveLoc, hour, day, hordeLevel, character, skills],
+    [here, liveLoc, hour, day, activity, character, skills],
   );
   const searchRiskRow =
     searchRisk === null || searchingHere ? null : (
@@ -857,6 +861,7 @@ function KnownCard({
   const actions = (
     <>
       {here && sel.facilities && <SiteFacilitiesPanel />}
+      {here && <LocalMapAction location={sel} />}
       {searchingHere ? (
         <button onClick={() => abortSearch()} className={BTN.secondary}>
           <Icon name="action.search" /> {t('ui.location.searching')}

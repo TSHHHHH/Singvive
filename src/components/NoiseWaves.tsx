@@ -4,6 +4,7 @@ import { PULSE_MS, type NoisePulse } from '../game/noise';
 import { useMapGL } from '../map/hooks';
 import { installOverlay, setData } from '../map/layers';
 import { circleFeature, fc, EMPTY_FC } from '../map/geo';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 
 /**
  * The sound you just made, leaving you.
@@ -26,6 +27,7 @@ const easeOut = (t: number) => 1 - (1 - t) ** 3;
 
 function NoiseWavesInner({ pulses }: { pulses: NoisePulse[] }) {
   const map = useMapGL();
+  const reduced = useReducedMotion();
   const pulsesRef = useRef(pulses);
   pulsesRef.current = pulses;
   const rafRef = useRef<number | undefined>(undefined);
@@ -57,6 +59,23 @@ function NoiseWavesInner({ pulses }: { pulses: NoisePulse[] }) {
   }, [map]);
 
   useEffect(() => {
+    if (reduced) {
+      if (rafRef.current !== undefined) cancelAnimationFrame(rafRef.current);
+      rafRef.current = undefined;
+      const now = Date.now();
+      const live = pulses.filter((pulse) => now - pulse.startedAt < PULSE_MS);
+      // The same local cue, held still; expiry needs one timer and no frame loop.
+      const features = live.map((pulse) => circleFeature(pulse.lat, pulse.lng, pulse.radiusMeters, {
+        w: 1.5,
+        op: 0.3,
+        fop: 0.025,
+      }));
+      setData(map, SRC, features.length ? fc(features) : EMPTY_FC);
+      if (!live.length) return;
+      const expiresIn = Math.max(...live.map((pulse) => pulse.startedAt + PULSE_MS - now));
+      const timer = window.setTimeout(() => setData(map, SRC, EMPTY_FC), expiresIn);
+      return () => window.clearTimeout(timer);
+    }
     if (rafRef.current !== undefined) return; // loop already running
 
     const tick = () => {
@@ -89,7 +108,7 @@ function NoiseWavesInner({ pulses }: { pulses: NoisePulse[] }) {
       rafRef.current = anyLive ? requestAnimationFrame(tick) : undefined;
     };
     rafRef.current = requestAnimationFrame(tick);
-  }, [map, pulses]);
+  }, [map, pulses, reduced]);
 
   return null;
 }

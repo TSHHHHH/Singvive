@@ -6,7 +6,7 @@ import { WeatherFx } from './WeatherFx';
 import { Atmosphere3d } from './Atmosphere3d';
 import type { WeatherDom } from './useAtmosphere';
 import { TimeOfDayFx } from './TimeOfDayFx';
-import { poiIcon, playerIcon, unknownIcon, evacIcon, dangerColor, rumourIcon, trekTargetIcon, knownFactionColor } from './mapIcons';
+import { poiIcon, identifiedIcon, playerIcon, unknownIcon, evacIcon, dangerColor, rumourIcon, trekTargetIcon, knownFactionColor } from './mapIcons';
 import { POI_CONFIG } from '../game/poi';
 import { haversine } from '../game/overpass';
 import { visibilityOf } from '../game/fog';
@@ -23,7 +23,6 @@ import { NoiseWaves } from './NoiseWaves';
 import { MrtOverlay, MrtLineLegend, MRT_STATION_LAYER } from './MrtOverlay';
 import { useMrtNetwork } from './useMrtNetwork';
 import { VegetationOverlay } from './UnplayableOverlay';
-import { ISLAND_STATUS_ZOOM, NeighbourhoodWash } from './NeighbourhoodWash';
 import { Icon } from '../icons/Icon';
 import { pathFromProgress, pathUntil, pointAlongPath } from '../game/route';
 import { useAnimatedNumber, useThrottledNumber } from '../hooks/useAnimatedNumber';
@@ -37,7 +36,7 @@ import {
 } from '../ui/travelMotion';
 import { tip } from './tips';
 import { MapView } from '../map/MapView';
-import { RUN_BOX, SG_BOX } from '../map/mapStyle';
+import { RUN_BOX } from '../map/mapStyle';
 import { KeyboardCamera } from './KeyboardCamera';
 import { EdgeVignette } from './EdgeVignette';
 import { Beacons3d } from './Beacons3d';
@@ -46,12 +45,14 @@ import { useLayerEvent, useMapEvent, useMapGL } from '../map/hooks';
 import { MapMarker } from '../map/markers';
 import { createMarker } from '../map/markerDom';
 import { installOverlay, setData } from '../map/layers';
+import { PoiSources } from '../map/poiSources';
 import { EMPTY_FC, boxContains, circleFeature, dimHex, fc, lineFeature, padBox, toLngLatRing, type LatLngBox } from '../map/geo';
 import { BuildingEngine, LOD_ZOOM, type Site3d } from '../map/buildings';
 import { hdbScar, STOREY_M, type HdbDungeon } from '../game/hdbDungeon';
 import { blockFraming } from '../map/blockFraming';
 import { useT } from '../i18n';
-import { FOG_COLOUR, REACH_SHADE, VEIL_BANDS, bandOpacity, reachShade, veilBands } from '../map/fogGeometry';
+import { VEIL_BANDS, bandOpacity, veilBands } from '../map/fogGeometry';
+import { CameraFocusRequest, type CameraFocusTarget } from './cameraFocus';
 
 // White outline for buildings you can see but haven't identified — stands out
 // against the dark map like the "?" blips do.
@@ -302,6 +303,15 @@ function BlockView({
   } | null>(null);
   const bearingRef = useRef(0);
   const restoreRef = useRef(0);
+  const externalFocus = useRef(false);
+  useEffect(() => {
+    externalFocus.current = false;
+    const relinquish = (event: { cameraFocus?: boolean }) => {
+      if (event.cameraFocus) externalFocus.current = true;
+    };
+    map.on('movestart', relinquish);
+    return () => { map.off('movestart', relinquish); };
+  }, [map, siteId]);
   useEffect(() => {
     if (!on || !siteId) return;
     cancelAnimationFrame(restoreRef.current);
@@ -327,7 +337,7 @@ function BlockView({
     }
     backRef.current = back;
     return () => {
-      // A frame late, so CameraInset's padding ease on leaving can't cut it
+      // A frame late, so CameraChrome's padding ease on leaving can't cut it
       // short (its settle pass finishes the padding).
       restoreRef.current = requestAnimationFrame(() => {
         backRef.current = null;
@@ -347,7 +357,7 @@ function BlockView({
   // this controller owns padding inside a block; the general HUD inset is off.
   const roofM = roof ?? (realStoreys > 0 ? realStoreys * STOREY_M : STOREY_M * 12);
   const frameBuilding = useCallback(() => {
-    if (!on || !siteId || !backRef.current) return;
+    if (!on || !siteId || !backRef.current || externalFocus.current) return;
     const site = poisRef.current.find((p) => p.id === siteId);
     if (!site) return;
     const [top, left, right, bottom] = pad.split(':').map(Number);
@@ -463,20 +473,15 @@ function BlockView({
   );
 }
 
-/** Mounts the 3D building engine and feeds it the fog reveal. */
+/** Mounts the 3D building engine and feeds it the live travel range. */
 function Buildings3d({
-  exploredArea,
   home,
   radius,
-  reach,
   onEngine,
 }: {
-  exploredArea: ExploredCircle[];
   home: { lat: number; lng: number };
-  /** max travel range: buildings inside it stand */
+  /** current travel range: buildings inside it stand */
   radius: number;
-  /** current travel range: standing buildings past it are dimmed */
-  reach: number;
   onEngine: (engine: BuildingEngine | null) => void;
 }) {
   const map = useMapGL();
@@ -499,8 +504,8 @@ function Buildings3d({
   }, [engine, reduced]);
 
   useEffect(() => {
-    engine?.setReveal(exploredArea, { lat: home.lat, lng: home.lng, radius }, reach);
-  }, [engine, exploredArea, home.lat, home.lng, radius, reach]);
+    engine?.setReveal({ lat: home.lat, lng: home.lng, radius });
+  }, [engine, home.lat, home.lng, radius]);
 
   // Pointer over a site's building, like over a 2D outline.
   const over = useRef(false);
@@ -550,19 +555,16 @@ function useSightCenter(home: { lat: number; lng: number }, travelAnim: TravelAn
 }
 
 /**
- * The fog, the 3D buildings and the two range rings, all centred on where the
- * player can see from. `maxRange` (stable) opens the fog and stands the
- * buildings; `reach` (energy-driven) only draws the inner ring and dims what
- * lies past it.
+ * The fog, 3D buildings and planning ring share the current travel range,
+ * centred on the walking pin. Fog and building updates are throttled while
+ * the ring animates smoothly.
  */
 function SightLayers({
   home,
   travelAnim,
   exploredArea,
-  maxRange,
   reach,
   ringReach,
-  ringMax,
   view3d,
   onEngine,
 }: {
@@ -570,22 +572,20 @@ function SightLayers({
   travelAnim: TravelAnim | null;
   exploredArea: ExploredCircle[];
   /** throttled, for the fog and the buildings */
-  maxRange: number;
   reach: number;
-  /** per-frame tweens, for the ring lines */
+  /** per-frame tween, for the ring line */
   ringReach: number;
-  ringMax: number;
   view3d: boolean;
   onEngine: (engine: BuildingEngine | null) => void;
 }) {
   const sight = useSightCenter(home, travelAnim);
   return (
     <>
-      <FogOverlay exploredArea={exploredArea} currentRevealCenter={sight} currentRevealRadius={maxRange} />
-      {view3d && <Buildings3d exploredArea={exploredArea} home={sight} radius={maxRange} reach={reach} onEngine={onEngine} />}
+      <FogOverlay exploredArea={exploredArea} currentRevealCenter={sight} currentRevealRadius={reach} />
+      {view3d && <Buildings3d home={sight} radius={reach} onEngine={onEngine} />}
       {/* Never hit-tested: the fills cover everywhere you can walk, so a
           clickable ring would swallow every ground pick inside your range. */}
-      <RangeRing home={sight} travelRange={ringReach} maxRange={ringMax} />
+      <RangeRing home={sight} travelRange={ringReach} />
     </>
   );
 }
@@ -685,8 +685,8 @@ function PlayerMarker({
       if (!c.raf && !c.held) c.raf = requestAnimationFrame(frame);
     };
     // Only gestures carry `originalEvent`; our own jumpTo does not.
-    const onStart = (e: { originalEvent?: unknown }) => {
-      if (!e.originalEvent) return;
+    const onStart = (e: { originalEvent?: unknown; cameraFocus?: boolean }) => {
+      if (!e.originalEvent && !e.cameraFocus) return;
       c.held = true;
       c.target = null;
     };
@@ -865,10 +865,8 @@ interface Props {
   selectedId: string | null;
   /** id of the location the player is standing at (live data), if any */
   hereId: string | null;
-  /** inner ring: how far the survivor can comfortably travel right now */
+  /** how far the survivor can comfortably travel now; drives fog and building rise */
   travelRange: number;
-  /** outer ring: the rested, unhindered range. Drives fog and 3D building rise. */
-  maxTravelRange: number;
   /** how far out anonymous "?" blips are sensed */
   blipRange: number;
   /** after dark: edge of sight in metres, and how black it is past it (0 = day) */
@@ -915,104 +913,77 @@ interface Props {
   onPinMove?: (lat: number, lng: number) => void;
   /** Desktop HUD: px the map's own top-right buttons shift left (timeline / ticker). */
   chromeRight?: number;
-  /** Island view: the whole island in frame (the rail's island-front button). */
-  islandView?: boolean;
-  /** Island view ended by the map itself (zoomed back in by hand). */
-  onIslandViewExit?: () => void;
   /** The 3D / rail toggles on the map itself. Desktop moves them to the rail. */
   showModeToggles?: boolean;
   onSelect: (poi: Poi) => void;
   onPickGround: (lat: number, lng: number) => void;
 }
 
-/** External request to look at a lat/lng (stash logbook, etc.). */
-function FocusCamera({ target }: { target: { lat: number; lng: number; token: number } | null | undefined }) {
-  const map = useMapGL();
-  useEffect(() => {
-    if (!target) return;
-    map.easeTo({ center: [target.lng, target.lat], duration: 750 });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, target?.token, target?.lat, target?.lng]);
-  return null;
-}
-
-interface SavedCamera {
-  center: [number, number];
-  zoom: number;
-  pitch: number;
-  bearing: number;
-}
-
 /**
- * Island view: pull back until the whole island fits, so the island front
- * reads at once; leaving it flies back to the view you had. Zooming in past
- * the island overlay by hand also ends the mode.
- * Moves are `essential` so MapLibre follows the game's Reduce motion setting
- * rather than second-guessing it with the OS flag.
+ * One camera command owns both focus and HUD padding. Closing a panel changes
+ * both on the same render; separate eases would cancel the requested focus.
  */
-function IslandCamera({ on, onExit }: { on: boolean; onExit?: () => void }) {
+function CameraChrome({ target, inset, top, left, right, bottom }: {
+  target?: CameraFocusTarget | null;
+  inset: boolean;
+  top: number; left: number; right: number; bottom: number;
+}) {
   const map = useMapGL();
-  const reduced = useReducedMotion();
-  const saved = useRef<SavedCamera | null>(null);
-  const first = useRef(true);
-
+  const focus = useRef(new CameraFocusRequest());
   useEffect(() => {
-    const toggled = !first.current;
-    first.current = false;
-    if (!toggled) return;
-    const duration = reduced ? 0 : 1400;
-    if (on) {
-      const c = map.getCenter();
-      saved.current = { center: [c.lng, c.lat], zoom: map.getZoom(), pitch: map.getPitch(), bearing: map.getBearing() };
-      const cam = map.cameraForBounds(
-        [
-          [SG_BOX.west, SG_BOX.south],
-          [SG_BOX.east, SG_BOX.north],
-        ],
-        { padding: 24, bearing: map.getBearing(), pitch: map.getPitch() },
-      );
-      if (!cam) return;
-      map.flyTo({ ...cam, pitch: map.getPitch(), duration, curve: 1.2, essential: true });
-      return;
-    }
-    const back = saved.current;
-    saved.current = null;
-    if (!back) return;
-    // The 3D toggle may have changed while out at island level; keep the pitch it set.
-    map.flyTo({ center: back.center, zoom: back.zoom, bearing: back.bearing, pitch: map.getPitch(), duration, curve: 1.2, essential: true });
-  }, [map, on, reduced]);
-
-  const exitRef = useRef(onExit);
-  exitRef.current = onExit;
-  useMapEvent('zoomend', () => {
-    if (on && map.getZoom() >= ISLAND_STATUS_ZOOM) {
-      saved.current = null;
-      exitRef.current?.();
-    }
-  });
-  return null;
-}
-
-/**
- * Desktop HUD: keep the camera's centre in the part of the map the chrome
- * leaves open, so following the pin and focus pans land where you can see
- * them. A chase-camera jump can cut an ease short, so the padding is re-set
- * once the camera settles.
- */
-function CameraInset({ top, left, right, bottom }: { top: number; left: number; right: number; bottom: number }) {
-  const map = useMapGL();
-  useEffect(() => {
+    const request = focus.current;
+    request.update(target);
+    if (!inset && !request.pending) return;
     const padding = { top, left, right, bottom };
-    map.easeTo({ padding, duration: 400 });
+    let frame = 0;
+    let issuing = false;
+    const move = () => {
+      frame = 0;
+      const pending = request.pending;
+      if (!inset && !pending) return;
+      issuing = true;
+      if (pending) {
+        // An explicit map focus also releases the travel chase and block orbit.
+        // A frame delay lets those controllers attach their listeners on mount.
+        if (!inset) map.setCenterElevation(0);
+        map.easeTo({ center: [pending.lng, pending.lat], zoom: Math.max(map.getZoom(), 16), padding, duration: 750 }, { cameraFocus: true });
+      } else {
+        map.easeTo({ padding, duration: 400 });
+      }
+      issuing = false;
+    };
+    const schedule = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(move);
+    };
     const settle = () => {
+      if (issuing) return;
+      request.settle(map.getCenter(), map.getZoom());
+      if (request.pending) { schedule(); return; }
+      if (!inset) return;
       const p = map.getPadding();
       if (p.top !== top || p.left !== left || p.right !== right || p.bottom !== bottom) map.setPadding(padding);
     };
-    map.once('moveend', settle);
-    return () => {
-      map.off('moveend', settle);
+    const userMove = (event: { originalEvent?: unknown }) => {
+      if (!event.originalEvent) return;
+      request.cancel();
+      cancelAnimationFrame(frame);
     };
-  }, [map, top, left, right, bottom]);
+    const resized = () => { if (request.pending) schedule(); };
+    map.on('moveend', settle);
+    map.on('movestart', userMove);
+    map.on('resize', resized);
+    if (request.pending) schedule();
+    else move();
+    return () => {
+      cancelAnimationFrame(frame);
+      map.off('moveend', settle);
+      map.off('movestart', userMove);
+      map.off('resize', resized);
+    };
+    // Token is the request identity; layout changes restart only pending focus.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, target?.token, target?.lat, target?.lng, inset, top, left, right, bottom]);
   return null;
 }
 
@@ -1122,37 +1093,22 @@ function TravelPath({
 }
 
 /**
- * The planning rings. Outer, solid and faint: the max travel range, the edge
- * of what the map shows. Inner, dashed: how far you can push on this energy.
- * Ground past the inner ring is shaded, so the walkable disc reads brighter.
+ * The planning ring: how far you can push on this energy, also the live
+ * boundary of fog reveal and building rise.
  * Non-interactive: taps inside are ground picks.
  */
 const RangeRing = memo(function RangeRing({
   home,
   travelRange,
-  maxRange,
 }: {
   home: { lat: number; lng: number };
   travelRange: number;
-  maxRange: number;
 }) {
   const map = useMapGL();
   useEffect(
     () =>
-      installOverlay(map, 'ring', { 'reach-shade-src': 'geojson', 'range-max-src': 'geojson', 'range-src': 'geojson' }, [
-        {
-          id: 'reach-shade',
-          type: 'fill',
-          source: 'reach-shade-src',
-          paint: { 'fill-color': FOG_COLOUR, 'fill-opacity': REACH_SHADE, 'fill-antialias': false },
-        },
+      installOverlay(map, 'ring', { 'range-src': 'geojson' }, [
         { id: 'range-fill', type: 'fill', source: 'range-src', paint: { 'fill-color': '#e8e5dd', 'fill-opacity': 0.03 } },
-        {
-          id: 'range-max-line',
-          type: 'line',
-          source: 'range-max-src',
-          paint: { 'line-color': '#e8e5dd', 'line-width': 1, 'line-opacity': 0.34 },
-        },
         {
           id: 'range-line',
           type: 'line',
@@ -1165,11 +1121,7 @@ const RangeRing = memo(function RangeRing({
   useEffect(() => {
     const on = travelRange > 0;
     setData(map, 'range-src', on ? fc([circleFeature(home.lat, home.lng, travelRange, {}, 96)]) : EMPTY_FC);
-    setData(map, 'reach-shade-src', reachShade(home.lat, home.lng, travelRange));
   }, [map, home.lat, home.lng, travelRange]);
-  useEffect(() => {
-    setData(map, 'range-max-src', maxRange > 0 ? fc([circleFeature(home.lat, home.lng, maxRange, {}, 96)]) : EMPTY_FC);
-  }, [map, home.lat, home.lng, maxRange]);
   return null;
 });
 
@@ -1268,6 +1220,7 @@ function poiLooksSame(a: Poi, b: Poi): boolean {
       a.category === b.category &&
       a.outline === b.outline &&
       a.discovered === b.discovered &&
+      a.identified === b.identified &&
       a.exhausted === b.exhausted &&
       a.isFactionOutpost === b.isFactionOutpost &&
       a.factionId === b.factionId &&
@@ -1305,10 +1258,10 @@ function lookOf(
 ): PoiLook {
   // Sensed but unidentified: the building outline still shows (in neutral),
   // capped with a "?" badge. Locations without an outline are just the badge.
-  if (vis === 'detected') {
+  if (vis === 'detected' || vis === 'identified') {
     return {
       poi,
-      icon: unknownIcon(),
+      icon: vis === 'identified' ? identifiedIcon(poi.category) : unknownIcon(),
       opacity: selected ? 1 : 0.85,
       outline: {
         id: poi.id,
@@ -1431,24 +1384,24 @@ const PoiLayer = memo(
             id: POI_FILL_LAYER,
             type: 'fill',
             source: 'poi-src',
-            paint: { 'fill-color': ['get', 'fill'], 'fill-opacity': ['get', 'fop'] },
+            paint: { 'fill-color': ['feature-state', 'fill'], 'fill-opacity': ['feature-state', 'fop'] },
           },
           {
             id: 'poi-line',
             type: 'line',
             source: 'poi-src',
-            filter: ['!', ['get', 'dashed']],
-            paint: { 'line-color': ['get', 'line'], 'line-width': ['get', 'w'], 'line-opacity': ['get', 'lop'] },
+
+            paint: { 'line-color': ['feature-state', 'line'], 'line-width': ['feature-state', 'w'], 'line-opacity': ['case', ['boolean', ['feature-state', 'dashed'], false], 0, ['feature-state', 'lop']] },
           },
           {
             id: 'poi-line-dash',
             type: 'line',
             source: 'poi-src',
-            filter: ['get', 'dashed'],
+
             paint: {
-              'line-color': ['get', 'line'],
-              'line-width': ['get', 'w'],
-              'line-opacity': ['get', 'lop'],
+              'line-color': ['feature-state', 'line'],
+              'line-width': ['feature-state', 'w'],
+              'line-opacity': ['case', ['boolean', ['feature-state', 'dashed'], false], ['feature-state', 'lop'], 0],
               'line-dasharray': [2.7, 2],
             },
           },
@@ -1457,14 +1410,14 @@ const PoiLayer = memo(
             type: 'circle',
             source: 'poi-dots-src',
             maxzoom: POI_DETAIL_ZOOM,
-            filter: ['!', ['get', 'badge']],
+
             paint: {
               'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 3, POI_DETAIL_ZOOM, 6],
-              'circle-color': ['get', 'fill'],
-              'circle-opacity': ['get', 'opacity'],
-              'circle-stroke-color': ['get', 'line'],
+              'circle-color': ['feature-state', 'fill'],
+              'circle-opacity': ['case', ['boolean', ['feature-state', 'badge'], false], 0, ['feature-state', 'opacity']],
+              'circle-stroke-color': ['feature-state', 'line'],
               'circle-stroke-width': 1.5,
-              'circle-stroke-opacity': ['get', 'opacity'],
+              'circle-stroke-opacity': ['case', ['boolean', ['feature-state', 'badge'], false], 0, ['feature-state', 'opacity']],
             },
           },
         ]),
@@ -1472,31 +1425,20 @@ const PoiLayer = memo(
     );
 
     const byId = useRef(new Map<string, Poi>());
+    const sources = useRef(new PoiSources());
     useEffect(() => {
-      const features: Feature[] = [];
-      const dots: Feature[] = [];
-      byId.current = new Map();
-      for (const l of looks) {
-        byId.current.set(l.poi.id, l.poi);
-        // Share the same visibility/cap and remembered colours as full badges.
-        // Never put an undiscovered, out-of-sight site in this source.
-        dots.push({
-          type: 'Feature',
-          properties: {
-            id: l.poi.id,
-            fill: l.outline?.fill ?? l.color3d,
-            line: l.outline?.line ?? l.color3d,
-            opacity: l.opacity,
-            badge: l.poi.id === selectedId || l.poi.id === hereId || beaconKindOf(l.poi, evacZoneId) !== null,
-          },
-          geometry: { type: 'Point', coordinates: [l.poi.lng, l.poi.lat] },
-        });
-        const ring = l.poi.outline;
-        if (!l.outline || !ring || ring.length < 3) continue;
-        features.push({ type: 'Feature', properties: l.outline, geometry: { type: 'Polygon', coordinates: [toLngLatRing(ring)] } });
-      }
-      setData(map, 'poi-src', fc(features));
-      setData(map, 'poi-dots-src', fc(dots));
+      byId.current = new Map(looks.map((l) => [l.poi.id, l.poi]));
+      sources.current.update(map, looks.map((l) => ({
+        id: l.poi.id, lat: l.poi.lat, lng: l.poi.lng,
+        ring: l.outline ? l.poi.outline : undefined,
+        outline: l.outline,
+        dot: {
+          fill: l.outline?.fill ?? l.color3d,
+          line: l.outline?.line ?? l.color3d,
+          opacity: l.opacity,
+          badge: l.poi.id === selectedId || l.poi.id === hereId || beaconKindOf(l.poi, evacZoneId) !== null,
+        },
+      })));
     }, [map, looks, selectedId, hereId, evacZoneId]);
 
     // In 3D the buildings take over from the outlines once they stand: a site
@@ -1514,9 +1456,9 @@ const PoiLayer = memo(
       // The store hears roofs too: a block's real height sizes its cutaway.
       const publish = (r: ReadonlyMap<string, number>) => {
         setRoofs(r);
-        useGame.getState().setSiteRoofs(r);
+        useGame.getState().setSiteRoofs(engine.roofHeights());
       };
-      publish(engine.roofHeights());
+      publish(engine.roofHeights(true));
       engine.onRoofs = publish;
       return () => {
         engine.onRoofs = null;
@@ -1620,7 +1562,6 @@ function GameMapInner({
   selectedId,
   hereId,
   travelRange,
-  maxTravelRange,
   blipRange,
   veilRadiusM,
   veilAlpha,
@@ -1645,8 +1586,6 @@ function GameMapInner({
   onMap,
   onPinMove,
   chromeRight = 0,
-  islandView = false,
-  onIslandViewExit,
   showModeToggles = true,
   onSelect,
   onPickGround,
@@ -1654,11 +1593,7 @@ function GameMapInner({
   const { t } = useT();
   const evacPoi = evacZoneId ? pois.find((p) => p.id === evacZoneId) : null;
   // Tween lives here so GameScreen does not re-render at 60 fps after travel.
-  // The outer ring only moves when the build or gear changes; the inner one
-  // follows energy and can never pass it.
-  const ringMax = useAnimatedNumber(Math.max(maxTravelRange, travelRange), 600);
-  const ringRange = Math.min(useAnimatedNumber(travelRange, 600), ringMax);
-  const fogRevealRadius = useThrottledNumber(ringMax, 80);
+  const ringRange = useAnimatedNumber(travelRange, 600);
   const reachRadius = useThrottledNumber(ringRange, 80);
   const pathIdSet = useMemo(() => new Set(pathHazardIds), [pathHazardIds]);
   const view3d = useSetting('mapView3d') === 'on';
@@ -1719,9 +1654,7 @@ function GameMapInner({
         style={{ background: '#08080a' }}
       >
         <ZoomMemory />
-        <FocusCamera target={focusTarget} />
-        <IslandCamera on={islandView} onExit={onIslandViewExit} />
-        {!(view3d && inBlock) && <CameraInset top={padTop} left={padLeft} right={padRight} bottom={padBottom} />}
+        <CameraChrome target={focusTarget} inset={!(view3d && inBlock)} top={padTop} left={padLeft} right={padRight} bottom={padBottom} />
         {onMap && <MapHandle onMap={onMap} />}
         <Camera3d on={view3d} />
         {!(view3d && inBlock) && <KeyboardCamera home={home} />}
@@ -1736,14 +1669,11 @@ function GameMapInner({
           home={home}
           travelAnim={travelAnim}
           exploredArea={exploredArea}
-          maxRange={fogRevealRadius}
           reach={reachRadius}
           ringReach={ringRange}
-          ringMax={ringMax}
           view3d={view3d}
           onEngine={setEngine}
         />
-        <NeighbourhoodWash />
 
         {/* Drawn under the pins — ground, not a destination. */}
         <HazardRings hazards={hazards} pathIds={pathIdSet} />

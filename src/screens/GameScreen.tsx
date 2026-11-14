@@ -40,6 +40,7 @@ import { WeatherBadge } from '../components/WeatherBadge';
 import { SleepQualityIndicator } from '../components/SleepQualityIndicator';
 import { RestDialog } from '../components/RestDialog';
 import { ObjectiveBar } from '../components/ObjectiveBar';
+import { ActivityBadge } from '../components/ActivityBadge';
 import { ObjectivesPanel } from '../components/ObjectivesPanel';
 import { tip } from '../components/tips';
 import { DayLogsModal } from '../components/DayLogsModal';
@@ -79,7 +80,7 @@ import {
 } from '../game/inventory';
 import { haversine } from '../game/overpass';
 import { rollWeather, timeOfDay, weatherEncounterMod } from '../game/weather';
-import { awareness, blipMargin, maxTravelRange, travelableRange } from '../game/fog';
+import { awareness, blipMargin, travelableRange } from '../game/fog';
 import {
   equipAwarenessMod,
   equipLightPower,
@@ -90,11 +91,9 @@ import {
 import {
   EVAC_SCORE_BONUS,
   evacReadiness,
-  hordeIntensity,
-  hordeTier,
 } from '../game/goal';
 import { Rng } from '../game/rng';
-import { makePressureAt, nearestTown, townTierAt } from '../game/townField';
+import { activityPressure, BASE_ACTIVITY_PRESSURE } from '../game/activity';
 import {
   hazardsOnPath,
   hazardsAtPoint,
@@ -210,6 +209,8 @@ const HUD_GAP = 12;
 const HUD_EDGE = 16;
 /** Desktop survivor rail width, px (matches `lg:w-[408px]`). */
 const RAIL_W = 408;
+const SLIDE_OUT_W = 360;
+const INSPECTOR_W = 352;
 /** Bottom-anchored desktop HUD clears MapLibre's ~24px attribution bar, px. */
 const HUD_BOTTOM = 32;
 /** Extra breathing room between the expanded timeline and map attribution. */
@@ -229,7 +230,7 @@ const BLOCK_STRIP_MIN_W = 180;
 const HDB_STRIPS_W = 720;
 
 function timelineWidth(vw: number): number {
-  return Math.round(Math.max(320, Math.min(480, vw * 0.32)));
+  return Math.round(Math.max(320, Math.min(520, vw * 0.34)));
 }
 
 function useViewportWidth(): number {
@@ -296,12 +297,11 @@ export function GameScreen() {
     worldError,
     travelAnim,
     pendingEvent,
-    pendingSearch,
+    searchNonce,
     hdb,
     ghostOffer,
     noisePulses,
-    hordeLevel,
-    groundZeroId,
+    activity,
     evacZoneId,
     evacDeadline,
     evacCooldownUntil,
@@ -329,12 +329,11 @@ export function GameScreen() {
       worldError: s.worldError,
       travelAnim: s.travelAnim,
       pendingEvent: s.pendingEvent,
-      pendingSearch: s.pendingSearch,
+      searchNonce: s.pendingSearch?.nonce ?? null,
       hdb: s.hdb,
       ghostOffer: s.ghostOffer,
       noisePulses: s.noisePulses,
-      hordeLevel: s.hordeLevel,
-      groundZeroId: s.groundZeroId,
+      activity: s.activity,
       evacZoneId: s.evacZoneId,
       evacDeadline: s.evacDeadline,
       evacCooldownUntil: s.evacCooldownUntil,
@@ -371,7 +370,7 @@ export function GameScreen() {
   const [mobileView, setMobileView] = useState<MobileView>('map');
   const [sidePanel, setSidePanel] = useState<SidePanel | null>(null);
   const isPhone = useIsPhone();
-  // Craft takes the map's width; the others keep the 360px column. Remembering
+  // Craft can widen; the others keep the 360px column. Remembering
   // the last panel keeps that width stable through the 200 ms close, so the
   // workbench does not snap narrow while it is still sliding out.
   const lastSidePanel = useRef<SidePanel | null>(null);
@@ -406,9 +405,9 @@ export function GameScreen() {
 
   const sleepPreview = useMemo(
     () => peekRestPreview(),
-    // Recompute when site, clock, horde, or pack contents that affect sleep gear change.
+    // Recompute when site, clock, disturbance, or sleep gear changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- peek reads live store
-    [peekRestPreview, currentPositionId, hdb, items, hour, day, hordeLevel, currentPos.lat, currentPos.lng],
+    [peekRestPreview, currentPositionId, hdb, items, hour, day, activity, currentPos.lat, currentPos.lng],
   );
 
   const goToPhoneTab = useCallback((tab: PhoneTab) => {
@@ -469,8 +468,8 @@ export function GameScreen() {
       ? null
       : pendingEvent
         ? `event:${pendingEvent.locationId}`
-        : pendingSearch
-          ? `search:${pendingSearch.nonce}`
+        : searchNonce !== null
+          ? `search:${searchNonce}`
           : inCombat
             ? `combat:${awaitingStance ? 'contact' : 'fight'}`
             : null;
@@ -617,14 +616,6 @@ export function GameScreen() {
         : 400,
     [character, meters.energy, legFactor, weather, load],
   );
-  // Outer ring, fog and 3D building rise: the rested range of this build and
-  // gear. Energy, injuries, load and weather never move it.
-  const gearSpeed =
-    equipTravelSpeedFactor(equipment) * (1 + sumTraitMod(character?.traitIds ?? [], 'travelSpeedMod'));
-  const maxRange = useMemo(
-    () => (character ? maxTravelRange(character.attributes, gearSpeed) : 400),
-    [character, gearSpeed],
-  );
   // Fog + planning ring: hold setout range for the whole glide, then ease to
   // the post-trip range on arrival (energy already spent at departure).
   const mapRangeTarget = travelAnim ? travelAnim.departRange : travelRange;
@@ -653,11 +644,12 @@ export function GameScreen() {
   // Quantised so energy ticks don't rewrite the veil's style every hour.
   const nightVeilAlpha = Math.round(veilAlpha(time, sight) * 20) / 20;
 
-  // Hazards densify with local neighbourhood pressure — a Lost town is not a Stirring one.
-  const hazardPressure = hordeIntensity(hordeLevel);
+  // Fresh disturbances add bounded local pressure above a steady surface baseline.
+  const hazardPressure = BASE_ACTIVITY_PRESSURE;
+  const activityNow = (day - 1) * 24 + hour;
   const pressureAt = useMemo(
-    () => makePressureAt(seed, groundZeroId, hordeLevel),
-    [seed, groundZeroId, hordeLevel],
+    () => (lat: number, lng: number) => activityPressure(activity, lat, lng, activityNow),
+    [activity, activityNow],
   );
   const sensedHazards = useMemo(
     () =>
@@ -801,7 +793,7 @@ export function GameScreen() {
         trekTarget,
         {
           band: time,
-          hordeIntensity: hordeIntensity(hordeLevel),
+          hordeIntensity: hazardPressure,
           pressureAt,
           weatherEncounterMod: weatherEncounterMod(weather),
           wet: isWetWeather(weather),
@@ -825,7 +817,6 @@ export function GameScreen() {
     currentPos,
     spawn,
     time,
-    hordeLevel,
     weather,
     trekDist,
     blipRange,
@@ -866,7 +857,7 @@ export function GameScreen() {
         { lat: sel.lat, lng: sel.lng },
         {
           band: time,
-          hordeIntensity: hordeIntensity(hordeLevel),
+          hordeIntensity: hazardPressure,
           pressureAt,
           weatherEncounterMod: weatherEncounterMod(weather),
           wet: isWetWeather(weather),
@@ -893,7 +884,6 @@ export function GameScreen() {
     previewRoute,
     time,
     day,
-    hordeLevel,
     weather,
     routeEncounterMod,
     blipRange,
@@ -911,10 +901,28 @@ export function GameScreen() {
   const vw = useViewportWidth();
   const setSetting = useSettings((s) => s.setSetting);
   const timelinePinned = useSetting('timelinePinned') === 'on';
-  // Anything that wants an answer opens the timeline by itself.
+  const [activityFocus, setActivityFocus] = useState<{ id: string | null; nonce: number }>();
+  const openActivityTimeline = () => {
+    const state = useGame.getState();
+    const id = state.log.find((entry) => entry.activityEvent)?.activityEvent?.id ?? null;
+    setSidePanel(null);
+    if (isPhone) goToPhoneTab('log');
+    else setSetting('timelinePinned', 'on');
+    setActivityFocus((previous) => ({ id, nonce: (previous?.nonce ?? 0) + 1 }));
+  };
+  const tlW = hdb ? Math.round(Math.max(320, Math.min(520, vw * 0.27))) : timelineWidth(vw);
+  const mapW = vw - RAIL_W;
+  // Preserve the pin preference, but let idle history compact while a tool
+  // needs the space. Live decisions still take priority over browsing panels.
+  const timelineFits = isPhone || !sidePanel || mapW >= SLIDE_OUT_W + INSPECTOR_W + tlW + HUD_EDGE * 2 + HUD_GAP;
   const timelineFull =
-    timelinePinned || inCombat || awaitingStance || !!pendingEvent || !!pendingSearch;
-  const tlW = hdb ? Math.round(Math.max(320, Math.min(440, vw * 0.23))) : timelineWidth(vw);
+    (timelinePinned && timelineFits) || inCombat || awaitingStance || !!pendingEvent || searchNonce !== null;
+  const timelineBeside = timelineFull && timelineFits;
+  const timelineStacked = timelineFull && !timelineFits;
+  const slideOutW = wideSlideOut
+    ? Math.max(SLIDE_OUT_W, Math.min(640, mapW - INSPECTOR_W - HUD_EDGE * 2 - (timelineBeside ? tlW + HUD_GAP : 0)))
+    : SLIDE_OUT_W;
+  const panelInset = !isPhone && sidePanel ? slideOutW : 0;
 
   const activateRail = useCallback(
     (id: RailKey) => {
@@ -998,9 +1006,6 @@ export function GameScreen() {
 
   const view3d = useSetting('mapView3d') === 'on';
   const showRail = useSetting('railOverlay') === 'on';
-  const [islandView, setIslandView] = useState(false);
-  // The map unmounts under a block, tunnel or planner; the island view ends with it.
-  if (islandView && (tunnel || hdb || mrtPlanner)) setIslandView(false);
   if (!spawn) return null;
 
   const selHere = sel ? sel.id === currentPositionId : false;
@@ -1074,7 +1079,7 @@ export function GameScreen() {
     onEnterBlock: hdbEnter,
   };
 
-  // extraction goal + doom clock + dual-path score
+  // Optional extraction goal + dual-path score.
   const evacZone = evacZoneId ? locations[evacZoneId] : null;
   const atEvac = !!evacZoneId && currentPositionId === evacZoneId;
   const readiness = evacReadiness(
@@ -1090,8 +1095,6 @@ export function GameScreen() {
   const evacDist = evacZone
     ? Math.round(haversine(currentPos.lat, currentPos.lng, evacZone.lat, evacZone.lng))
     : 0;
-  const doom = hordeLevel;
-  const doomColor = doom >= 75 ? '#d92d2d' : doom >= 50 ? '#d9683d' : '#e8e5dd';
 
   // evac window countdown (in-game hours remaining)
   const nowHours = (day - 1) * 24 + hour;
@@ -1102,13 +1105,6 @@ export function GameScreen() {
     const hr = Math.ceil(h % 24);
     return d > 0 ? t('ui.game.windowDh', { d, h: hr }) : t('ui.game.windowH', { h: hr });
   };
-  const doomLabel = t(`ui.horde.${hordeTier(doom)}`);
-  const hereTown = groundZeroId
-    ? nearestTown(currentPos.lat, currentPos.lng)
-    : null;
-  const hereTownTier = groundZeroId
-    ? townTierAt(seed, groundZeroId, hordeLevel, currentPos.lat, currentPos.lng)
-    : null;
   const evacUrgent = evacHoursLeft != null && evacHoursLeft <= 8;
   const windowText = evacHoursLeft != null ? fmtWindow(evacHoursLeft) : null;
   const evacCooldownHours =
@@ -1190,7 +1186,7 @@ export function GameScreen() {
         lat={currentPos.lat}
         lng={currentPos.lng}
         spawn={spawn ?? undefined}
-        pressure={hazardPressure}
+        pressure={pressureAt(currentPos.lat, currentPos.lng)}
         band={time}
         day={day}
       />
@@ -1208,9 +1204,9 @@ export function GameScreen() {
   const hdbInset = (() => {
     let top = HUD_EDGE;
     const bottom = (pairH > 0 ? pairH + HUD_GAP : 0) + HUD_BOTTOM;
-    const left = HUD_EDGE;
-    let right = HUD_EDGE + (timelineFull ? tlW : TICKER_W) + HUD_GAP;
-    if (vw - RAIL_W - left - right < HDB_MIN_W && !timelineFull) {
+    const left = HUD_EDGE + panelInset;
+    let right = HUD_EDGE + (timelineBeside ? tlW : TICKER_W) + HUD_GAP;
+    if (vw - RAIL_W - left - right < HDB_MIN_W && !timelineBeside) {
       // The ticker now floats over the strips' column: start the dock below
       // its header button so Leave is never under it.
       right = HUD_EDGE;
@@ -1225,7 +1221,6 @@ export function GameScreen() {
    * lit). The strips grow with the viewport; the tower takes what is left. Only
    * when that is worth having; otherwise the strips take the view.
    */
-  const mapW = vw - RAIL_W;
   const blockStripW = (() => {
     if (isPhone || !view3d) return 0;
     const avail = mapW - hdbInset.left - hdbInset.right;
@@ -1271,12 +1266,12 @@ export function GameScreen() {
   const contactGate = awaitingStance;
   const phoneFight = isPhone && inCombat && !contactGate;
   const phoneOwnsLive =
-    isPhone && (inCombat || !!pendingEvent || !!pendingSearch);
+    isPhone && (inCombat || !!pendingEvent || searchNonce !== null);
   const phoneInterruptKind: 'contact' | 'event' | 'search' | null = contactGate
     ? 'contact'
     : pendingEvent
       ? 'event'
-      : pendingSearch
+      : searchNonce !== null
         ? 'search'
         : null;
   /** Idle here/log chrome only while Map tab is showing the world surface. */
@@ -1300,7 +1295,7 @@ export function GameScreen() {
   const inspectingTarget = !!targetSlot && inspectorHereAt !== targetKey;
   const targetName = trekTarget
     ? t('ui.game.openGround')
-    : sel?.discovered ? sel.name : t('ui.location.unknownLocation');
+    : sel && (sel.discovered || sel.identified) ? sel.name : t('ui.location.unknownLocation');
   const hereName = here
     ? here.discovered ? here.name : t('ui.location.unknownLocation')
     : t('ui.game.inTheOpen');
@@ -1358,12 +1353,18 @@ export function GameScreen() {
                 ? 'ring-1 ring-inset ring-hiss/50'
                 : ''
           }`}
-          style={{ right: HUD_EDGE, top: HUD_EDGE, bottom: TIMELINE_BOTTOM, width: tlW }}
+          style={{
+            right: HUD_EDGE,
+            top: HUD_EDGE,
+            bottom: timelineStacked ? 'calc(50% + 16px)' : TIMELINE_BOTTOM,
+            width: timelineStacked ? Math.min(tlW, mapW - panelInset - HUD_EDGE * 2) : tlW,
+          }}
         >
           {inCombat && !contactGate ? (
             <CombatPanel onOpenGuide={setGuideTopic} />
           ) : (
             <LogPanel
+              activityFocus={activityFocus}
               onOpenSettings={() => setSettingsOpen(true)}
               onOpenDayLogs={() => setDayLogsOpen(true)}
               onFocusMap={focusStashOnMap}
@@ -1377,10 +1378,13 @@ export function GameScreen() {
       ) : (
         <div
           className="pointer-events-none absolute z-[740]"
-          style={{ right: HUD_EDGE, top: HUD_EDGE, width: TICKER_W }}
+          style={{ right: HUD_EDGE, top: HUD_EDGE, width: Math.min(TICKER_W, mapW - panelInset - HUD_EDGE * 2) }}
         >
           <LogTicker
-            onExpand={() => setSetting('timelinePinned', 'on')}
+            onExpand={() => {
+              if (!timelineFits) setSidePanel(null);
+              setSetting('timelinePinned', 'on');
+            }}
             onFocusMap={focusStashOnMap}
           />
         </div>
@@ -1401,11 +1405,11 @@ export function GameScreen() {
     <InventoryInteractionProvider>
     {/* data-combat-shake-root: CombatFx shakes this on desktop hits. */}
     <div className={shellClass} data-combat-shake-root="">
-      <PhoneStatusBar onOpenStatus={() => goToPhoneTab('hub')} />
+      <PhoneStatusBar onOpenStatus={() => goToPhoneTab('hub')} weather={weather} onOpenActivity={openActivityTimeline} />
 
       {/* Click map / timeline to dismiss any slide-out. Phone: leave the status
           bar and bottom nav clear so vitals stay readable and tabs stay usable. */}
-      {sidePanel && (
+      {isPhone && sidePanel && (
         <div
           className="absolute inset-x-0 z-[690] max-lg:bottom-[calc(var(--mobile-nav-h)+env(safe-area-inset-bottom,0px))] max-lg:top-[var(--mobile-status-bar-h)] lg:inset-0"
           aria-hidden
@@ -1421,6 +1425,7 @@ export function GameScreen() {
            behind it — opaque, so nothing shows through mid-slide. On mobile the
            slide-out covers the whole screen, so the rail stays below it. */}
       <aside
+        data-inventory-zone
         className={`relative flex-col border-white/10 bg-concrete-900/70 lg:z-[750] lg:flex lg:h-full lg:w-[408px] lg:shrink-0 lg:border-r lg:bg-concrete-900 ${
           mobileView === 'hub' ? show(true) : 'hidden'
         } lg:flex ${backgrounded}`}
@@ -1429,7 +1434,10 @@ export function GameScreen() {
         <div className="relative z-20 shrink-0 space-y-2 border-b border-white/10 p-2.5">
           <DigitalClock day={day} hour={hour} band={time} />
           <div className="flex items-center justify-between gap-2">
-            <WeatherBadge weather={weather} />
+            <div className="flex items-center gap-2">
+              <WeatherBadge weather={weather} />
+              <ActivityBadge onOpenTimeline={openActivityTimeline} />
+            </div>
             <div className="flex shrink-0 items-center gap-2">
               <SleepQualityIndicator preview={sleepPreview} />
               <button
@@ -1454,12 +1462,6 @@ export function GameScreen() {
               windowText={windowText}
               evacCooldownHours={evacCooldownHours}
               urgent={evacUrgent}
-              doom={doom}
-              doomColor={doomColor}
-              doomLabel={doomLabel}
-              showDoom={isPhone}
-              townName={hereTown?.name ?? null}
-              townTier={hereTownTier}
               dayMult={dayMult}
               vibe={readiness.vibe}
               vibeLine={readiness.vibeLine}
@@ -1528,57 +1530,31 @@ export function GameScreen() {
           </div>
         </div>
 
-        {/* Desktop: how the map is drawn, at the foot of the rail. The island
-            front pulls the camera back over the whole island. */}
+        {/* Desktop map controls; phone keeps these on its map surface. */}
         {!isPhone && (
-          <div className="flex shrink-0 gap-1.5 border-t border-white/10 p-2.5">
-            <button
-              onClick={() => setIslandView((v) => !v)}
-              aria-pressed={islandView}
-              disabled={!!(tunnel || hdb || mrtPlanner)}
-              className={`flex min-w-0 flex-1 items-center gap-2 rounded border px-2 py-1.5 text-left transition-colors disabled:opacity-40 ${
-                islandView ? 'border-signal bg-signal/15' : 'border-white/15 hover:bg-white/5 disabled:hover:bg-transparent'
-              }`}
-              {...tip(t(islandView ? 'ui.hud.islandBackTip' : 'ui.hud.islandTip'), { label: true })}
-            >
-              <Icon name="action.map" />
-              <span className="flex min-w-0 flex-1 flex-col gap-1">
-                <span className="flex items-baseline justify-between gap-2 text-body">
-                  <span className={`truncate ${islandView ? 'text-signal' : 'text-white/70'}`}>
-                    {t('ui.town.legendTitle')}
-                  </span>
-                  <span className="shrink-0 tabular-nums" style={{ color: doomColor }}>
-                    {doomLabel} · {Math.round(doom)}%
-                  </span>
-                </span>
-                <span className="block h-1 overflow-hidden rounded bg-black/50">
-                  <span
-                    className="block h-full transition-[width] duration-500"
-                    style={{ width: `${Math.min(100, doom)}%`, background: doomColor }}
-                  />
-                </span>
-              </span>
-            </button>
-            <button
-              onClick={() => setSetting('mapView3d', view3d ? 'off' : 'on')}
-              aria-pressed={view3d}
-              className={`rounded border px-2.5 text-body transition-colors ${
-                view3d ? 'border-signal bg-signal/15 text-signal' : 'border-white/15 text-white/70 hover:bg-white/5'
-              }`}
-              {...tip(t('ui.hud.view3dTip'), { label: true })}
-            >
-              3D
-            </button>
-            <button
-              onClick={() => setSetting('railOverlay', showRail ? 'off' : 'on')}
-              aria-pressed={showRail}
-              className={`flex items-center gap-1.5 rounded border px-2.5 text-body transition-colors ${
-                showRail ? 'border-signal bg-signal/15 text-signal' : 'border-white/15 text-white/70 hover:bg-white/5'
-              }`}
-              {...tip(t('ui.hud.railTip'), { label: true })}
-            >
-              <Icon name="action.mrt" /> {t('ui.hud.railMap')}
-            </button>
+          <div className="shrink-0 border-t border-white/10 p-2.5">
+            <div className="mt-1.5 flex justify-end gap-1.5">
+              <button
+                onClick={() => setSetting('mapView3d', view3d ? 'off' : 'on')}
+                aria-pressed={view3d}
+                className={`rounded border px-2.5 text-body transition-colors ${
+                  view3d ? 'border-signal bg-signal/15 text-signal' : 'border-white/15 text-white/70 hover:bg-white/5'
+                }`}
+                {...tip(t('ui.hud.view3dTip'), { label: true })}
+              >
+                3D
+              </button>
+              <button
+                onClick={() => setSetting('railOverlay', showRail ? 'off' : 'on')}
+                aria-pressed={showRail}
+                className={`flex items-center gap-1.5 rounded border px-2.5 text-body transition-colors ${
+                  showRail ? 'border-signal bg-signal/15 text-signal' : 'border-white/15 text-white/70 hover:bg-white/5'
+                }`}
+                {...tip(t('ui.hud.railTip'), { label: true })}
+              >
+                <Icon name="action.mrt" /> {t('ui.hud.railMap')}
+              </button>
+            </div>
           </div>
         )}
 
@@ -1593,29 +1569,19 @@ export function GameScreen() {
            reflows when you check your pack.
            Phone: sits between the status bar and bottom nav so meters stay
            visible while you eat/drink from inventory. */}
-      {/* Craft is the one panel with a grid to lay out, so on desktop it spans
-          the whole map instead of the 360px column — pinned to the timeline's
-          edge, never narrower than the column it replaces (at 1024px the map
-          strip is thinner than 360px, so the min-width is what wins there).
+      {/* Craft widens only into spare space, leaving the location actions visible.
           Closed, it parks its own width plus the 408px rail off the left edge,
           so it slides out from behind the rail instead of fading in on top. */}
       <div
-        className={`absolute left-0 z-[700] w-full transition-[transform,width,right] duration-200 ease-out max-lg:bottom-[calc(var(--mobile-nav-h)+env(safe-area-inset-bottom,0px))] max-lg:top-[var(--mobile-status-bar-h)] lg:inset-y-0 lg:left-[408px] ${
-          wideSlideOut ? 'lg:w-auto lg:min-w-[360px]' : 'lg:w-[360px]'
-        } ${
+        data-side-panel={sidePanel ?? undefined}
+        className={`absolute left-0 z-[700] w-full transition-[transform,width] duration-200 ease-out max-lg:bottom-[calc(var(--mobile-nav-h)+env(safe-area-inset-bottom,0px))] max-lg:top-[var(--mobile-status-bar-h)] lg:inset-y-0 lg:left-[408px] ${
           sidePanel
             ? 'translate-x-0'
             : 'pointer-events-none -translate-x-full lg:-translate-x-[calc(100%+408px)]'
         } ${backgrounded}`}
-        // Wide craft runs to the timeline (or the ticker, so its close button
-        // never ends up under it).
-        style={
-          !isPhone && wideSlideOut
-            ? { right: HUD_EDGE + (timelineFull ? tlW : TICKER_W) + HUD_GAP }
-            : undefined
-        }
+        style={!isPhone ? { width: slideOutW } : undefined}
       >
-        <div className="flex h-full flex-col border-r border-white/15 bg-concrete-900 shadow-signage">
+        <div data-inventory-zone className="flex h-full flex-col border-r border-white/15 bg-concrete-900 shadow-signage">
           <div className="flex shrink-0 items-center justify-between border-b border-white/10 p-3">
             <h3 className="text-read font-bold text-signal">
               {sidePanel && (
@@ -1656,11 +1622,6 @@ export function GameScreen() {
                 projectedEvacBonus={projectedEvacBonus}
                 windowText={windowText}
                 urgent={evacUrgent}
-                doom={doom}
-                doomColor={doomColor}
-                doomLabel={doomLabel}
-                townName={hereTown?.name ?? null}
-                townTier={hereTownTier}
                 onEvac={callEvac}
                 onOpenGuide={setGuideTopic}
                 intelNoteCount={intelNoteCount}
@@ -1683,6 +1644,11 @@ export function GameScreen() {
         } lg:flex ${phoneFight ? '' : backgrounded}`}
         inert={deskGate}
       >
+        {/* Keep desktop dismissal inside the map's stacking context, below
+            the location actions. A shell-wide backdrop would block the card. */}
+        {!isPhone && sidePanel && (
+          <div className="absolute inset-0 z-[690]" aria-hidden onClick={() => setSidePanel(null)} />
+        )}
         {/* Phone active fight: CombatPanel owns the Map tab (no map peek). */}
         {phoneFight && (
           <div className="flex h-full min-h-0 flex-1 flex-col p-2 lg:hidden">
@@ -1718,7 +1684,6 @@ export function GameScreen() {
                 selectedId={sel?.id ?? null}
                 hereId={currentPositionId}
                 travelRange={mapRangeTarget}
-                maxTravelRange={maxRange}
                 blipRange={blipRange}
                 veilRadiusM={blipRange}
                 veilAlpha={nightVeilAlpha}
@@ -1741,20 +1706,18 @@ export function GameScreen() {
                 padRight={
                   hdbOverMap
                     ? Math.max(0, mapW - hdbInset.left - blockStripW)
-                    : isPhone || !timelineFull
+                    : isPhone || !timelineBeside
                       ? 0
                       : tlW + HUD_EDGE
                 }
-                padLeft={hdbOverMap ? hdbInset.left : 0}
+                padLeft={hdbOverMap ? hdbInset.left : panelInset}
                 padBottom={hdbOverMap ? HUD_BOTTOM : isPhone ? 0 : pairH > 0 ? pairH + HUD_BOTTOM : HUD_BOTTOM}
                 padTop={hdbOverMap ? hdbInset.top + 56 : 0}
                 onMap={setRunMap}
                 onPinMove={onPinMove}
                 chromeRight={
-                  isPhone ? 0 : HUD_EDGE + (timelineFull ? tlW : TICKER_W) + HUD_GAP / 2
+                  isPhone ? 0 : HUD_EDGE + (timelineBeside ? tlW : Math.min(TICKER_W, mapW - panelInset - HUD_EDGE * 2)) + HUD_GAP / 2
                 }
-                islandView={islandView}
-                onIslandViewExit={() => setIslandView(false)}
                 showModeToggles={isPhone}
                 onSelect={selectPoi}
                 onPickGround={pickGround}
@@ -1778,19 +1741,19 @@ export function GameScreen() {
                   kickRef={calloutKick}
                   inset={{
                     top: HUD_EDGE,
-                    left: HUD_EDGE,
-                    right: HUD_EDGE + (timelineFull ? tlW + HUD_GAP : 0),
+                    left: HUD_EDGE + panelInset,
+                    right: HUD_EDGE + (timelineBeside ? tlW + HUD_GAP : 0),
                     bottom: HUD_BOTTOM,
                   }}
                 />
               )}
               {edgeInspector && (hereSlot || targetSlot) && (
                 <div
-                  className="pointer-events-none absolute z-[600] w-[22rem] max-w-[calc(100%-2rem)]"
+                  className="pointer-events-none absolute z-[705] w-[22rem] max-w-[calc(100%-2rem)] transition-[left,max-width] duration-200 motion-reduce:transition-none"
                   style={{
-                    left: HUD_EDGE,
+                    left: HUD_EDGE + panelInset,
                     bottom: HUD_BOTTOM,
-                    maxWidth: mapW - HUD_EDGE * 2 - (timelineFull ? tlW + HUD_GAP : 0),
+                    maxWidth: mapW - panelInset - HUD_EDGE * 2 - (timelineBeside ? tlW + HUD_GAP : 0),
                   }}
                   data-location-inspector
                 >
@@ -1799,7 +1762,7 @@ export function GameScreen() {
                     onClose={inspectingTarget ? targetSlot!.onClose : undefined}
                     collapsed={hereCollapsed && !inspectingTarget}
                     onToggleCollapse={!inspectingTarget ? () => setHereCollapsed((c) => !c) : undefined}
-                    className="!max-h-[min(60vh,520px)]"
+                    className={timelineStacked ? '!max-h-[calc(50vh-3rem)]' : '!max-h-[min(60vh,520px)]'}
                   >
                     {targetSlot && hereSlot && (
                       <button
@@ -1846,11 +1809,11 @@ export function GameScreen() {
               the card used to float over the crawl's walk button. */}
           {!isPhone && !edgeInspector && !tunnel && (hereSlot || (desktopTarget && targetSlot)) && (
             <div
-              className="pointer-events-none absolute z-[600] flex items-end justify-center gap-2"
+              className="pointer-events-none absolute z-[705] flex items-end justify-center gap-2 transition-[left,right] duration-200 motion-reduce:transition-none"
               style={{
                 // Inside a block the card sits under the building, not the map.
-                left: hdb ? hdbPanelInset.left : HUD_EDGE,
-                right: hdb ? hdbPanelInset.right : HUD_EDGE + (timelineFull ? tlW + HUD_GAP : 0),
+                left: hdb ? hdbPanelInset.left : HUD_EDGE + panelInset,
+                right: hdb ? hdbPanelInset.right : HUD_EDGE + (timelineBeside ? tlW + HUD_GAP : 0),
                 bottom: HUD_BOTTOM,
               }}
             >
@@ -1914,6 +1877,7 @@ export function GameScreen() {
           ) : (
             <div className="flex min-h-0 flex-1 flex-col">
               <LogPanel
+                activityFocus={activityFocus}
                 onOpenSettings={() => setSettingsOpen(true)}
                 onOpenDayLogs={() => setDayLogsOpen(true)}
                 onFocusMap={focusStashOnMap}
@@ -2016,7 +1980,7 @@ export function GameScreen() {
           active={phoneOnMap}
           onClick={() => goToPhoneTab('map')}
           pulse={
-            !!(pendingEvent || pendingSearch || inCombat) &&
+            !!(pendingEvent || searchNonce !== null || inCombat) &&
             !phoneOnMap &&
             !hdb &&
             !tunnel

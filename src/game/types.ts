@@ -479,6 +479,10 @@ export type PoiCategory =
   | 'fuel'
   | 'police'
   | 'residential'
+  | 'housing'
+  | 'eatery'
+  | 'community'
+  | 'park'
   | 'foodcourt'
   | 'mrt'
   | 'industrial'
@@ -586,6 +590,16 @@ export interface LocationState {
   searchesSinceAmbush?: number;
 
   // fog of war
+  /** Name/category learned from nearby recognition or a local clue; no live conditions. */
+  identified?: boolean;
+  /** Physically visited since local exploration was introduced (intel is not a visit). */
+  visited?: boolean;
+  /** One-time local facility discovery; never replenish by revisiting. */
+  localFacilityChecked?: boolean;
+  /** First completed street search has already checked for a clue. */
+  searchClueChecked?: boolean;
+  /** Fixed locality map / residents' noticeboard has been read. */
+  localMapRead?: boolean;
   discovered: boolean; // ever seen — kept as memory even when out of sight
   lastSeen: LocationMemory | null; // frozen state from the last time it was in sight
 
@@ -864,6 +878,11 @@ export type LogScope =
 
 /** One line of the run's timeline, stamped with the in-game moment it happened. */
 export interface GameLogEntry {
+  /** Snapshot kept after the live opportunity expires or is replaced. */
+  activityEvent?: import('./activity').ActivityEvent & {
+    resolution?: 'responded' | 'dismissed';
+    outcome?: string;
+  };
   id: number;
   text: string;
   tone: 'info' | 'good' | 'bad';

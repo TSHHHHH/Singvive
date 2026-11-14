@@ -1,135 +1,143 @@
 import { haversine, type RawPoi } from './overpass';
 import { withLandmarks } from './landmarks';
+import revision from './data/poiRevision.json';
+import { readPoiAsset } from './poiAssetCache';
 
-/**
- * Loads the pre-baked Singapore POI set (public/pois.json, produced by
- * `npm run bake:pois`) and filters it to a spawn radius.
- *
- * The full island file is parsed once per page (~3.8 MB). Do not add another
- * 30 km scan of every POI — that is the spawn hitch. Evac pick uses
- * `bakedEvacPois()` (category / baked id subset). Prefetch on the spawn screen
- * so Begin is not parse + Prim on the same turn.
- *
- * Overpass stays as the fallback so a missing or stale bake degrades rather
- * than breaks.
- */
-
-interface BakedFile {
-  generated: string;
-  pois: RawPoi[];
-  /** osmIds of mrt/school/police sites with a usable name. Optional on older bakes. */
-  evacIds?: string[];
-}
-
-/** Categories `pickDistantEvacPoi` prefers — used when the bake has no `evacIds`. */
-const EVAC_CATEGORIES = new Set(['mrt', 'school', 'police']);
-
-// Module-level cache: the file is fetched at most once per page load, and
-// concurrent callers share the same in-flight promise.
+interface IndexedPoi extends RawPoi { outlineCell?: string }
+interface BakedIndex { revision: string; pois: IndexedPoi[]; cells: string[]; evacIds: string[] }
+interface OutlineChunk { revision: string; outlines: Record<string, [number, number][]> }
 let pending: Promise<RawPoi[]> | null = null;
 let cached: RawPoi[] | null = null;
-let cachedEvacIds: string[] | null = null;
+let evacPois: RawPoi[] = [];
 let osmIdSet: Set<string> | null = null;
 let outlineById: Map<string, [number, number][]> | null = null;
+const cellById = new Map<string, string>();
+const idsByCell = new Map<string, string[]>();
+const poiById = new Map<string, RawPoi>();
+const chunkLoads = new Map<string, Promise<void>>();
+let cells: string[] = [];
+let background: Promise<void> | null = null;
+let backgroundScheduled = false;
 
-function indexBake(pois: RawPoi[], evacIds?: string[]): RawPoi[] {
-  cached = pois;
-  cachedEvacIds = evacIds ?? null;
-  osmIdSet = new Set(pois.map((p) => p.osmId));
-  outlineById = new Map();
-  for (const p of pois) {
-    if (p.outline && p.outline.length >= 3) outlineById.set(p.osmId, p.outline);
-  }
-  return pois;
+function validIndex(value: unknown): value is BakedIndex {
+  const d = value as Partial<BakedIndex> | null;
+  if (!d || d.revision !== revision || !Array.isArray(d.pois) || !d.pois.length
+    || !Array.isArray(d.cells) || !d.cells.every((c) => typeof c === 'string' && /^\d+_\d+$/.test(c))
+    || !Array.isArray(d.evacIds)) return false;
+  const validCells = new Set(d.cells);
+  return d.pois.every((p) => !!p && typeof p.osmId === 'string' && typeof p.name === 'string'
+    && typeof p.category === 'string' && Number.isFinite(p.lat) && Number.isFinite(p.lng)
+    && (!p.outlineCell || validCells.has(p.outlineCell)));
 }
 
 async function loadAll(): Promise<RawPoi[]> {
-  if (cached) return cached;
-  const res = await fetch(`${import.meta.env.BASE_URL}pois.json`);
-  if (!res.ok) throw new Error(`pois.json ${res.status}`);
-  const data = (await res.json()) as BakedFile;
-  if (!Array.isArray(data.pois) || data.pois.length === 0) {
-    throw new Error('pois.json empty or malformed');
+  const data = await readPoiAsset('index', validIndex);
+  // Curated identities/geometry win; only the metadata is needed for island-wide evac selection.
+  cached = withLandmarks(data.pois);
+  cells = data.cells;
+  osmIdSet = new Set(cached.map((p) => p.osmId));
+  outlineById = new Map();
+  for (const p of cached) {
+    poiById.set(p.osmId, p);
+    if (p.outline) outlineById.set(p.osmId, p.outline);
   }
-  return indexBake(withLandmarks(data.pois), data.evacIds);
+  for (const p of data.pois) if (p.outlineCell && !outlineById.has(p.osmId)) {
+    cellById.set(p.osmId, p.outlineCell);
+    const ids = idsByCell.get(p.outlineCell) ?? [];
+    ids.push(p.osmId);
+    idsByCell.set(p.outlineCell, ids);
+  }
+  const want = new Set(data.evacIds);
+  evacPois = cached.filter((p) => want.has(p.osmId));
+  return cached;
 }
 
 function ensurePending(): Promise<RawPoi[]> {
-  if (!pending) {
-    pending = loadAll().catch((err: unknown) => {
-      pending = null;
-      cached = null;
-      cachedEvacIds = null;
-      osmIdSet = null;
-      outlineById = null;
-      throw err;
-    });
-  }
+  pending ??= loadAll().catch((error: unknown) => { pending = null; throw error; });
   return pending;
 }
 
-/** True once the baked set is in memory — a later call resolves instantly. */
-export function isBakeLoaded(): boolean {
-  return cached !== null;
+function loadCell(cell: string): Promise<void> {
+  const existing = chunkLoads.get(cell);
+  if (existing) return existing;
+  const expected = idsByCell.get(cell) ?? [];
+  const load = readPoiAsset<OutlineChunk>(cell, (value): value is OutlineChunk => {
+    const d = value as Partial<OutlineChunk> | null;
+    return !!d && d.revision === revision && !!d.outlines && expected.every((id) => {
+      const ring = d.outlines![id];
+      return Array.isArray(ring) && ring.length >= 3
+        && ring.every((p) => Array.isArray(p) && p.length === 2 && p.every(Number.isFinite));
+    });
+  }).then((data) => {
+    for (const id of expected) {
+      const ring = data.outlines[id];
+      outlineById!.set(id, ring);
+      // Raw bake objects are private to this cache. LocationStates are built separately.
+      poiById.get(id)!.outline = ring;
+    }
+  }).catch((error: unknown) => { chunkLoads.delete(cell); throw error; });
+  chunkLoads.set(cell, load);
+  return load;
 }
 
-/** Start the island parse without waiting. Safe to call from SpawnSelect. */
-export function prefetchBake(): void {
-  void ensurePending().catch(() => {
-    /* spawn/setSpawn still tries and falls back */
-  });
+/** Load exact geometry before world sizing or save rehydration. Concurrent requests share work. */
+export async function ensurePoiOutlines(ids: readonly string[]): Promise<void> {
+  await ensurePending();
+  const wanted = new Set(ids.map((id) => cellById.get(id)).filter((c): c is string => !!c));
+  // Finish successful cells even when another fails, so resume can rehydrate partial coverage.
+  const results = await Promise.allSettled([...wanted].map(loadCell));
+  const failed = results.find((result) => result.status === 'rejected');
+  if (failed?.status === 'rejected') throw failed.reason;
 }
 
-export function ensureBakeLoaded(): Promise<RawPoi[]> {
-  return ensurePending();
+/** Fill the versioned offline cache after nearby geometry; two requests at a time. Retryable. */
+export async function cacheAllPoiAssets(): Promise<void> {
+  await ensurePending();
+  if (background) return background;
+  const queue = [...cells];
+  let failed = false;
+  const worker = async () => {
+    while (queue.length) {
+      const cell = queue.shift()!;
+      try { await loadCell(cell); } catch { failed = true; }
+    }
+  };
+  background = Promise.all([worker(), worker()]).then(() => {
+    if (failed) throw new Error('Some POI geometry is unavailable; retry caching when online');
+  }).finally(() => { background = null; });
+  return background;
 }
 
-/** osmIds present in the bake, or null until loaded. Used to strip save outlines. */
-export function bakedOsmIds(): Set<string> | null {
-  return osmIdSet;
+function scheduleOfflineCache(): void {
+  if (backgroundScheduled || typeof window === 'undefined') return;
+  backgroundScheduled = true;
+  // Give the opening map/interaction priority over background island geometry.
+  window.setTimeout(() => { void cacheAllPoiAssets().catch(() => {}); }, 2000);
 }
 
-/** Building rings keyed by osmId, or null until loaded. */
-export function bakedOutlineByOsmId(): Map<string, [number, number][]> | null {
-  return outlineById;
-}
+export function isBakeLoaded(): boolean { return cached !== null; }
+export function prefetchBake(): void { void ensurePending().catch(() => {}); }
+export function ensureBakeLoaded(): Promise<RawPoi[]> { return ensurePending(); }
+export function bakedOsmIds(): Set<string> | null { return osmIdSet; }
+export function bakedOutlineByOsmId(): Map<string, [number, number][]> | null { return outlineById; }
 
-/**
- * POIs within `radius` metres of a point, in the same shape Overpass returns.
- * Throws if the baked file is missing/malformed so the caller can fall back.
- */
-export async function bakedPoisNear(
-  lat: number,
-  lng: number,
-  radius: number,
-): Promise<RawPoi[]> {
+export async function bakedPoisNear(lat: number, lng: number, radius: number): Promise<RawPoi[]> {
   const all = await ensurePending();
-
-  // Cheap bounding-box reject before the haversine, so we run the trig on the
-  // handful of candidates rather than every POI on the island.
   const latPad = radius / 111000;
   const lngPad = radius / (111000 * Math.cos((lat * Math.PI) / 180));
-
   const near: RawPoi[] = [];
   for (const p of all) {
     if (p.lat < lat - latPad || p.lat > lat + latPad) continue;
     if (p.lng < lng - lngPad || p.lng > lng + lngPad) continue;
     if (haversine(lat, lng, p.lat, p.lng) <= radius) near.push(p);
   }
+  await ensurePoiOutlines(near.map((p) => p.osmId));
+  scheduleOfflineCache();
   return near;
 }
 
-/**
- * Far extraction candidates. Prefer the bake's `evacIds`; otherwise mrt /
- * school / police with a real name. Do not haversine the whole island.
- */
+/** Metadata only: hydrate just the chosen evac rather than fetching every island footprint. */
 export async function bakedEvacPois(): Promise<RawPoi[]> {
-  const all = await ensurePending();
-  if (cachedEvacIds && cachedEvacIds.length > 0) {
-    const want = new Set(cachedEvacIds);
-    return all.filter((p) => want.has(p.osmId));
-  }
-  return all.filter(
-    (p) => EVAC_CATEGORIES.has(p.category) && (p.name ?? '').trim().length >= 3,
-  );
+  await ensurePending();
+  return evacPois;
 }

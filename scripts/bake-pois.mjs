@@ -20,11 +20,14 @@
 // so classification stays single-sourced — edit src/game/poi.ts, re-bake, done.
 
 import { writeFileSync, mkdirSync, statSync } from 'node:fs';
+import { writePoiRevision } from './poi-revision.mjs';
 import { gzipSync } from 'node:zlib';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { classifyOsm, POI_CONFIG } from '../src/game/poi.ts';
 import { inSingapore } from '../src/game/singapore.ts';
+import { loadHdbReference, writeHdbRegistry, HDB_SOURCE } from './hdb-reference.mjs';
+import { verifiedFootprint } from './location-expansion.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT_FILE = resolve(HERE, '../public/pois.json');
@@ -94,20 +97,22 @@ const QUERIES = [
     // nodes, so it stays cheap.
     body: `[out:json][timeout:600];
 (
-  nwr["shop"~"^(supermarket|convenience|kiosk|chemist|hardware|doityourself|trade)$"]${BBOX};
-  nwr["amenity"~"^(pharmacy|hospital|clinic|doctors|fuel|police|food_court|marketplace|community_centre|hawker_centre|school|college|university)$"]${BBOX};
+  nwr["shop"~"^(supermarket|convenience|kiosk|chemist|hardware|doityourself|trade|bakery|butcher|greengrocer)$"]${BBOX};
+  nwr["amenity"~"^(pharmacy|hospital|clinic|doctors|dentist|fuel|police|food_court|marketplace|community_centre|hawker_centre|school|college|university|restaurant|cafe|fast_food|library|place_of_worship)$"]${BBOX};
   nwr["station"~"^(subway|light_rail)$"]${BBOX};
   nwr["railway"="station"]${BBOX};
+  nwr["leisure"~"^(park|garden|nature_reserve)$"]["name"]${BBOX};
+  nwr["tourism"~"^(museum|zoo|theme_park)$"]["name"]${BBOX};
 );
-out geom tags;`,
+out geom;`,
   },
   {
-    label: 'HDB blocks',
-    // Centroids only — polygon geometry for 45k blocks is a 100MB+ response and
-    // they render as rectangles anyway.
+    label: 'housing candidates',
+    // Broad OSM housing tags include private buildings. Only independently
+    // verified candidates become HDBs; other homes remain ordinary residences.
     body: `[out:json][timeout:600];
 (
-  nwr["building"~"^(apartments|residential)$"]${BBOX};
+  nwr["building"~"^(apartments|residential|house|detached|terrace|semidetached_house)$"]${BBOX};
 );
 out center tags;`,
   },
@@ -134,6 +139,10 @@ const NAME_BY_CATEGORY = {
   fuel: 'Petrol Station',
   police: 'Police Post',
   residential: 'HDB Block',
+  housing: 'Residence',
+  eatery: 'Eatery / Food Shop',
+  community: 'Community Site',
+  park: 'Park / Garden',
   foodcourt: 'Hawker Centre',
   mrt: 'MRT Station',
   industrial: 'Industrial Unit',
@@ -226,13 +235,10 @@ function extractOsmRing(el) {
 }
 
 // Mirrors parseElements() in src/game/overpass.ts.
-function parseElements(elements) {
+function parseElements(elements, hdbReference) {
   const out = [];
   for (const el of elements) {
     const tags = el.tags ?? {};
-    const category = classifyOsm(tags);
-    if (!category) continue;
-
     let lat = el.lat ?? el.center?.lat;
     let lng = el.lon ?? el.center?.lon;
     let outline;
@@ -245,6 +251,11 @@ function parseElements(elements) {
       outline = simplifyRing(ring);
     }
     if (lat == null || lng == null) continue;
+    lat = round(lat);
+    lng = round(lng);
+    const hdbMatch = hdbReference.match(tags, lat, lng);
+    const category = classifyOsm(tags, !!hdbMatch);
+    if (!category) continue;
 
     let name = tags.name || tags['name:en'];
     if (name && name.trim().length < 3) name = undefined;
@@ -256,7 +267,8 @@ function parseElements(elements) {
     if (!name) name = NAME_BY_CATEGORY[category];
 
     const poi = { osmId: `${el.type}/${el.id}`, name, category, lat: round(lat), lng: round(lng) };
-    if (outline) poi.outline = outline;
+    if (outline && category !== 'park') poi.outline = outline;
+    if (category === 'residential' && hdbMatch) poi.outline = verifiedFootprint(hdbMatch.rings[0], lat, lng);
     out.push(poi);
   }
   return out;
@@ -268,7 +280,7 @@ function parseElements(elements) {
  * the west. Everything else passes through untouched: shops and MRT stations
  * are the scarce, interesting ones.
  */
-const THINNED_CATEGORIES = new Set(['residential', 'industrial']);
+const THINNED_CATEGORIES = new Set(['residential', 'housing', 'eatery', 'industrial']);
 
 function thinDenseCategories(pois) {
   const kept = [];
@@ -284,7 +296,8 @@ function thinDenseCategories(pois) {
   for (const p of dense) {
     // Cell key includes the category, so a warehouse never displaces an HDB
     // block that happens to sit in the same 200m square.
-    const cell = `${p.category}:${Math.floor(p.lat / RESIDENTIAL_GRID_DEG)},${Math.floor(p.lng / RESIDENTIAL_GRID_DEG)}`;
+    const grid = p.category === 'residential' ? 0.0011 : p.category === 'eatery' ? 0.00065 : RESIDENTIAL_GRID_DEG;
+    const cell = `${p.category}:${Math.floor(p.lat / grid)},${Math.floor(p.lng / grid)}`;
     if (taken.has(cell)) {
       dropped++;
       continue;
@@ -398,7 +411,7 @@ function pass4ChunkQuery(box, label) {
     // Ways + multipolygon relations + building:part (mall units).
     body: `[out:json][timeout:600];
 (
-  node["shop"~"^(supermarket|convenience|kiosk|chemist|hardware|doityourself|trade)$"]${box};
+  node["shop"~"^(supermarket|convenience|kiosk|chemist|hardware|doityourself|trade|bakery|butcher|greengrocer)$"]${box};
   node["amenity"~"^(pharmacy|hospital|clinic|doctors|fuel|police|food_court|marketplace|community_centre|hawker_centre)$"]${box};
   node["station"~"^(subway|light_rail)$"]${box};
   node["railway"="station"]${box};
@@ -408,7 +421,7 @@ function pass4ChunkQuery(box, label) {
   relation["building"](around.p:${AROUND_RADIUS_M});
   way["building:part"](around.p:${AROUND_RADIUS_M});
 );
-out geom tags;`,
+out geom;`,
     optional: true,
   };
 }
@@ -440,11 +453,14 @@ function ingestBuildingElements(elements, grid, GRID, seenBuildings) {
 
 async function main() {
   console.log('Baking Singapore POIs...');
+  // Refuse to bake unchecked housing if the reference is unavailable.
+  const hdbArg = process.argv.indexOf('--hdb');
+  const hdbReference = await loadHdbReference(hdbArg >= 0 ? process.argv[hdbArg + 1] : undefined);
   const byId = new Map();
 
   for (let i = 0; i < QUERIES.length; i++) {
     const elements = await runQuery(QUERIES[i]);
-    for (const p of parseElements(elements)) byId.set(p.osmId, p);
+    for (const p of parseElements(elements, hdbReference)) byId.set(p.osmId, p);
     if (i < QUERIES.length - 1) await sleep(DELAY_MS);
   }
 
@@ -463,7 +479,7 @@ async function main() {
 
   // --- Pass 3: real footprints for the void decks / industrial we kept --------
   // They're building ways; we only asked for centroids. Re-fetch by id.
-  const needGeom = kept.filter((p) => !p.outline && p.osmId.startsWith('way/'));
+  const needGeom = kept.filter((p) => p.category !== 'park' && !p.outline && p.osmId.startsWith('way/'));
   if (needGeom.length) {
     console.log(`\nFetching footprints for ${needGeom.length} buildings...`);
     const byOsmId = new Map(needGeom.map((p) => [p.osmId, p]));
@@ -474,7 +490,7 @@ async function main() {
       const ids = batch.map((p) => p.osmId.split('/')[1]).join(',');
       const elements = await runQuery({
         label: `footprints ${i + 1}-${i + batch.length}`,
-        body: `[out:json][timeout:600];way(id:${ids});out geom tags;`,
+        body: `[out:json][timeout:600];way(id:${ids});out geom;`,
         optional: true,
       });
       for (const el of elements ?? []) {
@@ -494,7 +510,7 @@ async function main() {
   }
 
   // --- Pass 4: buildings containing point-node POIs -------------------------
-  const nodePois = kept.filter((p) => !p.outline && p.osmId.startsWith('node/'));
+  const nodePois = kept.filter((p) => p.category !== 'park' && !p.outline && p.osmId.startsWith('node/'));
   if (nodePois.length) {
     console.log(`\nMatching ${nodePois.length} point POIs to their buildings...`);
     const GRID = 0.002; // ~220m
@@ -618,8 +634,13 @@ async function main() {
   const evacIds = kept
     .filter((p) => EVAC_CATS.has(p.category) && String(p.name ?? '').trim().length >= 3)
     .map((p) => p.osmId);
-  const json = JSON.stringify({ generated: new Date().toISOString(), pois: kept, evacIds });
+  // Include all verified candidates, including those thinned from this bake,
+  // so an existing save does not lose a valid block merely due to sampling.
+  writeHdbRegistry([...byId.values()]);
+  const json = JSON.stringify({ generated: new Date().toISOString(), pois: kept, evacIds,
+    hdbVerification: { source: HDB_SOURCE, verified: new Date().toISOString() } });
   writeFileSync(OUT_FILE, json);
+  writePoiRevision(kept);
 
   const bytes = statSync(OUT_FILE).size;
   const gz = gzipSync(json).length;

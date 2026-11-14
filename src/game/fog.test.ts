@@ -1,16 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { maxTravelRange, travelableRange } from './fog';
+import { travelableRange } from './fog';
 import type { Attributes, WeatherKind } from './types';
 
 const attrs = { strength: 5, dexterity: 6, endurance: 7, perception: 5, intelligence: 5, charisma: 5 } as unknown as Attributes;
 
-describe('maxTravelRange', () => {
-  it('is the range at full energy, sound legs, no load, fair weather', () => {
-    expect(maxTravelRange(attrs)).toBe(travelableRange(attrs, 100, 1, 'clear', 1));
+describe('travelableRange', () => {
+  it('shrinks with energy and reaches zero when exhausted', () => {
+    const rested = travelableRange(attrs, 100, 1, 'clear');
+    const tired = travelableRange(attrs, 40, 1, 'clear');
+    expect(tired).toBeGreaterThan(0);
+    expect(tired).toBeLessThan(rested);
+    expect(travelableRange(attrs, 0, 1, 'clear')).toBe(0);
   });
 
-  it('never falls below the live range, whatever the state', () => {
-    const max = maxTravelRange(attrs, 1.1);
+  it('never exceeds rested reach when injured, loaded or in bad weather', () => {
+    const max = travelableRange(attrs, 100, 1.1, 'clear');
     const weathers: WeatherKind[] = ['clear', 'cloudy', 'rain', 'thunderstorm', 'haze', 'heat'];
     for (const weather of weathers) {
       for (const energy of [0, 15, 40, 75, 100]) {
@@ -23,8 +27,9 @@ describe('maxTravelRange', () => {
     }
   });
 
-  it('moves with the build and gear only', () => {
-    expect(maxTravelRange(attrs, 1.2)).toBeGreaterThan(maxTravelRange(attrs, 1));
-    expect(maxTravelRange({ ...attrs, endurance: 9 })).toBeGreaterThan(maxTravelRange(attrs));
+  it('grows with faster gear and endurance', () => {
+    const rested = travelableRange(attrs, 100, 1, 'clear');
+    expect(travelableRange(attrs, 100, 1.2, 'clear')).toBeGreaterThan(rested);
+    expect(travelableRange({ ...attrs, endurance: 9 }, 100, 1, 'clear')).toBeGreaterThan(rested);
   });
 });

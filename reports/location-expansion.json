@@ -1,0 +1,68 @@
+{
+  "expanded": "2026-11-14T17:53:31.889Z",
+  "baseGenerated": "2026-08-13T19:42:18.443Z",
+  "basePoisSha256": "c9a122f3aa6e565d8c638882066d0180be49662ba5edb2f63cfe92210eef1ca8",
+  "hdbReference": "https://data.gov.sg/datasets/d_16b157c52ed637edd6ba1232e026258d/view",
+  "hdbSha256": "b5b588623f3a18cbb4f97777a3cfe057fe5c6558d998a062e8d4c347142f5a71",
+  "sources": [
+    {
+      "file": "osm-housing.json",
+      "url": "https://www.openstreetmap.org/copyright",
+      "sha256": "4a0cade75df8731fae53fbc0eca404990c741842a2283839c4509a4dc3fdcd6a",
+      "osmTimestamp": "2026-11-14T17:37:16Z",
+      "records": 75501
+    },
+    {
+      "file": "osm-amenities.json",
+      "url": "https://www.openstreetmap.org/copyright",
+      "sha256": "b981a08f51b03a24bd27cc24951d235c78de3aef4057435d2f5ad2a28b362efb",
+      "osmTimestamp": "2026-11-14T17:38:18Z",
+      "records": 16032
+    },
+    {
+      "file": "osm-outdoors.json",
+      "url": "https://www.openstreetmap.org/copyright",
+      "sha256": "e0c01461a0a5cb84001842cb5e80ebefd5cabe2af01f9491a45b0f4f3e088356",
+      "osmTimestamp": "2026-11-14T17:47:20Z",
+      "records": 99
+    },
+    {
+      "file": "gov-hawkers.json",
+      "url": "https://data.gov.sg/datasets/d_4a086da0a5553be1d89383cd90d07ecd/view",
+      "sha256": "2ec8f8e3f8b1108829527f26bfe49cf5bdda2993d8bea27727adbe50d8db7bfb",
+      "records": 129
+    },
+    {
+      "file": "gov-clubs.json",
+      "url": "https://data.gov.sg/datasets/d_f706de1427279e61fe41e89e24d440fa/view",
+      "sha256": "d6acbfc863db3b9adb7fed423921acdf87c5a79b4ec60114d2dcbcbd140ecfa6",
+      "records": 125
+    }
+  ],
+  "skippedSources": [],
+  "before": 6991,
+  "after": 18284,
+  "outsideOrUnwalkable": 31445,
+  "inactive": 78,
+  "duplicate": 4243,
+  "thinned": 39297,
+  "hdbCandidates": 5425,
+  "additions": {
+    "foodcourt": 65,
+    "community": 970,
+    "residential": 2506,
+    "eatery": 3070,
+    "park": 729,
+    "clinic": 176,
+    "convenience": 39,
+    "housing": 3689,
+    "hardware": 17,
+    "supermarket": 6,
+    "police": 3,
+    "pharmacy": 2,
+    "school": 19,
+    "hospital": 2
+  },
+  "rawBytes": 5742311,
+  "gzipBytes": 1214754
+}

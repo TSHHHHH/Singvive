@@ -254,6 +254,19 @@ export const SETTINGS_SCHEMA: SettingDef[] = [
     default: 'on',
   },
   {
+    key: 'confirmDiscard',
+    label: 'Confirm throwing items away',
+    description:
+      'Ask before items are thrown away — by dragging them out of the inventory or with Drop. Turned off by "Don\'t ask again" in that window.',
+    tab: 'gameplay',
+    control: 'toggle',
+    options: [
+      { value: 'on', label: 'On' },
+      { value: 'off', label: 'Off' },
+    ],
+    default: 'on',
+  },
+  {
     key: 'tooltips',
     label: 'Hover tips',
     description:

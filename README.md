@@ -2,8 +2,8 @@
 
 > A browser-based **zombie-apocalypse survival roguelike** played on the **real map of Singapore**.
 
-You wake up in a fallen Singapore. There is no rescue on a timetable — only a rising horde and,
-eventually, a chance to extract. Knowing nothing of what is around you, you push out into the fog,
+You wake up in a fallen Singapore. Supplies run low, night makes the streets dangerous, and nearby
+noise can draw trouble. Knowing nothing of what is around you, you push out into the fog,
 chart real places by walking to them, scavenge what you can carry, and manage a failing body until
 it gives out or you call for a lift. Every run is generated from pre-baked OpenStreetMap data and a
 seed, so no two survivors face the same city.
@@ -67,7 +67,7 @@ Pick an occupation seed (or build traits freely on the same screen) → choose a
     arrive (a doorway event or faction gate may fire) → search session → maybe fight →
     optional HDB dive or tunnel run → haul loot into the grid → cache surplus in a stash →
     craft / repair / trade at a hub → eat, drink, treat wounds, rest → watch the evac
-    beacon and the horde clock ]
+    beacon and nearby activity ]
   repeat until death or a successful extract → score → local board + worldwide honor board
 ```
 
@@ -85,8 +85,10 @@ A few things that make it specific rather than generic:
 - **Tactile inventory.** A spatial, Tarkov-style grid where weight and space are both real limits.
 - **Dual-path scoring.** Linger for a rising day multiplier, or haul a fogged cargo kit to a timed
   beacon and extract. The best runs do both: survive long, then lift out late.
+- **Local noise, lasting choices.** Alarms, shutters, gunfire and scavengers create nearby activity.
+  Spend time and supplies to respond, or move on while the noise fades. Survival has no fixed day limit.
 
-Full rules — combat maths, loot tables, factions, the horde clock, extraction — are in
+Full rules — combat maths, loot tables, factions, local noise, extraction — are in
 [GAME_DESIGN.md](GAME_DESIGN.md).
 
 ---

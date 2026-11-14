@@ -12,12 +12,12 @@ export const ENCUMBERED_TRAVEL_MULT = 1.5;
 // Straight-line distance badly understates a real trek through a collapsed city
 // — blocked roads, rubble, detours around the dead. Stretch overland travel time
 // to fit the theme (applied to time only, not the planning range or loot).
-export const URBAN_DECAY_DETOUR = 1.4;
+export const URBAN_DECAY_DETOUR = 2.0;
 
 /**
  * Walking speed in metres/minute, shaped by the survivor's build and how
  * exhausted they are. Endurance matters most; dexterity helps you pick a line;
- * energy scales the pace continuously (0.7x spent .. 1.3x fresh).
+ * energy scales the pace continuously (0.6x spent .. 1.4x fresh).
  */
 export function walkSpeed(attrs: Attributes, energy: number, legFactor = 1): number {
   const statFactor = 1 + (attrs.endurance - 5) * 0.06 + (attrs.dexterity - 5) * 0.03;

@@ -13,6 +13,7 @@ import { formatClock } from '../game/survival';
 import { useClockFormat } from '../game/settings';
 import { SearchLootList } from './SearchLootList';
 import { ItemHoverCard } from './Inventory/ItemHoverCard';
+import { useDiscardGate } from './Inventory/useDiscardGate';
 import { GuideInfoButton } from './GuideInfoButton';
 import type { GuideTopic } from '../content/guideContent';
 import { itemName, useT } from '../i18n';
@@ -46,6 +47,7 @@ export function SearchSessionNode({
   const completeSearch = useGame((s) => s.completeSearch);
   const clock = useClockFormat();
   const { t } = useT();
+  const { gate: gateDiscard, dialog: discardDialog } = useDiscardGate();
   const [now, setNow] = useState(() => Date.now());
   const [hoverSlotId, setHoverSlotId] = useState<string | null>(null);
   const [hoverPos, setHoverPos] = useState<{ x: number; y: number } | null>(null);
@@ -107,6 +109,10 @@ export function SearchSessionNode({
 
   const stillSearching = hasFoggedOrSearching(session);
   const foundCount = session.slots.filter((s) => s.state === 'found').length;
+  // Finds still on the floor: leaving throws them away, so ask first.
+  const unclaimedUids = session.slots
+    .filter((s) => s.state === 'found' && s.uid)
+    .map((s) => s.uid!);
   const clearHover = () => {
     setHoverSlotId(null);
     setHoverPos(null);
@@ -190,7 +196,7 @@ export function SearchSessionNode({
         {stillSearching ? (
           <button
             type="button"
-            onClick={() => abortSearch()}
+            onClick={() => gateDiscard(unclaimedUids, abortSearch)}
             className="flex w-full items-center gap-1.5 rounded border border-white/15 px-2 py-1 text-left text-body text-white/60 transition hover:bg-white/5"
           >
             <Icon name="choice.leave" size={13} className="shrink-0" />
@@ -199,7 +205,7 @@ export function SearchSessionNode({
         ) : (
           <button
             type="button"
-            onClick={() => completeSearch()}
+            onClick={() => gateDiscard(unclaimedUids, completeSearch)}
             className="flex w-full items-center gap-1.5 rounded border border-signal/40 px-2 py-1 text-left text-body font-semibold text-signal transition hover:bg-signal/10"
           >
             <Icon name="choice.check" size={13} className="shrink-0" />
@@ -207,6 +213,7 @@ export function SearchSessionNode({
           </button>
         )}
       </div>
+      {discardDialog}
     </>
   );
 

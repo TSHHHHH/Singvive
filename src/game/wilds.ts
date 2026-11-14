@@ -675,9 +675,28 @@ export function trekRisk(
           0,
         )
       : haversine(from.lat, from.lng, to.lat, to.lng);
-  const pathPressure = opts.pressureAt
+  let pathPressure = opts.pressureAt
     ? Math.max(opts.pressureAt(from.lat, from.lng), opts.pressureAt(to.lat, to.lng))
     : opts.hordeIntensity;
+  if (opts.pressureAt && dist > 0) {
+    // A narrow disturbance can sit between two quiet endpoints. Sample the
+    // actual walked polyline, bounded to 65 reads even on a long detour.
+    const points = via && via.length >= 2 ? via : [from, to];
+    const lengths = points.slice(1).map((p, i) => haversine(points[i].lat, points[i].lng, p.lat, p.lng));
+    const samples = Math.min(64, Math.max(1, Math.ceil(dist / PATH_STEP_M)));
+    let segment = 0;
+    let walked = 0;
+    for (let i = 0; i <= samples; i++) {
+      const target = dist * i / samples;
+      while (segment < lengths.length - 1 && walked + lengths[segment] < target) {
+        walked += lengths[segment++];
+      }
+      const a = points[segment];
+      const b = points[segment + 1];
+      const t = lengths[segment] > 0 ? Math.min(1, (target - walked) / lengths[segment]) : 0;
+      pathPressure = Math.max(pathPressure, opts.pressureAt(a.lat + (b.lat - a.lat) * t, a.lng + (b.lng - a.lng) * t));
+    }
+  }
   const field: HazardFieldOpts = {
     band: opts.band,
     day: opts.day,

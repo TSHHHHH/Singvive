@@ -8,7 +8,6 @@ import {
   type MapSourceDataEvent,
 } from 'maplibre-gl';
 import polygonClipping, { type MultiPolygon, type Polygon } from 'polygon-clipping';
-import type { ExploredCircle } from '../game/fog';
 import type { DestructionTier, PoiCategory } from '../game/types';
 import { BASEMAP, GROUND_COLOR, slotId } from './mapStyle';
 import { FOG_COLOUR, FOG_TOTAL } from './fogGeometry';
@@ -22,9 +21,9 @@ import { landmarkBaseHeight } from './landmarkGeometry';
  * The 3D run map's buildings: the basemap's own footprints extruded to their
  * real heights.
  *
- * - **Fog.** A building stands only once it's been seen: inside the live sight
- *   disc, any explored disc, or under a sensed site. Everything else lies flat
- *   in the fog's colour, so the unexplored island stays dark. Revealed
+ * - **Range.** A building stands only inside the live travel-range disc,
+ *   even at explored or discovered sites. Everything else lies flat
+ *   in the fog's colour; discovered location badges remain. Revealed
  *   buildings rise out of the ground (feature-state `rise`, 0 → 1) instead of
  *   popping in.
  * - **Sites.** Each game location is matched to the basemap building it sits
@@ -194,6 +193,8 @@ const TENANT_MAX_M: Partial<Record<PoiCategory, number>> = {
   hardware: 20,
   supermarket: 25,
   foodcourt: 25,
+  eatery: 15,
+  community: 25,
   mrt: 30,
 };
 
@@ -258,13 +259,6 @@ function pieceExpr(prop: 'base' | 'top') {
   ] as unknown as number;
 }
 
-/**
- * How far a standing building beyond the current travel range fades towards
- * the fogged colour. Shape stays (height is the max range's business); only
- * brightness says "you cannot walk there on this energy".
- */
-export const FAR_DIM = 0.58;
-
 /** Fogged flat colour while down, site colour once standing; selection lives on the badge. */
 function standingColor(color: unknown) {
   return [
@@ -274,9 +268,7 @@ function standingColor(color: unknown) {
     0,
     FLAT_COLOR,
     1,
-    // Past the current travel range a standing building sinks part-way back
-    // towards the fogged colour (feature-state `far`, 0 or FAR_DIM).
-    ['interpolate', ['linear'], ['coalesce', ['feature-state', 'far'], 0], 0, ['to-color', color], 1, FLAT_COLOR],
+    ['to-color', color],
   ] as unknown as string;
 }
 
@@ -343,11 +335,7 @@ export class BuildingEngine {
   private instant = false;
 
   // Reveal inputs.
-  private explored: readonly ExploredCircle[] = [];
   private live: Disc | null = null;
-  /** The current travel range: standing buildings outside it are dimmed. */
-  private reach: Disc | null = null;
-  private far = new Set<FeatureId>();
 
   // Sites and their matched buildings.
   private sites = new Map<string, Site3d>();
@@ -430,9 +418,13 @@ export class BuildingEngine {
     return score;
   }
 
-  roofHeights(): ReadonlyMap<string, number> {
+  /** Physical roof heights for cutaways, or standing heights for map badges. */
+  roofHeights(standingOnly = false): ReadonlyMap<string, number> {
     const out = new Map<string, number>();
-    for (const [id, h] of this.roofs) out.set(id, this.roofOf(id, h));
+    for (const [id, h] of this.roofs) {
+      const standing = !standingOnly || this.siteFeatures.get(id)?.some((feature) => this.rise.get(feature)?.to === 1);
+      out.set(id, standing ? this.roofOf(id, h) : 0);
+    }
     return out;
   }
 
@@ -442,9 +434,9 @@ export class BuildingEngine {
     return h * stumpFactor(id, tier);
   }
 
-  /** Tell the badges when a roof moved (matching, a ruin tier, a model swap). */
+  /** Tell badges when a roof or its range membership changes; never publish per frame. */
   private publishRoofs() {
-    const next = this.roofHeights();
+    const next = this.roofHeights(true);
     let changed = next.size !== this.published.size;
     if (!changed) for (const [id, h] of next) if (this.published.get(id) !== h) changed = true;
     if (!changed) return;
@@ -686,27 +678,14 @@ export class BuildingEngine {
     this.instant = instant;
   }
 
-  /** `explored` is compared by identity; pass the store's array as-is. */
-  /**
-   * `live` decides which buildings stand (pass the stable max travel range);
-   * `reachRadius` is the current, energy-driven range and only dims what lies
-   * beyond it, so an energy tick never moves a wall.
-   */
-  setReveal(
-    explored: readonly ExploredCircle[],
-    live: { lat: number; lng: number; radius: number },
-    reachRadius: number = live.radius,
-  ) {
+  /** The live disc follows current travel range, so buildings rise and fall with it. */
+  setReveal(live: { lat: number; lng: number; radius: number }) {
     const same =
-      explored === this.explored &&
       this.live?.lat === live.lat &&
       this.live.lng === live.lng &&
-      this.live.r === live.radius &&
-      this.reach?.r === reachRadius;
+      this.live.r === live.radius;
     if (same) return;
-    this.explored = explored;
     this.live = { lat: live.lat, lng: live.lng, r: live.radius };
-    this.reach = { lat: live.lat, lng: live.lng, r: reachRadius };
     this.updateReveal(false);
     this.pickDamage();
   }
@@ -725,8 +704,6 @@ export class BuildingEngine {
     this.pickRuins();
     this.applySiteStates();
     this.publishRoofs();
-    // A site's building stands even in fog, so membership changes the reveal.
-    if (fresh || gone) this.updateReveal(false);
     // The band's block may only now be on screen (or just left it).
     if (this.band && (fresh || gone)) this.drawBand();
   }
@@ -867,45 +844,13 @@ export class BuildingEngine {
     const map = this.map;
     if (this.destroyed || !this.live || !this.index.size || !map.getLayer(BUILDINGS_LAYER)) return;
     const cosLat = Math.cos((this.live.lat * Math.PI) / 180);
-    // Only explored discs that can touch the loaded area are worth testing.
-    const b = map.getBounds();
-    const padLat = 0.02;
-    const discs: Disc[] = [];
-    for (const c of this.explored) {
-      const r = c.radius / 111_320;
-      if (
-        c.lat + r < b.getSouth() - padLat ||
-        c.lat - r > b.getNorth() + padLat ||
-        c.lng + r < b.getWest() - padLat ||
-        c.lng - r > b.getEast() + padLat
-      ) {
-        continue;
-      }
-      discs.push({ lat: c.lat, lng: c.lng, r: c.radius });
-    }
-    const siteIds = new Set<FeatureId>();
-    for (const [site, ids] of this.siteFeatures) if (this.sites.has(site)) for (const id of ids) siteIds.add(id);
 
     const snap = instant || this.instant;
     const now = performance.now();
-    const reach = this.reach;
     for (const [id, c] of this.index) {
-      if (reach) {
-        const far = !inDisc(c.lat, c.lng, reach, cosLat);
-        if (far !== this.far.has(id)) {
-          if (far) this.far.add(id);
-          else this.far.delete(id);
-          map.setFeatureState({ source: this.src, sourceLayer: this.sl, id }, { far: far ? FAR_DIM : 0 });
-          const key = this.wreckOf.get(id);
-          if (key !== undefined) this.setPieceFar(key, far);
-        }
-      }
       const cur = this.rise.get(id);
       const curTo = cur?.to ?? 0;
-      const want =
-        siteIds.has(id) || inDisc(c.lat, c.lng, this.live, cosLat) || discs.some((d) => inDisc(c.lat, c.lng, d, cosLat))
-          ? 1
-          : 0;
+      const want = inDisc(c.lat, c.lng, this.live, cosLat) ? 1 : 0;
       if (want === curTo) continue;
       if (snap) {
         this.rise.set(id, { from: want, to: want, start: now, v: want });
@@ -918,6 +863,7 @@ export class BuildingEngine {
         this.rising.add(id);
       }
     }
+    this.publishRoofs();
     if (snap) this.placeSmoke();
     if (this.rising.size && !this.riseRaf) this.riseRaf = requestAnimationFrame(this.stepRise);
   }
@@ -986,6 +932,7 @@ export class BuildingEngine {
     let changed = false;
     for (const site of pending) {
       this.tried.add(site.id);
+      if (site.category === 'park') continue; // a park must never claim a nearby building
       const ring = this.ringOf(site);
       const sb = ring ? ringBox(ring) : null;
       const siteArea = sb ? Math.max(1e-12, (sb[2] - sb[0]) * (sb[3] - sb[1])) : 0;
@@ -1259,7 +1206,6 @@ export class BuildingEngine {
     this.ruinApplied.clear();
     for (const [id, key] of this.wreckOf) {
       this.setPieceRise(key, this.rise.get(id)?.v ?? 0);
-      this.setPieceFar(key, this.far.has(id));
     }
     this.applySiteStates();
     this.publishRoofs();
@@ -1274,12 +1220,6 @@ export class BuildingEngine {
   private setPieceRise(key: string, rise: number) {
     for (const f of this.ruinCache.get(key)?.pieces ?? []) {
       this.map.setFeatureState({ source: RUINS_SOURCE, id: f.id as number }, { rise });
-    }
-  }
-
-  private setPieceFar(key: string, far: boolean) {
-    for (const f of this.ruinCache.get(key)?.pieces ?? []) {
-      this.map.setFeatureState({ source: RUINS_SOURCE, id: f.id as number }, { far: far ? FAR_DIM : 0 });
     }
   }
 

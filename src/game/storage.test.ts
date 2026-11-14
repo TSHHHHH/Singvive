@@ -7,6 +7,8 @@ import {
   loadRun,
 } from './storage';
 import type { SavedRun } from './storage';
+import poiRevision from './data/poiRevision.json';
+import { writeSavedRun } from './persistRun';
 
 const store = new Map<string, string>();
 
@@ -61,6 +63,17 @@ const write = (over: Record<string, unknown>) => {
  * run rather than one item.
  */
 describe('loadRun with items missing from the catalog', () => {
+  it('refreshes expanded cells once after a bake update while preserving run progress', () => {
+    write({ poiRevision: 'old-bake', expandedCells: ['1,2'], day: 12, items: [inst('a', 'parang')] });
+    const run = loadRun()!;
+    expect(run.expandedCells).toEqual([]);
+    expect(run.day).toBe(12);
+    expect(run.items[0].id).toBe('a');
+    run.expandedCells = ['1,2'];
+    expect(writeSavedRun(run)).toBe('ok');
+    expect(loadRun()!.poiRevision).toBe(poiRevision);
+    expect(loadRun()!.expandedCells).toEqual(['1,2']);
+  });
   it('preserves facility timers, stored water and cold preparation in v7 saves', () => {
     const facilities = { fireUntil: 40, rainShelter: true, collector: { checkedAt: 12, water: 1.5 }, water: { amount: 2, hotUntil: 18 } };
     write({ locations: { camp: { id: 'camp', factionId: 'none', category: 'waypoint', facilities } },
@@ -94,6 +107,24 @@ describe('loadRun with items missing from the catalog', () => {
 });
 
 describe('export / import round trip', () => {
+  it('repairs ghost HDBs in v7 without losing the position or stashed items', () => {
+    const id = 'way/444875548';
+    const position = { lat: 1.36128, lng: 103.88324 };
+    const stashed = { ...inst('stash-item', 'parang'), container: `stash:${id}` };
+    write({ currentPositionId: id, currentPos: position, items: [stashed],
+      locations: { [id]: { id, ...position, category: 'residential', name: 'HDB Void Deck', factionId: 'syndicate_88', isFactionOutpost: true } },
+      hdbBlocks: { [id]: { locationId: id } }, outposts: { syndicate_88: [id] } });
+    const run = loadRun()!;
+    expect(run).not.toBeNull();
+    expect(run.currentPositionId).toBe(id);
+    expect(run.currentPos).toEqual(position);
+    expect(run.items).toContainEqual(stashed);
+    expect(run.locations[id].category).toBe('waypoint');
+    expect(run.locations[id].factionId).toBeNull();
+    expect(run.hdbBlocks).toEqual({});
+    expect(Object.values(run.outposts ?? {}).flat()).not.toContain(id);
+  });
+
   it('exports the live save inside a recognisable wrapper', () => {
     write({ day: 7 });
     const json = exportRunJson() as string;

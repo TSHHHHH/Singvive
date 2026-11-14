@@ -1,4 +1,5 @@
 import { useState, type CSSProperties } from 'react';
+import { ActivityEventCard } from './ActivityEventCard';
 import { itemDef } from '../game/loot';
 import {
   activeScopeKey,
@@ -82,6 +83,7 @@ export function LogEntryBody({
   tr: Translate;
   compact?: boolean;
 }) {
+  if (e.activityEvent) return <ActivityEventCard entry={e} clock={clock} timeW={timeW} hang={hang} compact={compact} />;
   return (
     <div className="min-w-0 flex-1">
       {compact ? (

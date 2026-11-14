@@ -1,4 +1,5 @@
 import { classifyOsm } from './poi';
+import { isVerifiedHdb } from './hdbSites';
 import type { PoiCategory } from './types';
 
 export interface RawPoi {
@@ -34,10 +35,12 @@ function buildQuery(lat: number, lng: number, radius: number): string {
   // Keep this tag set aligned with scripts/bake-pois.mjs so live fallback
   // worlds don't quietly drop kiosks, hawkers, trade shops, or rail stations.
   const filters = [
-    'nwr["shop"~"^(supermarket|convenience|kiosk|chemist|hardware|doityourself|trade)$"]',
-    'nwr["amenity"~"^(pharmacy|hospital|clinic|doctors|fuel|police|food_court|marketplace|community_centre|hawker_centre|school|college|university)$"]',
+    'nwr["shop"~"^(supermarket|convenience|kiosk|chemist|hardware|doityourself|trade|bakery|butcher|greengrocer)$"]',
+    'nwr["amenity"~"^(pharmacy|hospital|clinic|doctors|dentist|fuel|police|food_court|marketplace|community_centre|hawker_centre|school|college|university|restaurant|cafe|fast_food|library|place_of_worship)$"]',
     'nwr["station"~"^(subway|light_rail)$"]',
     'nwr["railway"="station"]',
+    'nwr["leisure"~"^(park|garden|nature_reserve)$"]["name"]',
+    'nwr["tourism"~"^(museum|zoo|theme_park)$"]["name"]',
   ]
     .map((f) => `  ${f}(around:${radius},${lat},${lng});`)
     .join('\n');
@@ -47,6 +50,7 @@ function buildQuery(lat: number, lng: number, radius: number): string {
   const buildings = [
     'nwr["building"="apartments"]',
     'nwr["building"="residential"]',
+    'nwr["building"~"^(house|detached|terrace|semidetached_house)$"]',
   ]
     .map((f) => `  ${f}(around:${radius},${lat},${lng});`)
     .join('\n');
@@ -71,7 +75,7 @@ function buildQuery(lat: number, lng: number, radius: number): string {
 (
 ${filters}
 );
-out geom tags 220;
+out geom 220;
 (
 ${buildings}
 );
@@ -113,6 +117,10 @@ const NAME_BY_CATEGORY: Record<PoiCategory, string> = {
   fuel: 'Petrol Station',
   police: 'Police Post',
   residential: 'HDB Block',
+  housing: 'Residence',
+  eatery: 'Eatery / Food Shop',
+  community: 'Community Site',
+  park: 'Park / Garden',
   foodcourt: 'Hawker Centre',
   mrt: 'MRT Station',
   industrial: 'Industrial Unit',
@@ -125,9 +133,6 @@ function parseElements(elements: OsmElement[]): RawPoi[] {
   const out: RawPoi[] = [];
   for (const el of elements) {
     const tags = el.tags ?? {};
-    const category = classifyOsm(tags);
-    if (!category) continue;
-
     let lat = el.lat ?? el.center?.lat;
     let lng = el.lon ?? el.center?.lon;
     let outline: [number, number][] | undefined;
@@ -141,6 +146,8 @@ function parseElements(elements: OsmElement[]): RawPoi[] {
       outline = ring.map((p) => [p.lat, p.lon] as [number, number]);
     }
     if (lat == null || lng == null) continue;
+    const category = classifyOsm(tags, isVerifiedHdb(`${el.type}/${el.id}`, lat, lng));
+    if (!category) continue;
 
     // Void decks: HDB blocks rarely have a name, so use the block number.
     let name: string | undefined = tags.name || tags['name:en'];
@@ -158,7 +165,7 @@ function parseElements(elements: OsmElement[]): RawPoi[] {
       category,
       lat,
       lng,
-      outline,
+      outline: category === 'park' ? undefined : outline,
     });
   }
   return out;

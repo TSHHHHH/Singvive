@@ -15,14 +15,6 @@ interface Props {
    */
   evacCooldownHours: number | null;
   urgent: boolean;
-  doom: number;
-  doomColor: string;
-  doomLabel: string;
-  /** Desktop draws the island front at the foot of the rail instead. */
-  showDoom?: boolean;
-  /** Neighbourhood you are standing in — omitted on legacy runs with no town field. */
-  townName: string | null;
-  townTier: 'stirring' | 'restless' | 'massing' | 'fallen' | 'lost' | null;
   dayMult: number;
   vibe: EvacVibe;
   vibeLine: string;
@@ -76,7 +68,7 @@ function ReachLine({ zone }: { zone: string }) {
 
 /**
  * The always-on objective readout for the left rail: dual-path glance
- * (survival mult + fogged radio vibe) plus doom. Detail lives one click away.
+ * (survival mult + fogged radio vibe). Detail lives one click away.
  */
 export function ObjectiveBar({
   evacZoneName,
@@ -85,12 +77,6 @@ export function ObjectiveBar({
   windowText,
   evacCooldownHours,
   urgent,
-  doom,
-  doomColor,
-  doomLabel,
-  showDoom = true,
-  townName,
-  townTier,
   dayMult,
   vibe,
   vibeLine,
@@ -164,11 +150,6 @@ export function ObjectiveBar({
       </div>
 
       <div className="mt-0.5 truncate text-read text-concrete-50">{reach}</div>
-      {townName && townTier && (
-        <div className="mt-0.5 truncate text-micro text-white/40">
-          {t('ui.town.here', { name: townName, tier: t(`ui.town.${townTier}`) })}
-        </div>
-      )}
       {(intelNoteCount > 0 || rumourCount > 0) && (
         <div className="mt-0.5 truncate text-micro text-[#c4b07a]/90">
           {intelNoteCount > 0 && rumourCount > 0
@@ -212,17 +193,6 @@ export function ObjectiveBar({
             </div>
           </div>
         </div>
-        {showDoom && (
-        <div className="flex w-14 shrink-0 flex-col items-end gap-0.5">
-          <div className="h-1 w-full overflow-hidden rounded bg-black/50">
-            <div
-              className="h-full transition-all"
-              style={{ width: `${Math.min(100, doom)}%`, background: doomColor }}
-            />
-          </div>
-          <span className="text-label uppercase text-white/35">{doomLabel}</span>
-        </div>
-        )}
       </div>
     </button>
   );

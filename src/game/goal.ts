@@ -27,7 +27,7 @@ export type EvacDemandBias = 'fuel' | 'meds' | 'ammo' | 'balanced';
 const BIAS_MULT = 1.15;
 
 // Each evac is a limited-time window (in-game hours). Miss it and a fresh one is
-// staged elsewhere — another chance, but the horde keeps rising in the meantime.
+// staged elsewhere — another chance, while supplies and shelter still matter.
 export const FIRST_EVAC_WINDOW_HOURS = 96;
 export const NEXT_EVAC_WINDOW_HOURS = 48;
 
@@ -280,36 +280,4 @@ export function pickNextEvacZone(
     }
   }
   return best?.id ?? excludeId;
-}
-
-// ---------- Doom clock (horde) ----------
-
-export const HORDE_MAX = 100;
-export const HORDE_PER_DAY = 8; // ~12–13 days before the city is lost
-
-export function hordeIntensity(hordeLevel: number): number {
-  return Math.min(1, hordeLevel / HORDE_MAX);
-}
-
-export type HordeTier = 'stirring' | 'restless' | 'massing' | 'swarming' | 'overrun';
-
-/** Stable id for `ui.horde.*` — translate at the call site. */
-export function hordeTier(hordeLevel: number): HordeTier {
-  if (hordeLevel >= HORDE_MAX) return 'overrun';
-  if (hordeLevel >= 75) return 'swarming';
-  if (hordeLevel >= 50) return 'massing';
-  if (hordeLevel >= 25) return 'restless';
-  return 'stirring';
-}
-
-/** English fallback for logs / non-i18n callers. */
-export function hordeLabel(hordeLevel: number): string {
-  const labels: Record<HordeTier, string> = {
-    overrun: 'Overrun',
-    swarming: 'Swarming',
-    massing: 'Massing',
-    restless: 'Restless',
-    stirring: 'Stirring',
-  };
-  return labels[hordeTier(hordeLevel)];
 }

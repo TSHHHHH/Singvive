@@ -21,11 +21,6 @@ interface Props {
   projectedEvacBonus: number;
   windowText: string | null;
   urgent: boolean;
-  doom: number;
-  doomColor: string;
-  doomLabel: string;
-  townName: string | null;
-  townTier: 'stirring' | 'restless' | 'massing' | 'fallen' | 'lost' | null;
   onEvac: () => void;
   onOpenGuide?: (topic: GuideTopic) => void;
   /** Map notes in the backpack waiting to be deciphered. */
@@ -56,7 +51,7 @@ const VIBE_WIDTH: Record<EvacVibe, number> = {
 
 /**
  * The run's objectives in full: dual-path score (survive mult + extract),
- * fogged radio vibe (no quota numbers), doom clock.
+ * fogged radio vibe (no quota numbers).
  */
 export function ObjectivesPanel({
   evacZoneName,
@@ -74,11 +69,6 @@ export function ObjectivesPanel({
   projectedEvacBonus,
   windowText,
   urgent,
-  doom,
-  doomColor,
-  doomLabel,
-  townName,
-  townTier,
   onEvac,
   onOpenGuide,
   intelNoteCount = 0,
@@ -238,25 +228,6 @@ export function ObjectivesPanel({
         </section>
       )}
 
-      {/* ---- Doom clock ---- */}
-      <section className="rounded-lg border border-white/15 bg-concrete-900/80 p-3">
-        <div className="flex items-center justify-between text-label uppercase text-white/40">
-          <span>{t('ui.objective.horde', { label: doomLabel })}</span>
-          <span className="tabular-nums">{Math.round(doom)}%</span>
-        </div>
-        <div className="mt-1 h-1.5 overflow-hidden rounded bg-black/50">
-          <div
-            className="h-full transition-all"
-            style={{ width: `${Math.min(100, doom)}%`, background: doomColor }}
-          />
-        </div>
-        <p className="mt-1.5 text-micro text-white/30">{t('ui.objective.hordeBlurb')}</p>
-        {townName && townTier && (
-          <p className="mt-1 text-micro text-white/40">
-            {t('ui.town.here', { name: townName, tier: t(`ui.town.${townTier}`) })}
-          </p>
-        )}
-      </section>
     </div>
   );
 }

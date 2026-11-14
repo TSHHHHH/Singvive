@@ -7,8 +7,7 @@ import type { TimeOfDay } from './types';
 // is exactly what the dice do. Two things keep it from feeling arbitrary:
 //
 //   1. Everything that moves the odds is something the player can see or cause
-//      — danger (including the noise you made), the hour, the weather, how far
-//      the rot has spread, and their own build.
+//      — site danger, the hour, the weather, nearby disturbances and their build.
 //   2. A site remembers its last fight. Right after one, the next rummage is
 //      calmer — you just cleared what was close. Keep pulling shelves apart and
 //      it creeps back up past where it started. On quiet ground the average is
@@ -38,11 +37,11 @@ export function nextSearchStreak(searchesSinceAmbush: number | undefined, ambush
 }
 
 export interface SearchOddsInput {
-  /** Danger including temporary noise boost and town tier (store's `doomDanger`). */
+  /** Site danger, including decaying legacy POI noise boosts. */
   danger: number;
   band: TimeOfDay;
   weatherMod: number;
-  /** Local horde pressure, 0..1. */
+  /** Steady baseline plus local disturbance, 0..1. */
   pressure: number;
   /** Trait + skill `encounterChanceMod`. */
   encounterMod: number;
@@ -58,7 +57,7 @@ export function searchAmbushChance(o: SearchOddsInput): number {
   if (o.band === 'night') p += 0.2;
   else if (o.band === 'dusk') p += 0.08;
   p += o.weatherMod;
-  // Local neighbourhood pressure — a Fallen town is not a Stirring one.
+  // Local disturbance enters once here, never again as a new site-danger boost.
   p += o.pressure * 0.3;
   p += o.encounterMod;
   if (o.band === 'night' || o.band === 'dusk') p += o.nightEncounterMod;
