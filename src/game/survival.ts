@@ -18,7 +18,7 @@ export const DEPLETION_PER_HOUR = {
  * Sleep still burns less than a waking day, but a full night should cost real
  * food and water — not leave the pack untouched until morning.
  */
-export const SLEEP_DEPLETION_MULT = 0.55;
+export const SLEEP_DEPLETION_MULT = 0.35;
 
 /** Below this, an empty stomach / dry throat starts costing HP. */
 export const STARVING_THRESHOLD = 35;

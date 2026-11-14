@@ -38,6 +38,7 @@ import { SettingsModal } from '../components/settings';
 import { DigitalClock } from '../components/DigitalClock';
 import { WeatherBadge } from '../components/WeatherBadge';
 import { SleepQualityIndicator } from '../components/SleepQualityIndicator';
+import { RestDialog } from '../components/RestDialog';
 import { ObjectiveBar } from '../components/ObjectiveBar';
 import { ObjectivesPanel } from '../components/ObjectivesPanel';
 import { tip } from '../components/tips';
@@ -280,7 +281,6 @@ export function GameScreen() {
     enter,
     trek,
     tunnelEnterRoute,
-    rest,
     peekRestPreview,
     peekRouteEncounterMod,
     notify,
@@ -399,6 +399,9 @@ export function GameScreen() {
 
   const inventoryOpenToken = useGame((s) => s.inventoryOpenToken);
   const traderOpen = useGame((s) => !!s.trader);
+
+  const [restOpen, setRestOpen] = useState(false);
+  const closeRest = useCallback(() => setRestOpen(false), []);
 
   const sleepPreview = useMemo(
     () => peekRestPreview(),
@@ -1429,7 +1432,7 @@ export function GameScreen() {
             <div className="flex shrink-0 items-center gap-2">
               <SleepQualityIndicator preview={sleepPreview} />
               <button
-                onClick={rest}
+                onClick={() => setRestOpen(true)}
                 className="rounded border border-white/15 px-2.5 py-1 text-body transition hover:bg-white/5"
                 {...tip(sleepPreview.conditions.summary)}
               >
@@ -2077,6 +2080,7 @@ export function GameScreen() {
       {dayLogsOpen && <DayLogsModal onClose={() => setDayLogsOpen(false)} />}
       {guideTopic && <GuideModal topic={guideTopic} onClose={() => setGuideTopic(null)} />}
       {howToPlayOpen && <HowToPlayModal onClose={() => setHowToPlayOpen(false)} />}
+      {restOpen && <RestDialog onClose={closeRest} />}
       <LimbCoachModal bodyParts={bodyParts} onOpenGuide={setGuideTopic} />
       {/* Gated on store state rather than local state: the counter belongs to
           the place you're standing in, not to a button in this screen. */}

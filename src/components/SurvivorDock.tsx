@@ -9,10 +9,10 @@ import { Icon } from '../icons/Icon';
 import type { IconName } from '../icons/keys';
 import { ConditionPanel } from './ConditionPanel';
 import { InventoryPanel } from './Inventory/InventoryPanel';
-import { dynamicMeterColor } from './MeterBar';
 import { loadTierLabel, loadTierShown } from './loadTier';
 import { isModalOpen } from './modalStack';
 import { tip } from './tips';
+import { VitalMeter } from './VitalMeter';
 
 type Section = 'condition' | 'backpack' | 'more';
 
@@ -108,10 +108,10 @@ export function SurvivorDock({
     <div className="space-y-2.5">
       <section aria-label={t('ui.dock.vitals')} className="rounded-lg border border-white/15 bg-black/15 p-2.5">
         <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-          <DockMeter label={t('ui.condition.health')} icon="meter.health" value={totalHp(bodyParts)} max={totalMaxHp(bodyParts)} />
-          <DockMeter label={t('ui.condition.energy')} icon="meter.energy" value={meters.energy} hint={meterModifiers('energy', meters, locale).map((m) => m.text).join('\n')} />
-          <DockMeter label={t('ui.dock.food')} icon="meter.hunger" value={meters.hunger} hint={meterModifiers('hunger', meters, locale).map((m) => m.text).join('\n')} />
-          <DockMeter label={t('ui.dock.water')} icon="meter.thirst" value={meters.thirst} hint={meterModifiers('thirst', meters, locale).map((m) => m.text).join('\n')} />
+          <VitalMeter label={t('ui.condition.health')} icon="meter.health" value={totalHp(bodyParts)} max={totalMaxHp(bodyParts)} />
+          <VitalMeter label={t('ui.condition.energy')} icon="meter.energy" value={meters.energy} hint={meterModifiers('energy', meters, locale).map((m) => m.text).join('\n')} />
+          <VitalMeter label={t('ui.dock.food')} icon="meter.hunger" value={meters.hunger} hint={meterModifiers('hunger', meters, locale).map((m) => m.text).join('\n')} />
+          <VitalMeter label={t('ui.dock.water')} icon="meter.thirst" value={meters.thirst} hint={meterModifiers('thirst', meters, locale).map((m) => m.text).join('\n')} />
         </div>
         {(needsCare || heavy) && (
           <div className="mt-2.5 flex flex-wrap gap-1.5 border-t border-white/10 pt-2" aria-live="polite">
@@ -157,27 +157,6 @@ export function SurvivorDock({
             {visible === 'more' && tools}
           </>
         )}
-      </div>
-    </div>
-  );
-}
-
-function DockMeter({ label, icon, value, max = 100, hint }: {
-  label: string;
-  icon: IconName;
-  value: number;
-  max?: number;
-  hint?: string;
-}) {
-  const pct = Math.max(0, Math.min(100, value / Math.max(1, max) * 100));
-  return (
-    <div {...tip(hint)}>
-      <div className="mb-1 flex items-center justify-between gap-2 text-body">
-        <span className="flex items-center gap-1.5 text-white/65"><Icon name={icon} size={13} />{label}</span>
-        <span className={pct < 35 ? 'tabular-nums text-hiss' : 'tabular-nums text-concrete-50'}>{Math.round(value)}<span className="text-micro text-white/40">/{Math.round(max)}</span></span>
-      </div>
-      <div role="meter" aria-label={label} aria-valuenow={value} aria-valuemin={0} aria-valuemax={max} className="h-1 overflow-hidden bg-white/10">
-        <div className="h-full" style={{ width: `${pct}%`, background: dynamicMeterColor(pct) }} />
       </div>
     </div>
   );

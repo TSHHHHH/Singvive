@@ -1,6 +1,6 @@
 /**
- * Pure helpers for the live loot list's reveal effect (name typing in,
- * per-slot progress). No React, no Date.
+ * Pure helpers for the live loot list's reveal effect (name revealing in
+ * random letter order, per-slot progress). No React, no Date.
  */
 import type { SearchSession, SearchSlot } from './searchSession';
 
@@ -32,32 +32,82 @@ export function slotProgress(
   return Math.max(0, Math.min(1, done / slot.searchMs));
 }
 
-/** Split a name into its revealed prefix and a masked tail. */
+export type RevealKind = 'shown' | 'frontier' | 'masked';
+export interface RevealSegment {
+  text: string;
+  kind: RevealKind;
+}
+
+function hashString(str: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+/**
+ * Order in which a name's letters are revealed: a shuffle seeded by `seed`
+ * (the slot id), so it is random per find but stable from frame to frame.
+ * Spaces are left out — they always show, so word shape reads through.
+ */
+export function revealOrder(chars: string[], seed: string): number[] {
+  const idx = chars.flatMap((c, i) => (c === ' ' ? [] : [i]));
+  let state = hashString(seed) || 1;
+  const next = () => {
+    // xorshift32 — tiny, deterministic, good enough for a shuffle.
+    state ^= state << 13;
+    state >>>= 0;
+    state ^= state >>> 17;
+    state ^= state << 5;
+    state >>>= 0;
+    return state / 4294967296;
+  };
+  for (let i = idx.length - 1; i > 0; i--) {
+    const j = Math.floor(next() * (i + 1));
+    [idx[i], idx[j]] = [idx[j], idx[i]];
+  }
+  return idx;
+}
+
+/**
+ * Reveal a name in random letter order as `progress` goes 0 → 1. Hidden
+ * letters show a mask glyph; the next letter to land scrambles while
+ * `scrambleTick` is given (the row is being searched). Returns runs of
+ * same-kind text for rendering.
+ */
 export function revealName(
   name: string,
   progress: number,
   scrambleTick: number | null,
-): { shown: string; frontier: string; masked: string } {
+  seed: string,
+): RevealSegment[] {
   const chars = Array.from(name);
-  if (progress >= 1) return { shown: name, frontier: '', masked: '' };
-  const n = Math.min(chars.length, Math.floor(progress * chars.length));
-  const shown = chars.slice(0, n).join('');
-  const rest = chars.slice(n);
-  // Glyph picked from the hidden character itself: stable per position, but
-  // different names get different-looking masks.
-  const mask = (c: string, i: number) =>
-    c === ' ' ? ' ' : MASK[((c.codePointAt(0) ?? 0) + n + i) % MASK.length];
-  if (rest.length === 0) return { shown, frontier: '', masked: '' };
-  const frontier =
-    scrambleTick == null
-      ? mask(rest[0], 0)
-      : rest[0] === ' '
-        ? ' '
-        : SCRAMBLE[(scrambleTick + n) % SCRAMBLE.length];
-  const masked = rest
-    .slice(1)
-    .map((c, i) => mask(c, i + 1))
-    .join('');
-  return { shown, frontier, masked };
-}
+  if (progress >= 1) return [{ text: name, kind: 'shown' }];
+  const order = revealOrder(chars, seed);
+  const n = Math.min(order.length, Math.floor(Math.max(0, progress) * order.length));
+  const kinds: RevealKind[] = chars.map((c) => (c === ' ' ? 'shown' : 'masked'));
+  for (let k = 0; k < n; k++) kinds[order[k]] = 'shown';
+  const frontierAt = n < order.length ? order[n] : -1;
+  if (frontierAt >= 0) kinds[frontierAt] = 'frontier';
 
+  const segs: RevealSegment[] = [];
+  chars.forEach((c, i) => {
+    const kind = kinds[i];
+    let text = c;
+    if (kind === 'masked') {
+      // Glyph picked from the hidden character: stable, varies between names.
+      text = MASK[((c.codePointAt(0) ?? 0) + i) % MASK.length];
+    } else if (kind === 'frontier') {
+      text =
+        scrambleTick == null
+          ? MASK[((c.codePointAt(0) ?? 0) + i) % MASK.length]
+          : SCRAMBLE[(scrambleTick + i) % SCRAMBLE.length];
+    }
+    const last = segs[segs.length - 1];
+    if (last && last.kind === kind) last.text += text;
+    else segs.push({ text, kind });
+  });
+  return segs;
+}
