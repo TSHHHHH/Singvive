@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { Rng } from './rng';
-import { generateTunnelRun, SERVICE_KINDS, type TunnelCtx, type TunnelRun } from './tunnelRun';
+import {
+  generateTunnelRun,
+  MAX_MID_COLS,
+  MIN_MID_COLS,
+  SERVICE_KINDS, type TunnelCtx, type TunnelRun } from './tunnelRun';
 import type { LocationState } from './types';
 
 const loc = (id: string, danger: number) =>
@@ -92,6 +96,22 @@ describe('tunnel crawl generation', () => {
         const feeders = Object.values(run.nodes).filter((n) => n.next.includes(first.id));
         expect(feeders.some((n) => n.lane === 1)).toBe(true);
         expect(last.next.some((id) => run.nodes[id].lane === 1)).toBe(true);
+      }
+    }
+  });
+
+  it('makes every hop between platforms an expedition of 5–10 encounters', () => {
+    for (const seed of SEEDS) {
+      const run = gen(seed, 6);
+      const platforms = run.columns
+        .map((ids, col) => ({ col, node: run.nodes[ids[0]] }))
+        .filter((c) => c.node.kind === 'platform')
+        .map((c) => c.col);
+      expect(platforms).toHaveLength(6);
+      for (let i = 1; i < platforms.length; i++) {
+        const mids = platforms[i] - platforms[i - 1] - 1;
+        expect(mids).toBeGreaterThanOrEqual(MIN_MID_COLS);
+        expect(mids).toBeLessThanOrEqual(MAX_MID_COLS);
       }
     }
   });

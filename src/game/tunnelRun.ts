@@ -336,10 +336,15 @@ const TUNNEL_TRADES: readonly TunnelTrade[] = [
 
 // ------------------------------------------------------------ generation --
 
-const MIN_MID_COLS = 1;
-const MAX_MID_COLS = 5;
-/** Soft cap so a 20-stop ride stays playable on a phone. */
-const MAX_TOTAL_COLS = 22;
+/**
+ * Encounters between two platforms. The tunnels are not a shortcut: every hop
+ * is an expedition of its own, 5 on the shortest LRT hop up to 10 on the long
+ * cross-island bores.
+ */
+export const MIN_MID_COLS = 5;
+export const MAX_MID_COLS = 10;
+/** Stops this deep into a hop sit one danger step higher — you are far from any stairs. */
+const DEEP_IN_HOP = 5;
 
 const clamp = (lo: number, hi: number, n: number) => Math.max(lo, Math.min(hi, n));
 
@@ -547,40 +552,15 @@ function linkSpineAndAdits(
   for (const node of Object.values(nodes)) orderExits(node, nodes);
 }
 
-/** Middle columns between two platforms for one hop, before global thinning. */
-function midColsForHop(meters: number, mode: 'mrt' | 'lrt'): number {
-  const span = clamp(MIN_MID_COLS, MAX_MID_COLS, Math.round(meters / 480));
-  return mode === 'lrt' ? Math.max(MIN_MID_COLS, span - 1) : span;
-}
-
 /**
- * Thin middle-column budgets so platform + middles stay under MAX_TOTAL_COLS.
- * Platforms are never removed; the longest hop sheds a column first.
+ * Middle columns for one hop: scales with track length (~600 m → 5, ~2.4 km →
+ * 10) plus a seeded nudge of up to one, so two hops of the same length don't
+ * always walk the same.
  */
-function thinMiddles(mids: number[], stationCount: number): number[] {
-  const platformCols = stationCount;
-  let total = platformCols + mids.reduce((a, b) => a + b, 0);
-  if (total <= MAX_TOTAL_COLS) return mids;
-  const out = [...mids];
-  const cut = (): boolean => {
-    let best = -1;
-    let bestVal = 0;
-    for (let i = 0; i < out.length; i++) {
-      if (out[i] <= 0) continue;
-      if (out[i] > bestVal) {
-        bestVal = out[i];
-        best = i;
-      }
-    }
-    if (best < 0 || bestVal <= 0) return false;
-    out[best]--;
-    total--;
-    return true;
-  };
-  while (total > MAX_TOTAL_COLS) {
-    if (!cut()) break;
-  }
-  return out;
+function midColsForHop(meters: number, mode: 'mrt' | 'lrt', r: Rng): number {
+  const span = 5 + Math.round((meters - 600) / 360);
+  const base = mode === 'lrt' ? span - 1 : span;
+  return clamp(MIN_MID_COLS, MAX_MID_COLS, base + r.int(0, 1));
 }
 
 export function generateTunnelRun(rng: Rng, ctx: TunnelCtx): TunnelRun {
@@ -607,8 +587,9 @@ export function generateTunnelRun(rng: Rng, ctx: TunnelCtx): TunnelRun {
   const shape = rng.fork('shape');
   const baseDanger = baseDangerFor(ctx);
 
-  let mids = hopMeters.map((m) => midColsForHop(m, ctx.mode));
-  mids = thinMiddles(mids, stations.length);
+  const mids = hopMeters.map((m, i) => midColsForHop(m, ctx.mode, shape.fork(`mids:${i}`)));
+  /** Column index -> how many stops into its hop it sits (platforms 0). */
+  const depth: number[] = [];
 
   const nodes: Record<string, TunnelNode> = {};
   const columns: string[][] = [];
@@ -631,20 +612,22 @@ export function generateTunnelRun(rng: Rng, ctx: TunnelCtx): TunnelRun {
     };
     nodes[idn] = node;
     columns.push([idn]);
+    depth.push(0);
     col++;
   };
 
-  const addMain = (lastMiddle: boolean) => {
+  const addMain = (lastMiddle: boolean, into: number) => {
     const kind = rollKind(shape.fork(`main:${col}`), !lastMiddle, CORRIDOR_KINDS);
     const node = fillContent(
       rng.fork(`node:${col}:1`),
       kind,
       col,
       1,
-      clamp(0, 5, baseDanger + (col > 4 ? 1 : 0)),
+      clamp(0, 5, baseDanger + (into >= DEEP_IN_HOP ? 1 : 0)),
     );
     nodes[node.id] = node;
     columns.push([node.id]);
+    depth.push(into);
     col++;
   };
 
@@ -652,7 +635,7 @@ export function generateTunnelRun(rng: Rng, ctx: TunnelCtx): TunnelRun {
     addPlatform(stations[s], s, s === 0);
     if (s < stations.length - 1) {
       const midCount = mids[s];
-      for (let i = 0; i < midCount; i++) addMain(i === midCount - 1);
+      for (let i = 0; i < midCount; i++) addMain(i === midCount - 1, i + 1);
     }
   }
 
@@ -684,7 +667,7 @@ export function generateTunnelRun(rng: Rng, ctx: TunnelCtx): TunnelRun {
       kind,
       c,
       lane,
-      clamp(0, 5, baseDanger + (c > 4 ? 1 : 0)),
+      clamp(0, 5, baseDanger + ((depth[c] ?? 0) >= DEEP_IN_HOP ? 1 : 0)),
     );
     nodes[node.id] = node;
     columns[c].push(node.id);
