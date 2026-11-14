@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type {
+  AttributeKey,
   BodyParts,
   Character,
   CombatState,
@@ -297,6 +298,8 @@ import {
   type EventEffect,
   type FactionStanding,
   type GameEvent,
+  type CheckResult,
+  type ShownRoll,
 } from './events';
 import {
   addHighScore,
@@ -652,6 +655,10 @@ interface State {
   ghostOffer: { kind: 'trader'; wantDefId: string; giveDefId: string } | null;
 
   pendingEvent: PendingEvent | null;
+  /** The last attribute check, for the dice overlay to play back. UI only — never persisted. */
+  shownRoll: ShownRoll | null;
+  /** The dice overlay finished or was skipped. */
+  dismissRoll: () => void;
   _eventRng: Rng | null;
   /**
    * Live sequential search in the timeline. Runtime-only — not written to the
@@ -1098,6 +1105,27 @@ export const useGame = create<State>((set, get) => {
           s.bodyParts ? torsoCarryMult(s.bodyParts) : 1,
         )
       : loadEffects(0);
+
+  /**
+   * Roll an attribute check and hand it to the dice overlay. The result is
+   * returned and applied straight away like any other roll — the overlay only
+   * plays back what already happened, so logic stays headless and replayable.
+   */
+  let rollSeq = 0;
+  const shownCheck = (
+    rng: Rng,
+    attr: AttributeKey,
+    dc: number,
+    label: string,
+  ): CheckResult => {
+    const s = get();
+    const attrValue = s.character!.attributes[attr];
+    const bonus = sumTraitMod(s.character!.traitIds, 'checkBonusMod');
+    const res = rollCheck(rng, attrValue, dc, bonus);
+    rollSeq += 1;
+    set({ shownRoll: { ...res, id: rollSeq, attr, attrValue, bonus, label } });
+    return res;
+  };
 
   /** Player-side encounter modifiers on a crossing; the trek card previews the same sum. */
   const routeEncounterMod = (s: State, band: TimeOfDay): number => {
@@ -3246,12 +3274,7 @@ export const useGame = create<State>((set, get) => {
     if (node.kind === 'signal') {
       const after = tunnelTick(meta.minutes / 60);
       if (!after) return;
-      const check = rollCheck(
-        rng,
-        s.character!.attributes.wits,
-        hazardDc(node),
-        sumTraitMod(s.character!.traitIds, 'checkBonusMod'),
-      );
+      const check = shownCheck(rng, 'wits', hazardDc(node), `Read the signal at ${node.name}`);
       if (check.success) {
         set({ tunnel: setSightBonus(markDone(after, nodeId), 1) });
         pushLog(`${node.name}: a board still answers. The next stretch lights up.`, 'good', undefined, undefined, nodeScope);
@@ -3267,12 +3290,7 @@ export const useGame = create<State>((set, get) => {
     if (node.kind === 'hazard') {
       const hazardKind = node.hazard ?? 'collapse';
       const cfg = TUNNEL_HAZARD[hazardKind];
-      const check = rollCheck(
-        rng,
-        s.character!.attributes[cfg.attr],
-        hazardDc(node),
-        sumTraitMod(s.character!.traitIds, 'checkBonusMod'),
-      );
+      const check = shownCheck(rng, cfg.attr, hazardDc(node), `Get through ${node.name}`);
       const minutes = hazardMinutes(node, !check.success);
       const after = tunnelTick(minutes / 60);
       if (!after) return;
@@ -3633,6 +3651,7 @@ export const useGame = create<State>((set, get) => {
     noisePulses: [],
     ghostOffer: null,
     pendingEvent: null,
+    shownRoll: null,
     pendingSearch: null,
     _eventRng: null,
     _eventClock: freshEventClock(),
@@ -4130,9 +4149,8 @@ export const useGame = create<State>((set, get) => {
         return;
       }
       const rng = new Rng(s.seed).fork(`sneak:${loc.id}:${s.day}:${Math.round(s.hour)}`);
-      const bonus = sumTraitMod(s.character!.traitIds, 'checkBonusMod');
       const dc = dcFor(loc.currentDanger);
-      const res = rollCheck(rng, s.character!.attributes.dexterity, dc, bonus);
+      const res = shownCheck(rng, 'dexterity', dc, 'Sneak past the gate');
       if (res.success) {
         pushLog(
           res.roll === 20
@@ -4193,9 +4211,8 @@ export const useGame = create<State>((set, get) => {
       const rng = new Rng(s.seed).fork(
         `raidsneak:${loc.id}:${s.day}:${loc.remainingSearches}`,
       );
-      const bonus = sumTraitMod(s.character!.traitIds, 'checkBonusMod');
       const dc = dcFor(loc.currentDanger);
-      const res = rollCheck(rng, s.character!.attributes.dexterity, dc, bonus);
+      const res = shownCheck(rng, 'dexterity', dc, 'Search without being heard');
       if (res.success) {
         pushLog(
           res.roll === 20
@@ -4641,12 +4658,7 @@ export const useGame = create<State>((set, get) => {
       }
 
       const rng = new Rng(s.seed).fork(tunnelKey(run, `sneak:${node.id}`));
-      const check = rollCheck(
-        rng,
-        s.character!.attributes.dexterity,
-        hazardDc(node),
-        sumTraitMod(s.character!.traitIds, 'checkBonusMod'),
-      );
+      const check = shownCheck(rng, 'dexterity', hazardDc(node), `Slip past the marshals at ${node.name}`);
       if (check.success) {
         set({ tunnel: markDone(run, node.id) });
         pushLog(`${node.name}: you slip the chain and they never turn.`, 'good', undefined, undefined, nodeScope);
@@ -5237,6 +5249,10 @@ export const useGame = create<State>((set, get) => {
       ensureSiteRuin(locationId);
     },
 
+    dismissRoll: () => {
+      if (get().shownRoll) set({ shownRoll: null });
+    },
+
     resolveEvent: (choiceId) => {
       const s = get();
       const pe = s.pendingEvent;
@@ -5449,7 +5465,7 @@ export const useGame = create<State>((set, get) => {
           const attrKey = choice.attr!;
           const attrVal = s.character!.attributes[attrKey];
           const bonus = sumTraitMod(s.character!.traitIds, 'checkBonusMod');
-          const res = rollCheck(rng, attrVal, choice.dc!, bonus);
+          const res = shownCheck(rng, attrKey, choice.dc!, choice.label);
           pushLog(
             `${choice.label} — ${attrEmoji(attrKey)} ${ATTRIBUTE_LABELS[attrKey]} d20 ${res.roll}+${attrVal}${bonus ? `+${bonus}` : ''}=${res.total} vs ${res.dc}: ${res.success ? 'success' : 'failure'}`,
             res.success ? 'good' : 'bad',
@@ -7500,6 +7516,7 @@ export const useGame = create<State>((set, get) => {
         noisePulses: [],
         ghostOffer: null,
         pendingEvent: null,
+        shownRoll: null,
         pendingSearch: null,
         _eventRng: null,
         _eventClock: freshEventClock(),
@@ -7628,6 +7645,7 @@ export const useGame = create<State>((set, get) => {
         noisePulses: [],
         ghostOffer: null,
         pendingEvent: null,
+        shownRoll: null,
         pendingSearch: null,
         _eventRng: null,
         _eventClock: run.eventClock ?? { ...freshEventClock(), day: run.day },

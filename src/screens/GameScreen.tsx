@@ -43,6 +43,7 @@ import { ObjectivesPanel } from '../components/ObjectivesPanel';
 import { tip } from '../components/tips';
 import { DayLogsModal } from '../components/DayLogsModal';
 import { GuideModal } from '../components/GuideModal';
+import { DiceRoll } from '../components/DiceRoll';
 import { HowToPlayModal } from '../components/HowToPlayModal';
 import { LimbCoachModal } from '../components/LimbCoachModal';
 import { HdbDungeonModal } from '../components/HdbDungeonModal';
@@ -2082,6 +2083,7 @@ export function GameScreen() {
       )}
       {dayLogsOpen && <DayLogsModal onClose={() => setDayLogsOpen(false)} />}
       {guideTopic && <GuideModal topic={guideTopic} onClose={() => setGuideTopic(null)} />}
+      <DiceRoll />
       {howToPlayOpen && <HowToPlayModal onClose={() => setHowToPlayOpen(false)} />}
       <LimbCoachModal bodyParts={bodyParts} onOpenGuide={setGuideTopic} />
       {/* Gated on store state rather than local state: the counter belongs to

@@ -1,5 +1,12 @@
 {
   "ui": {
+    "dice": {
+      "success": "Success",
+      "failure": "Failed",
+      "natural20": "Natural 20",
+      "dc": "DC {n}",
+      "skip": "Tap to continue"
+    },
     "common": {
       "close": "✕ close",
       "back": "← Back",
@@ -1908,6 +1915,14 @@
     "combatFx": {
       "label": "Combat shake & blood",
       "description": "Screen shake, blood splatter and damage numbers when blows land. Desktop only. Reduce motion keeps the fades and drops the movement.",
+      "options": {
+        "on": "On",
+        "off": "Off"
+      }
+    },
+    "diceFx": {
+      "label": "Dice rolls",
+      "description": "Roll a d20 on screen when a check decides the outcome. Tap to skip. Reduce motion shows the result without the tumble.",
       "options": {
         "on": "On",
         "off": "Off"
