@@ -180,8 +180,8 @@ pinned (`timelinePinned` setting) or something needs an answer (event, search, c
 then the full `LogPanel` / `CombatPanel`. On the open desktop map, a **single location inspector**
 sits at the lower-left edge of the map column. It shows the current location by default and the
 target when one is selected; its Here / Target controls let the player inspect either without
-discarding the route. `MapCallouts` positions only small clickable `MapLocationLabel`s above the
-pins, including during a glide. Picking a pin never moves the inspector or the camera padding.
+discarding the route. Nothing floats over the pins themselves; the map's own badges name them.
+Picking a pin never moves the inspector or the camera padding.
 `LocationIdentity` gives revealed categories a muted resource-family tint, an explicit type
 label, a decorative icon watermark and localized typical-loot hints. Unknown sites use a neutral
 header with no category or loot hints. Location status, danger and route restrictions stay visible;
@@ -863,7 +863,8 @@ site and known landmarks retain theirs. Both representations share the same fog
 visibility, padded viewport and 450-site cap, with selected/current sites and landmarks
 prioritised before distance when the cap is reached. Full badges return at zoom 14.
 
-Floating map cards cache their viewport dimensions through `ResizeObserver` and
-follow the map's `render` event once per frame. Keep layout reads (`clientWidth`,
-`offsetWidth`, etc.) out of camera callbacks: after marker transforms are written,
-those reads force the browser to flush styles and layout during the frame.
+Anything that follows the map should cache its viewport dimensions through
+`ResizeObserver` and follow the map's `render` event once per frame. Keep layout
+reads (`clientWidth`, `offsetWidth`, etc.) out of camera callbacks: after marker
+transforms are written, those reads force the browser to flush styles and layout
+during the frame.
