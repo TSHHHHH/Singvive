@@ -200,6 +200,7 @@ export function townDangerMod(tier: TownTier): number {
 }
 
 const OPEN_SPAWN_CATEGORIES: ReadonlySet<PoiCategory> = new Set([
+  'landmark', // includes outdoor gardens; never use as a guaranteed indoor spawn
   'waypoint',
   'foodcourt',
   'fuel',

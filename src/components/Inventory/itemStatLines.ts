@@ -1,5 +1,5 @@
 import { itemDef } from '../../game/loot';
-import { effectiveDamage, equipDefenseBonus, scaledRestore } from '../../game/inventory';
+import { effectiveDamage, equipDefenseBonus, scaledRestore, preparedEffect } from '../../game/inventory';
 import { weaponSpeedFactor } from '../../game/combat';
 import { packGridUsableCount, resolveItemPackGrid } from '../../game/packGrid';
 import type { Equipment, ItemInstance } from '../../game/types';
@@ -87,7 +87,7 @@ export function itemStatLines(
   t: TranslateFn,
 ): StatLine[] {
   const lines: StatLine[] = [];
-  const e = def.effect;
+  const e = preparedEffect(def.effect, inst);
   const compare =
     def.slot && equipment[def.slot]?.uid !== inst.uid ? equipment[def.slot] : null;
   const cmpDef = compare ? itemDef(compare.defId) : null;

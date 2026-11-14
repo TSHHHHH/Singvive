@@ -1,4 +1,5 @@
 import { inPolygon, inSingapore, SG_BOUNDS } from './singapore';
+import { onLandCrossing } from './crossings';
 
 /**
  * Walkability against the baked land / water / restricted mask
@@ -226,6 +227,7 @@ export function walkabilityOf(lat: number, lng: number): Walkability {
   }
 
   if (inAny(lat, lng, restrictedIdx, restrictedGrid)) return 'restricted';
+  if (onLandCrossing(lat, lng)) return 'ok';
   if (!inAny(lat, lng, landIdx, landGrid)) return 'water';
   if (inAny(lat, lng, waterIdx, waterGrid)) return 'water';
   return 'ok';

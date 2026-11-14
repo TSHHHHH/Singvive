@@ -397,7 +397,8 @@ function sampleServices(rng: Rng, pool: FactionService[], n: number): FactionSer
 }
 
 /**
- * Stamp outpost flags and seed ordinary-territory service subsets.
+ * Stamp outpost flags and seed ordinary-territory service subsets without
+ * granting knowledge of the site or its faction.
  * Outposts always get that faction's full kit; ordinary ground samples 1–2
  * from the lesser pool (never the signature). STA ordinary platforms stay
  * a toll with no hub buttons.
@@ -443,28 +444,15 @@ function stampFactionServices(
   if (loc.factionServices !== undefined && loc.isFactionOutpost === isOp) return loc;
 
   const lesser = ordinaryKit(loc.factionId);
-  const patched: LocationState = {
+  return {
     ...loc,
     isFactionOutpost: isOp,
-    isFactionRevealed: isOp ? true : loc.isFactionRevealed,
-    discovered: isOp ? true : loc.discovered,
     factionServices: isOp
       ? outpostKit(loc.factionId)
       : lesser.length
         ? sampleServices(siteRng, lesser, siteRng.int(1, Math.min(2, lesser.length)))
         : [],
   };
-  if (isOp && !patched.lastSeen) {
-    patched.lastSeen = {
-      currentDanger: patched.currentDanger,
-      isFactionRevealed: true,
-      looted: patched.looted,
-      exhausted: patched.exhausted,
-      remainingSearches: patched.remainingSearches,
-      cleared: patched.cleared,
-    };
-  }
-  return patched;
 }
 
 /**

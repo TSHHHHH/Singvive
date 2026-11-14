@@ -15,9 +15,9 @@ describe('powdered drink crafting', () => {
   });
 
   it('recognises a water-group recipe with any carried water source', () => {
-    const recipe = RECIPES.find((r) => r.id === 'kopi_o');
+    const recipe = RECIPES.find((r) => r.id === 'kopi_o_kosong');
     expect(recipe).toBeDefined();
-    expect(canCraft(recipe!, [item('coffee'), item('dirty_water')], false)).toEqual({
+    expect(canCraft(recipe!, [item('coffee_portion', 2), item('dirty_water')], false)).toEqual({
       ok: true,
       reason: '',
     });

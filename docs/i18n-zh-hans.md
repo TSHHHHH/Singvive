@@ -8,6 +8,13 @@ Overlay catalog: `src/i18n/messages/zh-Hans.json` (English source of truth: `en.
 |----|---------|--------|
 | horde (meter / island) | 尸潮 | Not 尸群 / 尸海 |
 | infection | 感染 | Resist = 感染抗性 |
+| hunger / thirst (meters) | 饱食度 / 水分 | Higher is better; drain = 饱食度消耗 / 水分消耗. 饥饿 / 口渴 remain valid symptoms. |
+| Wits / Awareness | 机智 / 警觉 | Keep attribute and derived-stat labels distinct from 感知 (Perception). |
+| stash (place) / stash (action) | 储藏点 / 存放 | Pack action = 装入背包; backpack noun = 背包. |
+| craft / heat / travel speed | 制作 / 热度 / 赶路速度 | Heat is local danger, not temperature. |
+| positive trait / flaw | 正面特质 / 缺点 | No count caps; budget, duplicates and conflicts determine legality. |
+| day multiplier / day logs | 天数倍率 / 往日日志 | |
+| HDB pantry / household shelter | 食物间 / 住家避难室 | Pantry is not a food court (食阁). |
 | evac / evac window / at evac | 撤离 / 撤离窗口 / 已在撤离点 | |
 | faction (world) | 势力 | Short HUD: 势力前哨 / 势力领地 |
 | outpost | 据点 | |
@@ -34,3 +41,4 @@ Banned regressions are gated by `scripts/check-zh-hans-glossary.mjs` (wired into
 5. **Dialogue:** spoken 简体; light 啊/啦 only where English has an ah/lah equivalent.
 6. **Keep Latin:** STA, Muster, Gotong, Kopi C/O, 100PLUS, DC, HP, OSM where already established.
 7. **Place names:** never translate OSM `{name}`.
+8. **Mechanics before wordplay:** say what an action costs and does. Preserve numbers, signs and `{placeholders}`; distinguish supplies consumed from tools merely required.

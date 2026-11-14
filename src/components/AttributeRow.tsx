@@ -1,6 +1,5 @@
 import { useGame } from '../game/store';
 import {
-  ATTRIBUTE_BLURB,
   ATTRIBUTE_ICONS,
   ATTRIBUTE_KEYS,
   attributeEffects,
@@ -10,7 +9,7 @@ import {
 import type { AttributeKey } from '../game/types';
 import { Icon } from '../icons/Icon';
 import { TipHint } from './TipHint';
-import { useT } from '../i18n';
+import { traitName, useT } from '../i18n';
 
 /**
  * The five attributes, inline on the Condition rail so the sheet isn't a panel
@@ -66,9 +65,9 @@ function AttributeTip({
   traitIds: string[];
   value: number;
 }) {
-  const { t } = useT();
+  const { locale, t } = useT();
   const sources = attributeSources(traitIds, attr);
-  const effects = attributeEffects(attr, value);
+  const effects = attributeEffects(attr, value, locale);
   return (
     <>
       <div className="mb-1 flex items-baseline justify-between gap-2">
@@ -80,7 +79,7 @@ function AttributeTip({
           {t('ui.attributes.baseTo', { base: BASE_ATTRIBUTE, value })}
         </span>
       </div>
-      <p className="text-body text-white/60">{ATTRIBUTE_BLURB[attr]}</p>
+      <p className="text-body text-white/60">{t(`ui.attributes.blurb.${attr}`)}</p>
 
       {effects.length > 0 ? (
         <ul className="mt-1.5 flex flex-col gap-0.5">
@@ -97,8 +96,8 @@ function AttributeTip({
       {sources.length > 0 && (
         <ul className="mt-1.5 flex flex-col gap-px border-t border-white/10 pt-1.5">
           {sources.map((s) => (
-            <li key={s.name} className="flex justify-between gap-2 text-micro">
-              <span className="truncate text-white/45">{s.name}</span>
+            <li key={s.id} className="flex justify-between gap-2 text-micro">
+              <span className="truncate text-white/45">{traitName(s.id, locale)}</span>
               <span className={`shrink-0 tabular-nums ${s.mod > 0 ? 'text-signal' : 'text-hiss'}`}>
                 {s.mod > 0 ? '+' : ''}
                 {s.mod}

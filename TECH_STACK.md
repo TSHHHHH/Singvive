@@ -72,7 +72,9 @@ goes flat. MapLibre zoom is the old Leaflet zoom − 1 (the saved zoom key moved
 - **3D** (`buildings.ts`, setting `mapView3d`) extrudes the basemap's buildings from `LOD_ZOOM` 15.
   A building stands only inside an explored or live disc (feature-state `rise`, animated unless
   reduced motion; never held for the camera — only the 10–20 ms tile index scan waits for it to
-  settle). Sites are matched to their building and coloured through feature-state; taps on
+  settle). Sites are matched to their building and coloured through feature-state, using known
+  faction colours before category colours. Marker fills lighten the faction hue for dark-icon
+  contrast; selection is a separate DOM badge ring in 2D and 3D, never a model colour override. Taps on
   a site's building select it, other buildings walk to them. Badges lift to the roof through the
   `--roof` / `--roof-lift` CSS variables. Spawn select and the route planner stay 2D.
   A visited street site's building wears its ruin tier: Damaged is scorched, Ravaged is cut to a
@@ -83,14 +85,16 @@ goes flat. MapLibre zoom is the old Leaflet zoom − 1 (the saved zoom key moved
   `clearFloorBand`, its own `storey-band` fill-extrusion layer, a collar stood 1.2 m off the
   site's ring). `BlockView` in `GameMap.tsx` moves it only when the landing or hovered strip
   changes (`hdbHoverLevel`, set by `HdbLevelStrips`), and eases the camera onto the block and back
-  out: zoom from the roof height so the tower fills about half the box `CameraInset` leaves beside
-  the strips (clamped 17.2–19), foot dropped low. While inside, `engine.setFocus(siteId)` draws the
+  out: `map/blockFraming.ts` fits the roof height and rotated footprint into the available width
+  and height, centred on the footprint at half the roof elevation. `BlockView` owns padding while
+  inside; `CameraInset` is suspended so its settle handler cannot undo the framing. While inside, `engine.setFocus(siteId)` draws the
   block solid on `focus-3d` (same paint, under `buildings-3d`) and ghosts every other building and
   ruin to 0.18 opacity. The band sits between the two, so ghosts in front tint it instead of
   hiding it behind their depth. One filter + opacity change per focus change, never per tick.
   Orbit: a drag on the over-map backdrop (`[data-block-orbit]`, the HDB shell itself, never its
   children) turns bearing 0.4°/px and pitch 0.2°/px (25° to `MAX_PITCH_3D`) with `jumpTo`, centre
-  fixed on the site; the wheel steps zoom ±0.25 in [BLOCK_ZOOM−1, MAX_ZOOM]. Document listeners in
+  fixed on the building; the wheel steps zoom ±0.25 in [15, 20.5]. Visible zoom and frame-building
+  controls and the C camera key provide a reset. The world camera's elevation and zoom limit are restored on exit. Document listeners in
   `BlockView`, because the over-map layer swallows map input. The chosen bearing survives re-framing.
   `engine.onRoofs` also feeds `siteRoofs` in the store so `hdbEnter` sizes the block from its
   real roof. Worked blocks dim through `hdbScar`, keyed on quarter-steps cached per `hdbBlocks`.
@@ -118,29 +122,46 @@ goes flat. MapLibre zoom is the old Leaflet zoom − 1 (the saved zoom key moved
   heat shimmer); 2D is unchanged. `window.__atmosphere` is the live driver in DEV (`strike()`).
 
 **Desktop HUD (`lg:` and up).** The 408px survivor rail sits down the left edge (clock, weather,
-Rest, `ObjectiveBar`, `ConditionPanel`, backpack, panel buttons, then Timeline / Day logs /
-Settings, and a pinned map footer: the island-front button, which carries the horde tier and
+Rest, a compact `ObjectiveBar`, and `SurvivorDock`). The dock keeps labelled health, energy,
+food and water visible; Condition, Backpack and More start collapsed and open one at a time
+from an icon-and-label tray. Condition reveals limbs and attributes; More holds Logbook,
+Stats, Skills, Timeline, Day logs and Settings. Stash automatically reveals the backpack
+beside the equipment/stash slide-out so drag-and-drop still spans both grids. Bleeding,
+injuries, infection and heavy load remain visible as clickable warnings even with details
+collapsed. Escape collapses rail details after any slide-out is closed. Disclosure state is
+local to the mounted desktop dock; the phone retains its full Condition panel and tabs.
+A pinned map footer holds the island-front button, which carries the horde tier and
 fits the whole island in view via GameMap's `islandViewToken`, plus the 3D and Rail map toggles.
 The phone keeps those toggles on the map, `showModeToggles`), with panels in the slide-out beside it; the map fills the rest. The rail, slide-out
-and phone tabs are the same markup; the timeline column renders only below `lg`. Hotkeys `1`–`9`
+and phone tabs share the existing shell; the timeline column renders only below `lg`. Hotkeys `1`–`9`
 follow `RAIL_KEYS` in `GameScreen.tsx` (objective, stash, craft, logbook, stats, skills, timeline
 pin, day logs, settings) and stand down under `isModalOpen()`, text focus and the contact gate;
 `Esc` closes the slide-out. Wide craft stops short of the timeline or ticker. Inside a block
 `hdbInset` pads the HDB landing strips clear of the timeline and here card. With 3D on and room to
-spare, the strips sit **over the map** instead of replacing it (`hdbOverMap`): they keep a fixed
-width (`HDB_STRIPS_W`, 460 px max) and the map left of them (`blockStripW`, ≥180 px) shows the
+spare, the strips sit **over the map** instead of replacing it (`hdbOverMap`): they take about 54%
+of the free width (`HDB_STRIPS_W`, 720 px max) and the map left of them (`blockStripW`, ≥180 px) shows the
 tower. The selected room (`hdbSelUnit`, UI-only store state) feeds the action card
-(`HdbContextPanel`) in the here card. The timeline is a fading `LogTicker` top-right until it is
+(`HdbContextPanel`) in a card spanning the strips' width. Larger door tiles, floor plates and
+action text share the existing type scale; the current landing scrolls into view on travel and
+layout resize. The HDB timeline stays available at 320–440 px, including automatic loot and
+combat expansion. The timeline is a fading `LogTicker` top-right until it is
 pinned (`timelinePinned` setting) or something needs an answer (event, search, contact, combat),
-then the full `LogPanel` / `CombatPanel`. The here and target cards are a **pair at bottom
-centre** of the map column (left of the pinned timeline): here (collapsible) →
-target, both `HudCard` from `TargetDock.tsx`, so where you stand and where you are going read as
-one decision. The target only joins on the open map, not in a block, tunnel or the route planner.
-The phone keeps the corner-docked `TargetDock`. Bottom-anchored desktop chrome sits `HUD_BOTTOM`
+then the full `LogPanel` / `CombatPanel`. On the open desktop map, a **single location inspector**
+sits at the lower-left edge of the map column. It shows the current location by default and the
+target when one is selected; its Here / Target controls let the player inspect either without
+discarding the route. `MapCallouts` positions only small clickable `MapLocationLabel`s above the
+pins, including during a glide. Picking a pin never moves the inspector or the camera padding.
+`LocationIdentity` gives revealed categories a muted resource-family tint, an explicit type
+label, a decorative icon watermark and localized typical-loot hints. Unknown sites use a neutral
+header with no category or loot hints. Location status, danger and route restrictions stay visible;
+the desktop inspector discloses descriptions and supporting estimates under Details. Faction
+services, HDB entry, MRT planning and extraction keep their existing actions.
+Inside a block, tunnel or route planner, the existing context card remains at bottom centre.
+The phone keeps its tabs, here sheet and corner-docked `TargetDock`. Bottom-anchored desktop chrome sits `HUD_BOTTOM`
 (32px) up to clear the attribution bar. `GameMap` takes `padRight` / `padBottom` (and `padLeft`, unused on desktop now)
 (camera padding via `CameraInset`, so the chase camera and focus pans centre in the open part of
-the map; `padBottom` follows the **here** card's measured height only, so picking a target never
-shoves the map out from under the cursor) and `chromeRight` (moves the 3D / Rail buttons clear of
+the map; the open map reserves only the bottom HUD margin, while inside views use the measured
+context-card height) and `chromeRight` (moves the 3D / Rail buttons clear of
 the timeline). During the contact gate the rail, slide-out and map dim and stop taking input (the map goes
 `inert`); the timeline stays lit.
 
@@ -294,7 +315,7 @@ npm install
 npm run dev       # http://localhost:5190  (PORT env overrides; see vite.config.ts)
 npm run build     # typecheck (tsc -b) + production build
 npm run build:itch  # static zip for itch.io → release/singvive-itch.zip
-npm run lint      # oxlint (--max-warnings=24) + type-scale + zh-Hans glossary guards
+npm run lint      # oxlint (--max-warnings=23) + type-scale + zh-Hans glossary guards
 npm run preview   # serve the production build locally (Worker + assets)
 npm run db:migrate:local  # apply D1 migrations to the local honor board (first time)
 ```
@@ -335,6 +356,18 @@ stamina/time cost when a route cuts through it. Same rules as the other bakes:
 manual, committed, never part of `npm run build`. Pass `--local` to skip
 Overpass and write committed fallbacks only (useful when the public Overpass
 mirrors are rate-limiting).
+
+Narrow pedestrian crossings are committed separately in `src/game/crossings.ts`, starting with the
+Sentosa Gateway footpath (OpenStreetMap geometry, with source way links). Their narrow deck corridors
+override water in `playable.ts`; country bounds and restricted zones still win. `route.ts` adds the
+crossing vertices and exact trek endpoints to the existing 100 m A* grid, connecting to land at the
+shore approaches under the same 8 ms / 8,000-expansion budget. This avoids missing a bridge between
+grid cells. Route simplification preserves crossing vertices, and memo keys retain exact endpoints
+so a nearby sea click cannot reuse a deck route. No runtime map request or save migration is needed.
+Regression tests use the committed `public/zones.json` for both directions and mid-crossing treks.
+The spawn terrain wash subtracts those same deck corridors from sea and inland-water tint through
+`src/map/crossingGeometry.ts`, so the map does not paint a traversable bridge as blocked water.
+Restricted-area tint stays intact; the cutout geometry is cached with the terrain, not rebuilt per frame.
 
 ### Refreshing planning areas
 
@@ -419,6 +452,17 @@ Void decks keep their category-default `size` even though they now have outlines
 `scripts/bake-pois.mjs` imports `classifyOsm` straight from `src/game/poi.ts` (Node strips the
 `import type`), so classification logic lives in exactly one place — edit `poi.ts`, re-bake.
 
+The three curated OSM landmarks live separately in `src/game/data/landmarks.json`. Refresh just
+those footprints with `node scripts/bake-landmarks.mjs` (manual, networked, never part of build).
+`bakedPois.ts` merges them once before indexing the island bake; their stable OSM IDs and outlines
+therefore use the same save stripping and rehydration as ordinary sites. They add no runtime
+request, wider geographic query, model loader or new map layer. Landmark complexes match all buildings
+and parts inside their footprint, while ordinary shops retain the single-building matching rule.
+The existing CARTO SkyPark feature lacks OSM's `min_height=193`; `map/landmarkGeometry.ts` applies
+a source- and feature-specific correction through feature-state, only while that field is missing.
+Try them in a fresh run near Marina Bay. Existing saves keep their generated neighbourhoods;
+the catalogue does not backfill sites into already-expanded cells.
+
 ### Deploying
 
 Cloudflare **Workers + Assets + D1** (live origin `https://singvive.shhhhhdev.workers.dev`). Node
@@ -474,7 +518,7 @@ there.
 | Gate | Command | What it covers |
 |---|---|---|
 | Types | `npm run build` (`tsc -b` runs first) | All four TS projects. **`strict` is on everywhere** — app, node, vitest, worker. |
-| Lint | `npm run lint` | oxlint (`--max-warnings=24`), `scripts/check-type-scale.mjs`, `scripts/check-zh-hans-glossary.mjs` |
+| Lint | `npm run lint` | oxlint (`--max-warnings=23`), `scripts/check-type-scale.mjs`, `scripts/check-zh-hans-glossary.mjs` |
 | Tests | `npm run test` | Vitest, `environment: 'node'` |
 
 GitHub CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs `lint` → `test` → `build` on
@@ -497,7 +541,7 @@ Still thin or missing among pure modules: `goal`, `noise`, `searchSession`.
 
 ### The lint warning ratchet
 
-`--max-warnings=24` pins the current warning count. New warnings fail CI; the 24 existing ones
+`--max-warnings=23` pins the current warning count. New warnings fail CI; the 23 existing ones
 do not. They are:
 
 - 17 `react/only-export-components` — fast-refresh ergonomics only, no correctness impact.
@@ -585,6 +629,15 @@ migration list.
 
 ### localStorage quota is a real ceiling
 
+Crafting facilities are optional `LocationState.facilities` fields in the existing v7 save. Fire/stove
+expiry and hot-water cooling use absolute game hours. Rain collection catches up lazily for the inspected
+site using seeded daily weather; it does not scan or clone the island on each time update. Old saves start
+without facilities. `ItemInstance.coldPrepared` preserves room-temperature drink quality; omission means
+full preparation. Inventory moves, save reloads and inspect previews preserve that flag and contamination.
+Pure rules live in `facilities.ts` and `crafting.ts`; recipe fields `preparation`, `facility`, `family`, and
+`fixedInputs` are validated and round-tripped by the DEV editor. `itemUtility.test.ts` rejects catalog items
+with no direct, equipment, bedding, crafting or explicitly implemented action use; a price is not enough.
+
 `saveRun` already detects `QuotaExceededError` and surfaces it as a log line, because the ~5 MB
 limit is reachable. Writes are debounced 5 s and flushed on hide, and OSM building outlines are
 stripped before write and rehydrated from the bake on load. What still grows without bound in a
@@ -593,16 +646,24 @@ graphs), and `log` (capped at 4,000 entries).
 
 ### i18n keys are stringly typed
 
-`t(key: string)` resolves against a ~2.3k-line catalog by splitting the path per call, with no
+`t(key: string)` resolves against a nested catalog by splitting the path per call, with no
 flat-map cache and no key type. A typo falls through to `?? key` with no compile-time signal.
 `useSetting(key: string)` has the same shape — `useSetting('langauge')` type-checks and
 returns `''`.
 
-Partly mitigated: `src/i18n/messageKeys.test.ts` walks every *templated* key family
-(`item.${id}`, `trait.${id}.name`, `ui.slots.${slot}`, …) over its real id set, so new content
-cannot ship without an English label. That closes the class no static check could see — the
-Holster slot once rendered as the literal `UI.SLOTS.FIREARM`. Hand-written literal keys are
-still unchecked; a generated key union from `en.json` would finish the job.
+`src/i18n/messageKeys.test.ts` checks content-driven key families such as items, traits,
+recipes, settings and equip slots. `catalogCoverage.test.ts` also checks literal translation
+calls and UI keys, catalog shape and interpolation-variable parity, nonempty Chinese entries,
+and the dynamic families used by character creation, body, skills, locations, combat and
+tunnels. Trait effect lists are checked against the game definitions so newly added skill bonuses
+cannot disappear behind a stale translated list. A JSX guard catches untranslated visible text and literal accessibility labels outside
+the DEV editors. These run with `npm run test`; computed expressions still need review.
+
+Use simple `{name}` interpolation. The translator does not implement ICU plural/select syntax;
+use explicit singular/plural keys or a count-neutral sentence. Keep proper place names and
+player-authored names intact. Some legacy diary and combat narrative is still generated directly
+in English. Diary text already stored in a run retains its original language; changing the language
+setting re-renders the UI, not historical log strings.
 
 ### Client-side scale pressure
 
@@ -611,3 +672,14 @@ map and its DOM markers, the 3.8 MB `public/pois.json` parse, and localStorage. 
 the CPU hotspots, not combat resolution. The guardrails that keep this working (viewport
 culling, cached polygon fog, debounced persist, location identity preservation) are listed in
 `AGENTS.md` under "Performance / scale" — read that before touching the map.
+
+Below zoom 14, ordinary POIs use one WebGL circle layer instead of individual DOM
+markers and building outlines. Selecting a dot restores its full badge; the current
+site and known landmarks retain theirs. Both representations share the same fog
+visibility, padded viewport and 450-site cap, with selected/current sites and landmarks
+prioritised before distance when the cap is reached. Full badges return at zoom 14.
+
+Floating map cards cache their viewport dimensions through `ResizeObserver` and
+follow the map's `render` event once per frame. Keep layout reads (`clientWidth`,
+`offsetWidth`, etc.) out of camera callbacks: after marker transforms are written,
+those reads force the browser to flush styles and layout during the frame.

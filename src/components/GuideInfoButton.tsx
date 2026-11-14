@@ -1,21 +1,24 @@
 import type { GuideTopic } from '../content/guideContent';
 import { tip } from './tips';
+import { useT } from '../i18n';
 
 /** Compact `?` control that asks the parent to open a guide topic. */
 export function GuideInfoButton({
   topic,
   onOpen,
-  label = 'How this works',
+  label,
 }: {
   topic: GuideTopic;
   onOpen: (topic: GuideTopic) => void;
   label?: string;
 }) {
+  const { t } = useT();
+  const description = label ?? t('ui.guide.howThisWorks');
   return (
     <button
       type="button"
-      {...tip(label)}
-      aria-label={label}
+      {...tip(description)}
+      aria-label={description}
       onClick={(e) => {
         e.stopPropagation();
         onOpen(topic);

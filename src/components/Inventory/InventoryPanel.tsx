@@ -26,7 +26,6 @@ import type { EquipSlot } from '../../game/types';
 import { sumTraitMod } from '../../game/character';
 import {
   countOf,
-  describeInputs,
   FIELD_REPAIRS,
   REPAIR_INPUTS,
   REPAIR_TOOL,
@@ -43,7 +42,7 @@ import { LOAD_TIP_CLASS, LoadTipBody } from '../loadTip';
 import { loadDebuffBrief, loadTierLabel, loadTierShown, loadTierTone } from '../loadTier';
 import { LoosePile } from './LoosePile';
 import { torsoCarryMult } from '../../game/survival';
-import { useT } from '../../i18n';
+import { itemName, useT } from '../../i18n';
 import { tip } from '../tips';
 
 const PC_INVENTORY_HINT_KEYS = [
@@ -101,7 +100,7 @@ export function InventoryPanel({
   onClose?: () => void;
   layout?: InventoryLayout;
 }) {
-  const { t } = useT();
+  const { locale, t } = useT();
   const items = useGame((s) => s.items);
   const equipment = useGame((s) => s.equipment);
   const character = useGame((s) => s.character);
@@ -351,10 +350,10 @@ export function InventoryPanel({
                         className="w-full rounded border border-amber-300/40 bg-amber-300/10 px-1.5 py-1 text-body leading-tight text-amber-200 hover:bg-amber-300/20"
                         {...tip(
                           fieldKit
-                            ? t('ui.inventory.usesOne', { name: itemDef(fieldKit.defId).name })
+                            ? t('ui.inventory.usesOne', { name: itemName(fieldKit.defId, locale) })
                             : t('ui.inventory.usesInputs', {
-                                inputs: describeInputs(REPAIR_INPUTS),
-                                tool: itemDef(REPAIR_TOOL).name,
+                                inputs: Object.entries(REPAIR_INPUTS).map(([id, n]) => `${n}× ${itemName(id, locale)}`).join(' · '),
+                                tool: itemName(REPAIR_TOOL, locale),
                               }),
                         )}
                       >

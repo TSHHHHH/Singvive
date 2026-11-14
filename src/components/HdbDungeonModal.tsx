@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Icon } from '../icons/Icon';
-import { ATTRIBUTE_ICONS, ATTRIBUTE_LABELS } from '../game/character';
+import { ATTRIBUTE_ICONS } from '../game/character';
 import { useGame } from '../game/store';
 import type { GuideTopic } from '../content/guideContent';
 import { PlayerPin } from './PlayerPin';
@@ -100,7 +100,7 @@ export function HdbDungeonModal({
     >
       <div className={`flex min-h-0 flex-1 flex-col ${overMap ? 'cursor-auto' : ''}`}>
         <div
-          className={`shrink-0 ${
+            className={`max-h-[45%] shrink-0 overflow-y-auto ${
             overMap
               ? 'rounded-sm border border-concrete-600 bg-concrete-950/95 shadow-[0_8px_32px_rgba(0,0,0,0.6)]'
               : ''
@@ -139,7 +139,7 @@ export function HdbDungeonModal({
 
         <div
           className={`min-h-0 flex-1 overflow-y-auto overscroll-contain ${
-            overMap ? 'mt-1.5 pl-1.5' : 'p-1.5 sm:p-2'
+              overMap ? 'mt-2 pl-1.5' : 'p-1.5 sm:p-2'
           }`}
         >
           <HdbLevelStrips phone={isPhone} />
@@ -207,14 +207,14 @@ function HdbStatusDock({
   const peakShown = Math.round(peak) > Math.round(heat);
 
   return (
-    <div className="shrink-0 px-3 py-2">
-      <div className="flex items-center gap-2">
-        <div className="flex min-w-0 flex-1 items-center gap-1.5">
-          <span className="truncate text-plate uppercase text-signal" {...tip(placeMeta)}>
+    <div className="shrink-0 px-3 py-3 lg:px-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex min-w-0 flex-[1_1_12rem] items-center gap-1.5">
+          <span className="truncate text-plate uppercase text-signal lg:text-title" {...tip(placeMeta)}>
             {name}
           </span>
           <span
-            className="shrink-0 text-micro tabular-nums text-concrete-400"
+            className="shrink-0 text-body tabular-nums text-concrete-200"
             {...tip(t('ui.hdb.landingsRevealed', { revealed, height, storeys }))}
           >
             {revealed}/{height}
@@ -223,33 +223,35 @@ function HdbStatusDock({
             <GuideInfoButton topic="hdb" onOpen={onOpenGuide} label={t('ui.hdb.guide')} />
           )}
         </div>
-        <button
-          type="button"
-          aria-expanded={detailsOpen}
-          aria-label={detailsOpen ? t('ui.hdb.ariaHideDetails') : t('ui.hdb.ariaShowDetails')}
-          {...tip(detailsOpen ? t('ui.hdb.hideDetails') : t('ui.hdb.showDetails'))}
-          onClick={() => setDetailsOpen((o) => !o)}
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-concrete-600 text-concrete-400 transition-colors hover:bg-white/5"
-        >
-          <svg
-            viewBox="0 0 12 12"
-            width={12}
-            height={12}
-            aria-hidden
-            className={`transition-transform duration-150 ${detailsOpen ? 'rotate-180' : ''}`}
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            aria-expanded={detailsOpen}
+            aria-label={detailsOpen ? t('ui.hdb.ariaHideDetails') : t('ui.hdb.ariaShowDetails')}
+            {...tip(detailsOpen ? t('ui.hdb.hideDetails') : t('ui.hdb.showDetails'))}
+            onClick={() => setDetailsOpen((o) => !o)}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded border border-concrete-600 text-concrete-200 transition-colors hover:bg-white/5"
           >
-            <path d="M3 4.5 6 7.5 9 4.5" fill="none" stroke="currentColor" strokeWidth={1.5} />
-          </svg>
-        </button>
-        <button
-          type="button"
-          onClick={onLeave}
-          disabled={!canLeave}
-          {...tip(leaveTitle)}
-          className="h-7 shrink-0 rounded border border-concrete-600 px-3 text-body text-concrete-50 transition-colors hover:bg-white/5 disabled:opacity-40"
-        >
-          {t('ui.hdb.leave')}
-        </button>
+            <svg
+              viewBox="0 0 12 12"
+              width={12}
+              height={12}
+              aria-hidden
+              className={`transition-transform duration-150 ${detailsOpen ? 'rotate-180' : ''}`}
+            >
+              <path d="M3 4.5 6 7.5 9 4.5" fill="none" stroke="currentColor" strokeWidth={1.5} />
+            </svg>
+          </button>
+          <button
+            type="button"
+            onClick={onLeave}
+            disabled={!canLeave}
+            {...tip(leaveTitle)}
+            className="h-10 shrink-0 rounded border border-concrete-600 px-3 text-read text-concrete-50 transition-colors hover:bg-white/5 disabled:opacity-40"
+          >
+            {t('ui.hdb.leave')}
+          </button>
+        </div>
       </div>
 
       <button
@@ -258,7 +260,7 @@ function HdbStatusDock({
         className="mt-2 flex w-full flex-col gap-1 text-left"
         {...tip(t('ui.hdb.tapDetails'))}
       >
-        <span className="flex items-baseline gap-2">
+        <span className="flex flex-wrap items-baseline gap-2">
           <span className="text-plate uppercase text-concrete-400">
             {t('ui.hdb.levelHeat', { nn: levelLabel })}
           </span>
@@ -281,9 +283,9 @@ function HdbStatusDock({
             />
           )}
         </span>
-        <span className="text-body text-concrete-400">
+        <span className="text-body text-concrete-200 lg:text-read">
           {bandNote} {t('ui.hdb.descentNeedsAttrs', { dc })}
-          {nextBit && <span className="text-concrete-600">{nextBit}</span>}
+          {nextBit && <span className="text-concrete-400">{nextBit}</span>}
         </span>
         {hunting && (
           <span className="text-body text-hiss">
@@ -308,7 +310,7 @@ function HdbStatusDock({
                     : 'border-concrete-800 text-concrete-400'
                 }`}
               >
-                <Icon name={ATTRIBUTE_ICONS[s.key]} size={11} title={ATTRIBUTE_LABELS[s.key]} />
+                <Icon name={ATTRIBUTE_ICONS[s.key]} size={11} title={t(`ui.attributes.${s.key}`)} />
                 <span className="truncate">
                   {t('ui.hdb.senseArrow', {
                     value: s.value,

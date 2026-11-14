@@ -20,13 +20,16 @@ export function ConditionPanel({
   dollHeight = 120,
   onOpenGuide,
   showSurvivorStats = true,
+  showMeters = true,
 }: {
   dollHeight?: number;
   onOpenGuide?: (topic: GuideTopic) => void;
   /** Desktop moves live combat stats into the Stats tab. */
   showSurvivorStats?: boolean;
+  /** Desktop keeps labelled vitals visible above the disclosure tray. */
+  showMeters?: boolean;
 }) {
-  const { t } = useT();
+  const { locale, t } = useT();
   const { meters, bodyParts } = useGame(
     useShallow((s) => ({ meters: s.meters, bodyParts: s.bodyParts })),
   );
@@ -73,50 +76,52 @@ export function ConditionPanel({
         <LimbDetailPanel bodyParts={bodyParts} highlighted={hovered} onHover={setHovered} />
       </div>
 
-      <div className="mb-2.5 flex flex-col gap-1.5">
-        <MeterBar
-          label={t('ui.condition.health')}
-          icon="meter.health"
-          value={hp}
-          max={hpMax}
-          color="#d92d2d"
-        />
-        <MeterBar
-          label={t('ui.condition.hunger')}
-          icon="meter.hunger"
-          value={meters.hunger}
-          max={100}
-          color="#b7b3a9"
-          dynamic
-          modifiers={meterModifiers('hunger', meters)}
-        />
-        <MeterBar
-          label={t('ui.condition.thirst')}
-          icon="meter.thirst"
-          value={meters.thirst}
-          max={100}
-          color="#2bc4d9"
-          dynamic
-          modifiers={meterModifiers('thirst', meters)}
-        />
-        <MeterBar
-          label={t('ui.condition.energy')}
-          icon="meter.energy"
-          value={meters.energy}
-          max={100}
-          color="#e8e5dd"
-          dynamic
-          modifiers={meterModifiers('energy', meters)}
-        />
-        <MeterBar
-          label={t('ui.condition.infection')}
-          icon="meter.infection"
-          value={meters.infection}
-          max={100}
-          color="#2bc4d9"
-          danger
-        />
-      </div>
+      {showMeters && (
+        <div className="mb-2.5 flex flex-col gap-1.5">
+          <MeterBar
+            label={t('ui.condition.health')}
+            icon="meter.health"
+            value={hp}
+            max={hpMax}
+            color="#d92d2d"
+          />
+          <MeterBar
+            label={t('ui.condition.hunger')}
+            icon="meter.hunger"
+            value={meters.hunger}
+            max={100}
+            color="#b7b3a9"
+            dynamic
+            modifiers={meterModifiers('hunger', meters, locale)}
+          />
+          <MeterBar
+            label={t('ui.condition.thirst')}
+            icon="meter.thirst"
+            value={meters.thirst}
+            max={100}
+            color="#2bc4d9"
+            dynamic
+            modifiers={meterModifiers('thirst', meters, locale)}
+          />
+          <MeterBar
+            label={t('ui.condition.energy')}
+            icon="meter.energy"
+            value={meters.energy}
+            max={100}
+            color="#e8e5dd"
+            dynamic
+            modifiers={meterModifiers('energy', meters, locale)}
+          />
+          <MeterBar
+            label={t('ui.condition.infection')}
+            icon="meter.infection"
+            value={meters.infection}
+            max={100}
+            color="#2bc4d9"
+            danger
+          />
+        </div>
+      )}
 
       <div className="mb-2.5">
         <AttributeRow />

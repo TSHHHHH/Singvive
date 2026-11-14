@@ -220,7 +220,7 @@ function prose(
 const RIGGED_AT: PoiCategory[] = ['police', 'hardware', 'industrial', 'fuel'];
 const LOCKED_AT: PoiCategory[] = ['police', 'hospital', 'clinic', 'hardware'];
 const RIVAL_AT: PoiCategory[] = [
-  'supermarket', 'convenience', 'pharmacy', 'clinic', 'hardware', 'foodcourt', 'fuel', 'industrial',
+  'supermarket', 'convenience', 'pharmacy', 'clinic', 'hardware', 'foodcourt', 'fuel', 'industrial', 'landmark',
 ];
 const RAIDER_AT: PoiCategory[] = [
   'police', 'fuel', 'industrial', 'hardware', 'supermarket', 'mrt',
@@ -237,7 +237,7 @@ const LOOTERS_AT: PoiCategory[] = [
 ];
 const SMOKE_AT: PoiCategory[] = ['foodcourt', 'industrial', 'fuel', 'pharmacy', 'hospital'];
 const BEACON_AT: PoiCategory[] = ['police', 'hospital', 'mrt', 'school', 'clinic', 'pharmacy'];
-const TRADER_AT: PoiCategory[] = ['convenience', 'foodcourt', 'mrt', 'fuel', 'school'];
+const TRADER_AT: PoiCategory[] = ['convenience', 'foodcourt', 'mrt', 'fuel', 'school', 'landmark'];
 const BARRICADE_AT: PoiCategory[] = ['fuel', 'police', 'industrial', 'hospital'];
 const FLOODED_AT: PoiCategory[] = ['mrt', 'industrial', 'school'];
 

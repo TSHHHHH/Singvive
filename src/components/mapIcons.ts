@@ -5,6 +5,7 @@ import { POI_CONFIG } from '../game/poi';
 import { FACTION_CONFIG } from '../game/factions';
 import { iconMarkup } from '../icons/markup';
 import type { Poi } from '../game/types';
+import { mixHex } from '../map/geo';
 
 /**
  * A map pin: HTML for a DOM marker, its box, and the pixel inside the box that
@@ -12,8 +13,8 @@ import type { Poi } from '../game/types';
  * one into a MapLibre Marker element.
  *
  * Every icon below is built once per distinct *appearance* and reused: a POI pin
- * only looks different when its category, danger ring, exhausted state, or
- * outpost mark differs, and the fixed icons never differ at all. Markers compare
+ * only looks different when its category, danger ring, exhausted state, known
+ * faction or outpost mark differs, and the fixed icons never differ at all. Markers compare
  * icons by identity to decide whether to rebuild their element.
  */
 export interface MapIcon {
@@ -25,20 +26,24 @@ export interface MapIcon {
 
 const poiIconCache = new Map<string, MapIcon>();
 
+/** Known territory colour for identified sites; outposts also carry their faction emblem. */
+export function knownFactionColor(poi: Poi): string | null {
+  return poi.factionId && (poi.isFactionOutpost || poi.isFactionRevealed)
+    ? FACTION_CONFIG[poi.factionId].color
+    : null;
+}
+
 /** A coloured circular pin with the category glyph. */
 export function poiIcon(poi: Poi): MapIcon {
   const cfg = POI_CONFIG[poi.category];
-  const dim = poi.exhausted && !poi.factionId;
+  const factionColor = knownFactionColor(poi);
+  const dim = poi.exhausted && !factionColor;
   const danger = Math.round(poi.currentDanger);
   const ring = dangerColor(danger);
   const outpost = !!poi.isFactionOutpost && !!poi.factionId;
   const held = !outpost && !!poi.factionId && poi.isFactionRevealed;
-  const factionColor =
-    outpost && poi.factionId
-      ? FACTION_CONFIG[poi.factionId].color
-      : held && poi.factionId
-        ? FACTION_CONFIG[poi.factionId].color
-        : null;
+  // Lift faction hues against the dark glyph, including the Syndicate's red.
+  const markerColor = factionColor ? mixHex(factionColor, '#ffffff', 0.2) : cfg.color;
 
   const key = `${poi.category}|${danger}|${dim ? 1 : 0}|${outpost ? poi.factionId : 0}|${held ? poi.factionId : 0}`;
   const cached = poiIconCache.get(key);
@@ -49,8 +54,8 @@ export function poiIcon(poi: Poi): MapIcon {
       ? iconMarkup(FACTION_CONFIG[poi.factionId].icon, { size: 15, color: '#08080a' })
       : iconMarkup(cfg.icon, { size: 15, color: '#08080a' });
   const badge =
-    held && poi.factionId ? iconMarkup(FACTION_CONFIG[poi.factionId].icon, { size: 9, color: factionColor! }) : '';
-  const borderColor = outpost ? '#f0ead8' : held ? factionColor! : ring;
+    held && poi.factionId ? iconMarkup(FACTION_CONFIG[poi.factionId].icon, { size: 9, color: markerColor }) : '';
+  const borderColor = outpost ? '#f0ead8' : ring;
   const px = outpost ? 34 : 30;
   const icon: MapIcon = {
     html: `<div style="position:relative;width:${px}px;height:${px}px;">
@@ -58,13 +63,13 @@ export function poiIcon(poi: Poi): MapIcon {
         width:100%;height:100%;border-radius:50%;
         display:flex;align-items:center;justify-content:center;
         font-size:15px;line-height:1;
-        background:${outpost ? factionColor : cfg.color};
+        background:${markerColor};
         border:${outpost ? 3 : 2}px solid ${borderColor};
         ${outpost ? `outline:2px solid ${factionColor};outline-offset:1px;` : ''}
         opacity:${dim ? 0.4 : 1};
         box-sizing:border-box;
       ">${glyph}</div>
-      ${badge ? `<div style="position:absolute;right:-1px;bottom:-1px;width:14px;height:14px;border-radius:50%;background:#08080a;border:1.5px solid ${factionColor};display:flex;align-items:center;justify-content:center;line-height:1;">${badge}</div>` : ''}
+      ${badge ? `<div style="position:absolute;right:-1px;bottom:-1px;width:14px;height:14px;border-radius:50%;background:#08080a;border:1.5px solid ${markerColor};display:flex;align-items:center;justify-content:center;line-height:1;">${badge}</div>` : ''}
     </div>`,
     size: [px, px],
     anchor: [px / 2, px / 2],

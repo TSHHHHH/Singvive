@@ -2,7 +2,6 @@ import { useState, type ReactNode } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useGame } from '../game/store';
 import {
-  ATTRIBUTE_BLURB,
   ATTRIBUTE_ICONS,
   ATTRIBUTE_KEYS,
   BASE_ATTRIBUTE,
@@ -10,9 +9,7 @@ import {
   TRAIT_BUDGET,
   canPickTrait,
   getTrait,
-  isCurse,
   isLegalTraitBuild,
-  isSignature,
   pickBlockReason,
   traitBudgetUsed,
   attributesFromTraits,
@@ -27,8 +24,8 @@ import {
   type TraitPreset,
 } from '../game/traitPresets';
 import { randomSurvivorName, SURVIVOR_NAME_MAX } from '../game/randomNames';
-import { previewStartingSkills, SKILL_IDS, SKILL_LABELS } from '../game/skills';
-import { TRAIT_TAG_LABELS, TRAIT_TAG_ORDER, traitTags, type TraitTag } from '../game/traitTags';
+import { previewStartingSkills, SKILL_IDS } from '../game/skills';
+import { TRAIT_TAG_ORDER, traitTags, type TraitTag } from '../game/traitTags';
 import type { Occupation, Trait } from '../game/types';
 import { Icon } from '../icons/Icon';
 import { TipHint, useCoarsePointer } from '../components/TipHint';
@@ -50,12 +47,12 @@ function sameTraits(a: string[], b: string[]): boolean {
 }
 
 /** Sort by displayed point magnitude (1…5), then name. */
-function sortTraitsByPoints(items: Trait[], dir: PointSort): Trait[] {
+function sortTraitsByPoints(items: Trait[], dir: PointSort, locale: ReturnType<typeof useT>['locale']): Trait[] {
   const mul = dir === 'asc' ? 1 : -1;
   return [...items].sort((a, b) => {
     const d = Math.abs(a.cost) - Math.abs(b.cost);
     if (d !== 0) return d * mul;
-    return a.name.localeCompare(b.name);
+    return traitName(a.id, locale).localeCompare(traitName(b.id, locale), locale);
   });
 }
 
@@ -72,7 +69,7 @@ export function CharacterCreate() {
   const { commitCharacter, resetToMenu } = useGame(
     useShallow((s) => ({ commitCharacter: s.commitCharacter, resetToMenu: s.resetToMenu })),
   );
-  const { locale, t } = useT();
+  const { locale, t, tList } = useT();
   const coarsePointer = useCoarsePointer();
   const [step, setStep] = useState<Step>('background');
   const [name, setName] = useState('');
@@ -104,26 +101,26 @@ export function CharacterCreate() {
   const negativeCount = traitIds.filter((id) => getTrait(id).category === 'negative').length;
 
   const identityLabel = matchesOccupation
-    ? picked.name
+    ? t(`occupation.${picked.id}.name`)
     : matchesPreset
       ? selectedMyPreset.name
       : picked
-        ? `Custom · based on ${picked.name}`
+        ? t('ui.create.basedOn', { name: t(`occupation.${picked.id}.name`) })
         : selectedMyPreset
-          ? `Custom · based on ${selectedMyPreset.name}`
+          ? t('ui.create.basedOn', { name: selectedMyPreset.name })
           : traitIds.length === 0
-            ? 'Blank slate'
-            : 'Custom';
+            ? t('ui.create.blank')
+            : t('ui.create.custom');
 
   const budgetHint =
     budgetRemaining === 0 && traitIds.length === 2 && picked != null
-      ? 'A full signature + curse spends the whole pool. Swap the curse, or pick a cheaper signature, to free a point.'
+      ? t('ui.create.budgetHint')
       : null;
 
   const start = () => {
     if (!legal) return;
     commitCharacter({
-      name: name.trim() || 'Survivor',
+      name: name.trim() || t('ui.create.survivor'),
       attributes: attrs,
       traitIds,
       occupationId,
@@ -171,17 +168,17 @@ export function CharacterCreate() {
 
   const handleSavePreset = () => {
     const label =
-      presetNameDraft.trim() || selectedMyPreset?.name || picked?.name || 'My Build';
+      presetNameDraft.trim() || selectedMyPreset?.name || (picked ? t(`occupation.${picked.id}.name`) : t('ui.create.myBuild'));
     const existing = myPresets.find((p) => p.name.toLowerCase() === label.toLowerCase());
-    if (existing && !window.confirm(`Overwrite preset “${existing.name}”?`)) return;
+    if (existing && !window.confirm(t('ui.create.overwrite', { name: existing.name }))) return;
     const saved = savePreset(label, traitIds);
     if (!saved) {
       setPresetMsg(
         budgetRemaining < 0
-          ? 'Fix the budget (points left must be ≥ 0) before saving.'
+          ? t('ui.create.fixBudget')
           : myPresets.length >= MAX_TRAIT_PRESETS && !existing
-            ? `Preset limit reached (${MAX_TRAIT_PRESETS}). Delete one first.`
-            : 'Could not save preset — build must be legal.',
+            ? t('ui.create.presetLimit', { n: MAX_TRAIT_PRESETS })
+            : t('ui.create.saveFailed'),
       );
       return;
     }
@@ -189,14 +186,14 @@ export function CharacterCreate() {
     setSelectedPresetId(saved.id);
     setPickedId(null);
     setPresetNameDraft(saved.name);
-    setPresetMsg(`Saved “${saved.name}”.`);
+    setPresetMsg(t('ui.create.saved', { name: saved.name }));
   };
 
   // ── Shared pieces ────────────────────────────────────────────────────────
 
   const pointsBadge = (
     <div className="flex items-baseline gap-2">
-      <span className="text-label uppercase text-white/40">Points left</span>
+      <span className="text-label uppercase text-white/40">{t('ui.create.pointsLeft')}</span>
       <span
         className={`text-title tabular-nums ${budgetRemaining < 0 ? 'text-hiss' : 'text-signal'}`}
       >
@@ -209,8 +206,8 @@ export function CharacterCreate() {
     <ol className="flex items-center gap-2 text-plate uppercase">
       {(
         [
-          ['background', '1 · Background'],
-          ['traits', '2 · Traits'],
+          ['background', t('ui.create.backgroundStep')],
+          ['traits', t('ui.create.traitsStep')],
         ] as const
       ).map(([id, label], i) => (
         <li key={id} className="flex items-center gap-2">
@@ -235,7 +232,7 @@ export function CharacterCreate() {
         return (
           <div
             key={k}
-            {...tip(`${t(`ui.attributes.${k}`)} — ${ATTRIBUTE_BLURB[k]}`)}
+            {...tip(`${t(`ui.attributes.${k}`)} — ${t(`ui.attributes.blurb.${k}`)}`)}
             className="flex min-w-0 flex-col items-center rounded border border-white/10 bg-white/5 px-1 py-1.5"
           >
             <Icon name={ATTRIBUTE_ICONS[k]} size={14} title={t(`ui.attributes.${k}`)} />
@@ -266,7 +263,7 @@ export function CharacterCreate() {
         if (level <= 0) return null;
         return (
           <span key={id} className="text-body text-concrete-50">
-            {SKILL_LABELS[id]} <span className="tabular-nums text-signal">{level}</span>
+            {t(`ui.skills.names.${id}`)} <span className="tabular-nums text-signal">{level}</span>
           </span>
         );
       })}
@@ -278,7 +275,7 @@ export function CharacterCreate() {
 
   const selectedChips =
     traitIds.length === 0 ? (
-      <p className="text-micro text-white/35">No traits yet.</p>
+      <p className="text-micro text-white/35">{t('ui.create.noTraits')}</p>
     ) : (
       <div className="flex flex-wrap gap-1">
         {traitIds.map((id) => {
@@ -289,7 +286,7 @@ export function CharacterCreate() {
               type="button"
               onClick={() => toggleTrait(id)}
               onMouseEnter={() => setFocusId(id)}
-              {...tip(`Remove ${traitName(id, locale)}`)}
+              {...tip(t('ui.create.remove', { name: traitName(id, locale) }))}
               className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-micro transition hover:opacity-80 ${
                 trait.category === 'positive'
                   ? 'border-signal/30 bg-signal/10 text-signal'
@@ -310,7 +307,7 @@ export function CharacterCreate() {
     <div className="flex flex-col gap-3 rounded border border-white/15 bg-concrete-900/80 p-3">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <span className="text-label uppercase text-white/40">Identity</span>
+          <span className="text-label uppercase text-white/40">{t('ui.create.identity')}</span>
           <p className="truncate text-read font-bold uppercase tracking-wide text-signal">
             {identityLabel}
           </p>
@@ -321,24 +318,24 @@ export function CharacterCreate() {
             onClick={revert}
             className="text-label uppercase text-white/40 hover:text-white/80"
           >
-            ⟳ {picked || selectedMyPreset ? 'Revert' : 'Reset'}
+            ⟳ {t(picked || selectedMyPreset ? 'ui.create.revert' : 'ui.create.reset')}
           </button>
           <button
             type="button"
             onClick={clearBuild}
             className="text-label uppercase text-white/40 hover:text-white/80"
           >
-            Clear
+            {t('ui.create.clear')}
           </button>
         </div>
       </div>
       <div>
-        <SectionLabel>Traits · click to remove</SectionLabel>
+        <SectionLabel>{t('ui.create.removeHint')}</SectionLabel>
         {selectedChips}
         {budgetHint && <p className="mt-1 text-micro text-white/40">{budgetHint}</p>}
       </div>
       <div>
-        <SectionLabel>Attributes</SectionLabel>
+        <SectionLabel>{t('ui.create.attributes')}</SectionLabel>
         {attributeRow}
       </div>
       <div>
@@ -352,22 +349,22 @@ export function CharacterCreate() {
 
   const nameField = (
     <label className="flex flex-col items-start gap-1 text-left">
-      <span className="text-label uppercase text-white/40">Name</span>
+      <span className="text-label uppercase text-white/40">{t('ui.create.name')}</span>
       <div className="flex items-center gap-1.5">
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
           maxLength={SURVIVOR_NAME_MAX}
-          placeholder="Survivor"
+          placeholder={t('ui.create.survivor')}
           className="w-56 rounded border border-white/15 bg-black/40 px-3 py-1.5 text-read outline-none focus:border-signal sm:w-64"
         />
         <button
           type="button"
           onClick={() => setName(randomSurvivorName(name))}
-          {...tip('Roll a Singapore-style full name')}
+          {...tip(t('ui.create.randomHint'))}
           className="rounded border border-white/15 bg-white/10 px-2.5 py-1.5 text-label uppercase text-white/70 transition hover:border-signal/50 hover:bg-signal/10 hover:text-signal"
         >
-          Random
+          {t('ui.create.random')}
         </button>
       </div>
     </label>
@@ -390,8 +387,8 @@ export function CharacterCreate() {
               : 'border-white/10 bg-white/[0.03] hover:border-signal/50 hover:bg-white/[0.06]'
         }`}
       >
-        <span className="text-plate uppercase">{o.name}</span>
-        <span className="mt-0.5 line-clamp-2 text-micro text-white/55">{o.tagline}</span>
+        <span className="text-plate uppercase">{t(`occupation.${o.id}.name`)}</span>
+        <span className="mt-0.5 line-clamp-2 text-micro text-white/55">{t(`occupation.${o.id}.tagline`)}</span>
         <span className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
           {o.traitIds.map((id) => {
             const tr = getTrait(id);
@@ -415,11 +412,11 @@ export function CharacterCreate() {
   const presetsBlock = (
     <div>
       <SectionLabel>
-        My presets ({myPresets.length}/{MAX_TRAIT_PRESETS})
+        {t('ui.create.presets', { n: myPresets.length, max: MAX_TRAIT_PRESETS })}
       </SectionLabel>
       {myPresets.length === 0 ? (
         <p className="rounded border border-dashed border-white/10 px-3 py-2 text-body text-white/35">
-          No saved builds yet — save one from the Traits step.
+          {t('ui.create.noPresets')}
         </p>
       ) : (
         <div className="flex flex-wrap gap-1.5">
@@ -440,9 +437,9 @@ export function CharacterCreate() {
                 }`}
               >
                 <span className="text-plate uppercase">{p.name}</span>
-                <span className="ml-2 text-micro text-white/45">{p.traitIds.length} traits</span>
+                <span className="ml-2 text-micro text-white/45">{t('ui.create.traitCount', { n: p.traitIds.length })}</span>
                 {!isLegalTraitBuild(p.traitIds) && (
-                  <span className="ml-2 text-micro text-hiss">needs fixing</span>
+                  <span className="ml-2 text-micro text-hiss">{t('ui.create.needsFixing')}</span>
                 )}
               </button>
             );
@@ -456,14 +453,14 @@ export function CharacterCreate() {
             onChange={(e) => setPresetNameDraft(e.target.value)}
             maxLength={32}
             className="w-40 rounded border border-white/15 bg-black/40 px-2 py-1 text-body outline-none focus:border-signal"
-            placeholder="Rename…"
+            placeholder={t('ui.create.renamePlaceholder')}
           />
           <button
             type="button"
             onClick={() => {
               const next = renamePreset(selectedMyPreset.id, presetNameDraft);
               if (!next) {
-                setPresetMsg('Could not rename — empty or duplicate name.');
+                setPresetMsg(t('ui.create.renameFailed'));
                 return;
               }
               refreshPresets();
@@ -471,7 +468,7 @@ export function CharacterCreate() {
             }}
             className="text-label uppercase text-white/50 hover:text-white/80"
           >
-            Rename
+            {t('ui.create.rename')}
           </button>
           <button
             type="button"
@@ -484,7 +481,7 @@ export function CharacterCreate() {
             }}
             className="text-label uppercase text-hiss/70 hover:text-hiss"
           >
-            Delete
+            {t('ui.create.delete')}
           </button>
         </div>
       )}
@@ -493,23 +490,22 @@ export function CharacterCreate() {
 
   const jobDetail = picked ? (
     <div className="rounded border border-white/10 bg-white/[0.03] p-3">
-      <p className="text-plate uppercase text-signal">{picked.name}</p>
-      <p className="mt-1 text-body leading-relaxed text-white/60">{picked.blurb}</p>
+      <p className="text-plate uppercase text-signal">{t(`occupation.${picked.id}.name`)}</p>
+      <p className="mt-1 text-body leading-relaxed text-white/60">{t(`occupation.${picked.id}.blurb`)}</p>
       <div className="mt-2 grid grid-cols-2 gap-2 text-micro">
         <div>
-          <span className="block uppercase text-white/40">Good at</span>
-          <span className="text-signal">{picked.goodAt.join(', ')}</span>
+          <span className="block uppercase text-white/40">{t('ui.create.goodAt')}</span>
+          <span className="text-signal">{tList(`occupation.${picked.id}.goodAt`).join(locale === 'zh-Hans' ? '、' : ', ')}</span>
         </div>
         <div>
-          <span className="block uppercase text-white/40">Struggles with</span>
-          <span className="text-hiss">{picked.strugglesWith.join(', ')}</span>
+          <span className="block uppercase text-white/40">{t('ui.create.strugglesWith')}</span>
+          <span className="text-hiss">{tList(`occupation.${picked.id}.strugglesWith`).join(locale === 'zh-Hans' ? '、' : ', ')}</span>
         </div>
       </div>
     </div>
   ) : (
     <p className="rounded border border-dashed border-white/10 p-3 text-body text-white/40">
-      Jobs are starting builds. Pick one to see who they were, then fine-tune its traits in the
-      next step — or skip the jobs and build from scratch.
+      {t('ui.create.jobHint')}
     </p>
   );
 
@@ -528,11 +524,11 @@ export function CharacterCreate() {
                   : 'text-white/40 hover:text-white/80'
               }`}
             >
-              Blank slate
+              {t('ui.create.blank')}
             </button>
           }
         >
-          Who were you before it fell?
+          {t('ui.create.backgroundPrompt')}
         </SectionLabel>
         <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
           {OCCUPATIONS.map(renderJobCard)}
@@ -557,7 +553,7 @@ export function CharacterCreate() {
     const selected = traitIds.includes(tr.id);
     const isPos = tr.category === 'positive';
     const blocked = !selected && !canPickTrait(tr.id, traitIds);
-    const why = blocked ? pickBlockReason(tr.id, traitIds) : null;
+    const why = blocked ? pickBlockReason(tr.id, traitIds, locale) : null;
     const label = traitName(tr.id, locale);
 
     return (
@@ -599,7 +595,7 @@ export function CharacterCreate() {
           >
             <button
               type="button"
-              aria-label={`About ${label}`}
+              aria-label={t('ui.create.about', { name: label })}
               className="inline-flex h-6 w-6 items-center justify-center rounded border border-white/20 text-body font-semibold text-white/55 transition active:border-signal/50 active:text-signal"
             >
               ?
@@ -613,20 +609,6 @@ export function CharacterCreate() {
   const sideTraits = TRAITS.filter(
     (tr) => tr.category === side && (tagFilter == null || traitTags(tr.id).includes(tagFilter)),
   );
-  const groups =
-    side === 'positive'
-      ? [
-          { label: 'Signature · max 1', items: sideTraits.filter(isSignature) },
-          {
-            label: 'Notable',
-            items: sideTraits.filter((tr) => !isSignature(tr) && tr.cost >= 2),
-          },
-          { label: 'Minor', items: sideTraits.filter((tr) => tr.cost === 1) },
-        ]
-      : [
-          { label: 'Curses · max 1', items: sideTraits.filter(isCurse) },
-          { label: 'Flaws', items: sideTraits.filter((tr) => !isCurse(tr)) },
-        ];
 
   const sideTab = (id: Side) => {
     const isPos = id === 'positive';
@@ -647,10 +629,10 @@ export function CharacterCreate() {
             : 'border-white/10 text-white/40 hover:text-white/70'
         }`}
       >
-        {isPos ? 'Positives' : 'Negatives'}
+        {t(isPos ? 'ui.create.positives' : 'ui.create.negatives')}
         <span className="hidden text-label font-normal normal-case tracking-normal opacity-70 sm:inline">
-          {isPos ? 'spend points' : 'earn points'}
-          {count > 0 ? ` · ${count} picked` : ''}
+          {t(isPos ? 'ui.create.spendPoints' : 'ui.create.earnPoints')}
+          {count > 0 ? t('ui.create.picked', { n: count }) : ''}
         </span>
       </button>
     );
@@ -670,7 +652,7 @@ export function CharacterCreate() {
             : 'border-white/15 text-white/50 hover:border-white/30 hover:text-white/80'
         }`}
       >
-        {tag ? TRAIT_TAG_LABELS[tag] : 'All'}
+        {tag ? t(`ui.create.tags.${tag}`) : t('ui.create.all')}
       </button>
     );
   };
@@ -689,7 +671,7 @@ export function CharacterCreate() {
         <div
           className="inline-flex overflow-hidden rounded border border-white/15"
           role="group"
-          aria-label="Sort traits by points"
+          aria-label={t('ui.create.sortPoints')}
         >
           {(['asc', 'desc'] as const).map((dir) => (
             <button
@@ -697,29 +679,22 @@ export function CharacterCreate() {
               type="button"
               onClick={() => setPointSort(dir)}
               aria-pressed={pointSort === dir}
-              {...tip(dir === 'asc' ? 'Points low → high' : 'Points high → low')}
+              {...tip(t(dir === 'asc' ? 'ui.create.pointsAsc' : 'ui.create.pointsDesc'))}
               className={`px-2 py-0.5 text-label uppercase transition ${
                 dir === 'desc' ? 'border-l border-white/15' : ''
               } ${pointSort === dir ? 'bg-white/15 text-white' : 'text-white/40 hover:text-white/70'}`}
             >
-              Pts {dir === 'asc' ? '↑' : '↓'}
+              {t('ui.create.points')} {dir === 'asc' ? '↑' : '↓'}
             </button>
           ))}
         </div>
       </div>
       <div className="flex flex-col gap-2.5">
-        {groups.map((g) =>
-          g.items.length === 0 ? null : (
-            <div key={g.label}>
-              <span className="mb-1 block text-label uppercase text-white/35">{g.label}</span>
-              <div className="grid grid-cols-2 gap-1 sm:grid-cols-3 xl:grid-cols-4">
-                {sortTraitsByPoints(g.items, pointSort).map(renderTile)}
-              </div>
-            </div>
-          ),
-        )}
+        <div className="grid grid-cols-2 gap-1 sm:grid-cols-3 xl:grid-cols-4">
+          {sortTraitsByPoints(sideTraits, pointSort, locale).map(renderTile)}
+        </div>
         {sideTraits.length === 0 && (
-          <p className="text-body text-white/40">No traits on this side match that filter.</p>
+          <p className="text-body text-white/40">{t('ui.create.noMatches')}</p>
         )}
       </div>
     </div>
@@ -728,7 +703,7 @@ export function CharacterCreate() {
   const focusTrait = focusId ? getTrait(focusId) : null;
   const focusBlockedWhy =
     focusTrait && !traitIds.includes(focusTrait.id) && !canPickTrait(focusTrait.id, traitIds)
-      ? pickBlockReason(focusTrait.id, traitIds)
+      ? pickBlockReason(focusTrait.id, traitIds, locale)
       : null;
   const traitDetail = focusTrait ? (
     <div className="rounded border border-white/15 bg-concrete-900/80 p-3">
@@ -743,7 +718,7 @@ export function CharacterCreate() {
           }`}
         >
           {focusTrait.category === 'positive' ? '−' : '+'}
-          {Math.abs(focusTrait.cost)} pt
+          {Math.abs(focusTrait.cost)} {t('ui.create.pointUnit')}
         </span>
       </div>
       <p className="mt-1.5 text-body italic leading-snug text-white/50">
@@ -758,8 +733,7 @@ export function CharacterCreate() {
     </div>
   ) : (
     <p className="rounded border border-dashed border-white/10 p-3 text-body text-white/40">
-      Hover a trait to see what it does. Negatives earn points, positives spend them — end at 0
-      or above.
+      {t('ui.create.traitHint')}
     </p>
   );
 
@@ -770,7 +744,7 @@ export function CharacterCreate() {
           value={presetNameDraft}
           onChange={(e) => setPresetNameDraft(e.target.value)}
           maxLength={32}
-          placeholder="Preset name"
+          placeholder={t('ui.create.presetName')}
           className="min-w-0 flex-1 rounded border border-white/15 bg-black/40 px-2 py-1 text-body outline-none focus:border-signal"
         />
         <button
@@ -779,7 +753,7 @@ export function CharacterCreate() {
           disabled={!legal}
           className="shrink-0 rounded border border-signal/40 px-2.5 py-1 text-label uppercase text-signal hover:bg-signal/10 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          Save preset
+          {t('ui.create.savePreset')}
         </button>
       </div>
       {presetMsg && <p className="mt-1 text-micro text-white/50">{presetMsg}</p>}
@@ -793,7 +767,7 @@ export function CharacterCreate() {
         onClick={() => setStep('traits')}
         className="w-full rounded-lg bg-signal/80 px-6 py-2.5 font-bold uppercase tracking-widest text-black transition hover:bg-signal"
       >
-        Next: traits →
+        {t('ui.create.nextTraits')}
       </button>
     ) : (
       <button
@@ -802,7 +776,7 @@ export function CharacterCreate() {
         disabled={!legal}
         className="w-full rounded-lg bg-signal/80 px-6 py-2.5 font-bold uppercase tracking-widest text-black transition hover:bg-signal disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/30"
       >
-        Next →
+        {t('ui.create.next')}
       </button>
     );
 
@@ -814,7 +788,7 @@ export function CharacterCreate() {
           onClick={start}
           className="text-label uppercase text-white/40 hover:text-white/80"
         >
-          Skip — start with this build
+          {t('ui.create.skip')}
         </button>
       ) : null
     ) : (
@@ -823,7 +797,7 @@ export function CharacterCreate() {
         onClick={() => setStep('background')}
         className="text-label uppercase text-white/40 hover:text-white/80"
       >
-        ← Background
+        {t('ui.create.backBackground')}
       </button>
     );
 
@@ -838,7 +812,7 @@ export function CharacterCreate() {
           >
             {t('ui.common.back')}
           </button>
-          <h2 className="text-title uppercase tracking-signage text-signal">Before It Fell</h2>
+          <h2 className="text-title uppercase tracking-signage text-signal">{t('ui.create.title')}</h2>
         </div>
         {stepper}
         <div className="hidden lg:block">{pointsBadge}</div>

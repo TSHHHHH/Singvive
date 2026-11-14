@@ -1,6 +1,10 @@
 /** Shared recipe-catalog validation for the DEV API and browser UI. */
 
 export type RecipeRecord = {
+  preparation?: 'drink' | 'cook' | 'boil';
+  facility?: 'fire' | 'stove' | 'stove_fuel' | 'rain_collector' | 'rain_shelter' | 'hot_water';
+  family?: 'kopi' | 'teh';
+  fixedInputs?: boolean;
   id: string;
   name: string;
   inputs: Record<string, number>;
@@ -17,6 +21,7 @@ export type RecipesCatalog = RecipeRecord[];
 
 const RECIPE_ID_RE = /^[a-z][a-z0-9_]*$/;
 const ALLOWED_KEYS = new Set([
+  'preparation', 'facility', 'family', 'fixedInputs',
   'id',
   'name',
   'inputs',
@@ -77,6 +82,10 @@ export function validateRecipesCatalog(
     }
 
     const label = typeof id === 'string' && id ? id : prefix;
+    for (const [key, values] of Object.entries({ preparation: ['drink', 'cook', 'boil'], facility: ['fire', 'stove', 'stove_fuel', 'rain_collector', 'rain_shelter', 'hot_water'], family: ['kopi', 'teh'] })) {
+      if (row[key] !== undefined && !values.includes(row[key] as string)) errors.push(`${label}: invalid ${key}`);
+    }
+    if (row.fixedInputs !== undefined && typeof row.fixedInputs !== 'boolean') errors.push(`${label}: fixedInputs must be a boolean`);
 
     if (typeof row.name !== 'string' || row.name.trim() === '') {
       errors.push(`${label}: name is required`);
@@ -116,7 +125,7 @@ export function validateRecipesCatalog(
       errors.push(`${label}: inputs must be an object of itemId → count`);
     } else {
       const inputIds = Object.keys(row.inputs);
-      if (inputIds.length === 0) {
+      if (inputIds.length === 0 && !isPositiveInt(row.waterInput)) {
         errors.push(`${label}: needs at least one input`);
       }
       const inputSeen = new Set<string>();
@@ -164,6 +173,10 @@ export function normalizeRecipe(recipe: RecipeRecord): RecipeRecord {
   };
   if (recipe.waterInput !== undefined) next.waterInput = recipe.waterInput;
   if (recipe.tool) next.tool = recipe.tool;
+  if (recipe.preparation) next.preparation = recipe.preparation;
+  if (recipe.facility) next.facility = recipe.facility;
+  if (recipe.family) next.family = recipe.family;
+  if (recipe.fixedInputs !== undefined) next.fixedInputs = recipe.fixedInputs;
   return next;
 }
 

@@ -37,6 +37,7 @@ export const TRAIT_TAGS: Record<string, TraitTag[]> = {
   thick_skin: ['combat', 'medical'],
   kiasuism: ['scavenge'],
   kampong_spirit: ['people'],
+  local_contacts: ['people'],
   ah_long_debt: ['people'],
   water_baby: ['needs'],
   handyman: ['scavenge'],

@@ -17,6 +17,7 @@ export const LOOT_TABLE_CATEGORIES = [
   'mrt',
   'industrial',
   'school',
+  'landmark',
   'waypoint',
 ] as const;
 

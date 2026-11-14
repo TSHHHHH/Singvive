@@ -2,9 +2,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useGame } from '../game/store';
 import {
   PRACTICE_DAILY_CAP,
-  SKILL_BLURBS,
   SKILL_IDS,
-  SKILL_LABELS,
   SKILL_MAX_LEVEL,
   skillMods,
   xpToNext,
@@ -49,11 +47,11 @@ export function SkillsPanel() {
             <div
               key={id}
               className="rounded-lg border border-white/10 bg-concrete-900/60 px-3 py-2"
-              {...tip(SKILL_BLURBS[id])}
+              {...tip(t(`ui.skills.descriptions.${id}`))}
             >
               <div className="flex items-baseline justify-between gap-2">
                 <span className="text-read font-semibold text-concrete-50">
-                  {SKILL_LABELS[id]}
+                  {t(`ui.skills.names.${id}`)}
                 </span>
                 <span className="text-body tabular-nums text-signal">
                   {t('ui.skills.level', { level: prog.level })}

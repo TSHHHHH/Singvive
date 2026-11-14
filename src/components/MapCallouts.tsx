@@ -62,6 +62,9 @@ export function MapCallouts({ map, here, target, pinRef, followPin, kickRef, ins
   const layerRef = useRef<HTMLDivElement>(null);
   const els = useRef<Record<Key, HTMLDivElement | null>>({ here: null, target: null });
   const sizes = useRef<Record<Key, { w: number; h: number }>>({ here: { w: 0, h: 0 }, target: { w: 0, h: 0 } });
+  // Read layout only on resize. Reading clientWidth after the map has moved
+  // hundreds of markers forces their pending styles/layout to flush mid-frame.
+  const frame = useRef({ w: 0, h: 0 });
   const last = useRef<Record<Key, CalloutBox | null>>({ here: null, target: null });
 
   const roofs = useGame((s) => s.siteRoofs);
@@ -70,7 +73,7 @@ export function MapCallouts({ map, here, target, pinRef, followPin, kickRef, ins
 
   const place = useCallback(() => {
     const layer = layerRef.current;
-    if (!layer || !alive(map)) return;
+    if (!layer || !frame.current.w || !frame.current.h || !alive(map)) return;
     const s = live.current;
     const box = map.getContainer();
     const roofLift = parseFloat(box.style.getPropertyValue('--roof-lift')) || 0;
@@ -90,7 +93,7 @@ export function MapCallouts({ map, here, target, pinRef, followPin, kickRef, ins
     const boxes = placeCallouts(
       s.here ? point('here', s.here.anchor, s.followPin ? pinRef.current : null) : null,
       s.target ? point('target', s.target.anchor, null) : null,
-      { w: layer.clientWidth, h: layer.clientHeight, ...s.inset },
+      { ...frame.current, ...s.inset },
     );
 
     for (const key of ['here', 'target'] as const) {
@@ -119,16 +122,14 @@ export function MapCallouts({ map, here, target, pinRef, followPin, kickRef, ins
     }
   }, [map, pinRef]);
 
-  // Follow the camera. `render` also covers what moves without it: the
-  // buildings rising, and the route line redrawn under a gliding pin.
+  // Render follows camera movement as well as rising buildings and route
+  // updates. Listening to move too would place the same cards twice per frame.
   useEffect(() => {
-    map.on('move', place);
     map.on('render', place);
     kickRef.current = place;
     return () => {
       kickRef.current = null;
       if (alive(map)) {
-        map.off('move', place);
         map.off('render', place);
       }
     };
@@ -150,7 +151,7 @@ export function MapCallouts({ map, here, target, pinRef, followPin, kickRef, ins
     // The pin rests at the middle of the padded map; pad just enough that the
     // card and a typical roof clear the top edge from there.
     const reach = h + s.here.anchor.gap + CALLOUT_GAP + ROOF_ALLOWANCE_PX + s.inset.top;
-    const need = 2 * reach - layer.clientHeight + s.inset.bottom;
+    const need = 2 * reach - frame.current.h + s.inset.bottom;
     headroomCb.current?.(Math.max(0, Math.ceil(need / 8) * 8));
   }, []);
   const hasHere = !!here;
@@ -161,6 +162,7 @@ export function MapCallouts({ map, here, target, pinRef, followPin, kickRef, ins
         const key = (e.target as HTMLElement).dataset.callout as Key | undefined;
         const el = e.target as HTMLElement;
         if (key) sizes.current[key] = { w: el.offsetWidth, h: el.offsetHeight };
+        else if (el === layerRef.current) frame.current = { w: e.contentRect.width, h: e.contentRect.height };
       }
       reportHeadroom();
       place();
@@ -171,7 +173,11 @@ export function MapCallouts({ map, here, target, pinRef, followPin, kickRef, ins
       sizes.current[key] = { w: el.offsetWidth, h: el.offsetHeight };
       ro.observe(el);
     }
-    if (layerRef.current) ro.observe(layerRef.current);
+    const layer = layerRef.current;
+    if (layer) {
+      frame.current = { w: layer.clientWidth, h: layer.clientHeight };
+      ro.observe(layer);
+    }
     reportHeadroom();
     place();
     return () => ro.disconnect();

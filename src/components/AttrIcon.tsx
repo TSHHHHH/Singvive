@@ -29,12 +29,11 @@ export function AttrIcon({
   label = false,
   short = false,
 }: AttrIconProps) {
-  const text = short
-    ? ATTRIBUTE_LABELS[attr].slice(0, 3)
-    : ATTRIBUTE_LABELS[attr];
+  const { t } = useT();
+  const text = t(short ? `ui.attributes.short.${attr}` : `ui.attributes.${attr}`);
   return (
     <span className={`inline-flex items-center gap-1 ${className}`}>
-      <Icon name={ATTRIBUTE_ICONS[attr]} size={size} title={ATTRIBUTE_LABELS[attr]} />
+      <Icon name={ATTRIBUTE_ICONS[attr]} size={size} title={t(`ui.attributes.${attr}`)} />
       {label && <span>{text}</span>}
     </span>
   );

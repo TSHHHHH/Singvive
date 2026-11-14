@@ -1318,11 +1318,18 @@ select optgroup {
 .maplibregl-marker.has-roof > * {
   translate: 0 calc(var(--roof, 0) * var(--roof-lift, 0) * -1px);
 }
-/* The selected site, where there's no outline to thicken: a gold ring. */
+/* Selection stays separate from faction/danger colours, and follows roof/beacon lift. */
 .maplibregl-marker.is-picked > * {
+  position: relative;
+}
+.maplibregl-marker.is-picked > *::after {
+  content: '';
+  position: absolute;
+  inset: -7px;
   border-radius: 50%;
-  outline: 2px solid #f0c040;
-  outline-offset: 2px;
+  border: 2px solid #fff5d6;
+  box-shadow: 0 0 0 2px #08080a, 0 0 12px #f0c04080;
+  pointer-events: none;
 }
 
 /* Landmark beacons in the 3D run map (map/beacons.ts, components/Beacons3d.tsx):

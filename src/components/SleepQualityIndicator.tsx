@@ -1,9 +1,6 @@
 import {
-  BED_LABEL,
   BED_MULT,
-  ENCLOSED_LABEL,
   ENCLOSED_MULT,
-  ROOF_LABEL,
   ROOF_MULT,
   type RestPreview,
 } from '../game/sleep';
@@ -11,7 +8,7 @@ import { restAmbushLabel } from '../game/wilds';
 import { Icon } from '../icons/Icon';
 import { resolveIcon } from '../icons/registry';
 import { TipHint } from './TipHint';
-import { msgOr, useT } from '../i18n';
+import { useT } from '../i18n';
 
 function pct(mult: number): string {
   return `${Math.round(mult * 100)}%`;
@@ -72,10 +69,7 @@ export function SleepQualityIndicator({ preview }: { preview: RestPreview }) {
   const totalPct = Math.round(conditions.recoveryMult * 100);
   const ambushPct = Math.round(preview.ambushChance * 100);
   const ambush = restAmbushLabel(preview.ambushChance);
-  const ambushLabel = msgOr(
-    `ui.sleep.ambush.${ambushTextKey(preview.ambushChance)}`,
-    ambush.text,
-  );
+  const ambushLabel = t(`ui.sleep.ambush.${ambushTextKey(preview.ambushChance)}`);
 
   return (
     <TipHint className="inline-flex" tip={<SleepTip preview={preview} />}>
@@ -85,7 +79,7 @@ export function SleepQualityIndicator({ preview }: { preview: RestPreview }) {
           pct: totalPct,
           ambushPct,
           ambush: ambushLabel,
-          summary: conditions.summary,
+          summary: sleepSummary(preview, t),
         })}
       >
         <div className="relative h-[2.25em] w-[2.4em] shrink-0" aria-hidden>
@@ -122,16 +116,10 @@ function SleepTip({ preview }: { preview: RestPreview }) {
   const roofMult = ROOF_MULT[conditions.roof];
   const bedMult = BED_MULT[conditions.bed];
   const ambush = restAmbushLabel(preview.ambushChance);
-  const ambushLabel = msgOr(
-    `ui.sleep.ambush.${ambushTextKey(preview.ambushChance)}`,
-    ambush.text,
-  );
-  const enclosedLabel = msgOr(
-    `ui.sleep.enclosed.${conditions.enclosed}`,
-    ENCLOSED_LABEL[conditions.enclosed],
-  );
-  const roofLabel = msgOr(`ui.sleep.roofLevel.${conditions.roof}`, ROOF_LABEL[conditions.roof]);
-  const bedLabel = msgOr(`ui.sleep.bedLevel.${conditions.bed}`, BED_LABEL[conditions.bed]);
+  const ambushLabel = t(`ui.sleep.ambush.${ambushTextKey(preview.ambushChance)}`);
+  const enclosedLabel = t(`ui.sleep.enclosed.${conditions.enclosed}`);
+  const roofLabel = t(`ui.sleep.roofLevel.${conditions.roof}`);
+  const bedLabel = t(`ui.sleep.bedLevel.${conditions.bed}`);
   const rows = [
     {
       key: 'enclosed',
@@ -160,7 +148,7 @@ function SleepTip({ preview }: { preview: RestPreview }) {
           {pct(conditions.recoveryMult)}
         </span>
       </div>
-      <p className="mb-1.5 text-micro text-white/45">{conditions.summary}</p>
+      <p className="mb-1.5 text-micro text-white/45">{sleepSummary(preview, t)}</p>
       <ul className="flex flex-col gap-0.5">
         {rows.map((row) => (
           <li key={row.key} className="flex justify-between gap-3 text-body">
@@ -189,13 +177,19 @@ function SleepTip({ preview }: { preview: RestPreview }) {
       </div>
       {conditions.occupancyNotes.length > 0 && (
         <ul className="mt-1 flex flex-col gap-0.5">
-          {conditions.occupancyNotes.map((note) => (
+          {conditions.occupancyNotes.map((note, index) => (
             <li key={note} className="text-micro text-white/45">
-              {note}
+              {conditions.occupancyNoteKeys?.[index] ? t(conditions.occupancyNoteKeys[index]) : note}
             </li>
           ))}
         </ul>
       )}
     </div>
   );
+}
+
+function sleepSummary({ conditions }: RestPreview, t: ReturnType<typeof useT>['t']): string {
+  const shelter = conditions.enclosed === 'none' && conditions.roof === 'none'
+    ? 'open' : conditions.enclosed === 'full' ? 'enclosed' : 'roofed';
+  return t(`ui.sleep.summary.${shelter}.${conditions.bed}`);
 }

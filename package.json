@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "build:itch": "tsc -b && vite build --mode itch && node scripts/pack-itch.mjs",
-    "lint": "oxlint --max-warnings=24 && node scripts/check-type-scale.mjs && node scripts/check-zh-hans-glossary.mjs",
+    "lint": "oxlint --max-warnings=23 && node scripts/check-type-scale.mjs && node scripts/check-zh-hans-glossary.mjs",
     "lint:type": "node scripts/check-type-scale.mjs",
     "test": "vitest run",
     "sim:combat": "node scripts/sim-combat.mjs",

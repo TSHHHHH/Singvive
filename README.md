@@ -48,7 +48,7 @@ Then open **http://localhost:5190** (not 5173 — the port is overridden in `vit
 | `npm run build` | Typecheck (`tsc -b`) then production build — **this is the typecheck gate** |
 | `npm run build:itch` | Static itch.io zip at `release/singvive-itch.zip` (`index.html` at the archive root) |
 | `npm run test` | Vitest over the pure `src/game/` logic |
-| `npm run lint` | oxlint (`--max-warnings=24`) + type-scale guard |
+| `npm run lint` | oxlint (`--max-warnings=23`) + type-scale guard |
 | `npm run preview` | Serve the production build locally (Worker + assets) |
 | `npm run db:migrate:local` | Apply D1 migrations to the local honor board (first run) |
 | `npm run deploy` | Build and publish to Cloudflare Workers |

@@ -15,6 +15,7 @@ import { FOG_COLOUR, FOG_TOTAL } from './fogGeometry';
 import { anchorOf, dimHex, inDisc, mixHex, pointInRing, pxPerMetre, toLngLatRing, type Disc, type LngLatPair } from './geo';
 import { alive } from './layers';
 import { breakBuilding, type RuinKind } from './ruinModel';
+import { landmarkBaseHeight } from './landmarkGeometry';
 
 /**
  * The 3D run map's buildings: the basemap's own footprints extruded to their
@@ -66,7 +67,6 @@ const CREEP_PX_PER_S = 30;
 const MAX_DEFER_MS = 2000;
 
 export const BUILDINGS_LAYER = 'buildings-3d';
-export const SELECTED_COLOR = '#f0c040';
 const BASE_BUILDING_COLOR = '#2a2e2a';
 /**
  * An unrevealed footprint draws over the ground fog, so it takes the colour
@@ -216,7 +216,6 @@ export interface Site3d {
   category: PoiCategory;
   /** The building's colour while it stands for this site. */
   color: string;
-  selected: boolean;
   /** Known ruin tier (visited street sites); absent draws it intact. */
   ruin?: DestructionTier;
 }
@@ -241,7 +240,7 @@ interface Box {
 /** Height (or base) × rise × ruin, grown in across the LOD zoom band. */
 function heightExpr(base: boolean) {
   const own = base
-    ? ['coalesce', ['get', 'render_min_height'], ['get', 'min_height'], 0]
+    ? ['coalesce', ['feature-state', 'baseHeight'], ['get', 'render_min_height'], ['get', 'min_height'], 0]
     : ['coalesce', ['get', 'render_height'], ['get', 'height'], 8];
   return [
     'interpolate',
@@ -274,23 +273,18 @@ function pieceExpr(prop: 'base' | 'top') {
  */
 export const FAR_DIM = 0.58;
 
-/** Selected → gold; otherwise the fogged flat colour while down, `color` once standing. */
+/** Fogged flat colour while down, site colour once standing; selection lives on the badge. */
 function standingColor(color: unknown) {
   return [
-    'case',
-    ['boolean', ['feature-state', 'selected'], false],
-    SELECTED_COLOR,
-    [
-      'interpolate',
-      ['linear'],
-      ['coalesce', ['feature-state', 'rise'], 0],
-      0,
-      FLAT_COLOR,
-      1,
-      // Past the current travel range a standing building sinks part-way back
-      // towards the fogged colour (feature-state `far`, 0 or FAR_DIM).
-      ['interpolate', ['linear'], ['coalesce', ['feature-state', 'far'], 0], 0, ['to-color', color], 1, FLAT_COLOR],
-    ],
+    'interpolate',
+    ['linear'],
+    ['coalesce', ['feature-state', 'rise'], 0],
+    0,
+    FLAT_COLOR,
+    1,
+    // Past the current travel range a standing building sinks part-way back
+    // towards the fogged colour (feature-state `far`, 0 or FAR_DIM).
+    ['interpolate', ['linear'], ['coalesce', ['feature-state', 'far'], 0], 0, ['to-color', color], 1, FLAT_COLOR],
   ] as unknown as string;
 }
 
@@ -378,7 +372,7 @@ export class BuildingEngine {
   private ruinShown = new Set<string>();
   private ruinWant: Wreck[] = [];
   private ruinTimer: ReturnType<typeof setTimeout> | null = null;
-  /** Piece state applied, by site: colour|selected. */
+  /** Piece colour applied, by site. */
   private ruinApplied = new Map<string, string>();
   private nextPieceId = 1;
   /** Building feature → the wreck key whose pieces rise with it. */
@@ -390,6 +384,7 @@ export class BuildingEngine {
   private fireIds = new Set<FeatureId>();
   /** Buildings whose scorch / stump state is already on. */
   private damaged = new Set<FeatureId>();
+  private heightCorrected = new Set<FeatureId>();
   private lastPick: { lat: number; lng: number } | null = null;
   private fires = new Map<FeatureId, Fire>();
 
@@ -855,6 +850,13 @@ export class BuildingEngine {
       if (!at) continue;
       const props = f.properties as Record<string, unknown>;
       const h = Number(props.render_height ?? props.height ?? 0);
+      if (!this.heightCorrected.has(f.id)) {
+        const baseHeight = landmarkBaseHeight(this.src, f.id, props);
+        if (baseHeight !== undefined) {
+          map.setFeatureState({ source: this.src, sourceLayer: this.sl, id: f.id }, { baseHeight });
+          this.heightCorrected.add(f.id);
+        }
+      }
       const c: Indexed = { lat: at[1], lng: at[0], h: Number.isFinite(h) ? h : 0, part: props.kind === 'building_part' };
       next.set(f.id, c);
       this.markDamage(f.id, c);
@@ -1002,6 +1004,12 @@ export class BuildingEngine {
         if (sb && ring) {
           if (x1 < sb[0] || x0 > sb[2] || y1 < sb[1] || y0 > sb[3]) continue;
           const centreInside = pointInRing((x0 + x1) / 2, (y0 + y1) / 2, ring);
+          // A curated landmark can be a whole complex (three towers or a
+          // grove). Its constituent buildings share one identity and state.
+          if (site.category === 'landmark' && centreInside) {
+            parts.push(box);
+            continue;
+          }
           if (box.part) {
             if (centreInside) parts.push(box);
             continue;
@@ -1047,11 +1055,11 @@ export class BuildingEngine {
     if (this.focus) this.drawFocus();
   }
 
-  /** Push site colours, selection and ruin onto the buildings that are sites. */
+  /** Push site colours and ruin onto the buildings that are sites. */
   private applySiteStates() {
     const map = this.map;
     if (this.destroyed || !map.getLayer(BUILDINGS_LAYER)) return;
-    const want = new Map<FeatureId, { color: string; selected: boolean; ruin: number }>();
+    const want = new Map<FeatureId, { color: string; ruin: number }>();
     for (const [site, ids] of this.siteFeatures) {
       const s = this.sites.get(site);
       if (!s) continue;
@@ -1059,18 +1067,17 @@ export class BuildingEngine {
       const color = tier ? mixHex(s.color, SCORCH_COLOR, SCORCH_BY_TIER[tier]) : s.color;
       // A broken model stands in for the box, which lies flat under it.
       const ruin = tier === 3 && this.ruinShown.has(site) ? 0 : stumpFactor(site, tier);
-      for (const id of ids) want.set(id, { color, selected: s.selected, ruin });
+      for (const id of ids) want.set(id, { color, ruin });
     }
     for (const id of [...this.applied.keys()]) {
       if (want.has(id)) continue;
       const target = { source: this.src, sourceLayer: this.sl, id };
       map.removeFeatureState(target, 'color');
-      map.removeFeatureState(target, 'selected');
       map.removeFeatureState(target, 'ruin');
       this.applied.delete(id);
     }
     for (const [id, s] of want) {
-      const key = `${s.color}|${s.selected ? 1 : 0}|${s.ruin}`;
+      const key = `${s.color}|${s.ruin}`;
       if (this.applied.get(id) === key) continue;
       map.setFeatureState({ source: this.src, sourceLayer: this.sl, id }, s);
       this.applied.set(id, key);
@@ -1282,7 +1289,7 @@ export class BuildingEngine {
     }
   }
 
-  /** Piece colours: their own shade (a site's colour mixed in), and selection. */
+  /** Piece colours: their own shade with the site's colour mixed in. */
   private applyPieceStates() {
     if (!this.map.getSource(RUINS_SOURCE)) return;
     for (const key of this.ruinShown) {
@@ -1290,13 +1297,13 @@ export class BuildingEngine {
       if (!model) continue;
       const s = key.startsWith('b:') ? null : this.sites.get(key);
       if (!s && !key.startsWith('b:')) continue;
-      const stateKey = s ? `${s.color}|${s.selected ? 1 : 0}` : 'city';
+      const stateKey = s?.color ?? 'city';
       if (this.ruinApplied.get(key) === stateKey) continue;
       for (const f of model.pieces) {
         const own = RUIN_COLORS[(f.properties as { kind: RuinKind }).kind];
         this.map.setFeatureState(
           { source: RUINS_SOURCE, id: f.id as number },
-          s ? { color: mixHex(own, s.color, RUIN_SITE_TINT), selected: s.selected } : { color: own },
+          s ? { color: mixHex(own, s.color, RUIN_SITE_TINT) } : { color: own },
         );
       }
       this.ruinApplied.set(key, stateKey);

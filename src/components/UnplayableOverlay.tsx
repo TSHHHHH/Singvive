@@ -7,6 +7,7 @@ import { useT } from '../i18n';
 import { useMapGL } from '../map/hooks';
 import { installOverlay, setData } from '../map/layers';
 import { EMPTY_FC, toLngLatRing } from '../map/geo';
+import { withoutCrossingDecks } from '../map/crossingGeometry';
 
 /**
  * Terrain washes from the zones bake: open sea, inland water, restricted
@@ -74,8 +75,8 @@ function terrainOf(zones: ZonesData): Terrain {
     }
   }
   const t: Terrain = {
-    sea: asFc(sea),
-    water: asFc(union(zones.water)),
+      sea: asFc(withoutCrossingDecks(sea)),
+      water: asFc(withoutCrossingDecks(union(zones.water))),
     restricted: asFc(union(zones.restricted)),
     vegetation: vegetationOf(zones),
   };

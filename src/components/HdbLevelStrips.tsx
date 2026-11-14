@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Icon } from '../icons/Icon';
 import { sumTraitMod } from '../game/character';
 import { loadEffectsFor } from '../game/inventory';
@@ -146,27 +146,27 @@ function RoomTile({
       : unit.state === 'breached'
         ? 'border-concrete-200 bg-concrete-800'
         : 'border-concrete-600 bg-concrete-800';
-  const size = phone ? 'h-14 w-12' : 'h-12 w-11';
+  const size = phone ? 'h-16 w-14' : 'h-20 w-full min-w-0';
   const face = !unit.available ? (
-    <Icon name="hdb.unavailable" size={14} />
+    <Icon name="hdb.unavailable" size={phone ? 18 : 24} />
   ) : unit.state === 'cleared' ? (
-    <Icon name="choice.check" size={14} />
+    <Icon name="choice.check" size={phone ? 18 : 24} />
   ) : (
-    <Icon name={meta.icon} size={phone ? 18 : 16} className={unitFaceClass(unit.type)} />
+    <Icon name={meta.icon} size={phone ? 22 : 28} className={unitFaceClass(unit.type)} />
   );
   const scouted = unit.available && unit.state !== 'cleared' && !!unit.scoutedInfo?.containerCategory;
   const body = (
     <>
       {face}
       {scouted && (
-        <span className="absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-astral" />
+        <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-astral" />
       )}
-      <span className="w-full truncate px-0.5 text-center text-micro leading-none tabular-nums text-concrete-400">
+      <span className={`w-full truncate px-0.5 text-center tabular-nums ${phone ? 'text-micro' : 'text-body'} ${unit.available ? 'text-concrete-200' : 'text-concrete-600'}`}>
         {unit.label.replace(/^#/, '')}
       </span>
     </>
   );
-  const cls = `relative flex shrink-0 flex-col items-center justify-center gap-1.5 rounded-sm border ${size} ${panel} ${
+  const cls = `relative flex shrink-0 flex-col items-center justify-center gap-2 rounded-t-sm border border-b-[3px] ${size} ${panel} ${
     selected ? 'ring-2 ring-signal ring-offset-1 ring-offset-concrete-950' : ''
   }`;
   if (!selectable || !unit.available) {
@@ -184,6 +184,7 @@ function RoomTile({
         onPick();
       }}
       aria-pressed={selected}
+      aria-label={`${unit.label} · ${state}${read}`}
       {...tip(`${unit.label} · ${state}${read}`)}
       className={`${cls} transition-colors hover:border-concrete-50`}
     >
@@ -211,6 +212,21 @@ export function HdbLevelStrips({ phone }: { phone: boolean }) {
   const busy = useGame((s) => !!s.pendingSearch || !!s.combat || !!s.pendingEvent);
   const setHdbHoverLevel = useGame((s) => s.setHdbHoverLevel);
   const [hoverRow, setHoverRow] = useState<number | null>(null);
+  const currentRow = useRef<HTMLDivElement>(null);
+  const stripsRef = useRef<HTMLDivElement>(null);
+  const currentLevel = hdb?.pos.level;
+
+  useEffect(() => {
+    const keepLandingVisible = () => currentRow.current?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    keepLandingVisible();
+    // The action dock is measured after mount; opening it must not hide the
+    // current landing. This also handles newly revealed rooms and font changes.
+    const observer = new ResizeObserver(keepLandingVisible);
+    const strips = stripsRef.current;
+    if (strips) observer.observe(strips);
+    if (strips?.parentElement) observer.observe(strips.parentElement);
+    return () => observer.disconnect();
+  }, [currentLevel, phone]);
 
   useEffect(() => {
     setHdbHoverLevel(hoverRow);
@@ -230,10 +246,11 @@ export function HdbLevelStrips({ phone }: { phone: boolean }) {
 
   return (
     <div
+      ref={stripsRef}
       className={
         phone
           ? 'flex flex-col gap-1'
-          : 'flex h-full min-h-0 flex-col justify-center gap-1'
+          : 'flex min-h-full flex-col justify-center gap-1.5'
       }
       onMouseLeave={() => setHoverRow(null)}
     >
@@ -258,15 +275,15 @@ export function HdbLevelStrips({ phone }: { phone: boolean }) {
                   ? t('ui.hdb.spanSealed', { nn: label, n: span, label: sealLabel })
                   : t('ui.hdb.inaccessible', { label: sealLabel }),
               )}
-              className={`flex shrink-0 items-center gap-2 rounded-sm border border-dashed border-concrete-800 bg-concrete-950/80 px-2 text-micro uppercase text-concrete-400 ${
-                phone ? 'h-6' : 'h-5'
+              className={`flex shrink-0 items-center gap-2 rounded-sm border border-dashed border-concrete-800 bg-concrete-950/90 px-3 uppercase text-concrete-400 ${
+                phone ? 'h-6 text-micro' : 'h-7 text-body'
               }`}
               style={{
                 backgroundImage:
                   'repeating-linear-gradient(135deg, transparent 0 4px, rgba(255,255,255,0.03) 4px 5px)',
               }}
             >
-              <Icon name={SEAL_ICON[seal.kind]} size={11} />
+              <Icon name={SEAL_ICON[seal.kind]} size={phone ? 12 : 16} />
               <span className="truncate">
                 {span > 1 ? t('ui.hdb.spanChip', { n: span, label: sealLabel }) : sealLabel}
               </span>
@@ -300,13 +317,17 @@ export function HdbLevelStrips({ phone }: { phone: boolean }) {
         return (
           <div
             key={level}
+            ref={here ? currentRow : undefined}
+            data-hdb-level={level}
+            aria-label={t('ui.hdb.storey', { nn: label })}
+            aria-current={here ? 'location' : undefined}
             role={canGo ? 'button' : undefined}
             tabIndex={canGo ? 0 : undefined}
             onClick={canGo ? () => hdbTravel(level) : undefined}
             onKeyDown={
               canGo
                 ? (e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
+                    if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
                       e.preventDefault();
                       hdbTravel(level);
                     }
@@ -316,8 +337,8 @@ export function HdbLevelStrips({ phone }: { phone: boolean }) {
             onMouseEnter={() => setHoverRow(level)}
             onFocus={() => setHoverRow(level)}
             {...tip(title, { follow: true })}
-            className={`relative flex shrink-0 items-center gap-2 rounded-sm border px-2 transition-colors ${
-              phone ? 'min-h-[3.25rem] py-1.5' : 'min-h-[2.75rem] flex-1 py-1'
+            className={`relative flex shrink-0 items-center rounded-sm border transition-colors ${
+              phone ? 'min-h-[4.5rem] gap-2 px-2 py-2' : 'min-h-[7.5rem] gap-3 px-3 py-3'
             } ${
               here
                 ? 'border-signal/70 bg-concrete-800'
@@ -342,9 +363,9 @@ export function HdbLevelStrips({ phone }: { phone: boolean }) {
               />
             )}
 
-            <div className="flex w-10 shrink-0 flex-col items-center gap-1">
+            <div className={`flex shrink-0 flex-col items-center gap-2 ${phone ? 'w-10' : 'w-14'}`}>
               <span
-                className={`min-w-8 rounded-sm border px-1 text-center text-plate tabular-nums ${
+                className={`w-full rounded-sm border px-1 py-1 text-center tabular-nums ${phone ? 'text-plate' : 'text-title'} ${
                   here
                     ? 'border-signal/70 text-signal'
                     : revealed
@@ -354,45 +375,45 @@ export function HdbLevelStrips({ phone }: { phone: boolean }) {
               >
                 {roof ? t('ui.hdb.roofShort') : label}
               </span>
-              {here && <PlayerPin size="xs" />}
+              {here && <PlayerPin size={phone ? 'xs' : 'sm'} />}
             </div>
 
-            <div className="flex min-w-0 flex-1 flex-col gap-1">
-              <div className="flex min-w-0 items-center gap-1.5">
+            <div className="flex min-w-0 flex-1 flex-col gap-2">
+              <div className={`flex min-w-0 flex-wrap items-center gap-2 ${phone ? 'text-micro' : 'text-body'}`}>
                 <span
-                  className="flex w-20 shrink-0 items-center gap-1 text-micro uppercase leading-none"
+                  className="flex shrink-0 items-center gap-1 uppercase"
                   {...tip(t('ui.hdb.levelHeatTip', { heat: Math.round(heat), band: bandLabel }))}
                 >
-                  {Math.round(heat) > 0 && (
+                  {revealed && (
                     <>
                       <span className={`truncate ${bandText(idx, hunting)}`}>{bandLabel}</span>
                       <span className="tabular-nums text-concrete-400">{Math.round(heat)}</span>
                     </>
                   )}
                 </span>
-                <HeatMeter heat={heat} className="min-w-8 flex-1" />
+                <HeatMeter heat={heat} className="min-w-12 flex-1" />
                 {theme && (
                   <span
-                    className="shrink-0 rounded-sm border border-concrete-600 px-1 py-0.5 text-micro uppercase leading-none text-concrete-200"
+                    className="max-w-full rounded-sm border border-concrete-600 px-1.5 py-0.5 uppercase text-concrete-200"
                     {...tip(`${theme.label}: ${theme.blurb}`)}
                   >
                     {theme.label}
                   </span>
                 )}
                 {roofShut && (
-                  <span className="shrink-0 rounded-sm border border-concrete-600 px-1 py-0.5 text-micro uppercase leading-none text-concrete-400">
+                  <span className="rounded-sm border border-concrete-600 px-1.5 py-0.5 uppercase text-concrete-400">
                     {t('ui.hdb.roofShut')}
                   </span>
                 )}
                 {!revealed ? (
-                  <span className="shrink-0 text-micro uppercase text-concrete-600">{t('ui.hdb.unexplored')}</span>
+                  <span className="uppercase text-concrete-400">{t('ui.hdb.unexplored')}</span>
                 ) : units.length === 0 ? (
                   roof || roofShut ? null : (
-                    <span className="shrink-0 text-micro uppercase text-concrete-600">{t('ui.hdb.noDoors')}</span>
+                    <span className="uppercase text-concrete-400">{t('ui.hdb.noDoors')}</span>
                   )
                 ) : (
                   <span
-                    className="shrink-0 text-micro tabular-nums text-concrete-400"
+                    className="shrink-0 tabular-nums text-concrete-200"
                     {...tip(t('ui.hdb.roomsLeft', { n: left }))}
                   >
                     {left}/{units.length}
@@ -400,7 +421,7 @@ export function HdbLevelStrips({ phone }: { phone: boolean }) {
                 )}
               </div>
               {revealed && units.length > 0 && (
-                <div className="flex min-w-0 flex-wrap items-center gap-1">
+                <div className={phone ? 'flex min-w-0 flex-wrap items-center gap-1.5' : 'grid min-w-0 grid-cols-[repeat(auto-fill,minmax(4rem,1fr))] gap-2 border-b border-concrete-600/60 pb-2'}>
                   {units.map((u) => (
                     <RoomTile
                       key={u.id}

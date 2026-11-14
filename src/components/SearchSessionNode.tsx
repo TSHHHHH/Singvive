@@ -17,7 +17,7 @@ import { CELL, gridItemIconSize } from './Inventory/InventoryGrid';
 import { ItemHoverCard } from './Inventory/ItemHoverCard';
 import { GuideInfoButton } from './GuideInfoButton';
 import type { GuideTopic } from '../content/guideContent';
-import { useT } from '../i18n';
+import { itemName, useT } from '../i18n';
 import { tip } from './tips';
 import { LIVE_NODE_BAND } from './logTimeline';
 
@@ -48,7 +48,7 @@ export function SearchSessionNode({
   const abortSearch = useGame((s) => s.abortSearch);
   const completeSearch = useGame((s) => s.completeSearch);
   const clock = useClockFormat();
-  const { t } = useT();
+  const { locale, t } = useT();
   const [now, setNow] = useState(() => Date.now());
   const [hoverSlotId, setHoverSlotId] = useState<string | null>(null);
   const [hoverPos, setHoverPos] = useState<{ x: number; y: number } | null>(null);
@@ -186,7 +186,7 @@ export function SearchSessionNode({
                     animate={!!highlight}
                     forceMotion
                     iconSize={gridItemIconSize(w, h)}
-                    tip={floatCard ? undefined : def.name}
+                    tip={floatCard ? undefined : itemName(def.id, locale)}
                     onMouseEnter={() => setHoverSlotId(slot.id)}
                     onPointerEnter={(e) => {
                       setHoverSlotId(slot.id);
@@ -312,7 +312,7 @@ export function SearchSessionNode({
   }
 
   return (
-    <li className={`relative flex gap-2 py-1.5 pl-6 pr-2 ${LIVE_NODE_BAND}`}>
+    <li data-timeline-live="" className={`relative flex gap-2 py-1.5 pl-6 pr-2 ${LIVE_NODE_BAND}`}>
       <span className="absolute left-0 top-[7px] h-[11px] w-[11px] animate-pulse rounded-full border-2 border-concrete-900 bg-signal" />
       <div className="min-w-0 flex-1">
         <p
@@ -367,25 +367,26 @@ function SearchHoverPanel({
 }
 
 function FoundHoverDetails({ slot }: { slot: SearchSlot }) {
+  const { locale, t } = useT();
   const def = itemDef(slot.defId);
-  const lines = describeSearchItem(def, slot);
+  const lines = describeSearchItem(def, slot, t);
   return (
     <div className="flex h-full min-h-0 flex-col gap-1 overflow-y-auto">
       <div className="flex items-start gap-1.5">
         <Icon name={itemIcon(def)} size={18} className="mt-0.5 shrink-0" />
         <div className="min-w-0">
           <div className="flex flex-wrap items-baseline gap-1.5">
-            <span className="text-body font-semibold text-concrete-50">{def.name}</span>
+            <span className="text-body font-semibold text-concrete-50">{itemName(def.id, locale)}</span>
             {def.exotic && (
               <span className="rounded bg-amber-300/15 px-1 text-label uppercase text-amber-300">
-                Exotic
+                {t('ui.inventory.exotic')}
               </span>
             )}
             {slot.count > 1 && (
               <span className="tabular-nums text-micro text-signal">×{slot.count}</span>
             )}
           </div>
-          <div className="text-label uppercase text-white/35">{itemKindLabel(def)}</div>
+          <div className="text-label uppercase text-white/35">{itemKindLabel(def, t)}</div>
         </div>
       </div>
       <ul className="space-y-0.5">
@@ -405,87 +406,86 @@ function slotFootprintLabel(slot: SearchSlot): string {
   return `${w}×${h}`;
 }
 
-function itemKindLabel(def: ItemDef): string {
-  if (def.slot) return def.effect.kind === 'weapon' ? 'Weapon' : 'Gear';
+function itemKindLabel(def: ItemDef, t: ReturnType<typeof useT>['t']): string {
+  if (def.slot) return def.effect.kind === 'weapon' ? t('ui.itemKind.weapon') : t('ui.itemKind.gear');
   switch (def.effect.kind) {
     case 'food':
-      return 'Food';
+      return t('ui.itemKind.food');
     case 'water':
-      return 'Drink';
+      return t('ui.itemKind.drink');
     case 'heal':
     case 'cure':
-      return 'Medical';
+      return t('ui.itemKind.medical');
     case 'energy':
-      return 'Stimulant';
+      return t('ui.itemKind.stimulant');
     case 'fuel':
-      return 'Fuel';
+      return t('ui.itemKind.fuel');
     case 'ammo':
-      return 'Ammo';
+      return t('ui.itemKind.ammo');
     default:
-      return 'Misc';
+      return t('ui.itemKind.misc');
   }
 }
 
 /** Short readable lines for the timeline hover panel (no equip compare). */
-function describeSearchItem(def: ItemDef, slot: SearchSlot): string[] {
+function describeSearchItem(def: ItemDef, slot: SearchSlot, t: ReturnType<typeof useT>['t']): string[] {
   const lines: string[] = [];
   const e = def.effect;
   const m = def.modifiers ?? {};
 
   lines.push(`${def.w}×${def.h} · ${def.weight} kg`);
   if (slot.condition !== undefined) {
-    lines.push(`Condition ${Math.round(slot.condition)}%`);
+    lines.push(t('ui.search.condition', { n: Math.round(slot.condition) }));
   }
 
   switch (e.kind) {
     case 'weapon':
       lines.push(
-        `Damage ${e.damage}${e.ranged ? ' · ranged' : ' · melee'}${
-          e.roundsPerShot && e.roundsPerShot > 1 ? ` · ${e.roundsPerShot}/shot` : ''
-        }`,
+        t('ui.search.damage', { n: e.damage, kind: t(e.ranged ? 'ui.search.ranged' : 'ui.search.melee') }) +
+          (e.roundsPerShot && e.roundsPerShot > 1 ? t('ui.search.perShot', { n: e.roundsPerShot }) : ''),
       );
       break;
     case 'food':
-      lines.push(`Restores hunger ${e.hunger}`);
+      lines.push(t('ui.search.restoreHunger', { n: e.hunger }));
       break;
     case 'water':
-      lines.push(`Restores thirst ${e.thirst}`);
-      if (e.infectionRisk) lines.push(`Infection risk +${e.infectionRisk}`);
+      lines.push(t('ui.search.restoreThirst', { n: e.thirst }));
+      if (e.infectionRisk) lines.push(t('ui.search.infectionRisk', { n: e.infectionRisk }));
       break;
     case 'heal':
       lines.push(
-        `Heals ${e.health}${e.stopsBleeding ? ` · stops bleeding (${e.stopsBleeding})` : ''}`,
+        t('ui.search.heal', { n: e.health }) + (e.stopsBleeding ? t('ui.search.stopsBleeding', { kind: t(`ui.search.bleed.${e.stopsBleeding}`) }) : ''),
       );
       break;
     case 'cure':
-      lines.push(`Clears infection ${e.infection}`);
+      lines.push(t('ui.search.cure', { n: e.infection }));
       break;
     case 'energy':
-      lines.push(`Energy ${e.energy}`);
+      lines.push(`${t('ui.stats.energy')} ${e.energy}`);
       break;
     case 'ammo':
-      lines.push(`${e.rounds} rounds`);
+      lines.push(t('ui.inventory.rounds', { n: e.rounds }));
       break;
     case 'fuel':
-      lines.push('Fuel for the road');
+      lines.push(t('ui.search.fuel'));
       break;
     default:
       break;
   }
 
-  if (m.attackBonus) lines.push(`Attack ${m.attackBonus > 0 ? '+' : ''}${m.attackBonus}`);
-  if (m.defenseBonus) lines.push(`Defence +${m.defenseBonus}`);
-  if (m.accuracyBonus) lines.push(`Accuracy +${m.accuracyBonus}`);
-  if (m.speedBonus) lines.push(`Speed +${m.speedBonus}`);
+  if (m.attackBonus) lines.push(`${t('ui.stats.attack')} ${m.attackBonus > 0 ? '+' : ''}${m.attackBonus}`);
+  if (m.defenseBonus) lines.push(`${t('ui.stats.defence')} +${m.defenseBonus}`);
+  if (m.accuracyBonus) lines.push(`${t('ui.stats.accuracy')} +${m.accuracyBonus}`);
+  if (m.speedBonus) lines.push(`${t('ui.stats.speed')} +${m.speedBonus}`);
   if (m.searchSpeedBonus) {
-    lines.push(`Search speed +${Math.round(m.searchSpeedBonus * 100)}%`);
+    lines.push(t('ui.search.searchSpeed', { n: Math.round(m.searchSpeedBonus * 100) }));
   }
   if (m.travelSpeedBonus) {
-    lines.push(`Travel ${m.travelSpeedBonus > 0 ? '+' : ''}${Math.round(m.travelSpeedBonus * 100)}%`);
+    lines.push(`${t('ui.stats.travel')} ${m.travelSpeedBonus > 0 ? '+' : ''}${Math.round(m.travelSpeedBonus * 100)}%`);
   }
-  if (m.awarenessMod) lines.push(`Awareness +${m.awarenessMod}`);
-  if (m.lightPower) lines.push(`Light ${Math.round(m.lightPower * 100)}%`);
-  if ((def.scarcity ?? 1) <= 0.45) lines.push('Scarce find');
+  if (m.awarenessMod) lines.push(`${t('ui.stats.awareness')} +${m.awarenessMod}`);
+  if (m.lightPower) lines.push(`${t('ui.stats.light')} ${Math.round(m.lightPower * 100)}%`);
+  if ((def.scarcity ?? 1) <= 0.45) lines.push(t('ui.search.scarce'));
 
   return lines;
 }

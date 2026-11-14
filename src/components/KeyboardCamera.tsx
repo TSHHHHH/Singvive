@@ -49,13 +49,13 @@ function arrowsAreFree(map: { getContainer: () => HTMLElement }): boolean {
  * event as `originalEvent`, so the travel chase treats it exactly like a drag:
  * the player has the camera until the next glide.
  */
-export function KeyboardCamera({ home }: { home: { lat: number; lng: number } }) {
+export function KeyboardCamera({ home, onRecenter }: { home: { lat: number; lng: number }; onRecenter?: () => void }) {
   const map = useMapGL();
   const on = useSetting('mapKeys') === 'on';
   const speedId = useSetting('mapKeyPanSpeed');
   const reduced = useReducedMotion();
-  const live = useRef({ home, speed: PAN_SPEED_PX.normal, reduced });
-  live.current = { home, speed: PAN_SPEED_PX[speedId] ?? PAN_SPEED_PX.normal, reduced };
+  const live = useRef({ home, speed: PAN_SPEED_PX.normal, reduced, onRecenter });
+  live.current = { home, speed: PAN_SPEED_PX[speedId] ?? PAN_SPEED_PX.normal, reduced, onRecenter };
 
   useEffect(() => {
     if (!on) return;
@@ -148,6 +148,10 @@ export function KeyboardCamera({ home }: { home: { lat: number; lng: number } })
 
       if (code === RECENTER_KEY && !e.repeat) {
         e.preventDefault();
+        if (live.current.onRecenter) {
+          live.current.onRecenter();
+          return;
+        }
         const { home: h, reduced: still } = live.current;
         map.easeTo({ center: [h.lng, h.lat], duration: still ? 0 : 500 });
       }

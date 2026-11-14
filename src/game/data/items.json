@@ -32,7 +32,7 @@
   },
   "instant_noodles": {
     "id": "instant_noodles",
-    "name": "Instant Noodles",
+    "name": "Instant Noodles (Dry)",
     "w": 2,
     "h": 1,
     "weight": 0.3,
@@ -2496,38 +2496,37 @@
   },
   "kopi_c": {
     "id": "kopi_c",
-    "name": "Kopi C",
+    "name": "Kopi-C",
     "w": 1,
     "h": 1,
-    "weight": 0.4,
+    "weight": 0.35,
     "effect": {
       "kind": "water",
       "thirst": 24,
-      "energy": 22,
-      "hunger": 6
+      "hunger": 6,
+      "energy": 16
     },
-    "value": 7,
+    "value": 2,
     "stackable": false,
     "maxStack": 1,
-    "color": "#8a6b4a",
     "maxCondition": 100,
-    "perishable": true
+    "perishable": true,
+    "icon": "item.coffee"
   },
   "cooked_mee": {
     "id": "cooked_mee",
-    "name": "Maggi Packet",
+    "name": "Cooked Noodle Soup",
     "w": 2,
     "h": 1,
-    "weight": 0.45,
+    "weight": 0.6,
     "effect": {
       "kind": "food",
-      "hunger": 40,
-      "thirst": 8
+      "hunger": 32,
+      "thirst": 18
     },
-    "value": 8,
+    "value": 4,
     "stackable": false,
     "maxStack": 1,
-    "color": "#c97a32",
     "maxCondition": 100,
     "perishable": true,
     "icon": "item.cooked_mee"
@@ -2536,20 +2535,20 @@
     "id": "milo_dinosaur",
     "name": "Milo Dinosaur",
     "w": 1,
-    "h": 2,
-    "weight": 0.55,
+    "h": 1,
+    "weight": 0.35,
     "effect": {
       "kind": "water",
-      "thirst": 30,
-      "energy": 24,
-      "hunger": 16
+      "thirst": 24,
+      "hunger": 15,
+      "energy": 14
     },
-    "value": 9,
+    "value": 2,
     "stackable": false,
     "maxStack": 1,
-    "color": "#5a3a28",
     "maxCondition": 100,
-    "perishable": true
+    "perishable": true,
+    "icon": "item.milo_tin"
   },
   "canned_luncheon_meat": {
     "id": "canned_luncheon_meat",
@@ -2610,64 +2609,65 @@
     "value": 4,
     "stackable": true,
     "maxStack": 5,
-    "color": "#6b4a31"
+    "color": "#6b4a31",
+    "icon": "item.coffee"
   },
   "kopi_o": {
     "id": "kopi_o",
-    "name": "Kopi O",
+    "name": "Kopi-O",
     "w": 1,
-    "h": 2,
-    "weight": 0.35,
-    "effect": {
-      "kind": "water",
-      "thirst": 22,
-      "energy": 18,
-      "hunger": 4
-    },
-    "value": 6,
-    "stackable": false,
-    "maxStack": 1,
-    "color": "#79573b",
-    "maxCondition": 100,
-    "perishable": true
-  },
-  "kopi_sachet_drink": {
-    "id": "kopi_sachet_drink",
-    "name": "Kopi Sachet Drink",
-    "w": 1,
-    "h": 2,
+    "h": 1,
     "weight": 0.35,
     "effect": {
       "kind": "water",
       "thirst": 24,
-      "energy": 18,
-      "hunger": 8
+      "hunger": 4,
+      "energy": 16
     },
-    "value": 7,
+    "value": 2,
     "stackable": false,
     "maxStack": 1,
-    "color": "#866044",
     "maxCondition": 100,
-    "perishable": true
+    "perishable": true,
+    "icon": "item.coffee"
+  },
+  "kopi_sachet_drink": {
+    "id": "kopi_sachet_drink",
+    "name": "Sachet Kopi",
+    "w": 1,
+    "h": 1,
+    "weight": 0.35,
+    "effect": {
+      "kind": "water",
+      "thirst": 24,
+      "hunger": 4,
+      "energy": 12
+    },
+    "value": 2,
+    "stackable": false,
+    "maxStack": 1,
+    "maxCondition": 100,
+    "perishable": true,
+    "icon": "item.coffee"
   },
   "milo_drink": {
     "id": "milo_drink",
-    "name": "Milo Drink",
+    "name": "Milo",
     "w": 1,
-    "h": 2,
-    "weight": 0.4,
+    "h": 1,
+    "weight": 0.35,
     "effect": {
       "kind": "water",
-      "thirst": 28,
-      "energy": 18,
-      "hunger": 12
+      "thirst": 24,
+      "hunger": 6,
+      "energy": 10
     },
-    "value": 8,
+    "value": 2,
     "stackable": false,
     "maxStack": 1,
-    "color": "#68442d",
     "maxCondition": 100,
-    "perishable": true
+    "perishable": true,
+    "icon": "item.milo_tin"
   },
   "large_water_bottle": {
     "id": "large_water_bottle",
@@ -3508,5 +3508,789 @@
     "maxStack": 1,
     "color": "#4a4a5a",
     "icon": "item.misc"
+  },
+  "firewood": {
+    "id": "firewood",
+    "name": "Firewood Bundle",
+    "w": 2,
+    "h": 1,
+    "weight": 1.2,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 1,
+    "stackable": true,
+    "maxStack": 4
+  },
+  "tinder": {
+    "id": "tinder",
+    "name": "Tinder Bundle",
+    "w": 1,
+    "h": 1,
+    "weight": 0.1,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 1,
+    "stackable": true,
+    "maxStack": 8
+  },
+  "lighter": {
+    "id": "lighter",
+    "name": "Lighter",
+    "w": 1,
+    "h": 1,
+    "weight": 0.1,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 5,
+    "stackable": false,
+    "maxStack": 1
+  },
+  "cooking_pot": {
+    "id": "cooking_pot",
+    "name": "Cooking Pot",
+    "w": 2,
+    "h": 2,
+    "weight": 0.7,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 8,
+    "stackable": false,
+    "maxStack": 1
+  },
+  "water_container": {
+    "id": "water_container",
+    "name": "Water Container",
+    "w": 2,
+    "h": 2,
+    "weight": 0.4,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 3,
+    "stackable": false,
+    "maxStack": 1
+  },
+  "dry_rice": {
+    "id": "dry_rice",
+    "name": "Dry Rice",
+    "w": 1,
+    "h": 1,
+    "weight": 0.3,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 4,
+    "stackable": true,
+    "maxStack": 8
+  },
+  "sugar_portion": {
+    "id": "sugar_portion",
+    "name": "Sugar Measure",
+    "w": 1,
+    "h": 1,
+    "weight": 0.01,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 1,
+    "stackable": true,
+    "maxStack": 8
+  },
+  "tea_portion": {
+    "id": "tea_portion",
+    "name": "Tea Bag",
+    "w": 1,
+    "h": 1,
+    "weight": 0.01,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 1,
+    "stackable": true,
+    "maxStack": 8,
+    "icon": "item.coffee"
+  },
+  "evaporated_milk": {
+    "id": "evaporated_milk",
+    "name": "Evaporated Milk Tin",
+    "w": 1,
+    "h": 1,
+    "weight": 0.4,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 6,
+    "stackable": true,
+    "maxStack": 8
+  },
+  "towel": {
+    "id": "towel",
+    "name": "Towel",
+    "w": 2,
+    "h": 1,
+    "weight": 0.3,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 3,
+    "stackable": true,
+    "maxStack": 8
+  },
+  "old_magazines": {
+    "id": "old_magazines",
+    "name": "Old Magazines",
+    "w": 1,
+    "h": 1,
+    "weight": 0.4,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 1,
+    "stackable": true,
+    "maxStack": 8
+  },
+  "coffee_portion": {
+    "id": "coffee_portion",
+    "name": "Coffee Measure",
+    "w": 1,
+    "h": 1,
+    "weight": 0.0125,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 0,
+    "stackable": true,
+    "maxStack": 16,
+    "icon": "item.coffee"
+  },
+  "condensed_portion": {
+    "id": "condensed_portion",
+    "name": "Condensed Milk Measure",
+    "w": 1,
+    "h": 1,
+    "weight": 0.05,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 0,
+    "stackable": true,
+    "maxStack": 16
+  },
+  "evaporated_portion": {
+    "id": "evaporated_portion",
+    "name": "Evaporated Milk Measure",
+    "w": 1,
+    "h": 1,
+    "weight": 0.05,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 0,
+    "stackable": true,
+    "maxStack": 16
+  },
+  "milo_portion": {
+    "id": "milo_portion",
+    "name": "Milo Measure",
+    "w": 1,
+    "h": 1,
+    "weight": 0.175,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 0,
+    "stackable": true,
+    "maxStack": 16,
+    "icon": "item.milo_tin"
+  },
+  "kopi": {
+    "id": "kopi",
+    "name": "Kopi",
+    "w": 1,
+    "h": 1,
+    "weight": 0.35,
+    "effect": {
+      "kind": "water",
+      "thirst": 24,
+      "hunger": 6,
+      "energy": 16
+    },
+    "value": 2,
+    "stackable": false,
+    "maxStack": 1,
+    "maxCondition": 100,
+    "perishable": true,
+    "icon": "item.coffee"
+  },
+  "kopi_siew_dai": {
+    "id": "kopi_siew_dai",
+    "name": "Kopi Siew Dai",
+    "w": 1,
+    "h": 1,
+    "weight": 0.35,
+    "effect": {
+      "kind": "water",
+      "thirst": 24,
+      "hunger": 3,
+      "energy": 16
+    },
+    "value": 2,
+    "stackable": false,
+    "maxStack": 1,
+    "maxCondition": 100,
+    "perishable": true,
+    "icon": "item.coffee"
+  },
+  "kopi_gah_dai": {
+    "id": "kopi_gah_dai",
+    "name": "Kopi Gah Dai",
+    "w": 1,
+    "h": 1,
+    "weight": 0.35,
+    "effect": {
+      "kind": "water",
+      "thirst": 24,
+      "hunger": 9,
+      "energy": 16
+    },
+    "value": 2,
+    "stackable": false,
+    "maxStack": 1,
+    "maxCondition": 100,
+    "perishable": true,
+    "icon": "item.coffee"
+  },
+  "kopi_gau": {
+    "id": "kopi_gau",
+    "name": "Kopi Gau",
+    "w": 1,
+    "h": 1,
+    "weight": 0.35,
+    "effect": {
+      "kind": "water",
+      "thirst": 24,
+      "hunger": 6,
+      "energy": 22
+    },
+    "value": 2,
+    "stackable": false,
+    "maxStack": 1,
+    "maxCondition": 100,
+    "perishable": true,
+    "icon": "item.coffee"
+  },
+  "kopi_po": {
+    "id": "kopi_po",
+    "name": "Kopi Po",
+    "w": 1,
+    "h": 1,
+    "weight": 0.35,
+    "effect": {
+      "kind": "water",
+      "thirst": 24,
+      "hunger": 6,
+      "energy": 10
+    },
+    "value": 2,
+    "stackable": false,
+    "maxStack": 1,
+    "maxCondition": 100,
+    "perishable": true,
+    "icon": "item.coffee"
+  },
+  "kopi_c_kosong": {
+    "id": "kopi_c_kosong",
+    "name": "Kopi-C Kosong",
+    "w": 1,
+    "h": 1,
+    "weight": 0.35,
+    "effect": {
+      "kind": "water",
+      "thirst": 24,
+      "hunger": 2,
+      "energy": 16
+    },
+    "value": 2,
+    "stackable": false,
+    "maxStack": 1,
+    "maxCondition": 100,
+    "perishable": true,
+    "icon": "item.coffee"
+  },
+  "kopi_c_siew_dai": {
+    "id": "kopi_c_siew_dai",
+    "name": "Kopi-C Siew Dai",
+    "w": 1,
+    "h": 1,
+    "weight": 0.35,
+    "effect": {
+      "kind": "water",
+      "thirst": 24,
+      "hunger": 4,
+      "energy": 16
+    },
+    "value": 2,
+    "stackable": false,
+    "maxStack": 1,
+    "maxCondition": 100,
+    "perishable": true,
+    "icon": "item.coffee"
+  },
+  "kopi_o_kosong": {
+    "id": "kopi_o_kosong",
+    "name": "Kopi-O Kosong",
+    "w": 1,
+    "h": 1,
+    "weight": 0.35,
+    "effect": {
+      "kind": "water",
+      "thirst": 24,
+      "hunger": 0,
+      "energy": 16
+    },
+    "value": 2,
+    "stackable": false,
+    "maxStack": 1,
+    "maxCondition": 100,
+    "perishable": true,
+    "icon": "item.coffee"
+  },
+  "kopi_o_siew_dai": {
+    "id": "kopi_o_siew_dai",
+    "name": "Kopi-O Siew Dai",
+    "w": 1,
+    "h": 1,
+    "weight": 0.35,
+    "effect": {
+      "kind": "water",
+      "thirst": 24,
+      "hunger": 2,
+      "energy": 16
+    },
+    "value": 2,
+    "stackable": false,
+    "maxStack": 1,
+    "maxCondition": 100,
+    "perishable": true,
+    "icon": "item.coffee"
+  },
+  "kopi_o_gau": {
+    "id": "kopi_o_gau",
+    "name": "Kopi-O Gau",
+    "w": 1,
+    "h": 1,
+    "weight": 0.35,
+    "effect": {
+      "kind": "water",
+      "thirst": 24,
+      "hunger": 4,
+      "energy": 22
+    },
+    "value": 2,
+    "stackable": false,
+    "maxStack": 1,
+    "maxCondition": 100,
+    "perishable": true,
+    "icon": "item.coffee"
+  },
+  "kopi_o_po": {
+    "id": "kopi_o_po",
+    "name": "Kopi-O Po",
+    "w": 1,
+    "h": 1,
+    "weight": 0.35,
+    "effect": {
+      "kind": "water",
+      "thirst": 24,
+      "hunger": 4,
+      "energy": 10
+    },
+    "value": 2,
+    "stackable": false,
+    "maxStack": 1,
+    "maxCondition": 100,
+    "perishable": true,
+    "icon": "item.coffee"
+  },
+  "kopi_o_kosong_di_lo": {
+    "id": "kopi_o_kosong_di_lo",
+    "name": "Kopi-O Kosong Di Lo",
+    "w": 1,
+    "h": 1,
+    "weight": 0.35,
+    "effect": {
+      "kind": "water",
+      "thirst": 12,
+      "hunger": 0,
+      "energy": 26
+    },
+    "value": 2,
+    "stackable": false,
+    "maxStack": 1,
+    "maxCondition": 100,
+    "perishable": true,
+    "icon": "item.coffee"
+  },
+  "teh": {
+    "id": "teh",
+    "name": "Teh",
+    "w": 1,
+    "h": 1,
+    "weight": 0.35,
+    "effect": {
+      "kind": "water",
+      "thirst": 24,
+      "hunger": 6,
+      "energy": 10
+    },
+    "value": 2,
+    "stackable": false,
+    "maxStack": 1,
+    "maxCondition": 100,
+    "perishable": true,
+    "icon": "item.coffee"
+  },
+  "teh_o": {
+    "id": "teh_o",
+    "name": "Teh-O",
+    "w": 1,
+    "h": 1,
+    "weight": 0.35,
+    "effect": {
+      "kind": "water",
+      "thirst": 24,
+      "hunger": 4,
+      "energy": 10
+    },
+    "value": 2,
+    "stackable": false,
+    "maxStack": 1,
+    "maxCondition": 100,
+    "perishable": true,
+    "icon": "item.coffee"
+  },
+  "teh_o_kosong": {
+    "id": "teh_o_kosong",
+    "name": "Teh-O Kosong",
+    "w": 1,
+    "h": 1,
+    "weight": 0.35,
+    "effect": {
+      "kind": "water",
+      "thirst": 24,
+      "hunger": 0,
+      "energy": 10
+    },
+    "value": 2,
+    "stackable": false,
+    "maxStack": 1,
+    "maxCondition": 100,
+    "perishable": true,
+    "icon": "item.coffee"
+  },
+  "teh_c": {
+    "id": "teh_c",
+    "name": "Teh-C",
+    "w": 1,
+    "h": 1,
+    "weight": 0.35,
+    "effect": {
+      "kind": "water",
+      "thirst": 24,
+      "hunger": 6,
+      "energy": 10
+    },
+    "value": 2,
+    "stackable": false,
+    "maxStack": 1,
+    "maxCondition": 100,
+    "perishable": true,
+    "icon": "item.coffee"
+  },
+  "teh_c_kosong": {
+    "id": "teh_c_kosong",
+    "name": "Teh-C Kosong",
+    "w": 1,
+    "h": 1,
+    "weight": 0.35,
+    "effect": {
+      "kind": "water",
+      "thirst": 24,
+      "hunger": 2,
+      "energy": 10
+    },
+    "value": 2,
+    "stackable": false,
+    "maxStack": 1,
+    "maxCondition": 100,
+    "perishable": true,
+    "icon": "item.coffee"
+  },
+  "milo_milk": {
+    "id": "milo_milk",
+    "name": "Milo with Milk",
+    "w": 1,
+    "h": 1,
+    "weight": 0.35,
+    "effect": {
+      "kind": "water",
+      "thirst": 24,
+      "hunger": 8,
+      "energy": 10
+    },
+    "value": 2,
+    "stackable": false,
+    "maxStack": 1,
+    "maxCondition": 100,
+    "perishable": true,
+    "icon": "item.milo_tin"
+  },
+  "sardine_noodles": {
+    "id": "sardine_noodles",
+    "name": "Sardine Noodles",
+    "w": 2,
+    "h": 1,
+    "weight": 0.6,
+    "effect": {
+      "kind": "food",
+      "hunger": 60,
+      "thirst": 18
+    },
+    "value": 4,
+    "stackable": false,
+    "maxStack": 1,
+    "maxCondition": 100,
+    "perishable": true,
+    "icon": "item.cooked_mee"
+  },
+  "luncheon_noodles": {
+    "id": "luncheon_noodles",
+    "name": "Luncheon Meat Noodles",
+    "w": 2,
+    "h": 1,
+    "weight": 0.6,
+    "effect": {
+      "kind": "food",
+      "hunger": 72,
+      "thirst": 18
+    },
+    "value": 4,
+    "stackable": false,
+    "maxStack": 1,
+    "maxCondition": 100,
+    "perishable": true,
+    "icon": "item.cooked_mee"
+  },
+  "rice_porridge": {
+    "id": "rice_porridge",
+    "name": "Rice Porridge",
+    "w": 2,
+    "h": 1,
+    "weight": 0.6,
+    "effect": {
+      "kind": "food",
+      "hunger": 30,
+      "thirst": 18
+    },
+    "value": 4,
+    "stackable": false,
+    "maxStack": 1,
+    "maxCondition": 100,
+    "perishable": true,
+    "icon": "item.cooked_mee"
+  },
+  "sardine_porridge": {
+    "id": "sardine_porridge",
+    "name": "Sardine Porridge",
+    "w": 2,
+    "h": 1,
+    "weight": 0.6,
+    "effect": {
+      "kind": "food",
+      "hunger": 58,
+      "thirst": 18
+    },
+    "value": 4,
+    "stackable": false,
+    "maxStack": 1,
+    "maxCondition": 100,
+    "perishable": true,
+    "icon": "item.cooked_mee"
+  },
+  "cooking_fire": {
+    "id": "cooking_fire",
+    "name": "Cooking Fire",
+    "w": 1,
+    "h": 1,
+    "weight": 0.1,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 0,
+    "stackable": false,
+    "maxStack": 1
+  },
+  "fixed_stove": {
+    "id": "fixed_stove",
+    "name": "Fixed Stove",
+    "w": 1,
+    "h": 1,
+    "weight": 0.1,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 0,
+    "stackable": false,
+    "maxStack": 1
+  },
+  "fuel_stove": {
+    "id": "fuel_stove",
+    "name": "Fuel the Stove",
+    "w": 1,
+    "h": 1,
+    "weight": 0.1,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 0,
+    "stackable": false,
+    "maxStack": 1
+  },
+  "rain_collector": {
+    "id": "rain_collector",
+    "name": "Rain Collector",
+    "w": 1,
+    "h": 1,
+    "weight": 0.1,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 0,
+    "stackable": false,
+    "maxStack": 1
+  },
+  "rain_shelter": {
+    "id": "rain_shelter",
+    "name": "Rain Shelter",
+    "w": 1,
+    "h": 1,
+    "weight": 0.1,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 0,
+    "stackable": false,
+    "maxStack": 1
+  },
+  "hot_water": {
+    "id": "hot_water",
+    "name": "Prepared Water Batch",
+    "w": 1,
+    "h": 1,
+    "weight": 0.1,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 0,
+    "stackable": false,
+    "maxStack": 1
+  },
+  "pot_helmet": {
+    "id": "pot_helmet",
+    "name": "Saucepan Helmet",
+    "w": 2,
+    "h": 2,
+    "weight": 0.85,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 4,
+    "stackable": false,
+    "maxStack": 1,
+    "slot": "head",
+    "modifiers": {
+      "limbArmor": 2,
+      "headCritReduction": 0.1,
+      "awarenessMod": -1
+    },
+    "maxCondition": 50
+  },
+  "towel_vest": {
+    "id": "towel_vest",
+    "name": "Towel-Padded Vest",
+    "w": 2,
+    "h": 2,
+    "weight": 0.8,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 4,
+    "stackable": false,
+    "maxStack": 1,
+    "slot": "body",
+    "modifiers": {
+      "limbArmor": 1,
+      "statusResist": 0.08,
+      "speedBonus": -0.1
+    },
+    "maxCondition": 50
+  },
+  "magazine_guards": {
+    "id": "magazine_guards",
+    "name": "Magazine Shin Guards",
+    "w": 2,
+    "h": 2,
+    "weight": 0.5,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 4,
+    "stackable": false,
+    "maxStack": 1,
+    "slot": "legs",
+    "modifiers": {
+      "limbArmor": 1,
+      "statusResist": 0.06
+    },
+    "maxCondition": 50
+  },
+  "sling_bag": {
+    "id": "sling_bag",
+    "name": "Improvised Sling Bag",
+    "w": 2,
+    "h": 2,
+    "weight": 0.35,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 4,
+    "stackable": false,
+    "maxStack": 1,
+    "slot": "bag",
+    "modifiers": {},
+    "maxCondition": 50,
+    "packGrid": {
+      "w": 6,
+      "h": 4
+    },
+    "weightReduction": 0.1
+  },
+  "treated_bedroll": {
+    "id": "treated_bedroll",
+    "name": "Repellent-Treated Bedroll",
+    "w": 2,
+    "h": 3,
+    "weight": 1.3,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 4,
+    "stackable": false,
+    "maxStack": 1,
+    "sleepGear": true
   }
 }

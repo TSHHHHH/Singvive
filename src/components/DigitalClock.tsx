@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react';
 import { Icon } from '../icons/Icon';
 import type { IconName } from '../icons/keys';
-import { TIME_LABEL } from '../game/weather';
+import { useT } from '../i18n';
 import { useClockFormat } from '../game/settings';
 import { formatDuration } from '../game/travel';
 import type { TimeOfDay } from '../game/types';
@@ -35,6 +35,7 @@ export function DigitalClock({
    */
   variant?: 'panel' | 'lock';
 }) {
+  const { t } = useT();
   const clock = useClockFormat();
   const fx = useClockAdvance(day, hour);
   const still = useReducedMotion();
@@ -46,7 +47,7 @@ export function DigitalClock({
   // 12-hour reads better unpadded — "8:30 pm", not "08:30 pm".
   const hh = twelve ? String(h24 % 12 === 0 ? 12 : h24 % 12) : String(h24).padStart(2, '0');
   const mm = String(m).padStart(2, '0');
-  const meridiem = twelve ? (h24 < 12 ? 'am' : 'pm') : null;
+  const meridiem = twelve ? (t(h24 < 12 ? 'ui.clock.am' : 'ui.clock.pm')) : null;
 
   const night = band === 'night';
   const dusk = band === 'dusk';
@@ -68,7 +69,7 @@ export function DigitalClock({
           }`}
         >
           <Icon name={icon} size={12} />
-          Day {face.day} · {TIME_LABEL[band]}
+          {t('ui.clock.day', { day: face.day })} · {t(`ui.clock.band.${band}`)}
         </span>
         <span
           key={fx?.nonce ?? 'idle'}
@@ -111,12 +112,12 @@ export function DigitalClock({
         <span
           className={`text-label uppercase text-white/35 ${fx?.dayChanged ? 'clock-label-flash' : ''}`}
         >
-          Day {face.day}
+          {t('ui.clock.day', { day: face.day })}
         </span>
         <span
           className={`mt-0.5 text-plate uppercase text-white/45 ${fx?.kind === 'band' ? 'clock-label-flash' : ''}`}
         >
-          {TIME_LABEL[band]}
+          {t(`ui.clock.band.${band}`)}
         </span>
       </div>
       <div className="relative flex items-baseline gap-1.5">

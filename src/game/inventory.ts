@@ -6,6 +6,7 @@ import type {
   Equipment,
   EquipSlot,
   ItemDef,
+  ItemEffect,
   ItemInstance,
   PackGrid,
 } from './types';
@@ -189,6 +190,7 @@ export function addToGrid(
   count: number,
   condition?: number,
   contaminationRisk?: number,
+  coldPrepared?: boolean,
 ): { items: ItemInstance[]; leftover: number } {
   const def = itemDef(defId);
   let remaining = count;
@@ -197,6 +199,7 @@ export function addToGrid(
   if (def.stackable) {
     next = next.map((inst) => {
       if (remaining <= 0 || inst.container !== container || inst.defId !== defId) return inst;
+      if (!!inst.coldPrepared !== !!coldPrepared || (inst.contaminationRisk ?? 0) !== (contaminationRisk ?? 0)) return inst;
       const room = def.maxStack - inst.stack;
       if (room <= 0) return inst;
       const add = Math.min(room, remaining);
@@ -221,6 +224,7 @@ export function addToGrid(
         ? { condition: Math.round(condition ?? def.maxCondition) }
         : {}),
       ...(contaminationRisk !== undefined ? { contaminationRisk } : {}),
+      ...(coldPrepared ? { coldPrepared: true } : {}),
     });
     remaining -= put;
   }
@@ -238,11 +242,23 @@ export function addToCarry(
   count: number,
   condition?: number,
   contaminationRisk?: number,
+  coldPrepared?: boolean,
 ): { items: ItemInstance[]; loose: number } {
-  const packed = addToGrid(items, BACKPACK, defId, count, condition, contaminationRisk);
+  const packed = addToGrid(items, BACKPACK, defId, count, condition, contaminationRisk, coldPrepared);
   if (packed.leftover === 0) return { items: packed.items, loose: 0 };
-  const rest = addToGrid(packed.items, LOOSE, defId, packed.leftover, condition, contaminationRisk);
+  const rest = addToGrid(packed.items, LOOSE, defId, packed.leftover, condition, contaminationRisk, coldPrepared);
   return { items: rest.items, loose: packed.leftover };
+}
+
+/** Preparation quality is independent of freshness and never halves hydration or risk. */
+export function preparedEffect(effect: ItemEffect, inst: Pick<ItemInstance, 'coldPrepared'>): ItemEffect {
+  if (!inst.coldPrepared || !['water', 'food', 'energy'].includes(effect.kind)) return effect;
+  if (effect.kind !== 'water' && effect.kind !== 'food' && effect.kind !== 'energy') return effect;
+  return {
+    ...effect,
+    ...('hunger' in effect && effect.hunger !== undefined ? { hunger: Math.round(effect.hunger / 2) } : {}),
+    ...('energy' in effect && effect.energy !== undefined ? { energy: Math.round(effect.energy / 2) } : {}),
+  };
 }
 
 /** Grid slot in the pack, or the loose pile when the pack has no room. */

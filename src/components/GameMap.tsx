@@ -6,9 +6,8 @@ import { WeatherFx } from './WeatherFx';
 import { Atmosphere3d } from './Atmosphere3d';
 import type { WeatherDom } from './useAtmosphere';
 import { TimeOfDayFx } from './TimeOfDayFx';
-import { poiIcon, playerIcon, unknownIcon, evacIcon, dangerColor, rumourIcon, trekTargetIcon } from './mapIcons';
+import { poiIcon, playerIcon, unknownIcon, evacIcon, dangerColor, rumourIcon, trekTargetIcon, knownFactionColor } from './mapIcons';
 import { POI_CONFIG } from '../game/poi';
-import { FACTION_CONFIG } from '../game/factions';
 import { haversine } from '../game/overpass';
 import { visibilityOf } from '../game/fog';
 import { FogOverlay } from './FogOverlay';
@@ -50,6 +49,8 @@ import { installOverlay, setData } from '../map/layers';
 import { EMPTY_FC, boxContains, circleFeature, dimHex, fc, lineFeature, padBox, toLngLatRing, type LatLngBox } from '../map/geo';
 import { BuildingEngine, LOD_ZOOM, type Site3d } from '../map/buildings';
 import { hdbScar, STOREY_M, type HdbDungeon } from '../game/hdbDungeon';
+import { blockFraming } from '../map/blockFraming';
+import { useT } from '../i18n';
 import { FOG_COLOUR, REACH_SHADE, VEIL_BANDS, bandOpacity, reachShade, veilBands } from '../map/fogGeometry';
 
 // White outline for buildings you can see but haven't identified — stands out
@@ -72,9 +73,12 @@ const VIEWPORT_PAD = 0.2;
 const VIEWPORT_DEBOUNCE_MS = 100;
 /** Steering budget. Dense HDB downtown may exceed it — keep nearest to centre. */
 const MAX_POIS_ON_SCREEN = 450;
+/** Full badges and footprints become useful at neighbourhood scale. */
+const POI_DETAIL_ZOOM = 14;
 
 /** Style layers whose clicks belong to a feature, not to the ground under it. */
 const POI_FILL_LAYER = 'poi-fill';
+const POI_DOT_LAYER = 'poi-dot';
 
 function mapBox(map: MlMap): LatLngBox {
   const b = map.getBounds();
@@ -157,7 +161,7 @@ function GroundPicker({
 }) {
   const map = useMapGL();
   useMapEvent('click', (e) => {
-    if (hitAny(map, e.point, [POI_FILL_LAYER, MRT_STATION_LAYER])) return;
+    if (hitAny(map, e.point, [POI_DOT_LAYER, POI_FILL_LAYER, MRT_STATION_LAYER])) return;
     const hit = engine?.hit(e.point);
     if (hit?.kind === 'site') onSite(hit.id);
     else if (hit?.kind === 'building') onPick(hit.lat, hit.lng);
@@ -246,25 +250,14 @@ function squareBearing(
   return options[0].b;
 }
 
-const BLOCK_ZOOM = 17.2;
-/** At BLOCK_ZOOM and full pitch, screen px per metre of tower height (measured). */
-const BLOCK_PX_PER_M = 170 / 86;
-/** Share of the canvas height the tower fills once the camera has closed in. */
-const BLOCK_FILL = 0.5;
-/** Top padding (share of the box) that drops the block's foot below the box centre. */
-const BLOCK_FOOT_DROP = 0.4;
 /** Dragging beside the tower: degrees of bearing / pitch per px, and the lowest tilt. */
 const ORBIT_DEG_PER_PX = 0.4;
 const ORBIT_PITCH_PER_PX = 0.2;
 const ORBIT_MIN_PITCH = 25;
 /** Zoom per wheel notch beside the tower. */
 const ORBIT_ZOOM_STEP = 0.25;
-
-/** Zoom that makes a `roof`-metre tower fill BLOCK_FILL of a `boxH`-px box. */
-function blockZoom(roof: number, boxH: number): number {
-  const z = BLOCK_ZOOM + Math.log2((BLOCK_FILL * boxH) / (BLOCK_PX_PER_M * Math.max(roof, 12)));
-  return Math.min(MAX_ZOOM, Math.max(BLOCK_ZOOM, z));
-}
+/** Close inspection is useful inside a block; restore the world-map limit on exit. */
+const BLOCK_MAX_ZOOM = 20.5;
 
 /**
  * Inside an HDB block, in 3D: ease onto the block on entry and back to where
@@ -278,10 +271,11 @@ function BlockView({
 }: {
   engine: BuildingEngine | null;
   pois: Poi[];
-  /** "left:right:bottom" camera inset (CameraInset's); in a block, the box beside the strips. */
+  /** "top:left:right:bottom" of the building viewport, clear of the floor panel. */
   pad: string;
 }) {
   const map = useMapGL();
+  const { t } = useT();
   const reduced = useReducedMotion();
   const siteId = useGame((s) => s.hdb?.locationId ?? null);
   const roof = useGame((s) => (siteId ? s.siteRoofs[siteId] : undefined));
@@ -298,35 +292,49 @@ function BlockView({
   });
   const poisRef = useRef(pois);
   poisRef.current = pois;
-  const roofRef = useRef(roof);
-  roofRef.current = roof;
   const realStoreys = useGame((s) => s.hdb?.realStoreys ?? 0);
   const on = !!engine;
 
   // Entry: remember the camera to ease back to, and pick the bearing once.
-  const backRef = useRef<{ center: LngLat; zoom: number; pitch: number; bearing: number } | null>(null);
+  const backRef = useRef<{
+    center: LngLat; zoom: number; pitch: number; bearing: number; elevation: number;
+    maxZoom: number; clamped: boolean;
+  } | null>(null);
   const bearingRef = useRef(0);
+  const restoreRef = useRef(0);
   useEffect(() => {
     if (!on || !siteId) return;
+    cancelAnimationFrame(restoreRef.current);
     const site = poisRef.current.find((p) => p.id === siteId);
     if (!site) return;
-    const back = {
+    // Keep the world snapshot if an effect replay cancels a pending restoration.
+    const back = backRef.current ?? {
       center: map.getCenter(),
       zoom: map.getZoom(),
       pitch: map.getPitch(),
       bearing: map.getBearing(),
+      elevation: map.getCenterElevation(),
+      clamped: map.getCenterClampedToGround(),
+      maxZoom: map.getMaxZoom(),
     };
+    map.setCenterClampedToGround(false);
+    map.setMaxZoom(BLOCK_MAX_ZOOM);
+    if (!backRef.current) {
+      bearingRef.current =
+        squareBearing(site.outline, back.bearing, (lat, lng, b) =>
+          engine ? engine.occlusion(lat, lng, b) : 0,
+        ) ?? back.bearing;
+    }
     backRef.current = back;
-    bearingRef.current =
-      squareBearing(site.outline, back.bearing, (lat, lng, b) =>
-        engine ? engine.occlusion(lat, lng, b) : 0,
-      ) ?? back.bearing;
     return () => {
-      backRef.current = null;
       // A frame late, so CameraInset's padding ease on leaving can't cut it
       // short (its settle pass finishes the padding).
-      requestAnimationFrame(() => {
+      restoreRef.current = requestAnimationFrame(() => {
+        backRef.current = null;
         try {
+          map.setCenterClampedToGround(back.clamped);
+          map.setMaxZoom(back.maxZoom);
+          map.setCenterElevation(back.elevation);
           map.easeTo({ ...back, duration: reduced ? 0 : 900 });
         } catch {
           // The map went away with the run; nothing to ease back.
@@ -335,28 +343,41 @@ function BlockView({
     };
   }, [map, on, engine, siteId, reduced]);
 
-  // Close in until the tower fills half the box CameraInset leaves open (beside
-  // the strips), its foot low so the roof clears the top. The foot is dropped
-  // with top padding, not an offset, so the map's centre stays on the block and
-  // turning the camera orbits it. CameraInset's settle pass checks only
-  // left/right/bottom, so it leaves the top be. Re-framed when the box or the
-  // known roof height changes.
+  // Orbit the middle of the building, not its ground-level POI marker. Only
+  // this controller owns padding inside a block; the general HUD inset is off.
   const roofM = roof ?? (realStoreys > 0 ? realStoreys * STOREY_M : STOREY_M * 12);
-  useEffect(() => {
+  const frameBuilding = useCallback(() => {
     if (!on || !siteId || !backRef.current) return;
     const site = poisRef.current.find((p) => p.id === siteId);
     if (!site) return;
-    const [left, right, bottom] = pad.split(':').map(Number);
-    const boxH = Math.max(120, map.getContainer().clientHeight - bottom);
+    const [top, left, right, bottom] = pad.split(':').map(Number);
+    const box = map.getContainer();
+    const framing = blockFraming(site, roofM, box.clientWidth - left - right,
+      box.clientHeight - top - bottom, bearingRef.current, MAX_PITCH_3D);
+    // MapLibre's easeTo does not interpolate elevation; set the orbit target first.
+    map.setCenterElevation(framing.elevation);
     map.easeTo({
-      center: [site.lng, site.lat],
-      zoom: blockZoom(roofM, boxH),
+      ...framing,
       pitch: MAX_PITCH_3D,
       bearing: bearingRef.current,
-      padding: { top: Math.round(boxH * BLOCK_FOOT_DROP), left, right, bottom },
-      duration: reduced ? 0 : 1100,
+      padding: { top, left, right, bottom },
+      duration: reduced ? 0 : 650,
     });
   }, [map, on, siteId, pad, roofM, reduced]);
+  useEffect(() => {
+    frameBuilding();
+    map.on('resize', frameBuilding);
+    const rememberBearing = () => { bearingRef.current = map.getBearing(); };
+    map.on('rotateend', rememberBearing);
+    return () => {
+      map.off('resize', frameBuilding);
+      map.off('rotateend', rememberBearing);
+    };
+  }, [map, frameBuilding]);
+
+  const zoomBy = useCallback((step: number) => {
+    map.easeTo({ zoom: Math.min(BLOCK_MAX_ZOOM, Math.max(LOD_ZOOM, map.getZoom() + step)), duration: reduced ? 0 : 160 });
+  }, [map, reduced]);
 
   // Orbit: the strips layer takes every pointer event, so drags on its empty
   // part beside the tower (`data-block-orbit`) turn and tilt the camera about
@@ -379,6 +400,7 @@ function BlockView({
         bearing: drag.bearing + (e.clientX - drag.x) * ORBIT_DEG_PER_PX,
         pitch: Math.min(MAX_PITCH_3D, Math.max(ORBIT_MIN_PITCH, pitch)),
       });
+      bearingRef.current = map.getBearing();
     };
     const up = (e: PointerEvent) => {
       if (!drag || e.pointerId !== drag.id) return;
@@ -388,8 +410,7 @@ function BlockView({
     const wheel = (e: WheelEvent) => {
       if (!isSurface(e.target)) return;
       e.preventDefault();
-      const zoom = map.getZoom() - Math.sign(e.deltaY) * ORBIT_ZOOM_STEP;
-      map.easeTo({ zoom: Math.min(MAX_ZOOM, Math.max(BLOCK_ZOOM - 1, zoom)), duration: reduced ? 0 : 160 });
+      zoomBy(-Math.sign(e.deltaY) * ORBIT_ZOOM_STEP);
     };
     document.addEventListener('pointerdown', down);
     document.addEventListener('pointermove', move);
@@ -403,7 +424,7 @@ function BlockView({
       document.removeEventListener('pointercancel', up);
       document.removeEventListener('wheel', wheel);
     };
-  }, [map, on, siteId, reduced]);
+  }, [map, on, siteId, zoomBy]);
 
   useEffect(() => {
     if (!engine) return;
@@ -424,7 +445,22 @@ function BlockView({
   }, [engine, siteId]);
 
   useEffect(() => () => engine?.clearFloorBand(), [engine]);
-  return null;
+  const site = poisRef.current.find((p) => p.id === siteId);
+  if (!on || !siteId || !site) return null;
+  const [top, left, right] = pad.split(':').map(Number);
+  return (
+    <>
+      <KeyboardCamera home={site} onRecenter={frameBuilding} />
+      <div className="absolute z-[560] flex flex-wrap items-center gap-2" style={{ top: Math.max(16, top - 48), left: left + 12, right: right + 12 }}>
+        <div className="flex items-center rounded-sm border border-concrete-600 bg-concrete-950/95 p-1 shadow-signage">
+          <button type="button" onClick={() => zoomBy(-0.5)} aria-label={t('ui.hdb.cameraZoomOut')} className="h-9 w-9 text-title text-concrete-50 hover:bg-white/10">−</button>
+          <button type="button" onClick={frameBuilding} className="min-h-9 px-2 text-body text-signal hover:bg-white/10">{t('ui.hdb.cameraFrame')}</button>
+          <button type="button" onClick={() => zoomBy(0.5)} aria-label={t('ui.hdb.cameraZoomIn')} className="h-9 w-9 text-title text-concrete-50 hover:bg-white/10">+</button>
+        </div>
+        <span className="pointer-events-none text-body text-concrete-200 [text-shadow:0_1px_4px_#000]">{t('ui.hdb.cameraHint')}</span>
+      </div>
+    </>
+  );
 }
 
 /** Mounts the 3D building engine and feeds it the fog reveal. */
@@ -1292,26 +1328,26 @@ function lookOf(
   const exhausted = here ? poi.exhausted : mem?.exhausted ?? poi.exhausted;
   const factionRevealed = here ? poi.isFactionRevealed : mem?.isFactionRevealed ?? poi.isFactionRevealed;
   const display: Poi = { ...poi, currentDanger: danger, exhausted, isFactionRevealed: factionRevealed };
-  const heldRing =
-    factionRevealed && poi.factionId && !poi.isFactionOutpost ? FACTION_CONFIG[poi.factionId].color : null;
-  const ring = exhausted ? '#555' : heldRing ?? dangerColor(Math.round(danger));
-  const own = POI_CONFIG[poi.category].color;
+  const factionColor = knownFactionColor(display);
+  const ring = factionColor ?? (exhausted ? '#555' : dangerColor(Math.round(danger)));
+  const own = factionColor ?? POI_CONFIG[poi.category].color;
   return {
     poi,
     icon: poiIcon(display),
-    opacity: here ? 1 : 0.55,
+    opacity: here || selected || factionColor ? 1 : 0.55,
     outline: {
       id: poi.id,
       dashed: false,
-      fill: POI_CONFIG[poi.category].color,
+      fill: own,
       fop: exhausted ? 0.1 : selected ? 0.5 : here ? 0.35 : 0.18,
       line: ring,
-      lop: here ? 1 : heldRing ? 0.75 : 0.65,
-      w: selected ? 2.5 : heldRing ? 2 : 1,
+      lop: here ? 1 : factionColor ? 0.85 : 0.65,
+      w: selected ? 2.5 : factionColor ? 2 : 1,
     },
     // Remembered sites read dimmer than the one you stand in; picked-clean darker still.
     // A worked block steps down toward that shade by the quarter of doors you opened.
-    color3d: exhausted ? dimHex(own, 0.35) : dimHex(own, workedShade(here ? 1 : 0.55, worked)),
+    // Keep known territory legible even when the site's supplies are spent.
+    color3d: dimHex(own, Math.max(factionColor ? 0.75 : 0, exhausted ? 0.35 : workedShade(here ? 1 : 0.55, worked))),
     ruin: here ? poi.destruction : mem?.destruction ?? poi.destruction,
   };
 }
@@ -1349,6 +1385,16 @@ const PoiLayer = memo(
   function PoiLayer({ pois, home, blipRange, selectedId, hereId, onSelect, engine, worked, evacZoneId }: PoiLayerProps) {
     const map = useMapGL();
     const box = usePaddedBounds();
+    const [detail, setDetail] = useState(() => map.getZoom() >= POI_DETAIL_ZOOM);
+    // Only crossing the detail boundary re-renders React during a zoom. The
+    // circle layer's maxzoom follows the camera directly between those crossings.
+    useMapEvent('zoom', () => {
+      const next = map.getZoom() >= POI_DETAIL_ZOOM;
+      if (next !== detail) setDetail(next);
+    });
+
+    const keepBadge = (poi: Poi) =>
+      poi.id === selectedId || poi.id === hereId || beaconKindOf(poi, evacZoneId) !== null;
 
     const looks = useMemo(() => {
       const inView: { poi: Poi; d: number; vis: string }[] = [];
@@ -1364,19 +1410,23 @@ const PoiLayer = memo(
         const cLat = (box.north + box.south) / 2;
         const cLng = (box.east + box.west) / 2;
         drawn = inView
-          .map((x) => ({ x, c: haversine(cLat, cLng, x.poi.lat, x.poi.lng) }))
-          .sort((a, b) => a.c - b.c)
+          .map((x) => ({
+            x, c: haversine(cLat, cLng, x.poi.lat, x.poi.lng),
+            priority: x.poi.id === selectedId || x.poi.id === hereId ? 0
+              : beaconKindOf(x.poi, evacZoneId) ? 1 : 2,
+          }))
+          .sort((a, b) => a.priority - b.priority || a.c - b.c)
           .slice(0, MAX_POIS_ON_SCREEN)
           .map(({ x }) => x);
       }
       return drawn.map(({ poi, vis }) =>
         lookOf(poi, vis, selectedId === poi.id, poi.id === hereId, worked.get(poi.id) ?? 0),
       );
-    }, [pois, box, home.lat, home.lng, blipRange, selectedId, hereId, worked]);
+    }, [pois, box, home.lat, home.lng, blipRange, selectedId, hereId, worked, evacZoneId]);
 
     useEffect(
       () =>
-        installOverlay(map, 'poi', { 'poi-src': 'geojson' }, [
+        installOverlay(map, 'poi', { 'poi-src': 'geojson', 'poi-dots-src': 'geojson' }, [
           {
             id: POI_FILL_LAYER,
             type: 'fill',
@@ -1402,6 +1452,21 @@ const PoiLayer = memo(
               'line-dasharray': [2.7, 2],
             },
           },
+          {
+            id: POI_DOT_LAYER,
+            type: 'circle',
+            source: 'poi-dots-src',
+            maxzoom: POI_DETAIL_ZOOM,
+            filter: ['!', ['get', 'badge']],
+            paint: {
+              'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 3, POI_DETAIL_ZOOM, 6],
+              'circle-color': ['get', 'fill'],
+              'circle-opacity': ['get', 'opacity'],
+              'circle-stroke-color': ['get', 'line'],
+              'circle-stroke-width': 1.5,
+              'circle-stroke-opacity': ['get', 'opacity'],
+            },
+          },
         ]),
       [map],
     );
@@ -1409,20 +1474,35 @@ const PoiLayer = memo(
     const byId = useRef(new Map<string, Poi>());
     useEffect(() => {
       const features: Feature[] = [];
+      const dots: Feature[] = [];
       byId.current = new Map();
       for (const l of looks) {
         byId.current.set(l.poi.id, l.poi);
+        // Share the same visibility/cap and remembered colours as full badges.
+        // Never put an undiscovered, out-of-sight site in this source.
+        dots.push({
+          type: 'Feature',
+          properties: {
+            id: l.poi.id,
+            fill: l.outline?.fill ?? l.color3d,
+            line: l.outline?.line ?? l.color3d,
+            opacity: l.opacity,
+            badge: l.poi.id === selectedId || l.poi.id === hereId || beaconKindOf(l.poi, evacZoneId) !== null,
+          },
+          geometry: { type: 'Point', coordinates: [l.poi.lng, l.poi.lat] },
+        });
         const ring = l.poi.outline;
         if (!l.outline || !ring || ring.length < 3) continue;
         features.push({ type: 'Feature', properties: l.outline, geometry: { type: 'Polygon', coordinates: [toLngLatRing(ring)] } });
       }
       setData(map, 'poi-src', fc(features));
-    }, [map, looks]);
+      setData(map, 'poi-dots-src', fc(dots));
+    }, [map, looks, selectedId, hereId, evacZoneId]);
 
     // In 3D the buildings take over from the outlines once they stand: a site
     // with a building is its building, one without is just its badge.
     useEffect(() => {
-      for (const id of POI_LAYERS) if (map.getLayer(id)) map.setLayerZoomRange(id, 0, engine ? LOD_ZOOM : 24);
+      for (const id of POI_LAYERS) if (map.getLayer(id)) map.setLayerZoomRange(id, POI_DETAIL_ZOOM, engine ? LOD_ZOOM : 24);
     }, [map, engine]);
 
     const [roofs, setRoofs] = useState<ReadonlyMap<string, number>>(NO_ROOFS);
@@ -1454,12 +1534,11 @@ const PoiLayer = memo(
             outline: l.poi.outline,
             category: l.poi.category,
             color: l.color3d,
-            selected: l.poi.id === selectedId,
             ruin: l.ruin,
           }),
         ),
       );
-    }, [engine, looks, selectedId]);
+    }, [engine, looks]);
 
     // Outline taps select the site; GroundPicker skips the same hits.
     useLayerEvent('click', POI_FILL_LAYER, (e) => {
@@ -1473,10 +1552,21 @@ const PoiLayer = memo(
     useLayerEvent('mouseleave', POI_FILL_LAYER, () => {
       map.getCanvas().style.cursor = '';
     });
+    useLayerEvent('click', POI_DOT_LAYER, (e) => {
+      const id = e.features?.[0]?.properties?.id;
+      const poi = typeof id === 'string' ? byId.current.get(id) : undefined;
+      if (poi) onSelect(poi);
+    });
+    useLayerEvent('mouseenter', POI_DOT_LAYER, () => {
+      map.getCanvas().style.cursor = 'pointer';
+    });
+    useLayerEvent('mouseleave', POI_DOT_LAYER, () => {
+      map.getCanvas().style.cursor = '';
+    });
 
     return (
       <>
-        {looks.map((l) => (
+        {looks.filter((l) => detail || keepBadge(l.poi)).map((l) => (
           <MapMarker
             key={l.poi.id}
             lat={l.poi.lat}
@@ -1484,7 +1574,8 @@ const PoiLayer = memo(
             icon={l.icon}
             opacity={l.opacity}
             roof={engine ? roofs.get(l.poi.id) ?? 0 : 0}
-            ring={!!engine && l.poi.id === selectedId}
+            ring={l.poi.id === selectedId}
+            zIndex={l.poi.id === selectedId ? 10 : undefined}
             beacon={engine ? beaconKindOf(l.poi, evacZoneId) : null}
             onClick={() => onSelect(l.poi)}
           />
@@ -1560,6 +1651,7 @@ function GameMapInner({
   onSelect,
   onPickGround,
 }: Props) {
+  const { t } = useT();
   const evacPoi = evacZoneId ? pois.find((p) => p.id === evacZoneId) : null;
   // Tween lives here so GameScreen does not re-render at 60 fps after travel.
   // The outer ring only moves when the build or gear changes; the inner one
@@ -1570,6 +1662,7 @@ function GameMapInner({
   const reachRadius = useThrottledNumber(ringRange, 80);
   const pathIdSet = useMemo(() => new Set(pathHazardIds), [pathHazardIds]);
   const view3d = useSetting('mapView3d') === 'on';
+  const inBlock = useGame((s) => !!s.hdb);
   const [initial] = useState(() => ({
     zoom: loadZoom(view3d ? DEFAULT_ZOOM_3D : DEFAULT_ZOOM),
     pitch: view3d ? PITCH_3D : 0,
@@ -1629,10 +1722,10 @@ function GameMapInner({
         <ZoomMemory />
         <FocusCamera target={focusTarget} />
         <IslandCamera on={islandView} onExit={onIslandViewExit} />
-        <CameraInset top={padTop} left={padLeft} right={padRight} bottom={padBottom} />
+        {!(view3d && inBlock) && <CameraInset top={padTop} left={padLeft} right={padRight} bottom={padBottom} />}
         {onMap && <MapHandle onMap={onMap} />}
         <Camera3d on={view3d} />
-        <KeyboardCamera home={home} />
+        {!(view3d && inBlock) && <KeyboardCamera home={home} />}
         {view3d && <Atmosphere3d kind={weather} time={time} dom={weatherDom} />}
         <GroundPicker onPick={onPickGround} engine={engine} onSite={selectSite} />
         {/* Soft-cost forest wash — under fog so only explored ground shows green. */}
@@ -1671,7 +1764,7 @@ function GameMapInner({
           worked={worked}
           evacZoneId={evacZoneId}
         />
-        <BlockView engine={engine} pois={pois} pad={`${padLeft}:${padRight}:${padBottom}`} />
+        <BlockView engine={engine} pois={pois} pad={`${padTop}:${padLeft}:${padRight}:${padBottom}`} />
 
         {mapAnnotations.length > 0 && <RumourLayer annotations={mapAnnotations} />}
 
@@ -1710,7 +1803,7 @@ function GameMapInner({
         <button
           onClick={toggle3d}
           aria-pressed={view3d}
-          {...tip('Tilt the map and raise the buildings', { label: true })}
+          {...tip(t('ui.hud.view3dTip'), { label: true })}
           className={`rounded border px-2 py-1.5 text-body font-semibold shadow-signage transition-colors ${
             view3d
               ? 'border-astral/50 bg-astral/20 text-astral'
@@ -1722,14 +1815,14 @@ function GameMapInner({
         <button
           onClick={toggleMrt}
           aria-pressed={showMrt}
-          {...tip('Show the MRT & LRT network', { label: true })}
+          {...tip(t('ui.hud.railTip'), { label: true })}
           className={`flex items-center gap-1.5 rounded border px-2 py-1.5 text-body font-semibold shadow-signage transition-colors ${
             showMrt
               ? 'border-astral/50 bg-astral/20 text-astral'
               : 'border-white/15 bg-concrete-900/95 text-white/60 hover:text-white/90'
           }`}
         >
-          <Icon name="action.mrt" size={14} /> Rail map
+          <Icon name="action.mrt" size={14} /> {t('ui.hud.railMap')}
         </button>
       </div>
       )}

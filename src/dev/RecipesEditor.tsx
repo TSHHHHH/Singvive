@@ -7,6 +7,8 @@ import {
   REPAIR_HOURS,
   REPAIR_INPUTS,
   REPAIR_TOOL,
+  recipeInputs,
+  type CraftContext,
 } from '../game/crafting';
 import { adjustCraftInputs, sumTraitMod } from '../game/character';
 import { ITEMS } from '../game/loot';
@@ -767,14 +769,16 @@ export function RecipesEditor({
   const sandboxResult = useMemo(() => {
     if (!selected) return null;
     const traitIds = sandboxHandyman ? [HANDYMAN] : [];
-    const adjusted = adjustCraftInputs(
+    const adjusted = selected.fixedInputs ? selected.inputs : adjustCraftInputs(
       selected.inputs,
       traitIds.length ? sumTraitMod(traitIds, 'craftCostMod') : 0,
     );
     const pack = { ...sandboxPack };
     if (selected.tool) pack[selected.tool] = Math.max(pack[selected.tool] ?? 0, 1);
-    const check = canCraft(asRecipe(selected), packToInstances(pack), sandboxShelter, adjusted);
-    return { check, adjusted };
+    const context: CraftContext = { now: 0, atSite: sandboxShelter, mode: 'room', waterSource: 'carried' };
+    const inputs = recipeInputs(asRecipe(selected), packToInstances(pack), adjusted, context);
+    const check = canCraft(asRecipe(selected), packToInstances(pack), sandboxShelter, inputs, context);
+    return { check, adjusted: inputs };
   }, [selected, sandboxPack, sandboxShelter, sandboxHandyman]);
 
   const overviewRows = useMemo(() => {
@@ -1342,6 +1346,29 @@ export function RecipesEditor({
                 placeholder="add an ingredient…"
                 onPick={addInput}
               />
+              <div className="mt-3 grid grid-cols-2 gap-2 text-body text-white/65">
+                <label>Preparation
+                  <select className="w-full bg-concrete-950 p-2" value={selected.preparation ?? ''}
+                    onChange={e => patch({ preparation: e.target.value ? e.target.value as RecipeRecord['preparation'] : undefined })}>
+                    <option value="">None</option><option value="drink">Drink: hot / room temperature</option><option value="cook">Cook: requires heat</option><option value="boil">Boil water</option>
+                  </select>
+                </label>
+                <label>Location output
+                  <select className="w-full bg-concrete-950 p-2" value={selected.facility ?? ''}
+                    onChange={e => patch({ facility: e.target.value ? e.target.value as RecipeRecord['facility'] : undefined })}>
+                    <option value="">Portable item</option>
+                    {(['fire', 'stove', 'stove_fuel', 'rain_collector', 'rain_shelter', 'hot_water'] as const).map(kind => <option key={kind} value={kind}>{kind}</option>)}
+                  </select>
+                </label>
+                <label>Drink family
+                  <select className="w-full bg-concrete-950 p-2" value={selected.family ?? ''}
+                    onChange={e => patch({ family: e.target.value ? e.target.value as RecipeRecord['family'] : undefined })}>
+                    <option value="">None</option><option value="kopi">Kopi</option><option value="teh">Teh</option>
+                  </select>
+                </label>
+                <label><input type="checkbox" checked={!!selected.fixedInputs} onChange={e => patch({ fixedInputs: e.target.checked })} /> Fixed ingredient quantities</label>
+                <p className="col-span-2 text-white/45">The sandbox mixes drinks at room temperature. Cooking and facilities report missing site/heat requirements; test their lifecycle in a live run.</p>
+              </div>
               <div className="mt-3 flex flex-wrap items-center gap-3 rounded border border-white/5 bg-black/20 px-2 py-2">
                 <span
                   className="text-label uppercase text-white/35"

@@ -182,7 +182,9 @@ export function buildLocations(
     kept.push(loc);
   }
   const capped = kept
-    .sort((a, b) => distFromOrigin(a.lat, a.lng) - distFromOrigin(b.lat, b.lng))
+    // Reserve room for the few curated landmarks without increasing the cap.
+    .sort((a, b) => Number(b.category === 'landmark') - Number(a.category === 'landmark')
+      || distFromOrigin(a.lat, a.lng) - distFromOrigin(b.lat, b.lng))
     .slice(0, MAX_LOCATIONS);
 
   if (net) attachStations(capped, net);

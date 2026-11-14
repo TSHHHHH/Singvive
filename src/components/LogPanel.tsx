@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useLayoutEffect, useMemo, useRef } from 'react';
 import { useGame } from '../game/store';
 import { Icon } from '../icons/Icon';
 import { LOG_VIEW_MODES, logViewMode, useClockFormat, useSetting, useSettings } from '../game/settings';
@@ -10,6 +10,7 @@ import type { GuideTopic } from '../content/guideContent';
 import { useT } from '../i18n';
 import { GroupedLogList, LIVE_NODE_BAND, useActiveLogScopeKey } from './logTimeline';
 import { formatClock } from '../game/survival';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 
 /** Every control in the timeline header shares one box, so the row reads even. */
 const CTRL =
@@ -70,6 +71,7 @@ export function LogPanel({
 
   const viewId = useSetting('logView');
   const clock = useClockFormat();
+  const reducedMotion = useReducedMotion();
 
   // Every row hangs its wrapped lines under the text rather than under the
   // timestamp, so the prose keeps one left edge all the way down the column.
@@ -80,6 +82,9 @@ export function LogPanel({
   const mode = logViewMode(viewId);
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const newestId = log[0]?.id ?? 0;
+  const seenLogId = useRef(newestId);
+  const seenLiveNodes = useRef(new WeakSet<HTMLElement>());
 
   // `log` is capped at 4000 entries, so both passes are re-derived on every
   // render otherwise — and this panel re-renders on any store write.
@@ -117,10 +122,42 @@ export function LogPanel({
 
   // Pin to the newest entry when the day/view changes or a live node appears —
   // not on every in-progress search tick (those rewrite pendingSearch often).
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [log.length, pending, pendingSearchNonce, awaitingStance, viewId, day, liveNodes]);
+    const previousId = seenLogId.current;
+    seenLogId.current = newestId;
+    if (!el) return;
+
+    const arrive = (row: HTMLElement) => {
+      if (reducedMotion) return;
+      row.animate(
+        [
+          { opacity: 0, transform: 'translateX(16px)' },
+          { opacity: 1, transform: 'translateX(0)' },
+        ],
+        { id: 'timeline-arrival', duration: 280, easing: 'cubic-bezier(0.2, 0.7, 0.2, 1)' },
+      );
+    };
+
+    // Compare against the whole log, so revealing old rows or remounting a
+    // section after its first entry falls out of Recent never replays history.
+    if (newestId > previousId) {
+      el.querySelectorAll<HTMLElement>('[data-log-entry-id]').forEach((row) => {
+        if (Number(row.dataset.logEntryId) > previousId) arrive(row);
+      });
+    }
+    el.querySelectorAll<HTMLElement>('[data-timeline-live]').forEach((row) => {
+      if (!seenLiveNodes.current.has(row)) arrive(row);
+      seenLiveNodes.current.add(row);
+    });
+    if (reducedMotion) {
+      el.getAnimations({ subtree: true }).forEach((animation) => {
+        // Only stop the arrival effects owned here; live nodes have other FX.
+        if (animation.id === 'timeline-arrival') animation.cancel();
+      });
+    }
+    el.scrollTop = el.scrollHeight;
+  }, [newestId, pending, pendingSearchNonce, awaitingStance, viewId, day, liveNodes, reducedMotion]);
 
   const hasLiveNode =
     showLive && (!!ev || awaitingStance || !!pendingSearchNonce);
@@ -221,7 +258,7 @@ export function LogPanel({
             />
 
             {showLive && ev && (
-              <li className={`relative flex gap-2 py-1 pl-6 ${LIVE_NODE_BAND}`}>
+              <li data-timeline-live="" className={`relative flex gap-2 py-1 pl-6 ${LIVE_NODE_BAND}`}>
                 <span className="absolute left-0 top-[7px] h-[11px] w-[11px] animate-pulse rounded-full border-2 border-concrete-900 bg-signal" />
                 <div className="min-w-0 flex-1">
                   <p
@@ -248,7 +285,7 @@ export function LogPanel({
             {showLive && <EncounterPrompt timeW={timeW} hang={hang} />}
 
             {showLive && pendingSearchNonce && (
-              <SearchSessionNode timeW={timeW} hang={hang} onOpenGuide={onOpenGuide} />
+              <SearchSessionNode key={pendingSearchNonce} timeW={timeW} hang={hang} onOpenGuide={onOpenGuide} />
             )}
           </ol>
         )}

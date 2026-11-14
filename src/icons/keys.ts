@@ -20,6 +20,7 @@ export type IconName =
   | 'poi.mrt'
   | 'poi.industrial'
   | 'poi.school'
+  | 'poi.landmark'
   | 'poi.waypoint'
   | 'poi.unknown'
   // --- factions ---
@@ -294,6 +295,7 @@ export type IconName =
   | 'trait.thick_skin'
   | 'trait.kiasuism'
   | 'trait.kampong_spirit'
+  | 'trait.local_contacts'
   | 'trait.ah_long_debt'
   | 'trait.water_baby'
   | 'trait.handyman'
@@ -373,6 +375,7 @@ export const EMOJI_FALLBACK: Record<IconName, string> = {
   'poi.mrt': '🚉',
   'poi.industrial': '🏭',
   'poi.school': '🏫',
+  'poi.landmark': '🏛️',
   'poi.waypoint': '🛣️',
   'poi.unknown': '❓',
 
@@ -517,6 +520,7 @@ export const EMOJI_FALLBACK: Record<IconName, string> = {
   'trait.thick_skin': '🦺',
   'trait.kiasuism': '🧠',
   'trait.kampong_spirit': '🤝',
+  'trait.local_contacts': '📍',
   'trait.ah_long_debt': '🗡️',
   'trait.water_baby': '💧',
   'trait.handyman': '🔧',

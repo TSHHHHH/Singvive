@@ -128,7 +128,8 @@
           "leftLeg": "Left leg — you're limping on the map (not in the fight gauge).",
           "rightLeg": "Right leg — you're limping on the map (not in the fight gauge)."
         }
-      }
+      },
+      "howThisWorks": "How this works"
     },
     "instance": {
       "title": "ALREADY OPEN",
@@ -153,7 +154,20 @@
       "worldUnreachable": "Worldwide board unreachable.",
       "noWorldScores": "No worldwide scores yet.",
       "thisDevice": "This device",
-      "worldwide": "Worldwide"
+      "worldwide": "Worldwide",
+      "causes": {
+        "health": "Bled out and collapsed.",
+        "starvation": "Starved to death.",
+        "dehydration": "Died of dehydration.",
+        "infection": "Turned. The infection won.",
+        "head": "A blow to the head ended it.",
+        "torso": "Fatal wounds to the body.",
+        "overrun": "The horde swept the city. Nowhere left to run."
+      },
+      "escapeSummary": "{name} escaped Singapore on day {day}.",
+      "survivedOne": "{name} lasted {day} day in the ruins of Singapore.",
+      "survivedMany": "{name} lasted {day} days in the ruins of Singapore.",
+      "scoreMultiplier": " (×{mult} score mult)"
     },
     "spawn": {
       "title": "Choose where you wake up",
@@ -208,9 +222,58 @@
       "noAmmo": "No loaded magazine or shells in pack",
       "fireBroken": "Broken — fire blocked; bash still works",
       "magCount": "{n}/{cap} in holster",
-      "holstered": "{n} in holster"
+      "holstered": "{n} in holster",
+      "terrain": {
+        "hdb_corridor": "HDB Corridor",
+        "void_deck": "Void Deck",
+        "supermarket_aisle": "Supermarket Aisle",
+        "mrt_concourse": "MRT Concourse",
+        "tunnel_bore": "Tunnel Bore",
+        "open_ground": "Open Ground"
+      },
+      "stanceHint": {
+        "aggressive": "All forward pressure. +2 to hit, +2 damage, −3 defence, −2% dodge.",
+        "guarded": "Cover up. +2 defence, +2% dodge, slower swings, limb damage taken ×0.75.",
+        "precision": "+15% crit, ignores armour, costs an extra hour per round.",
+        "disengage": "Break contact. Flee DC −4, but they get one parting swing at −2."
+      },
+      "contactHuman": "{enemy} blocks your way on the {terrain}. Nothing else happens until you decide.",
+      "contactOther": "{enemy} has found you on the {terrain}. Nothing else happens until you decide.",
+      "movesAt": "It moves at {speed}",
+      "you": "you",
+      "them": "them",
+      "yourInterval": "Seconds per your action at current Speed",
+      "theirInterval": "Seconds per their action",
+      "damageTip": "Damage per hit",
+      "defenceTip": "What the other side has to beat",
+      "fists": "Fists",
+      "bashing": "{weapon} (bashing)",
+      "brokenWeapon": "Fists ({weapon} broken)"
     },
     "location": {
+      "unidentified": "Unidentified",
+      "typicalFinds": "Typical finds",
+      "hereShort": "Here",
+      "details": "Details",
+      "lessDetails": "Less detail",
+      "from": "From {name}",
+      "finds": {
+        "supermarket": "Food · water · some medicine",
+        "convenience": "Snacks · drinks",
+        "pharmacy": "Medicine · bandages · antibiotics",
+        "hospital": "Medical supplies · armour",
+        "clinic": "Medicine · bandages",
+        "hardware": "Tools · melee weapons · crafting parts",
+        "fuel": "Fuel · snacks · torches",
+        "police": "Firearms · ammo · riot gear",
+        "residential": "Household supplies · unit loot",
+        "foodcourt": "Food · drinks",
+        "mrt": "Light supplies · tunnel access",
+        "industrial": "Tools · fuel · materials",
+        "school": "Food · medical supplies · workshop tools",
+        "waypoint": "Scattered roadside supplies",
+        "landmark": "Water · snacks · visitor supplies"
+      },
       "search": "Search",
       "searching": "Searching…",
       "leave": "Leave",
@@ -308,7 +371,30 @@
       "commitBlind": "Commit blind — no danger intel until you arrive",
       "arriveDark": "You would arrive after dark, when the streets are far more dangerous",
       "outAfterDark": "You would be out after dark, when the streets are far more dangerous",
-      "beyondRange": "Beyond your range — hop closer, rest or walk the tunnels"
+      "beyondRange": "Beyond your range — hop closer, rest or walk the tunnels",
+      "searchRemaining": "~{time} left",
+      "blurb": {
+        "supermarket": "Food & water in bulk.",
+        "convenience": "Snacks & drinks.",
+        "pharmacy": "Medicine & bandages.",
+        "hospital": "Serious medical supplies. Crawling with the dead.",
+        "clinic": "GP / polyclinic shelves. Useful, not a war zone.",
+        "hardware": "Tools, melee weapons, crafting parts.",
+        "fuel": "Fuel & roadside snacks.",
+        "police": "Firearms & ammo. Extremely dangerous.",
+        "residential": "Void deck & flats — common household loot. The 88 Syndicate works these estates.",
+        "foodcourt": "Food stalls. Gotong Royong still cooks here when the estate holds.",
+        "mrt": "Nothing runs. The platform is a way into the tunnels, and the STA works the turnstiles.",
+        "industrial": "Warehouse floor & loading bay. Tools, fuel and materials — and a lot of dark corners.",
+        "school": "Canteen, sick bay, workshop. They were used as shelters, which is exactly the problem.",
+        "waypoint": "Not a destination — a place to stop between them. Whatever the road left behind.",
+        "landmark": "The skyline is familiar. The crowds are gone. Check visitor bags, kiosks and service cupboards."
+      },
+      "size": {
+        "small": "small",
+        "medium": "medium",
+        "large": "large"
+      }
     },
     "inventory": {
       "equip": "Equip",
@@ -372,7 +458,7 @@
       "rags": "✂ Rags",
       "tearTitle": "Costs {cost}% condition — yields {yield}× Cloth Rags for dressings",
       "usesOne": "Uses 1× {name}",
-      "usesInputs": "Uses {inputs} and a {tool}",
+      "usesInputs": "Consumes {inputs}; requires a {tool} (tool kept)",
       "betterThanEquipped": "Better than equipped",
       "newBonus": "New bonus vs equipped",
       "worseThanEquipped": "Worse than equipped",
@@ -380,7 +466,34 @@
       "broken": "Broken — unusable until repaired",
       "spoiled": "Spoiled — eating it is a gamble",
       "expired": "Expired — barely any of it left working",
-      "controlsAria": "Inventory controls"
+      "controlsAria": "Inventory controls",
+      "gridSize": "Grid size",
+      "weight": "Weight",
+      "tradeValue": "Trade value",
+      "stacked": "×{n} stacked",
+      "compared": "Compared to equipped {slot}",
+      "condition": {
+        "gear": {
+          "torn": "Old & Torn",
+          "used": "Heavily Used",
+          "worn": "Slightly Used",
+          "pristine": "Brand New"
+        },
+        "perishable": {
+          "torn": "Spoiled",
+          "used": "On the Turn",
+          "worn": "Day-Old",
+          "pristine": "Fresh"
+        },
+        "medicine": {
+          "torn": "Expired",
+          "used": "Long Past Date",
+          "worn": "Near Expiry",
+          "pristine": "Sealed"
+        }
+      },
+      "craftUses": "Crafting uses",
+      "keptTool": "Reusable tool"
     },
     "load": {
       "light": "Pack is light — no load penalty",
@@ -446,9 +559,63 @@
         "heal": "Heal bonus",
         "craft": "Craft cost",
         "encounter": "Encounters"
+      },
+      "names": {
+        "fighting": "Fighting",
+        "shooting": "Shooting",
+        "fitness": "Fitness",
+        "scavenging": "Scavenging",
+        "medicine": "Medicine",
+        "trades": "Trades",
+        "stealth": "Stealth"
+      },
+      "descriptions": {
+        "fighting": "Melee attack, defence, and dodging.",
+        "shooting": "Firearm accuracy and handling.",
+        "fitness": "Travel pace, stamina, and carry grit.",
+        "scavenging": "Search speed, finds, and haul value.",
+        "medicine": "Healing, infection resist, and clotting.",
+        "trades": "Crafting cost and HDB site work.",
+        "stealth": "Quieter travel and fewer ambushes."
       }
     },
     "craft": {
+      "browserHint": "Materials come from your pack. Open a recipe to inspect and craft.",
+      "search": "Search recipes, items or ingredients…",
+      "clear": "Clear",
+      "categoryLabel": "Category",
+      "sortLabel": "Sort by",
+      "sortReady": "Ready first",
+      "sortTime": "Shortest time",
+      "sortName": "Name A–Z",
+      "availability": "Recipe availability",
+      "filterAlmost": "1 ingredient away",
+      "showing": "{n} of {total} recipes",
+      "countLegend": "Have / need",
+      "reset": "Reset filters",
+      "noMatches": "No matching recipes",
+      "noneAlmost": "No recipes are just one ingredient away with your current shelter and tools.",
+      "trySearch": "Try another item or ingredient, or reset your filters.",
+      "details": "Details",
+      "inspect": "Inspect {name}",
+      "ingredients": "Ingredients",
+      "shelterRequirement": "Shelter required · stash or HDB",
+      "toolKept": "{name} · not consumed",
+      "craftAction": "Craft",
+      "unavailable": "Unavailable",
+      "made": "Made {n}× {name}",
+      "unsafeWater": "Uses murky water. Drinking this adds {n} infection.",
+      "tearRemaining": "{n} uses left",
+      "tearAction": "Cut for {n}× Cloth Rags",
+      "categories": {
+        "all": "All categories",
+        "provisions": "Food & drink",
+        "medical": "Medical",
+        "weapons": "Weapons & ammo",
+        "equipment": "Equipment",
+        "tools": "Tools & parts",
+        "facilities": "Site facilities"
+      },
       "needHave": "{name} — need {need}, have {have}",
       "toolTip": "{name} — stays in the pack (have {have})",
       "workbench": "Workbench",
@@ -469,11 +636,46 @@
       "blockTool": "Needs a {name}",
       "blockInput": "Needs {need}× {name} — have {have}",
       "blockWater": "Needs {need}× water — have {have}",
-      "boilNote": "Burning a jerry can lowers your extract gauge.",
+      "boilNote": "Requires a pot and heat. Prepared water stays here, hot for two hours, then remains clean. Collecting it makes ordinary clean water.",
       "tearName": "Cut Up Your Clothes",
       "tearCost": "Nothing — {n} left in them",
       "tearBlurb": "Cut strips from what you are wearing. Costs nothing but the clothes.",
-      "tearNone": "The clothes on your back are already stripped. Find cloth, or go without."
+      "tearNone": "The clothes on your back are already stripped. Find cloth, or go without.",
+      "siteFacilities": "Facilities at this location",
+      "heatLeft": "Heat available · {h}h remaining",
+      "noHeat": "No active heat source",
+      "fireLit": "Cooking fire is burning. It stays here.",
+      "fireSpent": "Fire has burned out. Build another fire to relight it.",
+      "stoveBuilt": "Fixed stove built. Fuel it when the burner runs out.",
+      "shelterBuilt": "Rain shelter built · roof only, no enemy protection",
+      "rainStored": "Collected rainwater · {n}/4",
+      "collectRain": "Collect untreated water",
+      "hotStored": "Prepared water · {n} servings · hot for {h}h",
+      "cleanStored": "Prepared water · {n} servings · cooled and clean",
+      "collectClean": "Bottle as clean water",
+      "preparation": "Drink preparation",
+      "roomMode": "Room temperature (50%)",
+      "hotMode": "Hot preparation (100%)",
+      "waterSource": "Recipe water",
+      "carriedWater": "Use carried water",
+      "siteWater": "Use prepared water here",
+      "preparationHint": "Room-temperature drinks keep full hydration but half hunger/energy. Cooking always needs heat. Boiling uses carried water. Search to see all drink variants.",
+      "staysHere": "Built here · cannot be packed or carried",
+      "roomPenalty": "Mixed cold · half hunger and energy, full hydration",
+      "busy": "Finish the current action before crafting.",
+      "family": {
+        "kopi": "Kopi recipe",
+        "teh": "Teh recipe"
+      },
+      "block": {
+        "site": "Reach a surface location first.",
+        "heat": "Needs heat here for the full preparation time.",
+        "pot": "Needs a carried cooking pot; it is not consumed.",
+        "site_water": "Not enough prepared water at this location.",
+        "occupied": "Already built or still in use. Empty stored water before boiling another batch.",
+        "stove": "Build a fixed stove here first."
+      },
+      "options": "Cooking & drink options"
     },
     "attributes": {
       "strength": "Strength",
@@ -489,7 +691,32 @@
         "wits": "Wit"
       },
       "baseTo": "base {base} → {value}",
-      "atBaseline": "At baseline — no bonus or penalty."
+      "atBaseline": "At baseline — no bonus or penalty.",
+      "blurb": {
+        "strength": "Melee damage & carrying grit.",
+        "dexterity": "Attack accuracy & dodging.",
+        "endurance": "Max health & stamina.",
+        "perception": "Spot loot & avoid ambushes.",
+        "wits": "Better choices under pressure."
+      },
+      "effects": {
+        "melee": "melee damage",
+        "carry": "kg carry capacity",
+        "accuracy": "attack accuracy",
+        "defense": "defense",
+        "dodge": "dodge chance",
+        "travel": "travel speed",
+        "scout": "scout read chance",
+        "fleeStairs": "flee & stairwell checks",
+        "hp": "max HP",
+        "stairs": "stairwell retreat checks",
+        "loot": "loot rolls per search",
+        "search": "search speed",
+        "awareness": "awareness (fog & blip range)",
+        "encounter": "encounter-sense chance",
+        "flee": "flee checks",
+        "room": "chance to read a room"
+      }
     },
     "game": {
       "rest": "Rest",
@@ -541,11 +768,11 @@
       "radioBlurb": "Fuel, meds, and ammo count most; sealed water a little; food and scrap barely. Burning fuel to boil water hurts the haul. Raise the channel once you are standing on the pad and the crew names real numbers.",
       "horde": "Horde · {label}",
       "hordeBlurb": "The island clock climbs every day, and every neighbourhood gets worse with it. Where you stand is a front — Stirring streets are not Lost ones. Lost ground is still walkable, just brutal. At 100% the city is overrun and the run ends.",
-      "leadsNotes": "{count, plural, one {# map note to decipher} other {# map notes to decipher}}",
-      "leadsRumours": "{count, plural, one {# rumoured site marked} other {# rumoured sites marked}}",
+      "leadsNotes": "Map notes to decipher: {count}",
+      "leadsRumours": "Rumoured sites marked: {count}",
       "leadsBoth": "{notes} note(s) to read · {rumours} rumour(s) on map",
       "leadsTitle": "Leads",
-      "leadsBlurb": "Decipher map notes from your pack (Use). Faction-held sites show a coloured ring once you know who runs them; outposts use the faction emblem."
+      "leadsBlurb": "Decipher map notes from your pack (Use). Known faction territory colours buildings and markers; outposts use the faction emblem. A pale ring around a marker means it is selected."
     },
     "town": {
       "here": "{name} · {tier}",
@@ -573,7 +800,16 @@
       "bleeding": "Bleeding",
       "bleedingOut": "Bleeding out",
       "bleedingTimes": "Bleeding ×{n}",
-      "bleedingOutTimes": "Bleeding out ×{n}"
+      "bleedingOutTimes": "Bleeding out ×{n}",
+      "modifier": {
+        "recovery": "Limb recovery {n}",
+        "rest": "Rest energy gain {n}",
+        "drain": "Energy drain {n}",
+        "travel": "Travel speed {n}",
+        "hit": "To hit {n}",
+        "dodge": "Dodge chance {n}",
+        "flee": "Flee DC {n}"
+      }
     },
     "survivor": {
       "statsTitle": "Survivor stats",
@@ -730,7 +966,25 @@
       "clickNext": "Click to search this next",
       "hoverDetails": "Hover a cell for details.",
       "unknown": "Unknown",
-      "footprint": "Footprint {label}"
+      "footprint": "Footprint {label}",
+      "condition": "Condition {n}%",
+      "damage": "Damage {n} · {kind}",
+      "ranged": "ranged",
+      "melee": "melee",
+      "perShot": " · {n}/shot",
+      "restoreHunger": "Restores hunger {n}",
+      "restoreThirst": "Restores thirst {n}",
+      "infectionRisk": "Infection risk +{n}",
+      "heal": "Heals {n}",
+      "stopsBleeding": " · stops bleeding ({kind})",
+      "bleed": {
+        "minor": "minor",
+        "major": "major"
+      },
+      "cure": "Clears infection {n}",
+      "fuel": "Fuel for the road",
+      "searchSpeed": "Search speed +{n}%",
+      "scarce": "Scarce find"
     },
     "standing": {
       "terrible": "Terrible",
@@ -774,6 +1028,15 @@
       "pin": "Keep the timeline open",
       "unpin": "Shrink to the ticker",
       "expandTicker": "Open the timeline"
+    },
+    "dock": {
+      "body": "Body",
+      "vitals": "Survival",
+      "food": "Food",
+      "water": "Water",
+      "more": "More",
+      "tools": "Survivor tools",
+      "injured": "Injured · check body"
     },
     "hud": {
       "timeline": "Timeline",
@@ -824,7 +1087,8 @@
       "mrt": "MRT Station",
       "industrial": "Industrial Unit",
       "school": "School",
-      "waypoint": "Waypoint"
+      "waypoint": "Waypoint",
+      "landmark": "Landmark"
     },
     "destruction": {
       "intact": "Intact",
@@ -833,6 +1097,10 @@
       "gutted": "Gutted"
     },
     "hdb": {
+      "cameraFrame": "Frame building",
+      "cameraHint": "Drag to orbit · Scroll to zoom",
+      "cameraZoomIn": "Zoom in on building",
+      "cameraZoomOut": "Zoom out from building",
       "leave": "✕ Leave",
       "leaveBlock": "Leave the block",
       "leaveNeedSearch": "Finish the unit search in the timeline first",
@@ -1095,54 +1363,80 @@
       "meta": {
         "platform": {
           "label": "Platform",
-          "verb": "Climb out"
+          "verb": "Climb out",
+          "blurb": "Tiled walls, a dead escalator, and stairs up to the street."
         },
         "pack": {
           "label": "Contact",
-          "verb": "Push through"
+          "verb": "Push through",
+          "blurb": "They are in the bore with you, and the bore is one way wide."
         },
         "scavenge": {
           "label": "Salvage",
-          "verb": "Pick it over"
+          "verb": "Pick it over",
+          "blurb": "Nobody has been through here since it stopped. That cuts both ways."
         },
         "settlement": {
           "label": "Camp",
-          "verb": "Walk in"
+          "verb": "Walk in",
+          "blurb": "Lamplight on the tiles. People live down here, and they saw you first."
         },
         "hazard": {
           "label": "Obstruction",
-          "verb": "Get past it"
+          "verb": "Get past it",
+          "blurb": "The tunnel does not want to be walked here."
         },
         "carriage": {
           "label": "Carriage",
-          "verb": "Climb through"
+          "verb": "Climb through",
+          "blurb": "A consist that never made the next station. Under it, or through it."
         },
         "signal": {
           "label": "Signal",
-          "verb": "Read the board"
+          "verb": "Read the board",
+          "blurb": "A cabinet of dead lights. If anything still works, you will see further down the bore."
         },
         "checkpoint": {
           "label": "Checkpoint",
-          "verb": "Approach"
+          "verb": "Approach",
+          "blurb": "STA still claims this stretch, and they saw you first."
         }
       },
       "hazard": {
         "floodwater": {
-          "label": "Floodwater"
+          "label": "Floodwater",
+          "blurb": "Black water, chest deep and moving. The pumps died with the grid."
         },
         "collapse": {
-          "label": "Falling path"
+          "label": "Falling path",
+          "blurb": "Tiles, hangers, a loose crown — anything may come down. Keep moving."
         },
         "live_rail": {
-          "label": "Live rail"
+          "label": "Live rail",
+          "blurb": "The third rail still bites. Isolate it, or jump it, or cook."
         },
         "blackout": {
-          "label": "Blackout"
+          "label": "Blackout",
+          "blurb": "The lights died and the bore swallowed the rest. This will take a while."
         },
         "pinch": {
-          "label": "Pinch"
+          "label": "Pinch",
+          "blurb": "The bore squeezed shut. You force a body-width through, or you do not."
         }
-      }
+      },
+      "campWelcome": "{name} · they let you in",
+      "campUsed": "Camp services already used — one favour is all they'll spare.",
+      "carriageBlocked": "{name} · the consist is in the way",
+      "checkpointHeld": "{name} · STA holds the bore",
+      "unrevealedBlurb": "Too far ahead to make out. You will find out by walking into it.",
+      "eliteBlurb": "Something has been keeping pace with you down the bore.",
+      "collapsedBlurb": "Collapsed bore — rubble, packs, no camps.",
+      "exitHint": "Stairs up at every station — or keep walking toward the far end.",
+      "forwardHint": "There is no way back up until the next station — the tunnel only runs one way now.",
+      "directionsNone": "{name} has no tunnel path from here. Plan travel to try another way, or walk the surface.",
+      "directionsVia": "{stops} stops via the {line}",
+      "directionsCollapsed": "{name} is {where}, but the only underground path crawls a collapsed bore. Plan travel — or walk the surface.",
+      "directionsRoute": "{name} is {where}. Open tunnel planning to crawl the whole route in one run."
     },
     "mrt": {
       "loading": "Loading rail map…",
@@ -1238,6 +1532,28 @@
         "uneasy": "Uneasy",
         "exposed": "Exposed",
         "suicide": "Suicide"
+      },
+      "summary": {
+        "open": {
+          "bed": "Slept in the open, at least in a bag.",
+          "ground": "Slept rough in the open on bare ground."
+        },
+        "roofed": {
+          "bed": "Slept under a roof with open sides, bag laid out.",
+          "ground": "Slept under a roof on bare floor — sides still open."
+        },
+        "enclosed": {
+          "bed": "Slept behind closed walls with a proper place to lie down.",
+          "ground": "Slept behind closed walls on bare floor."
+        }
+      },
+      "occupancy": {
+        "walls": "Night swarm in the street — walls hold.",
+        "horde": "You lie down in a horde pocket. They are close enough to smell.",
+        "patrol": "Claimed ground. Someone is still walking it tonight.",
+        "wildlife": "Whatever claimed this stretch does not sleep.",
+        "damp": "Damp ground — sleep comes harder.",
+        "collapse": "Unstable slabs under the bedroll."
       }
     },
     "trek": {
@@ -1276,6 +1592,173 @@
         "name": "Subterranean Transit Authority (STA)",
         "shortName": "STA"
       }
+    },
+    "create": {
+      "pointsLeft": "Points left",
+      "noTraits": "No traits yet.",
+      "identity": "Identity",
+      "clear": "Clear",
+      "removeHint": "Traits · click to remove",
+      "attributes": "Attributes",
+      "name": "Name",
+      "random": "Random",
+      "noPresets": "No saved builds yet — save one from the Traits step.",
+      "needsFixing": "needs fixing",
+      "rename": "Rename",
+      "delete": "Delete",
+      "goodAt": "Good at",
+      "strugglesWith": "Struggles with",
+      "jobHint": "Jobs are starting builds. Pick one to see who they were, then fine-tune its traits in the next step — or skip the jobs and build from scratch.",
+      "blank": "Blank slate",
+      "backgroundPrompt": "Who were you before it fell?",
+      "points": "Pts",
+      "noMatches": "No traits on this side match that filter.",
+      "pointUnit": "pt",
+      "traitHint": "Hover a trait to see what it does. Flaws earn points; positives spend them. Pick as many compatible traits as you like and keep points left at 0 or above.",
+      "savePreset": "Save preset",
+      "nextTraits": "Next: traits →",
+      "next": "Next →",
+      "skip": "Skip — start with this build",
+      "backBackground": "← Background",
+      "title": "Before It Fell",
+      "custom": "Custom",
+      "basedOn": "Custom · based on {name}",
+      "budgetHint": "This build spends all its points. Add another flaw or choose cheaper positives to make room for another trait.",
+      "survivor": "Survivor",
+      "myBuild": "My Build",
+      "overwrite": "Overwrite preset “{name}”?",
+      "fixBudget": "Fix the budget (points left must be ≥ 0) before saving.",
+      "presetLimit": "Preset limit reached ({n}). Delete one first.",
+      "saveFailed": "Could not save preset — build must be legal.",
+      "saved": "Saved “{name}”.",
+      "backgroundStep": "1 · Background",
+      "traitsStep": "2 · Traits",
+      "remove": "Remove {name}",
+      "revert": "Revert",
+      "reset": "Reset",
+      "randomHint": "Roll a Singapore-style full name",
+      "presets": "My presets ({n}/{max})",
+      "traitCount": "{n} traits",
+      "renamePlaceholder": "Rename…",
+      "renameFailed": "Could not rename — empty or duplicate name.",
+      "about": "About {name}",
+      "positives": "Positives",
+      "negatives": "Flaws",
+      "spendPoints": "spend points",
+      "earnPoints": "earn points",
+      "picked": " · {n} picked",
+      "all": "All",
+      "sortPoints": "Sort traits by points",
+      "pointsAsc": "Points low → high",
+      "pointsDesc": "Points high → low",
+      "presetName": "Preset name",
+      "tags": {
+        "combat": "Combat",
+        "body": "Body",
+        "medical": "Medical",
+        "stealth": "Stealth",
+        "scavenge": "Scavenge",
+        "needs": "Needs",
+        "people": "People"
+      },
+      "blockReason": {
+        "conflict": "conflicts with a picked trait",
+        "points": "not enough points"
+      }
+    },
+    "stashLog": {
+      "empty": "No caches yet. Travel to a location and deposit loot into its stash.",
+      "here": "(here)",
+      "hint": "Caches are read-only from here — travel to a location to withdraw from its stash."
+    },
+    "mapHere": {
+      "emptyLog": "Nothing logged yet",
+      "callEvac": "Call for evac",
+      "raiseChannel": "Raise the channel",
+      "approach": "Approach the gate",
+      "exhausted": "Nothing left",
+      "search": "Go inside and search",
+      "openLog": "Open log",
+      "openLocation": "Open {name}",
+      "openStash": "Open stash here"
+    },
+    "body": {
+      "parts": {
+        "head": "Head",
+        "torso": "Torso",
+        "leftArm": "L Arm",
+        "rightArm": "R Arm",
+        "leftLeg": "L Leg",
+        "rightLeg": "R Leg"
+      },
+      "title": "Body condition",
+      "majorBleeding": "Bleeding badly",
+      "bleeding": "Bleeding",
+      "fractured": "Fractured",
+      "critical": "Critical",
+      "crippled": "Crippled",
+      "majorDetail": "Drains this limb until dressed. Raises encounter chance (+10% each, capped) — blood trail draws them in.",
+      "minorDetail": "Slow drain; may clot on its own. Still raises encounter chance (+4% each, capped). Dress it if you can.",
+      "fracturedLeg": "Needs a splint. Slows travel and shrinks how far you can push in one go.",
+      "fracturedArm": "Needs a splint. Hurts aim and melee until set.",
+      "fracturedOther": "Needs a splint. Slows recovery and taxes combat.",
+      "criticalTorso": "Vital zone wrecked — another solid hit here ends the run.",
+      "criticalHead": "Vital zone wrecked — overkill spills into the body.",
+      "crippledLeg": "Limb wrecked. Travel crawls; passive heal caps at 70% until treated.",
+      "crippledArm": "Limb wrecked. Heavy combat penalty; passive heal caps at 70% until treated.",
+      "crippledOther": "Limb wrecked. Passive heal caps at 70% until treated."
+    },
+    "hazards": {
+      "horde_pocket": {
+        "label": "Horde pocket",
+        "blurb": "Something big drifted in here and never drifted out."
+      },
+      "gang_patrol": {
+        "label": "Patrolled ground",
+        "blurb": "Someone claims this stretch, and they patrol it."
+      },
+      "collapse": {
+        "label": "Collapse field",
+        "blurb": "Pancaked slabs and rebar. Every step is a gamble."
+      },
+      "floodwater": {
+        "label": "Floodwater",
+        "blurb": "Waist-deep drain runoff. Slow, cold, and it hides things."
+      },
+      "wildlife_water": {
+        "label": "Claimed canal",
+        "blurb": "Something in the water has taken this stretch of bank."
+      },
+      "wildlife_forest": {
+        "label": "Claimed catchment",
+        "blurb": "The trees went quiet. Whatever lives here does not want company."
+      },
+      "wildlife_urban": {
+        "label": "Infested block",
+        "blurb": "Strays own this stretch. They do not share."
+      },
+      "night_swarm": {
+        "label": "Night swarm",
+        "blurb": "They come out when the light dies. The streets are theirs."
+      },
+      "noSleep": "Do not sleep here."
+    },
+    "clock": {
+      "day": "Day {day}",
+      "dayShort": "D{day}",
+      "am": "am",
+      "pm": "pm",
+      "band": {
+        "day": "Day",
+        "dusk": "Dusk",
+        "night": "Night"
+      }
+    },
+    "ghost": {
+      "title": "A survivor, still standing",
+      "blurb": "They lived where your predecessor did not. One trade, then they're gone:",
+      "trade": "Trade",
+      "leave": "Walk on"
     }
   },
   "settings": {
@@ -1427,7 +1910,7 @@
       "bullets": [
         "Hunger, thirst, energy, and infection tick with every hour. Keep them up — empty hunger or thirst below 35 starts eating limb HP.",
         "Health is the sum of your six limbs — see the Body topic for how each injury changes travel, aim, and stamina. Major bleeds block regen until bandaged; infection at 100 ends the run.",
-        "Before a run, pick a job seed or build traits on the same screen — negatives earn points, positives spend them. A full signature + curse spends the whole pool; swap to free a point for another trait.",
+        "Before a run, pick a job seed or build traits on the same screen. Positives share one list; all negative traits are flaws. There are no trait-count caps: flaws earn points and positives spend them. Keep points left at 0 or above, and do not combine conflicting traits or pick the same trait twice.",
         "Night (after dusk) is more dangerous. Get inside before dark — the streets fill with a night swarm. After dark you only see as far as your light: fewer blips, fewer pockets on the trek card, and worse aim. A torch (off hand) or headlamp (head) pushes the dark back, but a lit survivor is easier to spot. Rest shows recovery and ambush chance; sleep still drains hunger and thirst (reduced).",
         "Hazard pockets sit between pins (horde, patrols, collapse, flood). Sense them inside your ring, route around when you can — each kind bites differently if you cross.",
         "The horde meter is the island clock, not the street under your feet. It climbs every day and every neighbourhood gets worse with it — but a Stirring town is not a Lost one. Ground zero is already Fallen or worse when you wake; distant estates may still be holding. Lost streets stay walkable, they just cost more: denser pockets, dusk-rate swarms in daylight, harder searches. Zoom out until the island fits and the map becomes a status overlay; street zoom stays clear. At 100% the city is overrun and the run ends.",
@@ -1456,7 +1939,7 @@
     "skills": {
       "title": "Skills",
       "bullets": [
-        "Seven passive skills sit between traits and the numbers: Fighting, Shooting, Fitness, Scavenging, Medicine, Trades, Stealth. Traits still apply their own mods (soft funnel) and often grant starting skill levels — signatures start high.",
+        "Seven passive skills sit between traits and the numbers: Fighting, Shooting, Fitness, Scavenging, Medicine, Trades, Stealth. Traits still apply their own mods (soft funnel) and often grant starting skill levels — higher-cost traits can provide a stronger head start.",
         "Practice meaningful actions to earn XP (kills, searches, treks, crafts, heals, flees). Practice XP soft-caps each day per skill so spam does not pay.",
         "Loot and read skill books and magazines. Reading costs hours and grants a big XP chunk — or one gated level if you are still under the book's tier. Wrong-tier books stay unread.",
         "Skills die with the run. There is no account unlock tree."
@@ -1472,7 +1955,10 @@
         "Worn kit counts toward load. Over your limit you are Heavy (slower, louder); past 150% you are Straining (can't flee, every km hurts legs and back); past 200% you are Pinned and can't walk until you drop something. The carry bar names the tier and its penalties.",
         "Each site has limited searches. Leaving early still spends a partial charge. Take what you want — Done or Leave abandons the rest.",
         "Map notes turn up in searches — decipher them from the pack to mark hidden sites. Faction outposts also offer daily intel when you are Known; notes are portable and one-shot.",
-        "Faction-held ground shows a coloured ring on the map once you have learned who runs it (outposts use the faction emblem)."
+        "Faction hubs start unknown. Discover them by exploring or gathering intel. The Local Contacts trait marks one hub for each of two different factions at spawn. Once you know who controls a site, its building and marker use that faction's colour; known outposts use the faction emblem. A pale ring around the marker shows selection without changing the building's colour.",
+        "Build fires and stoves at surface sites. Heat lasts 24 in-game hours from lighting, even while you are away. A pot lets you cook noodles, porridge and hot drinks. Dry noodles restore hunger only.",
+        "Portion coffee, Milo and milk before mixing. Room-temperature drinks restore half hunger and energy, with full hydration. Untreated cold water still causes infection. Boiled batches stay at the site and cool after two hours.",
+        "Rain collectors hold up to four untreated waters and fill only during rainy game hours. Rain shelters improve open-air sleep without preventing ambushes. Everyday objects can become gear, tinder or repair parts; inspect their crafting uses."
       ]
     },
     "hdb": {
@@ -1512,7 +1998,7 @@
   "item": {
     "canned_food": "Canned Food",
     "rice_pack": "Bag of Rice",
-    "instant_noodles": "Instant Noodles",
+    "instant_noodles": "Instant Noodles (Dry)",
     "snacks": "Snacks",
     "hawker_meal": "Leftover Hawker Meal",
     "bak_kwa": "Vacuum-Packed Bak Kwa",
@@ -1674,12 +2160,12 @@
     "camp_pillow": "Camp Pillow",
     "emergency_blanket": "Emergency Blanket",
     "ez_link_knife": "EZ-Link Knife",
-    "kopi_c": "Kopi C",
-    "cooked_mee": "Cooked Maggi",
+    "kopi_c": "Kopi-C",
+    "cooked_mee": "Cooked Noodle Soup",
     "milo_dinosaur": "Milo Dinosaur",
-    "kopi_o": "Kopi O",
-    "kopi_sachet_drink": "Kopi Sachet Drink",
-    "milo_drink": "Milo Drink",
+    "kopi_o": "Kopi-O",
+    "kopi_sachet_drink": "Sachet Kopi",
+    "milo_drink": "Milo",
     "canned_luncheon_meat": "Canned Luncheon Meat",
     "canned_sardines": "Canned Sardines",
     "bread_loaf": "Bread Loaf",
@@ -1696,7 +2182,55 @@
     "intel_ration_slip": "Ration Slip",
     "intel_turf_fragment": "Turf Fragment",
     "intel_outpost_whisper": "Outpost Whisper",
-    "intel_smudged_map": "Smudged Survivor Map"
+    "intel_smudged_map": "Smudged Survivor Map",
+    "firewood": "Firewood Bundle",
+    "tinder": "Tinder Bundle",
+    "lighter": "Lighter",
+    "cooking_pot": "Cooking Pot",
+    "water_container": "Water Container",
+    "dry_rice": "Dry Rice",
+    "sugar_portion": "Sugar Measure",
+    "tea_portion": "Tea Bag",
+    "evaporated_milk": "Evaporated Milk Tin",
+    "towel": "Towel",
+    "old_magazines": "Old Magazines",
+    "coffee_portion": "Coffee Measure",
+    "condensed_portion": "Condensed Milk Measure",
+    "evaporated_portion": "Evaporated Milk Measure",
+    "milo_portion": "Milo Measure",
+    "kopi": "Kopi",
+    "kopi_siew_dai": "Kopi Siew Dai",
+    "kopi_gah_dai": "Kopi Gah Dai",
+    "kopi_gau": "Kopi Gau",
+    "kopi_po": "Kopi Po",
+    "kopi_c_kosong": "Kopi-C Kosong",
+    "kopi_c_siew_dai": "Kopi-C Siew Dai",
+    "kopi_o_kosong": "Kopi-O Kosong",
+    "kopi_o_siew_dai": "Kopi-O Siew Dai",
+    "kopi_o_gau": "Kopi-O Gau",
+    "kopi_o_po": "Kopi-O Po",
+    "kopi_o_kosong_di_lo": "Kopi-O Kosong Di Lo",
+    "teh": "Teh",
+    "teh_o": "Teh-O",
+    "teh_o_kosong": "Teh-O Kosong",
+    "teh_c": "Teh-C",
+    "teh_c_kosong": "Teh-C Kosong",
+    "milo_milk": "Milo with Milk",
+    "sardine_noodles": "Sardine Noodles",
+    "luncheon_noodles": "Luncheon Meat Noodles",
+    "rice_porridge": "Rice Porridge",
+    "sardine_porridge": "Sardine Porridge",
+    "cooking_fire": "Cooking Fire",
+    "fixed_stove": "Fixed Stove",
+    "fuel_stove": "Fuel the Stove",
+    "rain_collector": "Rain Collector",
+    "rain_shelter": "Rain Shelter",
+    "hot_water": "Prepared Water Batch",
+    "pot_helmet": "Saucepan Helmet",
+    "towel_vest": "Towel-Padded Vest",
+    "magazine_guards": "Magazine Shin Guards",
+    "sling_bag": "Improvised Sling Bag",
+    "treated_bedroll": "Repellent-Treated Bedroll"
   },
   "enemy": {
     "shambler": "Shambler",
@@ -1732,24 +2266,24 @@
   },
   "recipe": {
     "kopi_o": {
-      "name": "Brew Kopi O",
-      "blurb": "Coffee powder and water. It is plain, hot, and enough to keep moving."
+      "name": "Prepare Kopi-O",
+      "blurb": "Brew hot for full benefits, or mix at room temperature for half hunger and energy. Water still hydrates; unsafe cold water stays unsafe."
     },
     "kopi_sachet_drink": {
-      "name": "Mix Kopi Sachet",
-      "blurb": "One sachet and whatever water is safe enough to spare."
+      "name": "Prepare Sachet Kopi",
+      "blurb": "Brew hot for full benefits, or mix at room temperature for half hunger and energy. Water still hydrates; unsafe cold water stays unsafe."
     },
     "milo_drink": {
-      "name": "Mix Milo",
-      "blurb": "Milo powder and water. Not fancy, but it puts something useful in you."
+      "name": "Prepare Milo",
+      "blurb": "Brew hot for full benefits, or mix at room temperature for half hunger and energy. Water still hydrates; unsafe cold water stays unsafe."
     },
     "purify": {
       "name": "Purify Water",
       "blurb": "Tablets and twenty minutes turn a bottle of murk into something safe."
     },
     "boil": {
-      "name": "Boil Water",
-      "blurb": "Slower than tablets and it costs you fuel — fuel also counts hard toward evac readiness."
+      "name": "Boil Water Here",
+      "blurb": "Boil two carried waters in a pot. The batch stays here, hot for two hours, then remains clean. Collect it to carry, or use it in recipes."
     },
     "bandages": {
       "name": "Tear Dressings",
@@ -1820,20 +2354,208 @@
       "blurb": "Four spent cards and a scrap edge. STA will not take them as tribute anymore."
     },
     "kopi_c": {
-      "name": "Brew Kopi C",
-      "blurb": "Packet kopi, a squeeze of condensed milk, and the last of a bottle. It is not a kopitiam, but it is close."
+      "name": "Prepare Kopi-C",
+      "blurb": "Brew hot for full benefits, or mix at room temperature for half hunger and energy. Water still hydrates; unsafe cold water stays unsafe."
     },
     "cooked_mee": {
-      "name": "Cook Maggi",
-      "blurb": "A brick of noodles and a bottle of water. Heat is optional. Hunger is not."
+      "name": "Cook Cooked Noodle Soup",
+      "blurb": "Needs a cooking pot and heat for the whole preparation. Cook with carried water or a hot batch left here. Eat before it spoils."
     },
     "milo_dinosaur": {
-      "name": "Mix a Milo Dinosaur",
-      "blurb": "The whole tin, extra powder on top, and whatever water you can spare. Heavy tin, light cup."
+      "name": "Prepare Milo Dinosaur",
+      "blurb": "Brew hot for full benefits, or mix at room temperature for half hunger and energy. Water still hydrates; unsafe cold water stays unsafe."
     },
     "lockpick": {
       "name": "Bend a Lockpick",
       "blurb": "Two scraps bent into a rake and a tensioner. One door, maybe."
+    },
+    "portion_coffee": {
+      "name": "Portion Kopi Packet",
+      "blurb": "Split the container into measured ingredients. Each craft uses measures, not the whole tin."
+    },
+    "portion_condensed_milk": {
+      "name": "Portion Condensed Milk",
+      "blurb": "Split the container into measured ingredients. Each craft uses measures, not the whole tin."
+    },
+    "portion_evaporated_milk": {
+      "name": "Portion Evaporated Milk Tin",
+      "blurb": "Split the container into measured ingredients. Each craft uses measures, not the whole tin."
+    },
+    "portion_milo_tin": {
+      "name": "Portion Tin of Milo",
+      "blurb": "Split the container into measured ingredients. Each craft uses measures, not the whole tin."
+    },
+    "kopi": {
+      "name": "Prepare Kopi",
+      "blurb": "Brew hot for full benefits, or mix at room temperature for half hunger and energy. Water still hydrates; unsafe cold water stays unsafe."
+    },
+    "kopi_siew_dai": {
+      "name": "Prepare Kopi Siew Dai",
+      "blurb": "Brew hot for full benefits, or mix at room temperature for half hunger and energy. Water still hydrates; unsafe cold water stays unsafe."
+    },
+    "kopi_gah_dai": {
+      "name": "Prepare Kopi Gah Dai",
+      "blurb": "Brew hot for full benefits, or mix at room temperature for half hunger and energy. Water still hydrates; unsafe cold water stays unsafe."
+    },
+    "kopi_gau": {
+      "name": "Prepare Kopi Gau",
+      "blurb": "Brew hot for full benefits, or mix at room temperature for half hunger and energy. Water still hydrates; unsafe cold water stays unsafe."
+    },
+    "kopi_po": {
+      "name": "Prepare Kopi Po",
+      "blurb": "Brew hot for full benefits, or mix at room temperature for half hunger and energy. Water still hydrates; unsafe cold water stays unsafe."
+    },
+    "kopi_c_kosong": {
+      "name": "Prepare Kopi-C Kosong",
+      "blurb": "Brew hot for full benefits, or mix at room temperature for half hunger and energy. Water still hydrates; unsafe cold water stays unsafe."
+    },
+    "kopi_c_siew_dai": {
+      "name": "Prepare Kopi-C Siew Dai",
+      "blurb": "Brew hot for full benefits, or mix at room temperature for half hunger and energy. Water still hydrates; unsafe cold water stays unsafe."
+    },
+    "kopi_o_kosong": {
+      "name": "Prepare Kopi-O Kosong",
+      "blurb": "Brew hot for full benefits, or mix at room temperature for half hunger and energy. Water still hydrates; unsafe cold water stays unsafe."
+    },
+    "kopi_o_siew_dai": {
+      "name": "Prepare Kopi-O Siew Dai",
+      "blurb": "Brew hot for full benefits, or mix at room temperature for half hunger and energy. Water still hydrates; unsafe cold water stays unsafe."
+    },
+    "kopi_o_gau": {
+      "name": "Prepare Kopi-O Gau",
+      "blurb": "Brew hot for full benefits, or mix at room temperature for half hunger and energy. Water still hydrates; unsafe cold water stays unsafe."
+    },
+    "kopi_o_po": {
+      "name": "Prepare Kopi-O Po",
+      "blurb": "Brew hot for full benefits, or mix at room temperature for half hunger and energy. Water still hydrates; unsafe cold water stays unsafe."
+    },
+    "kopi_o_kosong_di_lo": {
+      "name": "Prepare Kopi-O Kosong Di Lo",
+      "blurb": "Brew hot for full benefits, or mix at room temperature for half hunger and energy. Water still hydrates; unsafe cold water stays unsafe."
+    },
+    "teh": {
+      "name": "Prepare Teh",
+      "blurb": "Brew hot for full benefits, or mix at room temperature for half hunger and energy. Water still hydrates; unsafe cold water stays unsafe."
+    },
+    "teh_o": {
+      "name": "Prepare Teh-O",
+      "blurb": "Brew hot for full benefits, or mix at room temperature for half hunger and energy. Water still hydrates; unsafe cold water stays unsafe."
+    },
+    "teh_o_kosong": {
+      "name": "Prepare Teh-O Kosong",
+      "blurb": "Brew hot for full benefits, or mix at room temperature for half hunger and energy. Water still hydrates; unsafe cold water stays unsafe."
+    },
+    "teh_c": {
+      "name": "Prepare Teh-C",
+      "blurb": "Brew hot for full benefits, or mix at room temperature for half hunger and energy. Water still hydrates; unsafe cold water stays unsafe."
+    },
+    "teh_c_kosong": {
+      "name": "Prepare Teh-C Kosong",
+      "blurb": "Brew hot for full benefits, or mix at room temperature for half hunger and energy. Water still hydrates; unsafe cold water stays unsafe."
+    },
+    "milo_milk": {
+      "name": "Prepare Milo with Milk",
+      "blurb": "Brew hot for full benefits, or mix at room temperature for half hunger and energy. Water still hydrates; unsafe cold water stays unsafe."
+    },
+    "sardine_noodles": {
+      "name": "Cook Sardine Noodles",
+      "blurb": "Needs a cooking pot and heat for the whole preparation. Cook with carried water or a hot batch left here. Eat before it spoils."
+    },
+    "luncheon_noodles": {
+      "name": "Cook Luncheon Meat Noodles",
+      "blurb": "Needs a cooking pot and heat for the whole preparation. Cook with carried water or a hot batch left here. Eat before it spoils."
+    },
+    "rice_porridge": {
+      "name": "Cook Rice Porridge",
+      "blurb": "Needs a cooking pot and heat for the whole preparation. Cook with carried water or a hot batch left here. Eat before it spoils."
+    },
+    "sardine_porridge": {
+      "name": "Cook Sardine Porridge",
+      "blurb": "Needs a cooking pot and heat for the whole preparation. Cook with carried water or a hot batch left here. Eat before it spoils."
+    },
+    "cooking_fire": {
+      "name": "Cooking Fire",
+      "blurb": "Stays at this surface location. Provides 24 in-game hours of heat from completion, including time spent away."
+    },
+    "fixed_stove": {
+      "name": "Fixed Stove",
+      "blurb": "Build a permanent stove at this surface location, then fuel it. It cannot be packed or carried."
+    },
+    "fuel_stove": {
+      "name": "Fuel the Stove",
+      "blurb": "Stays at this surface location. Provides 24 in-game hours of heat from completion, including time spent away."
+    },
+    "rain_collector": {
+      "name": "Rain Collector",
+      "blurb": "Stays here. Collects one water per three rainy hours, up to four. Collected water needs treatment."
+    },
+    "rain_shelter": {
+      "name": "Rain Shelter",
+      "blurb": "Stays here. Gives an open sleeping site a roof, without protection from enemies."
+    },
+    "salvage_firewood": {
+      "name": "Cut a Stick into Firewood",
+      "blurb": "Trade a useful pole for fire fuel."
+    },
+    "paper_tinder": {
+      "name": "Fold Paper Tinder",
+      "blurb": "Dry paper starts a fire; it does not fuel a whole day."
+    },
+    "joss_tinder": {
+      "name": "Use Joss Paper as Tinder",
+      "blurb": "Dry paper becomes an emergency fire starter."
+    },
+    "ticket_tinder": {
+      "name": "Use a Spent Ticket as Tinder",
+      "blurb": "Give up a possible barter token for a fire starter."
+    },
+    "envelope_tinder": {
+      "name": "Use an Ang Bao as Tinder",
+      "blurb": "A dry envelope has one last practical use."
+    },
+    "battery_salvage": {
+      "name": "Salvage a Powerbank",
+      "blurb": "Recover usable cells with tools. The powerbank is consumed."
+    },
+    "repair_kit_salvage": {
+      "name": "Strip a Bicycle Repair Kit",
+      "blurb": "Recover useful repair parts from the kit."
+    },
+    "bottle_collector": {
+      "name": "Make a Bottle Rain Collector",
+      "blurb": "A small bank of bottles under a tarp. Same four-water capacity as the bucket collector; stays here."
+    },
+    "pot_helmet": {
+      "name": "Make Saucepan Helmet",
+      "blurb": "Everyday supplies turned into modest protection or carrying gear. Crafting consumes the original items."
+    },
+    "towel_vest": {
+      "name": "Make Towel-Padded Vest",
+      "blurb": "Everyday supplies turned into modest protection or carrying gear. Crafting consumes the original items."
+    },
+    "magazine_guards": {
+      "name": "Make Magazine Shin Guards",
+      "blurb": "Everyday supplies turned into modest protection or carrying gear. Crafting consumes the original items."
+    },
+    "sling_bag": {
+      "name": "Make Improvised Sling Bag",
+      "blurb": "Everyday supplies turned into modest protection or carrying gear. Crafting consumes the original items."
+    },
+    "treated_bedroll": {
+      "name": "Make a Treated Bedroll",
+      "blurb": "A padded sleeping layer treated with repellent. Counts as bedding; it does not stop ambushes."
+    },
+    "towel_rags": {
+      "name": "Cut a Towel into Rags",
+      "blurb": "Trade a towel for dressings, bindings or padding."
+    },
+    "battery_lantern": {
+      "name": "Assemble a Battery Lantern",
+      "blurb": "Reuse the lamp parts and cable inside a bottle housing. Requires a toolbox."
+    },
+    "jewellery_pick": {
+      "name": "Bend Jewellery Wire into a Pick",
+      "blurb": "Sacrifice valuable jewellery for a one-use lockpick."
     }
   },
   "trait": {
@@ -1841,9 +2563,9 @@
       "name": "Reservist",
       "description": "Muscle memory from mandatory service drills that never quite left. The Muster still counts you as one of theirs.",
       "effects": [
+        "+1 Fighting",
+        "+1 Shooting",
         "+1 Strength",
-        "+2 attack",
-        "+1 defense",
         "Start Known with the Muster"
       ]
     },
@@ -1851,6 +2573,7 @@
       "name": "Trained Medic",
       "description": "Clinic shifts taught you triage the hard way.",
       "effects": [
+        "+1 Medicine",
         "Healing items restore +5 HP",
         "35% less infection gain"
       ]
@@ -1866,6 +2589,7 @@
       "name": "Distance Runner",
       "description": "The kind of fitness that used to earn a gold standard.",
       "effects": [
+        "+1 Fitness",
         "+1 Endurance",
         "+15 max HP",
         "−10% energy drain"
@@ -1875,6 +2599,7 @@
       "name": "Scavenger",
       "description": "You already knew which blocks had the good stuff.",
       "effects": [
+        "+1 Scavenging",
         "+1 loot",
         "+1 extra search per POI",
         "+10% search speed"
@@ -1884,6 +2609,7 @@
       "name": "Trail Legs",
       "description": "Route marches forged these calves — island or otherwise.",
       "effects": [
+        "+1 Fitness",
         "+1 Dexterity",
         "+15% travel speed"
       ]
@@ -1920,6 +2646,13 @@
         "Start Known with Gotong"
       ]
     },
+    "local_contacts": {
+      "name": "Local Contacts",
+      "description": "Old contacts passed you the locations of two faction hubs before the lines went dead.",
+      "effects": [
+        "Start with one hub marked for each of two different factions"
+      ]
+    },
     "ah_long_debt": {
       "name": "Underworld Contact",
       "description": "Somebody in the 88 Syndicate remembers you. They will not shoot on sight and their court is open — but the Muster has read the same file.",
@@ -1939,6 +2672,7 @@
       "name": "Handyman",
       "description": "Cable ties, scrap, and a flat-repair habit go a long way.",
       "effects": [
+        "+1 Trades",
         "Craft recipes cost −1 material",
         "HDB picks +2",
         "HDB Force 20% faster"
@@ -1987,6 +2721,7 @@
       "name": "Quiet Step",
       "description": "Soft soles, softer habits.",
       "effects": [
+        "+1 Stealth",
         "−10% encounter chance when travelling",
         "HDB door heat −25%",
         "HDB picks +2"
@@ -2025,6 +2760,7 @@
       "name": "Field Dressing",
       "description": "You keep a roll of gauze in every pocket.",
       "effects": [
+        "+1 Medicine",
         "Healing items restore +3 HP",
         "Leg injuries heal 30% faster"
       ]
@@ -2033,6 +2769,7 @@
       "name": "Calm Hands",
       "description": "You flinch less when something lunges.",
       "effects": [
+        "+1 Fighting",
         "+4% dodge chance"
       ]
     },
@@ -2069,6 +2806,7 @@
       "name": "Clumsy",
       "description": "Trips over flat ground.",
       "effects": [
+        "−1 Fighting",
         "−1 Dexterity",
         "−1 attack",
         "+5% ambush chance"
@@ -2085,6 +2823,7 @@
       "name": "Noisy",
       "description": "Cannot stop talking — or clattering.",
       "effects": [
+        "−1 Stealth",
         "+15% encounter chance when travelling",
         "HDB door heat +25%"
       ]
@@ -2093,6 +2832,7 @@
       "name": "Bad Knees",
       "description": "Years of hard floors took their toll.",
       "effects": [
+        "−1 Fitness",
         "−1 Dexterity",
         "−20% travel speed",
         "Leg injuries heal 50% slower"
@@ -2123,6 +2863,7 @@
       "name": "Out of Shape",
       "description": "Desk years caught up.",
       "effects": [
+        "−1 Fitness",
         "+15% energy drain",
         "−10% travel speed"
       ]
@@ -2175,9 +2916,9 @@
       "name": "Combat Veteran",
       "description": "NS, then the real thing. The first blow never lands the way they want it to. The Muster still has your name on a roster.",
       "effects": [
+        "+2 Fighting",
+        "+1 Shooting",
         "+2 Strength",
-        "+4 attack",
-        "+2 defense",
         "First hit each fight is halved",
         "Start Known with the Muster"
       ]
@@ -2186,6 +2927,7 @@
       "name": "Trauma Medic",
       "description": "A&E nights. You close holes other people would bleed out of.",
       "effects": [
+        "+2 Medicine",
         "Healing items restore +12 HP",
         "55% infection resist",
         "Minor bleeds clot much faster"
@@ -2195,6 +2937,7 @@
       "name": "Hyrox Champion",
       "description": "Stadium heats, sandbag lunges, the whole circus. The engine is still there.",
       "effects": [
+        "+2 Fitness",
         "+2 Endurance",
         "+30 max HP",
         "+25% travel speed",
@@ -2205,6 +2948,7 @@
       "name": "Young Blood",
       "description": "Campus legs, 3am suppers, and a body that has not learned to quit.",
       "effects": [
+        "+1 Fitness",
         "+1 Dexterity",
         "+1 Endurance",
         "+15% travel speed",
@@ -2225,6 +2969,7 @@
       "name": "Estate Memory",
       "description": "You already knew which blocks had the good stuff — and how many rooms were left.",
       "effects": [
+        "+2 Scavenging",
         "+2 loot",
         "+2 searches per POI",
         "+20% search speed",
@@ -2236,6 +2981,7 @@
       "name": "Operator",
       "description": "Soft hands, sharp elbows, and a bag that always had one more pocket.",
       "effects": [
+        "+1 Scavenging",
         "+2 Wits",
         "+20% loot value",
         "Backpack +1 column",
@@ -2247,6 +2993,7 @@
       "name": "Site Foreman",
       "description": "You built these blocks. You know which walls hide what, and which ones come down.",
       "effects": [
+        "+2 Trades",
         "+1 Strength",
         "Craft recipes cost −2 materials",
         "Richer hardware and industrial loot",
@@ -2301,6 +3048,7 @@
       "name": "Stall Voice",
       "description": "Everyone on the estate knows that voice. So does everything that hunts by sound.",
       "effects": [
+        "−1 Stealth",
         "+25% encounter chance",
         "+10% ambush chance"
       ]
@@ -2309,6 +3057,7 @@
       "name": "Ruined Knees",
       "description": "Fourteenth storey, every day, for too many years. The stairs won.",
       "effects": [
+        "−2 Fitness",
         "−1 Dexterity",
         "−30% travel speed",
         "Leg injuries heal 70% slower"
@@ -2318,6 +3067,8 @@
       "name": "Desk Body",
       "description": "Four reorgs, a return-to-office mandate, and no bus run since 2019.",
       "effects": [
+        "−1 Fitness",
+        "−1 Fighting",
         "+15% energy drain",
         "−10% travel speed",
         "−1 Dexterity",
@@ -2329,6 +3080,7 @@
       "name": "Heavy Hands",
       "description": "You solve things by hitting them. Quiet was never the job.",
       "effects": [
+        "−1 Stealth",
         "+25% encounter chance",
         "+10% ambush chance"
       ]
@@ -2344,6 +3096,7 @@
       "name": "Shadow Habit",
       "description": "You learned which corridors stay quiet after midnight.",
       "effects": [
+        "+1 Stealth",
         "−15% encounter chance when travelling",
         "−20% ambush chance"
       ]
@@ -3034,6 +3787,134 @@
           ]
         }
       }
+    }
+  },
+  "occupation": {
+    "student": {
+      "name": "College Student",
+      "tagline": "Campus legs. Mall aircon. A body that has not learned to quit.",
+      "blurb": "Two years of lectures you slept through and 3am suppers you did not. You can walk all day and talk a door open — you have just never spent one without aircon.",
+      "goodAt": [
+        "Travel",
+        "Night work",
+        "Talking through doors"
+      ],
+      "strugglesWith": [
+        "Heat",
+        "The undead",
+        "Thirst"
+      ]
+    },
+    "trainer": {
+      "name": "Personal Trainer",
+      "tagline": "Hyrox heats. Sandbag lunges. An engine that will not idle.",
+      "blurb": "Stadium races, condo gyms, the whole circus. The engine is still there. Sitting still was never the job — and sleep has not been either.",
+      "goodAt": [
+        "Endurance",
+        "Travel",
+        "Health"
+      ],
+      "strugglesWith": [
+        "Rest",
+        "Staying quiet"
+      ]
+    },
+    "soldier": {
+      "name": "Soldier",
+      "tagline": "NS, then the real thing. The first blow never lands clean.",
+      "blurb": "You were on duty when the order stopped coming. The training holds. The sleep does not — every hour of it is one ear open, and it shows by day three. The Muster is who kept showing up.",
+      "goodAt": [
+        "Fighting",
+        "Soaking the first hit"
+      ],
+      "strugglesWith": [
+        "Sleep",
+        "Night travel"
+      ]
+    },
+    "nurse": {
+      "name": "Nurse",
+      "tagline": "A&E nights. You close holes other people bleed out of.",
+      "blurb": "Twelve-hour shifts taught you triage, and taught your hands to stop bleeding that would kill anyone else. The tank never fills. You stopped expecting it to.",
+      "goodAt": [
+        "Healing",
+        "Infection",
+        "Clotting"
+      ],
+      "strugglesWith": [
+        "Rest",
+        "Energy"
+      ]
+    },
+    "hawker": {
+      "name": "Food Vendor",
+      "tagline": "Thirty years of service. Extra rice. A voice the whole block knows.",
+      "blurb": "You fed half the estate and knew all of it by name. Food goes further in your hands, and Gotong still counts you as one of theirs. So does everything that hunts by sound.",
+      "goodAt": [
+        "Food",
+        "Gotong",
+        "Hawker-centre loot"
+      ],
+      "strugglesWith": [
+        "Stealth",
+        "Ambushes"
+      ]
+    },
+    "karung_guni": {
+      "name": "Scavenger",
+      "tagline": "You already knew which blocks had the good stuff.",
+      "blurb": "Rag-and-bone, floor by floor, for longer than most of these buildings have stood. The looting is not new. The knees gave out somewhere around the fourteenth storey.",
+      "goodAt": [
+        "Looting",
+        "Searches",
+        "Reading a site"
+      ],
+      "strugglesWith": [
+        "Travel",
+        "Stairs",
+        "Leg injuries"
+      ]
+    },
+    "office": {
+      "name": "Office Worker",
+      "tagline": "Soft hands, sharp elbows, and a bag with one more pocket.",
+      "blurb": "Four reorgs and a return-to-office mandate. You know how to work a room and how to take more than your share. You have not run for a bus since 2019.",
+      "goodAt": [
+        "Loot value",
+        "Pack space",
+        "Talking through doors"
+      ],
+      "strugglesWith": [
+        "Anything physical",
+        "Heat"
+      ]
+    },
+    "contractor": {
+      "name": "Contractor",
+      "tagline": "You built these blocks. Quiet was never the job.",
+      "blurb": "Twenty years of renovation across every estate on the island. You know what a building is made of — which means you know how to take one apart, loudly.",
+      "goodAt": [
+        "Crafting",
+        "Hardware loot",
+        "Reading HDB corridors"
+      ],
+      "strugglesWith": [
+        "Stealth",
+        "Ambushes"
+      ]
+    },
+    "runner": {
+      "name": "Fixer",
+      "tagline": "They know your face. The void decks are open. The checkpoints are not.",
+      "blurb": "Collections, mostly. Nothing you would put on a resume. The 88 Syndicate still counts you as one of theirs. The Muster has a file, and it is not flattering.",
+      "goodAt": [
+        "88 Syndicate territory",
+        "Void-deck access"
+      ],
+      "strugglesWith": [
+        "The Muster",
+        "Checkpoints"
+      ]
     }
   }
 }

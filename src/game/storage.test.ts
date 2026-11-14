@@ -61,6 +61,15 @@ const write = (over: Record<string, unknown>) => {
  * run rather than one item.
  */
 describe('loadRun with items missing from the catalog', () => {
+  it('preserves facility timers, stored water and cold preparation in v7 saves', () => {
+    const facilities = { fireUntil: 40, rainShelter: true, collector: { checkedAt: 12, water: 1.5 }, water: { amount: 2, hotUntil: 18 } };
+    write({ locations: { camp: { id: 'camp', factionId: 'none', category: 'waypoint', facilities } },
+      items: [{ ...inst('cold', 'kopi'), coldPrepared: true, contaminationRisk: 8 }] });
+    const run = loadRun()!;
+    expect(run.locations.camp.facilities).toEqual(facilities);
+    expect(run.items[0].coldPrepared).toBe(true);
+    expect(run.items[0].contaminationRisk).toBe(8);
+  });
   it('keeps a run whose backpack holds a deleted item, dropping just that item', () => {
     write({ items: [inst('a', 'parang'), inst('b', 'no_such_item_xyz')] });
     const run = loadRun() as SavedRun;

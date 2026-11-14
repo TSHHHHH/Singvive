@@ -58,7 +58,7 @@ export interface Trait {
   conflicts: string[]; // trait ids that are mutually exclusive
 
   /**
-   * Soft funnel into the skill layer — starting levels (signatures often +2).
+   * Soft funnel into the skill layer — starting levels (higher-cost traits often +2).
    * Mechanical `*Mod` fields may still apply on top (soft funnel).
    */
   skillStart?: Partial<Record<SkillId, number>>;
@@ -135,12 +135,13 @@ export interface Trait {
    * `factionHostilityMod`, which was declared, typed, and read by absolutely
    * nothing.
    *
-   * It is the *only* lever a trait needs over factions, because hostility now
-   * lifts at STANDING_KNOWN (+1): handing a build one point of standing with the 88
+   * Hostility lifts at STANDING_KNOWN (+1): handing a build one point of standing with the 88
    * Syndicate is exactly what "you know someone" means, with no special case
    * anywhere in the faction code. Standing runs −5…+5.
    */
   factionStandingMod?: Partial<Record<Exclude<FactionId, null>, number>>;
+  /** Starting map intel: reveal one outpost per distinct faction, up to this count. */
+  startingHubKnowledge?: number;
 
   // --- food effectiveness ---
   foodEffectMod?: number; // multiplier delta: −0.25 = food 25% less effective
@@ -443,6 +444,8 @@ export interface ItemDef {
 export type Container = string;
 
 export interface ItemInstance {
+  /** Mixed without heat: food/energy benefits halve, hydration is unchanged. */
+  coldPrepared?: boolean;
   uid: string;
   defId: string;
   container: Container;
@@ -478,6 +481,7 @@ export type PoiCategory =
   | 'mrt'
   | 'industrial'
   | 'school'
+  | 'landmark'
   /** Synthetic connective tissue inserted by the world builder — see world.ts. */
   | 'waypoint';
 
@@ -507,6 +511,8 @@ export interface LocationMemory {
 }
 
 export interface LocationState {
+  /** Optional for v7 saves written before location crafting. */
+  facilities?: import('./facilities').SiteFacilities;
   id: string;
   name: string;
   category: PoiCategory;

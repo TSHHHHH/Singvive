@@ -1,4 +1,5 @@
 import type { PoiCategory } from './types';
+import { OPEN_LANDMARK_IDS } from './landmarks';
 import type { HdbGroundKind } from './hdbDungeon';
 import { HAZARD_CONFIG, type HazardZone } from './wilds';
 
@@ -43,6 +44,7 @@ export interface SleepContext {
   /** Faction bunk / tunnel mat / HDB safe bunk. */
   serviceBed?: boolean;
   hasSleepingBag: boolean;
+  rainShelter?: boolean;
   /** Tunnel settlement rest path. */
   inTunnelCamp?: boolean;
 }
@@ -66,6 +68,8 @@ export interface SleepConditions {
   summary: string;
   /** Why ambush/recovery moved — shown on the Rest tip. */
   occupancyNotes: string[];
+  /** Keys for translating the preview without storing a locale in the run. */
+  occupancyNoteKeys?: string[];
   floodSleep: boolean;
   collapseSleep: boolean;
 }
@@ -152,6 +156,13 @@ export function evaluateSleepConditions(ctx: SleepContext): SleepConditions {
     return finalize('none', 'none', bed);
   }
 
+  if (ctx.category === 'landmark' && OPEN_LANDMARK_IDS.has(ctx.currentPositionId)) {
+    const conditions = finalize('none', ctx.rainShelter ? 'yes' : 'none', bed);
+    // A tarp improves recovery, not protection from enemies.
+    if (ctx.rainShelter) conditions.ambush = ambushFor('none', 'none', bed);
+    return conditions;
+  }
+
   if (PARTIAL_ENCLOSED.has(ctx.category)) {
     return finalize('partial', 'yes', bed);
   }
@@ -195,6 +206,7 @@ export function applySleepOccupancy(
   let recoveryMult = conditions.recoveryMult;
   let ambush = conditions.ambush;
   const notes = [...conditions.occupancyNotes];
+  const noteKeys = [...(conditions.occupancyNoteKeys ?? [])];
   let floodSleep = conditions.floodSleep;
   let collapseSleep = conditions.collapseSleep;
 
@@ -214,8 +226,10 @@ export function applySleepOccupancy(
     if (z.kind === 'night_swarm') {
       if (roofedShelter) {
         notes.push('Night swarm in the street — walls hold.');
+        noteKeys.push('ui.sleep.occupancy.walls');
       } else {
         bumpAmbush(0.75, 1.15, HAZARD_CONFIG.night_swarm.blurb);
+        noteKeys.push('ui.hazards.night_swarm.blurb');
       }
       continue;
     }
@@ -227,6 +241,7 @@ export function applySleepOccupancy(
           : z.kind === 'gang_patrol'
             ? 'Claimed ground. Someone is still walking it tonight.'
             : 'Whatever claimed this stretch does not sleep.';
+      noteKeys.push(z.kind === 'horde_pocket' ? 'ui.sleep.occupancy.horde' : z.kind === 'gang_patrol' ? 'ui.sleep.occupancy.patrol' : 'ui.sleep.occupancy.wildlife');
       bumpAmbush(floor, conditions.enclosed === 'full' ? 0.55 : 1, note);
       continue;
     }
@@ -234,15 +249,17 @@ export function applySleepOccupancy(
       recoveryMult *= 0.82;
       floodSleep = true;
       notes.push('Damp ground — sleep comes harder.');
+      noteKeys.push('ui.sleep.occupancy.damp');
       continue;
     }
     if (z.kind === 'collapse') {
       collapseSleep = true;
       notes.push('Unstable slabs under the bedroll.');
+      noteKeys.push('ui.sleep.occupancy.collapse');
     }
   }
 
-  return { ...conditions, recoveryMult, ambush, occupancyNotes: notes, floodSleep, collapseSleep };
+  return { ...conditions, recoveryMult, ambush, occupancyNotes: notes, occupancyNoteKeys: noteKeys, floodSleep, collapseSleep };
 }
 
 export interface RestPreview {

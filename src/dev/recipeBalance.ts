@@ -9,7 +9,8 @@ import type { ItemsCatalog } from './lootApi';
 
 /** Extra live-game effects the JSON catalog cannot see. */
 export const RECIPE_EXTRA_NOTES: Record<string, string> = {
-  boil: 'Burning a jerry can lowers your extract gauge.',
+  boil: 'Produces a site-bound batch, hot for two hours. Requires a pot and existing heat.',
+  fuel_stove: 'Burning a jerry can lowers your extract gauge; supplies 24 game hours of heat.',
 };
 
 export type RecipeEconomy = {
@@ -54,7 +55,7 @@ export function recipeEconomy(recipe: RecipeRecord, items: ItemsCatalog): Recipe
     inEvac += def.value * count * evacWeightMult(def.effect);
   }
   const out = defOf(items, recipe.outputDefId);
-  const n = recipe.outputCount;
+  const n = recipe.facility ? 0 : recipe.outputCount;
   const outValue = (out?.value ?? 0) * n;
   const outWeight = (out?.weight ?? 0) * n;
   const outEvac = out ? out.value * n * evacWeightMult(out.effect) : 0;

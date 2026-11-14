@@ -1,4 +1,5 @@
 import { haversine, type RawPoi } from './overpass';
+import { withLandmarks } from './landmarks';
 
 /**
  * Loads the pre-baked Singapore POI set (public/pois.json, produced by
@@ -50,7 +51,7 @@ async function loadAll(): Promise<RawPoi[]> {
   if (!Array.isArray(data.pois) || data.pois.length === 0) {
     throw new Error('pois.json empty or malformed');
   }
-  return indexBake(data.pois, data.evacIds);
+  return indexBake(withLandmarks(data.pois), data.evacIds);
 }
 
 function ensurePending(): Promise<RawPoi[]> {

@@ -1,10 +1,11 @@
-import { BODY_PART_LABEL, partConditionPct } from '../game/survival';
+import { partConditionPct } from '../game/survival';
+import { useT } from '../i18n';
 import type { BleedLevel, BodyPartId, BodyParts } from '../game/types';
 
 const BLEED_LABEL: Record<BleedLevel, string> = {
   none: '',
-  minor: 'bleeding',
-  major: 'bleeding badly',
+  minor: 'ui.body.bleeding',
+  major: 'ui.body.majorBleeding',
 };
 
 const BLEED_COLOR: Record<BleedLevel, string> = {
@@ -62,6 +63,7 @@ interface Props {
 }
 
 export function BodyDoll({ bodyParts, height = 150, selectedPart = null, onHover }: Props) {
+  const { t } = useT();
   const width = height * (VIEW_W / VIEW_H);
   return (
     <svg
@@ -70,7 +72,7 @@ export function BodyDoll({ bodyParts, height = 150, selectedPart = null, onHover
       height={height}
       className="block select-none"
       role="img"
-      aria-label="Body condition"
+      aria-label={t('ui.body.title')}
     >
       {ORDER.map((id) => {
         const p = bodyParts[id];
@@ -95,9 +97,9 @@ export function BodyDoll({ bodyParts, height = 150, selectedPart = null, onHover
               onMouseLeave={() => onHover?.(null)}
             >
               <title>
-                {BODY_PART_LABEL[id]}: {Math.round(p.hp)}/{p.maxHp}
-                {p.bleed !== 'none' ? ` · ${BLEED_LABEL[p.bleed]}` : ''}
-                {p.fractured ? ' · fractured' : ''}
+                {t(`ui.body.parts.${id}`)}: {Math.round(p.hp)}/{p.maxHp}
+                {p.bleed !== 'none' ? ` · ${t(BLEED_LABEL[p.bleed])}` : ''}
+                {p.fractured ? ` · ${t('ui.body.fractured')}` : ''}
               </title>
             </rect>
             {p.bleed !== 'none' && (

@@ -16,7 +16,7 @@ export function GuideModal({
   const { locale, t } = useT();
   const topics = guideTopicsFor(topic);
   const sections = topics.map((id) => getGuideSection(id, locale));
-  const heading = sections.length === 1 ? sections[0].title : t('ui.guide.objectives');
+  const heading = topic === 'evac' ? t('ui.guide.objectives') : sections[0].title;
 
   return (
     <div

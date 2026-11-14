@@ -15,9 +15,8 @@ import enemies from '../game/data/enemies.json' with { type: 'json' };
  * (`t(`ui.slots.${slot}`)`), so no static check can see them at all — that is
  * how the Holster slot shipped rendering as the literal `UI.SLOTS.FIREARM`.
  *
- * This walks each of those key families over its real id set. English only:
- * other locales fall back to English by design, so a missing translation is a
- * gap, not a bug.
+ * This walks those key families over their real id sets. The companion
+ * catalogCoverage suite checks Chinese parity, literal keys and UI copy.
  */
 
 const unresolved = (key: string) => t(key) === key;

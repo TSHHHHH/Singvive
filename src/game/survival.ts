@@ -1,3 +1,5 @@
+import { t } from '../i18n/t';
+import type { LocaleId } from '../i18n/types';
 import type { BleedLevel, BodyPart, BodyPartId, BodyParts, ItemModifiers, Meters } from './types';
 import type { Rng } from './rng';
 
@@ -116,22 +118,23 @@ export interface MeterModifier {
 export function meterModifiers(
   meter: 'hunger' | 'thirst' | 'energy',
   meters: Pick<Meters, 'hunger' | 'thirst' | 'energy'>,
+  locale: LocaleId = 'en',
 ): MeterModifier[] {
   const out: MeterModifier[] = [];
   switch (meter) {
     case 'hunger': {
       const d = getMeterDelta(meters.hunger);
       if (d === 0) break;
-      out.push({ text: `${pctLabel(hpRegenMultiplier(meters.hunger))} limb recovery`, good: d > 0 });
-      out.push({ text: `${pctLabel(1 + d * 0.4)} rest energy gain`, good: d > 0 });
+      out.push({ text: t('ui.condition.modifier.recovery', { n: pctLabel(hpRegenMultiplier(meters.hunger)) }, locale), good: d > 0 });
+      out.push({ text: t('ui.condition.modifier.rest', { n: pctLabel(1 + d * 0.4) }, locale), good: d > 0 });
       break;
     }
     case 'thirst': {
       const d = getMeterDelta(meters.thirst);
       if (d === 0) break;
-      out.push({ text: `${pctLabel(1 + d * 0.6)} rest energy gain`, good: d > 0 });
+      out.push({ text: t('ui.condition.modifier.rest', { n: pctLabel(1 + d * 0.6) }, locale), good: d > 0 });
       out.push({
-        text: `${pctLabel(activeEnergyDrainMultiplier(meters.thirst))} energy drain`,
+        text: t('ui.condition.modifier.drain', { n: pctLabel(activeEnergyDrainMultiplier(meters.thirst)) }, locale),
         good: d > 0,
       });
       break;
@@ -139,10 +142,10 @@ export function meterModifiers(
     case 'energy': {
       const d = getMeterDelta(meters.energy);
       if (d === 0) break;
-      out.push({ text: `${pctLabel(travelSpeedMultiplier(meters.energy))} travel speed`, good: d > 0 });
-      out.push({ text: `${signLabel(energyAttackBonus(meters.energy))} to hit`, good: d > 0 });
-      out.push({ text: `${pctLabel(1 + energyDodgeBonus(meters.energy))} dodge chance`, good: d > 0 });
-      out.push({ text: `${signLabel(energyFleeDcModifier(meters.energy))} flee DC`, good: d > 0 });
+      out.push({ text: t('ui.condition.modifier.travel', { n: pctLabel(travelSpeedMultiplier(meters.energy)) }, locale), good: d > 0 });
+      out.push({ text: t('ui.condition.modifier.hit', { n: signLabel(energyAttackBonus(meters.energy)) }, locale), good: d > 0 });
+      out.push({ text: t('ui.condition.modifier.dodge', { n: pctLabel(1 + energyDodgeBonus(meters.energy)) }, locale), good: d > 0 });
+      out.push({ text: t('ui.condition.modifier.flee', { n: signLabel(energyFleeDcModifier(meters.energy)) }, locale), good: d > 0 });
       break;
     }
   }

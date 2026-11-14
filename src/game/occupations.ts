@@ -1,5 +1,5 @@
 import type { Occupation } from './types';
-import { TRAITS, TRAIT_BUDGET, canPickTrait, getTrait, isCurse, isSignature, traitBudgetUsed } from './character';
+import { TRAITS, TRAIT_BUDGET, canPickTrait, countNegatives, getTrait, traitBudgetUsed } from './character';
 
 // ---------- Occupations (curated presets) ----------
 // Who you were on the Friday before it fell. One-click starting builds that
@@ -106,7 +106,8 @@ export function getOccupation(id: string): Occupation | null {
 
 /**
  * Whether a trait set is one an occupation could legally have been built by
- * hand — spends the whole budget and breaks no conflict or per-side rules.
+ * hand — spends the whole budget and has no conflicts or duplicates.
+ * Curated occupation kits contain one positive and one flaw; custom builds have no count caps.
  *
  * Traits are added cheapest-first because `canPickTrait` enforces the budget at
  * every step, so a build that nets exactly 0 has to bank its negatives before
@@ -131,10 +132,10 @@ export function occupationIssues(o: Occupation): string[] {
   if (used !== TRAIT_BUDGET) {
     issues.push(`nets ${used} (expected ${TRAIT_BUDGET}) — presets must spend the budget exactly`);
   }
-  const sigs = o.traitIds.filter((id) => isSignature(getTrait(id)));
-  const curses = o.traitIds.filter((id) => isCurse(getTrait(id)));
-  if (sigs.length !== 1) issues.push(`expected 1 signature, got ${sigs.length}`);
-  if (curses.length !== 1) issues.push(`expected 1 curse, got ${curses.length}`);
+  const positives = o.traitIds.filter((id) => getTrait(id).category === 'positive');
+  const flaws = countNegatives(o.traitIds);
+  if (positives.length !== 1) issues.push(`expected 1 positive, got ${positives.length}`);
+  if (flaws !== 1) issues.push(`expected 1 flaw, got ${flaws}`);
   return issues;
 }
 

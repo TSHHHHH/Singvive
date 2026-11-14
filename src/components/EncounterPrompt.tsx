@@ -14,6 +14,7 @@ import {
 } from '../game/combat';
 import { enemyName, useT } from '../i18n';
 import { tip } from './tips';
+import { combatWeaponLabel } from './combatLabels';
 import { LIVE_NODE_BAND } from './logTimeline';
 
 type Variant = 'timeline' | 'card';
@@ -84,8 +85,9 @@ export function EncounterPrompt({
     />
   );
 
-  const aftermath =
-    z.kind === 'human' ? ' blocks your way' : ' has found you';
+  const contactText = t(z.kind === 'human' ? 'ui.combat.contactHuman' : 'ui.combat.contactOther', {
+    enemy: zDisplay, terrain: t(`ui.combat.terrain.${terrain.id}`).toLocaleLowerCase(locale),
+  });
 
   /** Timeline row — mirrors live-event title — body. */
   const prose = (
@@ -93,9 +95,7 @@ export function EncounterPrompt({
       <span className="font-semibold text-hiss">{t('ui.combat.contact')}</span>
       {' — '}
       {enemyIcon}{' '}
-      <span className="font-semibold text-concrete-50">{zDisplay}</span>
-      {aftermath} on the {terrain.name.toLowerCase()}. Nothing else happens until
-      you decide.
+      <span className="text-concrete-50">{contactText}</span>
     </>
   );
 
@@ -103,17 +103,15 @@ export function EncounterPrompt({
   const cardProse = (
     <>
       {enemyIcon}{' '}
-      <span className="font-semibold text-concrete-50">{zDisplay}</span>
-      {aftermath} on the {terrain.name.toLowerCase()}. Nothing else happens until
-      you decide.
+      <span className="text-concrete-50">{contactText}</span>
     </>
   );
 
   const footnote = (
     <>
-      It moves at <span className="text-hiss">{z.speed.toFixed(0)}</span> · {t('ui.combat.def')}{' '}
+      <span className="text-hiss">{t('ui.combat.movesAt', { speed: z.speed.toFixed(0) })}</span> · {t('ui.combat.def')}{' '}
       {effectiveDefense(stats, STANCES.guarded, terrain)}–
-      {effectiveDefense(stats, STANCES.aggressive, terrain)} · {stats.weaponName}
+      {effectiveDefense(stats, STANCES.aggressive, terrain)} · {combatWeaponLabel(eq.mainHand, locale)}
       {holsterRounds != null && (
         <>
           {' '}
@@ -140,7 +138,7 @@ export function EncounterPrompt({
         type="button"
         onClick={combatBreakOff}
         disabled={!load.canFlee}
-        {...tip(load.canFlee ? STANCES.disengage.description : t('ui.load.noFlee'))}
+        {...tip(load.canFlee ? t('ui.combat.stanceHint.disengage') : t('ui.load.noFlee'))}
         className={`flex w-full items-center gap-1.5 rounded border px-2 py-1 text-left text-body transition ${
           load.canFlee
             ? 'border-hiss/50 text-hiss hover:bg-hiss/10'
@@ -150,7 +148,7 @@ export function EncounterPrompt({
         <Icon name={STANCES.disengage.icon} size={13} className="shrink-0" />
         <span className="min-w-0 flex-1 whitespace-normal break-words">
           <span className="font-semibold">{t('ui.combat.flee')}</span>{' '}
-          <span className="text-hiss/70">{STANCES.disengage.description}</span>
+          <span className="text-hiss/70">{t('ui.combat.stanceHint.disengage')}</span>
         </span>
       </button>
     </>
@@ -175,7 +173,7 @@ export function EncounterPrompt({
   }
 
   return (
-    <li className={`relative flex gap-2 py-1 pl-6 ${LIVE_NODE_BAND}`}>
+    <li data-timeline-live="" className={`relative flex gap-2 py-1 pl-6 ${LIVE_NODE_BAND}`}>
       <span className="absolute left-0 top-[7px] h-[11px] w-[11px] animate-pulse rounded-full border-2 border-concrete-900 bg-hiss" />
       <div className="min-w-0 flex-1">
         <div className="flex text-body text-white/70">

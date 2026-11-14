@@ -18,7 +18,7 @@ interface MapMarkerProps {
    * `--roof-lift` px-per-metre, which the building engine keeps current.
    */
   roof?: number;
-  /** Gold selection ring (3D, where there's no outline to thicken). */
+  /** Selection ring around the badge in both flat and 3D views. */
   ring?: boolean;
   /** Optional native hover title (TipLayer adopts it). */
   title?: string;

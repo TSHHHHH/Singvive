@@ -266,6 +266,7 @@ function LogSectionCard({
             return (
               <li
                 key={e.id}
+                data-log-entry-id={e.id}
                 className={`relative py-1 pr-2 ${
                   isLatest ? `${BLEED_NESTED} ${LATEST_TINT}` : ''
                 }`}
@@ -442,6 +443,7 @@ export function GroupedLogList({
           return (
             <li
               key={g.entry.id}
+              data-log-entry-id={g.entry.id}
               className={`relative flex gap-2 py-1 pl-6 ${
                 divide || isLatest ? BLEED : ''
               } ${divide ? 'before:border-t before:border-white/10' : ''} ${

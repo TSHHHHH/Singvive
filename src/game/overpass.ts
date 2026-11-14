@@ -117,6 +117,7 @@ const NAME_BY_CATEGORY: Record<PoiCategory, string> = {
   mrt: 'MRT Station',
   industrial: 'Industrial Unit',
   school: 'School',
+  landmark: 'Landmark',
   waypoint: 'Waypoint',
 };
 

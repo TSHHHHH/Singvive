@@ -5,6 +5,7 @@ import { useClockFormat } from '../game/settings';
 import { Icon } from '../icons/Icon';
 import type { LocationState } from '../game/types';
 import { tip } from './tips';
+import { useT } from '../i18n';
 
 const toneClass: Record<string, string> = {
   good: 'text-signal',
@@ -38,6 +39,7 @@ export function MapHereChrome({
   onOpenStash?: () => void;
   onEvac?: () => void;
 }) {
+  const { t } = useT();
   const log = useGame((s) => s.log);
   const day = useGame((s) => s.day);
   const clock = useClockFormat();
@@ -48,13 +50,13 @@ export function MapHereChrome({
   const occupied = !!sel?.factionId;
   const primaryTitle = atEvac
     ? manifestRead
-      ? 'Call for evac'
-      : 'Raise the channel'
+      ? t('ui.mapHere.callEvac')
+      : t('ui.mapHere.raiseChannel')
     : occupied
-      ? 'Approach the gate'
+      ? t('ui.mapHere.approach')
       : sel?.exhausted
-        ? 'Nothing left'
-        : 'Go inside and search';
+        ? t('ui.mapHere.exhausted')
+        : t('ui.mapHere.search');
 
   return (
     <div
@@ -69,10 +71,10 @@ export function MapHereChrome({
         type="button"
         onClick={onOpenLog}
         className="w-full border-b border-white/10 px-2.5 py-1.5 text-left"
-        aria-label="Open log"
+        aria-label={t('ui.mapHere.openLog')}
       >
         {entries.length === 0 ? (
-          <div className="text-micro text-white/35">Nothing logged yet</div>
+          <div className="text-micro text-white/35">{t('ui.mapHere.emptyLog')}</div>
         ) : (
           <div className="flex flex-col gap-0.5">
             {entries.map((e) => (
@@ -96,13 +98,13 @@ export function MapHereChrome({
             type="button"
             onClick={onOpenHere}
             className="flex min-w-0 flex-1 items-center gap-2 text-left"
-            aria-label={`Open ${sel.name}`}
+            aria-label={t('ui.mapHere.openLocation', { name: sel.name })}
           >
             <Icon name={POI_CONFIG[sel.category].icon} size={18} />
             <div className="min-w-0 flex-1">
               <div className="truncate text-read font-bold">{sel.name}</div>
               <div className="text-body text-signal/70">
-                <Icon name="action.here" /> here
+                <Icon name="action.here" /> {t('ui.location.hereShort')}
               </div>
             </div>
           </button>
@@ -132,8 +134,8 @@ export function MapHereChrome({
               <button
                 type="button"
                 onClick={onOpenStash}
-                {...tip('Open stash here')}
-                aria-label="Open stash here"
+                {...tip(t('ui.mapHere.openStash'))}
+                aria-label={t('ui.mapHere.openStash')}
                 className={`${ICON_BTN} border-white/15 text-white/80 hover:bg-white/5`}
               >
                 <Icon name="action.stash" />

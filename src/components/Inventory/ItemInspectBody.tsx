@@ -5,7 +5,7 @@ import {
   conditionOf,
   conditionPct,
   hasCondition,
-  instanceTierLabel,
+  tierOf,
   instanceValue,
   isBroken,
 } from '../../game/inventory';
@@ -15,7 +15,8 @@ import { useGame } from '../../game/store';
 import { conditionBarColor } from '../../game/itemTileColor';
 import type { Equipment, EquipSlot, ItemInstance } from '../../game/types';
 import { Icon } from '../../icons/Icon';
-import { itemName, useT } from '../../i18n';
+import { itemName, recipeName, useT } from '../../i18n';
+import { RECIPES } from '../../game/crafting';
 import { itemIcon } from './itemIcon';
 import { itemKind, itemStatLines } from './itemStatLines';
 import { PackGridPreview } from './PackGridPreview';
@@ -50,7 +51,7 @@ function ConditionBlock({
                     ? 'ui.inventory.expired'
                     : 'ui.inventory.spoiled',
               )
-            : instanceTierLabel(inst)}
+            : t(`ui.inventory.condition.${conditionFamily(itemDef(inst.defId))}.${tierOf(inst)}`)}
         </span>
         <span className="tabular-nums text-white/40">{conditionPct(inst)}%</span>
       </div>
@@ -89,6 +90,8 @@ export function ItemInspectBody({
   const items = useGame((s) => s.items);
   const character = useGame((s) => s.character);
   const def = itemDef(inst.defId);
+  const uses = RECIPES.filter(r => r.inputs[inst.defId] !== undefined || r.tool === inst.defId
+    || (inst.defId === 'cooking_pot' && r.preparation));
   const iconSize = compact ? 24 : 30;
   const kind = itemKind(def, t);
   const slotLabel = (slot: EquipSlot) => t(`ui.slots.${slot}`);
@@ -103,6 +106,7 @@ export function ItemInspectBody({
 
   return (
     <div className={compact ? 'space-y-1.5' : undefined}>
+      {inst.coldPrepared && <p className="text-body text-white/60">{t('ui.craft.roomPenalty')}</p>}
       {badge && (
         <div className="text-label uppercase text-white/40">{badge}</div>
       )}
@@ -122,6 +126,13 @@ export function ItemInspectBody({
           <div className="text-plate uppercase text-white/40">{kindLine}</div>
         </div>
       </div>
+
+      {uses.length > 0 && <details className="mt-2 text-body text-white/65">
+        <summary className="min-h-9 cursor-pointer text-white/75">{t('ui.inventory.craftUses')} ({uses.length})</summary>
+        <ul className="max-h-36 space-y-1 overflow-y-auto py-1">
+          {uses.map(r => <li key={r.id}>{recipeName(r.id, locale)}{r.tool === inst.defId || (inst.defId === 'cooking_pot' && r.preparation) ? ` · ${t('ui.inventory.keptTool')}` : ''}</li>)}
+        </ul>
+      </details>}
 
       <ConditionBlock inst={inst} compact={compact} />
 
@@ -180,23 +191,23 @@ export function ItemInspectBody({
       <div
         className={`flex items-center justify-between gap-3 text-body text-white/50 ${compact ? 'mt-1.5' : 'mt-2'}`}
       >
-        <span className="inline-flex min-w-0 items-center gap-1" {...tip('Grid size')}>
+        <span className="inline-flex min-w-0 items-center gap-1" {...tip(t('ui.inventory.gridSize'))}>
           <Icon name="meta.size" size={12} className="shrink-0 opacity-55" />
           <span className="tabular-nums">
             {def.w}×{def.h}
           </span>
         </span>
-        <span className="inline-flex items-center gap-1" {...tip('Weight')}>
+        <span className="inline-flex items-center gap-1" {...tip(t('ui.inventory.weight'))}>
           <Icon name="meta.weight" size={12} className="shrink-0 opacity-55" />
           <span className="tabular-nums">{def.weight.toFixed(1)} kg</span>
         </span>
-        <span className="inline-flex items-center gap-1" {...tip('Trade value')}>
+        <span className="inline-flex items-center gap-1" {...tip(t('ui.inventory.tradeValue'))}>
           <Icon name="meta.value" size={12} className="shrink-0 opacity-55" />
           <span className="tabular-nums">{instanceValue(inst)}</span>
         </span>
       </div>
       {def.stackable && inst.stack > 1 && (
-        <div className="text-body text-white/40">×{inst.stack} stacked</div>
+        <div className="text-body text-white/40">{t('ui.inventory.stacked', { n: inst.stack })}</div>
       )}
 
       {!hideCompareNote &&
@@ -204,7 +215,7 @@ export function ItemInspectBody({
         equipment[def.slot] &&
         equipment[def.slot]!.uid !== inst.uid && (
           <p className="mt-1.5 text-micro text-white/35">
-            Compared to equipped {slotLabel(def.slot)}
+            {t('ui.inventory.compared', { slot: slotLabel(def.slot) })}
           </p>
         )}
     </div>

@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react';
-import { useEffect } from 'react';
-import { POI_CONFIG } from '../game/poi';
+import { useEffect, useId, useState } from 'react';
 import { hasTraitFlag, sumTraitMod } from '../game/character';
 import { Icon } from '../icons/Icon';
 import { tip } from './tips';
@@ -38,7 +37,9 @@ import type { FactionService, LocationState } from '../game/types';
 import type { IconName } from '../icons/keys';
 import { riskLabel, type TrekRisk } from '../game/wilds';
 import { HazardOnRoute } from './HazardOnRoute';
-import { BtnSub, Chip, Dots, Ledger, LedgerRow, LedgerRule, Note, PlaceHead, PlaceStack } from './placeCard';
+import { BtnSub, Dots, Ledger, LedgerRow, LedgerRule, Note, PlaceStack } from './placeCard';
+import { LocationIdentity } from './LocationIdentity';
+import { SiteFacilitiesPanel } from './SiteFacilitiesPanel';
 import { BTN, tint } from './placeCardStyle';
 import {
   destructionDisplayLabel,
@@ -95,8 +96,10 @@ interface Props {
   routeRisk?: TrekRisk | null;
   /** Route leaves the sense bubble — quote is a guess. */
   routeBlind?: boolean;
-  /** Stack actions above info — used in the narrow map bubble. */
+  /** Stack actions above info — used by the phone target card. */
   compact?: boolean;
+  /** Desktop edge inspector: disclose supporting detail on demand. */
+  inspector?: boolean;
 }
 
 /** The pinned "what am I looking at" card — drives the core travel/search action. */
@@ -118,7 +121,7 @@ function CardSplit({
   info: ReactNode;
   compact?: boolean;
 }) {
-  // Phone: actions first, stacked. Desktop (the bottom-centre here card): the
+  // Phone: actions first, stacked. Desktop (the current-location card): the
   // place reads first and the buttons sit in a row under it; anything that is
   // not a button (faction services) takes a full row.
   return (
@@ -159,6 +162,7 @@ function RouteNotes({
   night,
   outOfRange,
   noDryRoute,
+  concise,
 }: {
   routeRisk?: TrekRisk | null;
   routeBlind?: boolean;
@@ -166,13 +170,14 @@ function RouteNotes({
   night?: string | null;
   outOfRange?: boolean;
   noDryRoute?: boolean;
+  concise?: boolean;
 }) {
   const { t } = useT();
   const hazards = routeRisk?.hazards ?? [];
   if (!hazards.length && !routeBlind && !night && !outOfRange && !noDryRoute) return null;
   return (
     <div className="flex flex-col gap-1">
-      <HazardOnRoute hazards={hazards} />
+      <HazardOnRoute hazards={hazards} concise={concise} />
       {routeBlind && <Note>{t('ui.trek.blind')}</Note>}
       {night && <Note tone="warn" icon="time.night">{t(night)}</Note>}
       {outOfRange && <Note tone="warn" icon="status.blocked">{t('ui.location.beyondRange')}</Note>}
@@ -189,12 +194,12 @@ function UnknownCard({
   onTravel,
   routeRisk,
   routeBlind,
+  inspector,
 }: Props) {
   const { t } = useT();
   return (
     <PlaceStack>
-      <PlaceHead
-        icon="poi.unknown"
+      <LocationIdentity
         title={t('ui.location.unknownLocation')}
         meta={t('ui.location.commitBlind')}
       />
@@ -217,6 +222,7 @@ function UnknownCard({
         night={est?.arrivalAtNight ? 'ui.location.arriveDark' : null}
         outOfRange={outOfRange}
         noDryRoute={noDryRoute}
+        concise={inspector}
       />
       <button
         disabled={energyLow || outOfRange || !!noDryRoute}
@@ -670,11 +676,14 @@ function KnownCard({
   onOpenStash,
   onEnterBlock,
   compact,
+  inspector,
   routeRisk,
   routeBlind,
 }: Props) {
   const { locale, t } = useT();
-  const cfg = POI_CONFIG[sel.category];
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const detailsId = useId();
+  const showDetails = !inspector || detailsOpen;
   const poiLabel = poiCategoryLabel(sel.category, locale);
   const isBlock = sel.category === 'residential';
   // A block remembers what you did to it; its real height comes from the 3D map.
@@ -799,13 +808,26 @@ function KnownCard({
     </>
   );
 
+  const detailToggle = inspector && (
+    <button
+      type="button"
+      onClick={() => setDetailsOpen((open) => !open)}
+      aria-expanded={detailsOpen}
+      aria-controls={detailsId}
+      className="self-start text-body text-concrete-400 underline decoration-white/20 underline-offset-4 hover:text-concrete-50"
+    >
+      {t(detailsOpen ? 'ui.location.lessDetails' : 'ui.location.details')}
+    </button>
+  );
+
   const actions = (
     <>
+      {here && sel.facilities && <SiteFacilitiesPanel />}
       {searchingHere ? (
         <button onClick={() => abortSearch()} className={BTN.secondary}>
           <Icon name="action.search" /> {t('ui.location.searching')}
           <BtnSub>
-            ~{formatDuration(searchEtaMin)} left — {t('ui.location.leaveStopEarly')}
+            {t('ui.location.searchRemaining', { time: formatDuration(searchEtaMin) })} — {t('ui.location.leaveStopEarly')}
           </BtnSub>
         </button>
       ) : occupied ? (
@@ -881,17 +903,15 @@ function KnownCard({
       : siteStatus;
     return (
       <PlaceStack>
-        <PlaceHead
-          icon={cfg.icon}
+        <LocationIdentity
+          category={sel.category}
           title={sel.name}
+          showFinds={!faction}
           meta={
             <>
               <div>
-                {poiLabel} · {sel.size} ·{' '}
-                {t('ui.location.metersFromSpawn', { m: Math.round(sel.distanceFromSpawn) })}
-              </div>
-              <div>
                 {territory}
+                {!useMem && <> · {t('ui.location.lastSeen')}</>}
                 {useMem && (
                   <>
                     {' '}
@@ -904,7 +924,6 @@ function KnownCard({
               </div>
             </>
           }
-          aside={<Chip>{t('ui.location.lastSeen')}</Chip>}
         />
 
         {(sel.isMrtStation || faction) && (
@@ -932,9 +951,11 @@ function KnownCard({
                   travelValue
                 )}
               </LedgerRow>
-              <LedgerRow icon="action.search" label={t('ui.location.searchOnceInside')}>
-                {formatDuration(est.searchMin)}
-              </LedgerRow>
+              {showDetails && (
+                <LedgerRow icon="action.search" label={t('ui.location.searchOnceInside')}>
+                  {formatDuration(est.searchMin)}
+                </LedgerRow>
+              )}
             </>
           )}
           <RouteRow routeRisk={routeRisk} />
@@ -946,7 +967,14 @@ function KnownCard({
           night={est && (est.arrivalAtNight || est.doneAtNight) ? 'ui.location.outAfterDark' : null}
           outOfRange={!!outOfRange && !canTunnel}
           noDryRoute={!!noDryRoute}
+          concise={inspector && !detailsOpen}
         />
+
+        <div id={detailsId} hidden={!showDetails} className="text-body text-concrete-400">
+          <p>{poiLabel} · {t(`ui.location.size.${sel.size}`)} · {t('ui.location.metersFromSpawn', { m: Math.round(sel.distanceFromSpawn) })}</p>
+          <p className="mt-1">{t(`ui.location.blurb.${sel.category}`)}</p>
+        </div>
+        {detailToggle}
 
         <div className="flex flex-col gap-2">
           <button
@@ -976,30 +1004,31 @@ function KnownCard({
         actions={actions}
         info={
           <PlaceStack>
-            <PlaceHead
-              icon={cfg.icon}
+            <LocationIdentity
+              category={sel.category}
               title={sel.name}
+              showFinds={!faction || raidingHere}
               meta={
                 <>
-                  <div>
-                    {poiLabel} · {sel.size}
-                  </div>
                   {siteStatus && <div>{siteStatus}</div>}
                 </>
               }
-              aside={faction && !compact ? <FactionClaim sel={sel} faction={faction} /> : undefined}
             />
-            {(sel.isMrtStation || (faction && compact)) && (
+            {(sel.isMrtStation || faction) && (
               <div className="flex flex-col gap-2">
                 <StationCodes sel={sel} />
-                {faction && compact && <FactionClaim sel={sel} faction={faction} compact />}
+                {faction && <FactionClaim sel={sel} faction={faction} compact={compact || inspector} />}
               </div>
             )}
             <Ledger>
               {dangerRow}
               {siteRows}
             </Ledger>
-            <p className="text-body text-concrete-400">{cfg.blurb}</p>
+            <div id={detailsId} hidden={!showDetails} className="text-body text-concrete-400">
+              <p>{poiLabel} · {t(`ui.location.size.${sel.size}`)}</p>
+              <p className="mt-1">{t(`ui.location.blurb.${sel.category}`)}</p>
+            </div>
+            {detailToggle}
           </PlaceStack>
         }
       />

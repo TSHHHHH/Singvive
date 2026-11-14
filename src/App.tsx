@@ -108,9 +108,10 @@ function AlreadyOpen() {
 }
 
 function ScreenFallback() {
+  const { t } = useT();
   return (
     <div className="flex h-full w-full items-center justify-center bg-concrete-950 text-read text-white/40">
-      Loading…
+      {t('ui.common.loading')}
     </div>
   );
 }

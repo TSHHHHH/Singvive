@@ -89,7 +89,7 @@ export function PhoneStatusBar({ onOpenStatus }: { onOpenStatus: () => void }) {
         className={`relative shrink-0 tabular-nums text-micro text-white/50 ${pulse}`}
         style={{ '--clock-accent': accent } as CSSProperties}
       >
-        D{day}{' '}
+        {t('ui.clock.dayShort', { day })}{' '}
         <span style={{ color: accent }}>{formatClock(hour, clock)}</span>
         {fx && (
           <span className="clock-delta-chip pointer-events-none absolute -right-0.5 -top-1 z-10" aria-hidden>

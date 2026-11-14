@@ -82,10 +82,19 @@ currency, and the survivor is always moving — the map is explored, not surveye
   generation is reserved strictly as a **data-unavailable fallback**, never for genuinely empty areas.
 - **Walkability zones** (`public/zones.json`, `npm run bake:zones`): land mask, inland water,
   restricted (military) perimeters, and vegetation. Water and restricted hard-block spawn/trek;
-  vegetation stays walkable but adds a soft stamina/time cost. Routes prefer land paths around water
-  (`game/route.ts`, `game/playable.ts`, `game/vegetation.ts`).
+  vegetation stays walkable but adds a soft stamina/time cost. Routes prefer land paths around water.
+  Known pedestrian crossings, starting with Sentosa Gateway, provide narrow walkable links over
+  water in both directions; their full path costs normal travel distance, time and stamina. Players
+  can stop on the crossing and continue later. Nearby sea and restricted ground remain blocked
+  (`game/route.ts`, `game/playable.ts`, `game/crossings.ts`, `game/vegetation.ts`).
 
 **POI categories → real-life resources** (Singapore-flavoured):
+
+Three curated landmarks — **Marina Bay Sands, ArtScience Museum and Supertree Grove** —
+supplement the island bake. They use committed OSM footprints and the existing map's building
+parts, with no imported 3D models. They obey normal fog, discovery, travel and street-scavenging
+rules, and have priority within the same 220-site neighbourhood cap. Supertree Grove is outdoor
+ground for rest; landmarks are not selected as guaranteed indoor spawn shelters.
 
 | Category | Real examples | Yields | Base danger |
 |---|---|---|---|
@@ -102,40 +111,45 @@ currency, and the survivor is always moving — the map is explored, not surveye
 | MRT station | Rail / LRT stations | Way into the tunnels (see 3.8); light loot | 3 |
 | Industrial | Warehouses, factories | Tools, fuel, materials | 3 |
 | School | Schools, colleges | Canteen, sick bay, workshop; used as shelters | 3 |
+| Landmark | Marina Bay Sands, ArtScience Museum, Supertree Grove | Visitor bags, water, snacks, basic supplies | 3 |
 | Waypoint | Between-pin stops | Not a destination — whatever the road left behind | 2 |
 
 ### 3.2 Survivor — occupations, attributes & traits
 - **Occupations** — nine two-trait kits (College Student, Personal Trainer, Soldier, Nurse,
-  Food Vendor, Scavenger, Office Worker, Contractor, Fixer). Each is **one signature + one matching
-  curse**, nets the budget at exactly 0, and loads as an **editable seed** on the create screen
+  Food Vendor, Scavenger, Office Worker, Contractor, Fixer). Each is **one positive + one matching
+  flaw**, nets the budget at exactly 0, and loads as an **editable seed** on the create screen
   (same grid as a hand-rolled build — swap traits to make it yours).
 - **Attributes** are **derived from traits** (base 5 each, clamped 1–12) — Strength, Dexterity,
   Endurance, Perception, Wits. There is no separate point-buy panel; traits *are* the build.
-- **Traits** — budget starts at **0**. Negatives *refund* points; positives *spend* them. Remaining
-  points must stay ≥ 0. Caps: **max one signature** (cost ≥ 4), **max one curse** (cost ≤ −3),
-  **max two negatives** total. A 5-cost identity is paid with a curse, not a pile of −1s. Cheap
-  cousins stay for spread builds (*Reservist*, *Medic*, *Karang Guni*, *Home Cook*, *Distance Runner*,
-  plus mid options like *Shadow Habit*, *Train Memory*, *Sharp Eye*…).
-  Signatures include *Combat Veteran*, *Trauma Medic*, *Hyrox Champion*, *Estate Memory*, *Made Man*;
-  *Mule* and *Sixth Sense* compete with jobs for the one signature slot.
-- **Trait presets** persist across runs in `localStorage` so custom builds can be reused. Old
-  six-flaw presets become illegal and show “needs fixing” on the create screen.
+- **Traits** — budget starts at **0**. All negative traits are **flaws** and *refund* points;
+  positives *spend* them. Each side has one list, with no point-value tiers or trait-count caps.
+  Pick any number of compatible traits, including multiple expensive positives, as long as
+  remaining points stay ≥ 0. A trait cannot be picked twice. Theme filters and point sorting
+  apply across the whole list. Existing costs, effects, conflicts and trait IDs are unchanged;
+  saved builds and active runs need no migration.
+- **Trait presets** persist across runs in `localStorage` so custom builds can be reused.
+  Older builds with many flaws are valid if they satisfy the budget and conflict rules and
+  contain no duplicates. Invalid presets still show “needs fixing” on the create screen.
 - Trait modifiers feed combat, travel, survival, loot, fog, crafting cost, faction standing, and
   unique rules (first hit halved, hawker-centre loot, HDB corridor reads, remaining-search intel).
+- **Local Contacts** (2-point positive, People): start knowing one hub from each of two distinct
+  factions, chosen deterministically from the run's existing outposts. Grants map knowledge only,
+  with no standing bonus. If fewer than two factions have hubs, reveal only those available.
 
 ### 3.2b Skills (in-run, passive)
 
 - Seven **passive** skills sit between traits and mechanical mods: Fighting, Shooting,
   Fitness, Scavenging, Medicine, Trades, Stealth. Levels run **0–5** and **die with the run**.
 - **Soft funnel:** traits keep their `*Mod` fields and also grant `skillStart` / `skillXpMult`.
-  Signatures typically start at **+2** in their lane. Final mod = traits + skill levels + gear.
+  Higher-cost traits often start at **+2** in their lane. Final mod = traits + skill levels + gear.
 - **Growth:** meaningful actions grant practice XP (soft daily cap per skill). Looted
   **skill books** cost hours to read and grant a big XP chunk or one gated level by tier.
 - Awareness / dialogue / fog stay on traits and attributes — not a skill in v1.
 - Run schema is `singvive.run.v7` (v6 continues are wiped).
 
 ### 3.3 Fog of war — blind exploration
-- You have **no knowledge** of any location until you stand in it. Undiscovered places show only as
+- Locations are **unknown** until you visit or obtain intel; the evac beacon is broadcast and
+  Local Contacts grants its two starting hub pins. Undiscovered places show only as
   anonymous **"?" blips** (no name, category or danger). Their **building outline is still drawn** (in
   neutral) if OSM has one; locations without an outline are just their circular badge.
 - The on-map rings are **not vision — they're travelable range**. The **inner, dashed ring** is how
@@ -153,8 +167,11 @@ currency, and the survivor is always moving — the map is explored, not surveye
 - **3D view** (setting *3D map*, on by default; the on-map **3D** button toggles it). The run map tilts
   and the real buildings stand — but only where you have been or can see now. Unexplored blocks
   lie flat under the fog, so the city rises as you chart it. A site's own building takes its state
-  colour (detected sites neutral, remembered ones dimmer, picked-clean darker); tap it to select the
-  site. Sites with no building are just their badge, lifted to roof height. Turn it off for a flat,
+  colour (detected sites neutral, remembered ones dimmer, picked-clean darker). Known faction
+  territory uses the faction's colour, kept legible even after looting; badges use a lighter faction
+  fill behind a dark category icon, so sites without a model show ownership too. Tap a building or
+  badge to select the site: a separate pale ring surrounds its badge in both 2D and 3D, without
+  recolouring the model. Turn it off for a flat,
   north-up map on slower phones. The spawn screen and route planner are always flat.
 
 ### 3.4 Time, travel, wilds & the day/night cycle
@@ -264,8 +281,10 @@ hostility, trade, shelter, aid, and intel:
 | `syndicate_88` | The 88 Syndicate (双八会) | Hostile by default until known; void-deck muscle |
 | `sta` | Subterranean Transit Authority (STA) | Manned MRT platforms; tunnel tolls |
 
-- Each run marks up to **two outposts per faction** (`OUTPOSTS_PER_FACTION`, preferred categories,
-  spaced apart). Outposts are labelled on the map and offer that faction's **full kit** (canteen,
+- Each run creates up to **two outposts per faction** (`OUTPOSTS_PER_FACTION`, preferred categories,
+  spaced apart). Players start with **no faction hub knowledge** by default; hubs are labelled only
+  after discovery or intel. **Local Contacts** reveals one hub per faction for two factions at spawn;
+  other standing traits do not reveal hubs. Outposts offer that faction's **full kit** (canteen,
   fence, escort, tunnel camp — not a shared four-button shop); ordinary claimed territory gets a
   lesser subset, never the signature verb.
 - On arrival, a **pre-scavenge event** may fire (`game/events.ts`, pure): locked doors, desperate
@@ -385,10 +404,35 @@ hostility, trade, shelter, aid, and intel:
   drain (at a reduced rate).
 
 ### 3.13 Crafting & repair
-- Deliberately small recipe set (`game/data/recipes.json`): purify/boil water, tear dressings, lash spear
-  variants, strip gear for parts, handload shells, stitch a sleeping bag, plus a few SG sinks
-  (EZ-Link knife, Kopi C, Milo dinosaur, cooked Maggi). Some recipes need a
-  **workbench** (stash / HDB shelter). Tools can be required without being consumed.
+- Every item needs a practical use: consumption, equipment, bedding, an implemented action,
+  or a crafting ingredient/tool. A price alone does not count. Item inspection lists crafting uses;
+  catalog tests reject unused items. Recipes live in `game/data/recipes.json`.
+- Some recipes need a **workbench** (stash / HDB shelter); tools are kept. Existing field weapons,
+  dressings, armour, repair and sleeping-bag recipes remain.
+- **Location facilities:** build a fire from firewood and tinder with a lighter, or build a fixed stove
+  from scrap and parts with a toolbox and fuel it with a jerry can. Heat lasts **24 in-game hours from
+  completion**, including travel and sleep. Facilities stay at the surface location, never in the pack.
+  Active fires cannot be stacked; spent fires can be rebuilt. Indoor HDB/tunnel construction is excluded.
+  Cooking needs enough heat to finish and a carried, reusable **cooking pot**.
+- **Water and meals:** boiling consumes two carried waters (clean sources first, mixed sources allowed)
+  and leaves two treated waters at the site. The batch stays hot for **2 game hours**, then remains clean.
+  Use it in recipes or collect it as ordinary clean water. A hot batch can finish a recipe without an
+  active fire if it remains hot throughout; cooled water needs reheating. Direct cooking includes heating
+  its carried water. Dry noodles restore hunger only; cooked soup, sardine/luncheon noodles, rice porridge
+  and sardine porridge require heat. Prepared meals spoil and do not appear in ordinary loot.
+- **Drinks:** portion coffee, condensed/evaporated milk and Milo into measures; a tin yields eight measures.
+  Kopi/teh families vary milk, sweetness and strength, with additional Milo and sachet drinks. Kopi-C uses
+  evaporated milk. **Hot preparation gives full effects; room-temperature mixing halves hunger and energy
+  restoration, but preserves hydration and unsafe-water infection risk.** Preparation quality persists on
+  the item independently of spoilage; brewed drinks keep their quality after cooling. Iced drinks await
+  an actual ice source. Food/drink, portioning and salvage quantities are fixed, without trait discounts.
+- **Rain facilities:** a collector requires tarp, bindings and a container (or bottles). Every three rainy
+  game hours adds one untreated water, capped at four, including days spent away. Collection preserves
+  fractional progress. A rain shelter gives open surface sites a roof, improving sleep recovery without
+  reducing ambush risk. Both are permanent location improvements.
+- **Everyday gear and salvage:** sacrifice a pot for a helmet, towels for padding or a sling bag, and magazines
+  for shin guards or tinder. Powerbanks yield cells, bicycle kits yield parts, cables make straps/lamps,
+  repellent treats bedding, and paper tokens become tinder. Gear has modest benefits and material tradeoffs.
 - **Repair:** field whetstone / gun oil; workbench repair with duct tape + scrap + toolbox.
 - Crafting is a **loot sink** first — scrap and tape have somewhere to go; clean water is made, not found.
 
@@ -427,10 +471,13 @@ hostility, trade, shelter, aid, and intel:
   one stocked door), `picked_over` (mostly cleared, one notice), `refuge` (20+ storeys only;
   safe stairs, rest drops heat). Revealed on arrival with a log line; a chip on the strip.
 - **The block on the map.** Desktop with 3D on: the strips sit over the map beside the tower,
-  each with a notch pointing at it, while the camera closes in until the tower fills about half
-  the view (and eases back out on exit). Every other building ghosts so the block reads through
+  each with a notch pointing at it. The wider corridor strips use large door tiles and floor
+  numbers, and keep the current landing visible when taking the stairs. The camera fits the
+  whole building into the space beside them, orbiting its centre (and eases back out on exit).
+  Every other building ghosts so the block reads through
   the estate. Drag the empty map beside the tower to turn and tilt the camera around it; scroll
-  to zoom. An amber **storey band** on the extrusion marks your landing and follows strip hover.
+  to zoom, or use the zoom and **Frame building** controls. The timeline remains available for
+  looting and combat. An amber **storey band** on the extrusion marks your landing and follows strip hover.
   Phone or 2D: the same strips as a full-screen list, the action card below.
 - **The block remembers.** `hdbScar` reads the persisted dungeon: worked blocks dim on the 3D map
   in quarter-steps, the site card shows doors cleared · storeys sealed · hunting. Leaving while
@@ -483,10 +530,73 @@ hostility, trade, shelter, aid, and intel:
 - **Procedural ambience** (`src/audio/ambience.ts`, Web Audio, no asset files). Beds: brown-noise
   wind (hollower after dark, a rumble in tunnels), rain by weather, a tropical night chorus that
   **goes quiet as horde pressure rises**. One-shots: distant groans (rate and closeness rise with
-  local pressure and darkness), house-gecko chirps, unseen metal clanks, thunder, tunnel drips.
+  local pressure and darkness), daytime koel and crow calls, house-gecko chirps, unseen metal
+  clanks, thunder, tunnel drips.
   Heartbeat below 40% HP. Stingers: a far-off civil-defence wail at nightfall, a dissonant hit on
   contact. Setting `sound` (off / quiet / full); audio starts on the first click (browser policy)
   and suspends while the tab is hidden. Purely cosmetic — nothing in `game/` reads it.
+
+#### Audio sourcing list (proposed)
+
+Use a hybrid palette: keep procedural wind, tension, heartbeat and stingers; audition recorded
+sounds for natural ambience, creatures and physical actions. Aim for quiet, grounded Singapore
+survival horror, with enough silence to hear danger. This is a sourcing plan, not an implemented
+asset set. Source pages and listed licences checked **14 November 2026**; recordings have not
+been auditioned or downloaded.
+
+**Free sources to start with**
+
+| Source | What to look for | Licence / selection notes |
+|---|---|---|
+| [Kenney Interface Sounds](https://kenney.nl/assets/interface-sounds) | Soft clicks, confirm, cancel, denied action | 100 files; CC0. Audition restrained options. |
+| [Kenney Impact Sounds](https://kenney.nl/assets/impact-sounds) | Blunt hits, metal and wood impacts, object handling | 130 files; CC0. Select small, dry sounds that can be layered. |
+| [Kenney RPG Audio](https://kenney.nl/assets/rpg-audio) | Footsteps, weapon and inventory foley | 50 files; CC0. Check individual clips for a modern setting. |
+| [Freesound](https://freesound.org/) | Rain, tropical wildlife, drips, creature vocals, equipment | Filter for CC0 first. Licences vary per upload; CC BY requires credit. Downloads require an account. See [licence guidance](https://freesound.org/help/faq/#licenses). |
+| [Sonniss GameAudioGDC archive](https://sonniss.com/gameaudiogdc/) | Broader field recordings, weapons, machinery and horror textures | Free archive under its own licence, not CC0; the archive states commercial game use is allowed without attribution. Keep the supplied licence with chosen files. |
+
+[CC0](https://creativecommons.org/publicdomain/zero/1.0/) allows copying, editing and commercial
+use without asking permission. Prefer it for the first pass. Keep the creator, original file
+name, source URL, licence and any edits recorded for every selected asset; an asset becomes
+selected only after listening and checking its own licence.
+
+**Sound checklist** — P1 is the first listening pass; P2 is a later polish pass. “Existing”
+means an existing procedural cue to compare against; “new” means a proposed addition.
+Durations and variant counts below are targets for edited game clips.
+
+| Priority | Sound / use | Target | Starting point or search terms |
+|---|---|---|---|
+| P1 | Rain and heavy rain — existing weather bed | 2 seamless loops, 30–60 s each | Freesound: `tropical rain`, `heavy rain no thunder`; keep thunder separate for timing. |
+| P1 | Tropical night insects — existing bed | 1–2 loops, 30–60 s | Freesound: `tropical crickets night`; preserve the hush as horde pressure rises. |
+| P1 | Asian koel, house crow, house gecko — existing wildlife | 3–5 short calls per species | Freesound: `Asian koel`, `house crow`, `house gecko`; isolated calls rather than busy streets. |
+| P1 | Infected groans — existing distant threat | 4–6 one-shots, 1–4 s | Freesound / Sonniss: `zombie groan`, `creature breathing`; avoid intelligible speech. |
+| P1 | Footsteps — new travel feedback | 4–6 steps per concrete, grass and wet surface | Kenney RPG Audio; Freesound: `footsteps concrete`, `wet footsteps`. |
+| P1 | Melee swing, hit and miss — new combat feedback | 3–4 variants per action, under 1 s | Kenney Impact Sounds / RPG Audio; `blunt impact`, `cloth whoosh`. |
+| P1 | Search and loot pickup — new action feedback | 2–3 variants, 0.3–1.5 s | RPG Audio / Freesound: `bag rummage`, `cloth rustle`, `item pickup`. |
+| P1 | UI select, confirm, cancel and denied — new interface feedback | 1 distinct clip per cue, 0.05–0.25 s | Kenney Interface Sounds or original synthesis; quiet and brief. |
+| P2 | Distant thunder — existing storm one-shot | 3–4 rolls, 4–10 s | Freesound: `distant thunder isolated`; preserve lightning timing. |
+| P2 | Metal clank — existing unseen activity | 3–4 clips, 0.3–2 s | Kenney Impact Sounds / Freesound: `metal clank distant`. |
+| P2 | Tunnel drips — existing underground detail | 3–5 dry drops, 0.2–1 s | Freesound: `water drip single`; add room echo in the mix. |
+| P2 | Tunnel air / rumble — existing bed | Keep synthesis; optionally audition a 30–60 s loop | Freesound / Sonniss: `empty tunnel ambience`, `ventilation rumble`. |
+| P2 | Heartbeat — existing low-HP cue | Keep original two-pulse synthesis | Retain variable tempo as HP falls. |
+| P2 | Nightfall siren and combat contact — existing stingers | Keep synthesis; refine 1 cue each | Original distant warning tone and short dissonant contact hit. |
+| P2 | Gunshot, reload and empty click — new combat feedback | 2–4 shots plus handling cues per supported weapon family | Freesound / Sonniss: `pistol single shot`, `reload`, `dry fire`. |
+| P2 | Injury, bandage, eating and drinking — new survival feedback | 2–3 variants per action, 0.5–2 s | Freesound: `pain grunt`, `bandage cloth`, `eating`, `water gulp`. |
+| P2 | Door, drawer, shutter and locked attempt — new exploration feedback | 2 variants per action, 0.3–2 s | RPG Audio / Freesound: `door creak`, `drawer open`, `metal shutter`. |
+| P2 | Equip, craft and trade — new inventory feedback | 1–2 clips per action, 0.2–1 s | RPG Audio / Impact Sounds; `tool handling`, `bag zip`, `small metal click`. |
+| P2 | Extraction available, extraction success and death — new run milestones | 3 distinct cues, 1–5 s | Original synthesis first; restrained radio chime, relief tone and low fade. |
+| P2 | Menu atmosphere — optional music | 1 sparse loop, 45–90 s | Original ambient composition or a separately verified free track; leave gameplay music optional. |
+
+**Concrete rain candidates to audition:**
+- [Tropical Rain - moderate — nyoz](https://freesound.org/people/nyoz/sounds/614203/)
+  (CC0, 61.5 s): a garden recording from Reunion Island; candidate for the rain bed.
+- [Rain very heavy with thunder.wav — Danjocross](https://freesound.org/people/Danjocross/sounds/164206/)
+  (CC0, 122.8 s): candidate for storm texture. Embedded thunder means the full recording should
+  not be looped under independently timed lightning; audition thunder-free sections first.
+
+For the first pass, compare the P1 candidates at matched volume before selecting files. Use
+multiple variants for frequently repeated actions. Preserve the existing off / quiet / full
+setting, hidden-tab suspension and pressure-driven ambience; sound remains cosmetic and every
+important gameplay cue must also be visible.
 
 ### 3.19 Persistence, scoring & settings
 - Fully **client-side** for the run. Keys:
@@ -578,8 +688,8 @@ Generic survival add-ons. Fine later; they do not answer “why this game.”
   forts and street walls would fight the nomadic-cache identity.
 - **Meta-unlock trees / accounts / daily seeds** — daily seeds are also deferred because the same
   seed is not the same run while spawn is player-chosen.
-- **More meters, more recipes, more enemy tiers** — craft is correctly a small sink; add recipes only
-  when loot piles up with nowhere to go.
+- **More meters and enemy tiers** remain deferred. Crafting additions should give existing loot a practical
+  purpose or a meaningful preparation choice; variants share recipe families rather than new survival meters.
 
 ### Fun, practically
 
@@ -592,6 +702,25 @@ Generic survival add-ons. Fine later; they do not answer “why this game.”
 - **Tests:** Vitest covers combat, wilds, crafting, survival, events, inventory, firearms, and more
   under `src/game/` (+ catalog / i18n key guards). Still thin or missing: `goal`, `noise`,
   `searchSession`, and anything that only lives in `store.ts` / React.
+
+### Trait ideas — proposed, not implemented
+
+New traits should change a route, timing decision, or resource gamble. Keep the existing positive /
+flaw economy; these ideas do not add another category or survival meter. Point costs need playtesting.
+
+| Trait | Type | Proposed rule | The choice it creates |
+|-------|------|---------------|-----------------------|
+| **Spare Key** | Positive | Once per HDB block, open an ordinary locked residential door quietly without a lockpick. Special gates remain locked. | Spend the opening early for supplies, or save it for a more promising room deeper inside. |
+| **Storm Chaser** | Positive | Rain further reduces the noise of your outdoor movement and HDB breaches, on top of normal weather effects. | Move while the city masks you, accepting rain's existing visibility and travel costs. |
+| **Cache Runner** | Positive | Travel toward a visited stash containing your supplies uses less energy; the route still follows normal walkability and encounter rules. | Build a useful cache circuit, then decide when the approaching horde makes returning too dangerous. |
+| **Improviser** | Positive | Spend scrap for a temporary weapon patch that lasts one encounter. Each weapon can receive only one patch before a proper repair. | Burn a resource for one crucial fight or retreat with it intact; avoid an infinite repair loop. |
+| **Claustrophobic** | Flaw | Energy drains faster during HDB interiors and MRT exploration, with the extra cost shown before entry. | Take the longer surface route or budget supplies for a short, valuable indoor expedition. |
+| **Creature Comforts** | Flaw | Sleep restores less energy at exposed sites; enclosed shelter and friendly hubs retain their normal restoration. | Detour to safe lodging or accept a poor night's rest to stay ahead of the horde. |
+
+Prototype **Spare Key**, **Storm Chaser**, and **Claustrophobic** first: they give HDBs, weather,
+and MRT route choices distinct build identities. Keep costs and remaining uses visible, and avoid
+extra confirmation dialogs. New per-run state (such as spent keys or patched weapons) must load
+safely from existing `singvive.run.v7` saves before these proposals ship.
 
 ### Shipped (was roadmap)
 

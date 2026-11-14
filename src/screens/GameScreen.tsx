@@ -4,6 +4,7 @@ import { useGame } from '../game/store';
 import { GameMap } from '../components/GameMap';
 import { HudCard, TargetDock } from '../components/TargetDock';
 import { MapCallouts, type CalloutSlot } from '../components/MapCallouts';
+import { MapLocationLabel } from '../components/MapLocationLabel';
 import { beaconKindOf } from '../map/beacons';
 import type { Map as MlMap } from 'maplibre-gl';
 import { useMrtNetwork } from '../components/useMrtNetwork';
@@ -14,6 +15,7 @@ import {
   type MrtNetwork,
 } from '../game/mrt';
 import { ConditionPanel } from '../components/ConditionPanel';
+import { SurvivorDock } from '../components/SurvivorDock';
 import { StatsPanel } from '../components/StatsPanel';
 import { SkillsPanel } from '../components/SkillsPanel';
 import { LogPanel } from '../components/LogPanel';
@@ -25,7 +27,7 @@ import { PendingEventCardBody } from '../components/PendingEventChoices';
 import { EncounterPrompt } from '../components/EncounterPrompt';
 import { SearchSessionNode } from '../components/SearchSessionNode';
 import { Icon } from '../icons/Icon';
-import { useT } from '../i18n';
+import { itemName, useT } from '../i18n';
 import { LocationCard } from '../components/LocationCard';
 import { TrekCard } from '../components/TrekCard';
 import { InventoryPanel } from '../components/Inventory/InventoryPanel';
@@ -143,13 +145,14 @@ function HereHazardLine({
   band: ReturnType<typeof timeOfDay>;
   day: number;
 }) {
+  const { t } = useT();
   const underfoot = hazardsAtPoint(seed, lat, lng, spawn, pressure, { band, day });
   if (underfoot.length === 0) return null;
   const worst = underfoot.reduce((a, z) => (z.severity > a.severity ? z : a));
   const cfg = HAZARD_CONFIG[worst.kind];
   return (
     <div className="mt-2 text-body" style={{ color: cfg.color }}>
-      {cfg.blurb} Do not sleep here.
+      {t(`ui.hazards.${worst.kind}.blurb`)} {t('ui.hazards.noSleep')}
     </div>
   );
 }
@@ -208,9 +211,9 @@ const HUD_EDGE = 16;
 const RAIL_W = 408;
 /** Bottom-anchored desktop HUD clears MapLibre's ~24px attribution bar, px. */
 const HUD_BOTTOM = 32;
-/** A floating map card: narrower and shorter than a docked one, so two fit. */
-const FLOAT_CARD = 'w-[22rem] max-w-[calc(100vw-2rem)] !max-h-[min(42vh,360px)]';
-/** Px a floating card keeps clear above a site badge / the player pin. */
+/** Extra breathing room between the expanded timeline and map attribution. */
+const TIMELINE_BOTTOM = HUD_BOTTOM + HUD_GAP * 2;
+/** Px a compact label keeps clear above a site badge / the player pin. */
 const BADGE_CLEAR_PX = 16;
 const PIN_CLEAR_PX = 40;
 /** The collapsed ticker's width, px (22rem). */
@@ -222,7 +225,7 @@ const HDB_MIN_W = 440;
 /** Narrowest map strip worth keeping beside the landing strips to show the block in 3D. */
 const BLOCK_STRIP_MIN_W = 180;
 /** Desktop 3D: widest the landing strips get beside the block. */
-const HDB_STRIPS_W = 460;
+const HDB_STRIPS_W = 720;
 
 function timelineWidth(vw: number): number {
   return Math.round(Math.max(320, Math.min(480, vw * 0.32)));
@@ -247,20 +250,21 @@ function tunnelDirections(
   here: LocationState,
   sel: LocationState,
   destroyed: string[],
+  t: ReturnType<typeof useT>['t'],
 ): string {
   const route = mrtRouteBetween(here, sel, destroyed);
   if (!route) {
-    return `${sel.name} has no tunnel path from here. Plan travel to try another way, or walk the surface.`;
+    return t('ui.tunnel.directionsNone', { name: sel.name });
   }
-  const where = `${route.stops} stops via the ${displayLine(net, route.legs[0].line).name}`;
+  const where = t('ui.tunnel.directionsVia', { stops: route.stops, line: displayLine(net, route.legs[0].line).name });
   if (route.collapsedHops > 0) {
-    return `${sel.name} is ${where}, but the only underground path crawls a collapsed bore. Plan travel — or walk the surface.`;
+    return t('ui.tunnel.directionsCollapsed', { name: sel.name, where });
   }
-  return `${sel.name} is ${where}. Open tunnel planning to crawl the whole route in one run.`;
+  return t('ui.tunnel.directionsRoute', { name: sel.name, where });
 }
 
 export function GameScreen() {
-  const { t } = useT();
+  const { locale, t } = useT();
   // Subscribing to the whole store meant every write re-rendered this screen —
   // including the log, which grows on almost every action and which nothing
   // here reads. Naming the slice keeps re-renders to changes that matter.
@@ -505,11 +509,13 @@ export function GameScreen() {
     }
     setSelectedId(null);
     setTrekTarget({ lat, lng });
+    setInspectorHereAt(null);
   }, [notify]);
 
   const selectPoi = useCallback((loc: LocationState) => {
     setTrekTarget(null);
     setSelectedId(loc.id);
+    setInspectorHereAt(null);
   }, []);
 
   const exhausted = meters.energy < 25;
@@ -905,7 +911,7 @@ export function GameScreen() {
   // Anything that wants an answer opens the timeline by itself.
   const timelineFull =
     timelinePinned || inCombat || awaitingStance || !!pendingEvent || !!pendingSearch;
-  const tlW = timelineWidth(vw);
+  const tlW = hdb ? Math.round(Math.max(320, Math.min(440, vw * 0.23))) : timelineWidth(vw);
 
   const activateRail = useCallback(
     (id: RailKey) => {
@@ -977,9 +983,8 @@ export function GameScreen() {
     pairObs.current = ro;
   }, []);
 
-  // Desktop, open map: the here and target cards float over their own markers
-  // (MapCallouts). The map hands itself over once loaded; the pin reports its
-  // glide so the here card can ride along.
+  // Only identity labels follow the map. Details stay at the map's left edge.
+  const [inspectorHereAt, setInspectorHereAt] = useState<string | null>(null);
   const [runMap, setRunMap] = useState<MlMap | null>(null);
   const pinRef = useRef<{ lat: number; lng: number } | null>(null);
   const calloutKick = useRef<(() => void) | null>(null);
@@ -987,8 +992,6 @@ export function GameScreen() {
     pinRef.current = { lat, lng };
     calloutKick.current?.();
   }, []);
-  // Top camera padding the floating here card asks for, so it fits above the pin.
-  const [hereHeadroom, setHereHeadroom] = useState(0);
 
   const view3d = useSetting('mapView3d') === 'on';
   const showRail = useSetting('railOverlay') === 'on';
@@ -1014,7 +1017,7 @@ export function GameScreen() {
 
   const tunnelHint =
     bothStations && !tunnelSeg && mrtNet && here?.mrtStationId && sel
-      ? tunnelDirections(mrtNet, here, sel, destroyedTunnelEdges)
+      ? tunnelDirections(mrtNet, here, sel, destroyedTunnelEdges, t)
       : null;
 
   const openStash = () => goToPhoneTab('inventory');
@@ -1148,7 +1151,7 @@ export function GameScreen() {
             ) : (
               <><Icon name="action.target" /> {t('ui.game.target')}</>
             ),
-            body: <LocationCard {...cardProps} compact />,
+            body: <LocationCard key={sel!.id} {...cardProps} compact inspector={!isPhone} />,
             onClose: () => setSelectedId(null),
           }
         : null;
@@ -1164,7 +1167,7 @@ export function GameScreen() {
     </>
   ) : hereProps ? (
     <>
-      <LocationCard {...hereProps} />
+      <LocationCard key={here!.id} {...hereProps} inspector={!isPhone && !tunnel && !hdb && !mrtPlanner} />
       {atEvac && (
         <button
           onClick={callEvac}
@@ -1216,14 +1219,14 @@ export function GameScreen() {
   /**
    * Desktop, 3D: the map stays up behind the landing strips and the space left
    * of them shows the block itself (camera eased onto it, the hovered storey
-   * lit). The strips keep a fixed width; the tower takes what is left. Only
+   * lit). The strips grow with the viewport; the tower takes what is left. Only
    * when that is worth having; otherwise the strips take the view.
    */
   const mapW = vw - RAIL_W;
   const blockStripW = (() => {
     if (isPhone || !view3d) return 0;
     const avail = mapW - hdbInset.left - hdbInset.right;
-    const strips = Math.min(HDB_STRIPS_W, Math.max(HDB_MIN_W - 80, Math.round(avail * 0.55)));
+    const strips = Math.min(HDB_STRIPS_W, Math.max(HDB_MIN_W - 80, Math.round(avail * 0.54)));
     const w = avail - strips - HUD_GAP;
     return w >= BLOCK_STRIP_MIN_W ? w : 0;
   })();
@@ -1288,10 +1291,18 @@ export function GameScreen() {
   const railTip = (label: string, id: RailKey) =>
     tip(t('ui.hud.hotkey', { label, key: railHotkey(id) }), { label: true });
 
-  /** Desktop, open map: the cards float over their markers instead of docking. */
-  const floatCards = !isPhone && desktopTarget && !!runMap;
+  /** The open map has one edge inspector; only compact labels follow the pins. */
+  const edgeInspector = !isPhone && desktopTarget;
+  const targetKey = trekTarget ? `${trekTarget.lat},${trekTarget.lng}` : sel && !selHere ? sel.id : null;
+  const inspectingTarget = !!targetSlot && inspectorHereAt !== targetKey;
+  const targetName = trekTarget
+    ? t('ui.game.openGround')
+    : sel?.discovered ? sel.name : t('ui.location.unknownLocation');
+  const hereName = here
+    ? here.discovered ? here.name : t('ui.location.unknownLocation')
+    : t('ui.game.inTheOpen');
   const calloutHere: CalloutSlot | null =
-    floatCards && hereSlot
+    edgeInspector && hereSlot
       ? {
           anchor: {
             lat: here?.lat ?? currentPos.lat,
@@ -1301,20 +1312,15 @@ export function GameScreen() {
             gap: PIN_CLEAR_PX,
           },
           body: (
-            <HudCard
-              glass
-              title={hereTitle}
-              collapsed={hereCollapsed}
-              onToggleCollapse={() => setHereCollapsed((c) => !c)}
-              className={FLOAT_CARD}
-            >
-              {hereSlot}
-            </HudCard>
+            <MapLocationLabel location={here} here active={!inspectingTarget} onClick={() => {
+              setInspectorHereAt(targetKey);
+              setHereCollapsed(false);
+            }} />
           ),
         }
       : null;
   const calloutTarget: CalloutSlot | null =
-    floatCards && targetSlot
+    edgeInspector && targetSlot
       ? {
           anchor:
             trekTarget && trekInfo && trekEst && !inCombat
@@ -1327,9 +1333,10 @@ export function GameScreen() {
                   gap: BADGE_CLEAR_PX,
                 },
           body: (
-            <HudCard glass title={targetSlot.title} onClose={targetSlot.onClose} className={FLOAT_CARD}>
-              {targetSlot.body}
-            </HudCard>
+            <MapLocationLabel location={trekTarget ? null : sel} active={inspectingTarget} onClick={() => {
+              setInspectorHereAt(null);
+              setHereCollapsed(false);
+            }} />
           ),
         }
       : null;
@@ -1348,7 +1355,7 @@ export function GameScreen() {
                 ? 'ring-1 ring-inset ring-hiss/50'
                 : ''
           }`}
-          style={{ right: HUD_EDGE, top: HUD_EDGE, bottom: HUD_BOTTOM, width: tlW }}
+          style={{ right: HUD_EDGE, top: HUD_EDGE, bottom: TIMELINE_BOTTOM, width: tlW }}
         >
           {inCombat && !contactGate ? (
             <CombatPanel onOpenGuide={setGuideTopic} />
@@ -1436,6 +1443,7 @@ export function GameScreen() {
         <div className="min-h-0 flex-1 overflow-y-auto p-2.5">
           <div className="space-y-2.5">
             <ObjectiveBar
+              compact={!isPhone}
               evacZoneName={evacZone?.name ?? null}
               evacDist={evacDist}
               atEvac={atEvac}
@@ -1461,66 +1469,57 @@ export function GameScreen() {
               rumourCount={rumourCount}
             />
 
-            <ConditionPanel
-              onOpenGuide={setGuideTopic}
-              showSurvivorStats={isPhone}
-            />
-
-            {/* Desktop: backpack stays on the rail so the pack is always visible. */}
-            {!isPhone && <InventoryPanel layout="backpack" />}
-
-            {/* --- the panel switchers --- */}
-            <div className="grid grid-cols-2 gap-1.5">
-              {(isPhone
-                ? PANEL_BUTTONS.filter((id) => id === 'logbook' || id === 'stats' || id === 'skills')
-                : PANEL_BUTTONS
-              ).map((id) => {
-                const active = sidePanel === id;
-                const label = t(sidePanelLabelKey(id));
-                return (
-                  <button
-                    key={id}
-                    onClick={() => setSidePanel(active ? null : id)}
-                    className={`rounded border py-1.5 text-body transition ${
-                      active
-                        ? 'border-signal bg-signal/15 text-signal'
-                        : 'border-white/15 text-white/70 hover:bg-white/5'
-                    }`}
-                    {...(isPhone ? {} : railTip(label, id))}
-                  >
-                    <Icon name={SIDE_PANEL_ICONS[id]} /> {label}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Desktop: the timeline folds to a ticker, so its pin, day logs and
-                settings keep a home here. */}
-            {!isPhone && (
-              <div className="grid grid-cols-3 gap-1.5">
-                {(['timeline', 'dayLogs', 'settings'] as const).map((id) => {
-                  const active =
-                    id === 'timeline' ? timelinePinned : id === 'dayLogs' ? dayLogsOpen : settingsOpen;
-                  const label = t(`ui.hud.${id}`);
-                  const icon: IconName =
-                    id === 'timeline' ? 'action.log' : id === 'dayLogs' ? 'action.dayLogs' : 'action.settings';
-                  return (
-                    <button
-                      key={id}
-                      onClick={() => activateRail(id)}
-                      aria-pressed={active}
-                      className={`truncate rounded border px-1 py-1.5 text-body transition ${
-                        active
-                          ? 'border-signal bg-signal/15 text-signal'
-                          : 'border-white/15 text-white/70 hover:bg-white/5'
-                      }`}
-                      {...railTip(label, id)}
-                    >
-                      <Icon name={icon} /> {label}
-                    </button>
-                  );
-                })}
-              </div>
+            {isPhone ? (
+              <>
+                <ConditionPanel onOpenGuide={setGuideTopic} />
+                <div className="grid grid-cols-2 gap-1.5">
+                  {PANEL_BUTTONS.filter((id) => id === 'logbook' || id === 'stats' || id === 'skills').map((id) => {
+                    const active = sidePanel === id;
+                    return (
+                      <button
+                        key={id}
+                        onClick={() => setSidePanel(active ? null : id)}
+                        className={`rounded border py-1.5 text-body transition ${active ? 'border-signal bg-signal/15 text-signal' : 'border-white/15 text-white/70 hover:bg-white/5'}`}
+                      >
+                        <Icon name={SIDE_PANEL_ICONS[id]} /> {t(sidePanelLabelKey(id))}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            ) : (
+              <SurvivorDock
+                sidePanel={sidePanel}
+                onPanelChange={setSidePanel}
+                onOpenGuide={setGuideTopic}
+                load={load}
+                blocked={overlayOpen || awaitingStance}
+                hotkeys={{ inventory: railHotkey('inventory'), craft: railHotkey('craft') }}
+                tools={
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {(['logbook', 'stats', 'skills', 'timeline', 'dayLogs', 'settings'] as const).map((id) => {
+                      const utility = id === 'timeline' || id === 'dayLogs' || id === 'settings';
+                      const active = id === 'timeline' ? timelinePinned : id === 'dayLogs' ? dayLogsOpen : id === 'settings' ? settingsOpen : sidePanel === id;
+                      const label = t(utility ? `ui.hud.${id}` : sidePanelLabelKey(id));
+                      const icon: IconName = id === 'timeline' ? 'action.log' : id === 'dayLogs' ? 'action.dayLogs' : id === 'settings' ? 'action.settings' : SIDE_PANEL_ICONS[id];
+                      return (
+                        <button
+                          key={id}
+                          type="button"
+                          onClick={() => activateRail(id)}
+                          aria-pressed={active}
+                          className={`flex min-h-10 items-center gap-2 rounded border px-2 py-1.5 text-body transition ${active ? 'border-signal bg-signal/15 text-signal' : 'border-white/15 text-white/70 hover:bg-white/5'}`}
+                          {...railTip(label, id)}
+                        >
+                          <Icon name={icon} />
+                          <span className="min-w-0 flex-1 text-left">{label}</span>
+                          <span aria-hidden className="text-micro text-white/35">{railHotkey(id)}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                }
+              />
             )}
           </div>
         </div>
@@ -1742,8 +1741,9 @@ export function GameScreen() {
                       ? 0
                       : tlW + HUD_EDGE
                 }
-                padBottom={isPhone ? 0 : pairH > 0 ? pairH + HUD_BOTTOM : HUD_BOTTOM}
-                padTop={floatCards ? hereHeadroom : 0}
+                padLeft={hdbOverMap ? hdbInset.left : 0}
+                padBottom={hdbOverMap ? HUD_BOTTOM : isPhone ? 0 : pairH > 0 ? pairH + HUD_BOTTOM : HUD_BOTTOM}
+                padTop={hdbOverMap ? hdbInset.top + 56 : 0}
                 onMap={setRunMap}
                 onPinMove={onPinMove}
                 chromeRight={
@@ -1763,8 +1763,8 @@ export function GameScreen() {
                   <HdbDungeonModal onOpenGuide={setGuideTopic} inset={hdbPanelInset} overMap />
                 </div>
               )}
-              {/* Desktop: here and target float over their own markers. */}
-              {floatCards && runMap && (calloutHere || calloutTarget) && (
+              {/* Desktop: identity labels follow the pins; actions stay at the edge. */}
+              {edgeInspector && runMap && (calloutHere || calloutTarget) && (
                 <MapCallouts
                   map={runMap}
                   here={calloutHere}
@@ -1778,11 +1778,47 @@ export function GameScreen() {
                     right: HUD_EDGE + (timelineFull ? tlW + HUD_GAP : 0),
                     bottom: HUD_BOTTOM,
                   }}
-                  onHereHeadroom={setHereHeadroom}
                 />
               )}
+              {edgeInspector && (hereSlot || targetSlot) && (
+                <div
+                  className="pointer-events-none absolute z-[600] w-[22rem] max-w-[calc(100%-2rem)]"
+                  style={{
+                    left: HUD_EDGE,
+                    bottom: HUD_BOTTOM,
+                    maxWidth: mapW - HUD_EDGE * 2 - (timelineFull ? tlW + HUD_GAP : 0),
+                  }}
+                  data-location-inspector
+                >
+                  <HudCard
+                    title={inspectingTarget ? targetSlot!.title : hereTitle}
+                    onClose={inspectingTarget ? targetSlot!.onClose : undefined}
+                    collapsed={hereCollapsed && !inspectingTarget}
+                    onToggleCollapse={!inspectingTarget ? () => setHereCollapsed((c) => !c) : undefined}
+                    className="!max-h-[min(60vh,520px)]"
+                  >
+                    {targetSlot && hereSlot && (
+                      <button
+                        type="button"
+                        aria-label={t(inspectingTarget ? 'ui.game.youAreHere' : 'ui.game.target')}
+                        onClick={() => setInspectorHereAt(inspectingTarget ? targetKey : null)}
+                        className="mb-2 flex w-full items-center gap-1.5 text-left text-body text-concrete-400 hover:text-concrete-50"
+                      >
+                        <Icon name={inspectingTarget ? 'action.here' : 'action.target'} />
+                        <span className="min-w-0 flex-1 truncate">
+                          {inspectingTarget
+                            ? t('ui.location.from', { name: hereName })
+                            : `${t('ui.game.target')} · ${targetName}`}
+                        </span>
+                        <span aria-hidden>↗</span>
+                      </button>
+                    )}
+                    {inspectingTarget ? targetSlot!.body : hereSlot}
+                  </HudCard>
+                </div>
+              )}
               {/* Phone: docked bottom-right so the travel line into the target
-                  stays visible. Desktop floats it over the target instead. */}
+                  stays visible. Desktop uses the edge inspector. */}
               {isPhone && targetSlot && (
                 <TargetDock title={targetSlot.title} onClose={targetSlot.onClose}>
                   {targetSlot.body}
@@ -1800,11 +1836,9 @@ export function GameScreen() {
               )}
             </>
           )}
-          {/* Desktop, away from the open map (inside a block, a tunnel, the
-              planner) or before the map has loaded: where you stand and where
-              you are going, side by side at bottom centre. On the open map the
-              two float over their markers instead (MapCallouts above). */}
-          {!isPhone && !floatCards && (hereSlot || (desktopTarget && targetSlot)) && (
+          {/* Inside a block, tunnel or planner, keep the existing context card
+              at bottom centre. The open map uses the edge inspector above. */}
+          {!isPhone && !edgeInspector && (hereSlot || (desktopTarget && targetSlot)) && (
             <div
               className="pointer-events-none absolute z-[600] flex items-end justify-center gap-2"
               style={{
@@ -1819,7 +1853,7 @@ export function GameScreen() {
                 // changes when you arrive (the camera moves anyway), while
                 // picking a target must not shove the map out from under the
                 // cursor.
-                <div ref={pairRef} className="flex min-w-0 max-w-[28rem] flex-1 flex-col">
+                <div ref={pairRef} className={`flex min-w-0 flex-1 flex-col ${hdb ? '' : 'max-w-[28rem]'}`}>
                   <HudCard
                     title={hereTitle}
                     collapsed={hereCollapsed}
@@ -2008,27 +2042,27 @@ export function GameScreen() {
       {ghostOffer && (
         <div className="absolute inset-0 z-[1150] flex items-center justify-center bg-black/85 p-4">
           <div className="w-full max-w-sm rounded-lg border border-signal/40 bg-concrete-900 p-5 shadow-signage">
-            <h3 className="text-plate uppercase text-signal">A survivor, still standing</h3>
+            <h3 className="text-plate uppercase text-signal">{t('ui.ghost.title')}</h3>
             <p className="mt-3 text-read text-concrete-200">
-              They lived where your predecessor did not. One trade, then they're gone:
+              {t('ui.ghost.blurb')}
             </p>
             <div className="mt-3 flex items-center justify-between rounded border border-concrete-600 bg-black/40 px-3 py-2 text-read">
-              <span className="text-hiss">− {itemDef(ghostOffer.wantDefId).name}</span>
+              <span className="text-hiss">− {itemName(ghostOffer.wantDefId, locale)}</span>
               <span className="text-concrete-400">→</span>
-              <span className="text-signal">+ {itemDef(ghostOffer.giveDefId).name}</span>
+              <span className="text-signal">+ {itemName(ghostOffer.giveDefId, locale)}</span>
             </div>
             <div className="mt-4 flex gap-2">
               <button
                 onClick={acceptGhostTrade}
                 className="flex-1 rounded bg-signal/80 py-2 text-read font-bold text-black hover:bg-signal"
               >
-                Trade
+                {t('ui.ghost.trade')}
               </button>
               <button
                 onClick={declineGhostTrade}
                 className="flex-1 rounded border border-concrete-600 py-2 text-read hover:bg-white/5"
               >
-                Walk on
+                {t('ui.ghost.leave')}
               </button>
             </div>
           </div>

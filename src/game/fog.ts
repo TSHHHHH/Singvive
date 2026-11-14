@@ -6,7 +6,8 @@ import { METER_MAX } from './survival';
 // ---------------------------------------------------------------------------
 // Blind-exploration fog of war.
 //
-// The player has NO knowledge of any location until they physically visit it.
+// Locations stay unknown until visited or revealed by intel (including starting
+// trait intel). The evacuation beacon is a separate broadcast objective.
 // The ring on the map is not vision — it is the *travelable range*: how far
 // the survivor can comfortably push right now given their build, energy,
 // injuries, load and the weather. Unvisited locations inside that ring show

@@ -1,7 +1,7 @@
 import { isCarried } from '../game/inventory';
 import { useGame } from '../game/store';
 import { Icon } from '../icons/Icon';
-import { ATTRIBUTE_ICONS, ATTRIBUTE_LABELS } from '../game/character';
+import { ATTRIBUTE_ICONS } from '../game/character';
 import type { ChoiceKind, GameEvent } from '../game/events';
 import type { IconName } from '../icons/keys';
 import { formatClock } from '../game/survival';
@@ -69,7 +69,7 @@ export function PendingEventChoices({
                 <Icon
                   name={ATTRIBUTE_ICONS[check.attr]}
                   size={12}
-                  title={ATTRIBUTE_LABELS[check.attr]}
+                  title={t(`ui.attributes.${check.attr}`)}
                 />
                 {t('ui.pending.dc', { n: check.dc })}
               </span>

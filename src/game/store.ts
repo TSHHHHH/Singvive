@@ -25,6 +25,7 @@ import type {
   SkillsState,
 } from './types';
 import { freshEventClock } from './types';
+import { buildFacility, collectedRain, gameHour, surfaceSite } from './facilities';
 import { sightFactor } from './nightSight';
 import { emptyRunStats, normalizeRunStats } from './stats';
 import { Rng, randomSeed } from './rng';
@@ -148,6 +149,7 @@ import {
   loadEffectsFor,
   type LoadEffects,
   newUid,
+  preparedEffect,
   OWN_CLOTHES_TEARS,
   TEAR_CONDITION_COST,
   TEAR_HOURS,
@@ -186,7 +188,8 @@ import {
   REPAIR_INPUTS,
   REPAIR_TOOL,
   DIRTY_WATER_DRINK_INFECTION,
-  waterInputFor,
+  recipeInputs,
+  type CraftContext,
 } from './crafting';
 import {
   applyPartDamage,
@@ -313,6 +316,7 @@ import {
   pickIntelTarget,
   pruneMapAnnotations,
 } from './intel';
+import { applyStartingFactionIntel } from './startingIntel';
 import { tickLocationClock } from './locationClock';
 import { POI_CONFIG } from './poi';
 import {
@@ -796,7 +800,8 @@ interface State {
   /** Put an item down for good. The only way to shed weight without a stash. */
   dropItem: (uid: string) => void;
   /** Run a recipe from `crafting.ts`, consuming its inputs. */
-  craftItem: (recipeId: string) => void;
+  craftItem: (recipeId: string, mode?: 'hot' | 'room', waterSource?: 'carried' | 'site') => void;
+  collectSiteWater: (source: 'rain' | 'boiled') => void;
   /**
    * Patch up one worn instance, carried or equipped. `materialDefId` picks the
    * route: a full workbench repair, or a whetstone/gun oil in the field.
@@ -1661,8 +1666,8 @@ export const useGame = create<State>((set, get) => {
     return false;
   };
 
-  // Blind exploration: the ONLY way a location is revealed is by standing at
-  // it. Marks it discovered, snapshots memory, and lights a spot on the fog.
+  // Visiting a site discovers it, snapshots memory, and lights a spot on the fog.
+  // Map intel can also reveal a site without visiting it.
   const discoverLocation = (locationId: string) => {
     const s = get();
     const loc = s.locations[locationId];
@@ -1739,6 +1744,7 @@ export const useGame = create<State>((set, get) => {
         ? { groundKind: s.hdb.groundKind, currentLevel: s.hdb.currentLevel }
         : null,
       hasSleepingBag: hasSleepingBagNearby(),
+      rainShelter: !s.hdb && !s.tunnel && !!loc?.facilities?.rainShelter,
       serviceBed: extras.serviceBed,
       inTunnelCamp: extras.inTunnelCamp,
     };
@@ -2041,6 +2047,7 @@ export const useGame = create<State>((set, get) => {
       inst.stack,
       inst.condition,
       inst.contaminationRisk,
+      inst.coldPrepared,
     );
     return { items: carried.items, loose: carried.loose > 0, defId: inst.defId, count: inst.stack };
   };
@@ -3854,13 +3861,16 @@ export const useGame = create<State>((set, get) => {
         );
       }
 
-      // Promote up to two sites per faction to outposts, seed services, and
-      // reveal outpost pins so they read as destinations from day one.
+      // Hubs exist independently of player knowledge. Only starting intel
+      // traits reveal their pins; other hubs must be found during the run.
       const outposts = pickOutposts(Object.values(locations));
       const withServices = applyFactionServices(locations, outposts, get().seed);
+      const startingIntel = applyStartingFactionIntel(
+        rng, withServices, outposts, get().character!.traitIds,
+      );
 
       set({
-        locations: withServices,
+        locations: startingIntel.locations,
         items,
         equipment,
         outposts,
@@ -3871,16 +3881,13 @@ export const useGame = create<State>((set, get) => {
         escort: null,
         traderTaken: {},
       });
-      for (const [fid, ids] of Object.entries(outposts)) {
-        const cfg = FACTION_CONFIG[fid as Exclude<FactionId, null>];
-        for (const id of ids ?? []) {
-          const loc = withServices[id];
-          if (!loc) continue;
-          pushLog(
-            `Word is ${cfg.shortName} run a ${cfg.outpostName.toLowerCase()} out of ${loc.name}, ${loc.distanceFromSpawn} m off — full services if they know you.`,
-            'info',
-          );
-        }
+      for (const loc of startingIntel.revealed) {
+        if (!loc.factionId) continue;
+        const cfg = FACTION_CONFIG[loc.factionId];
+        pushLog(
+          `Word is ${cfg.shortName} run a ${cfg.outpostName.toLowerCase()} out of ${loc.name}, ${loc.distanceFromSpawn} m off — full services if they know you.`,
+          'info',
+        );
       }
 
       if (wakeTier === 'lost') {
@@ -5573,9 +5580,10 @@ export const useGame = create<State>((set, get) => {
       let consumed = false;
       // Spoiled food still feeds you — it just asks for something back.
       let spoiledInfection = 0;
-      switch (def.effect.kind) {
+      const effect = preparedEffect(def.effect, inst);
+      switch (effect.kind) {
         case 'food': {
-          const fx = def.effect;
+          const fx = effect;
           m.hunger = clampMeter(m.hunger + Math.round(fresh(fx.hunger) * (1 + foodEffectMod)));
           if (fx.thirst != null) m.thirst = clampMeter(m.thirst + fresh(fx.thirst));
           if (fx.energy != null) m.energy = clampMeter(m.energy + fresh(fx.energy));
@@ -5587,7 +5595,7 @@ export const useGame = create<State>((set, get) => {
           break;
         }
         case 'water': {
-          const fx = def.effect;
+          const fx = effect;
           m.thirst = clampMeter(m.thirst + fresh(fx.thirst));
           if (fx.hunger != null) {
             m.hunger = clampMeter(m.hunger + Math.round(fresh(fx.hunger) * (1 + foodEffectMod)));
@@ -5612,16 +5620,16 @@ export const useGame = create<State>((set, get) => {
         }
         case 'heal': {
           const healAmt =
-            fresh((def.effect.partHeal ?? 0) + (def.effect.health ?? 0)) + healBonus;
+            fresh((effect.partHeal ?? 0) + (effect.health ?? 0)) + healBonus;
           newBodyParts = treatInjuries(
             s.bodyParts,
             healAmt,
-            def.effect.stopsBleeding,
+            effect.stopsBleeding,
             def.id === 'splint',
           );
           // A dirty dressing buys you the bleed and charges you the infection.
           // The Polyclinic Nurse's training takes most of that sting out.
-          const risk = def.effect.infectionRisk ?? 0;
+          const risk = effect.infectionRisk ?? 0;
           if (risk > 0) {
             const resist = sumTraitMod(s.character!.traitIds, 'infectionResist') + skillPackage().infectionResist;
             m.infection = clampMeter(m.infection + risk * (1 - resist));
@@ -5629,7 +5637,7 @@ export const useGame = create<State>((set, get) => {
           applyPracticeXp('medicine', PRACTICE_XP.healUse);
           consumed = true;
           pushLog(
-            def.effect.stopsBleeding
+            effect.stopsBleeding
               ? risk > 0
                 ? `Bound the wound with ${def.name}. Bleeding stopped — it is not clean.`
                 : `Used ${def.name}. Bleeding stopped, wound dressed.`
@@ -5639,7 +5647,7 @@ export const useGame = create<State>((set, get) => {
           break;
         }
         case 'cure':
-          m.infection = clampMeter(m.infection - fresh(def.effect.infection));
+          m.infection = clampMeter(m.infection - fresh(effect.infection));
           consumed = true;
           pushLog(
             faded
@@ -5649,7 +5657,7 @@ export const useGame = create<State>((set, get) => {
           );
           break;
         case 'energy': {
-          const fx = def.effect;
+          const fx = effect;
           m.energy = clampMeter(m.energy + fresh(fx.energy));
           if (fx.hunger != null) {
             m.hunger = clampMeter(m.hunger + Math.round(fresh(fx.hunger) * (1 + foodEffectMod)));
@@ -5670,7 +5678,7 @@ export const useGame = create<State>((set, get) => {
           return;
         }
         case 'skillBook': {
-          const book = def.effect;
+          const book = effect;
           const result = applySkillBook(s.skills, book.skill, book.tier);
           if (!result.ok) {
             pushLog(
@@ -5723,7 +5731,7 @@ export const useGame = create<State>((set, get) => {
             excludeId: posLoc?.id,
           };
           const rng = new Rng(g.seed).fork(`intel:${inst.uid}`);
-          const fx = def.effect;
+          const fx = effect;
 
           if (fx.mode === 'rumour') {
             const target = pickIntelTarget(
@@ -5930,21 +5938,21 @@ export const useGame = create<State>((set, get) => {
       persist();
     },
 
-    craftItem: (recipeId) => {
+    craftItem: (recipeId, mode = 'room', waterSource = 'carried') => {
       const s = get();
+      if (s.phase !== 'game' || !s.character || s.combat || s.travelAnim || s.pendingSearch || s.pendingEvent) return;
       const recipe = RECIPES.find((r) => r.id === recipeId);
       if (!recipe) return;
+      const loc = surfaceSite(s);
+      const context: CraftContext = { site: loc?.facilities, atSite: !!loc, now: gameHour(s.day, s.hour), mode, waterSource };
       // A stash is a workbench: somewhere to put things down and take your time.
       const atShelter = s.currentPositionId !== null || s.hdb !== null;
-      const waterInputId = recipe.waterInput
-        ? waterInputFor(s.items, recipe.waterInput)
-        : null;
-      const inputs = adjustCraftInputs(
+      const adjusted = recipe.fixedInputs ? recipe.inputs : adjustCraftInputs(
         recipe.inputs,
         sumTraitMod(s.character!.traitIds, 'craftCostMod') + skillPackage().craftCostMod,
       );
-      if (waterInputId && recipe.waterInput) inputs[waterInputId] = recipe.waterInput;
-      const check = canCraft(recipe, s.items, atShelter, inputs);
+      const inputs = recipeInputs(recipe, s.items, adjusted, context);
+      const check = canCraft(recipe, s.items, atShelter, inputs, context);
       if (!check.ok) {
         pushLog(`Can't make that — ${check.reason.toLowerCase()}.`, 'bad');
         return;
@@ -5958,15 +5966,34 @@ export const useGame = create<State>((set, get) => {
       };
       if (advanceTime(recipe.hours)) return;
 
-      let items = spendInputs(get().items);
+      const items = spendInputs(get().items);
+      const end = gameHour(get().day, get().hour);
+      if (recipe.facility && loc) {
+        const current = get().locations[loc.id];
+        const facilities = buildFacility(current.facilities, recipe.facility, end, recipe.outputCount);
+        set({ items, locations: { ...get().locations, [loc.id]: { ...current, facilities } } });
+        pushLog(`Prepared ${recipe.name} at ${loc.name}.`, 'good');
+        applyPracticeXp('trades', PRACTICE_XP.craft);
+        persist();
+        return;
+      }
+      if (recipe.waterInput && waterSource === 'site' && recipe.preparation !== 'boil' && loc) {
+        const current = get().locations[loc.id];
+        const water = current.facilities!.water!;
+        set({ locations: { ...get().locations, [loc.id]: { ...current, facilities: {
+          ...current.facilities, water: { ...water, amount: water.amount - recipe.waterInput },
+        } } } });
+      }
       const contaminated =
-        waterInputId === 'dirty_water' ? DIRTY_WATER_DRINK_INFECTION : undefined;
+        (inputs.dirty_water ?? 0) > 0 && recipe.preparation === 'drink' && mode === 'room'
+          ? DIRTY_WATER_DRINK_INFECTION : undefined;
       const made = addToCarry(
         items,
         recipe.outputDefId,
         recipe.outputCount,
         undefined,
         contaminated,
+        recipe.preparation === 'drink' && mode === 'room',
       );
       const outName = itemDef(recipe.outputDefId).name;
       set({ items: made.items });
@@ -5977,6 +6004,25 @@ export const useGame = create<State>((set, get) => {
         'good',
       );
       applyPracticeXp('trades', PRACTICE_XP.craft);
+      persist();
+    },
+
+    collectSiteWater: (source) => {
+      const s = get();
+      if (s.phase !== 'game' || s.combat || s.travelAnim || s.pendingSearch || s.pendingEvent) return;
+      const loc = surfaceSite(s);
+      if (!loc) return;
+      const now = gameHour(s.day, s.hour);
+      const site = loc.facilities;
+      const available = source === 'rain' ? collectedRain(site, now, s.seed) : site?.water?.amount ?? 0;
+      const count = Math.floor(available);
+      if (count < 1) return;
+      const facilities = source === 'rain'
+        ? { ...site, collector: { checkedAt: now, water: available - count } }
+        : { ...site, water: { amount: 0, hotUntil: 0 } };
+      const made = addToCarry(s.items, source === 'rain' ? 'dirty_water' : 'newater', count);
+      set({ items: made.items, locations: { ...s.locations, [loc.id]: { ...loc, facilities } } });
+      pushLog(`Collected ${count} water at ${loc.name}.`, 'good');
       persist();
     },
 
@@ -7587,7 +7633,7 @@ export const useGame = create<State>((set, get) => {
         if (orphans.length > 0) {
           let items = s.items.filter((i) => !i.container.startsWith('search:'));
           for (const inst of orphans) {
-            items = addToCarry(items, inst.defId, inst.stack, inst.condition).items;
+            items = addToCarry(items, inst.defId, inst.stack, inst.condition, inst.contaminationRisk, inst.coldPrepared).items;
           }
           set({ items });
         }

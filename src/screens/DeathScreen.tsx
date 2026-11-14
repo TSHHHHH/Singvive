@@ -104,7 +104,7 @@ export function DeathScreen() {
           {escaped
             ? t('ui.death.escapeBlurb')
             : deathCause
-              ? DEATH_TEXT[deathCause]
+              ? t(`ui.death.causes.${deathCause}`)
               : t('ui.death.gone')}
         </p>
 
@@ -115,19 +115,10 @@ export function DeathScreen() {
         </div>
 
         <p className="mt-4 text-read text-white/50">
-          {escaped ? (
-            <>
-              {character?.name} escaped Singapore on day{' '}
-              <span className="text-signal">{day}</span>
-              {day > 1 ? <> (×{mult.toFixed(1)} score mult)</> : null}.
-            </>
-          ) : (
-            <>
-              {character?.name} lasted <span className="text-signal">{day}</span>{' '}
-              {day === 1 ? 'day' : 'days'} in the ruins of Singapore
-              {day > 1 ? <> (×{mult.toFixed(1)} score mult)</> : null}.
-            </>
-          )}
+          {t(escaped ? 'ui.death.escapeSummary' : day === 1 ? 'ui.death.survivedOne' : 'ui.death.survivedMany', {
+            name: character?.name ?? t('ui.create.survivor'), day,
+          })}
+          {day > 1 && t('ui.death.scoreMultiplier', { mult: mult.toFixed(1) })}
         </p>
 
         <p className="mt-3 text-body text-white/40">{statusCopy(worldStatus, rank, t)}</p>

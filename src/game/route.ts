@@ -1,11 +1,14 @@
 import { haversine } from './overpass';
 import { isWalkable } from './playable';
+import { LAND_CROSSINGS, nearLandCrossing, onLandCrossing } from './crossings';
 
 /**
  * Land-aware walking routes against the baked walkability mask.
  *
  * Fast path: if the straight chord is dry, return the two endpoints.
- * Otherwise: budgeted local A* on a ~100 m grid. Caps are hard — prefer
+ * Otherwise: budgeted local A* on a ~100 m grid with explicit bridge links.
+ * Narrow decks need their own nodes so grid alignment cannot strand a player.
+ * Caps are hard — prefer
  * "no dry route" over hitching the UI.
  */
 
@@ -18,7 +21,6 @@ export interface LandRoute {
 
 const CHORD_STEP_M = 70;
 const CELL_M = 100;
-const QUANT_M = 50;
 const MAX_EXPANSIONS = 8000;
 const MAX_MS = 8;
 const MEMO_CAP = 48;
@@ -47,8 +49,14 @@ function pathLengthM(points: LatLng[]): number {
 /** True if any chord sample (or either endpoint) is unwalkable. */
 export function pathCrossesUnplayable(from: LatLng, to: LatLng): boolean {
   if (!isWalkable(from.lat, from.lng) || !isWalkable(to.lat, to.lng)) return true;
+  return chordCrossesUnplayable(from, to);
+}
+
+/** Interior samples only, for A* edges whose endpoints were already checked. */
+function chordCrossesUnplayable(from: LatLng, to: LatLng): boolean {
   const dist = haversine(from.lat, from.lng, to.lat, to.lng);
-  const steps = Math.max(1, Math.ceil(dist / CHORD_STEP_M));
+  const stepM = nearLandCrossing(from, to) ? 10 : CHORD_STEP_M;
+  const steps = Math.max(1, Math.ceil(dist / stepM));
   for (let i = 1; i < steps; i++) {
     const t = i / steps;
     const lat = from.lat + (to.lat - from.lat) * t;
@@ -58,15 +66,9 @@ export function pathCrossesUnplayable(from: LatLng, to: LatLng): boolean {
   return false;
 }
 
-function quantizeKey(p: LatLng): string {
-  const mLng = metersPerDegLng(p.lat);
-  const qLat = Math.round((p.lat * DEG_LAT_M) / QUANT_M);
-  const qLng = Math.round((p.lng * mLng) / QUANT_M);
-  return `${qLat},${qLng}`;
-}
-
 function memoKey(from: LatLng, to: LatLng): string {
-  return `${quantizeKey(from)}>${quantizeKey(to)}`;
+  // A 50 m bucket can contain both bridge deck and water. Keep exact endpoints.
+  return `${from.lat},${from.lng}>${to.lat},${to.lng}`;
 }
 
 const memo = new Map<string, LandRoute | null>();
@@ -167,9 +169,11 @@ function cellKey(i: number, j: number): number {
 }
 
 /**
- * A* inside a padded AABB around from→to. Returns null on unreachable or budget.
+ * A* inside a padded AABB around from→to. Undefined means a transient timeout;
+ * null means unreachable or over the deterministic size/expansion caps.
  */
-function astarLand(from: LatLng, to: LatLng): LandRoute | null {
+function astarLand(from: LatLng, to: LatLng): LandRoute | null | undefined {
+  const t0 = performance.now();
   const chord = haversine(from.lat, from.lng, to.lat, to.lng);
   const pad = corridorPadM(chord);
   const midLat = (from.lat + to.lat) / 2;
@@ -196,17 +200,14 @@ function astarLand(from: LatLng, to: LatLng): LandRoute | null {
     j: Math.round((p.lng - originLng) / dLng),
   });
 
-  const cellCenter = (i: number, j: number): LatLng => ({
+  // Negative row indices address exact endpoints / crossing vertices, leaving
+  // ordinary grid keys unchanged. They share the same heap and search budget.
+  const exactPoints: LatLng[] = [from, to];
+  const gridAttachments = new Set([0, 1]);
+  const cellCenter = (i: number, j: number): LatLng => i < 0 ? exactPoints[-i - 1] : ({
     lat: originLat + i * dLat,
     lng: originLng + j * dLng,
   });
-
-  const start = toCell(from);
-  const goal = toCell(to);
-  start.i = Math.max(0, Math.min(rows - 1, start.i));
-  start.j = Math.max(0, Math.min(cols - 1, start.j));
-  goal.i = Math.max(0, Math.min(rows - 1, goal.i));
-  goal.j = Math.max(0, Math.min(cols - 1, goal.j));
 
   const walkCache = new Map<number, boolean>();
   const walkable = (i: number, j: number): boolean => {
@@ -221,27 +222,61 @@ function astarLand(from: LatLng, to: LatLng): LandRoute | null {
     return w;
   };
 
-  // Endpoints must be reachable from their cells — snap to nearest walkable
-  // neighbor if the exact cell center fell in a ditch.
-  const snapWalkable = (c: { i: number; j: number }): { i: number; j: number } | null => {
-    if (walkable(c.i, c.j)) return c;
-    for (const [di, dj] of NEIGHBORS) {
-      const ni = c.i + di;
-      const nj = c.j + dj;
-      if (walkable(ni, nj)) return { i: ni, j: nj };
-    }
-    return null;
+  type Link = { i: number; j: number; cost: number };
+  const links = new Map<number, Link[]>();
+  const connect = (ai: number, aj: number, bi: number, bj: number): void => {
+    const a = cellCenter(ai, aj);
+    const b = cellCenter(bi, bj);
+    if (pathCrossesUnplayable(a, b)) return;
+    const cost = haversine(a.lat, a.lng, b.lat, b.lng) / CELL_M;
+    const add = (i: number, j: number, next: Link) => {
+      const key = cellKey(i, j);
+      const list = links.get(key);
+      if (list) list.push(next);
+      else links.set(key, [next]);
+    };
+    add(ai, aj, { i: bi, j: bj, cost });
+    add(bi, bj, { i: ai, j: aj, cost });
   };
 
-  const s0 = snapWalkable(start);
-  const g0 = snapWalkable(goal);
-  if (!s0 || !g0) return null;
+  for (const crossing of LAND_CROSSINGS) {
+    if (!crossing.points.every((p) => p.lat >= minLat && p.lat <= maxLat &&
+        p.lng >= minLng && p.lng <= maxLng)) continue;
+    const offset = exactPoints.length;
+    exactPoints.push(...crossing.points);
+    gridAttachments.add(offset);
+    gridAttachments.add(exactPoints.length - 1);
+    for (let n = offset + 1; n < exactPoints.length; n++) connect(-n, 0, -n - 1, 0);
+  }
 
+  for (let n = 0; n < exactPoints.length; n++) {
+    const p = exactPoints[n];
+    // Join the land grid at the shore approaches only. Interior deck vertices
+    // already have explicit links; probing a grid around each wastes the budget.
+    if (gridAttachments.has(n)) {
+      const c = toCell(p);
+      for (let di = -1; di <= 1; di++) {
+        for (let dj = -1; dj <= 1; dj++) {
+          if (walkable(c.i + di, c.j + dj)) connect(-n - 1, 0, c.i + di, c.j + dj);
+        }
+      }
+    }
+    // A trek may begin or end partway across a deck, far from dry grid cells.
+    if (n < 2) continue;
+    for (let endpoint = 0; endpoint < 2; endpoint++) {
+      const e = exactPoints[endpoint];
+      if (gridAttachments.has(n) || (onLandCrossing(e.lat, e.lng) &&
+          haversine(p.lat, p.lng, e.lat, e.lng) <= CELL_M * 2)) {
+        connect(-n - 1, 0, -endpoint - 1, 0);
+      }
+    }
+  }
+
+  const s0 = { i: -1, j: 0 };
+  const g0 = { i: -2, j: 0 };
   const heuristic = (i: number, j: number) => {
-    const di = Math.abs(i - g0.i);
-    const dj = Math.abs(j - g0.j);
-    const diag = Math.min(di, dj);
-    return diag * Math.SQRT2 + Math.abs(di - dj);
+    const p = cellCenter(i, j);
+    return haversine(p.lat, p.lng, to.lat, to.lng) / CELL_M;
   };
 
   const open = new MinHeap();
@@ -251,13 +286,11 @@ function astarLand(from: LatLng, to: LatLng): LandRoute | null {
   gScore.set(startK, 0);
   open.push({ f: heuristic(s0.i, s0.j), g: 0, i: s0.i, j: s0.j });
 
-  const t0 = performance.now();
   let expansions = 0;
 
   while (open.size > 0) {
-    if (expansions >= MAX_EXPANSIONS || performance.now() - t0 >= MAX_MS) {
-      return null;
-    }
+    if (expansions >= MAX_EXPANSIONS) return null;
+    if (performance.now() - t0 >= MAX_MS) return undefined;
     const cur = open.pop()!;
     const curK = cellKey(cur.i, cur.j);
     const knownG = gScore.get(curK);
@@ -274,12 +307,13 @@ function astarLand(from: LatLng, to: LatLng): LandRoute | null {
         k = pk;
       }
       cells.reverse();
-      const points: LatLng[] = [from, ...cells.map((c) => cellCenter(c.i, c.j)), to];
+      const points = cells.map((c) => cellCenter(c.i, c.j));
       const simplified = simplifyCollinear(points);
       return { points: simplified, lengthM: Math.round(pathLengthM(simplified)) };
     }
 
-    for (const [di, dj, cost] of NEIGHBORS) {
+    const next: Link[] = [...(links.get(curK) ?? [])];
+    for (const [di, dj, cost] of cur.i < 0 ? [] : NEIGHBORS) {
       const ni = cur.i + di;
       const nj = cur.j + dj;
       if (!walkable(ni, nj)) continue;
@@ -287,10 +321,17 @@ function astarLand(from: LatLng, to: LatLng): LandRoute | null {
       if (di !== 0 && dj !== 0) {
         if (!walkable(cur.i + di, cur.j) || !walkable(cur.i, cur.j + dj)) continue;
       }
+      next.push({ i: ni, j: nj, cost });
+    }
+    for (const { i: ni, j: nj, cost } of next) {
       const nk = cellKey(ni, nj);
       const tentative = cur.g + cost;
       const prev = gScore.get(nk);
       if (prev !== undefined && tentative >= prev) continue;
+      // Only sample a grid edge when it can improve the route. Exact-node links
+      // were validated on insertion, and walkable() cached the grid endpoints.
+      if (cur.i >= 0 && ni >= 0 &&
+          chordCrossesUnplayable(cellCenter(cur.i, cur.j), cellCenter(ni, nj))) continue;
       gScore.set(nk, tentative);
       came.set(nk, curK);
       open.push({ f: tentative + heuristic(ni, nj), g: tentative, i: ni, j: nj });
@@ -312,7 +353,9 @@ function simplifyCollinear(points: LatLng[]): LatLng[] {
     const bc = haversine(b.lat, b.lng, c.lat, c.lng);
     const ac = haversine(a.lat, a.lng, c.lat, c.lng);
     // If B barely detours from AC, drop it
-    if (ab + bc - ac < CELL_M * 0.35) continue;
+    // Keep deck / shore vertices: even a tiny shortcut can leave a narrow bridge.
+    if (ab + bc - ac < CELL_M * 0.35 && !nearLandCrossing(a, c) &&
+        !pathCrossesUnplayable(a, c)) continue;
     out.push(b);
   }
   out.push(points[points.length - 1]);
@@ -343,6 +386,8 @@ export function routeLandPath(from: LatLng, to: LatLng): LandRoute | null {
   }
 
   const routed = astarLand(from, to);
+  // A busy frame is not proof that no route exists. Let the next request retry.
+  if (routed === undefined) return null;
   memoSet(key, routed);
   return routed;
 }

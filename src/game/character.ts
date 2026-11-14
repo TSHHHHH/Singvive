@@ -4,6 +4,8 @@ import { EMOJI_FALLBACK } from '../icons/keys';
 import { itemDef } from './loot';
 import { clampStanding, emptyStanding, type FactionStanding } from './factions';
 import { combineLight } from './nightSight';
+import { t } from '../i18n/t';
+import type { LocaleId } from '../i18n/types';
 
 export const ATTRIBUTE_KEYS: AttributeKey[] = [
   'strength',
@@ -79,9 +81,9 @@ const ATTRIBUTE_MOD_KEYS: Record<AttributeKey, keyof Trait> = {
 };
 
 // ---------- Trait System ----------
-// Start at 0 points. Negatives refund; positives spend.
-// Caps: max 1 signature (cost ≥ 4), max 1 curse (cost ≤ −3), max 2 negatives.
-// A build is legal iff points remaining ≥ 0 and the caps hold.
+// Start at 0 points. Flaws refund; positives spend.
+// No trait-count caps or point-value tiers.
+// A build is legal iff points remaining ≥ 0, with no duplicates or conflicts.
 
 export const TRAIT_BUDGET = 0;
 
@@ -213,6 +215,17 @@ export const TRAITS: Trait[] = [
     effects: ['Start Known with the Muster', 'Start Known with Gotong'],
     conflicts: ['ah_long_debt'],
     factionStandingMod: { muster: 1, gotong: 1 },
+  },
+  {
+    id: 'local_contacts',
+    name: 'Local Contacts',
+    description: 'Old contacts passed you the locations of two faction hubs before the lines went dead.',
+    category: 'positive',
+    cost: 2,
+    icon: 'trait.local_contacts',
+    effects: ['Start with one hub marked for each of two different factions'],
+    conflicts: [],
+    startingHubKnowledge: 2,
   },
   {
     id: 'ah_long_debt',
@@ -1062,49 +1075,18 @@ export function traitBudgetRemaining(ids: string[]): number {
   return TRAIT_BUDGET - traitBudgetUsed(ids);
 }
 
-export const SIGNATURE_MIN_COST = 4;
-export const CURSE_MAX_COST = -3;
-export const MAX_SIGNATURES = 1;
-export const MAX_CURSES = 1;
-export const MAX_NEGATIVES = 2;
-
-export function isSignature(t: Trait): boolean {
-  return t.category === 'positive' && t.cost >= SIGNATURE_MIN_COST;
-}
-
-export function isCurse(t: Trait): boolean {
-  return t.category === 'negative' && t.cost <= CURSE_MAX_COST;
-}
-
-export function countSignatures(ids: string[]): number {
-  return getTraits(ids).filter(isSignature).length;
-}
-
-export function countCurses(ids: string[]): number {
-  return getTraits(ids).filter(isCurse).length;
-}
-
 export function countNegatives(ids: string[]): number {
   return getTraits(ids).filter((t) => t.category === 'negative').length;
 }
 
 /** Why a tile cannot be added, or null if it is legal to pick. */
-export function pickBlockReason(candidateId: string, selectedIds: string[]): string | null {
+export function pickBlockReason(candidateId: string, selectedIds: string[], locale: LocaleId = 'en'): string | null {
   if (selectedIds.includes(candidateId)) return null;
-  if (isIncompatible(candidateId, selectedIds)) return 'conflicts with a picked trait';
+  if (isIncompatible(candidateId, selectedIds)) return t('ui.create.blockReason.conflict', undefined, locale);
   const candidate = getTrait(candidateId);
-  if (isSignature(candidate) && countSignatures(selectedIds) >= MAX_SIGNATURES) {
-    return 'already have a signature';
-  }
-  if (isCurse(candidate) && countCurses(selectedIds) >= MAX_CURSES) {
-    return 'already have a curse';
-  }
-  if (candidate.category === 'negative' && countNegatives(selectedIds) >= MAX_NEGATIVES) {
-    return 'at most two negatives';
-  }
   if (candidate.category === 'positive') {
     if (traitBudgetUsed(selectedIds) + candidate.cost > TRAIT_BUDGET) {
-      return 'not enough points';
+      return t('ui.create.blockReason.points', undefined, locale);
     }
   }
   return null;
@@ -1119,9 +1101,6 @@ export function canPickTrait(candidateId: string, selectedIds: string[]): boolea
 /** Whether a finished build is legal to start / save. */
 export function isLegalTraitBuild(ids: string[]): boolean {
   if (traitBudgetRemaining(ids) < 0) return false;
-  if (countSignatures(ids) > MAX_SIGNATURES) return false;
-  if (countCurses(ids) > MAX_CURSES) return false;
-  if (countNegatives(ids) > MAX_NEGATIVES) return false;
   const seen = new Set<string>();
   for (const id of ids) {
     if (seen.has(id)) return false;
@@ -1164,10 +1143,10 @@ export function attributesFromTraits(traitIds: string[]): Attributes {
 export function attributeSources(
   traitIds: string[],
   key: AttributeKey,
-): { name: string; mod: number }[] {
+): { id: string; name: string; mod: number }[] {
   const modKey = ATTRIBUTE_MOD_KEYS[key];
   return getTraits(traitIds)
-    .map((t) => ({ name: t.name, mod: (t[modKey] as number | undefined) ?? 0 }))
+    .map((t) => ({ id: t.id, name: t.name, mod: (t[modKey] as number | undefined) ?? 0 }))
     .filter((s) => s.mod !== 0);
 }
 
@@ -1185,53 +1164,53 @@ export interface AttributeEffect {
 // character module stays free of dungeon imports.
 const senseChanceOf = (v: number) => Math.max(0.05, Math.min(0.95, 0.15 + (v - 3) * 0.11));
 
-export function attributeEffects(key: AttributeKey, value: number): AttributeEffect[] {
+export function attributeEffects(key: AttributeKey, value: number, locale: LocaleId = 'en'): AttributeEffect[] {
   const d = value - BASE_ATTRIBUTE;
   const half = Math.floor(value / 2) - Math.floor(BASE_ATTRIBUTE / 2);
   const sense = Math.round((senseChanceOf(value) - senseChanceOf(BASE_ATTRIBUTE)) * 100);
   const num = (n: number, text: string, unit = ''): [number, string] => [
     n,
-    `${n > 0 ? '+' : ''}${n}${unit} ${text}`,
+    `${n > 0 ? '+' : ''}${n}${unit} ${t(`ui.attributes.effects.${text}`, undefined, locale)}`,
   ];
   const pct = (n: number, text: string): [number, string] => [
     n,
-    `${n > 0 ? '+' : ''}${Math.round(n * 100)}% ${text}`,
+    `${n > 0 ? '+' : ''}${Math.round(n * 100)}% ${t(`ui.attributes.effects.${text}`, undefined, locale)}`,
   ];
 
   let rows: [number, string][];
   switch (key) {
     case 'strength':
-      rows = [num(half, 'melee damage'), num(d * 3, 'kg carry capacity')];
+      rows = [num(half, 'melee'), num(d * 3, 'carry')];
       break;
     case 'dexterity':
       rows = [
-        num(d, 'attack accuracy'),
+        num(d, 'accuracy'),
         num(half, 'defense'),
-        pct(d * 0.02, 'dodge chance'),
-        pct(d * 0.03, 'travel speed'),
-        num(sense, 'scout read chance', '%'),
-        num(d, 'flee & stairwell checks'),
+        pct(d * 0.02, 'dodge'),
+        pct(d * 0.03, 'travel'),
+        num(sense, 'scout', '%'),
+        num(d, 'fleeStairs'),
       ];
       break;
     case 'endurance':
       rows = [
-        num(d * 6, 'max HP'),
-        num(d * 2, 'kg carry capacity'),
-        pct(d * 0.06, 'travel speed'),
-        num(d, 'stairwell retreat checks'),
+        num(d * 6, 'hp'),
+        num(d * 2, 'carry'),
+        pct(d * 0.06, 'travel'),
+        num(d, 'stairs'),
       ];
       break;
     case 'perception':
       rows = [
-        num(Math.floor(d / 2), 'loot rolls per search'),
-        pct(d * 0.04, 'search speed'),
-        num(d, 'awareness (fog & blip range)'),
-        num(sense, 'encounter-sense chance', '%'),
-        num(Math.floor(d / 2), 'flee checks'),
+        num(Math.floor(d / 2), 'loot'),
+        pct(d * 0.04, 'search'),
+        num(d, 'awareness'),
+        num(sense, 'encounter', '%'),
+        num(Math.floor(d / 2), 'flee'),
       ];
       break;
     case 'wits':
-      rows = [num(sense, 'chance to read a room', '%')];
+      rows = [num(sense, 'room', '%')];
       break;
   }
   return rows

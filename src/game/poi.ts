@@ -29,6 +29,7 @@ export const POI_CONFIG: Record<PoiCategory, PoiCategoryConfig> = {
   mrt: { label: 'MRT Station', richness: 1, baseDanger: 3, color: '#2bc4d9', icon: 'poi.mrt', blurb: 'Nothing runs. The platform is a way into the tunnels, and the STA works the turnstiles.' },
   industrial: { label: 'Industrial Unit', richness: 3, baseDanger: 3, color: '#a8863f', icon: 'poi.industrial', blurb: 'Warehouse floor & loading bay. Tools, fuel and materials — and a lot of dark corners.' },
   school: { label: 'School', richness: 2, baseDanger: 3, color: '#7fa8b2', icon: 'poi.school', blurb: 'Canteen, sick bay, workshop. They were used as shelters, which is exactly the problem.' },
+  landmark: { label: 'Landmark', richness: 2, baseDanger: 3, color: '#c5ae75', icon: 'poi.landmark', blurb: 'The skyline is familiar. The crowds are gone. Check visitor bags, kiosks and service cupboards.' },
   waypoint: { label: 'Waypoint', richness: 1, baseDanger: 2, color: '#6b7075', icon: 'poi.waypoint', blurb: 'Not a destination — a place to stop between them. Whatever the road left behind.' },
 };
 

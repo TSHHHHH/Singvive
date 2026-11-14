@@ -19,6 +19,7 @@ import {
 } from '../game/combat';
 import { canCombatReload, holsteredFirearm, isGunClubMainHand, loadedRoundsOf, magazineSizeFor } from '../game/firearms';
 import { fullEquipment } from '../game/equipmentSlots';
+import { combatWeaponLabel } from './combatLabels';
 import { conditionOf } from '../game/inventory';
 import { itemDef } from '../game/loot';
 import { combatantIcon } from '../game/enemies';
@@ -196,7 +197,7 @@ export function CombatPanel({
           damage={stats.damage + stance.damageMod}
           defense={effectiveDefense(stats, stance, terrain)}
           speed={pSpeed}
-          weapon={stats.weaponName}
+          weapon={combatWeaponLabel(eq.mainHand, locale)}
           dmgLabel={t('ui.combat.dmg')}
           defLabel={t('ui.combat.def')}
           spdLabel={t('ui.combat.spd')}
@@ -246,7 +247,7 @@ export function CombatPanel({
           </span>
         )}
         <span>
-          {terrain.name} · T{combat.round}
+          {t(`ui.combat.terrain.${terrain.id}`)} · T{combat.round}
         </span>
         {onOpenGuide && (
           <GuideInfoButton topic="fight" onOpen={onOpenGuide} label={t('ui.combat.guide')} />
@@ -406,13 +407,12 @@ function StanceSwitcher({
   return (
     <div className="flex min-w-0 flex-1 gap-1">
       {FIGHT_STANCE_ORDER.map((id) => {
-        const s = STANCES[id];
         const on = id === selected;
         return (
           <button
             key={id}
             onClick={() => onSelect(id)}
-            {...tip(s.description)}
+            {...tip(t(`ui.combat.stanceHint.${id}`))}
             className={`h-7 min-w-0 flex-1 truncate rounded border px-1 text-plate uppercase transition ${
               on
                 ? 'border-astral/70 bg-astral/20 text-astral'
@@ -445,6 +445,7 @@ function SpeedTrack({
   enemySpeedValue: number;
   acting: 'player' | 'enemy' | null;
 }) {
+  const { t } = useT();
   const pPct = Math.min(100, (playerGauge / GAUGE_FULL) * 100);
   const ePct = Math.min(100, (enemyGauge / GAUGE_FULL) * 100);
   const pSec = secondsPerAction(playerSpeedValue);
@@ -453,8 +454,8 @@ function SpeedTrack({
   return (
     <div className="shrink-0 space-y-0.5">
       <div className="flex justify-between text-micro tabular-nums text-white/30">
-        <span {...tip('Seconds per your action at current Speed')}>you {pSec.toFixed(1)}s</span>
-        <span {...tip('Seconds per their action')}>them {eSec.toFixed(1)}s</span>
+        <span {...tip(t('ui.combat.yourInterval'))}>{t('ui.combat.you')} {pSec.toFixed(1)}s</span>
+        <span {...tip(t('ui.combat.theirInterval'))}>{t('ui.combat.them')} {eSec.toFixed(1)}s</span>
       </div>
       <div className="relative h-3 rounded-sm bg-black/50 ring-1 ring-white/10">
         <div
@@ -586,6 +587,7 @@ function FighterColumn({
   /** Player critical health — continuous pulse while the fight is live. */
   lowHpPulse?: boolean;
 }) {
+  const { t } = useT();
   return (
     <div className="flex min-w-0 flex-col justify-between gap-0.5">
       <div className={`flex items-baseline ${mirrored ? 'justify-start' : 'justify-end'}`}>
@@ -611,13 +613,13 @@ function FighterColumn({
           mirrored ? 'justify-end' : ''
         }`}
       >
-        <span {...tip('Damage per hit')}>
+        <span {...tip(t('ui.combat.damageTip'))}>
           <span className="text-white/25">{dmgLabel}</span> {Math.round(damage)}
         </span>
-        <span {...tip('What the other side has to beat')}>
+        <span {...tip(t('ui.combat.defenceTip'))}>
           <span className="text-white/25">{defLabel}</span> {defense}
         </span>
-        <span {...tip(spdTip ?? 'Gauge units per second on the track')}>
+        <span {...tip(spdTip ?? t('ui.combat.spdTipEnemy'))}>
           <span className="text-white/25">{spdLabel}</span> {speed.toFixed(0)}
         </span>
       </div>

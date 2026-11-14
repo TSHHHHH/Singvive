@@ -11,7 +11,6 @@ import {
 import { useShallow } from 'zustand/react/shallow';
 import { useGame } from '../game/store';
 import { Icon } from '../icons/Icon';
-import { itemDef } from '../game/loot';
 import { codeOnLine, journeyStrip } from '../game/mrt';
 import { FACTION_CONFIG } from '../game/factions';
 import { priceList } from '../game/events';
@@ -35,7 +34,7 @@ import {
 } from '../game/tunnelRun';
 import { useMrtNetwork } from './useMrtNetwork';
 import { CrawlPids } from './StationStrip';
-import { msgOr, useT } from '../i18n';
+import { itemName, msgOr, useT } from '../i18n';
 import { tip } from './tips';
 
 /**
@@ -919,13 +918,13 @@ function CampPanel({
   onAccept: () => void;
   onDecline: () => void;
 }) {
-  const { t } = useT();
+  const { locale, t } = useT();
   return (
     <div className="shrink-0 border-t border-astral/30 bg-astral/5 px-3 py-2">
-      <div className="mb-1.5 text-label uppercase text-astral">{name} · they let you in</div>
+      <div className="mb-1.5 text-label uppercase text-astral">{t('ui.tunnel.campWelcome', { name })}</div>
       {servicesUsed ? (
         <p className="mb-2 text-body text-concrete-400">
-          Camp services already used — one favour is all they&apos;ll spare.
+          {t('ui.tunnel.campUsed')}
         </p>
       ) : (
         <div className="flex flex-wrap gap-2">
@@ -950,9 +949,9 @@ function CampPanel({
         <div className="mt-2 rounded border border-concrete-600 bg-concrete-950/60 px-2 py-1.5">
           <div className="flex items-center justify-between gap-2 text-body">
             <span>
-              <span className="text-hiss">− {itemDef(offer.wantDefId).name}</span>
+              <span className="text-hiss">− {itemName(offer.wantDefId, locale)}</span>
               <span className="text-concrete-400">{t('ui.tunnel.forConnector')}</span>
-              <span className="text-signal">+ {itemDef(offer.giveDefId).name}</span>
+              <span className="text-signal">+ {itemName(offer.giveDefId, locale)}</span>
             </span>
             <span className="flex shrink-0 gap-1">
               <button
@@ -987,7 +986,7 @@ function CarriagePanel({
   const { t } = useT();
   return (
     <div className="shrink-0 border-t border-astral/30 bg-astral/5 px-3 py-2">
-      <div className="mb-1.5 text-label uppercase text-astral">{name} · the consist is in the way</div>
+      <div className="mb-1.5 text-label uppercase text-astral">{t('ui.tunnel.carriageBlocked', { name })}</div>
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
@@ -1031,7 +1030,7 @@ function CheckpointPanel({
   const { t } = useT();
   return (
     <div className="shrink-0 border-t border-astral/30 bg-astral/5 px-3 py-2">
-      <div className="mb-1.5 text-label uppercase text-astral">{name} · STA holds the bore</div>
+      <div className="mb-1.5 text-label uppercase text-astral">{t('ui.tunnel.checkpointHeld', { name })}</div>
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
@@ -1091,12 +1090,12 @@ function NodeDetail({
   const hazard = node.hazard ? TUNNEL_HAZARD[node.hazard] : null;
   const standingHere = node.id === run.currentId;
   const blurb = !revealed
-    ? 'Too far ahead to make out. You will find out by walking into it.'
+    ? t('ui.tunnel.unrevealedBlurb')
     : node.elite
-      ? 'Something has been keeping pace with you down the bore.'
+      ? t('ui.tunnel.eliteBlurb')
       : hazard
-        ? hazard.blurb
-        : meta.blurb;
+        ? t(`ui.tunnel.hazard.${node.hazard}.blurb`)
+        : t(`ui.tunnel.meta.${node.kind}.blurb`);
 
   return (
     <div className="shrink-0 border-t border-concrete-600 bg-concrete-900/60 p-3">
@@ -1109,7 +1108,7 @@ function NodeDetail({
           </div>
           <p className="mt-1 text-body text-concrete-400">{blurb}</p>
           {revealed && node.collapsedBore && (
-            <p className="mt-1 text-micro text-hiss">Collapsed bore — rubble, packs, no camps.</p>
+            <p className="mt-1 text-micro text-hiss">{t('ui.tunnel.collapsedBlurb')}</p>
           )}
         </div>
         <div className="shrink-0 text-right text-micro tabular-nums text-concrete-400">
@@ -1166,8 +1165,8 @@ function NodeDetail({
       </button>
       <p className="mt-1 text-center text-micro text-concrete-400/70">
         {mayExit
-          ? 'Stairs up at every station — or keep walking toward the far end.'
-          : 'There is no way back up until the next station — the tunnel only runs one way now.'}
+          ? t('ui.tunnel.exitHint')
+          : t('ui.tunnel.forwardHint')}
       </p>
     </div>
   );

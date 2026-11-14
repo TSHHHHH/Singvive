@@ -365,7 +365,7 @@ export function HdbContextPanel({
   );
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
+    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain lg:[&_.text-body]:text-read lg:[&_.text-micro]:text-body lg:[&_.text-read]:text-title">
       <div className="px-3 pb-2 pt-1 lg:px-0 lg:pt-0">
         <PlaceStack>
           {head}

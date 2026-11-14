@@ -1,44 +1,5 @@
 [
   {
-    "id": "kopi_o",
-    "name": "Brew Kopi O",
-    "inputs": {
-      "coffee": 1
-    },
-    "waterInput": 1,
-    "outputDefId": "kopi_o",
-    "outputCount": 1,
-    "hours": 0.5,
-    "needsShelter": false,
-    "blurb": "Coffee powder and water. It is plain, hot, and enough to keep moving."
-  },
-  {
-    "id": "kopi_sachet_drink",
-    "name": "Mix Kopi Sachet",
-    "inputs": {
-      "kopi_sachets": 1
-    },
-    "waterInput": 1,
-    "outputDefId": "kopi_sachet_drink",
-    "outputCount": 1,
-    "hours": 0.25,
-    "needsShelter": false,
-    "blurb": "One sachet and whatever water is safe enough to spare."
-  },
-  {
-    "id": "milo_drink",
-    "name": "Mix Milo",
-    "inputs": {
-      "milo_tin": 1
-    },
-    "waterInput": 1,
-    "outputDefId": "milo_drink",
-    "outputCount": 1,
-    "hours": 0.5,
-    "needsShelter": false,
-    "blurb": "Milo powder and water. Not fancy, but it puts something useful in you."
-  },
-  {
     "id": "purify",
     "name": "Purify Water",
     "inputs": {
@@ -50,19 +11,6 @@
     "hours": 0.5,
     "needsShelter": false,
     "blurb": "Tablets and twenty minutes turn a bottle of murk into something safe."
-  },
-  {
-    "id": "boil",
-    "name": "Boil Water",
-    "inputs": {
-      "dirty_water": 2,
-      "fuel_can": 1
-    },
-    "outputDefId": "newater",
-    "outputCount": 2,
-    "hours": 1.5,
-    "needsShelter": true,
-    "blurb": "Slower than tablets and it costs you fuel — fuel also counts hard toward evac readiness."
   },
   {
     "id": "bandages",
@@ -170,47 +118,6 @@
     "hours": 0.5,
     "needsShelter": false,
     "blurb": "Four spent cards and a scrap edge. STA will not take them as tribute anymore."
-  },
-  {
-    "id": "kopi_c",
-    "name": "Brew Kopi C",
-    "inputs": {
-      "coffee": 1,
-      "condensed_milk": 1
-    },
-    "waterInput": 1,
-    "outputDefId": "kopi_c",
-    "outputCount": 1,
-    "hours": 0.5,
-    "needsShelter": true,
-    "blurb": "Coffee powder, condensed milk, and water. Murky water makes a risky cup."
-  },
-  {
-    "id": "cooked_mee",
-    "name": "Cook Maggi",
-    "inputs": {
-      "instant_noodles": 1,
-      "water_bottle": 1
-    },
-    "outputDefId": "cooked_mee",
-    "outputCount": 1,
-    "hours": 0.5,
-    "needsShelter": false,
-    "blurb": "A brick of noodles and a bottle of water. Heat is optional. Hunger is not."
-  },
-  {
-    "id": "milo_dinosaur",
-    "name": "Mix a Milo Dinosaur",
-    "inputs": {
-      "milo_tin": 1,
-      "condensed_milk": 1
-    },
-    "waterInput": 1,
-    "outputDefId": "milo_dinosaur",
-    "outputCount": 1,
-    "hours": 0.5,
-    "needsShelter": false,
-    "blurb": "The whole tin, condensed milk, and water. Heavy tin, light cup; murky water still carries its risk."
   },
   {
     "id": "lockpick",
@@ -348,5 +255,839 @@
     "hours": 0.5,
     "needsShelter": false,
     "blurb": "The same light, and your off hand back. Worth an hour of fiddling with zip ties."
+  },
+  {
+    "id": "portion_coffee",
+    "name": "Portion Kopi Packet",
+    "inputs": {
+      "coffee": 1
+    },
+    "outputDefId": "coffee_portion",
+    "outputCount": 8,
+    "hours": 0.1,
+    "needsShelter": false,
+    "blurb": "Split the container into measured ingredients. Each craft uses measures, not the whole tin.",
+    "fixedInputs": true
+  },
+  {
+    "id": "portion_condensed_milk",
+    "name": "Portion Condensed Milk",
+    "inputs": {
+      "condensed_milk": 1
+    },
+    "outputDefId": "condensed_portion",
+    "outputCount": 8,
+    "hours": 0.1,
+    "needsShelter": false,
+    "blurb": "Split the container into measured ingredients. Each craft uses measures, not the whole tin.",
+    "fixedInputs": true
+  },
+  {
+    "id": "portion_evaporated_milk",
+    "name": "Portion Evaporated Milk Tin",
+    "inputs": {
+      "evaporated_milk": 1
+    },
+    "outputDefId": "evaporated_portion",
+    "outputCount": 8,
+    "hours": 0.1,
+    "needsShelter": false,
+    "blurb": "Split the container into measured ingredients. Each craft uses measures, not the whole tin.",
+    "fixedInputs": true
+  },
+  {
+    "id": "portion_milo_tin",
+    "name": "Portion Tin of Milo",
+    "inputs": {
+      "milo_tin": 1
+    },
+    "outputDefId": "milo_portion",
+    "outputCount": 8,
+    "hours": 0.1,
+    "needsShelter": false,
+    "blurb": "Split the container into measured ingredients. Each craft uses measures, not the whole tin.",
+    "fixedInputs": true
+  },
+  {
+    "id": "kopi",
+    "name": "Prepare Kopi",
+    "inputs": {
+      "coffee_portion": 2,
+      "condensed_portion": 2
+    },
+    "outputDefId": "kopi",
+    "outputCount": 1,
+    "hours": 0.25,
+    "needsShelter": false,
+    "blurb": "Brew hot for full benefits, or mix at room temperature for half hunger and energy. Water still hydrates; unsafe cold water stays unsafe.",
+    "waterInput": 1,
+    "preparation": "drink",
+    "family": "kopi",
+    "fixedInputs": true
+  },
+  {
+    "id": "kopi_siew_dai",
+    "name": "Prepare Kopi Siew Dai",
+    "inputs": {
+      "coffee_portion": 2,
+      "condensed_portion": 1
+    },
+    "outputDefId": "kopi_siew_dai",
+    "outputCount": 1,
+    "hours": 0.25,
+    "needsShelter": false,
+    "blurb": "Brew hot for full benefits, or mix at room temperature for half hunger and energy. Water still hydrates; unsafe cold water stays unsafe.",
+    "waterInput": 1,
+    "preparation": "drink",
+    "family": "kopi",
+    "fixedInputs": true
+  },
+  {
+    "id": "kopi_gah_dai",
+    "name": "Prepare Kopi Gah Dai",
+    "inputs": {
+      "coffee_portion": 2,
+      "condensed_portion": 3
+    },
+    "outputDefId": "kopi_gah_dai",
+    "outputCount": 1,
+    "hours": 0.25,
+    "needsShelter": false,
+    "blurb": "Brew hot for full benefits, or mix at room temperature for half hunger and energy. Water still hydrates; unsafe cold water stays unsafe.",
+    "waterInput": 1,
+    "preparation": "drink",
+    "family": "kopi",
+    "fixedInputs": true
+  },
+  {
+    "id": "kopi_gau",
+    "name": "Prepare Kopi Gau",
+    "inputs": {
+      "coffee_portion": 3,
+      "condensed_portion": 2
+    },
+    "outputDefId": "kopi_gau",
+    "outputCount": 1,
+    "hours": 0.25,
+    "needsShelter": false,
+    "blurb": "Brew hot for full benefits, or mix at room temperature for half hunger and energy. Water still hydrates; unsafe cold water stays unsafe.",
+    "waterInput": 1,
+    "preparation": "drink",
+    "family": "kopi",
+    "fixedInputs": true
+  },
+  {
+    "id": "kopi_po",
+    "name": "Prepare Kopi Po",
+    "inputs": {
+      "coffee_portion": 1,
+      "condensed_portion": 2
+    },
+    "outputDefId": "kopi_po",
+    "outputCount": 1,
+    "hours": 0.25,
+    "needsShelter": false,
+    "blurb": "Brew hot for full benefits, or mix at room temperature for half hunger and energy. Water still hydrates; unsafe cold water stays unsafe.",
+    "waterInput": 1,
+    "preparation": "drink",
+    "family": "kopi",
+    "fixedInputs": true
+  },
+  {
+    "id": "kopi_c",
+    "name": "Prepare Kopi-C",
+    "inputs": {
+      "coffee_portion": 2,
+      "evaporated_portion": 2,
+      "sugar_portion": 2
+    },
+    "outputDefId": "kopi_c",
+    "outputCount": 1,
+    "hours": 0.25,
+    "needsShelter": false,
+    "blurb": "Brew hot for full benefits, or mix at room temperature for half hunger and energy. Water still hydrates; unsafe cold water stays unsafe.",
+    "waterInput": 1,
+    "preparation": "drink",
+    "family": "kopi",
+    "fixedInputs": true
+  },
+  {
+    "id": "kopi_c_kosong",
+    "name": "Prepare Kopi-C Kosong",
+    "inputs": {
+      "coffee_portion": 2,
+      "evaporated_portion": 2
+    },
+    "outputDefId": "kopi_c_kosong",
+    "outputCount": 1,
+    "hours": 0.25,
+    "needsShelter": false,
+    "blurb": "Brew hot for full benefits, or mix at room temperature for half hunger and energy. Water still hydrates; unsafe cold water stays unsafe.",
+    "waterInput": 1,
+    "preparation": "drink",
+    "family": "kopi",
+    "fixedInputs": true
+  },
+  {
+    "id": "kopi_c_siew_dai",
+    "name": "Prepare Kopi-C Siew Dai",
+    "inputs": {
+      "coffee_portion": 2,
+      "evaporated_portion": 2,
+      "sugar_portion": 1
+    },
+    "outputDefId": "kopi_c_siew_dai",
+    "outputCount": 1,
+    "hours": 0.25,
+    "needsShelter": false,
+    "blurb": "Brew hot for full benefits, or mix at room temperature for half hunger and energy. Water still hydrates; unsafe cold water stays unsafe.",
+    "waterInput": 1,
+    "preparation": "drink",
+    "family": "kopi",
+    "fixedInputs": true
+  },
+  {
+    "id": "kopi_o",
+    "name": "Prepare Kopi-O",
+    "inputs": {
+      "coffee_portion": 2,
+      "sugar_portion": 2
+    },
+    "outputDefId": "kopi_o",
+    "outputCount": 1,
+    "hours": 0.25,
+    "needsShelter": false,
+    "blurb": "Brew hot for full benefits, or mix at room temperature for half hunger and energy. Water still hydrates; unsafe cold water stays unsafe.",
+    "waterInput": 1,
+    "preparation": "drink",
+    "family": "kopi",
+    "fixedInputs": true
+  },
+  {
+    "id": "kopi_o_kosong",
+    "name": "Prepare Kopi-O Kosong",
+    "inputs": {
+      "coffee_portion": 2
+    },
+    "outputDefId": "kopi_o_kosong",
+    "outputCount": 1,
+    "hours": 0.25,
+    "needsShelter": false,
+    "blurb": "Brew hot for full benefits, or mix at room temperature for half hunger and energy. Water still hydrates; unsafe cold water stays unsafe.",
+    "waterInput": 1,
+    "preparation": "drink",
+    "family": "kopi",
+    "fixedInputs": true
+  },
+  {
+    "id": "kopi_o_siew_dai",
+    "name": "Prepare Kopi-O Siew Dai",
+    "inputs": {
+      "coffee_portion": 2,
+      "sugar_portion": 1
+    },
+    "outputDefId": "kopi_o_siew_dai",
+    "outputCount": 1,
+    "hours": 0.25,
+    "needsShelter": false,
+    "blurb": "Brew hot for full benefits, or mix at room temperature for half hunger and energy. Water still hydrates; unsafe cold water stays unsafe.",
+    "waterInput": 1,
+    "preparation": "drink",
+    "family": "kopi",
+    "fixedInputs": true
+  },
+  {
+    "id": "kopi_o_gau",
+    "name": "Prepare Kopi-O Gau",
+    "inputs": {
+      "coffee_portion": 3,
+      "sugar_portion": 2
+    },
+    "outputDefId": "kopi_o_gau",
+    "outputCount": 1,
+    "hours": 0.25,
+    "needsShelter": false,
+    "blurb": "Brew hot for full benefits, or mix at room temperature for half hunger and energy. Water still hydrates; unsafe cold water stays unsafe.",
+    "waterInput": 1,
+    "preparation": "drink",
+    "family": "kopi",
+    "fixedInputs": true
+  },
+  {
+    "id": "kopi_o_po",
+    "name": "Prepare Kopi-O Po",
+    "inputs": {
+      "coffee_portion": 1,
+      "sugar_portion": 2
+    },
+    "outputDefId": "kopi_o_po",
+    "outputCount": 1,
+    "hours": 0.25,
+    "needsShelter": false,
+    "blurb": "Brew hot for full benefits, or mix at room temperature for half hunger and energy. Water still hydrates; unsafe cold water stays unsafe.",
+    "waterInput": 1,
+    "preparation": "drink",
+    "family": "kopi",
+    "fixedInputs": true
+  },
+  {
+    "id": "kopi_o_kosong_di_lo",
+    "name": "Prepare Kopi-O Kosong Di Lo",
+    "inputs": {
+      "coffee_portion": 4
+    },
+    "outputDefId": "kopi_o_kosong_di_lo",
+    "outputCount": 1,
+    "hours": 0.25,
+    "needsShelter": false,
+    "blurb": "Brew hot for full benefits, or mix at room temperature for half hunger and energy. Water still hydrates; unsafe cold water stays unsafe.",
+    "waterInput": 1,
+    "preparation": "drink",
+    "family": "kopi",
+    "fixedInputs": true
+  },
+  {
+    "id": "teh",
+    "name": "Prepare Teh",
+    "inputs": {
+      "tea_portion": 1,
+      "condensed_portion": 2
+    },
+    "outputDefId": "teh",
+    "outputCount": 1,
+    "hours": 0.25,
+    "needsShelter": false,
+    "blurb": "Brew hot for full benefits, or mix at room temperature for half hunger and energy. Water still hydrates; unsafe cold water stays unsafe.",
+    "waterInput": 1,
+    "preparation": "drink",
+    "family": "teh",
+    "fixedInputs": true
+  },
+  {
+    "id": "teh_o",
+    "name": "Prepare Teh-O",
+    "inputs": {
+      "tea_portion": 1,
+      "sugar_portion": 2
+    },
+    "outputDefId": "teh_o",
+    "outputCount": 1,
+    "hours": 0.25,
+    "needsShelter": false,
+    "blurb": "Brew hot for full benefits, or mix at room temperature for half hunger and energy. Water still hydrates; unsafe cold water stays unsafe.",
+    "waterInput": 1,
+    "preparation": "drink",
+    "family": "teh",
+    "fixedInputs": true
+  },
+  {
+    "id": "teh_o_kosong",
+    "name": "Prepare Teh-O Kosong",
+    "inputs": {
+      "tea_portion": 1
+    },
+    "outputDefId": "teh_o_kosong",
+    "outputCount": 1,
+    "hours": 0.25,
+    "needsShelter": false,
+    "blurb": "Brew hot for full benefits, or mix at room temperature for half hunger and energy. Water still hydrates; unsafe cold water stays unsafe.",
+    "waterInput": 1,
+    "preparation": "drink",
+    "family": "teh",
+    "fixedInputs": true
+  },
+  {
+    "id": "teh_c",
+    "name": "Prepare Teh-C",
+    "inputs": {
+      "tea_portion": 1,
+      "evaporated_portion": 2,
+      "sugar_portion": 2
+    },
+    "outputDefId": "teh_c",
+    "outputCount": 1,
+    "hours": 0.25,
+    "needsShelter": false,
+    "blurb": "Brew hot for full benefits, or mix at room temperature for half hunger and energy. Water still hydrates; unsafe cold water stays unsafe.",
+    "waterInput": 1,
+    "preparation": "drink",
+    "family": "teh",
+    "fixedInputs": true
+  },
+  {
+    "id": "teh_c_kosong",
+    "name": "Prepare Teh-C Kosong",
+    "inputs": {
+      "tea_portion": 1,
+      "evaporated_portion": 2
+    },
+    "outputDefId": "teh_c_kosong",
+    "outputCount": 1,
+    "hours": 0.25,
+    "needsShelter": false,
+    "blurb": "Brew hot for full benefits, or mix at room temperature for half hunger and energy. Water still hydrates; unsafe cold water stays unsafe.",
+    "waterInput": 1,
+    "preparation": "drink",
+    "family": "teh",
+    "fixedInputs": true
+  },
+  {
+    "id": "milo_drink",
+    "name": "Prepare Milo",
+    "inputs": {
+      "milo_portion": 2
+    },
+    "outputDefId": "milo_drink",
+    "outputCount": 1,
+    "hours": 0.25,
+    "needsShelter": false,
+    "blurb": "Brew hot for full benefits, or mix at room temperature for half hunger and energy. Water still hydrates; unsafe cold water stays unsafe.",
+    "waterInput": 1,
+    "preparation": "drink",
+    "fixedInputs": true
+  },
+  {
+    "id": "milo_milk",
+    "name": "Prepare Milo with Milk",
+    "inputs": {
+      "milo_portion": 2,
+      "evaporated_portion": 2
+    },
+    "outputDefId": "milo_milk",
+    "outputCount": 1,
+    "hours": 0.25,
+    "needsShelter": false,
+    "blurb": "Brew hot for full benefits, or mix at room temperature for half hunger and energy. Water still hydrates; unsafe cold water stays unsafe.",
+    "waterInput": 1,
+    "preparation": "drink",
+    "fixedInputs": true
+  },
+  {
+    "id": "milo_dinosaur",
+    "name": "Prepare Milo Dinosaur",
+    "inputs": {
+      "milo_portion": 3,
+      "condensed_portion": 2
+    },
+    "outputDefId": "milo_dinosaur",
+    "outputCount": 1,
+    "hours": 0.25,
+    "needsShelter": false,
+    "blurb": "Brew hot for full benefits, or mix at room temperature for half hunger and energy. Water still hydrates; unsafe cold water stays unsafe.",
+    "waterInput": 1,
+    "preparation": "drink",
+    "fixedInputs": true
+  },
+  {
+    "id": "kopi_sachet_drink",
+    "name": "Prepare Sachet Kopi",
+    "inputs": {
+      "kopi_sachets": 1
+    },
+    "outputDefId": "kopi_sachet_drink",
+    "outputCount": 1,
+    "hours": 0.25,
+    "needsShelter": false,
+    "blurb": "Brew hot for full benefits, or mix at room temperature for half hunger and energy. Water still hydrates; unsafe cold water stays unsafe.",
+    "waterInput": 1,
+    "preparation": "drink",
+    "fixedInputs": true
+  },
+  {
+    "id": "cooked_mee",
+    "name": "Cook Cooked Noodle Soup",
+    "inputs": {
+      "instant_noodles": 1
+    },
+    "outputDefId": "cooked_mee",
+    "outputCount": 1,
+    "hours": 0.5,
+    "needsShelter": false,
+    "blurb": "Needs a cooking pot and heat for the whole preparation. Cook with carried water or a hot batch left here. Eat before it spoils.",
+    "waterInput": 1,
+    "preparation": "cook",
+    "fixedInputs": true
+  },
+  {
+    "id": "sardine_noodles",
+    "name": "Cook Sardine Noodles",
+    "inputs": {
+      "instant_noodles": 1,
+      "canned_sardines": 1
+    },
+    "outputDefId": "sardine_noodles",
+    "outputCount": 1,
+    "hours": 0.5,
+    "needsShelter": false,
+    "blurb": "Needs a cooking pot and heat for the whole preparation. Cook with carried water or a hot batch left here. Eat before it spoils.",
+    "waterInput": 1,
+    "preparation": "cook",
+    "fixedInputs": true
+  },
+  {
+    "id": "luncheon_noodles",
+    "name": "Cook Luncheon Meat Noodles",
+    "inputs": {
+      "instant_noodles": 1,
+      "canned_luncheon_meat": 1
+    },
+    "outputDefId": "luncheon_noodles",
+    "outputCount": 1,
+    "hours": 0.5,
+    "needsShelter": false,
+    "blurb": "Needs a cooking pot and heat for the whole preparation. Cook with carried water or a hot batch left here. Eat before it spoils.",
+    "waterInput": 1,
+    "preparation": "cook",
+    "fixedInputs": true
+  },
+  {
+    "id": "rice_porridge",
+    "name": "Cook Rice Porridge",
+    "inputs": {
+      "dry_rice": 1
+    },
+    "outputDefId": "rice_porridge",
+    "outputCount": 1,
+    "hours": 0.5,
+    "needsShelter": false,
+    "blurb": "Needs a cooking pot and heat for the whole preparation. Cook with carried water or a hot batch left here. Eat before it spoils.",
+    "waterInput": 1,
+    "preparation": "cook",
+    "fixedInputs": true
+  },
+  {
+    "id": "sardine_porridge",
+    "name": "Cook Sardine Porridge",
+    "inputs": {
+      "dry_rice": 1,
+      "canned_sardines": 1
+    },
+    "outputDefId": "sardine_porridge",
+    "outputCount": 1,
+    "hours": 0.5,
+    "needsShelter": false,
+    "blurb": "Needs a cooking pot and heat for the whole preparation. Cook with carried water or a hot batch left here. Eat before it spoils.",
+    "waterInput": 1,
+    "preparation": "cook",
+    "fixedInputs": true
+  },
+  {
+    "id": "cooking_fire",
+    "name": "Cooking Fire",
+    "inputs": {
+      "firewood": 3,
+      "tinder": 1
+    },
+    "outputDefId": "cooking_fire",
+    "outputCount": 1,
+    "hours": 0.5,
+    "needsShelter": false,
+    "blurb": "Stays at this surface location. Provides 24 in-game hours of heat from completion, including time spent away.",
+    "facility": "fire",
+    "tool": "lighter",
+    "fixedInputs": true
+  },
+  {
+    "id": "fixed_stove",
+    "name": "Fixed Stove",
+    "inputs": {
+      "scrap_metal": 3,
+      "spare_parts": 1
+    },
+    "outputDefId": "fixed_stove",
+    "outputCount": 1,
+    "hours": 1,
+    "needsShelter": false,
+    "blurb": "Build a permanent stove at this surface location, then fuel it. It cannot be packed or carried.",
+    "facility": "stove",
+    "tool": "toolbox",
+    "fixedInputs": true
+  },
+  {
+    "id": "fuel_stove",
+    "name": "Fuel the Stove",
+    "inputs": {
+      "fuel_can": 1
+    },
+    "outputDefId": "fuel_stove",
+    "outputCount": 1,
+    "hours": 0.25,
+    "needsShelter": false,
+    "blurb": "Stays at this surface location. Provides 24 in-game hours of heat from completion, including time spent away.",
+    "facility": "stove_fuel",
+    "tool": "lighter",
+    "fixedInputs": true
+  },
+  {
+    "id": "rain_collector",
+    "name": "Rain Collector",
+    "inputs": {
+      "rain_tarp": 1,
+      "zip_ties": 2,
+      "water_container": 1
+    },
+    "outputDefId": "rain_collector",
+    "outputCount": 1,
+    "hours": 0.5,
+    "needsShelter": false,
+    "blurb": "Stays here. Collects one water per three rainy hours, up to four. Collected water needs treatment.",
+    "facility": "rain_collector",
+    "fixedInputs": true
+  },
+  {
+    "id": "rain_shelter",
+    "name": "Rain Shelter",
+    "inputs": {
+      "rain_tarp": 1,
+      "wooden_stick": 2,
+      "zip_ties": 2
+    },
+    "outputDefId": "rain_shelter",
+    "outputCount": 1,
+    "hours": 1,
+    "needsShelter": false,
+    "blurb": "Stays here. Gives an open sleeping site a roof, without protection from enemies.",
+    "facility": "rain_shelter",
+    "fixedInputs": true
+  },
+  {
+    "id": "boil",
+    "name": "Boil Water Here",
+    "inputs": {},
+    "outputDefId": "hot_water",
+    "outputCount": 2,
+    "hours": 0.5,
+    "needsShelter": false,
+    "blurb": "Boil two carried waters in a pot. The batch stays here, hot for two hours, then remains clean. Collect it to carry, or use it in recipes.",
+    "waterInput": 2,
+    "preparation": "boil",
+    "facility": "hot_water",
+    "fixedInputs": true
+  },
+  {
+    "id": "salvage_firewood",
+    "name": "Cut a Stick into Firewood",
+    "inputs": {
+      "wooden_stick": 1
+    },
+    "outputDefId": "firewood",
+    "outputCount": 2,
+    "hours": 0.25,
+    "needsShelter": false,
+    "blurb": "Trade a useful pole for fire fuel.",
+    "tool": "kitchen_knife",
+    "fixedInputs": true
+  },
+  {
+    "id": "paper_tinder",
+    "name": "Fold Paper Tinder",
+    "inputs": {
+      "old_magazines": 1
+    },
+    "outputDefId": "tinder",
+    "outputCount": 2,
+    "hours": 0.25,
+    "needsShelter": false,
+    "blurb": "Dry paper starts a fire; it does not fuel a whole day.",
+    "fixedInputs": true
+  },
+  {
+    "id": "joss_tinder",
+    "name": "Use Joss Paper as Tinder",
+    "inputs": {
+      "joss_paper": 1
+    },
+    "outputDefId": "tinder",
+    "outputCount": 1,
+    "hours": 0.25,
+    "needsShelter": false,
+    "blurb": "Dry paper becomes an emergency fire starter.",
+    "fixedInputs": true
+  },
+  {
+    "id": "ticket_tinder",
+    "name": "Use a Spent Ticket as Tinder",
+    "inputs": {
+      "four_d_ticket": 1
+    },
+    "outputDefId": "tinder",
+    "outputCount": 1,
+    "hours": 0.25,
+    "needsShelter": false,
+    "blurb": "Give up a possible barter token for a fire starter.",
+    "fixedInputs": true
+  },
+  {
+    "id": "envelope_tinder",
+    "name": "Use an Ang Bao as Tinder",
+    "inputs": {
+      "red_packet": 1
+    },
+    "outputDefId": "tinder",
+    "outputCount": 1,
+    "hours": 0.25,
+    "needsShelter": false,
+    "blurb": "A dry envelope has one last practical use.",
+    "fixedInputs": true
+  },
+  {
+    "id": "battery_salvage",
+    "name": "Salvage a Powerbank",
+    "inputs": {
+      "powerbank": 1
+    },
+    "outputDefId": "batteries",
+    "outputCount": 2,
+    "hours": 0.25,
+    "needsShelter": false,
+    "blurb": "Recover usable cells with tools. The powerbank is consumed.",
+    "tool": "toolbox",
+    "fixedInputs": true
+  },
+  {
+    "id": "repair_kit_salvage",
+    "name": "Strip a Bicycle Repair Kit",
+    "inputs": {
+      "bicycle_repair_kit": 1
+    },
+    "outputDefId": "spare_parts",
+    "outputCount": 2,
+    "hours": 0.25,
+    "needsShelter": false,
+    "blurb": "Recover useful repair parts from the kit.",
+    "fixedInputs": true
+  },
+  {
+    "id": "bottle_collector",
+    "name": "Make a Bottle Rain Collector",
+    "inputs": {
+      "glass_bottle": 3,
+      "rain_tarp": 1,
+      "duct_tape": 1
+    },
+    "outputDefId": "rain_collector",
+    "outputCount": 1,
+    "hours": 0.5,
+    "needsShelter": false,
+    "blurb": "A small bank of bottles under a tarp. Same four-water capacity as the bucket collector; stays here.",
+    "facility": "rain_collector",
+    "fixedInputs": true
+  },
+  {
+    "id": "pot_helmet",
+    "name": "Make Saucepan Helmet",
+    "inputs": {
+      "cooking_pot": 1,
+      "cloth_rags": 1,
+      "phone_charging_cable": 1
+    },
+    "outputDefId": "pot_helmet",
+    "outputCount": 1,
+    "hours": 0.5,
+    "needsShelter": false,
+    "blurb": "Everyday supplies turned into modest protection or carrying gear. Crafting consumes the original items.",
+    "fixedInputs": true
+  },
+  {
+    "id": "towel_vest",
+    "name": "Make Towel-Padded Vest",
+    "inputs": {
+      "towel": 2,
+      "duct_tape": 1
+    },
+    "outputDefId": "towel_vest",
+    "outputCount": 1,
+    "hours": 0.5,
+    "needsShelter": false,
+    "blurb": "Everyday supplies turned into modest protection or carrying gear. Crafting consumes the original items.",
+    "fixedInputs": true
+  },
+  {
+    "id": "magazine_guards",
+    "name": "Make Magazine Shin Guards",
+    "inputs": {
+      "old_magazines": 2,
+      "duct_tape": 1
+    },
+    "outputDefId": "magazine_guards",
+    "outputCount": 1,
+    "hours": 0.5,
+    "needsShelter": false,
+    "blurb": "Everyday supplies turned into modest protection or carrying gear. Crafting consumes the original items.",
+    "fixedInputs": true
+  },
+  {
+    "id": "sling_bag",
+    "name": "Make Improvised Sling Bag",
+    "inputs": {
+      "towel": 1,
+      "cloth_rags": 2,
+      "duct_tape": 1
+    },
+    "outputDefId": "sling_bag",
+    "outputCount": 1,
+    "hours": 0.5,
+    "needsShelter": false,
+    "blurb": "Everyday supplies turned into modest protection or carrying gear. Crafting consumes the original items.",
+    "fixedInputs": true
+  },
+  {
+    "id": "treated_bedroll",
+    "name": "Make a Treated Bedroll",
+    "inputs": {
+      "towel": 2,
+      "cloth_rags": 2,
+      "insect_repellent": 1
+    },
+    "outputDefId": "treated_bedroll",
+    "outputCount": 1,
+    "hours": 1,
+    "needsShelter": false,
+    "blurb": "A padded sleeping layer treated with repellent. Counts as bedding; it does not stop ambushes.",
+    "fixedInputs": true
+  },
+  {
+    "id": "towel_rags",
+    "name": "Cut a Towel into Rags",
+    "inputs": {
+      "towel": 1
+    },
+    "outputDefId": "cloth_rags",
+    "outputCount": 2,
+    "hours": 0.25,
+    "needsShelter": false,
+    "blurb": "Trade a towel for dressings, bindings or padding.",
+    "fixedInputs": true
+  },
+  {
+    "id": "battery_lantern",
+    "name": "Assemble a Battery Lantern",
+    "inputs": {
+      "batteries": 1,
+      "glass_bottle": 1,
+      "phone_charging_cable": 1,
+      "spare_parts": 1
+    },
+    "outputDefId": "torch",
+    "outputCount": 1,
+    "hours": 0.5,
+    "needsShelter": false,
+    "tool": "toolbox",
+    "fixedInputs": true,
+    "blurb": "Reuse the lamp parts and cable inside a bottle housing. Requires a toolbox."
+  },
+  {
+    "id": "jewellery_pick",
+    "name": "Bend Jewellery Wire into a Pick",
+    "inputs": {
+      "jewellery": 1
+    },
+    "outputDefId": "lockpick",
+    "outputCount": 1,
+    "hours": 0.5,
+    "needsShelter": false,
+    "tool": "toolbox",
+    "fixedInputs": true,
+    "blurb": "Sacrifice valuable jewellery for a one-use lockpick."
   }
 ]

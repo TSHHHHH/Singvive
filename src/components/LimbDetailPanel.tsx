@@ -1,6 +1,7 @@
+import { useT } from '../i18n';
 import { Icon } from '../icons/Icon';
 import type { IconName } from '../icons/keys';
-import { BODY_PART_IDS, BODY_PART_LABEL, partConditionPct } from '../game/survival';
+import { BODY_PART_IDS, partConditionPct } from '../game/survival';
 import type { BodyPart, BodyPartId, BodyParts } from '../game/types';
 
 const ORDER: BodyPartId[] = BODY_PART_IDS;
@@ -12,7 +13,7 @@ interface StatusChip {
   tone: 'warn' | 'danger';
 }
 
-function statusChips(partId: BodyPartId, part: BodyPart): StatusChip[] {
+function statusChips(partId: BodyPartId, part: BodyPart, t: ReturnType<typeof useT>['t']): StatusChip[] {
   const chips: StatusChip[] = [];
   const isArm = partId === 'leftArm' || partId === 'rightArm';
   const isLeg = partId === 'leftLeg' || partId === 'rightLeg';
@@ -20,49 +21,49 @@ function statusChips(partId: BodyPartId, part: BodyPart): StatusChip[] {
   if (part.bleed === 'major') {
     chips.push({
       icon: 'status.bleeding',
-      label: 'Bleeding badly',
+      label: t('ui.body.majorBleeding'),
       detail:
-        'Drains this limb until dressed. Raises encounter chance (+10% each, capped) — blood trail draws them in.',
+        t('ui.body.majorDetail'),
       tone: 'danger',
     });
   } else if (part.bleed === 'minor') {
     chips.push({
       icon: 'status.bleeding',
-      label: 'Bleeding',
+      label: t('ui.body.bleeding'),
       detail:
-        'Slow drain; may clot on its own. Still raises encounter chance (+4% each, capped). Dress it if you can.',
+        t('ui.body.minorDetail'),
       tone: 'warn',
     });
   }
   if (part.fractured) {
     chips.push({
       icon: 'status.fractured',
-      label: 'Fractured',
+      label: t('ui.body.fractured'),
       detail: isLeg
-        ? 'Needs a splint. Slows travel and shrinks how far you can push in one go.'
+        ? t('ui.body.fracturedLeg')
         : isArm
-          ? 'Needs a splint. Hurts aim and melee until set.'
-          : 'Needs a splint. Slows recovery and taxes combat.',
+          ? t('ui.body.fracturedArm')
+          : t('ui.body.fracturedOther'),
       tone: 'warn',
     });
   }
   if (part.crippled || part.hp <= 0) {
     const vitalDetail =
       partId === 'torso'
-        ? 'Vital zone wrecked — another solid hit here ends the run.'
+        ? t('ui.body.criticalTorso')
         : partId === 'head'
-          ? 'Vital zone wrecked — overkill spills into the body.'
+          ? t('ui.body.criticalHead')
           : null;
     chips.push({
       icon: 'status.crippled',
-      label: partId === 'head' || partId === 'torso' ? 'Critical' : 'Crippled',
+      label: partId === 'head' || partId === 'torso' ? t('ui.body.critical') : t('ui.body.crippled'),
       detail: vitalDetail
         ? vitalDetail
         : isLeg
-          ? 'Limb wrecked. Travel crawls; passive heal caps at 70% until treated.'
+          ? t('ui.body.crippledLeg')
           : isArm
-            ? 'Limb wrecked. Heavy combat penalty; passive heal caps at 70% until treated.'
-            : 'Limb wrecked. Passive heal caps at 70% until treated.',
+            ? t('ui.body.crippledArm')
+            : t('ui.body.crippledOther'),
       tone: 'danger',
     });
   }
@@ -105,8 +106,9 @@ function LimbRow({
   highlighted: boolean;
   onHover: (id: BodyPartId | null) => void;
 }) {
+  const { t } = useT();
   const pct = partConditionPct(part);
-  const chips = statusChips(partId, part);
+  const chips = statusChips(partId, part, t);
   const low = pct < 25;
 
   const hpText = `${Math.round(part.hp)}/${part.maxHp}`;
@@ -120,11 +122,11 @@ function LimbRow({
       onMouseLeave={() => onHover(null)}
     >
       <span className="w-9 shrink-0 text-label uppercase text-white/45">
-        {BODY_PART_LABEL[partId]}
+        {t(`ui.body.parts.${partId}`)}
       </span>
       <div
         className="relative min-h-[1em] min-w-0 flex-1 overflow-hidden rounded bg-black/50 ring-1 ring-white/10"
-        aria-label={`${BODY_PART_LABEL[partId]} ${hpText}`}
+        aria-label={`${t(`ui.body.parts.${partId}`)} ${hpText}`}
       >
         <div
           className={`absolute inset-y-0 left-0 transition-all duration-300 ${low ? 'pulse-danger' : ''}`}
