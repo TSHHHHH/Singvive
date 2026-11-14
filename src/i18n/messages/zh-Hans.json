@@ -246,6 +246,10 @@
       "theirInterval": "对方行动一次所需秒数",
       "damageTip": "每次命中的伤害",
       "defenceTip": "对手需要超过的防御值",
+      "fxMiss": "落空",
+      "fxDodge": "闪避",
+      "fxBlock": "格挡",
+      "fxCrit": "暴击",
       "fists": "拳头",
       "bashing": "{weapon}（挥砸）",
       "brokenWeapon": "拳头（{weapon}已损坏）"
@@ -1891,6 +1895,14 @@
       "description": "停止飘动的雨丝、脉冲与微光。「自动」跟随系统设置。",
       "options": {
         "auto": "自动",
+        "on": "开",
+        "off": "关"
+      }
+    },
+    "combatFx": {
+      "label": "战斗震屏与血迹",
+      "description": "命中时屏幕震动、溅血与伤害数字。仅限电脑版。开启「减少动态效果」时只保留淡入淡出，不再移动。",
+      "options": {
         "on": "开",
         "off": "关"
       }
