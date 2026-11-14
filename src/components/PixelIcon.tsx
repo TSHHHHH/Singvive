@@ -11,7 +11,7 @@ const STEPS = [3, 4, 5, 6, 8, 10, 13, 16, 22] as const;
 /** Intermediate size for downsampling, so tiny steps average instead of alias. */
 const MID = 32;
 
-export function pixelStep(progress: number): number {
+function pixelStep(progress: number): number {
   const i = Math.min(STEPS.length - 1, Math.max(0, Math.floor(progress * STEPS.length)));
   return STEPS[i];
 }
