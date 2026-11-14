@@ -26,7 +26,7 @@ const opt = (name, fallback) => {
 const N = Number(opt('n', 2000));
 const PLAYER_HP = 100;
 const MAX_ACTIONS = 400;
-const STANCE_IDS = ['aggressive', 'guarded'];
+const STANCE_IDS = ['aggressive', 'guarded', 'precision'];
 
 /** Loadouts a run actually passes through, each met at the danger it lives at. */
 const LOADOUTS = [
@@ -146,7 +146,7 @@ try {
 
         for (const row of balance.buildOverviewRows(ENEMIES, lo.danger)) {
           const enemy = toEnemy(row);
-          const acc = { fights: 0, wins: 0, pSwings: 0, pHits: 0, eSwings: 0, eHits: 0, seconds: 0, dmgTaken: 0, actions: 0 };
+          const acc = { fights: 0, wins: 0, pSwings: 0, pHits: 0, eSwings: 0, eHits: 0, seconds: 0, dmgTaken: 0, actions: 0, gameMin: 0 };
           for (let i = 0; i < N; i++) {
             const rng = new Rng(`sim:${cond.id}:${lo.id}:${stanceId}:${row.key}:${i}`);
             let hp = enemy.hp;
@@ -172,6 +172,7 @@ try {
                   rng, pStats, { ...enemy, hp }, cond.weather, round, stance, terrain, energy,
                 );
                 acc.pSwings++;
+                acc.gameMin += res.timeCostHours * 60;
                 if (res.hit) acc.pHits++;
                 hp = res.zombieHpAfter;
               } else {
@@ -205,6 +206,7 @@ try {
             enemyHp: enemy.hp,
             actions: acc.actions / acc.fights,
             seconds: acc.seconds / acc.fights,
+            gameMin: acc.gameMin / acc.fights,
             playerHit: acc.pHits / Math.max(1, acc.pSwings),
             enemyHit: acc.eHits / Math.max(1, acc.eSwings),
             whiff: 1 - (acc.pHits + acc.eHits) / Math.max(1, acc.pSwings + acc.eSwings),
@@ -232,7 +234,7 @@ try {
 
   console.log(`\nCombat pacing — ${N} fights per matchup, Dex 5 / Str 5, open ground`);
   console.log('Averages over the enemies each loadout meets at its danger (elites excluded).\n');
-  console.log('condition    loadout                 stance      swings  secs@1x  you hit  they hit  whiffs  dmg taken  win');
+  console.log('condition    loadout                 stance      swings  secs@1x  game min  you hit  they hit  whiffs  dmg taken  win');
   for (const cond of CONDITIONS) {
     for (const lo of LOADOUTS) {
       for (const stanceId of STANCE_IDS) {
@@ -246,6 +248,7 @@ try {
             stanceId.padEnd(10),
             f1(mean(set, 'actions')),
             f1(mean(set, 'seconds')) + '  ',
+            f1(mean(set, 'gameMin')) + '    ',
             pct(mean(set, 'playerHit')) + '    ',
             pct(mean(set, 'enemyHit')) + '     ',
             pct(mean(set, 'whiff')) + '  ',

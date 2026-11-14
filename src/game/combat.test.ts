@@ -221,3 +221,28 @@ describe('combat pacing', () => {
     expect(swing(BASE_PLAYER, night)).toBe(swing(BASE_PLAYER, CLEAR_WEATHER) - 2);
   });
 });
+
+describe('combat clock', () => {
+  const minutesFor = (stance: keyof typeof STANCES) =>
+    resolvePlayerAction(
+      new Rng('CLOCK'),
+      BASE_PLAYER,
+      SHAMBLER,
+      CLEAR_WEATHER,
+      1,
+      STANCES[stance],
+      OPEN_TERRAIN,
+      50,
+    ).timeCostHours * 60;
+
+  it('bills a swing in seconds, not hours', () => {
+    for (const id of ['aggressive', 'guarded', 'precision'] as const) {
+      expect(minutesFor(id)).toBeGreaterThan(0);
+      expect(minutesFor(id)).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('keeps Precision slower than a normal swing', () => {
+    expect(minutesFor('precision')).toBeGreaterThan(minutesFor('aggressive'));
+  });
+});
