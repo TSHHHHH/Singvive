@@ -4,9 +4,9 @@ import type { SearchSession, SearchSlot } from '../game/searchSession';
 import type { ItemDef } from '../game/types';
 import { itemDef } from '../game/loot';
 import { conditionBarColor, tileColor } from '../game/itemTileColor';
-import { Icon } from '../icons/Icon';
 import { itemIcon } from './Inventory/itemIcon';
 import { SearchFindRevealCell } from './SearchFindRevealCell';
+import { PixelIcon } from './PixelIcon';
 import { itemName, useT } from '../i18n';
 import { tip } from './tips';
 import { revealName, slotProgress } from '../game/searchReveal';
@@ -18,11 +18,11 @@ const MAX_VISIBLE_ROWS = 8;
 
 const SCRAMBLE_MS = 70;
 
-/** Blur + desaturate the icon until the bar fills; mosaic overlay fades out. */
+/** Slight desaturation that lifts as the bar fills (the pixel steps do the rest). */
 function censorStyle(p: number): CSSProperties {
   const k = 1 - p;
   return {
-    filter: `blur(${(k * 3.5).toFixed(2)}px) grayscale(${k.toFixed(2)}) brightness(${(0.45 + 0.55 * p).toFixed(2)})`,
+    filter: `grayscale(${(k * 0.7).toFixed(2)}) brightness(${(0.6 + 0.4 * p).toFixed(2)})`,
   };
 }
 
@@ -147,7 +147,7 @@ function FoggedRow({
   onHover: (slotId: string, e?: React.PointerEvent) => void;
   onPrioritize: (slotId: string) => void;
 }) {
-  const { shown, frontier, masked } = revealName(name, progress, scrambleTick);
+  const segments = revealName(name, progress, scrambleTick, slot.id);
   const started = progress > 0;
   return (
     <button
@@ -181,22 +181,34 @@ function FoggedRow({
         />
       )}
       <span
-        className="search-censor relative z-[1] flex shrink-0 items-center justify-center overflow-hidden rounded"
+        className="relative z-[1] flex shrink-0 items-center justify-center overflow-hidden rounded"
         style={{
           width: ICON_BOX,
           height: ICON_BOX,
           background: started ? `${tileColor(def)}33` : '#ffffff08',
-          ['--censor' as string]: String(1 - progress),
         }}
       >
         <span className="flex" style={censorStyle(progress)}>
-          <Icon name={itemIcon(def)} size={ICON_BOX - 8} />
+          <PixelIcon name={itemIcon(def)} size={ICON_BOX - 8} progress={progress} />
         </span>
       </span>
       <span className="relative z-[1] min-w-0 flex-1 truncate whitespace-pre text-body">
-        <span className="text-concrete-50">{shown}</span>
-        <span className={active ? 'text-[#a8d466]' : 'text-white/30'}>{frontier}</span>
-        <span className="text-white/20">{masked}</span>
+        {segments.map((seg, i) => (
+          <span
+            key={i}
+            className={
+              seg.kind === 'shown'
+                ? 'text-concrete-50'
+                : seg.kind === 'frontier'
+                  ? active
+                    ? 'text-[#a8d466]'
+                    : 'text-white/30'
+                  : 'text-white/20'
+            }
+          >
+            {seg.text}
+          </span>
+        ))}
       </span>
       {slot.count > 1 && started && progress >= 0.5 ? (
         <span className="relative z-[1] shrink-0 tabular-nums text-micro text-white/40">×{slot.count}</span>
