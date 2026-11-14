@@ -532,7 +532,7 @@ export const TRAITS: Trait[] = [
     name: 'Kampung Heirloom',
     description: 'Grandfather’s parang hung over the door for forty years. It came down sharp.',
     category: 'positive',
-    cost: 2,
+    cost: 3,
     icon: 'trait.heirloom_blade',
     effects: ['Starting gear only'],
     conflicts: [],

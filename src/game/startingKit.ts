@@ -59,9 +59,7 @@ export const TRAIT_KITS: Record<string, TraitKit> = {
   combat_veteran: {
     items: [
       { id: 'army_uniform' },
-      { id: 'camo_pants' },
       { id: 'combat_boots' },
-      { id: 'ifak_pouch' },
       { id: 'army_ration' },
     ],
   },
@@ -71,7 +69,6 @@ export const TRAIT_KITS: Record<string, TraitKit> = {
       { id: 'n95_mask' },
       { id: 'ifak_pouch' },
       { id: 'bandage', count: 2 },
-      { id: 'antibiotics' },
     ],
   },
   hyrox_champion: {
@@ -94,7 +91,7 @@ export const TRAIT_KITS: Record<string, TraitKit> = {
     ],
   },
   estate_memory: {
-    items: [{ id: 'work_gloves' }, { id: 'duffel_bag' }, { id: 'cloth_rags', count: 2 }],
+    items: [{ id: 'work_gloves' }, { id: 'cloth_rags', count: 2 }],
     pool: { pick: 2, from: SCAVENGER_FINDS },
   },
   operator: {
@@ -108,11 +105,9 @@ export const TRAIT_KITS: Record<string, TraitKit> = {
   site_foreman: {
     items: [
       { id: 'hard_hat' },
-      { id: 'work_vest' },
       { id: 'safety_boots' },
       { id: 'hammer' },
       { id: 'duct_tape', count: 2 },
-      { id: 'spare_parts', count: 2 },
     ],
   },
   made_man: {
@@ -154,15 +149,15 @@ export const TRAIT_KITS: Record<string, TraitKit> = {
     items: [
       { id: 'torch' },
       { id: 'large_water_bottle' },
-      { id: 'army_ration' },
+      { id: 'hardtack', count: 2 },
       { id: 'emergency_blanket' },
     ],
   },
   prepper: {
     items: [
-      { id: 'hiking_pack' },
+      { id: 'school_bag' },
       { id: 'canned_food', count: 3 },
-      { id: 'purification_tabs', count: 3 },
+      { id: 'purification_tabs', count: 2 },
       { id: 'lighter' },
     ],
   },
@@ -170,7 +165,7 @@ export const TRAIT_KITS: Record<string, TraitKit> = {
     items: [{ id: 'bandage', count: 2 }, { id: 'painkillers' }, { id: 'po_chai' }],
   },
   heirloom_blade: { items: [{ id: 'parang' }] },
-  weekend_cyclist: { items: [{ id: 'bike_helmet' }, { id: 'grip_gloves' }, { id: 'isotonic' }] },
+  weekend_cyclist: { items: [{ id: 'bike_helmet' }, { id: 'isotonic' }] },
   supper_run: { items: [{ id: 'bak_kwa' }, { id: 'curry_puff' }, { id: 'soya_bean' }] },
   just_popped_out: {
     items: [{ id: 'flip_flops' }, { id: 'grocery_tote' }],
