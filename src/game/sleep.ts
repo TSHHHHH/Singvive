@@ -156,7 +156,7 @@ export function evaluateSleepConditions(ctx: SleepContext): SleepConditions {
     return finalize('none', 'none', bed);
   }
 
-  if (ctx.category === 'landmark' && OPEN_LANDMARK_IDS.has(ctx.currentPositionId)) {
+  if (ctx.category === 'park' || (ctx.category === 'landmark' && OPEN_LANDMARK_IDS.has(ctx.currentPositionId))) {
     const conditions = finalize('none', ctx.rainShelter ? 'yes' : 'none', bed);
     // A tarp improves recovery, not protection from enemies.
     if (ctx.rainShelter) conditions.ambush = ambushFor('none', 'none', bed);

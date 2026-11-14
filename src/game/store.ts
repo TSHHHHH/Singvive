@@ -27,6 +27,11 @@ import type {
 } from './types';
 import { freshEventClock } from './types';
 import { buildFacility, collectedRain, gameHour, surfaceSite } from './facilities';
+import {
+  completeExplorationLeads, discoverLocalFacility, findExplorationLeads,
+  localFacilityFor, normalizeExplorationLeads, recognitionRadius, recognizeNearby,
+  type ExplorationLead,
+} from './exploration';
 import { sightFactor } from './nightSight';
 import { emptyRunStats, normalizeRunStats } from './stats';
 import { Rng, randomSeed } from './rng';
@@ -34,12 +39,14 @@ import {
   adjustCraftInputs,
   attrEmoji,
   ATTRIBUTE_LABELS,
+  equipAwarenessMod,
   equipLightPower,
   hasTraitFlag,
   maxHpFor,
   startingStanding,
   sumTraitMod,
   traitFirstHitDamageMult,
+  traitAwarenessMod,
   traitPoiLootBonus,
 } from './character';
 import {
@@ -55,7 +62,7 @@ import {
   type SkillId,
 } from './skills';
 import { fetchOsmPois, haversine, type RawPoi } from './overpass';
-import { bakedEvacPois, bakedPoisNear, ensureBakeLoaded } from './bakedPois';
+import { bakedEvacPois, bakedPoisNear, ensurePoiOutlines } from './bakedPois';
 import {
   ensureZonesLoaded,
   filterWalkablePois,
@@ -104,7 +111,8 @@ import {
   tunnelNodeScope,
   tunnelRunScope,
 } from './logGroup';
-import { buildLocations, generateFallbackWorld, makeStationLocation } from './world';
+import { buildLocations, makeStationLocation } from './world';
+import { isVerifiedHdb } from './hdbSites';
 import {
   conditionRoll,
   conditionRollForRuin,
@@ -202,6 +210,7 @@ import {
   guardArmFactor,
   headCombatPenalty,
   headSearchFactor,
+  headAwarenessPenalty,
   HOURS_PER_DAY,
   initialBodyParts,
   initialMeters,
@@ -423,15 +432,21 @@ import {
   type BreachOutcome,
   type HdbArchetype,
   type HdbDungeon,
+  type RoomScoutRoll,
   type HdbEntry,
 } from './hdbDungeon';
 import {
-  applyPulse,
   effectiveDanger,
   emitNoisePulse,
   prunePulses,
   type NoisePulse,
 } from './noise';
+import {
+  activityPressure, addActivity, BASE_ACTIVITY_PRESSURE, exploreActivity,
+  freshActivity, normalizeActivity, pruneActivity, respondActivity, type ActivityState,
+} from './activity';
+import { t } from '../i18n/t';
+import { activeLocale } from './eventCopy';
 import {
   GHOST_RADIUS,
   ghostBoss,
@@ -442,21 +457,8 @@ import {
   saveLegacyRun,
 } from './ghostSurvivor';
 import {
-  makePressureAt,
-  nearestRoofedShelter,
-  nearestTown,
-  pickGroundZero,
-  townDangerMod,
-  townTierAt,
-  TOWN_FIELD_START_HORDE,
-} from './townField';
-import type { TownTier } from './townField';
-import {
   EVAC_SCORE_BONUS,
-  HORDE_MAX,
-  HORDE_PER_DAY,
   evacReadiness,
-  hordeIntensity,
   pickDistantEvacPoi,
   pickEvacZone,
   rollEvacCooldown,
@@ -573,14 +575,11 @@ interface State {
    */
   expandedCells: string[];
 
-  /**
-   * Neighbourhood that went first this run. Null on saves from before the town
-   * field existed — those keep the old global horde intensity.
-   */
+  /** Retired v7 field, kept null for save compatibility. */
   groundZeroId: string | null;
 
-  // extraction goal + doom clock
-  hordeLevel: number; // 0..HORDE_MAX; rises each day
+  // Extraction goal; legacy horde field no longer advances or drives gameplay.
+  hordeLevel: number;
   evacZoneId: string | null; // the location you must reach to escape
   evacDeadline: number | null; // absolute game-hour the current evac departs
   /**
@@ -634,6 +633,8 @@ interface State {
   hdbHoverLevel: number | null;
   /** Room picked on a level strip (UI only); the action card targets it. */
   hdbSelUnit: string | null;
+  /** First-visit scouting playback. Runtime-only; the resolved intel lives in hdb. */
+  hdbScout: { locationId: string; level: number; startedAt: number; rolls: RoomScoutRoll[] } | null;
 
   /**
    * The tunnel segment you're currently walking, if any. Deliberately NOT
@@ -647,6 +648,7 @@ interface State {
   tunnelOffer: { kind: 'trader'; wantDefId: string; giveDefId: string } | null;
   /** Live noise rings for the map to draw. */
   noisePulses: NoisePulse[];
+  activity: ActivityState;
   /** A predecessor's ghost waiting to be resolved at this spot. */
   ghostOffer: { kind: 'trader'; wantDefId: string; giveDefId: string } | null;
 
@@ -702,6 +704,9 @@ interface State {
 
   /** Rumoured sites from smudged map notes — fuzzy pins until the target is found. */
   mapAnnotations: MapAnnotation[];
+  /** Local leads persist independently of the scrolling timeline. */
+  explorationLeads: ExplorationLead[];
+  readLocalMap: () => void;
 
   log: GameLogEntry[];
   /**
@@ -718,7 +723,7 @@ interface State {
   // actions
   goToCharacter: () => void;
   commitCharacter: (c: Character) => void;
-  setSpawn: (spawn: { lat: number; lng: number; name: string }) => Promise<'ok' | 'remote' | 'unplayable'>;
+  setSpawn: (spawn: { lat: number; lng: number; name: string }) => Promise<'ok' | 'remote' | 'unplayable' | 'unavailable'>;
   travel: (locationId: string) => void;
   /** Step inside the site you're standing at — the doorway, then the search. */
   enter: () => void;
@@ -869,6 +874,8 @@ interface State {
 
   // --- noise & legacy ---
   emitNoise: (lat: number, lng: number, radiusMeters: number, intensity: number) => void;
+  respondToActivity: (eventId?: string) => void;
+  dismissActivity: (eventId?: string) => void;
   acceptGhostTrade: () => void;
   declineGhostTrade: () => void;
 
@@ -904,6 +911,7 @@ export const useGame = create<State>((set, get) => {
     haul?: { loot: LootStack[]; leftover: LootStack[] },
     focus?: GameLogEntry['focus'],
     scope?: LogScope,
+    activityEvent?: GameLogEntry['activityEvent'],
   ) => {
     logCounter += 1;
     const s = get();
@@ -929,6 +937,7 @@ export const useGame = create<State>((set, get) => {
       leftover: haul?.leftover,
       focus,
       scope: resolvedScope,
+      activityEvent,
     };
     // Newest-first, but trim only once we are actually at the cap. The old
     // spread-then-slice allocated two 4000-element arrays per line, and a
@@ -1320,6 +1329,7 @@ export const useGame = create<State>((set, get) => {
         expandedCells: s.expandedCells,
         groundZeroId: s.groundZeroId,
         hordeLevel: s.hordeLevel,
+        activity: s.activity,
         evacZoneId: s.evacZoneId,
         evacDeadline: s.evacDeadline,
         evacCooldownUntil: s.evacCooldownUntil,
@@ -1335,6 +1345,7 @@ export const useGame = create<State>((set, get) => {
         traderTaken: s.traderTaken,
         escort: s.escort,
         mapAnnotations: s.mapAnnotations,
+        explorationLeads: s.explorationLeads,
       };
       const result = writeSavedRun(run);
       if (result === 'quota') {
@@ -1345,16 +1356,13 @@ export const useGame = create<State>((set, get) => {
 
   const pressureFn = () => {
     const s = get();
-    return makePressureAt(s.seed, s.groundZeroId, s.hordeLevel);
+    const now = totalGameHour(s.day, s.hour);
+    return (lat: number, lng: number) => activityPressure(s.activity, lat, lng, now);
   };
 
-  const doomDanger = (loc: LocationState) => {
-    const s = get();
-    const base = effectiveDanger(loc);
-    if (!s.groundZeroId) return base;
-    const tier = townTierAt(s.seed, s.groundZeroId, s.hordeLevel, loc.lat, loc.lng);
-    return Math.max(0, Math.min(5, base + townDangerMod(tier)));
-  };
+  // New spatial noise contributes through pressure, once. Legacy POI boosts
+  // remain readable and decay through the existing location clock.
+  const siteDanger = (loc: LocationState) => effectiveDanger(loc);
 
   const endRun = (cause: Exclude<DeathCause, null>) => {
     cancelPersist();
@@ -1438,8 +1446,8 @@ export const useGame = create<State>((set, get) => {
 
   /**
    * The window closed without you. Command doesn't turn another bird around on
-   * the spot — the objective goes dark for a randomised stretch, and the horde
-   * climbs through all of it. That dead air is the actual cost of missing one.
+   * the spot — the objective goes dark for a randomised stretch. Staying fed
+   * and finding safe shelter through that dead air is the cost of missing one.
    */
   const beginEvacCooldown = () => {
     const s = get();
@@ -1608,13 +1616,6 @@ export const useGame = create<State>((set, get) => {
     // danger creeps back toward baseDanger, faster for larger locations
     const locations = tickLocationClock(s.locations, hours, HOURS_PER_DAY);
 
-    // The horde swells each day the clock rolls past midnight.
-    const daysElapsed = day - s.day;
-    const hordeLevel =
-      daysElapsed > 0
-        ? Math.min(HORDE_MAX, s.hordeLevel + daysElapsed * HORDE_PER_DAY)
-        : s.hordeLevel;
-
     // Perishables rot on the clock, not on use — which is what makes a bag
     // full of hoarded hawker food a liability rather than a stockpile. A stash
     // is no cooler than a backpack; nowhere in this city has power.
@@ -1628,7 +1629,7 @@ export const useGame = create<State>((set, get) => {
       meters,
       bodyParts: partsAfterSystemic,
       locations,
-      hordeLevel,
+      activity: pruneActivity(s.activity, totalGameHour(day, hour)),
       items,
       ...(hdb !== s.hdb ? { hdb } : {}),
     });
@@ -1644,10 +1645,6 @@ export const useGame = create<State>((set, get) => {
     const cause = checkDeath(meters, partsAfterSystemic);
     if (cause) {
       endRun(cause);
-      return true;
-    }
-    if (hordeLevel >= HORDE_MAX) {
-      endRun('overrun');
       return true;
     }
     // Missed the current window? Go dark for a while, then stage another.
@@ -1680,7 +1677,7 @@ export const useGame = create<State>((set, get) => {
         g.currentPos.lat,
         g.currentPos.lng,
         g.spawn ?? undefined,
-        hordeIntensity(g.hordeLevel),
+        BASE_ACTIVITY_PRESSURE,
         { band: newBand, day, pressureAt: pressureFn() },
       );
       const swarm = pockets.find((z) => z.kind === 'night_swarm');
@@ -1736,6 +1733,45 @@ export const useGame = create<State>((set, get) => {
     return false;
   };
 
+  /** Recognition is an arrival action, never a passive tick or a map-camera effect. */
+  const recognizeSurroundings = () => {
+    const s = get();
+    if (s.phase !== 'game' || !s.character || s.hdb || s.tunnel) return;
+    const weather = weatherKindFor(s.seed, s.day);
+    const sight = darkOpts(s, timeOfDay(s.hour), weather).sight;
+    const awarenessValue = s.character.attributes.perception + equipAwarenessMod(s.equipment)
+      + traitAwarenessMod(s.character.traitIds) - headAwarenessPenalty(s.bodyParts);
+    const locations = recognizeNearby(s.locations, s.currentPos, recognitionRadius(awarenessValue, sight, weather));
+    if (locations !== s.locations) set({ locations });
+  };
+
+  /** Add local identity-only leads. Never snapshot danger, stock or ownership. */
+  const recordExplorationLeads = (leads: ExplorationLead[]) => {
+    if (!leads.length) return;
+    const s = get();
+    const locations = { ...s.locations };
+    for (const lead of leads) {
+      const target = locations[lead.targetId];
+      if (target && !target.identified && !target.discovered) {
+        locations[target.id] = { ...target, identified: true };
+      }
+    }
+    set({ locations, explorationLeads: normalizeExplorationLeads([...s.explorationLeads, ...leads], locations) });
+    for (const lead of leads) {
+      const target = locations[lead.targetId];
+      if (target) pushLog(t('ui.exploration.clueFound', { name: target.name }, activeLocale()), 'good');
+    }
+  };
+
+  const checkSearchClue = (locationId: string) => {
+    const s = get();
+    const loc = s.locations[locationId];
+    if (!loc || loc.searchClueChecked || s.phase !== 'game') return;
+    // Mark even an empty result, so another search / reload cannot reroll it.
+    set({ locations: { ...s.locations, [loc.id]: { ...loc, searchClueChecked: true } } });
+    recordExplorationLeads(findExplorationLeads(s.seed, s.locations, loc.id, 'search', s.day, s.explorationLeads, s.evacZoneId ?? undefined));
+  };
+
   // Visiting a site discovers it, snapshots memory, and lights a spot on the fog.
   // Map intel can also reveal a site without visiting it.
   const discoverLocation = (locationId: string) => {
@@ -1744,6 +1780,21 @@ export const useGame = create<State>((set, get) => {
     if (!loc) return;
     const wasNew = !loc.discovered;
     let updated: LocationState = { ...loc, discovered: true };
+    const physicalVisit = s.currentPositionId === locationId && !s.hdb && !s.tunnel;
+    if (physicalVisit) {
+      updated = discoverLocalFacility(s.seed, { ...updated, visited: true, identified: true });
+      const leads = completeExplorationLeads(s.explorationLeads, locationId, s.day);
+      if (leads !== s.explorationLeads) {
+        set({ explorationLeads: leads });
+        pushLog(t('ui.exploration.leadCompleted', { name: loc.name }, activeLocale()), 'good');
+      }
+      if (!loc.localFacilityChecked && updated.facilities !== loc.facilities) {
+        const kind = localFacilityFor(s.seed, loc);
+        if (kind) pushLog(t('ui.exploration.facilityFound', {
+          name: loc.name, facility: t(`ui.exploration.facilities.${kind}`, undefined, activeLocale()),
+        }, activeLocale()), 'good');
+      }
+    }
     if (wasNew && isStreetLootPoi(updated.category)) {
       updated = ensureDestruction(updated, s.seed);
     }
@@ -1828,7 +1879,7 @@ export const useGame = create<State>((set, get) => {
       s.currentPos.lat,
       s.currentPos.lng,
       s.spawn ?? undefined,
-      hordeIntensity(s.hordeLevel),
+      BASE_ACTIVITY_PRESSURE,
       { band: 'night', day: s.day, pressureAt: pressureFn() },
     );
   };
@@ -1839,7 +1890,7 @@ export const useGame = create<State>((set, get) => {
     const traitIds = s.character?.traitIds ?? [];
     return trekRisk(s.seed, s.currentPos, s.currentPos, {
       band: 'night',
-      hordeIntensity: hordeIntensity(s.hordeLevel),
+      hordeIntensity: BASE_ACTIVITY_PRESSURE,
       pressureAt: pressureFn(),
       weatherEncounterMod: 0,
       traitEncounterMod:
@@ -2042,6 +2093,7 @@ export const useGame = create<State>((set, get) => {
       set({ locations: { ...s2.locations, [locationId]: updated } });
       bumpStats({ poisSearched: 1 });
       pushLog(flavor('searchEmpty', { name: loc2.name }), 'info');
+      checkSearchClue(locationId);
       persist();
       return;
     }
@@ -2246,6 +2298,7 @@ export const useGame = create<State>((set, get) => {
 
     applyPracticeXp('scavenging', PRACTICE_XP.searchComplete);
     set({ pendingSearch: null });
+    if (mode === 'complete' && working.spendCharges && !working.hdbUnit) checkSearchClue(working.locationId);
     if (working.raiding) {
       const after = get().locations[working.locationId];
       if (after?.exhausted) set({ raidMode: null });
@@ -2290,7 +2343,7 @@ export const useGame = create<State>((set, get) => {
     const encRng = new Rng(s.seed).fork(
       `enc:${loc.id}:${s.day}:${loc.remainingSearches}:${opts.key ?? ''}`,
     );
-    const danger = Math.round(opts.danger ?? doomDanger(loc));
+    const danger = Math.round(opts.danger ?? siteDanger(loc));
     const zombie = opts.enemy ?? makeZombie(encRng, danger, loc.category);
     const combat: CombatState = {
       locationId,
@@ -2612,7 +2665,7 @@ export const useGame = create<State>((set, get) => {
     const band = timeOfDay(s.hour);
     const traits = s.character?.traitIds ?? [];
     return searchAmbushChance({
-      danger: doomDanger(loc),
+      danger: siteDanger(loc),
       band,
       weatherMod: weatherEncounterMod(weatherKindFor(s.seed, s.day)),
       pressure: pressureFn()(loc.lat, loc.lng),
@@ -2638,7 +2691,12 @@ export const useGame = create<State>((set, get) => {
       level,
       sumTraitMod(s.character!.traitIds, 'hdbScoutBonus'),
     );
-    set({ hdb: res.dungeon });
+    set({
+      hdb: res.dungeon,
+      hdbScout: res.rolls.length
+        ? { locationId: s.hdb.locationId, level, startedAt: Date.now(), rolls: res.rolls }
+        : null,
+    });
     const label = storeyLabel(s.hdb, level);
     const theme = s.hdb.floors[level - 1]?.theme;
     if (theme && theme !== 'ordinary') {
@@ -3108,7 +3166,8 @@ export const useGame = create<State>((set, get) => {
           travelMin: walk.travelMin,
           day: cur.day,
           hour: cur.hour,
-          hordeLevel: cur.hordeLevel,
+          hordeLevel: BASE_ACTIVITY_PRESSURE * 100,
+          localPressure: Math.max(pressureFn()(fromNow.lat, fromNow.lng), pressureFn()(to.lat, to.lng)),
           seq,
         },
       );
@@ -3157,6 +3216,13 @@ export const useGame = create<State>((set, get) => {
         currentPositionId: to.id,
       });
       discoverLocation(to.id);
+      recognizeSurroundings();
+      const arrivalSeed = get().seed;
+      void ensureWorldAround(to.lat, to.lng).then(() => {
+        if (get().seed !== arrivalSeed || get().currentPositionId !== to.id) return;
+        recognizeSurroundings();
+        persist();
+      });
       bumpStats({ distanceM: walked });
       const mid =
         stationId !== live.toStation && idx > 0 && idx < ids.length - 1;
@@ -3471,6 +3537,29 @@ export const useGame = create<State>((set, get) => {
 
   // Fires when a walking glide finishes: commit the new position and run the
   // usual arrival logic (faction reveal, pre-scavenge event, search).
+  const noticeActivity = (from: { lat: number; lng: number }) => {
+    const s = get();
+    const now = totalGameHour(s.day, s.hour);
+    const activity = exploreActivity(s.activity, {
+      seed: s.seed, ...s.currentPos, now,
+      distanceM: haversine(from.lat, from.lng, s.currentPos.lat, s.currentPos.lng),
+      weather: weatherKindFor(s.seed, s.day),
+      category: s.currentPositionId ? s.locations[s.currentPositionId]?.category : null,
+    });
+    if (activity === s.activity) return;
+    set({ activity });
+    if (activity.event && activity.event.id !== s.activity.event?.id) {
+      const event = activity.event;
+      const source = activity.sources.find((p) => p.id === event.id);
+      // The arrival scene is observed locally; it never reveals an unknown POI.
+      if (source) set({ noisePulses: [...prunePulses(s.noisePulses),
+        emitNoisePulse(source.lat, source.lng, source.radiusMeters, source.intensity)].slice(-24) });
+      pushLog(t(`ui.surroundings.events.${event.kind}.description`, undefined, activeLocale()), 'info',
+        undefined, undefined, undefined, { ...event });
+    }
+    persist();
+  };
+
   const arriveAt = (locId: string) => {
     const anim = get().travelAnim;
     if (!anim || anim.toId !== locId) return; // superseded or cancelled
@@ -3499,10 +3588,17 @@ export const useGame = create<State>((set, get) => {
       'info',
     );
     discoverLocation(loc.id);
+    recognizeSurroundings();
+    noticeActivity({ lat: anim.fromLat, lng: anim.fromLng });
 
     // Pull in the bake cell under this site so the frontier past it fills with
     // undiscovered "?" as you push toward distant objectives.
-    void ensureWorldAround(loc.lat, loc.lng);
+    const arrivalSeed = get().seed;
+    void ensureWorldAround(loc.lat, loc.lng).then(() => {
+      if (get().seed !== arrivalSeed || get().currentPositionId !== loc.id) return;
+      recognizeSurroundings();
+      persist();
+    });
 
     const s2 = get();
     const loc2 = s2.locations[loc.id];
@@ -3589,10 +3685,18 @@ export const useGame = create<State>((set, get) => {
       ]),
     }));
     pushLog(flavor('trekArrive'), 'info');
+    recognizeSurroundings();
+    noticeActivity({ lat: anim.fromLat, lng: anim.fromLng });
 
     // Open ground is how you leave the starting bubble — materialise whatever
     // the bake has under this landing so the walk toward evac stays a city.
-    void ensureWorldAround(lat, lng);
+    const arrivalSeed = get().seed;
+    void ensureWorldAround(lat, lng).then(() => {
+      const s = get();
+      if (s.seed !== arrivalSeed || s.currentPos.lat !== lat || s.currentPos.lng !== lng || s.travelAnim) return;
+      recognizeSurroundings();
+      persist();
+    });
 
     const pending = trekAmbush;
     trekAmbush = null;
@@ -3650,7 +3754,7 @@ export const useGame = create<State>((set, get) => {
     travelAnim: null,
     expandedCells: [],
     groundZeroId: null,
-    hordeLevel: 0,
+    hordeLevel: BASE_ACTIVITY_PRESSURE * 100,
     evacZoneId: null,
     evacDeadline: null,
     evacCooldownUntil: null,
@@ -3678,10 +3782,12 @@ export const useGame = create<State>((set, get) => {
     siteRoofs: {},
     hdbHoverLevel: null,
     hdbSelUnit: null,
+    hdbScout: null,
     tunnel: null,
     tunnelSeq: 0,
     tunnelOffer: null,
     noisePulses: [],
+        activity: freshActivity(),
     ghostOffer: null,
     pendingEvent: null,
     shownRoll: null,
@@ -3695,6 +3801,7 @@ export const useGame = create<State>((set, get) => {
     traderTaken: {},
     escort: null,
     mapAnnotations: [],
+    explorationLeads: [],
     log: [],
     inventoryOpenToken: 0,
     deathCause: null,
@@ -3709,6 +3816,7 @@ export const useGame = create<State>((set, get) => {
       syncBackpackBonuses(sumTraitMod(c.traitIds, 'gridWidthBonus'), emptyEquipment());
       set({
         character: c,
+        explorationLeads: [],
         maxHp,
         meters: initialMeters(),
         bodyParts: initialBodyParts(maxHp),
@@ -3730,7 +3838,6 @@ export const useGame = create<State>((set, get) => {
     setSpawn: async (spawn) => {
       const seed = randomSeed();
       const rng = new Rng(seed);
-      const groundZero = pickGroundZero(rng);
 
       try {
         await ensureZonesLoaded();
@@ -3743,7 +3850,7 @@ export const useGame = create<State>((set, get) => {
       // Map data, in order of preference:
       //   1. the pre-baked island-wide set (static file, can't rate-limit us)
       //   2. a live Overpass call, if the bake is missing or malformed
-      //   3. a simulated neighbourhood, if both are unavailable
+      // If both sources fail, stay on spawn selection and let the player retry.
       // The rail network rides along with the POIs: it names the stations and
       // decides which of them are nodes you can ride between. A failure here is
       // survivable — stations stay ordinary locations.
@@ -3761,20 +3868,12 @@ export const useGame = create<State>((set, get) => {
       }
       if (raw) raw = filterWalkablePois(raw);
 
-      let list: LocationState[];
-      let usedFallback = false;
-      let worldError: string | null = null;
-      if (raw) {
-        // Real data but almost nothing nearby means the spot is genuinely
-        // remote (sea/forest/reserve) — reject so the player can pick again.
-        if (raw.length < 5) return 'remote';
-        list = buildLocations(rng, spawn, raw, net);
-      } else {
-        // Offline fallback only on walkable ground — never invent a sea town.
-        list = generateFallbackWorld(rng, spawn, SCAVENGE_RADIUS);
-        usedFallback = true;
-        worldError = 'Live map data unavailable — using a simulated neighbourhood.';
-      }
+      if (!raw) return 'unavailable';
+      const list = buildLocations(rng, spawn, raw, net);
+      // Count verified sites, never generated stepping stones or rejected HDBs.
+      if (list.filter((loc) => loc.category !== 'waypoint').length < 5) return 'remote';
+      const usedFallback = false;
+      const worldError = null;
 
       set({
         spawn,
@@ -3789,30 +3888,14 @@ export const useGame = create<State>((set, get) => {
         // Opening bubble is already materialised — mark its cell so the first
         // trek doesn't rebuild the same 1.5 km from the bake.
         expandedCells: [expandCellKey(spawn.lat, spawn.lng)],
-        groundZeroId: groundZero.id,
-        hordeLevel: TOWN_FIELD_START_HORDE,
+        groundZeroId: null,
+        hordeLevel: BASE_ACTIVITY_PRESSURE * 100,
+        activity: freshActivity(),
       });
       pushLog(
         flavor(usedFallback ? 'wakeOffline' : 'wake', { name: spawn.name }),
         'info',
       );
-      const wakeTown = nearestTown(spawn.lat, spawn.lng);
-      const wakeTier = townTierAt(
-        seed,
-        groundZero.id,
-        TOWN_FIELD_START_HORDE,
-        spawn.lat,
-        spawn.lng,
-      );
-      const wakeKey: Record<TownTier, 'wakeTownStirring' | 'wakeTownRestless' | 'wakeTownMassing' | 'wakeTownFallen' | 'wakeTownLost'> = {
-        stirring: 'wakeTownStirring',
-        restless: 'wakeTownRestless',
-        massing: 'wakeTownMassing',
-        fallen: 'wakeTownFallen',
-        lost: 'wakeTownLost',
-      };
-      pushLog(flavor(wakeKey[wakeTier], { name: wakeTown.name }), wakeTier === 'stirring' ? 'info' : 'bad');
-
       // A scavenger by trade gets more out of every site than the search budget
       // allows anyone else.
       const searchBonus = sumTraitMod(get().character!.traitIds, 'searchBonusMod') + skillPackage().searchBonusMod;
@@ -3835,6 +3918,7 @@ export const useGame = create<State>((set, get) => {
         const island = filterWalkablePois(await bakedEvacPois());
         const far = pickDistantEvacPoi(island, spawn, rng.fork('evac'));
         if (far) {
+          await ensurePoiOutlines([far.osmId]);
           // Take the site *by id*, never `[0]`. `buildLocations` ends in
           // `bridgeWorld`, which strings stepping-stone waypoints every 420 m
           // toward a distant node and returns the lot sorted by distance from
@@ -3859,8 +3943,8 @@ export const useGame = create<State>((set, get) => {
       const firstDemand = rollEvacDemand(rng.fork('evacdemand:first'), 1);
 
       set({
-        hordeLevel: TOWN_FIELD_START_HORDE,
-        groundZeroId: groundZero.id,
+        hordeLevel: BASE_ACTIVITY_PRESSURE * 100,
+        groundZeroId: null,
         evacZoneId,
         evacDeadline,
         evacCooldownUntil: null,
@@ -3872,7 +3956,7 @@ export const useGame = create<State>((set, get) => {
       const evacLoc = evacZoneId ? locations[evacZoneId] : null;
       if (evacLoc) {
         pushLog(
-          `Radio static, then a voice: "Evac staging at ${evacLoc.name}. Pack fuel, meds, and ammo — we won't name a number. We hold the window ${firstWindow} hours, no more. Stay longer and the score climbs — but so does the city."`,
+          `Radio static, then a voice: "Evac staging at ${evacLoc.name}. Pack fuel, meds, and ammo — we won't name a number. We hold the window ${firstWindow} hours, no more. Stay longer and the score climbs. Keep your supplies up and choose your moment."`,
           'good',
           undefined,
           { lat: evacLoc.lat, lng: evacLoc.lng, label: evacLoc.name },
@@ -3961,20 +4045,7 @@ export const useGame = create<State>((set, get) => {
         );
       }
 
-      if (wakeTier === 'lost') {
-        const shelter = nearestRoofedShelter(Object.values(withServices), spawn);
-        if (shelter) {
-          discoverLocation(shelter.id);
-          set({
-            currentPositionId: shelter.id,
-            currentPos: { lat: shelter.lat, lng: shelter.lng },
-          });
-          pushLog(
-            `You come to inside ${shelter.name}. The street out there is not empty.`,
-            'bad',
-          );
-        }
-      }
+      recognizeSurroundings();
       persist();
       return 'ok';
     },
@@ -4052,7 +4123,7 @@ export const useGame = create<State>((set, get) => {
         { lat: loc.lat, lng: loc.lng },
         {
           band,
-          hordeIntensity: hordeIntensity(now.hordeLevel),
+          hordeIntensity: BASE_ACTIVITY_PRESSURE,
           pressureAt: pressureFn(),
           weatherEncounterMod: weatherEncounterMod(weather),
           wet: isWetWeather(weather),
@@ -4322,7 +4393,7 @@ export const useGame = create<State>((set, get) => {
         { lat, lng },
         {
           band: trekBand,
-          hordeIntensity: hordeIntensity(now.hordeLevel),
+          hordeIntensity: BASE_ACTIVITY_PRESSURE,
           pressureAt: pressureFn(),
           weatherEncounterMod: weatherEncounterMod(weather),
           wet: isWetWeather(weather),
@@ -6053,6 +6124,26 @@ export const useGame = create<State>((set, get) => {
       persist();
     },
 
+    readLocalMap: () => {
+      const s = get();
+      const loc = surfaceSite(s);
+      if (s.phase !== 'game' || !s.character || !loc || loc.localMapRead
+        || s.combat || s.pendingEvent || s.pendingSearch || s.travelAnim || s.hdb || s.tunnel) return;
+      const source = loc.category === 'mrt' || loc.isMrtStation ? 'locality'
+        : loc.category === 'residential' || loc.category === 'community' ? 'noticeboard' : null;
+      if (!source) return;
+      if (s.explorationLeads.filter((lead) => lead.completedDay === undefined).length >= 6) {
+        pushLog(t('ui.exploration.tooManyLeads', undefined, activeLocale()), 'info');
+        return;
+      }
+      const leads = findExplorationLeads(s.seed, s.locations, loc.id, source, s.day, s.explorationLeads, s.evacZoneId ?? undefined);
+      set({ locations: { ...s.locations, [loc.id]: { ...loc, localMapRead: true } } });
+      if (advanceTime(5 / 60)) return;
+      recordExplorationLeads(leads);
+      pushLog(t(leads.length ? 'ui.exploration.mapRead' : 'ui.exploration.mapEmpty', { count: leads.length }, activeLocale()), 'info');
+      persist();
+    },
+
     collectSiteWater: (source) => {
       const s = get();
       if (s.phase !== 'game' || s.combat || s.travelAnim || s.pendingSearch || s.pendingEvent) return;
@@ -6407,6 +6498,7 @@ export const useGame = create<State>((set, get) => {
       const s = get();
       const loc = s.currentPositionId ? s.locations[s.currentPositionId] : null;
       if (!loc || s.combat || s.pendingEvent || s.pendingSearch || s.hdb) return;
+      if (loc.category !== 'residential' || !isVerifiedHdb(loc.id, loc.lat, loc.lng)) return;
       if (loc.factionId) {
         const kin =
           canKinSearch88Deck(loc, s.factionStanding) &&
@@ -6532,7 +6624,7 @@ export const useGame = create<State>((set, get) => {
       const load = loadOf(s);
       const plan = travelPlan(s.hdb, from, level, load.stairMult);
       const seq = (s.hdb.moveSeq ?? 0) + 1;
-      set({ hdb: { ...s.hdb, moveSeq: seq } });
+      set({ hdb: { ...s.hdb, moveSeq: seq }, hdbScout: null });
       if (advanceTime(plan.minutes / 60, undefined, false, false, load.energyMult)) return;
       const g = get();
       if (!g.hdb || !g.character) return;
@@ -6766,6 +6858,7 @@ export const useGame = create<State>((set, get) => {
       const g = get();
       set({
         hdb: null,
+        hdbScout: null,
         hdbBlocks: g.hdb ? { ...g.hdbBlocks, [blockId]: g.hdb } : g.hdbBlocks,
       });
       pushLog('You step back out onto the void deck.', 'info', undefined, undefined, leaveScope);
@@ -6785,9 +6878,73 @@ export const useGame = create<State>((set, get) => {
       const s = get();
       const pulse = emitNoisePulse(lat, lng, radiusMeters, intensity);
       set({
-        noisePulses: [...prunePulses(s.noisePulses), pulse],
-        locations: applyPulse(s.locations, pulse),
+        noisePulses: [...prunePulses(s.noisePulses), pulse].slice(-24),
+        activity: addActivity(s.activity, { lat, lng, radiusMeters,
+          intensity: Math.min(1, intensity * 0.25), kind: 'player' }, totalGameHour(s.day, s.hour)),
       });
+      persist();
+    },
+
+    respondToActivity: (eventId) => {
+      const s = get();
+      const event = s.activity.event;
+      const now = totalGameHour(s.day, s.hour);
+      if (s.phase !== 'game' || !s.character || !event || (eventId !== undefined && event.id !== eventId) || event.resolved || event.expiresAt <= now
+        || s.combat || s.pendingEvent || s.pendingSearch || s.travelAnim || s.hdb || s.tunnel
+        || haversine(s.currentPos.lat, s.currentPos.lng, event.lat, event.lng) > 120) return;
+      const energyCost = event.kind === 'gunfire' ? 5 : event.kind === 'scavengers' ? 0 : 4;
+      const hours = event.kind === 'gunfire' ? 1 / 3 : event.kind === 'scavengers' ? 1 / 6 : 1 / 4;
+      const water = s.items.find((i) => isCarried(i.container) && i.stack > 0
+        && (i.defId === 'water_bottle' || i.defId === 'newater') && !i.contaminationRisk);
+      if (s.meters.energy < energyCost || (event.kind === 'scavengers' && !water)) {
+        pushLog(t('ui.surroundings.needSupplies', undefined, activeLocale()), 'info');
+        return;
+      }
+      // Commit the one-shot choice before charging time; a late death cannot
+      // grant a free response or allow the reward to be claimed again.
+      set({ activity: respondActivity(s.activity, now),
+        log: s.log.map((entry) => entry.activityEvent?.id === event.id
+          ? { ...entry, activityEvent: { ...entry.activityEvent, resolved: true, resolution: 'responded' as const } } : entry),
+        meters: { ...s.meters, energy: s.meters.energy - energyCost },
+        ...(event.kind === 'scavengers' && water ? { items: consumeOne(s.items, water.uid) } : {}),
+      });
+      if (advanceTime(hours)) return;
+      let reward = '';
+      if (event.kind === 'gunfire') {
+        const haul = addToCarry(get().items, 'scrap_metal', 2);
+        set({ items: haul.items });
+        get().emitNoise(event.lat, event.lng, 160, 0.4);
+        reward = t('ui.surroundings.results.salvage', undefined, activeLocale());
+      } else if (event.kind === 'scavengers') {
+        const intel = Object.values(get().locations).filter((l) => !l.discovered
+          && haversine(event.lat, event.lng, l.lat, l.lng) <= 1000)
+          .sort((a, b) => haversine(event.lat, event.lng, a.lat, a.lng) - haversine(event.lat, event.lng, b.lat, b.lng)
+            || a.id.localeCompare(b.id))[0];
+        if (intel) {
+          discoverLocation(intel.id);
+          reward = t('ui.surroundings.results.intel', { name: intel.name }, activeLocale());
+        } else {
+          set({ items: addToCarry(get().items, 'scrap_metal', 1).items });
+          reward = t('ui.surroundings.results.thanks', undefined, activeLocale());
+        }
+      } else reward = t('ui.surroundings.results.quieted', undefined, activeLocale());
+      set((state) => ({ log: state.log.map((entry) => entry.activityEvent?.id === event.id
+        ? { ...entry, activityEvent: { ...entry.activityEvent, outcome: reward } } : entry) }));
+      // The card owns its outcome; avoid repeating it as another timeline row.
+      if (!get().log.some((entry) => entry.activityEvent?.id === event.id)) pushLog(reward, 'good');
+      persist();
+    },
+
+    dismissActivity: (eventId) => {
+      const s = get();
+      const event = s.activity.event;
+      if (s.phase !== 'game' || !event || event.resolved || (eventId !== undefined && event.id !== eventId)
+        || event.expiresAt <= totalGameHour(s.day, s.hour)) return;
+      set({ activity: { ...s.activity, event: { ...event, resolved: true } },
+        log: s.log.map((entry) => entry.activityEvent?.id === event.id
+          ? { ...entry, activityEvent: { ...entry.activityEvent, resolved: true, resolution: 'dismissed' as const } } : entry),
+      });
+      persist();
     },
 
     acceptGhostTrade: () => {
@@ -7495,7 +7652,7 @@ export const useGame = create<State>((set, get) => {
         travelAnim: null,
         expandedCells: [],
         groundZeroId: null,
-        hordeLevel: 0,
+        hordeLevel: BASE_ACTIVITY_PRESSURE * 100,
         evacZoneId: null,
         evacDeadline: null,
         evacCooldownUntil: null,
@@ -7506,11 +7663,13 @@ export const useGame = create<State>((set, get) => {
         combat: null,
         _combatRng: null,
         hdb: null,
+        hdbScout: null,
         hdbBlocks: {},
         tunnel: null,
         tunnelSeq: 0,
         tunnelOffer: null,
         noisePulses: [],
+        activity: freshActivity(),
         ghostOffer: null,
         pendingEvent: null,
         shownRoll: null,
@@ -7521,6 +7680,7 @@ export const useGame = create<State>((set, get) => {
         raidMode: null,
         escort: null,
         mapAnnotations: [],
+        explorationLeads: [],
         log: [],
         stats: emptyRunStats(),
         hasSavedRun: !!loadRun(),
@@ -7550,15 +7710,15 @@ export const useGame = create<State>((set, get) => {
       void ensureZonesLoaded().catch(() => {
         /* trek/spawn degrade to country clip */
       });
-      void ensureBakeLoaded()
+      void ensurePoiOutlines(Object.keys(run.locations))
+        .catch(() => {
+          // A missing distant tile must not hide already restored nearby outlines.
+        })
         .then(() => {
           const s = get();
           if (s.phase !== 'game' || s.seed !== run.seed) return;
           const next = rehydrateLocationOutlines(s.locations);
           if (next !== s.locations) set({ locations: next });
-        })
-        .catch(() => {
-          /* outlines stay missing for fallback worlds */
         });
       // Stations were bound to the network when the run was created; get it
       // back in memory so the tunnels still route before play resumes.
@@ -7571,6 +7731,7 @@ export const useGame = create<State>((set, get) => {
         phase: 'game',
         character: run.character,
         seed: run.seed,
+        explorationLeads: normalizeExplorationLeads(run.explorationLeads, run.locations),
         spawn: run.spawn,
         locations: rehydrateLocationOutlines(run.locations),
         currentPositionId: run.currentPositionId,
@@ -7590,8 +7751,8 @@ export const useGame = create<State>((set, get) => {
         usedFallback: run.usedFallback,
         exploredArea: mergeExploredCircles(run.exploredArea ?? []),
         expandedCells: run.expandedCells ?? [],
-        groundZeroId: run.groundZeroId ?? null,
-        hordeLevel: run.hordeLevel ?? 0,
+        groundZeroId: null,
+        hordeLevel: BASE_ACTIVITY_PRESSURE * 100,
         evacZoneId: run.evacZoneId ?? pickEvacZone(Object.values(run.locations)),
         evacDeadline:
           run.evacDeadline ?? totalGameHour(run.day, run.hour) + evacWindowHours(true, run.day),
@@ -7619,6 +7780,7 @@ export const useGame = create<State>((set, get) => {
         combat: null,
         _combatRng: null,
         hdb: null,
+        hdbScout: null,
         hdbBlocks: run.hdbBlocks ?? {},
         // Unlike a block, a tunnel run resumes exactly where it stopped. The
         // player's position only moves on arrival, so ejecting them here would
@@ -7627,6 +7789,7 @@ export const useGame = create<State>((set, get) => {
         tunnelSeq: run.tunnelSeq ?? 0,
         tunnelOffer: null,
         noisePulses: [],
+        activity: normalizeActivity(run.activity, totalGameHour(run.day, run.hour)),
         ghostOffer: null,
         pendingEvent: null,
         shownRoll: null,
@@ -7674,6 +7837,12 @@ export const useGame = create<State>((set, get) => {
       }
       // Keep new entries above anything restored, or React keys collide.
       logCounter = (run.log ?? []).reduce((m, e) => Math.max(m, e.id), logCounter);
+      // Saves from the first noise UI have a live scene but only a plain log line.
+      const activityEvent = get().activity.event;
+      if (activityEvent && !get().log.some((entry) => entry.activityEvent?.id === activityEvent.id)) {
+        pushLog(t(`ui.surroundings.events.${activityEvent.kind}.description`, undefined, activeLocale()), 'info',
+          undefined, undefined, undefined, { ...activityEvent });
+      }
       pushLog('You pick up where you left off.', 'info');
 
       // Old saves lack expandedCells; a resume far from spawn may also sit in a

@@ -14,7 +14,7 @@ import {
   queryCarried,
   type CarriedKind,
   type CarriedSort,
-} from './carriedList';
+} from './carriedListModel';
 
 const ROW_H = 30;
 const ICON_BOX = 22;

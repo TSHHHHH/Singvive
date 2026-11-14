@@ -34,6 +34,10 @@ import { magazineSizeFor, normalizeAmmoDefId } from './firearms';
 import { itemDefOrNull } from './loot';
 import { migrateBodyParts, migrateMeters } from './survival';
 import { normalizeRunStats } from './stats';
+import { repairUnverifiedSites } from './hdbSites';
+import poiRevision from './data/poiRevision.json';
+import { BASE_ACTIVITY_PRESSURE, normalizeActivity, type ActivityState } from './activity';
+import { normalizeExplorationLeads, type ExplorationLead } from './exploration';
 
 const RUN_KEY = 'singvive.run.v7'; // v7: in-run skills (+ wipe v6 continues)
 const SCORES_KEY = 'singvive.scores.v1';
@@ -65,12 +69,13 @@ export interface SavedRun {
    * (merge skips existing location ids).
    */
   expandedCells?: string[];
-  /**
-   * Neighbourhood that went first. Absent on saves from before the town field —
-   * resume leaves it null so the old global horde clock stays in charge.
-   */
+  /** Bake version whose cells have been expanded; old saves safely rediscover additions. */
+  poiRevision?: string;
+  /** Retired v7 fields, normalized to null/steady baseline when loading. */
   groundZeroId?: string | null;
   hordeLevel: number;
+  /** Spatial disturbances and exploration memory; absent on older v7 saves. */
+  activity?: ActivityState;
   evacZoneId: string | null;
   evacDeadline: number | null;
   /** Set only while the channel is dark between windows. Absent on old saves. */
@@ -114,6 +119,8 @@ export interface SavedRun {
   /** Practice XP banked for the current day. */
   skillDayXp: SkillDayXp;
   mapAnnotations?: MapAnnotation[];
+  /** Local leads added compatibly to v7; old runs start with an empty logbook. */
+  explorationLeads?: ExplorationLead[];
   /**
    * The whole timeline, every day of it. The Timeline column only renders the
    * current day; Day Logs reads the rest out of here, so it has to survive a
@@ -197,6 +204,15 @@ export function loadRun(): SavedRun | null {
     const raw = localStorage.getItem(RUN_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as SavedRun;
+    // The retired island clock must never carry escalation into a resumed run.
+    parsed.hordeLevel = BASE_ACTIVITY_PRESSURE * 100;
+    parsed.groundZeroId = null;
+    parsed.activity = normalizeActivity(parsed.activity, (parsed.day - 1) * 24 + parsed.hour);
+    if (parsed.poiRevision !== poiRevision) parsed.expandedCells = [];
+    // v7 repair: keep stash IDs and positions, but never reopen an unverified
+    // private building (or an old procedural site) as an HDB dungeon.
+    parsed.locations = repairUnverifiedSites(parsed.locations ?? {});
+    parsed.explorationLeads = normalizeExplorationLeads(parsed.explorationLeads, parsed.locations);
     // Migration: old saves may not have exploredArea
     if (!parsed.exploredArea) parsed.exploredArea = [];
     // Migration: old saves used single traitId instead of traitIds array
@@ -225,7 +241,11 @@ export function loadRun(): SavedRun | null {
     parsed.factionStanding = migrateStanding(parsed.factionStanding);
     parsed.traderTaken = migrateTraderTaken(parsed.traderTaken);
     // Migration: outposts went from one id per faction to an array (up to 4).
-    parsed.outposts = migrateOutposts(parsed.outposts);
+    const outposts = migrateOutposts(parsed.outposts);
+    for (const faction of Object.keys(outposts) as (keyof OutpostIds)[]) {
+      outposts[faction] = outposts[faction]?.filter((id) => parsed.locations[id]?.factionId === faction);
+    }
+    parsed.outposts = outposts;
     if (!Object.keys(parsed.outposts).length && parsed.locations) {
       parsed.outposts = pickOutposts(Object.values(parsed.locations));
     }
@@ -255,6 +275,7 @@ export function loadRun(): SavedRun | null {
     if (parsed.hdbBlocks) {
       const next: Record<string, HdbDungeon> = {};
       for (const [id, block] of Object.entries(parsed.hdbBlocks)) {
+        if (parsed.locations[id]?.category !== 'residential') continue;
         next[id] = migrateHdbDungeon(block);
       }
       parsed.hdbBlocks = next;

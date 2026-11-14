@@ -45,6 +45,11 @@ export function groupLogEntries(entries: GameLogEntry[]): LogGroup[] {
   for (let i = 0; i < n; i++) {
     const entry = entries[i]!;
     const last = out[out.length - 1];
+    // Optional surroundings scenes stay on the spine, outside collapsible visits.
+    if (entry.activityEvent) {
+      out.push({ type: 'flat', entry });
+      continue;
+    }
     if (!entry.scope) {
       if (last?.type === 'section') {
         const nxt = nextScoped[i];

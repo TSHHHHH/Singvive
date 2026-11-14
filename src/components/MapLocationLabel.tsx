@@ -12,7 +12,7 @@ export function MapLocationLabel({ location, here, active, onClick }: {
   onClick: () => void;
 }) {
   const { t } = useT();
-  const known = location?.discovered ? location : null;
+  const known = location && (location.discovered || location.identified) ? location : null;
   const name = location
     ? known ? known.name : t('ui.location.unknownLocation')
     : t(here ? 'ui.game.inTheOpen' : 'ui.game.openGround');

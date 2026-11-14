@@ -8,7 +8,7 @@ import {
   kindCounts,
   queryCarried,
   type CarriedQuery,
-} from './carriedList';
+} from './carriedListModel';
 
 const inst = (uid: string, defId: string, container: string, stack = 1): ItemInstance => ({
   uid,

@@ -26,7 +26,7 @@ src/
   game/        pure, seed-driven logic — rng, world, poi, loot, inventory, packGrid, survival,
                travel, weather, fog, combat, factions, events, character, occupations, crafting,
                trade, sleep, nightSight, goal, searchSession, hdbDungeon, tunnelRun, mrtDamage, wilds,
-               wildsEncounter, vegetation, playable, route, noise, ghostSurvivor, townField,
+               wildsEncounter, vegetation, playable, route, noise, activity, ghostSurvivor,
                itemTileColor, settings, storage, types, Zustand store
                (+ data/ JSON catalogs: items, lootTables, recipes, enemies, itemTileColors)
   api/         same-origin worldwide score client (no fetch under game/)
@@ -39,7 +39,7 @@ src/
   hooks/       shared React hooks (e.g. useAnimatedNumber)
   icons/       icon registry + keys (emoji fallbacks → drop-in PNGs)
   dev/         DEV-only editors + Dev menu (loot / enemies / icons / locale) — never imported from game/
-  components/  GameMap, FogOverlay, NeighbourhoodWash, Inventory/*, CraftingPanel, CombatPanel,
+  components/  GameMap, FogOverlay, Inventory/*, CraftingPanel, CombatPanel,
                ConditionPanel, StatsPanel, ObjectiveBar, ObjectivesPanel, PhoneStatusBar,
                HdbDungeonModal, HdbLevelStrips, TunnelRunView, StationStrip, TraderModal, GuideModal,
                SettingsModal, TrekCard, LocationCard, …
@@ -65,18 +65,24 @@ goes flat. MapLibre zoom is the old Leaflet zoom − 1 (the saved zoom key moved
   only then renders children. Overlays call `installOverlay(map, slot, …)`; the basemap's labels
   are moved under the fog.
 - **Fog** (`fogGeometry.ts`) is the world minus the union of explored discs, in three soft bands.
-  The union is cached; only the live sight disc is subtracted per update. During a glide the
+  The union is cached; only the live sight disc is subtracted per update. Its radius matches the
+  single current travel-range ring; fog and building updates are throttled to 80 ms during its tween.
+  During a glide the
   sight disc follows the pin (`useSightCenter` in `GameMap.tsx`, every 100 ms), so fog and
   buildings reveal along the walk and arrival has nothing left to change.
 - **Island edge** (`components/EdgeVignette.tsx`, slot `edge`): the run map is a disc around the island; past `EDGE_CLEAR_M` the ground fades to near-black by `EDGE_DARK_M`, and the camera is held to `RUN_BOX` (`mapStyle.ts`), just inside that ring. The fog box reaches past it so there is no straight edge.
 - **3D** (`buildings.ts`, setting `mapView3d`) extrudes the basemap's buildings from `LOD_ZOOM` 15.
-  A building stands only inside an explored or live disc (feature-state `rise`, animated unless
+  A building stands only inside the current travel-range disc, including explored and discovered
+  sites. Discovered markers remain at ground level outside the disc. As current range changes,
+  buildings rise or fall (feature-state `rise`, animated unless
   reduced motion; never held for the camera — only the 10–20 ms tile index scan waits for it to
   settle). Sites are matched to their building and coloured through feature-state, using known
   faction colours before category colours. Marker fills lighten the faction hue for dark-icon
   contrast; selection is a separate DOM badge ring in 2D and 3D, never a model colour override. Taps on
   a site's building select it, other buildings walk to them. Badges lift to the roof through the
-  `--roof` / `--roof-lift` CSS variables. Spawn select and the route planner stay 2D.
+  `--roof` / `--roof-lift` CSS variables. Badge heights update on range membership changes,
+  while physical roof heights stay available for block cutaways. Building reveal does not scan
+  explored discs. Spawn select and the route planner stay 2D.
   A visited street site's building wears its ruin tier: Damaged is scorched, Ravaged is cut to a
   stump (feature-state `ruin`, a height factor), Gutted swaps for a procedural broken model
   (`map/ruinModel.ts`, own `ruins-3d` layer) on the nearest 30 within 900 m and stays a low stump
@@ -121,30 +127,55 @@ goes flat. MapLibre zoom is the old Leaflet zoom − 1 (the saved zoom key moved
   `WeatherFx` drops its flat tint layers and keeps only the moving ones (rain sheet, haze drift,
   heat shimmer); 2D is unchanged. `window.__atmosphere` is the live driver in DEV (`strike()`).
 
+**Local activity.** `src/game/activity.ts` owns the pure, seed-driven spatial source field and
+street-event scheduler. Pressure starts at **0.42**, combines nearby sources, and maps to
+**Quiet / Stirred / Hunting**. At most **32** sources persist, each fading over **6 game hours**.
+Player noise pulses also enter this field; noise animation remains presentation state.
+Arrival opportunities require **250 m** of accumulated movement, arrival **250 m** from the
+previous attempt's anchor and **2 game hours** between attempts, with at most **3 incidents per
+day**. Failed rolls consume cooldown too. Seeded memory prevents reloads from rerolling the same arrival.
+The four incidents are car alarm, shutter, gunfire and scavengers; decisions expire after
+**1.5 game hours**. Store responses validate surface context, **120 m** proximity, available
+supplies and an unresolved live decision before charging time and granting rewards. See
+[GAME_DESIGN.md §3.15](GAME_DESIGN.md#315-noise--nearby-activity) for costs and outcomes.
+Responding reduces source intensity to **45%**; dismissing only resolves the choice. Source
+decay, bounded validation and event scheduling are pure logic; rewards and inventory changes
+remain store actions. Sources and event memory persist under **`singvive.run.v7`**, with safe
+defaults for existing saves and the existing debounce/flush policy. The global escalation,
+automatic overrun ending and geographic front no longer drive gameplay.
+
 **Desktop HUD (`lg:` and up).** The 408px survivor rail sits down the left edge (clock, weather,
 Rest, a compact `ObjectiveBar`, and `SurvivorDock`). The dock keeps labelled health, energy,
 food and water visible; Condition, Backpack and More start collapsed and open one at a time
 from an icon-and-label tray. Condition reveals limbs and attributes; More holds Logbook,
 Stats, Skills, Timeline, Day logs and Settings. Stash automatically reveals the backpack
-beside the equipment/stash slide-out so drag-and-drop still spans both grids. Bleeding,
+beside the equipment/stash slide-out so drag-and-drop still spans both grids. The dock
+selection is independent of the slide-out: closing Stash or switching to Craft keeps the
+backpack open, and collapsing a dock section leaves the slide-out open. Bleeding,
 injuries, infection and heavy load remain visible as clickable warnings even with details
 collapsed. Escape collapses rail details after any slide-out is closed. Disclosure state is
 local to the mounted desktop dock; the phone retains its full Condition panel and tabs.
-A pinned map footer holds the island-front button, which carries the horde tier and
-fits the whole island in view via GameMap's `islandViewToken`, plus the 3D and Rail map toggles.
+An `ActivityBadge` beside weather shows Quiet / Stirred / Hunting and opens the timeline. Phone chrome repeats the compact weather/activity pair. Optional incidents use `GameLogEntry.activityEvent` snapshots, rendered by `ActivityEventCard`; outcomes survive replacement, expiry and v7 reloads. The Island front
+control and neighbourhood status wash are removed. A pinned map footer holds the 3D and Rail map toggles.
 The phone keeps those toggles on the map, `showModeToggles`), with panels in the slide-out beside it; the map fills the rest. The rail, slide-out
 and phone tabs share the existing shell; the timeline column renders only below `lg`. Hotkeys `1`–`9`
 follow `RAIL_KEYS` in `GameScreen.tsx` (objective, stash, craft, logbook, stats, skills, timeline
 pin, day logs, settings) and stand down under `isModalOpen()`, text focus and the contact gate;
-`Esc` closes the slide-out. Wide craft stops short of the timeline or ticker. Inside a block
+`Esc` closes the slide-out. Location actions shift past an open slide-out and remain
+clickable. Craft widens only into spare space (360–640 px); on narrower desktops, pinned
+idle history temporarily becomes a ticker to make room, preserving its pin preference.
+Live decisions stay above the location card when those columns cannot fit side by side.
+Inside a block
 `hdbInset` pads the HDB landing strips clear of the timeline and here card. With 3D on and room to
 spare, the strips sit **over the map** instead of replacing it (`hdbOverMap`): they take about 54%
 of the free width (`HDB_STRIPS_W`, 720 px max) and the map left of them (`blockStripW`, ≥180 px) shows the
 tower. The selected room (`hdbSelUnit`, UI-only store state) feeds the action card
 (`HdbContextPanel`) in a card spanning the strips' width. Larger door tiles, floor plates and
 action text share the existing type scale; the current landing scrolls into view on travel and
-layout resize. The HDB timeline stays available at 320–440 px, including automatic loot and
-combat expansion. The timeline is a fading `LogTicker` top-right until it is
+layout resize. The HDB timeline stays available at 320–520 px, including automatic loot and
+combat expansion. `LogPanel` leaves reading space below the newest entry, follows arrivals only
+while the reader is at the bottom, and offers **Latest** after scrolling into history. New live
+choices still bring the player back to the active node. The timeline is a fading `LogTicker` top-right until it is
 pinned (`timelinePinned` setting) or something needs an answer (event, search, contact, combat),
 then the full `LogPanel` / `CombatPanel`. On the open desktop map, a **single location inspector**
 sits at the lower-left edge of the map column. It shows the current location by default and the
@@ -337,11 +368,135 @@ fresher OSM data, then commit the result.
 The bake:
 
 - Classifies via `src/game/poi.ts` (hospitals vs clinics are separate)
+- Verifies residential pins against official [HDB Existing Building](https://data.gov.sg/datasets/d_16b157c52ed637edd6ba1232e026258d/view)
+  polygons plus OSM housing tags. It refuses to write unchecked housing if the reference fails.
+  Use `npm run bake:pois -- --hdb path/to/HDB.geojson` with a downloaded reference.
+  Commit `src/game/data/verifiedHdb.json` with `public/pois.json`; runtime and live fallback
+  accept only HDB IDs/positions in this small registry. New HDBs require an explicit bake.
 - Drops anything outside `SG_OUTLINE` (no Johor spill)
 - Re-fetches building footprints, matches shop nodes to containing buildings
   (ways, multipolygon relations, and `building:part`), retries failed outline
   chunks, and rejects oversized mall/campus shells for small shops
 - Prints category counts and outline coverage when it finishes
+
+`node scripts/audit-pois.mjs` writes the offline planning-area density/gap report to
+`reports/location-audit.md`; optional `--before old-pois.json` compares a prior bake.
+The [November 2026 audit](reports/location-audit.md) identifies sparse areas and data-source
+priorities. Counts precede runtime caps and walkability filters; gap samples include undeveloped
+and restricted land, so they are coverage diagnostics rather than a census of missing businesses.
+
+To repair an existing bake without refetching every footprint, run
+`node scripts/verify-hdb-pois.mjs --hdb HDB.geojson --osm residential-elements.json`.
+The OSM JSON must contain original elements for every residential candidate (including tags);
+the repair rejects incomplete evidence. The rule uses point-in-polygon with holes, never a
+nearest-building guess. Conservative rejection can omit genuine blocks with bad centroids or
+stale data. The original OSM bake timestamp remains intact; HDB verification has a separate date.
+
+No procedural neighbourhood is generated on data failure. Spawn returns `unavailable` and the
+localized screen offers a retry. v7 save loading converts unverified HDB/procedural sites to
+exhausted open ground, keeps IDs/positions/stashes, and removes their interiors/outpost roles.
+
+The November 2026 expansion adds **11,293 sites** to the corrected 6,991-site baseline
+(18,284 total, including 3,940 verified HDBs). It combines OSM housing/amenity/tourism
+records with official NEA hawker centres and PA community clubs. Source URLs, timestamps,
+SHA-256 hashes and rejection counts are in `reports/location-expansion.json`; planning-area
+coverage is in `reports/location-audit.md`. All additions pass the committed land, water and
+restricted-area masks. Original source coordinates are retained to five decimal places;
+HDB outlines use official geometry, preserving full precision where simplification clips a pin.
+Ordinary housing, eateries, community sites and named parks have separate gameplay categories.
+Parks never claim building geometry or provide guaranteed indoor shelter.
+
+Manual expansion workflow (never part of build):
+
+```bash
+npm run fetch:locations
+# Preserve a copy of public/pois.json before expansion when comparing coverage.
+npm run expand:pois -- --base path/to/baseline-pois.json
+npm run audit:pois -- --before path/to/baseline-pois.json
+npm run test:locations
+```
+
+The downloader reuses `tmp/location-sources/`; remove individual cache files explicitly to
+refresh them. `expand:pois` can also run without `--base` to extend the current bake. A full
+`bake:pois` replaces the OSM bake, so reapply `expand:pois` afterwards for government points.
+Commit `public/pois.json`, `public/poi-data/`, `verifiedHdb.json`, `poiRevision.json` and the reports together.
+`poiRevision.json` hashes the POI content. v7 loads clear only the expansion-cell cache when
+this revision changes; continuing discovers additions while preserving existing locations,
+loot depletion, stashes and interiors. The save key and debounce remain unchanged.
+Source snapshots are evidence, not a live business directory: PA attributes date to 2021,
+NEA to 2024, and OSM coverage/centroids vary. Additive imports preserve old sites; closures
+and relocations need a separate review. Government points use stable dataset/postal IDs.
+
+### POI loading and map update performance
+
+`public/pois.json` is the canonical bake and audit input. Runtime loads
+`public/poi-data/<poiRevision>/index.json`: names, positions, categories, evacuation IDs,
+and footprint-cell references. Exact outlines live in ~2.2 km cell files under the same
+revision. `npm run pack:pois` regenerates these assets offline; every POI bake/repair/expansion
+also packs them automatically. This is separate from build and does not fetch new source data.
+The asset regression test reconstructs the canonical bake and compares every coordinate.
+
+Spawn prefetch loads only the index. `bakedPoisNear` awaits nearby outlines before creating
+LocationStates, preserving area-based sizes, loot/search counts and HDB geometry. Island-wide
+evac selection uses metadata; only the chosen site's geometry is awaited. Continuing a v7 save
+requests the cells referenced by saved location IDs before rehydrating their outlines.
+Concurrent callers share each cell request; failed/incomplete or mismatched-revision responses
+are rejected and retryable. Neither an unavailable outline nor a metadata-only evac candidate
+should be used to silently resize a location.
+
+The loader uses a versioned Cache Storage namespace (`singvive-pois-<revision>`). Nearby
+requests take priority, then two background requests at a time populate the rest after a
+two-second delay. Once populated, POI metadata/geometry work offline across reloads where
+Cache Storage is available; shell, basemap and other datasets retain their existing caching
+behaviour. Storage denial/quota does not block online play. An interrupted cache pass leaves
+uncached regions dependent on connectivity; a later local request retries. Cache Storage needs
+a secure context (HTTPS or localhost). It does not add geometry to localStorage saves.
+
+For the expanded 18,284-site bake, the full file is 1.215 MB gzipped. The split index is
+0.398 MB; the four footprint cells around the Hougang test spawn add 0.040 MB. These are
+offline gzip sizes, not measured network-transfer times or FPS gains. Other spawns and the
+chosen evac may request additional cells. Background downloads defer bytes rather than
+eliminating them.
+
+`PoiSources` keeps stable GeoJSON feature IDs and submits coordinates only when membership,
+position or an outline changes. Selection, colours, opacity, outline width and dot/badge
+visibility use feature-state. Culling/fog/caps still apply before creating features; changing
+selection at the cap can legitimately replace membership. `GameScreen` subscribes to the
+search nonce rather than the session object, so slot/progress-only replacements do not notify
+that subscription. Item reveals and other independently subscribed changes still can render it.
+
+### Phone and long-run profiling workflow
+
+Use a production build for decisions; development mode and headless screenshots distort timings.
+Keep one seed and export the same v7 save for repeat runs. Test an early urban run, a sparse
+Tengah run, and a real long run with many explored cells, HDB interiors and timeline entries.
+Record location count, explored-circle count, HDB count and serialized save size with results.
+
+1. Run `npm run build`, then `npm run preview -- --port 5191` on the computer.
+   If that port is occupied, use the actual port printed by Vite in the following steps.
+2. On a physical Android phone, enable USB debugging, connect it, open Chrome's
+   `chrome://inspect/#devices` on the computer, and forward phone port 5191 to computer
+   `localhost:5191`. Open `http://localhost:5191` on the phone and inspect that tab.
+   This keeps Cache Storage available without exposing the dev server to the LAN.
+   See [Chrome's remote debugging guide](https://developer.chrome.com/docs/devtools/remote-debugging).
+   An iPhone requires Safari Web Inspector on a Mac; a resized desktop viewport is not a GPU test.
+3. Capture separate Performance recordings for cold spawn (clear only this test origin's caches),
+   warm continue, 30 seconds of pan/zoom in 2D and 3D, repeated target selection, route planning
+   across water/bridges, searching/combat, and save flush after a long run.
+4. Record transferred POI bytes, time to playable map, long tasks, frame-time spikes, route latency,
+   save serialization/write time and heap growth. Compare at least five identical repetitions;
+   report median and worst observed results, not an unstable p95 from five samples. Separate
+   CPU throttling experiments from real-device numbers. Keep weather, camera, device temperature
+   and background apps comparable.
+5. Inspect [Performance traces](https://developer.chrome.com/docs/devtools/performance) before
+   choosing the next change. Main-thread route spikes justify a browser Worker investigation;
+   GPU/frame spikes justify reducing effects/resolution or draw work; save spikes justify a
+   persistence change. Preserve deterministic seeds, stale-result cancellation, offline data,
+   unchanged route legality, and a migration plan if save storage changes.
+
+The current browser smoke checks cover desktop 1440×1000 and phone layout 390×844, zero
+POI `setData` calls across two selections, and offline discovery after the cache pass. They
+do not establish physical-phone frame rates or long-run memory behaviour.
 
 ### Refreshing walkability zones
 
@@ -417,15 +572,16 @@ Two things keep the POI bake fast, and both are load-bearing:
   area. An earlier version tiled the island into 40 cells with one `nwr` per tag — 640 index scans —
   and got a steady stream of 429s and 504s. Collapsing tags into regex alternations (`shop~"^(a|b)$"`)
   made it two queries totalling ~20s. Don't re-expand the statements.
-- **Residential thinning.** OSM has ~45k apartment blocks in Singapore; `world.ts` uses at most 100 per
-  run. Keeping one per ~200m cell cuts that to ~4.4k while still leaving ~175 candidates inside any
-  1.5 km scavenge radius. Without it, void decks alone are ~5 MB.
+- **Category thinning.** Broad OSM housing queries include private homes and nearby Johor.
+  HDBs are independently verified and sampled in ~122m cells; ordinary housing and industrial
+  sites use ~200m cells; eateries use ~72m cells. Runtime neighbourhoods retain the 220-site
+  cap, with at most 100 HDBs, 50 ordinary residences and 50 eateries before waypoint bridges.
 
 The bake runs four passes. The last two exist because OSM maps most shops as point *nodes* inside a
 building rather than as the building — straight from Overpass only ~10% of locations have any shape:
 
 1. Shops & amenities (`out geom`).
-2. HDB blocks (`out center` — polygon geometry for 45k blocks is a 100MB+ response).
+2. Housing candidates (`out center`); verified HDBs become void decks; other mapped homes become ordinary residences.
 3. Re-fetch the kept void decks **by way id** to get their real footprints (they were always
    buildings; pass 2 only asked for centroids). Batches of 100.
 4. Buildings within 15m of the remaining point POIs (ways, building multipolygons, and
@@ -493,8 +649,11 @@ rate-limits by IP. Personal top-10 stays in `localStorage` and is not bulk-uploa
 
 **Board hardening.** `POST /api/runs` registers a run (random id in D1 `runs`, 30 per address per
 hour); `POST /api/scores` needs that id plus `kills`, and is refused unless the run exists, matches
-the seed, has not posted, and passes `worker/scoreRules.ts` (day cap from the horde clock, kill and
-loot ceilings, minimum real time per day, score must equal the formula). The Worker keeps its own
+the seed, has not posted, and passes `worker/scoreRules.ts` (kill and loot ceilings, minimum real
+time per day, score must equal the formula). Days, kills and score must be finite safe integers;
+numeric strings must also parse safely. There is no gameplay-derived day cap or former 16-day
+limit: **30 seconds per additional game day** and **60 real days of registration retention**
+bound plausible submissions. The Worker keeps its own
 copy of the formula; `src/api/scoreRules.test.ts` fails if the game drifts from it. POSTs from
 another origin get 403 and bodies are capped at 2 KB.
 
@@ -533,11 +692,12 @@ i18n key guards:
 `combat`, `wilds`, `events`, `inventory`, `firearms`, `intel`, `logGroup`, `persistRun`, `rng`,
 `crafting`, `survival`, `storage`, `dev/catalogs`, `i18n/messageKeys`.
 
-Vitest runs in the **node** environment, so there is **no component, hook, store, or worker
-coverage** — roughly 17k lines of TSX and the ~7.6k-line `store.ts` are exercised only by hand.
-When changing store actions or React state flow, a manual playtest is the only gate. The pure
-`src/game/` modules are the parts that are cheap to test; prefer putting new logic there.
-Still thin or missing among pure modules: `goal`, `noise`, `searchSession`.
+Vitest runs in the **node** environment. The local activity suite covers the pure spatial field,
+event gates and saved-state normalization. `src/api/scoreRules.test.ts` covers long-run score
+plausibility and the Worker submission boundary with a D1 test double. Component and hook flows,
+map presentation and full playthroughs still require browser checks; targeted store tests do not
+replace those checks. The pure `src/game/` modules are the parts that are cheap to test; prefer
+putting new logic there. Broad Worker/D1 integration coverage remains limited.
 
 ### The lint warning ratchet
 
@@ -664,6 +824,30 @@ use explicit singular/plural keys or a count-neutral sentence. Keep proper place
 player-authored names intact. Some legacy diary and combat narrative is still generated directly
 in English. Diary text already stored in a run retains its original language; changing the language
 setting re-renders the UI, not historical log strings.
+
+### Local exploration and logbook leads
+
+`src/game/exploration.ts` owns seeded local clues, conservative nearby recognition, one-time
+facility discovery and saved-lead normalization. Store actions call it at arrivals, completed
+street searches and five-minute locality-map/noticeboard reads. Recognition uses loaded POIs
+and their available footprints; it neither queries MapLibre tiles nor scans the island bake.
+Night sight, awareness and head injury feed its separate 20–60 m base radius.
+
+`LocationState.identified` carries name/category-only knowledge independently of `discovered`
+and `lastSeen`. The identified map/card branch must never use live faction, danger, ruin or
+stock. `visited` records physical arrival; `localFacilityChecked`, `searchClueChecked` and
+`localMapRead` prevent repeated grants. Existing `SiteFacilities` handles the actual water,
+shelter and stove benefits. These optional fields and `SavedRun.explorationLeads` remain in
+`singvive.run.v7`; old saves normalize to an empty lead list. Save debounce and outline stripping
+are unchanged. At most six active and 24 total leads are kept.
+
+`StashLogbook` now lists active/visited leads and remembered facility types alongside caches.
+Its existing camera callback closes the panel and switches phones to Map; `CameraChrome` combines
+padding and focus in one command, zooming to at least level 16 without a closing panel cancelling
+the request. It never invokes travel. `LocalMapAction` uses scalar busy/count selectors.
+Tests: `exploration.test.ts`, `explorationIntegration.test.ts` and
+`components/explorationPresentation.test.ts` and `components/cameraFocus.test.ts` cover limits, identity privacy, occlusion,
+determinism, finite facilities, action guards and v7 persistence.
 
 ### Client-side scale pressure
 

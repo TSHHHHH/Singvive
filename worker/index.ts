@@ -1,4 +1,4 @@
-import { DAYS_MAX, RUN_MAX_AGE_MS, implausible, maxScore } from './scoreRules';
+import { RUN_MAX_AGE_MS, implausible, maxScore } from './scoreRules';
 
 const NAME_MAX = 24;
 const CAUSE_MAX = 120;
@@ -246,7 +246,7 @@ function parseSubmit(
   const score = asInt(body.score);
   const cause = sanitizeCause(body.cause);
   const seed = sanitizeSeed(body.seed);
-  if (days === null || days < DAYS_MIN || days > DAYS_MAX) {
+  if (days === null || days < DAYS_MIN) {
     return { error: 'Invalid days' };
   }
   const escaped = body.escaped === true;
@@ -301,9 +301,10 @@ function sanitizeSeed(value: unknown): string | null {
 }
 
 function asInt(value: unknown): number | null {
-  if (typeof value === 'number' && Number.isInteger(value)) return value;
-  if (typeof value === 'string' && /^-?\d+$/.test(value)) return Number(value);
-  return null;
+  const number = typeof value === 'number'
+    ? value
+    : typeof value === 'string' && /^-?\d+$/.test(value) ? Number(value) : NaN;
+  return Number.isSafeInteger(number) ? number : null;
 }
 
 async function rateLimit(db: D1Database, ipHash: string): Promise<boolean> {

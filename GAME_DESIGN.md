@@ -17,8 +17,8 @@
 
 ## 1. Vision
 
-You wake up in a fallen Singapore. There is no rescue on a timetable — only a rising **horde** and,
-eventually, a chance to **extract**. Knowing nothing of what's around you, you push out into the fog,
+You wake up in a fallen Singapore. Supplies run low, night makes the streets dangerous, and nearby
+**noise** can draw trouble. Knowing nothing of what's around you, you push out into the fog,
 chart real places by walking to them, scavenge what you can carry, and manage a failing body until it
 gives out or you call for a lift. Every run is procedurally generated from pre-baked map data and a seed,
 so no two survivors face the same city.
@@ -54,7 +54,7 @@ Pick an occupation seed (or build traits freely on the same screen) → Choose a
     arrive (pre-scavenge event / faction gate may fire) → search session → maybe fight →
     optional HDB dive or tunnel run → haul loot into the grid → cache surplus in the stash →
     craft / repair / trade at a hub → eat / drink / treat wounds / rest under site conditions →
-    watch the evac beacon & horde clock ]
+    watch the evac beacon & nearby activity ]
   repeat until death or successful extract → score → local board + worldwide honor board
 ```
 
@@ -70,16 +70,21 @@ currency, and the survivor is always moving — the map is explored, not surveye
   commit step (`npm run bake:pois` — not part of `npm run build`) rather than queried per run. On spawn
   the game loads that static file once and filters it to POIs within ~1.5 km. Shops/amenities carry full
   geometry (`out geom`, for outlines); HDB blocks are centroids only (`out center`, kept light).
-- Data sources degrade in order: **baked file → live Overpass → procedural fallback**. Baking removes
+- Data sources degrade in order: **baked file → live Overpass → retry notice**. Never invent
+  real-world buildings when both fail. Baking removes
   the per-run dependency on a volunteer-run API that rate-limits by IP — a static file on the CDN
   can't throttle, works offline once cached, and returns in milliseconds.
 - Each element is classified into a **category**; a **seeded RNG** assigns **size** (small/med/large),
   a **base danger (1–5)**, remaining searches, and a faction. A given seed reproduces the same world.
 - Density is high (up to ~**220 locations**, incl. up to ~100 void decks) — fog of war means only the
   handful you've explored are ever drawn, so world size is decoupled from render cost.
-- **Remote-spawn check:** if a real data source returns fewer than 5 POIs in range, the click was
-  wilderness/reservoir/sea — the spawn is rejected with a notice so the player picks again. Procedural
-  generation is reserved strictly as a **data-unavailable fallback**, never for genuinely empty areas.
+- **Remote-spawn check:** fewer than 5 accepted real sites in range rejects the spawn with a
+  notice. Sparse coverage can mean missing data as well as genuinely empty land. Generated
+  stepping stones do not count; they are generic open-ground stops, never invented buildings.
+- **HDB identity:** only OSM apartment/residential buildings whose pins match official HDB
+  footprints may open HDB interiors. Condos, landed homes and community centres are not HDBs.
+  Unverified sites are excluded conservatively. Older v7 saves keep their positions and stashes
+  at exhausted open-ground stops; invalid HDB interiors are discarded.
 - **Walkability zones** (`public/zones.json`, `npm run bake:zones`): land mask, inland water,
   restricted (military) perimeters, and vegetation. Water and restricted hard-block spawn/trek;
   vegetation stays walkable but adds a soft stamina/time cost. Routes prefer land paths around water.
@@ -107,6 +112,10 @@ ground for rest; landmarks are not selected as guaranteed indoor spawn shelters.
 | Petrol station | Shell, Esso, Caltex, SPC | Fuel, roadside snacks, torches | 3 |
 | Police | Neighbourhood police posts | Firearms, ammo, riot gear | 5 |
 | HDB void deck | Housing blocks | Common household loot; gateway to HDB cutaways | 2 |
+| Residence | Mapped houses and apartments without an HDB match | Household supplies via street scavenging; no HDB interior | 2 |
+| Eatery / food shop | Restaurants, cafes, bakeries | Food, drinks, kitchen supplies | 2 |
+| Community site | Community clubs, libraries, places of worship, museums | Food, medical supplies, tools | 2 |
+| Park / garden | Named parks, reserves, zoos and open-air attractions | Visitor belongings and light supplies; outdoor rest | 1 |
 | Hawker centre | Food courts, markets | Food | 2 |
 | MRT station | Rail / LRT stations | Way into the tunnels (see 3.8); light loot | 3 |
 | Industrial | Warehouses, factories | Tools, fuel, materials | 3 |
@@ -147,18 +156,49 @@ ground for rest; landmarks are not selected as guaranteed indoor spawn shelters.
 - Awareness / dialogue / fog stay on traits and attributes — not a skill in v1.
 - Run schema is `singvive.run.v7` (v6 continues are wiped).
 
-### 3.3 Fog of war — blind exploration
-- Locations are **unknown** until you visit or obtain intel; the evac beacon is broadcast and
+### 3.3 Fog of war — local knowledge
+- Locations begin **unknown**; the evac beacon is broadcast and
   Local Contacts grants its two starting hub pins. Undiscovered places show only as
   anonymous **"?" blips** (no name, category or danger). Their **building outline is still drawn** (in
   neutral) if OSM has one; locations without an outline are just their circular badge.
-- The on-map rings are **not vision — they're travelable range**. The **inner, dashed ring** is how
+- **Identified is not visited.** Nearby recognition, search clues and public maps reveal a
+  site's name/category without danger, ownership, ruin, search charges or supplies. Identified
+  pins remain neutral and do not clear explored fog or count as visits. Existing specialist
+  faction intel retains its separate last-known information.
+- **Recognition on arrival.** At spawn and completed surface/tunnel arrivals, Perception plus
+  awareness equipment/traits (less head-injury penalties) identifies obvious nearby exterior
+  sites. Base radius is `clamp(20 + awareness × 3, 20, 60)` metres: 35 m at awareness 5.
+  Existing night sight reduces it; rain ×0.75, haze ×0.6, thunderstorm ×0.5 reduce it further.
+  Known building footprints block intervening/embedded sites; absent geometry uses an
+  exterior-category approximation, not complete line of sight. Waiting and camera movement
+  never roll discoveries. The travel ring is unchanged.
+- **Local leads.** A site's first completed street search has a seeded 35% chance to yield one
+  nearby lead (within 800 m), including a completed empty search. Aborted searches grant none.
+  Leads prefer useful facilities and survival destinations, exclude visited/known sites and
+  evac, and are fixed per source. Repeated searches cannot reroll a spent clue opportunity.
+- **Singapore information sources.** Every MRT platform offers a locality map; HDB void decks
+  and community centres offer residents' noticeboards. Reading costs five game minutes, once
+  per site. MRT maps identify up to three public destinations within 400 m without facility
+  availability; handwritten notices give one nearby lead within 800 m. Reading does not grant
+  live conditions, clear fog or bypass travel. A full logbook leaves the board unread.
+- **Logbook mini objectives.** Keep up to six active leads and 24 total active/completed entries.
+  Each records its source, destination and day, with reported facilities labelled as unverified.
+  Physical arrival marks a lead visited, with no score or loot bonus. **Show on map** closes the
+  panel, opens the phone map when needed, and zooms to the destination without travelling.
+- **Useful local facilities.** Eligible unoccupied sites have a seeded 30% chance of one
+  category-appropriate facility on their first visit: two clean-water portions, rain shelter,
+  or an unlit stove requiring normal fuel. Existing crafting/collection/rest rules apply.
+  Revisits, reloads and ownership changes never replenish or reroll this opportunity. The
+  logbook remembers facility types, not remote stock or heat. Faction sites grant no free public
+  facilities through this system.
+- The single, dashed on-map ring is **not vision — it's current travelable range**: how
   far you can comfortably push right now, derived from walking speed (END/DEX + leg injuries),
-  current **energy**, weather and load. It shrinks as you tire or get hurt. The **outer, solid ring**
-  is the **max travel range**: the same sum when rested and unhindered (full energy, sound legs, no
-  overload, fair weather), so only your build and worn gear move it. The outer ring is what opens the
-  fog and stands the 3D buildings, so the city holds still while energy ticks; ground and buildings
-  between the two rings are **dimmed**, the walkable disc reads brighter. **Perception/awareness**
+  current **energy**, weather and load. It shrinks as you tire or get hurt and expands as you recover.
+  This same range opens the live fog disc and raises 3D buildings; all buildings fall as
+  the range retreats, including previously visited sites. Discovered location markers remain
+  at ground level outside the range. During travel,
+  the disc follows the walking pin at departure range, then eases to the remaining range on arrival.
+  **Perception/awareness**
   extends how far out you *sense* blips (never their identity).
 - **Discover-on-visit → permanent memory.** Arriving charts a location forever as **last-known intel**
   (stale danger, faction, looted state). Because danger regenerates while you're away, old intel can
@@ -176,9 +216,13 @@ ground for rest; landmarks are not selected as guaranteed indoor spawn shelters.
 
 ### 3.4 Time, travel, wilds & the day/night cycle
 - A day is **24 in-game hours**, starting at **08:00**. Travel is **one-way relocation** (nomadic):
-  the survivor has a tracked position, and cost = distance(current → target) ÷ walking speed, stretched
-  by **weather** (rain ×1.5, thunderstorm ×1.75), a **graduated load tax** (quiet until capacity, brutal
-  past it — hover the carry bar), and vegetation soft-costs.
+  the survivor has a tracked position, and cost = land-route distance(current → target) ÷ walking speed,
+  stretched by a **×2 surface detour allowance** for navigating city blocks, rubble and crossings,
+  **weather** (rain ×1.5, thunderstorm ×1.75), a **graduated load tax** (quiet until capacity, brutal
+  past it — hover the carry bar), and vegetation soft-costs. The detour allowance affects elapsed
+  game time and its normal survival costs, not the geographic range per move, recorded distance,
+  or tunnel walking. A fresh END/DEX 5 survivor with healthy legs and no load penalty takes about
+  **10 minutes per 500 m** on clear, non-vegetated ground. The map glide remains brief.
 - **Open-ground treks** (`game/wilds.ts`): between pins the path crosses seeded ~350 m hazard
   pockets (overlapping discs: horde, patrol, collapse, flood, wildlife). POI travel cards preview
   sensed pockets on the route. Collapse wounds; flood slows and can infect; horde/patrol/wildlife
@@ -219,8 +263,8 @@ ground for rest; landmarks are not selected as guaranteed indoor spawn shelters.
   painkillers (HP only), antibiotics/antiseptic (infection), splint (clears fracture).
 - **Teaching:** How-to-play includes a **Body** topic; first meaningful injury shows a one-shot coach
   (settings flag `limbCoachSeen`).
-- Death causes: overwhelmed (HP 0), starvation, dehydration, infection, fatal head/torso wound,
-  **overrun** (horde hits 100%).
+- Death causes: overwhelmed (HP 0), starvation, dehydration, infection, fatal head/torso wound.
+  Survival is open-ended: supplies, injuries, local threats and night danger continue to matter.
 
 ### 3.6 Combat — contact, then live-stance auto-combat
 - Combat is an **overlay inside the game screen** (no combat phase). Encounters trigger while
@@ -442,8 +486,12 @@ hostility, trade, shelter, aid, and intel:
   own **heat** meter and its rooms. Click a strip to take the stairs there; click a room on your
   own strip to open its action card (Force / Pick / search / rest / read / service). Room tiles
   show the type (search, hazard, burn, fight, rest, intel, service), boarded ✕, cleared ·, and a
-  dot when Dexterity read the containers from the corridor. Most loot doors must be Forced or
+  dot when either sense read intel from the corridor. Most loot doors must be Forced or
   Picked (lockpick, consumed). There is no maze: no corridor blockades, no walking pin.
+- **Corridor scouting.** First arrival plays the actual Perception and Dexterity percentile
+  checks inside each available, unexplored room tile, then reveals the room face. Hover a room
+  to inspect those rolls while on that landing. Revisited rooms do not reroll; Dice FX off and
+  reduced motion show the resolved intel immediately. Playback changes no game time or odds.
 - **Heat is per landing.** What you do on a landing heats that landing (`addHeat`); loud acts
   **spill** a share to the open landings directly above and below — door force 0, barricade
   0.35, trap 0.25, fight end 0.5, roof hatch 0.5. A landing's heat band drives its encounter
@@ -452,6 +500,8 @@ hostility, trade, shelter, aid, and intel:
   crosses it (80% elite), never a forced move. Landings you are not on **cool 5 heat/hour**
   (`coolLevels`, run from `advanceTime`); re-entering a block halves every landing.
   `blockHeat` is kept as the peak (`peakHeat`) for the scar, the site card and the exit leak.
+  The block header stays compact; hover or focus a strip's heat meter for its effects, descent
+  check and next threshold (long-press on touch).
 - **Stairs.** `travelPlan(from, to)` costs 0.75 min per real storey × the load stair factor.
   Going **down**, every open landing crossed (and the destination) rolls d20 + Dex + End against
   that landing's DC + the load flee modifier; the first fail stops you there in a fight. Climbing
@@ -469,7 +519,8 @@ hostility, trade, shelter, aid, and intel:
 - **Landing themes**, dealt from a seeded no-repeat deck (`ordinary` may repeat once):
   `holdout` (services, calmer), `fire` (burning rooms, good loot), `nest` (dens, starts hot,
   one stocked door), `picked_over` (mostly cleared, one notice), `refuge` (20+ storeys only;
-  safe stairs, rest drops heat). Revealed on arrival with a log line; a chip on the strip.
+  safe stairs, rest drops heat). Revealed on arrival with a log line; the theme sits above the
+  floor number on the left of its strip.
 - **The block on the map.** Desktop with 3D on: the strips sit over the map beside the tower,
   each with a notch pointing at it. The wider corridor strips use large door tiles and floor
   numbers, and keep the current landing visible when taking the stairs. The camera fits the
@@ -487,11 +538,35 @@ hostility, trade, shelter, aid, and intel:
   doors, per-landing heat and fobs carry over, the stair geometry is dropped, you re-enter on 01,
   and an opened roof gate becomes an open hatch. Run key stays `singvive.run.v7`.
 
-### 3.15 Noise
-- Actions emit spatial **noise pulses** (`game/noise.ts`) that temporarily boost nearby POI danger
-  (`tempDangerBoost`, decays over hours). Combat and HDB entries are noisy; quiet traits help.
+### 3.15 Noise & nearby activity
+- Actions emit visual **noise pulses** (`game/noise.ts`) and persistent local attention
+  (`game/activity.ts`). They do not also boost POI `tempDangerBoost`; legacy boosts still decay.
+  Combat and HDB entries are noisy; quiet traits help.
+- **Local pressure** (`game/activity.ts`) combines a stable **0.42 baseline** with nearby persistent
+  noise sources. Sources are spatial, capped at **32**, and fade over **6 in-game hours**. Moving
+  away or waiting changes exposure; the passage of days does not raise an island-wide doom meter.
+- The three bands are **Quiet / Stirred / Hunting**. A small icon beside the weather shows local activity, with a brief pulse only when its band rises (respecting reduced motion). Its tooltip explains the state and cause; clicking opens the latest nearby event in the timeline. HDB
+  interiors and tunnels retain their existing danger and noise rules.
+- **Street incidents:** car alarms, rattling shutters, gunfire and scavengers. Seeded event memory
+  requires **250 m of accumulated movement**, arrival **250 m from the previous attempt's anchor**,
+  and **2 in-game hours** between attempts, with at most **3 incidents per day**. Failed rolls
+  consume the cooldown too. An incident's decision window lasts **1.5 in-game hours**. Sources and scheduling memory
+  survive reloads in the existing **v7** save; old v7 runs initialize the new state safely.
+- Responses are available only on the **surface within 120 m** of the source:
 
-### 3.16 Extraction goal & horde clock
+  | Incident | Response cost | Result |
+  |---|---|---|
+  | Alarm / shutter | 15 minutes, 4 energy | Quiet the source to 45% residual strength. |
+  | Gunfire | 20 minutes, 5 energy | Recover 2 scrap; the investigation makes a small noise. |
+  | Scavengers | 10 minutes, 1 carried, uncontaminated bottled water (`water_bottle` or `newater`) | Learn the nearest unknown site within 1 km; receive 1 scrap if none is available. |
+
+  Optional incidents use the existing timeline event-card layout with costs and choices. Completed and expired cards remain in history; choices never block travel. Live choices remain reachable in Latest mode and across midnight.
+
+  Each completed response reduces its source to **45%** residual strength; gunfire also adds the
+  small investigation noise. Dismissing an incident closes the choice; it does **not** erase its noise source. The source
+  continues to fade even after its decision window closes.
+
+### 3.16 Extraction goal & open-ended survival
 - Dual-path spine (`game/goal.ts`):
   - **Linger** — score day multiplier rises (`1.0 + 0.1 × (days − 1)`).
   - **Extract** — haul weighted readiness in the **backpack** (fuel > meds/ammo > water > food;
@@ -501,24 +576,10 @@ hostility, trade, shelter, aid, and intel:
     quota). **Standing on the pad**, the first press **raises the channel** and the crew reads the
     numeric manifest for the rest of the window — a short haul can be topped up on purpose. A pack
     that already clears lifts on that same press (flare). Miss the window → cooldown → new site +
-    fresh demand; the horde keeps rising either way.
-- **Horde** rises ~8/day from a **mid-crisis** start (~42 on a new run); at 100 the city is **overrun**
-  and the run ends. That island clock is still the fail state — but street danger is **geographic**.
-  A seed-picked **ground zero** (one of 20 real towns in `game/townField.ts`) sits ahead of the mean;
-  distant neighbourhoods sit behind it. **Neighbourhood** tiers: Stirring → Restless → Massing →
-  Fallen → Lost (the island meter itself tops out as Swarming → Overrun).
-  Lost is walkable, not a wall: extra trek/search pressure, dusk-rate night swarm in daylight,
-  spawn snaps you into a roofed site. The spawn map stays clean; the run map paints a neighbourhood
-  status overlay when you zoom out until the island fits (zoom ≤12) — real URA planning-area shapes
-  coloured by tier, and a legend. Hovering an area names it and its tier (no always-on labels).
-  On desktop the rail's **Island front** button shows the horde tier and pulls the camera back
-  over the whole island. Street zoom stays clear. Old saves without `groundZeroId`
-  keep the flat global meter.
-  `hordeIntensity()` / local `pressureAt()` feed hazard-cell density (20% → 42%), the **horde pocket**
-  share of hazards (~33% → ~45%), a severity bump above 45, pocket radius (up to +40%), trek encounter
-  chance (+18 pts, more in Lost daylight), search encounter chance (+30 pts), and a +1 tunnel danger
-  tier above 50. Later days mean denser, nastier, more frequent contact — **and** a worse neighbourhood
-  than yesterday.
+    fresh demand; supplies, injuries and nearby threats still need managing during the wait.
+- **No automatic ending or gameplay day cap.** There is no advancing island front, ground-zero
+  modifier, neighbourhood status wash or automatic overrun death. Local noise shapes nearby
+  pressure; ordinary encounters, night danger, hunger, thirst and infection remain threats.
 - Successful extract adds `2000 × dayMult` on top of survival score.
 
 ### 3.17 Ghost survivors
@@ -529,7 +590,7 @@ hostility, trade, shelter, aid, and intel:
 ### 3.18 Sound
 - **Procedural ambience** (`src/audio/ambience.ts`, Web Audio, no asset files). Beds: brown-noise
   wind (hollower after dark, a rumble in tunnels), rain by weather, a tropical night chorus that
-  **goes quiet as horde pressure rises**. One-shots: distant groans (rate and closeness rise with
+  **goes quiet as local pressure rises**. One-shots: distant groans (rate and closeness rise with
   local pressure and darkness), daytime koel and crow calls, house-gecko chirps, unseen metal
   clanks, thunder, tunnel drips.
   Heartbeat below 40% HP. Stingers: a far-off civil-defence wail at nightfall, a dissonant hit on
@@ -566,7 +627,7 @@ Durations and variant counts below are targets for edited game clips.
 | Priority | Sound / use | Target | Starting point or search terms |
 |---|---|---|---|
 | P1 | Rain and heavy rain — existing weather bed | 2 seamless loops, 30–60 s each | Freesound: `tropical rain`, `heavy rain no thunder`; keep thunder separate for timing. |
-| P1 | Tropical night insects — existing bed | 1–2 loops, 30–60 s | Freesound: `tropical crickets night`; preserve the hush as horde pressure rises. |
+| P1 | Tropical night insects — existing bed | 1–2 loops, 30–60 s | Freesound: `tropical crickets night`; preserve the hush as local pressure rises. |
 | P1 | Asian koel, house crow, house gecko — existing wildlife | 3–5 short calls per species | Freesound: `Asian koel`, `house crow`, `house gecko`; isolated calls rather than busy streets. |
 | P1 | Infected groans — existing distant threat | 4–6 one-shots, 1–4 s | Freesound / Sonniss: `zombie groan`, `creature breathing`; avoid intelligible speech. |
 | P1 | Footsteps — new travel feedback | 4–6 steps per concrete, grass and wet surface | Kenney RPG Audio; Freesound: `footsteps concrete`, `wet footsteps`. |
@@ -600,7 +661,8 @@ important gameplay cue must also be visible.
 
 ### 3.19 Persistence, scoring & settings
 - Fully **client-side** for the run. Keys:
-  - `singvive.run.v6` — active run (v6: extraction + horde; optional `groundZeroId` for the town field)
+  - `singvive.run.v7` — active run, including spatial activity sources and seeded event memory;
+    existing v7 runs load without those optional fields and initialize them safely
   - `singvive.scores.v1` — personal leaderboard on this device
   - `singvive.settings.v1` — prefs independent of the run (language `en` | `zh-Hans`, timeline
     detail, 12/24 clock, weather FX, sound, font size, how-to-play on start)
@@ -613,6 +675,8 @@ important gameplay cue must also be visible.
   registration — once, for the same seed, after a plausible amount of real time, and only if the
   kills and days can explain it (`worker/scoreRules.ts`). A run that never reached the Worker
   (played fully offline) stays on the personal list only.
+  There is no 16-day score limit: elapsed-real-time plausibility and the **60-real-day** registration
+  window bound submissions, alongside kill/loot ceilings and finite safe integer counters.
 - **One tab per browser.** A second tab shows "Already open" until the first closes
   (`useSingleInstance`) — two tabs on one save could write a dead run back.
 - **Score** = `(kills×25 + carried loot value + days×50) × dayMult` (+ optional `2000×dayMult` on
@@ -624,7 +688,7 @@ important gameplay cue must also be visible.
 
 - **Desktop — left rail + map + timeline:**
   - **Left survivor rail** (~408px): clock, weather, Rest (with sleep-quality preview), `ObjectiveBar`,
-    `ConditionPanel` (meters + body), and panel buttons **Inventory / Craft / Logbook / Stats**.
+    nearby activity, `ConditionPanel` (meters + body), and panel buttons **Inventory / Craft / Logbook / Stats**.
   - **Slide-out overlay** (does not reflow the map): inventory, craft, logbook, stats, objectives.
     Most panels are a 360px column beside the rail; **craft** spans the whole map instead (never
     narrower than 360px) and reflows its recipes into as many columns as that width allows.
@@ -638,7 +702,8 @@ important gameplay cue must also be visible.
   - **Right timeline** — game log; contact Fight/Flee gate dims the rest of the UI until chosen.
 - **Mobile — phone chrome:** a **status bar** (vitals) sits above the map. Bottom tabs are
   **Map / Hub / Inventory / Craft / Log**. On the map, the selected location / trek slides up as a
-  sheet. Contact, doorway events, and search sessions are interrupt cards; tabs stay usable.
+  sheet. Nearby activity has a compact surface display. Contact, doorway events, and search
+  sessions are interrupt cards; tabs stay usable.
 - **Overlays / modals:** trader, contextual guide, how-to-play primer, settings, day logs, event modals, HDB dungeon, tunnel run,
   ghost encounter.
 
@@ -650,21 +715,19 @@ The game is already **feature-rich**. Adding more Project Zomboid / Tarkov syste
 heavier, not more itself. Fun comes from making the **island** the opponent and **local knowledge**
 the skill.
 
-The loop (spawn → blind trek → search / HDB / MRT → pack Tetris → horde clock / evac) is solid.
-What still feels generic is the **skill** (stats + Tetris). The **clock** now has a first geographic
-prototype (neighbourhood wash, seed-picked ground zero, Lost as an expensive shortcut) — it is not
-yet the full “front retreats factions” vision. Singapore's actual fantasy is: *you know this city,
-it is tiny, water is a wall, and neighbourhoods die in place.*
+The loop (spawn → blind trek → search / HDB / MRT → pack Tetris → local activity / evac) is solid.
+Local noise now gives movement and waiting concrete consequences. The next identity work is
+**local knowledge**: *you know this city, it is tiny, water is a wall, and familiar routes can
+save a life.*
 
 ### Double down (north star)
 
-These are **design bets**, not a build queue. Geographic doom has a **shipped prototype** (see §3.16);
-the next uniqueness pass should be **local knowledge**, not a second horde system.
+These are **design bets**, not a build queue. Build on the local activity choices in §3.15 and
+the routes, supplies and landmarks that make Singapore specific.
 
-1. **Geographic doom, not a meter.** *(prototype in.)* The horde is a front: estates go quiet, then
-   hostile, then Lost on the map. A day-8 Toa Payoh is not a day-2 Toa Payoh with +30% encounter
-   chance. Night swarm already hinted at this; the wash + local `pressureAt` is the first place-falling
-   layer. Still not in: faction retreats as the front moves, origin flavour, a 20-town HUD spreadsheet.
+1. **Local consequences worth routing around.** An alarm changes the nearby street for a while;
+   helping scavengers can reveal a useful destination. Make those choices legible and let the
+   player judge whether responding, waiting or taking another route is worth the cost.
 2. **Local knowledge as the build.** Occupations already gesture at this (*Estate Memory*, *Made Man*,
    STA). Make spawn + job change *what you remember*: MRT lines you can trust, which void decks are
    88, where Gotong still cooks. A tourist run is fog; a resident run is a damaged mental map.
@@ -693,11 +756,11 @@ Generic survival add-ons. Fine later; they do not answer “why this game.”
 
 ### Fun, practically
 
-- Cut busywork so the unique beats breathe: travel cards and search grids should resolve faster as
-  the horde front closes.
+- Cut busywork so the unique beats breathe: keep travel cards and search grids quick to read while
+  nearby activity gives the player a reason to choose a route or spend supplies.
 - Faction **outposts** are already destinations — lean social geography (who still holds which block)
   before adding quests.
-- **Balance** still matters: travel speed, meter/injury drain, danger regen, horde climb, evac
+- **Balance** still matters: travel speed, meter/injury drain, danger regen, local noise, evac
   thresholds, loot rarity.
 - **Tests:** Vitest covers combat, wilds, crafting, survival, events, inventory, firearms, and more
   under `src/game/` (+ catalog / i18n key guards). Still thin or missing: `goal`, `noise`,
@@ -712,10 +775,10 @@ flaw economy; these ideas do not add another category or survival meter. Point c
 |-------|------|---------------|-----------------------|
 | **Spare Key** | Positive | Once per HDB block, open an ordinary locked residential door quietly without a lockpick. Special gates remain locked. | Spend the opening early for supplies, or save it for a more promising room deeper inside. |
 | **Storm Chaser** | Positive | Rain further reduces the noise of your outdoor movement and HDB breaches, on top of normal weather effects. | Move while the city masks you, accepting rain's existing visibility and travel costs. |
-| **Cache Runner** | Positive | Travel toward a visited stash containing your supplies uses less energy; the route still follows normal walkability and encounter rules. | Build a useful cache circuit, then decide when the approaching horde makes returning too dangerous. |
+| **Cache Runner** | Positive | Travel toward a visited stash containing your supplies uses less energy; the route still follows normal walkability and encounter rules. | Build a useful cache circuit, then decide whether local threats make returning worth the risk. |
 | **Improviser** | Positive | Spend scrap for a temporary weapon patch that lasts one encounter. Each weapon can receive only one patch before a proper repair. | Burn a resource for one crucial fight or retreat with it intact; avoid an infinite repair loop. |
 | **Claustrophobic** | Flaw | Energy drains faster during HDB interiors and MRT exploration, with the extra cost shown before entry. | Take the longer surface route or budget supplies for a short, valuable indoor expedition. |
-| **Creature Comforts** | Flaw | Sleep restores less energy at exposed sites; enclosed shelter and friendly hubs retain their normal restoration. | Detour to safe lodging or accept a poor night's rest to stay ahead of the horde. |
+| **Creature Comforts** | Flaw | Sleep restores less energy at exposed sites; enclosed shelter and friendly hubs retain their normal restoration. | Detour to safe lodging or accept a poor night's rest to conserve supplies and travel time. |
 
 Prototype **Spare Key**, **Storm Chaser**, and **Claustrophobic** first: they give HDBs, weather,
 and MRT route choices distinct build identities. Keep costs and remaining uses visible, and avoid
@@ -724,16 +787,16 @@ safely from existing `singvive.run.v7` saves before these proposals ship.
 
 ### Shipped (was roadmap)
 
-- Crafting & repair, faction barter + marked outposts, ammo + weapon condition, extraction + horde
-  clock, geographic neighbourhood field (ground zero + town wash), HDB cutaways, search sessions,
-  sleep quality, occupations, in-game guide (en + zh-Hans), fill-the-track combat, noise, worldwide
+- Crafting & repair, faction barter + marked outposts, ammo + weapon condition, extraction and
+  open-ended survival, persistent local noise and response events, HDB cutaways, search sessions,
+  sleep quality, occupations, in-game guide (en + zh-Hans), fill-the-track combat, worldwide
   honor board (D1) beside the personal local top-10.
 
 ### Known constraints
 
 - Overpass has rate limits and latency → map data is pre-baked to a static file, so the live API is
   only touched by `npm run bake:pois` / `bake:mrt` / `bake:zones` and as a runtime POI fallback.
-  Planning-area overlays come from URA via `npm run bake:towns`. Baked data is a point-in-time
+  Planning-area data comes from URA via `npm run bake:towns`. Baked data is a point-in-time
   snapshot: new shops in OSM won't appear until the next bake.
 - Many Singapore shops are mapped as **point nodes**, not buildings, so not every POI has a drawable
   outline — those render as a category badge instead.

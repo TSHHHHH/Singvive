@@ -38,11 +38,16 @@ export function SurvivorDock({
   const { meters, bodyParts } = useGame(
     useShallow((s) => ({ meters: s.meters, bodyParts: s.bodyParts })),
   );
-  const [section, setSection] = useState<Section | null>(null);
+  const [section, setSection] = useState<Section | null>(() => sidePanel === 'inventory' ? 'backpack' : null);
   const triggers = useRef<Partial<Record<Section, HTMLButtonElement | null>>>({});
-  // Stash must expose both grids for drag-and-drop, including when opened by
-  // hotkey or a loot action. Other slide-outs take precedence over rail detail.
-  const visible = sidePanel === 'inventory' ? 'backpack' : sidePanel ? null : section;
+  // Opening stash exposes both grids, including from hotkeys / loot actions.
+  // Keep that selection after the slide-out closes or switches to another tool.
+  const [previousPanel, setPreviousPanel] = useState(sidePanel);
+  if (previousPanel !== sidePanel) {
+    setPreviousPanel(sidePanel);
+    if (sidePanel === 'inventory') setSection('backpack');
+  }
+  const visible = section;
   const major = countBleeding(bodyParts, 'major');
   const minor = countBleeding(bodyParts, 'minor');
   const injured = Object.values(bodyParts).some((p) => p.hp < p.maxHp || p.fractured || p.crippled);
@@ -60,12 +65,10 @@ export function SurvivorDock({
 
   const toggle = (next: Section) => {
     setSection(visible === next ? null : next);
-    onPanelChange(null);
   };
   const close = () => {
     if (visible) triggers.current[visible]?.focus();
     setSection(null);
-    onPanelChange(null);
   };
 
   useEffect(() => {
@@ -116,13 +119,13 @@ export function SurvivorDock({
         {(needsCare || heavy) && (
           <div className="mt-2.5 flex flex-wrap gap-1.5 border-t border-white/10 pt-2" aria-live="polite">
             {needsCare && (
-              <button type="button" onClick={() => { setSection('condition'); onPanelChange(null); }} className="rounded border border-hiss/40 px-2 py-1 text-label text-hiss hover:bg-hiss/10">
+              <button type="button" onClick={() => setSection('condition')} className="rounded border border-hiss/40 px-2 py-1 text-label text-hiss hover:bg-hiss/10">
                 <Icon name={major || minor ? 'status.bleeding' : 'action.status'} />{' '}
                 {conditionSummary}
               </button>
             )}
             {heavy && (
-              <button type="button" onClick={() => { setSection('backpack'); onPanelChange(null); }} className="rounded border border-hiss/40 px-2 py-1 text-label text-hiss hover:bg-hiss/10">
+              <button type="button" onClick={() => setSection('backpack')} className="rounded border border-hiss/40 px-2 py-1 text-label text-hiss hover:bg-hiss/10">
                 <Icon name="meta.weight" /> {loadTierLabel(load, t)}
               </button>
             )}
@@ -133,11 +136,11 @@ export function SurvivorDock({
       <nav aria-label={t('ui.dock.tools')} className="grid grid-cols-5 gap-0.5 rounded-lg border border-white/15 bg-black/20 p-1">
         {sectionButton('condition', 'action.status', needsCare)}
         {sectionButton('backpack', 'action.inventory', heavy)}
-        <button type="button" onClick={() => { setSection(null); onPanelChange(sidePanel === 'inventory' ? null : 'inventory'); }} aria-expanded={sidePanel === 'inventory'} aria-keyshortcuts={hotkeys.inventory} className={trayClass(sidePanel === 'inventory')} {...tip(t('ui.hud.hotkey', { label: t('ui.phone.stash'), key: hotkeys.inventory }))}>
+        <button type="button" onClick={() => onPanelChange(sidePanel === 'inventory' ? null : 'inventory')} aria-expanded={sidePanel === 'inventory'} aria-keyshortcuts={hotkeys.inventory} className={trayClass(sidePanel === 'inventory')} {...tip(t('ui.hud.hotkey', { label: t('ui.phone.stash'), key: hotkeys.inventory }))}>
           <Icon name="action.stash" size={18} />
           <span>{t('ui.phone.stash')}</span>
         </button>
-        <button type="button" onClick={() => { setSection(null); onPanelChange(sidePanel === 'craft' ? null : 'craft'); }} aria-expanded={sidePanel === 'craft'} aria-keyshortcuts={hotkeys.craft} className={trayClass(sidePanel === 'craft')} {...tip(t('ui.hud.hotkey', { label: t('ui.phone.craft'), key: hotkeys.craft }))}>
+        <button type="button" onClick={() => onPanelChange(sidePanel === 'craft' ? null : 'craft')} aria-expanded={sidePanel === 'craft'} aria-keyshortcuts={hotkeys.craft} className={trayClass(sidePanel === 'craft')} {...tip(t('ui.hud.hotkey', { label: t('ui.phone.craft'), key: hotkeys.craft }))}>
           <Icon name="action.craft" size={18} />
           <span>{t('ui.phone.craft')}</span>
         </button>

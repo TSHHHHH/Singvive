@@ -25,6 +25,10 @@ export const POI_CONFIG: Record<PoiCategory, PoiCategoryConfig> = {
   fuel: { label: 'Petrol Station', richness: 2, baseDanger: 3, color: '#b7b3a9', icon: 'poi.fuel', blurb: 'Fuel & roadside snacks.' },
   police: { label: 'Police Station', richness: 2, baseDanger: 5, color: '#9c9890', icon: 'poi.police', blurb: 'Firearms & ammo. Extremely dangerous.' },
   residential: { label: 'HDB Void Deck', richness: 2, baseDanger: 2, color: '#8a867e', icon: 'poi.residential', blurb: 'Void deck & flats — common household loot. The 88 Syndicate works these estates.' },
+  housing: { label: 'Residence', richness: 2, baseDanger: 2, color: '#a69aa9', icon: 'poi.residential', blurb: 'Household cupboards and abandoned belongings. A street search through a mapped residence.' },
+  eatery: { label: 'Eatery / Food Shop', richness: 1, baseDanger: 2, color: '#b6b99c', icon: 'poi.foodcourt', blurb: 'Restaurant counters, cafe cupboards and small food shops. Check for food, bottles and kitchen supplies.' },
+  community: { label: 'Community Site', richness: 2, baseDanger: 2, color: '#a4afbf', icon: 'poi.school', blurb: 'Community clubs, libraries, places of worship and cultural buildings. Shared cupboards and supplies left behind.' },
+  park: { label: 'Park / Garden', richness: 1, baseDanger: 1, color: '#8caa86', icon: 'poi.landmark', blurb: 'Open-air grounds, benches and visitor belongings. No guaranteed roof or enclosed shelter.' },
   foodcourt: { label: 'Hawker Centre', richness: 1, baseDanger: 2, color: '#cfccc4', icon: 'poi.foodcourt', blurb: 'Food stalls. Gotong Royong still cooks here when the estate holds.' },
   mrt: { label: 'MRT Station', richness: 1, baseDanger: 3, color: '#2bc4d9', icon: 'poi.mrt', blurb: 'Nothing runs. The platform is a way into the tunnels, and the STA works the turnstiles.' },
   industrial: { label: 'Industrial Unit', richness: 3, baseDanger: 3, color: '#a8863f', icon: 'poi.industrial', blurb: 'Warehouse floor & loading bay. Tools, fuel and materials — and a lot of dark corners.' },
@@ -37,7 +41,9 @@ export const POI_CONFIG: Record<PoiCategory, PoiCategoryConfig> = {
  * Classify a raw OSM element (its tags) into one of our POI categories,
  * or null if it isn't a location we care about.
  */
-export function classifyOsm(tags: Record<string, string>): PoiCategory | null {
+export function classifyOsm(tags: Record<string, string>, verifiedHdb = false): PoiCategory | null {
+  if (tags.demolished || tags.construction || tags.proposed || tags.access === 'no' || tags.access === 'military'
+    || ['construction', 'proposed', 'demolished', 'ruins'].includes(tags.building)) return null;
   const shop = tags.shop;
   const amenity = tags.amenity;
   const building = tags.building;
@@ -47,12 +53,15 @@ export function classifyOsm(tags: Record<string, string>): PoiCategory | null {
   if (shop === 'chemist' || amenity === 'pharmacy') return 'pharmacy';
   // Real hospitals are rare and deadly; GP / polyclinic tags must not inherit that.
   if (amenity === 'hospital') return 'hospital';
-  if (amenity === 'clinic' || amenity === 'doctors') return 'clinic';
+  if (amenity === 'clinic' || amenity === 'doctors' || amenity === 'dentist') return 'clinic';
   if (shop === 'hardware' || shop === 'doityourself' || shop === 'trade') return 'hardware';
   if (amenity === 'fuel') return 'fuel';
   if (amenity === 'police') return 'police';
   if (amenity === 'food_court' || amenity === 'marketplace' || amenity === 'hawker_centre')
     return 'foodcourt';
+  if (['restaurant', 'cafe', 'fast_food'].includes(amenity) || ['bakery', 'butcher', 'greengrocer'].includes(shop)) return 'eatery';
+  if (['community_centre', 'library', 'place_of_worship'].includes(amenity) || tags.tourism === 'museum') return 'community';
+  if (['park', 'garden', 'nature_reserve'].includes(tags.leisure) || ['zoo', 'theme_park'].includes(tags.tourism)) return 'park';
   if (tags.station === 'subway' || tags.station === 'light_rail' || tags.railway === 'station')
     return 'mrt';
   if (amenity === 'school' || amenity === 'college' || amenity === 'university') return 'school';
@@ -61,13 +70,11 @@ export function classifyOsm(tags: Record<string, string>): PoiCategory | null {
   if (building === 'industrial' || building === 'warehouse' || building === 'factory')
     return 'industrial';
   if (tags.landuse === 'industrial' || tags.man_made === 'works') return 'industrial';
-  if (
-    building === 'residential' ||
-    building === 'apartments' ||
-    building === 'house' ||
-    amenity === 'community_centre'
-  )
+  // "Apartments" describes private condos too. A block number, name, height
+  // or nearby HDB estate is not evidence of public housing.
+  if (verifiedHdb && !amenity && (building === 'residential' || building === 'apartments'))
     return 'residential';
+  if (!amenity && ['residential', 'apartments', 'house', 'detached', 'terrace', 'semidetached_house'].includes(building)) return 'housing';
   return null;
 }
 

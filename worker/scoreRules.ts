@@ -8,8 +8,6 @@
  * honestly. It bounds what a forged submission can claim.
  */
 
-/** Horde clock: 100 / 8 per day from a cold start, plus slack. */
-export const DAYS_MAX = 16;
 /** Generous ceiling — a real run sits far below this. */
 export const KILLS_PER_DAY_MAX = 150;
 /** Carried loot value. The dearest item is worth 45; a full pack is a few thousand. */
@@ -44,9 +42,12 @@ export type Claim = {
 
 /** Returns why a claim is rejected, or null when it is plausible. */
 export function implausible(c: Claim): string | null {
-  if (c.days < 1 || c.days > DAYS_MAX) return 'days';
-  if (c.kills < 0 || c.kills > c.days * KILLS_PER_DAY_MAX) return 'kills';
-  if (c.elapsedMs < 0 || c.elapsedMs > RUN_MAX_AGE_MS) return 'expired';
+  if (!Number.isSafeInteger(c.days) || c.days < 1) return 'days';
+  if (!Number.isSafeInteger(c.kills) || c.kills < 0 || c.kills > c.days * KILLS_PER_DAY_MAX) return 'kills';
+  if (!Number.isSafeInteger(c.score) || c.score < 0) return 'score';
+  if (!Number.isFinite(c.elapsedMs) || c.elapsedMs < 0 || c.elapsedMs > RUN_MAX_AGE_MS) return 'expired';
+  // Survival has no gameplay day cap; elapsed time and registration retention
+  // bound how many days a submitted run can plausibly have reached.
   if (c.elapsedMs < (c.days - 1) * MIN_MS_PER_DAY) return 'too-fast';
 
   // Score = round((kills*25 + loot + days*50) * mult) [+ round(2000 * mult)].

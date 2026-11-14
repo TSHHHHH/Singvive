@@ -18,6 +18,17 @@ describe('scopeKey', () => {
 });
 
 describe('groupLogEntries', () => {
+  it('keeps optional incident choices outside collapsed site visits', () => {
+    const scope: LogScope = { kind: 'site', locationId: 'shop', label: 'Shop' };
+    const incident: GameLogEntry = { ...entry(2, scope), activityEvent: {
+      id: 'activity-2', kind: 'car_alarm', lat: 1.3, lng: 103.8,
+      createdAt: 8, expiresAt: 9.5, resolved: false,
+    } };
+    const groups = groupLogEntries([entry(1, scope), incident, entry(3, scope)]);
+    expect(groups.map((group) => group.type)).toEqual(['section', 'flat', 'section']);
+    expect(groups[1]).toEqual({ type: 'flat', entry: incident });
+  });
+
   it('returns empty for empty input', () => {
     expect(groupLogEntries([])).toEqual([]);
   });

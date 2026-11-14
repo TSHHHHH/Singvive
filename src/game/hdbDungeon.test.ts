@@ -17,6 +17,7 @@ import {
   migrateHdbDungeon,
   peakHeat,
   realStoreysOf,
+  scoutFloor,
   ROOF_FOB,
   sealedStoreys,
   SPILL,
@@ -53,6 +54,58 @@ function block(seed: string, storeys?: number | null): HdbDungeon {
 }
 
 const SEEDS = Array.from({ length: 40 }, (_, i) => `SEED-${i}`);
+
+describe('corridor scouting playback', () => {
+  const attrs = { strength: 5, dexterity: 6, endurance: 5, perception: 5, wits: 5 };
+
+  it('preserves the original seeded intel, including draws between the two sense checks', () => {
+    // Recorded from the pre-playback resolver. Capturing dice must not alter
+    // threats, containers, fobs or loot quality in an existing seeded run.
+    const d = block('SCOUT-REGRESSION', 18);
+    const result = scoutFloor(new Rng('ORIGINAL-SWEEP'), attrs, d, 3, 0.1);
+    expect(result.dungeon.floors[2].units.map((u) => u.scoutedInfo)).toEqual([
+      undefined, undefined, undefined,
+      { threatCount: 1, lootQuality: 'unreadable' },
+      { threatCount: -1, lootQuality: 'promising', containerCategory: 'Fob' },
+      { threatCount: 2, lootQuality: 'promising', containerCategory: 'Medical' },
+    ]);
+    expect(result.rolls).toHaveLength(3);
+    expect([result.read, result.total]).toEqual([3, 3]);
+    expect(result.dungeon.floors[0]).toBe(d.floors[0]);
+  });
+
+  it('records successful and failed checks and never rerolls revisited rooms', () => {
+    for (const seed of SEEDS) {
+      const d = block(seed, 18);
+      const floor = d.floors.find((f) => !f.sealed && f.units.some((u) => u.available))!;
+      const result = scoutFloor(new Rng(seed), attrs, d, floor.level);
+      for (const roll of result.rolls) {
+        const unit = result.dungeon.floors[floor.level - 1].units.find((u) => u.id === roll.unitId)!;
+        expect(roll.perception.success).toBe((unit.scoutedInfo?.threatCount ?? -1) >= 0);
+        expect(roll.dexterity.success).toBe(!!unit.scoutedInfo?.containerCategory);
+        for (const check of [roll.perception, roll.dexterity]) {
+          expect(check.roll).toBeGreaterThanOrEqual(1);
+          expect(check.roll).toBeLessThanOrEqual(100);
+          expect(check.success).toBe(check.roll <= Math.round(check.chance * 100));
+        }
+      }
+      const revisit = scoutFloor(new Rng('another-day'), attrs, result.dungeon, floor.level);
+      expect(revisit.rolls).toEqual([]);
+      expect(revisit.dungeon).toEqual(result.dungeon);
+    }
+  });
+
+  it('does not animate sealed floors or boarded, breached, and cleared rooms', () => {
+    const d = block('SCOUT-REGRESSION', 18);
+    const sealed = d.floors.find((f) => f.sealed)!;
+    expect(scoutFloor(new Rng('sealed'), attrs, d, sealed.level).rolls).toEqual([]);
+    const floor = d.floors[2];
+    floor.units = floor.units.map((u, i) => ({ ...u, state: i % 2 ? 'cleared' : 'breached' }));
+    const result = scoutFloor(new Rng('worked'), attrs, d, floor.level);
+    expect(result.rolls).toEqual([]);
+    expect(result.dungeon).toEqual(d);
+  });
+});
 
 describe('real height sets the scale, not the content', () => {
   it.each([3, 8, 18, 40])('%i storeys keeps landings inside its band', (storeys) => {

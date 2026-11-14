@@ -6,6 +6,7 @@ import { torsoCarryMult } from '../game/survival';
 import { useGame } from '../game/store';
 import {
   canTravelTo,
+  COOL_PER_HOUR,
   HEAT_BANDS,
   HEAT_MAX,
   HUNT_ELITE_CHANCE,
@@ -25,10 +26,12 @@ import {
   UNIT_META,
   type HdbDungeon,
   type HdbUnitNode,
+  type RoomScoutRoll,
 } from '../game/hdbDungeon';
 import type { Attributes } from '../game/types';
 import { msgOr, useT, type LocaleId, type TVars } from '../i18n';
 import { PlayerPin } from './PlayerPin';
+import { HdbScoutDice } from './HdbScoutDice';
 import { tip } from './tips';
 import { BAND_FILL, bandText, SEAL_ICON, unitFaceClass } from './hdbStripStyle';
 
@@ -116,12 +119,14 @@ function RoomTile({
   selectable,
   phone,
   onPick,
+  scout,
 }: {
   unit: HdbUnitNode;
   selected: boolean;
   selectable: boolean;
   phone: boolean;
   onPick: () => void;
+  scout?: { roll: RoomScoutRoll; startedAt: number; order: number };
 }) {
   const { locale, t } = useT();
   const meta = UNIT_META[unit.type];
@@ -146,7 +151,7 @@ function RoomTile({
       : unit.state === 'breached'
         ? 'border-concrete-200 bg-concrete-800'
         : 'border-concrete-600 bg-concrete-800';
-  const size = phone ? 'h-16 w-14' : 'h-20 w-full min-w-0';
+  const size = phone ? 'h-20 w-14' : 'h-20 w-full min-w-0';
   const face = !unit.available ? (
     <Icon name="hdb.unavailable" size={phone ? 18 : 24} />
   ) : unit.state === 'cleared' ? (
@@ -154,10 +159,20 @@ function RoomTile({
   ) : (
     <Icon name={meta.icon} size={phone ? 22 : 28} className={unitFaceClass(unit.type)} />
   );
-  const scouted = unit.available && unit.state !== 'cleared' && !!unit.scoutedInfo?.containerCategory;
+  const scouted = unit.available && unit.state !== 'cleared' && !!unit.scoutedInfo;
+  const scoutTip = scout ? (['perception', 'dexterity'] as const).map((attr) => {
+    const check = scout.roll[attr];
+    return t('ui.hdb.scoutResult', {
+      attr: t(`ui.attributes.${attr}`), roll: check.roll,
+      chance: Math.round(check.chance * 100),
+      result: t(check.success ? 'ui.hdb.scoutRead' : 'ui.hdb.scoutUnread'),
+    });
+  }).join('\n') : '';
+  const roomTip = `${unit.label} · ${state}${read}${scoutTip ? `\n${scoutTip}` : ''}`;
   const body = (
     <>
       {face}
+      {scout && <HdbScoutDice {...scout} />}
       {scouted && (
         <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-astral" />
       )}
@@ -171,7 +186,7 @@ function RoomTile({
   }`;
   if (!selectable || !unit.available) {
     return (
-      <span className={cls} {...tip(`${unit.label} · ${state}${read}`)}>
+      <span className={cls} {...tip(roomTip)}>
         {body}
       </span>
     );
@@ -184,8 +199,8 @@ function RoomTile({
         onPick();
       }}
       aria-pressed={selected}
-      aria-label={`${unit.label} · ${state}${read}`}
-      {...tip(`${unit.label} · ${state}${read}`)}
+      aria-label={roomTip}
+      {...tip(roomTip)}
       className={`${cls} transition-colors hover:border-concrete-50`}
     >
       {body}
@@ -209,6 +224,7 @@ export function HdbLevelStrips({ phone }: { phone: boolean }) {
   const selUnit = useGame((s) => s.hdbSelUnit);
   const setSelUnit = useGame((s) => s.setHdbSelUnit);
   const hdbTravel = useGame((s) => s.hdbTravel);
+  const scout = useGame((s) => s.hdbScout);
   const busy = useGame((s) => !!s.pendingSearch || !!s.combat || !!s.pendingEvent);
   const setHdbHoverLevel = useGame((s) => s.setHdbHoverLevel);
   const [hoverRow, setHoverRow] = useState<number | null>(null);
@@ -300,11 +316,24 @@ export function HdbLevelStrips({ phone }: { phone: boolean }) {
         const hunting = levelHunting(hdb, level);
         const bandLabel = msgOr(`ui.hdb.heatBand.${band.label}.label`, band.label, undefined, locale);
         const theme = revealed ? themeChip(hdb, level, locale) : null;
+        const nextBand = HEAT_BANDS[idx + 1];
+        const heatTip = [
+          t('ui.hdb.levelHeatTip', { heat: Math.round(heat), band: bandLabel }),
+          msgOr(`ui.hdb.heatBand.${band.label}.note`, band.note, undefined, locale),
+          t('ui.hdb.descentNeedsAttrs', { dc: retreatDc(hdb, level) + load.fleeDcMod }),
+          hunting ? t('ui.hdb.huntChance', { n: Math.round(HUNT_ELITE_CHANCE * 100) }) : '',
+          nextBand ? t('ui.hdb.nextBand', {
+            label: msgOr(`ui.hdb.heatBand.${nextBand.label}.label`, nextBand.label, undefined, locale),
+            at: nextBand.at,
+          }).trim() : '',
+          t('ui.hdb.coolingNote', { n: COOL_PER_HOUR }),
+        ].filter(Boolean).join('\n');
         const roofShut = roof && !hdb.roofOpen;
         const canGo = !busy && canTravelTo(hdb, level);
         const hovered = hoverRow === level;
         const units = f.units;
         const left = units.filter((u) => u.available && u.state !== 'cleared').length;
+        const floorScout = here && scout?.locationId === hdb.locationId && scout.level === level ? scout : null;
 
         const title = here
           ? t('ui.hdb.youAreHere')
@@ -363,7 +392,15 @@ export function HdbLevelStrips({ phone }: { phone: boolean }) {
               />
             )}
 
-            <div className={`flex shrink-0 flex-col items-center gap-2 ${phone ? 'w-10' : 'w-14'}`}>
+            <div className={`flex shrink-0 flex-col items-center gap-2 ${phone ? 'w-12' : 'w-16'}`}>
+              {theme && (
+                <span
+                  className="w-full break-words text-center text-micro uppercase text-concrete-200"
+                  {...tip(`${theme.label}: ${theme.blurb}`)}
+                >
+                  {theme.label}
+                </span>
+              )}
               <span
                 className={`w-full rounded-sm border px-1 py-1 text-center tabular-nums ${phone ? 'text-plate' : 'text-title'} ${
                   here
@@ -380,26 +417,19 @@ export function HdbLevelStrips({ phone }: { phone: boolean }) {
 
             <div className="flex min-w-0 flex-1 flex-col gap-2">
               <div className={`flex min-w-0 flex-wrap items-center gap-2 ${phone ? 'text-micro' : 'text-body'}`}>
-                <span
-                  className="flex shrink-0 items-center gap-1 uppercase"
-                  {...tip(t('ui.hdb.levelHeatTip', { heat: Math.round(heat), band: bandLabel }))}
-                >
-                  {revealed && (
-                    <>
+                {revealed ? (
+                  <button
+                    type="button"
+                    className="flex min-w-0 flex-1 items-center gap-1.5 rounded-sm py-1 uppercase outline-offset-2 focus-visible:outline focus-visible:outline-1 focus-visible:outline-signal"
+                    aria-label={heatTip}
+                    {...tip(heatTip, { placement: 'top' })}
+                    onClick={(e) => e.stopPropagation()}
+                  >
                       <span className={`truncate ${bandText(idx, hunting)}`}>{bandLabel}</span>
                       <span className="tabular-nums text-concrete-400">{Math.round(heat)}</span>
-                    </>
-                  )}
-                </span>
-                <HeatMeter heat={heat} className="min-w-12 flex-1" />
-                {theme && (
-                  <span
-                    className="max-w-full rounded-sm border border-concrete-600 px-1.5 py-0.5 uppercase text-concrete-200"
-                    {...tip(`${theme.label}: ${theme.blurb}`)}
-                  >
-                    {theme.label}
-                  </span>
-                )}
+                      <HeatMeter heat={heat} className="ml-1 min-w-8 flex-1" />
+                  </button>
+                ) : <span className="h-1.5 min-w-8 flex-1 rounded-sm bg-concrete-800" />}
                 {roofShut && (
                   <span className="rounded-sm border border-concrete-600 px-1.5 py-0.5 uppercase text-concrete-400">
                     {t('ui.hdb.roofShut')}
@@ -422,16 +452,22 @@ export function HdbLevelStrips({ phone }: { phone: boolean }) {
               </div>
               {revealed && units.length > 0 && (
                 <div className={phone ? 'flex min-w-0 flex-wrap items-center gap-1.5' : 'grid min-w-0 grid-cols-[repeat(auto-fill,minmax(4rem,1fr))] gap-2 border-b border-concrete-600/60 pb-2'}>
-                  {units.map((u) => (
-                    <RoomTile
-                      key={u.id}
-                      unit={u}
-                      phone={phone}
-                      selected={here && selUnit === u.id}
-                      selectable={here && !busy}
-                      onPick={() => setSelUnit(selUnit === u.id ? null : u.id)}
-                    />
-                  ))}
+                  {units.map((u) => {
+                    const order = floorScout?.rolls.findIndex((r) => r.unitId === u.id) ?? -1;
+                    return (
+                      <RoomTile
+                        key={u.id}
+                        unit={u}
+                        phone={phone}
+                        selected={here && selUnit === u.id}
+                        selectable={here && !busy}
+                        onPick={() => setSelUnit(selUnit === u.id ? null : u.id)}
+                        scout={floorScout && order >= 0
+                          ? { roll: floorScout.rolls[order], startedAt: floorScout.startedAt, order }
+                          : undefined}
+                      />
+                    );
+                  })}
                 </div>
               )}
             </div>

@@ -19,7 +19,7 @@
     },
     "menu": {
       "tagline": "Singapore has fallen",
-      "subtitle": "9400+ real locations · permadeath · extract or die",
+      "subtitle": "18000+ real locations · permadeath · extract or die",
       "newSurvivor": "New Survivor",
       "continueRun": "Continue Run",
       "topScores": "Top scores",
@@ -27,7 +27,7 @@
       "worldUnreachable": "Worldwide board unreachable.",
       "noWorldScores": "No worldwide scores yet.",
       "noDeviceScores": "No scores on this device yet.",
-      "blurb": "A roguelike survival game on the real map of Singapore — 9400+ OSM places to scavenge, manage your body, climb the score, or get out with a lift before the horde peaks. How to play opens in-run on first launch; reopen it anytime from Settings."
+      "blurb": "A roguelike survival game on the real map of Singapore — 18000+ mapped places to scavenge, manage your body, climb the score, or get out with a lift when you choose to leave. How to play opens in-run on first launch; reopen it anytime from Settings."
     },
     "scores": {
       "worldwide": "Worldwide",
@@ -192,6 +192,7 @@
       "geoFailed": "Could not read your location — tap the map instead.",
       "noWalkable": "Could not find walkable ground — tap the map.",
       "tooRemote": "Area too remote or lacks infrastructure. Please select an urbanized zone.",
+      "dataUnavailable": "Location data could not be loaded. Please retry when your connection is available.",
       "myLocationTitle": "Ask the browser for your real-world position",
       "railMapTitle": "Show the MRT & LRT network"
     },
@@ -283,7 +284,11 @@
         "industrial": "Tools · fuel · materials",
         "school": "Food · medical supplies · workshop tools",
         "waypoint": "Scattered roadside supplies",
-        "landmark": "Water · snacks · visitor supplies"
+        "landmark": "Water · snacks · visitor supplies",
+        "housing": "Household supplies",
+        "eatery": "Food · drinks · kitchen supplies",
+        "community": "Food · medical supplies · tools",
+        "park": "Water · snacks · visitor supplies"
       },
       "search": "Search",
       "searching": "Searching…",
@@ -404,7 +409,11 @@
         "industrial": "Warehouse floor & loading bay. Tools, fuel and materials — and a lot of dark corners.",
         "school": "Canteen, sick bay, workshop. They were used as shelters, which is exactly the problem.",
         "waypoint": "Not a destination — a place to stop between them. Whatever the road left behind.",
-        "landmark": "The skyline is familiar. The crowds are gone. Check visitor bags, kiosks and service cupboards."
+        "landmark": "The skyline is familiar. The crowds are gone. Check visitor bags, kiosks and service cupboards.",
+        "housing": "Household cupboards and abandoned belongings in a mapped residence.",
+        "eatery": "Restaurant counters, cafe cupboards and small food shops.",
+        "community": "Community clubs, libraries, places of worship and cultural buildings.",
+        "park": "Open-air grounds and visitor belongings. No guaranteed roof or enclosed shelter."
       },
       "size": {
         "small": "small",
@@ -471,7 +480,12 @@
       "looseEmpty": "Nothing loose. Anything that won't fit the pack lands here.",
       "carriedNoMatch": "Nothing carried matches this filter.",
       "sortBy": "Sort",
-      "sort": { "weight": "Weight", "perUnit": "kg / unit", "name": "Name", "kind": "Type" },
+      "sort": {
+        "weight": "Weight",
+        "perUnit": "kg / unit",
+        "name": "Name",
+        "kind": "Type"
+      },
       "sortFlip": "Flip order",
       "filterAll": "All",
       "filterClear": "Clear filter",
@@ -809,7 +823,7 @@
       "biasBalanced": "This bird takes it balanced",
       "radioBlurb": "Fuel, meds, and ammo count most; sealed water a little; food and scrap barely. Burning fuel to boil water hurts the haul. Raise the channel once you are standing on the pad and the crew names real numbers.",
       "horde": "Horde · {label}",
-      "hordeBlurb": "The island clock climbs every day, and every neighbourhood gets worse with it. Where you stand is a front — Stirring streets are not Lost ones. Lost ground is still walkable, just brutal. At 100% the city is overrun and the run ends.",
+      "hordeBlurb": "Noise draws attention nearby. Local disturbances fade with game time; quiet ground is not guaranteed safe. Survival has no island-wide deadline.",
       "leadsNotes": "Map notes to decipher: {count}",
       "leadsRumours": "Rumoured sites marked: {count}",
       "leadsBoth": "{notes} note(s) to read · {rumours} rumour(s) on map",
@@ -1069,7 +1083,8 @@
       "sectionCollapse": "Collapse section",
       "pin": "Keep the timeline open",
       "unpin": "Shrink to the ticker",
-      "expandTicker": "Open the timeline"
+      "expandTicker": "Open the timeline",
+      "jumpLatest": "Latest"
     },
     "dock": {
       "body": "Body",
@@ -1125,6 +1140,10 @@
       "fuel": "Petrol Station",
       "police": "Police Station",
       "residential": "HDB Void Deck",
+      "housing": "Residence",
+      "eatery": "Eatery / Food Shop",
+      "community": "Community Site",
+      "park": "Park / Garden",
       "foodcourt": "Hawker Centre",
       "mrt": "MRT Station",
       "industrial": "Industrial Unit",
@@ -1368,7 +1387,11 @@
       "hatchForce": "Force the roof hatch · {min} min · +{heat} heat · loud",
       "noDoorsHint": "No doors on this landing. Pick another strip to take the stairs.",
       "levelHint": "Click a room on your strip for its actions. Click another strip to take the stairs.",
-      "levelHintPhone": "Tap a room on your strip for its actions. Tap another strip to take the stairs."
+      "levelHintPhone": "Tap a room on your strip for its actions. Tap another strip to take the stairs.",
+      "scouting": "Reading the corridor",
+      "scoutResult": "{attr}: d100 {roll} · read on ≤{chance} · {result}",
+      "scoutRead": "intel revealed",
+      "scoutUnread": "unreadable"
     },
     "tunnel": {
       "ariaSchematic": "Tunnel schematic. Scroll to zoom, drag to pan.",
@@ -1732,6 +1755,47 @@
         "points": "not enough points"
       }
     },
+    "exploration": {
+      "conditionsUnknown": "Unvisited · conditions unknown",
+      "activeLeads": "Places to explore · {n}/6",
+      "leadHint": "Follow a clue or a local map to a nearby place. Up to six active leads; visiting completes a lead.",
+      "noLeads": "No leads yet. Search places or read an MRT locality map or a neighbourhood noticeboard.",
+      "visitedLeads": "Visited leads · {n}",
+      "sourceDay": "{source} · {name} · day {day}",
+      "reportedFacility": "Reported: {facility} · check on arrival",
+      "visitedDay": "Visited on day {day}",
+      "knownFacilities": "Useful places visited",
+      "facilityHint": "Remembered facilities. Visit to check supplies and condition; stoves need your own fuel.",
+      "noFacilities": "No useful facilities recorded yet. Explore nearby places to find them.",
+      "stashes": "Your caches",
+      "readLocality": "Read locality map",
+      "readNoticeboard": "Read noticeboard",
+      "readCost": "5 game minutes · one use per site",
+      "alreadyRead": "Already read this map or noticeboard",
+      "tooManyLeads": "Six active leads · visit one before adding more",
+      "clueFound": "You find a clue pointing to {name}.",
+      "nearbyRecognized": "You recognize {count} nearby places. Their conditions are still unknown.",
+      "leadCompleted": "Lead visited: {name}.",
+      "mapRead": "You mark {count} nearby places in your logbook.",
+      "mapEmpty": "The map has no new nearby places to mark.",
+      "facilityFound": "At {name}, you find {facility}.",
+      "sources": {
+        "search": "Search clue",
+        "noticeboard": "Noticeboard",
+        "locality": "MRT locality map"
+      },
+      "descriptions": {
+        "search": "A pencilled address on a delivery slip points here. Check what remains.",
+        "noticeboard": "A handwritten note on the residents' board points here. Visit to check it.",
+        "locality": "Marked on the station's locality map. Check this place on foot."
+      },
+      "facilities": {
+        "water": "Water cache",
+        "shelter": "Rain shelter",
+        "stove": "Stove · bring fuel",
+        "collector": "Rain collector"
+      }
+    },
     "stashLog": {
       "empty": "No caches yet. Travel to a location and deposit loot into its stash.",
       "here": "(here)",
@@ -1825,6 +1889,65 @@
       "blurb": "They lived where your predecessor did not. One trade, then they're gone:",
       "trade": "Trade",
       "leave": "Walk on"
+    },
+    "surroundings": {
+      "title": "Nearby activity",
+      "bands": {
+        "quiet": "Quiet",
+        "stirred": "Stirred",
+        "hunting": "Hunting"
+      },
+      "causes": {
+        "player": "Your recent noise has drawn attention.",
+        "car_alarm": "A car alarm has drawn attention nearby.",
+        "gunfire": "Gunfire has drawn attention nearby.",
+        "shutter": "A loose shutter has disturbed this area.",
+        "scavengers": "Scavengers have drawn attention nearby."
+      },
+      "noCause": "No fresh disturbance nearby.",
+      "quietNotSafe": "Quiet does not mean safe. Dangerous sites and darkness still matter.",
+      "indoors": "This reading describes the surface outside. Your room or tunnel has its own hazards.",
+      "ignore": "Leave it",
+      "ignoreConsequence": "Leaving it costs nothing; the disturbance keeps fading naturally.",
+      "busy": "Finish your current action or return outside to respond.",
+      "needSupplies": "You need the listed energy or carried clean water.",
+      "outOfReach": "You have moved beyond this disturbance. Return nearby to respond.",
+      "events": {
+        "car_alarm": {
+          "title": "A car alarm nearby",
+          "description": "An abandoned car alarm has drawn attention to this area. You could silence it.",
+          "cost": "15 min · 4 energy. Reduces the disturbance; some attention remains.",
+          "action": "Silence alarm"
+        },
+        "shutter": {
+          "title": "A banging shutter nearby",
+          "description": "A loose metal shutter is breaking the quiet. You could secure it.",
+          "cost": "15 min · 4 energy. Reduces the disturbance; some attention remains.",
+          "action": "Secure shutter"
+        },
+        "gunfire": {
+          "title": "Gunfire nearby",
+          "description": "The shots have stopped. Investigating may leave you with salvage, and more noise.",
+          "cost": "20 min · 5 energy. Gain 2 scrap metal; make a little fresh noise.",
+          "action": "Investigate"
+        },
+        "scavengers": {
+          "title": "Scavengers nearby",
+          "description": "A thirsty group is struggling to move quietly. Share clean water to help them leave.",
+          "cost": "10 min · 1 clean water. Gain nearby site intel (or scrap metal) and reduce the disturbance.",
+          "action": "Share water"
+        }
+      },
+      "results": {
+        "quieted": "The sound stops. Some attention remains, but the area can settle.",
+        "salvage": "You recover two pieces of scrap metal. The rummaging makes a little fresh noise.",
+        "intel": "They point out {name} nearby, then leave more quietly.",
+        "thanks": "They leave more quietly and give you a piece of scrap metal in thanks."
+      },
+      "openTimeline": "Open the timeline for nearby events.",
+      "dismissed": "You leave it alone. The disturbance fades naturally.",
+      "responded": "You responded to this disturbance.",
+      "expired": "The opportunity has passed. Any remaining noise will fade."
     }
   },
   "settings": {
@@ -2002,10 +2125,13 @@
         "Health is the sum of your six limbs — see the Body topic for how each injury changes travel, aim, and stamina. Major bleeds block regen until bandaged; infection at 100 ends the run.",
         "Before a run, pick a job seed or build traits on the same screen. Positives share one list; all negative traits are flaws. There are no trait-count caps: flaws earn points and positives spend them. Keep points left at 0 or above, and do not combine conflicting traits or pick the same trait twice.",
         "Night (after dusk) is more dangerous. Get inside before dark — the streets fill with a night swarm. After dark you only see as far as your light: fewer blips, fewer pockets on the trek card, and worse aim. A torch (off hand) or headlamp (head) pushes the dark back, but a lit survivor is easier to spot. Rest shows recovery and ambush chance; sleep still drains hunger and thirst (reduced).",
+        "Arriving nearby can identify a place by its exterior within 20–60 metres, depending on awareness, before light and weather reduce that range. An identified marker gives its name and type; danger, occupants and supplies stay unknown until you visit or gain fuller intel. Identifying a place does not clear the surrounding fog.",
+        "Surface travel estimates include extra time to navigate city blocks, rubble and crossings. A fresh survivor with average endurance and dexterity, healthy legs and a light pack takes about 10 minutes to cover 500 metres in clear weather outside dense vegetation. Weather, heavy loads and overgrowth can make trips longer. Check your arrival time before setting out.",
         "Hazard pockets sit between pins (horde, patrols, collapse, flood). Sense them inside your ring, route around when you can — each kind bites differently if you cross.",
-        "The horde meter is the island clock, not the street under your feet. It climbs every day and every neighbourhood gets worse with it — but a Stirring town is not a Lost one. Ground zero is already Fallen or worse when you wake; distant estates may still be holding. Lost streets stay walkable, they just cost more: denser pockets, dusk-rate swarms in daylight, harder searches. Zoom out until the island fits and the map becomes a status overlay; street zoom stays clear. At 100% the city is overrun and the run ends.",
+        "Singapore has already fallen. The icon beside the weather shows nearby activity: Quiet, Stirred or Hunting. Noise attracts attention locally for several game hours, including on open ground. Quiet does not mean safe: site danger and night hazards still matter. Keep moving, rest elsewhere, or give a disturbed area time to settle. There is no global countdown or automatic overrun.",
         "Infected animals share the combat loop and can infect on a hit. Otters and monitors claim inland water, macaques and boars the catchment, dogs/cats/rats the streets.",
-        "Fights run on a shared track — whoever fills it swings. Light weapons and a free off-hand fill faster; a shield or a second blade is a real choice."
+        "Fights run on a shared track — whoever fills it swings. Light weapons and a free off-hand fill faster; a shield or a second blade is a real choice.",
+        "Watch the icon beside the weather for nearby activity. It briefly pulses when danger rises; tap it to open the timeline. Alarm, gunfire, shutter and scavenger scenes appear there with optional choices and costs. Outcomes and expired opportunities stay in the log. Leaving a scene does not remove its noise."
       ]
     },
     "body": {
@@ -2045,6 +2171,8 @@
         "Worn kit counts toward load. Over your limit you are Heavy (slower, louder); past 150% you are Straining (can't flee, every km hurts legs and back); past 200% you are Pinned and can't walk until you drop something. The carry bar names the tier and its penalties.",
         "Each site has limited searches. Leaving early still spends a partial charge. Take what you want — Done or Leave abandons the rest.",
         "Map notes turn up in searches — decipher them from the pack to mark hidden sites. Faction outposts also offer daily intel when you are Known; notes are portable and one-shot.",
+        "Completed searches can also turn up a nearby lead. Read an MRT locality map, or a residential or community noticeboard, for more local destinations: five game minutes, once per site. These leads identify places without revealing their current conditions.",
+        "The Logbook tracks up to six active leads, their sources and the day you visited each destination. Show on map closes the panel and focuses the camera without starting travel. Reported facilities need checking on arrival; visited facilities are remembered without remote supply counts. Some places have a finite clean-water cache, rain shelter or stove; bring your own stove fuel.",
         "Faction hubs start unknown. Discover them by exploring or gathering intel. The Local Contacts trait marks one hub for each of two different factions at spawn. Once you know who controls a site, its building and marker use that faction's colour; known outposts use the faction emblem. A pale ring around the marker shows selection without changing the building's colour.",
         "Build fires and stoves at surface sites. Heat lasts 24 in-game hours from lighting, even while you are away. A pot lets you cook noodles, porridge and hot drinks. Dry noodles restore hunger only.",
         "Portion coffee, Milo and milk before mixing. Room-temperature drinks restore half hunger and energy, with full hydration. Untreated cold water still causes infection. Boiled batches stay at the site and cool after two hours.",
@@ -2073,7 +2201,7 @@
       "bullets": [
         "A map beacon marks the staging zone. Reach it during the timed window with a haul in your backpack (not stash or equipped). First press at the pad raises the channel — the crew reads this window's demand in numbers, and that read stays for the rest of the window. If the pack already clears, the same press pops the flare.",
         "Fuel counts most, then meds and ammo; sealed water a little; food and scrap barely; weapons barely count as cargo. On the approach the radio vibe stays qualitative; only the pad channel names the quota. Boiling water burns fuel.",
-        "Miss the window and a new site opens after a cooldown — the horde keeps rising either way."
+        "Miss the window and a new site opens after a cooldown. Keep your supplies up while you wait; extraction is optional."
       ]
     },
     "score": {
@@ -2081,7 +2209,7 @@
       "bullets": [
         "Score = (kills × 25 + carried loot value + days × 50) × day multiplier. Day 1 is ×1.0; each further day adds ×0.1.",
         "A successful extract adds 2000 × the same day multiplier. Linger to climb the mult, then lift out late for the best board score.",
-        "Death still posts a score on this device, and to the worldwide board when you are online. Each extra day is worth more, but the horde front is heavier too — and when the island clock tops out at 100%, the city is overrun and the run ends."
+        "Death still posts a score on this device, and to the worldwide board when you are online. Each extra day is worth more. Survive as long as you can, or extract voluntarily for a bonus; local danger, supplies and injuries remain the challenge."
       ]
     }
   },

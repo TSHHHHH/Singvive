@@ -2,6 +2,7 @@ import type { LocationState } from './types';
 import type { SavedRun } from './storage';
 import { saveRun, type SaveResult } from './storage';
 import { bakedOutlineByOsmId, bakedOsmIds } from './bakedPois';
+import poiRevision from './data/poiRevision.json';
 
 /**
  * Persist is explicit at every action (`persist()` call sites stay) but the
@@ -85,5 +86,5 @@ export function rehydrateLocationOutlines(
 }
 
 export function writeSavedRun(run: SavedRun): SaveResult {
-  return saveRun({ ...run, locations: locationsForSave(run.locations) });
+  return saveRun({ ...run, poiRevision, locations: locationsForSave(run.locations) });
 }

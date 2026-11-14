@@ -185,6 +185,9 @@ export function SpawnSelect() {
     if (result === 'remote') {
       setLoading(false);
       setRejected(t('ui.spawn.tooRemote'));
+    } else if (result === 'unavailable') {
+      setLoading(false);
+      setRejected(t('ui.spawn.dataUnavailable'));
     } else if (result === 'unplayable') {
       setLoading(false);
       setRejected(unplayableMessage(walkabilityOf(picked.lat, picked.lng), 'spawn'));

@@ -2,7 +2,7 @@ import type { AttributeKey, LocationState } from './types';
 import type { Rng } from './rng';
 import type { IconName } from '../icons/keys';
 import { effectiveDanger } from './noise';
-import { hordeIntensity } from './goal';
+import { BASE_ACTIVITY_PRESSURE } from './activity';
 import { timeOfDay } from './weather';
 
 /**
@@ -375,6 +375,8 @@ export interface TunnelCtx {
   day: number;
   hour: number;
   hordeLevel: number;
+  /** Current disturbance at the entrances; the legacy horde value is ignored. */
+  localPressure?: number;
   /** Bumped per run by the store so the same trip twice isn't a replay. */
   seq: number;
 }
@@ -382,14 +384,14 @@ export interface TunnelCtx {
 /**
  * How bad this stretch is before anything the player does. The two platforms
  * bracket it — a quiet station on both ends means a quiet bore — and the hour
- * and the horde push it up.
+ * and local disturbance push it up.
  */
 function baseDangerFor(ctx: TunnelCtx): number {
   const ends = (effectiveDanger(ctx.from) + ctx.to.baseDanger) / 2;
   const night = timeOfDay(ctx.hour) !== 'day' ? 1 : 0;
-  const horde = hordeIntensity(ctx.hordeLevel) > 0.5 ? 1 : 0;
+  const attention = (ctx.localPressure ?? BASE_ACTIVITY_PRESSURE) > 0.5 ? 1 : 0;
   const lrt = ctx.mode === 'lrt' ? -1 : 0;
-  return clamp(1, 5, Math.round(ends) + night + horde + lrt);
+  return clamp(1, 5, Math.round(ends) + night + attention + lrt);
 }
 
 const nodeId = (col: number, lane: number) => `c${col}l${lane}`;

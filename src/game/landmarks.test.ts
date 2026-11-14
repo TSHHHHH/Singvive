@@ -56,8 +56,7 @@ describe('curated OSM landmarks', () => {
   });
 
   it('indexes the bundled outlines for save stripping and restores them on continue', async () => {
-    const bake = JSON.parse(readFileSync('public/pois.json', 'utf8'));
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => bake }));
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => new Response(readFileSync(`public${url}`, 'utf8'))));
     const { ensureBakeLoaded, bakedPoisNear } = await import('./bakedPois');
     const { locationsForSave, rehydrateLocationOutlines } = await import('./persistRun');
     await ensureBakeLoaded();

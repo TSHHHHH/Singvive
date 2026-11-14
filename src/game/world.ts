@@ -4,12 +4,15 @@ import { haversine, type RawPoi } from './overpass';
 import { POI_CONFIG, POI_CATEGORIES } from './poi';
 import { assignFaction } from './factions';
 import { STATION_MATCH_M, type MrtNetwork } from './mrt';
+import { isVerifiedHdb } from './hdbSites';
 
 // With fog of war, undiscovered locations aren't rendered — so the world can
 // be much denser than what's ever on screen at once. Render cost grows only
 // with what the player has actually explored.
 const MAX_LOCATIONS = 220;
 const MAX_RESIDENTIAL = 100; // keep void decks from burying shops/amenities
+const MAX_HOUSING = 50;
+const MAX_EATERIES = 50;
 
 const SEARCHES_BY_SIZE: Record<LocationSize, number> = {
   small: 1,
@@ -41,7 +44,7 @@ function sizeFor(category: PoiCategory, outline?: [number, number][]): LocationS
   // 1000-3000m² — deriving size from area would promote nearly every block to
   // `large` (3 searches instead of 2) and quietly rebalance the loot economy.
   // They stay on the category default; the outline is for display only.
-  if (outline && category !== 'residential') {
+  if (outline && category !== 'residential' && category !== 'park') {
     const a = ringArea(outline);
     if (a > 1500) return 'large';
     if (a > 400) return 'medium';
@@ -107,6 +110,7 @@ export function buildLocations(
     haversine(origin.lat, origin.lng, lat, lng);
 
   for (const r of raw) {
+    if (r.category === 'residential' && !isVerifiedHdb(r.osmId, r.lat, r.lng)) continue;
     if (seenIds.has(r.osmId)) continue;
     seenIds.add(r.osmId);
 
@@ -174,11 +178,15 @@ export function buildLocations(
   // the estates are populated without crowding out shops. Re-sort by distance.
   const kept: LocationState[] = [];
   let residentialCount = 0;
+  let housingCount = 0;
+  let eateryCount = 0;
   for (const loc of out) {
     if (loc.category === 'residential') {
       if (residentialCount >= MAX_RESIDENTIAL) continue;
       residentialCount += 1;
     }
+    if (loc.category === 'housing' && housingCount++ >= MAX_HOUSING) continue;
+    if (loc.category === 'eatery' && eateryCount++ >= MAX_EATERIES) continue;
     kept.push(loc);
   }
   const capped = kept
@@ -316,16 +324,8 @@ const MAX_BRIDGE_NODES = 80;
 
 /** What the road left behind, for naming the fillers. */
 const WAYPOINT_NAMES = [
-  'Drain Culvert',
-  'Bus Stop',
-  'Multi-Storey Carpark',
-  'Overhead Bridge',
-  'Service Road',
-  'Stalled Traffic',
-  'Covered Walkway',
-  'Canal Path',
-  'Construction Hoarding',
-  'Bin Centre',
+  'Open Ground',
+  'Rest Stop',
 ];
 
 function makeWaypoint(
@@ -431,52 +431,6 @@ function bridgeWorld(
 
   if (fillers.length === 0) return nodes;
   return [...nodes, ...fillers].sort((a, b) => a.distanceFromSpawn - b.distanceFromSpawn);
-}
-
-// Rough weight for how often each category appears in a Singapore town.
-const FALLBACK_MIX: [PoiCategory, number][] = [
-  ['residential', 10],
-  ['convenience', 6],
-  ['foodcourt', 4],
-  ['supermarket', 3],
-  ['pharmacy', 3],
-  ['clinic', 2],
-  ['fuel', 2],
-  ['hardware', 2],
-  ['school', 2],
-  ['industrial', 2],
-  ['mrt', 2],
-  ['hospital', 1],
-  ['police', 1],
-];
-
-/**
- * Procedurally synthesise plausible locations around the spawn when Overpass
- * is unavailable. Deterministic for a given seed.
- */
-export function generateFallbackWorld(
-  rng: Rng,
-  spawn: { lat: number; lng: number },
-  radiusM: number,
-  count = 70,
-): LocationState[] {
-  const gen = rng.fork('fallback');
-  const raw: RawPoi[] = [];
-  for (let i = 0; i < count; i++) {
-    const category = gen.weighted(FALLBACK_MIX);
-    const angle = gen.next() * Math.PI * 2;
-    const dist = Math.sqrt(gen.next()) * radiusM;
-    const dLat = (dist * Math.cos(angle)) / 111000;
-    const dLng = (dist * Math.sin(angle)) / (111000 * Math.cos((spawn.lat * Math.PI) / 180));
-    raw.push({
-      osmId: `fallback/${i}`,
-      name: POI_CONFIG[category].label,
-      category,
-      lat: spawn.lat + dLat,
-      lng: spawn.lng + dLng,
-    });
-  }
-  return buildLocations(rng, spawn, raw);
 }
 
 export const ALL_POI_CATEGORIES = POI_CATEGORIES;

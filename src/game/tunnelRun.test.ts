@@ -50,6 +50,14 @@ const gen = (seed: string, stops: number, seq = 1): TunnelRun =>
 const SEEDS = Array.from({ length: 60 }, (_, i) => `seed-${i}`);
 
 describe('tunnel crawl generation', () => {
+  it('ignores the retired island clock and responds to local entrance disturbance', () => {
+    const quiet = { ...ctx(2), hordeLevel: 0, localPressure: 0.42 };
+    const oldOverrun = { ...quiet, hordeLevel: 100 };
+    const noisy = { ...quiet, localPressure: 0.9 };
+    const generate = (input: TunnelCtx) => generateTunnelRun(new Rng('local-tunnel'), input);
+    expect(generate(oldOverrun)).toEqual(generate(quiet));
+    expect(generate(noisy).baseDanger).toBeGreaterThan(generate(quiet).baseDanger);
+  });
   it('is seed-deterministic', () => {
     for (const seed of SEEDS.slice(0, 10)) {
       expect(gen(seed, 5)).toEqual(gen(seed, 5));

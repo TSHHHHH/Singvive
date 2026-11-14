@@ -1,17 +1,17 @@
 import type { Attributes, LocationState, LocationMemory, WeatherKind } from './types';
 import { walkSpeed } from './travel';
 import { weatherTravelMult } from './weather';
-import { METER_MAX } from './survival';
 
 // ---------------------------------------------------------------------------
 // Blind-exploration fog of war.
 //
-// Locations stay unknown until visited or revealed by intel (including starting
-// trait intel). The evacuation beacon is a separate broadcast objective.
+// Locations start unknown. Nearby recognition and local clues identify exterior
+// names/categories; visits and specialist intel record fuller memories. The
+// evacuation beacon is a separate broadcast objective.
 // The ring on the map is not vision — it is the *travelable range*: how far
 // the survivor can comfortably push right now given their build, energy,
 // injuries, load and the weather. Unvisited locations inside that ring show
-// only as anonymous "?" blips; identity is revealed by going there.
+// as anonymous "?" blips until identified by exploration or visited.
 // ---------------------------------------------------------------------------
 
 // Minutes of walking the survivor will commit to per 10 energy — the
@@ -81,7 +81,7 @@ export function mergeExploredCircles(circles: ExploredCircle[]): ExploredCircle[
 /**
  * Derive awareness from Perception + equipment/trait modifiers.
  * Awareness extends how far beyond the travel ring you can *sense* blips —
- * never what they are.
+ * Recognition uses a separate short radius in exploration.ts.
  */
 export function awareness(perception: number, equipMod: number, traitMod: number): number {
   return Math.max(0, perception + equipMod + traitMod);
@@ -107,23 +107,12 @@ export function travelableRange(
   return Math.round((speed * commitMinutes) / (wMult * loadMult));
 }
 
-/**
- * The outer, stable ring: the furthest this survivor could push when rested
- * and unhindered. Full energy, sound legs, no overload, fair weather; only
- * the build and worn gear (`gearFactor`) move it. It drives what the map
- * reveals and which 3D buildings stand, so none of that shifts as energy,
- * injuries, load or weather come and go. Never smaller than the live range.
- */
-export function maxTravelRange(attrs: Attributes, gearFactor = 1): number {
-  return travelableRange(attrs, METER_MAX, gearFactor, 'clear');
-}
-
 /** Extra blip-sensing margin beyond the travel ring, from awareness. */
 export function blipMargin(awarenessValue: number): number {
   return Math.max(0, awarenessValue - 5) * AWARENESS_RANGE_PER_POINT;
 }
 
-export type Visibility = 'inSight' | 'memory' | 'detected' | 'hidden';
+export type Visibility = 'inSight' | 'memory' | 'identified' | 'detected' | 'hidden';
 
 /**
  * Classify a location for rendering. "inSight" (live data) is decided by the
@@ -135,6 +124,7 @@ export function visibilityOf(
   blipRange: number,
 ): Visibility {
   if (loc.discovered) return 'memory';
+  if (loc.identified) return 'identified';
   if (distanceM <= blipRange) return 'detected';
   return 'hidden';
 }

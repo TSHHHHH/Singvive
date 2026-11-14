@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useGame } from '../game/store';
 import { Icon } from '../icons/Icon';
 import { LOG_VIEW_MODES, logViewMode, useClockFormat, useSetting, useSettings } from '../game/settings';
@@ -38,6 +38,7 @@ export function LogPanel({
   liveNodes = 'timeline',
   pinned,
   onTogglePin,
+  activityFocus,
 }: {
   onOpenSettings?: () => void;
   onOpenDayLogs?: () => void;
@@ -50,6 +51,7 @@ export function LogPanel({
   pinned?: boolean;
   /** Desktop HUD: toggle between the full timeline and the ticker. */
   onTogglePin?: () => void;
+  activityFocus?: { id: string | null; nonce: number };
 }) {
   const { locale, t } = useT();
   const log = useGame((s) => s.log);
@@ -68,6 +70,7 @@ export function LogPanel({
   const awaitingStance = useGame((s) => !!s.combat?.awaitingStance);
 
   const hour = useGame((s) => s.hour);
+  const activityEvent = useGame((s) => s.activity.event);
 
   const viewId = useSetting('logView');
   const clock = useClockFormat();
@@ -82,6 +85,10 @@ export function LogPanel({
   const mode = logViewMode(viewId);
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLOListElement>(null);
+  const following = useRef(true);
+  const [showLatest, setShowLatest] = useState(false);
+  const previousView = useRef({ day, viewId, liveNodes, pending, pendingSearchNonce, awaitingStance });
   const newestId = log[0]?.id ?? 0;
   const seenLogId = useRef(newestId);
   const seenLiveNodes = useRef(new WeakSet<HTMLElement>());
@@ -95,9 +102,16 @@ export function LogPanel({
     [log, day],
   );
   const total = chronological.length;
-  const shown =
+  const recent =
     mode.count === Infinity ? chronological : chronological.slice(Math.max(0, total - mode.count));
-  const hiddenCount = total - shown.length;
+  // Keep an optional live choice reachable even in Latest mode or across midnight.
+  const now = (day - 1) * 24 + hour;
+  const liveActivityId = activityEvent && !activityEvent.resolved && activityEvent.expiresAt > now ? activityEvent.id : null;
+  const extra = log.filter((e) => e.activityEvent && (e.activityEvent.id === liveActivityId
+    || e.activityEvent.id === activityFocus?.id) && !recent.includes(e)).reverse();
+  const shown = [...extra, ...recent].sort((a, b) => a.id - b.id);
+  const hiddenCount = total - shown.filter((e) => e.day === day).length;
+  const empty = shown.length === 0;
 
   const ev = pending?.event;
   const showLive = liveNodes === 'timeline';
@@ -127,6 +141,13 @@ export function LogPanel({
     const previousId = seenLogId.current;
     seenLogId.current = newestId;
     if (!el) return;
+    const previous = previousView.current;
+    previousView.current = { day, viewId, liveNodes, pending, pendingSearchNonce, awaitingStance };
+    const requestedView = day !== previous.day || viewId !== previous.viewId || liveNodes !== previous.liveNodes;
+    const newLiveNode = (pending && pending !== previous.pending)
+      || (pendingSearchNonce && pendingSearchNonce !== previous.pendingSearchNonce)
+      || (awaitingStance && !previous.awaitingStance);
+    if (requestedView || newLiveNode) following.current = true;
 
     const arrive = (row: HTMLElement) => {
       if (reducedMotion) return;
@@ -156,21 +177,53 @@ export function LogPanel({
         if (animation.id === 'timeline-arrival') animation.cancel();
       });
     }
-    el.scrollTop = el.scrollHeight;
+    if (following.current) {
+      el.scrollTop = el.scrollHeight;
+      setShowLatest(false);
+    }
   }, [newestId, pending, pendingSearchNonce, awaitingStance, viewId, day, liveNodes, reducedMotion]);
+
+  useLayoutEffect(() => {
+    if (!activityFocus) return;
+    const el = scrollRef.current;
+    if (!el) return;
+    const target = Array.from(el.querySelectorAll<HTMLElement>('[data-activity-event-id]'))
+      .find((row) => row.dataset.activityEventId === activityFocus.id);
+    if (target) {
+      following.current = false;
+      target.scrollIntoView({ block: 'center', behavior: 'instant' });
+      target.focus({ preventScroll: true });
+    } else {
+      following.current = true;
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [activityFocus]);
+
+  // Keep following an expanding live search or a resized panel, without
+  // pulling the reader away from older entries they deliberately scrolled to.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(() => {
+      if (following.current) el.scrollTop = el.scrollHeight;
+    });
+    observer.observe(el);
+    if (contentRef.current) observer.observe(contentRef.current);
+    return () => observer.disconnect();
+  }, [empty, liveNodes]);
 
   const hasLiveNode =
     showLive && (!!ev || awaitingStance || !!pendingSearchNonce);
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="mb-2 flex shrink-0 items-center justify-between gap-2">
-        <h3 className="text-plate uppercase text-white/30">
+    <div className="relative flex h-full min-h-0 flex-col">
+      <div className="mb-2 flex shrink-0 flex-wrap items-center justify-between gap-2">
+        <h3 className="shrink-0 whitespace-nowrap text-plate uppercase text-white/50">
           {t('ui.log.timelineDay', { day })}
         </h3>
         {/* One row of identically-sized controls — the view toggles and the two
             sheet openers all read as the same kind of thing, so they look it. */}
-        <div className="flex items-center gap-1">
+        <div className="ml-auto flex items-center gap-1">
           {onOpenDayLogs && (
             <button
               onClick={onOpenDayLogs}
@@ -220,13 +273,23 @@ export function LogPanel({
         </div>
       </div>
 
-      <div ref={scrollRef} className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden pl-1.5 pr-2">
+      <div
+        ref={scrollRef}
+        data-timeline-scroll=""
+        onScroll={(e) => {
+          const el = e.currentTarget;
+          const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 64;
+          following.current = nearBottom;
+          setShowLatest(!nearBottom);
+        }}
+        className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden pl-1.5 pr-2"
+      >
         {shown.length === 0 && !hasLiveNode ? (
           <p className="text-white/30">
             {earlierDays ? t('ui.log.freshDay') : t('ui.log.storyStarts')}
           </p>
         ) : (
-          <ol className="relative flex flex-col">
+          <ol ref={contentRef} className="relative flex flex-col">
             {/* connecting spine */}
             <div className="absolute bottom-2 left-[5px] top-1 w-px bg-white/10" />
 
@@ -289,7 +352,24 @@ export function LogPanel({
             )}
           </ol>
         )}
+        {(shown.length > 0 || hasLiveNode) && (
+          <div aria-hidden="true" data-timeline-reading-space="" className="h-16 lg:h-[clamp(5rem,20vh,10rem)]" />
+        )}
       </div>
+      {showLatest && (
+        <button
+          type="button"
+          onClick={() => {
+            following.current = true;
+            const el = scrollRef.current;
+            if (el) el.scrollTop = el.scrollHeight;
+            setShowLatest(false);
+          }}
+          className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded border border-concrete-400 bg-concrete-900 px-3 py-2 text-label text-signal shadow-signage hover:bg-concrete-800"
+        >
+          {t('ui.log.jumpLatest')} ↓
+        </button>
+      )}
     </div>
   );
 }
