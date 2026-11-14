@@ -3,10 +3,6 @@ import { useShallow } from 'zustand/react/shallow';
 import { useGame } from '../game/store';
 import { GameMap } from '../components/GameMap';
 import { HudCard, TargetDock } from '../components/TargetDock';
-import { MapCallouts, type CalloutSlot } from '../components/MapCallouts';
-import { MapLocationLabel } from '../components/MapLocationLabel';
-import { beaconKindOf } from '../map/beacons';
-import type { Map as MlMap } from 'maplibre-gl';
 import { useMrtNetwork } from '../components/useMrtNetwork';
 import {
   displayLine,
@@ -216,9 +212,6 @@ const INSPECTOR_W = 352;
 const HUD_BOTTOM = 32;
 /** Extra breathing room between the expanded timeline and map attribution. */
 const TIMELINE_BOTTOM = HUD_BOTTOM + HUD_GAP * 2;
-/** Px a compact label keeps clear above a site badge / the player pin. */
-const BADGE_CLEAR_PX = 16;
-const PIN_CLEAR_PX = 40;
 /** The collapsed ticker's width, px (22rem). */
 const TICKER_W = 352;
 /** The ticker's header button (text-label + py-1 + hairline). */
@@ -995,15 +988,8 @@ export function GameScreen() {
     pairObs.current = ro;
   }, []);
 
-  // Only identity labels follow the map. Details stay at the map's left edge.
+  // The edge inspector shows here or the target; this remembers which.
   const [inspectorHereAt, setInspectorHereAt] = useState<string | null>(null);
-  const [runMap, setRunMap] = useState<MlMap | null>(null);
-  const pinRef = useRef<{ lat: number; lng: number } | null>(null);
-  const calloutKick = useRef<(() => void) | null>(null);
-  const onPinMove = useCallback((lat: number, lng: number) => {
-    pinRef.current = { lat, lng };
-    calloutKick.current?.();
-  }, []);
 
   const view3d = useSetting('mapView3d') === 'on';
   const showRail = useSetting('railOverlay') === 'on';
@@ -1290,7 +1276,7 @@ export function GameScreen() {
   const railTip = (label: string, id: RailKey) =>
     tip(t('ui.hud.hotkey', { label, key: railHotkey(id) }), { label: true });
 
-  /** The open map has one edge inspector; only compact labels follow the pins. */
+  /** The open map has one edge inspector for here / the target. */
   const edgeInspector = !isPhone && desktopTarget;
   const targetKey = trekTarget ? `${trekTarget.lat},${trekTarget.lng}` : sel && !selHere ? sel.id : null;
   const inspectingTarget = !!targetSlot && inspectorHereAt !== targetKey;
@@ -1300,46 +1286,6 @@ export function GameScreen() {
   const hereName = here
     ? here.discovered ? here.name : t('ui.location.unknownLocation')
     : t('ui.game.inTheOpen');
-  const calloutHere: CalloutSlot | null =
-    edgeInspector && hereSlot
-      ? {
-          anchor: {
-            lat: here?.lat ?? currentPos.lat,
-            lng: here?.lng ?? currentPos.lng,
-            siteId: here?.id ?? null,
-            beacon: here ? beaconKindOf(here, evacZoneId) : null,
-            gap: PIN_CLEAR_PX,
-          },
-          body: (
-            <MapLocationLabel location={here} here active={!inspectingTarget} onClick={() => {
-              setInspectorHereAt(targetKey);
-              setHereCollapsed(false);
-            }} />
-          ),
-        }
-      : null;
-  const calloutTarget: CalloutSlot | null =
-    edgeInspector && targetSlot
-      ? {
-          anchor:
-            trekTarget && trekInfo && trekEst && !inCombat
-              ? { lat: trekTarget.lat, lng: trekTarget.lng, gap: BADGE_CLEAR_PX }
-              : {
-                  lat: sel?.lat ?? currentPos.lat,
-                  lng: sel?.lng ?? currentPos.lng,
-                  siteId: sel?.id ?? null,
-                  beacon: sel ? beaconKindOf(sel, evacZoneId) : null,
-                  gap: BADGE_CLEAR_PX,
-                },
-          body: (
-            <MapLocationLabel location={trekTarget ? null : sel} active={inspectingTarget} onClick={() => {
-              setInspectorHereAt(null);
-              setHereCollapsed(false);
-            }} />
-          ),
-        }
-      : null;
-
   const desktopHud = (
     <>
       {/* Timeline: the full panel when pinned or when something needs an
@@ -1715,8 +1661,6 @@ export function GameScreen() {
                 padLeft={hdbOverMap ? hdbInset.left : panelInset}
                 padBottom={hdbOverMap ? HUD_BOTTOM : isPhone ? 0 : pairH > 0 ? pairH + HUD_BOTTOM : HUD_BOTTOM}
                 padTop={hdbOverMap ? hdbInset.top + 56 : 0}
-                onMap={setRunMap}
-                onPinMove={onPinMove}
                 chromeRight={
                   isPhone ? 0 : HUD_EDGE + (timelineBeside ? tlW : Math.min(TICKER_W, mapW - panelInset - HUD_EDGE * 2)) + HUD_GAP / 2
                 }
@@ -1731,23 +1675,6 @@ export function GameScreen() {
                 <div className="absolute inset-0 z-[550]">
                   <HdbDungeonModal onOpenGuide={setGuideTopic} inset={hdbPanelInset} overMap />
                 </div>
-              )}
-              {/* Desktop: identity labels follow the pins; actions stay at the edge. */}
-              {edgeInspector && runMap && (calloutHere || calloutTarget) && (
-                <MapCallouts
-                  map={runMap}
-                  here={calloutHere}
-                  target={calloutTarget}
-                  pinRef={pinRef}
-                  followPin={!!travelAnim}
-                  kickRef={calloutKick}
-                  inset={{
-                    top: HUD_EDGE,
-                    left: HUD_EDGE + panelInset,
-                    right: HUD_EDGE + (timelineBeside ? tlW + HUD_GAP : 0),
-                    bottom: HUD_BOTTOM,
-                  }}
-                />
               )}
               {edgeInspector && (hereSlot || targetSlot) && (
                 <div
