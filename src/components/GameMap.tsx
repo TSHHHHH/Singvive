@@ -925,6 +925,28 @@ interface Props {
 }
 
 /**
+ * Swap the camera's HUD padding without moving what is on screen. Padding
+ * moves the point the camera centres on, so a bare padding change (a dock
+ * panel opening or closing, the here / target cards appearing) would slide
+ * the whole map sideways. Re-aim the centre at whatever already sits under
+ * the new padded middle, so the view holds still and only later focus
+ * commands frame inside the new inset.
+ */
+function padInPlace(map: MlMap, padding: { top: number; left: number; right: number; bottom: number }) {
+  const was = map.getPadding();
+  const box = containerSize(map);
+  const mid = (a = 0, b = 0, size: number) => a + (size - a - b) / 2;
+  const dx = mid(padding.left, padding.right, box.x) - mid(was.left, was.right, box.x);
+  const dy = mid(padding.top, padding.bottom, box.y) - mid(was.top, was.bottom, box.y);
+  if (!dx && !dy) {
+    map.setPadding(padding);
+    return;
+  }
+  const c = map.project(map.getCenter());
+  map.jumpTo({ center: map.unproject([c.x + dx, c.y + dy]), padding });
+}
+
+/**
  * One camera command owns both focus and HUD padding. Closing a panel changes
  * both on the same render; separate eases would cancel the requested focus.
  */
@@ -953,7 +975,7 @@ function CameraChrome({ target, inset, top, left, right, bottom }: {
         if (!inset) map.setCenterElevation(0);
         map.easeTo({ center: [pending.lng, pending.lat], zoom: Math.max(map.getZoom(), 16), padding, duration: 750 }, { cameraFocus: true });
       } else {
-        map.easeTo({ padding, duration: 400 });
+        padInPlace(map, padding);
       }
       issuing = false;
     };
@@ -967,7 +989,11 @@ function CameraChrome({ target, inset, top, left, right, bottom }: {
       if (request.pending) { schedule(); return; }
       if (!inset) return;
       const p = map.getPadding();
-      if (p.top !== top || p.left !== left || p.right !== right || p.bottom !== bottom) map.setPadding(padding);
+      if (p.top !== top || p.left !== left || p.right !== right || p.bottom !== bottom) {
+        issuing = true;
+        padInPlace(map, padding);
+        issuing = false;
+      }
     };
     const userMove = (event: { originalEvent?: unknown }) => {
       if (!event.originalEvent) return;
