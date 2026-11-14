@@ -37,6 +37,8 @@ import {
   equipTravelSpeedFactor,
   loadEffectsFor,
   maxCarry,
+  CARRY_KG_PER_STR,
+  CARRY_KG_PER_END,
   scaledMod,
 } from './inventory';
 import { itemDef } from './loot';
@@ -513,8 +515,8 @@ function mobilityRows(args: {
   rows.push(row('travel', 'mobility', 'mult', tr, true, { total: travel, baseline: 1 }));
 
   const carry: SheetSource[] = [];
-  push(carry, attrSrc('strength', attributes.strength * 3));
-  push(carry, attrSrc('endurance', attributes.endurance * 2));
+  push(carry, attrSrc('strength', attributes.strength * CARRY_KG_PER_STR));
+  push(carry, attrSrc('endurance', attributes.endurance * CARRY_KG_PER_END));
   push(carry, traitSources(traits, 'carryCapacityMod'));
   push(
     carry,
