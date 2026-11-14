@@ -1833,24 +1833,16 @@
     "weightReduction": 0.2,
     "slot": "bag",
     "packGrid": {
-      "w": 5,
-      "h": 4,
+      "w": 4,
+      "h": 3,
       "blocked": [
         [
           0,
           0
         ],
         [
-          0,
-          1
-        ],
-        [
-          4,
+          3,
           0
-        ],
-        [
-          4,
-          1
         ]
       ]
     },
@@ -2792,7 +2784,7 @@
     "color": "#65775c",
     "slot": "bag",
     "packGrid": {
-      "w": 3,
+      "w": 2,
       "h": 3
     },
     "maxCondition": 60
@@ -3098,8 +3090,18 @@
     "weightReduction": 0.2,
     "slot": "bag",
     "packGrid": {
-      "w": 7,
-      "h": 4
+      "w": 5,
+      "h": 3,
+      "blocked": [
+        [
+          0,
+          0
+        ],
+        [
+          4,
+          0
+        ]
+      ]
     },
     "modifiers": {
       "speedBonus": -0.5,
@@ -4274,8 +4276,34 @@
     "modifiers": {},
     "maxCondition": 50,
     "packGrid": {
-      "w": 6,
-      "h": 4
+      "w": 3,
+      "h": 4,
+      "blocked": [
+        [
+          1,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          1,
+          0
+        ],
+        [
+          2,
+          2
+        ],
+        [
+          2,
+          3
+        ]
+      ]
     },
     "weightReduction": 0.1
   },
