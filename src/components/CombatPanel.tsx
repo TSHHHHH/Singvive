@@ -190,14 +190,41 @@ export function CombatPanel({
     impact && impact.side === 'enemy' && HP_PUNCH_KINDS.has(impact.kind) ? impact.id : 0;
   const lowHp = !combat.over && hpPct <= 25;
 
-  return (
+  // Fighter header: HP bars, portraits and stats, plus the terrain / round row.
+  // Phone keeps it on top. Desktop sets it just above the speed track, so the
+  // floating damage numbers rise into the empty log instead of off the window.
+  const terrainRow = (bottom: boolean) => (
     <div
-      className={`combat-fx--force-motion flex h-full min-h-0 flex-col gap-1.5 text-read ${shakeClass} ${outcomeClass}`}
+      className={`flex shrink-0 items-center justify-end gap-2 text-body text-white/30 ${
+        bottom ? '' : 'border-b border-white/10 pb-1'
+      }`}
     >
+      {meters.infection > 0 && (
+        <span className="text-astral">☣ {Math.round(meters.infection)}</span>
+      )}
+      {holstered && (
+        <span className={holsterLoaded === 0 ? 'text-hiss' : 'text-white/45'}>
+          {t('ui.combat.magCount', { n: holsterLoaded, cap: holsterCap })}
+        </span>
+      )}
+      <span>
+        {t(`ui.combat.terrain.${terrain.id}`)} · T{combat.round}
+      </span>
+      {onOpenGuide && (
+        <GuideInfoButton topic="fight" onOpen={onOpenGuide} label={t('ui.combat.guide')} />
+      )}
+    </div>
+  );
+  const fighterHeader = (bottom: boolean) => (
+    <>
       {/* ---- fighter header ----
            Info columns share leftover width; names sit atop the portraits
            inside the portrait frame; bars / stats / weapon stay on the sides. */}
-      <div className="grid shrink-0 grid-cols-[minmax(0,1fr)_auto_auto_minmax(0,1fr)] items-stretch gap-1.5">
+      <div
+        className={`grid shrink-0 grid-cols-[minmax(0,1fr)_auto_auto_minmax(0,1fr)] items-stretch gap-1.5 ${
+          bottom ? 'border-t border-white/10 pt-1.5' : ''
+        }`}
+      >
         <FighterColumn
           hp={Math.max(0, Math.round(currentHp))}
           maxHp={Math.round(maxHp)}
@@ -265,23 +292,15 @@ export function CombatPanel({
           }}
         />
       )}
+      {terrainRow(bottom)}
+    </>
+  );
 
-      <div className="flex shrink-0 items-center justify-end gap-2 border-b border-white/10 pb-1 text-body text-white/30">
-        {meters.infection > 0 && (
-          <span className="text-astral">☣ {Math.round(meters.infection)}</span>
-        )}
-        {holstered && (
-          <span className={holsterLoaded === 0 ? 'text-hiss' : 'text-white/45'}>
-            {t('ui.combat.magCount', { n: holsterLoaded, cap: holsterCap })}
-          </span>
-        )}
-        <span>
-          {t(`ui.combat.terrain.${terrain.id}`)} · T{combat.round}
-        </span>
-        {onOpenGuide && (
-          <GuideInfoButton topic="fight" onOpen={onOpenGuide} label={t('ui.combat.guide')} />
-        )}
-      </div>
+  return (
+    <div
+      className={`combat-fx--force-motion flex h-full min-h-0 flex-col gap-1.5 text-read ${shakeClass} ${outcomeClass}`}
+    >
+      {isPhone && fighterHeader(false)}
 
       {/* ---- log: one bubble per action ----
            Every row carries a marker gutter on *both* sides, occupied or not,
@@ -328,6 +347,8 @@ export function CombatPanel({
           ),
         )}
       </div>
+
+      {!isPhone && fighterHeader(true)}
 
       {/* ---- the race track ---- */}
       {!combat.awaitingStance && !combat.over && (
