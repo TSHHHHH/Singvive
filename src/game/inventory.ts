@@ -383,6 +383,22 @@ export function arrangeOrLoose(grid: PackGrid, instances: ItemInstance[]): ItemI
   return out;
 }
 
+/**
+ * Keep the backpack items valid for the current pack silhouette. When a saved
+ * run's items no longer fit (pockets shrank, a bag's grid changed), repack
+ * them and carry loose whatever won't fit. Returns `items` unchanged when
+ * everything already fits. Call after `syncBackpackBonuses`.
+ */
+export function refitBackpack(items: ItemInstance[]): ItemInstance[] {
+  const pack = items.filter((i) => i.container === BACKPACK);
+  const fits = pack.every((i) => {
+    const { w, h } = footprint(itemDef(i.defId), i.rotated);
+    return canPlace(BACKPACK, items, { x: i.x, y: i.y, w, h }, i.uid);
+  });
+  if (fits) return items;
+  return [...items.filter((i) => i.container !== BACKPACK), ...arrangeOrLoose(backpackMask, pack)];
+}
+
 /** English fragment for refuse logs — names of items the greedy pack could not place. */
 export function arrangeOverflowClause(overflow: ItemInstance[]): string {
   const names = overflow.map((i) => itemDef(i.defId).name);
