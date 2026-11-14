@@ -17,9 +17,8 @@ import { SG_BOX } from '../map/mapStyle';
 import { useT, type TVars } from '../i18n';
 
 /**
- * Fills the map column: pick a destination on the rail map, choose among
- * fewest-intact routes (and a shorter collapsed shortcut if one exists), then
- * descend into one crawl.
+ * Fills the map column: pick a destination on the rail map, choose among a
+ * few fewest-stop routes, then descend into one crawl.
  */
 
 function FitTo({
@@ -72,10 +71,7 @@ function localizedRouteOptionLabel(
 ): string {
   const stops =
     route.stops === 1 ? t('ui.mrt.stopsOne') : t('ui.mrt.stopsMany', { n: route.stops });
-  if (route.collapsedHops > 0) {
-    return t('ui.mrt.throughCollapsed', { stops, n: route.collapsedHops });
-  }
-  if (index === 0) return t('ui.mrt.fewestIntact', { stops });
+  if (index === 0) return t('ui.mrt.fewestStops', { stops });
   if (route.changes === 0 && route.legs[0]) {
     return t('ui.mrt.viaLine', { line: route.legs[0].line.name, n: route.stops });
   }
@@ -101,14 +97,12 @@ export function MrtRoutePlanner({
 }: Props) {
   const { t } = useT();
   const net = useMrtNetwork(true);
-  const destroyedList = useGame((s) => s.destroyedTunnelEdges);
   const character = useGame((s) => s.character);
   const items = useGame((s) => s.items);
   const equipment = useGame((s) => s.equipment);
   const energy = useGame((s) => s.meters.energy);
   const hour = useGame((s) => s.hour);
 
-  const destroyed = useMemo(() => new Set(destroyedList), [destroyedList]);
   const from = net?.byId.get(fromStationId) ?? null;
 
   const [toId, setToId] = useState<string | null>(initialToStationId);
@@ -121,8 +115,8 @@ export function MrtRoutePlanner({
 
   const routes = useMemo(() => {
     if (!net || !from || !toId || toId === from.id) return [];
-    return findRoutes(net, from.id, toId, destroyed, 3);
-  }, [net, from, toId, destroyed]);
+    return findRoutes(net, from.id, toId, 3);
+  }, [net, from, toId]);
 
   const route = routes[routeIdx] ?? routes[0] ?? null;
   const routeIds = route && from ? routeStationIds(route, from.id) : from ? [from.id] : [];
@@ -141,7 +135,6 @@ export function MrtRoutePlanner({
       energy,
       hour,
       1,
-      route.collapsedMeters,
       load.tunnelTravelMult,
     );
   }, [route, character, items, equipment, energy, hour]);
@@ -193,7 +186,6 @@ export function MrtRoutePlanner({
           <FitTo from={from} to={to} route={route} />
           <MrtOverlay
             net={net}
-            destroyedEdges={destroyedList}
             routeIds={routeIds}
             fromStationId={from.id}
             toStationId={toId}
@@ -209,7 +201,6 @@ export function MrtRoutePlanner({
         <div className="pointer-events-none absolute right-2 top-2 z-[500]">
           <MrtLineLegend
             net={net}
-            destroyedCount={destroyedList.length}
             extra={
               <div className="mt-1 flex items-center gap-1.5 border-t border-white/10 pt-1 text-white/55">
                 <span className="inline-block h-0.5 w-4 shrink-0 bg-[#e8c547]" aria-hidden />
@@ -224,14 +215,6 @@ export function MrtRoutePlanner({
         {to && !reachable && (
           <p className="mb-2 text-body text-hiss">{t('ui.mrt.noPath', { name: to.name })}</p>
         )}
-        {to && reachable && routes.every((r) => r.collapsedHops > 0) && (
-          <p className="mb-2 text-body text-hiss">
-            {t('ui.mrt.allCollapsed', { name: to.name })}
-          </p>
-        )}
-        {route && route.collapsedHops > 0 && !routes.every((r) => r.collapsedHops > 0) && (
-          <p className="mb-2 text-body text-hiss">{t('ui.mrt.shortcutCollapsed')}</p>
-        )}
         {routes.length > 0 && (
           <div className="mb-2 flex flex-col gap-1.5">
             {routes.map((r, i) => (
@@ -241,9 +224,7 @@ export function MrtRoutePlanner({
                 onClick={() => setRouteIdx(i)}
                 className={`rounded border px-2 py-1.5 text-left text-body transition ${
                   routeIdx === i || (!routes[routeIdx] && i === 0)
-                    ? r.collapsedHops > 0
-                      ? 'border-hiss/50 bg-hiss/10 text-hiss'
-                      : 'border-signal/50 bg-signal/10 text-signal'
+                    ? 'border-signal/50 bg-signal/10 text-signal'
                     : 'border-white/10 text-white/70 hover:bg-white/5'
                 }`}
               >
@@ -270,13 +251,9 @@ export function MrtRoutePlanner({
           {energyLow
             ? t('ui.mrt.tooSpent')
             : route
-              ? route.collapsedHops > 0
-                ? route.stops === 1
-                  ? t('ui.mrt.crawlCollapsed', { n: route.stops })
-                  : t('ui.mrt.crawlCollapsedPlural', { n: route.stops })
-                : route.stops === 1
-                  ? t('ui.mrt.enterTunnels', { n: route.stops })
-                  : t('ui.mrt.enterTunnelsPlural', { n: route.stops })
+              ? route.stops === 1
+                ? t('ui.mrt.enterTunnels', { n: route.stops })
+                : t('ui.mrt.enterTunnelsPlural', { n: route.stops })
               : t('ui.mrt.pickDestination')}
         </button>
         <p className="mt-1.5 text-center text-micro text-concrete-400">{t('ui.mrt.crawlHint')}</p>

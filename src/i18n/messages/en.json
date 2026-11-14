@@ -322,7 +322,6 @@
       "leaveBlock": "Leave the block",
       "route": "Route",
       "planTunnels": "Plan this tunnel",
-      "collapsedBore": "Collapsed bore · high risk",
       "tunnelMeta": "{line}{meters} m · no weather, no range",
       "tunnelMetaRoute": "route · no weather, no range",
       "pickStation": "Pick any station · dashed bores are a brutal crawl",
@@ -1440,12 +1439,10 @@
       "checkpointHeld": "{name} · STA holds the bore",
       "unrevealedBlurb": "Too far ahead to make out. You will find out by walking into it.",
       "eliteBlurb": "Something has been keeping pace with you down the bore.",
-      "collapsedBlurb": "Collapsed bore — rubble, packs, no camps.",
       "exitHint": "Stairs up at every station — or keep walking toward the far end.",
       "forwardHint": "There is no way back up until the next station — the tunnel only runs one way now.",
       "directionsNone": "{name} has no tunnel path from here. Plan travel to try another way, or walk the surface.",
       "directionsVia": "{stops} stops via the {line}",
-      "directionsCollapsed": "{name} is {where}, but the only underground path crawls a collapsed bore. Plan travel — or walk the surface.",
       "directionsRoute": "{name} is {where}. Open tunnel planning to crawl the whole route in one run."
     },
     "mrt": {
@@ -1458,11 +1455,7 @@
       "backToMap": "Back to map",
       "goldPlanned": "Gold = planned route",
       "noPath": "No tunnel path to {name} — the network does not connect from here.",
-      "allCollapsed": "Every tunnel path to {name} crawls a collapsed bore — rubble, packs, no camps.",
-      "shortcutCollapsed": "This shortcut crawls a collapsed bore — expect a brutal walk.",
       "tooSpent": "Too spent — rest first",
-      "crawlCollapsed": "Crawl collapsed · {n} stop",
-      "crawlCollapsedPlural": "Crawl collapsed · {n} stops",
       "enterTunnels": "Enter tunnels · {n} stop",
       "enterTunnelsPlural": "Enter tunnels · {n} stops",
       "pickDestination": "Pick a destination",
@@ -1470,8 +1463,7 @@
       "changes": " · {n} change",
       "changesPlural": " · {n} changes",
       "noChanges": " · no changes",
-      "throughCollapsed": "Through collapsed ({stops} · {n} ruined)",
-      "fewestIntact": "Fewest intact ({stops})",
+      "fewestStops": "Fewest stops ({stops})",
       "viaLine": "Via {line} · {n} stops",
       "viaCodes": "{codes} · {n} stops · {changes} change",
       "viaCodesPlural": "{codes} · {n} stops · {changes} changes",
@@ -1479,7 +1471,6 @@
       "stopsMany": "{n} stops",
       "tooltipHere": " (here)",
       "tooltipDestination": " (destination)",
-      "legendCollapsed": "Dashed = collapsed · passable, brutal",
       "osmBaked": "OSM · baked {date}"
     },
     "stationStrip": {
@@ -1487,13 +1478,11 @@
       "changeTo": "Change to",
       "now": "Now",
       "nowNamed": "Now: {name}",
-      "collapsedBore": "Collapsed bore",
       "alighting": "Alighting",
       "changeAt": "Change at",
       "changeAtNamed": "Change at {name}",
       "next": "Next",
       "nextNamed": "Next: {name}",
-      "crawlRubble": "Crawl the rubble",
       "toLine": "to {line}",
       "stopsLeft": " · {n} stop left",
       "stopsLeftPlural": " · {n} stops left",
@@ -1990,7 +1979,7 @@
     "tunnels": {
       "title": "The tunnels",
       "bullets": [
-        "From an MRT platform, Plan tunnel travel opens the rail map. Pick a destination — default route is fewest intact stations. Some segments collapse each run: still passable, but a crawl through rubble and packs with no camps. Long trips may tempt the shortcut.",
+        "From an MRT platform, Plan tunnel travel opens the rail map. Pick a destination and choose among the fewest-stop routes. Down in the bore, service lines peel off the running line and rejoin it a few stops on — each is a real choice of what you walk through.",
         "Confirming a route starts one crawl for the whole path. A station strip tracks the planned line, next stop, and transfers. You can exit at intermediate stations or keep walking to the far end. No surface range or weather underground. A heavy pack still wears you out; the walk itself is taxed less than the streets.",
         "Between stations the running tunnel can split. Stay on the through line or peel into a side passage — it may run a few hops before it rejoins. Pick the node you can afford; the other way is gone once you step.",
         "Camps offer a mat, a patch-up, or a swap — the only bunk underground. Obstructions vary: floodwater can hide a turned otter, falling debris wounds hard, a blackout eats the clock. Rare Contact is a Stalker that has been keeping pace. STA may toll the stairs down, and sometimes the bore itself."
@@ -2001,7 +1990,7 @@
       "bullets": [
         "A map beacon marks the staging zone. Reach it during the timed window with a haul in your backpack (not stash or equipped). First press at the pad raises the channel — the crew reads this window's demand in numbers, and that read stays for the rest of the window. If the pack already clears, the same press pops the flare.",
         "Fuel counts most, then meds and ammo; sealed water a little; food and scrap barely; weapons barely count as cargo. On the approach the radio vibe stays qualitative; only the pad channel names the quota. Boiling water burns fuel.",
-        "Miss the window and a new site opens after a cooldown — the horde keeps rising either way. Collapsed tunnels often force a detour toward the first beacon, or a high-risk crawl through the rubble."
+        "Miss the window and a new site opens after a cooldown — the horde keeps rising either way."
       ]
     },
     "score": {

@@ -65,7 +65,6 @@ export function TunnelRunView() {
     exitHere,
     carriage,
     checkpoint,
-    destroyedEdges,
   } = useGame(
     useShallow((s) => ({
       run: s.tunnel,
@@ -78,7 +77,6 @@ export function TunnelRunView() {
       exitHere: s.tunnelExitHere,
       carriage: s.tunnelCarriage,
       checkpoint: s.tunnelCheckpoint,
-      destroyedEdges: s.destroyedTunnelEdges,
     })),
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -91,9 +89,8 @@ export function TunnelRunView() {
     return journeyStrip(net, ids, {
       names,
       fallback: { code: run.lineCode, name: run.lineName, color: run.lineColor },
-      destroyed: destroyedEdges,
     });
-  }, [run, net, destroyedEdges]);
+  }, [run, net]);
 
   if (!run || !strip) return null;
 
@@ -1107,9 +1104,6 @@ function NodeDetail({
               : t('ui.tunnel.furtherDown')}
           </div>
           <p className="mt-1 text-body text-concrete-400">{blurb}</p>
-          {revealed && node.collapsedBore && (
-            <p className="mt-1 text-micro text-hiss">{t('ui.tunnel.collapsedBlurb')}</p>
-          )}
         </div>
         <div className="shrink-0 text-right text-micro tabular-nums text-concrete-400">
           <div>{t('ui.tunnel.minutesApprox', { n: nodePreviewMinutes(run, node) })}</div>

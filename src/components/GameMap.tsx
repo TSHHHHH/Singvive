@@ -1690,7 +1690,6 @@ function GameMapInner({
   const showMrt = useSetting('railOverlay') === 'on';
   const setSetting = useSettings((s) => s.setSetting);
   const net = useMrtNetwork(showMrt);
-  const destroyedTunnelEdges = useGame((s) => s.destroyedTunnelEdges);
   const workedKey = useGame((s) => workedKeyOf(s.hdbBlocks));
   const worked = useMemo<ReadonlyMap<string, number>>(() => {
     if (!workedKey) return NO_WORKED;
@@ -1791,7 +1790,7 @@ function GameMapInner({
           veilAlpha={veilAlpha}
           onMove={onPinMove}
         />
-        {showMrt && net && <MrtOverlay net={net} destroyedEdges={destroyedTunnelEdges} />}
+        {showMrt && net && <MrtOverlay net={net} />}
       </MapView>
 
       {/* ---- 3D + rail network toggles (phone; desktop keeps them on the rail), rail legend ---- */}
@@ -1832,7 +1831,7 @@ function GameMapInner({
           className={`absolute right-2 z-[500] ${showModeToggles ? 'top-11' : 'top-2'}`}
           style={chromeRight ? { right: chromeRight } : undefined}
         >
-          <MrtLineLegend net={net} destroyedCount={destroyedTunnelEdges.length} />
+          <MrtLineLegend net={net} />
         </div>
       )}
 

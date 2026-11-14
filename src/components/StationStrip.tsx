@@ -82,15 +82,6 @@ function pidsCopy(
 
   if (walking && next) {
     const dest = place.nextIndex === stops.length - 1;
-    if (walking.collapsed) {
-      return {
-        kicker: t('ui.stationStrip.collapsedBore'),
-        title: next.name,
-        lineName: walking.lineName,
-        lineColor: walking.color,
-        detail: dest ? t('ui.stationStrip.crawlRubble') : undefined,
-      };
-    }
     if (dest) {
       return {
         kicker: t('ui.stationStrip.alighting'),
@@ -283,19 +274,14 @@ function HopBar({
   past: boolean;
   walking: boolean;
 }) {
-  const { t } = useT();
-  const collapsed = !!hop?.collapsed;
   const color = hop?.color ?? '#9c9890';
   return (
     <div
       className={`min-w-[14px] flex-1 rounded-full lg:min-w-[22px] ${walking ? 'h-1.5' : 'h-1'}`}
       style={{
-        background: collapsed
-          ? `repeating-linear-gradient(90deg, ${color} 0 5px, transparent 5px 9px)`
-          : color,
-        opacity: walking ? 1 : past ? 0.28 : collapsed ? 0.7 : 0.8,
+        background: color,
+        opacity: walking ? 1 : past ? 0.28 : 0.8,
       }}
-      {...tip(collapsed ? t('ui.stationStrip.collapsedBore') : undefined)}
       aria-hidden
     />
   );

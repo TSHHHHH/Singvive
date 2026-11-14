@@ -124,11 +124,8 @@ export function withVegetationTravel(
  * and you cover it on foot. What the tunnel buys you is what it *doesn't*
  * charge: no weather, and none of URBAN_DECAY_DETOUR, because a bore is straight
  * and the streets above it are not. Load still taxes the walk (milder than
- * overland) so the MRT is not a weight-dump exploit. Collapsed hops still cost
- * extra — you crawl the rubble, you do not walk the invert.
+ * overland) so the MRT is not a weight-dump exploit.
  */
-/** Collapsed bore metres count this much heavier than intact track. */
-export const COLLAPSED_BORE_PACE = 1.8;
 
 export function estimateTunnelWalk(
   distanceM: number,
@@ -136,14 +133,10 @@ export function estimateTunnelWalk(
   energy: number,
   currentHour: number,
   legFactor = 1,
-  /** Track metres that run through a collapsed bore — crawled, not walked. */
-  collapsedMeters = 0,
   travelMult = 1,
 ): { travelMin: number; totalHours: number; arrivalHour: number } {
   const speed = walkSpeed(attrs, energy, legFactor);
-  const rubble = Math.max(0, Math.min(collapsedMeters, distanceM));
-  const effective = distanceM - rubble + rubble * COLLAPSED_BORE_PACE;
-  const travelMin = Math.max(4, Math.round((effective / speed) * Math.max(1, travelMult)));
+  const travelMin = Math.max(4, Math.round((distanceM / speed) * Math.max(1, travelMult)));
   return {
     travelMin,
     totalHours: travelMin / 60,

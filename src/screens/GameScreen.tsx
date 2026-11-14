@@ -242,23 +242,19 @@ function useViewportWidth(): number {
 
 /**
  * Orientation when a visible station isn't adjacent: how far it is, and that
- * the planner can still route — collapsed bores are a brutal crawl, not a wall.
+ * the planner can route there.
  */
 function tunnelDirections(
   net: MrtNetwork,
   here: LocationState,
   sel: LocationState,
-  destroyed: string[],
   t: ReturnType<typeof useT>['t'],
 ): string {
-  const route = mrtRouteBetween(here, sel, destroyed);
+  const route = mrtRouteBetween(here, sel);
   if (!route) {
     return t('ui.tunnel.directionsNone', { name: sel.name });
   }
   const where = t('ui.tunnel.directionsVia', { stops: route.stops, line: displayLine(net, route.legs[0].line).name });
-  if (route.collapsedHops > 0) {
-    return t('ui.tunnel.directionsCollapsed', { name: sel.name, where });
-  }
   return t('ui.tunnel.directionsRoute', { name: sel.name, where });
 }
 
@@ -312,7 +308,6 @@ export function GameScreen() {
     evacDemandBias,
     evacManifestRevealed,
     tunnel,
-    destroyedTunnelEdges,
     meters,
     character,
     hour,
@@ -346,7 +341,6 @@ export function GameScreen() {
       evacDemandBias: s.evacDemandBias,
       evacManifestRevealed: s.evacManifestRevealed,
       tunnel: s.tunnel,
-      destroyedTunnelEdges: s.destroyedTunnelEdges,
       meters: s.meters,
       character: s.character,
       hour: s.hour,
@@ -1017,12 +1011,12 @@ export function GameScreen() {
   );
   const tunnelSeg =
     bothStations && here && sel
-      ? tunnelSegmentBetween(here, sel, destroyedTunnelEdges)
+      ? tunnelSegmentBetween(here, sel)
       : null;
 
   const tunnelHint =
     bothStations && !tunnelSeg && mrtNet && here?.mrtStationId && sel
-      ? tunnelDirections(mrtNet, here, sel, destroyedTunnelEdges, t)
+      ? tunnelDirections(mrtNet, here, sel, t)
       : null;
 
   const openStash = () => goToPhoneTab('inventory');

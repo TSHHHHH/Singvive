@@ -3,7 +3,7 @@ import { Marker, Popup, type MapLayerMouseEvent } from 'maplibre-gl';
 import type { Feature } from 'geojson';
 import { typeCss } from '../ui/type';
 import { linesAt, stationColor, type MrtNetwork, type MrtStation } from '../game/mrt';
-import { edgeKey } from '../game/mrtDamage';
+import { edgeKey } from '../game/mrt';
 import { useT } from '../i18n';
 import { useMapGL, useMapEvent } from '../map/hooks';
 import { installOverlay, setData, alive } from '../map/layers';
@@ -17,8 +17,7 @@ import { fc } from '../map/geo';
  *
  * Deliberately drawn *over* the fog (slot `mrt`). The MRT map is the one piece
  * of the city everybody already carries in their head — the fog hides what's
- * in a station, never where the line runs. Collapsed hops keep the same livery
- * but draw dashed and muted — still walkable, a brutal crawl rather than a wall.
+ * in a station, never where the line runs.
  */
 
 
@@ -33,8 +32,6 @@ const LABEL_ZOOM = 14;
 
 interface Props {
   net: MrtNetwork;
-  /** Undirected edge keys collapsed this run — drawn as dashed bores. */
-  destroyedEdges?: readonly string[];
   /**
    * Consecutive station ids of a planned crawl. Matching hops draw gold and
    * thicker; used by the tunnel planner so it shares this overlay with the
@@ -118,7 +115,6 @@ function hopGeometry(shapes: [number, number][][], a: MrtStation, b: MrtStation)
 
 export function MrtOverlay({
   net,
-  destroyedEdges = [],
   routeIds,
   fromStationId,
   toStationId,
@@ -127,7 +123,6 @@ export function MrtOverlay({
 }: Props) {
   const { t } = useT();
   const map = useMapGL();
-  const destroyed = useMemo(() => new Set(destroyedEdges), [destroyedEdges]);
   const routeIndex = useMemo(() => {
     if (!routeIds || routeIds.length === 0) return null;
     const idx = new Map<string, number>();
@@ -142,23 +137,8 @@ export function MrtOverlay({
           id: 'mrt-track',
           type: 'line',
           source: SRC_TRACKS,
-          filter: ['!', ['get', 'dead']],
           layout: { 'line-cap': 'round', 'line-join': 'round', 'line-sort-key': ['get', 'sort'] },
           paint: { 'line-color': ['get', 'color'], 'line-width': ['get', 'w'], 'line-opacity': ['get', 'op'] },
-        },
-        {
-          id: 'mrt-track-dead',
-          type: 'line',
-          source: SRC_TRACKS,
-          filter: ['get', 'dead'],
-          layout: { 'line-cap': 'butt', 'line-join': 'round' },
-          // Dash units are line widths: Leaflet's '6 8' at weight 3.
-          paint: {
-            'line-color': ['get', 'color'],
-            'line-width': ['get', 'w'],
-            'line-opacity': ['get', 'op'],
-            'line-dasharray': [2, 2.7],
-          },
         },
         {
           id: MRT_STATION_LAYER,
@@ -176,16 +156,13 @@ export function MrtOverlay({
     [map],
   );
 
-  /**
-   * One stroke per adjacent hop. Intact = solid livery; collapsed = same colour,
-   * dashed and muted. Avoids a second "damage" polyline sitting beside the track.
-   */
+  /** One stroke per adjacent hop, so a planned route can light up hop by hop. */
   useEffect(() => {
     const out: Feature[] = [];
     const seen = new Set<string>();
     for (const line of net.lines) {
-      // Branches share parent track geometry — still emit hops so a collapsed
-      // CG/CE edge shows on the same stroke as EW.
+      // Branches share parent track geometry — still emit hops so a planned
+      // CG/CE route lights up on the same stroke as EW.
       const shapes =
         line.shape.length > 0 ? line.shape : line.parent ? (net.lineByCode.get(line.parent)?.shape ?? []) : [];
       for (let i = 1; i < line.stations.length; i++) {
@@ -193,20 +170,14 @@ export function MrtOverlay({
         const b = net.byCode.get(line.stations[i]);
         if (!a || !b || a.id === b.id) continue;
         const key = edgeKey(a.id, b.id);
-        const dead = destroyed.has(key);
         const ia = routeIndex?.get(a.id);
         const ib = routeIndex?.get(b.id);
         const active = ia !== undefined && ib !== undefined && Math.abs(ia - ib) === 1;
-        // Prefer drawing the destroyed style when both a trunk and branch hop
-        // share the same undirected edge. Active hops win the last draw.
-        const drawKey = `${key}:${active ? 'a' : dead ? 'd' : 'n'}`;
+        // A trunk and a branch can share one undirected edge; draw it once,
+        // and let the active (planned) stroke win.
+        const drawKey = `${key}:${active ? 'a' : 'n'}`;
         if (seen.has(drawKey)) continue;
-        if (dead) seen.add(`${key}:n`); // suppress a later intact twin
-        if (!dead && seen.has(`${key}:d`) && !active) continue;
-        if (active) {
-          seen.add(`${key}:n`);
-          seen.add(`${key}:d`);
-        }
+        if (active) seen.add(`${key}:n`);
         seen.add(drawKey);
         out.push({
           type: 'Feature',
@@ -214,15 +185,14 @@ export function MrtOverlay({
           properties: {
             color: active ? '#e8c547' : line.color,
             w: active ? 5 : 3,
-            op: dead ? (active ? 0.9 : 0.45) : active ? 1 : 0.85,
-            dead,
+            op: active ? 1 : 0.85,
             sort: active ? 1 : 0,
           },
         });
       }
     }
     setData(map, SRC_TRACKS, fc(out));
-  }, [map, net, destroyed, routeIndex]);
+  }, [map, net, routeIndex]);
 
   useEffect(() => {
     const feats: Feature[] = net.stations.map((s) => {
@@ -353,11 +323,9 @@ function legendLines(net: MrtNetwork) {
 /** Line-colour key used on the world map and the tunnel planner. */
 export function MrtLineLegend({
   net,
-  destroyedCount = 0,
   extra,
 }: {
   net: MrtNetwork;
-  destroyedCount?: number;
   extra?: ReactNode;
 }) {
   const { t } = useT();
@@ -369,12 +337,6 @@ export function MrtLineLegend({
           <span className="truncate">{line.name}</span>
         </div>
       ))}
-      {destroyedCount > 0 && (
-        <div className="mt-1 flex items-center gap-1.5 border-t border-white/10 pt-1 text-white/55">
-          <span className="inline-block h-0 w-4 shrink-0 border-t-2 border-dashed border-white/50" aria-hidden />
-          <span>{t('ui.mrt.legendCollapsed')}</span>
-        </div>
-      )}
       {extra}
       <div className="mt-1 border-t border-white/10 pt-1 text-white/35">
         {t('ui.mrt.osmBaked', { date: net.generatedAt })}

@@ -8,9 +8,12 @@ import { timeOfDay } from './weather';
 /**
  * One walk through the tunnels along a planned route (one or many stations).
  * Generation lays a through running tunnel first (platforms + corridor nodes),
- * then hangs side passages that can run for several hops before they rejoin,
- * so a fork is a real route choice, not only a one-node detour. Everything
- * here is pure — the store owns the live run and applies the deltas.
+ * then hangs service lines off it — maintenance walkways, cable galleries,
+ * drainage culverts — that peel away from the running line, run for a few
+ * stops on their own, and rejoin. Each one is a named, coloured line with its
+ * own stop codes, so the crawl reads like a metro map and a fork is a real
+ * route choice. Everything here is pure — the store owns the live run and
+ * applies the deltas.
  *
  * The trains stopped a long time ago. What's down there now is standing water,
  * the dead, and the people who decided a bore with two exits was safer than a
@@ -50,11 +53,13 @@ export interface TunnelNode {
   name: string;
   /** Forward edges only. A tunnel doesn't let you take a step back. */
   next: string[];
-  /** 0..5, baked at generation (collapsed hops already sit higher). */
+  /** 0..5, baked at generation. */
   danger: number;
   hazard?: TunnelHazard;
-  /** True when this node sits on a collapsed hop — rubble, no camps. */
-  collapsedBore?: boolean;
+  /** Side-passage nodes: the id of the service line they sit on. */
+  service?: string;
+  /** Side-passage nodes: stop code on that service line, e.g. "CB2". */
+  code?: string;
   /** Scavenge / carriage smash: extra loot rolls for a place nobody has reached yet. */
   lootMod?: number;
   offer?: TunnelTrade;
@@ -108,7 +113,40 @@ export interface TunnelRun {
   seq: number;
   /** Walking minutes charged for each hop between columns. */
   minutesPerHop: number;
+  /** Service lines (side passages) — absent on older saves. */
+  services?: ServiceLine[];
 }
+
+/** A side passage drawn as its own line on the crawl map. */
+export interface ServiceLine {
+  id: string;
+  /** Code prefix shown on its stops, e.g. "CB". */
+  code: string;
+  /** Key into SERVICE_KINDS — the display name is looked up from it. */
+  kind: ServiceKind;
+  color: string;
+  lane: number;
+  /** Node ids in running order. */
+  nodes: string[];
+}
+
+export type ServiceKind = 'walkway' | 'cable' | 'drain' | 'vent' | 'evac' | 'oldbore';
+
+/**
+ * The service-line table. Codes deliberately avoid every real SG prefix
+ * (NS EW CG NE CC CE DT TE BP SE SW PE PW), and colours stay clear of the
+ * official liveries so a side passage never reads as a real line.
+ */
+export const SERVICE_KINDS: Record<ServiceKind, { code: string; name: string }> = {
+  walkway: { code: 'MW', name: 'Maintenance Walkway' },
+  cable: { code: 'CB', name: 'Cable Gallery' },
+  drain: { code: 'DR', name: 'Drainage Culvert' },
+  vent: { code: 'VA', name: 'Ventilation Adit' },
+  evac: { code: 'EV', name: 'Evacuation Passage' },
+  oldbore: { code: 'OB', name: 'Old Bore' },
+};
+
+const SERVICE_COLORS = ['#e2629b', '#20b2a6', '#62b6e8', '#a9c94a', '#b39ddb', '#e8c547'] as const;
 
 // ------------------------------------------------------------ node table --
 
@@ -190,7 +228,7 @@ export interface TunnelHazardDef {
   /** Minutes when the check fails. Defaults to `minutes`. */
   failMinutes?: number;
   failEnergyMult: number;
-  wound?: { min: number; max: number; collapsedMin: number; collapsedMax: number };
+  wound?: { min: number; max: number };
 }
 
 /** Tunnel-local obstruction table — not the surface trek hazards. */
@@ -210,7 +248,7 @@ export const TUNNEL_HAZARD: Record<TunnelHazard, TunnelHazardDef> = {
     energyCost: 7,
     minutes: 15,
     failEnergyMult: 2,
-    wound: { min: 12, max: 24, collapsedMin: 16, collapsedMax: 30 },
+    wound: { min: 12, max: 24 },
   },
   live_rail: {
     label: 'Live rail',
@@ -219,7 +257,7 @@ export const TUNNEL_HAZARD: Record<TunnelHazard, TunnelHazardDef> = {
     energyCost: 5,
     minutes: 15,
     failEnergyMult: 2,
-    wound: { min: 8, max: 18, collapsedMin: 8, collapsedMax: 18 },
+    wound: { min: 8, max: 18 },
   },
   blackout: {
     label: 'Blackout',
@@ -237,7 +275,7 @@ export const TUNNEL_HAZARD: Record<TunnelHazard, TunnelHazardDef> = {
     energyCost: 8,
     minutes: 15,
     failEnergyMult: 2,
-    wound: { min: 6, max: 16, collapsedMin: 10, collapsedMax: 22 },
+    wound: { min: 6, max: 16 },
   },
 };
 
@@ -265,8 +303,7 @@ export const CARRIAGE_INVERT_ENERGY = 8;
 export const CARRIAGE_SMASH_MINUTES = 12;
 export const CARRIAGE_BAIT_CHANCE = 0.25;
 
-const STALKER_CHANCE_INTACT = 0.1;
-const STALKER_CHANCE_COLLAPSED = 0.18;
+const STALKER_CHANCE = 0.1;
 
 const NAMES: Record<TunnelNodeKind, readonly string[]> = {
   platform: ['Platform'],
@@ -281,28 +318,12 @@ const NAMES: Record<TunnelNodeKind, readonly string[]> = {
 
 const STALKER_NAMES = ['Keeping Pace', 'Something in the Dark', 'Pacing the Bore'] as const;
 
-const COLLAPSED_NAMES: Record<
-  Exclude<TunnelNodeKind, 'platform' | 'settlement' | 'checkpoint'>,
-  readonly string[]
-> = {
-  pack: ['Rubble Nest', 'Crushed Walkway', 'Choked Adit'],
-  scavenge: ['Buried Cache', 'Slab Pocket', "Engineer's Grave"],
-  hazard: ['Obstruction'],
-  carriage: ['Pinned Carriage', 'Crushed Train', 'Buried Consist'],
-  signal: ['Dead Board', 'Smashed Cabinet'],
-};
-
 const HAZARD_NAMES: Record<TunnelHazard, readonly string[]> = {
   floodwater: ['Flooded Reach', 'Broken Invert', 'Silt Bank'],
   collapse: ['Loose Crown', 'Hanging Span', 'Falling Fittings'],
   live_rail: ['Live Rail', 'Third Rail', 'Sparked Invert'],
   blackout: ['Blackout', 'Dead Lights', 'Dark Stretch'],
   pinch: ['Slab Pinch', 'Choked Invert', 'Squeeze'],
-};
-
-const COLLAPSED_HAZARD_NAMES: Record<'collapse' | 'pinch', readonly string[]> = {
-  collapse: ['Loose Crown', 'Hanging Span', 'Falling Fittings'],
-  pinch: ['Slab Pinch', 'Choked Invert', 'Bore Collapse'],
 };
 
 /** What the people down here will part with, and for what. */
@@ -340,8 +361,6 @@ export interface TunnelCtx {
   stations: TunnelStationStop[];
   /** Meters between consecutive stations (length = stations.length - 1). */
   hopMeters: number[];
-  /** Parallel to hopMeters: which hops are collapsed this run. */
-  hopCollapsed?: boolean[];
   lineCode: string;
   lineName: string;
   lineColor: string;
@@ -392,22 +411,6 @@ const ADIT_KINDS: [TunnelNodeKind, number][] = [
   ['checkpoint', 8],
 ];
 
-/** Collapsed hops: rubble and packs, no one camps in a fallen crown. */
-const COLLAPSED_CORRIDOR_KINDS: [TunnelNodeKind, number][] = [
-  ['hazard', 40],
-  ['pack', 30],
-  ['carriage', 20],
-  ['scavenge', 8],
-  ['signal', 2],
-];
-
-const COLLAPSED_ADIT_KINDS: [TunnelNodeKind, number][] = [
-  ['pack', 40],
-  ['hazard', 32],
-  ['carriage', 20],
-  ['scavenge', 8],
-];
-
 const CONTRAST_KINDS: Record<TunnelNodeKind, readonly TunnelNodeKind[]> = {
   platform: ['scavenge', 'pack', 'hazard', 'carriage'],
   pack: ['scavenge', 'hazard', 'settlement', 'signal', 'carriage'],
@@ -448,13 +451,7 @@ function rollContrast(
   return rng.weighted(pool);
 }
 
-function rollHazard(rng: Rng, collapsedBore: boolean): TunnelHazard {
-  if (collapsedBore) {
-    return rng.weighted([
-      ['collapse', 55],
-      ['pinch', 45],
-    ] as const);
-  }
+function rollHazard(rng: Rng): TunnelHazard {
   return rng.weighted([
     ['floodwater', 22],
     ['collapse', 22],
@@ -470,12 +467,8 @@ function fillContent(
   col: number,
   lane: number,
   danger: number,
-  collapsedBore: boolean,
 ): TunnelNode {
-  const names =
-    collapsedBore && kind !== 'platform' && kind !== 'settlement' && kind !== 'checkpoint'
-      ? COLLAPSED_NAMES[kind]
-      : NAMES[kind];
+  const names = NAMES[kind];
   const node: TunnelNode = {
     id: nodeId(col, lane),
     col,
@@ -485,25 +478,17 @@ function fillContent(
     name: rng.pick(names),
     next: [],
     danger,
-    collapsedBore: collapsedBore || undefined,
   };
   if (kind === 'hazard') {
-    node.hazard = rollHazard(rng, collapsedBore);
-    const pool =
-      collapsedBore && (node.hazard === 'collapse' || node.hazard === 'pinch')
-        ? COLLAPSED_HAZARD_NAMES[node.hazard]
-        : HAZARD_NAMES[node.hazard];
-    node.name = rng.pick(pool);
+    node.hazard = rollHazard(rng);
+    node.name = rng.pick(HAZARD_NAMES[node.hazard]);
   }
   if (kind === 'scavenge' || kind === 'carriage') {
-    const extra = collapsedBore ? 1 : 0;
-    node.lootMod =
-      extra + rng.weighted([[0, 5] as const, [1, 3] as const, [2, 1] as const]);
+    node.lootMod = rng.weighted([[0, 5] as const, [1, 3] as const, [2, 1] as const]);
   }
   if (kind === 'settlement') node.offer = rng.pick(TUNNEL_TRADES);
   if (kind === 'pack') {
-    const chance = collapsedBore ? STALKER_CHANCE_COLLAPSED : STALKER_CHANCE_INTACT;
-    if (rng.chance(chance)) {
+    if (rng.chance(STALKER_CHANCE)) {
       node.elite = true;
       node.name = rng.pick(STALKER_NAMES);
     }
@@ -565,33 +550,25 @@ function linkSpineAndAdits(
 }
 
 /** Middle columns between two platforms for one hop, before global thinning. */
-function midColsForHop(meters: number, mode: 'mrt' | 'lrt', collapsed: boolean): number {
+function midColsForHop(meters: number, mode: 'mrt' | 'lrt'): number {
   const span = clamp(MIN_MID_COLS, MAX_MID_COLS, Math.round(meters / 480));
-  const base = mode === 'lrt' ? Math.max(MIN_MID_COLS, span - 1) : span;
-  return collapsed ? clamp(MIN_MID_COLS, MAX_MID_COLS, base + 2) : base;
+  return mode === 'lrt' ? Math.max(MIN_MID_COLS, span - 1) : span;
 }
 
 /**
  * Thin middle-column budgets so platform + middles stay under MAX_TOTAL_COLS.
- * Platforms are never removed. Intact hops shed columns first so a collapsed
- * crawl keeps its length.
+ * Platforms are never removed; the longest hop sheds a column first.
  */
-function thinMiddles(
-  mids: number[],
-  stationCount: number,
-  collapsed: readonly boolean[],
-): number[] {
+function thinMiddles(mids: number[], stationCount: number): number[] {
   const platformCols = stationCount;
   let total = platformCols + mids.reduce((a, b) => a + b, 0);
   if (total <= MAX_TOTAL_COLS) return mids;
   const out = [...mids];
-  const cut = (preferIntact: boolean): boolean => {
+  const cut = (): boolean => {
     let best = -1;
     let bestVal = 0;
     for (let i = 0; i < out.length; i++) {
       if (out[i] <= 0) continue;
-      const ruined = collapsed[i] ?? false;
-      if (preferIntact && ruined) continue;
       if (out[i] > bestVal) {
         bestVal = out[i];
         best = i;
@@ -603,7 +580,7 @@ function thinMiddles(
     return true;
   };
   while (total > MAX_TOTAL_COLS) {
-    if (!cut(true) && !cut(false)) break;
+    if (!cut()) break;
   }
   return out;
 }
@@ -628,17 +605,12 @@ export function generateTunnelRun(rng: Rng, ctx: TunnelCtx): TunnelRun {
       ? ctx.hopMeters
       : stations.slice(1).map(() => Math.round(ctx.meters / Math.max(1, stations.length - 1)));
 
-  const hopCollapsed =
-    ctx.hopCollapsed && ctx.hopCollapsed.length === hopMeters.length
-      ? ctx.hopCollapsed
-      : hopMeters.map(() => false);
-
   const id = `${stations[0].stationId}>${stations[stations.length - 1].stationId}:${ctx.day}:${ctx.seq}`;
   const shape = rng.fork('shape');
   const baseDanger = baseDangerFor(ctx);
 
-  let mids = hopMeters.map((m, i) => midColsForHop(m, ctx.mode, hopCollapsed[i]));
-  mids = thinMiddles(mids, stations.length, hopCollapsed);
+  let mids = hopMeters.map((m) => midColsForHop(m, ctx.mode));
+  mids = thinMiddles(mids, stations.length);
 
   const nodes: Record<string, TunnelNode> = {};
   const columns: string[][] = [];
@@ -664,17 +636,14 @@ export function generateTunnelRun(rng: Rng, ctx: TunnelCtx): TunnelRun {
     col++;
   };
 
-  const addMain = (lastMiddle: boolean, collapsed: boolean) => {
-    const npcAllowed = !lastMiddle && !collapsed;
-    const table = collapsed ? COLLAPSED_CORRIDOR_KINDS : CORRIDOR_KINDS;
-    const kind = rollKind(shape.fork(`main:${col}`), npcAllowed, table);
+  const addMain = (lastMiddle: boolean) => {
+    const kind = rollKind(shape.fork(`main:${col}`), !lastMiddle, CORRIDOR_KINDS);
     const node = fillContent(
       rng.fork(`node:${col}:1`),
       kind,
       col,
       1,
-      clamp(0, 5, baseDanger + (collapsed ? 2 : 0) + (col > 4 ? 1 : 0)),
-      collapsed,
+      clamp(0, 5, baseDanger + (col > 4 ? 1 : 0)),
     );
     nodes[node.id] = node;
     columns.push([node.id]);
@@ -685,10 +654,7 @@ export function generateTunnelRun(rng: Rng, ctx: TunnelCtx): TunnelRun {
     addPlatform(stations[s], s, s === 0);
     if (s < stations.length - 1) {
       const midCount = mids[s];
-      const collapsed = hopCollapsed[s];
-      for (let i = 0; i < midCount; i++) {
-        addMain(i === midCount - 1, collapsed);
-      }
+      for (let i = 0; i < midCount; i++) addMain(i === midCount - 1);
     }
   }
 
@@ -699,12 +665,10 @@ export function generateTunnelRun(rng: Rng, ctx: TunnelCtx): TunnelRun {
     if (nodeOnLane(columns, nodes, c, lane)) return;
     const here = spineOf(columns, nodes, c);
     if (here.kind === 'platform') return;
-    const collapsed = !!here.collapsedBore;
     const next = spineOf(columns, nodes, c + 1);
     const lastMiddle = next.kind === 'platform';
-    const npcAllowed =
-      !collapsed && !lastMiddle && here.kind !== 'settlement' && here.kind !== 'checkpoint';
-    const table = collapsed ? COLLAPSED_ADIT_KINDS : ADIT_KINDS;
+    const npcAllowed = !lastMiddle && here.kind !== 'settlement' && here.kind !== 'checkpoint';
+    const table = ADIT_KINDS;
     let kind = rollContrast(r.fork('kind'), here.kind, npcAllowed, table);
     const prevSame = nodeOnLane(columns, nodes, c - 1, lane);
     if (kind === 'pack' && (here.kind === 'pack' || prevSame?.kind === 'pack')) {
@@ -722,23 +686,33 @@ export function generateTunnelRun(rng: Rng, ctx: TunnelCtx): TunnelRun {
       kind,
       c,
       lane,
-      clamp(0, 5, baseDanger + (collapsed ? 2 : 0) + (c > 4 ? 1 : 0)),
-      collapsed,
+      clamp(0, 5, baseDanger + (c > 4 ? 1 : 0)),
     );
     nodes[node.id] = node;
     columns[c].push(node.id);
     columns[c].sort((a, b) => nodes[a].lane - nodes[b].lane);
   };
 
-  for (let c = 1; c < columns.length - 1; c++) {
-    const here = spineOf(columns, nodes, c);
-    if (here.kind === 'platform') continue;
-    const r = shape.fork(`adit:${c}`);
-    const sides: number[] = [];
-    if (r.chance(0.52)) sides.push(0);
-    if (r.chance(0.52)) sides.push(2);
-    if (sides.length === 2 && r.chance(0.35)) sides.splice(r.int(0, 1), 1);
-    for (const lane of sides) placeAdit(c, lane, r.fork(`place:${lane}`));
+  // Service lines: per lane, runs of 1–3 side nodes with at least one column
+  // of running line between them, so each run reads as its own line that
+  // peels off and rejoins rather than one endless parallel track.
+  for (const lane of [0, 2]) {
+    const r = shape.fork(`svc:${lane}`);
+    let c = 1;
+    while (c < columns.length - 1) {
+      if (spineOf(columns, nodes, c).kind === 'platform' || !r.chance(0.42)) {
+        c++;
+        continue;
+      }
+      const want = r.weighted([[1, 3] as const, [2, 4] as const, [3, 3] as const]);
+      let len = 0;
+      while (len < want && c + len < columns.length - 1) {
+        if (spineOf(columns, nodes, c + len).kind === 'platform') break;
+        placeAdit(c + len, lane, r.fork(`place:${c + len}`));
+        len++;
+      }
+      c += len + 1;
+    }
   }
 
   // At least one fork between each pair of platforms, so a hop is never a corridor.
@@ -766,6 +740,41 @@ export function generateTunnelRun(rng: Rng, ctx: TunnelCtx): TunnelRun {
     placeAdit(pick, side, shape.fork(`needplace:${c}`));
   }
 
+  // Name the runs: every maximal same-lane chain of side nodes is one line.
+  const services: ServiceLine[] = [];
+  const codeCount: Record<string, number> = {};
+  for (let c = 1; c < columns.length - 1; c++) {
+    for (const lane of [0, 2]) {
+      const start = nodeOnLane(columns, nodes, c, lane);
+      if (!start || start.service) continue;
+      const chain: TunnelNode[] = [];
+      for (let k = c; ; k++) {
+        const n = nodeOnLane(columns, nodes, k, lane);
+        if (!n) break;
+        chain.push(n);
+      }
+      const r = shape.fork(`svcname:${start.id}`);
+      const kind = r.pick(Object.keys(SERVICE_KINDS) as ServiceKind[]);
+      const code = SERVICE_KINDS[kind].code;
+      const prev = services[services.length - 1];
+      const palette = SERVICE_COLORS.filter((col) => col !== prev?.color);
+      const line: ServiceLine = {
+        id: `svc${services.length}`,
+        code,
+        kind,
+        color: r.pick(palette),
+        lane,
+        nodes: chain.map((n) => n.id),
+      };
+      for (const n of chain) {
+        codeCount[code] = (codeCount[code] ?? 0) + 1;
+        n.service = line.id;
+        n.code = `${code}${codeCount[code]}`;
+      }
+      services.push(line);
+    }
+  }
+
   const cols = columns.length;
   linkSpineAndAdits(shape.fork('edges'), columns, nodes);
 
@@ -791,6 +800,7 @@ export function generateTunnelRun(rng: Rng, ctx: TunnelCtx): TunnelRun {
     baseDanger,
     seq: ctx.seq,
     minutesPerHop: Math.max(2, Math.round(ctx.travelMin / Math.max(1, cols - 1))),
+    services,
   };
 }
 
@@ -824,21 +834,19 @@ export function isRevealed(run: TunnelRun, node: TunnelNode): boolean {
   return node.state === 'done' || node.col <= currentNode(run).col + sight;
 }
 
-/** Threat a node actually presents. Collapsed hops already sit higher. */
+/** Threat a node actually presents. */
 export function nodeThreat(node: TunnelNode): number {
   return clamp(0, 5, node.danger);
 }
 
-/** DC for a bore check. Collapsed rubble is a harder squeeze; falling paths hit harder. */
+/** DC for a bore check. Falling paths hit harder. */
 export const hazardDc = (node: TunnelNode): number =>
-  10 + node.danger + (node.collapsedBore ? 3 : 0) + (node.hazard === 'collapse' ? 2 : 0);
+  10 + node.danger + (node.hazard === 'collapse' ? 2 : 0);
 
 export function hazardMinutes(node: TunnelNode, failed = false): number {
   const kind = node.hazard ?? 'collapse';
   const cfg = TUNNEL_HAZARD[kind];
-  const base = failed && cfg.failMinutes != null ? cfg.failMinutes : cfg.minutes;
-  const rubble = node.collapsedBore && (kind === 'collapse' || kind === 'pinch') ? 10 : 0;
-  return base + rubble;
+  return failed && cfg.failMinutes != null ? cfg.failMinutes : cfg.minutes;
 }
 
 /** Minutes shown on a pip before you walk onto it (assumes a clean crossing). */

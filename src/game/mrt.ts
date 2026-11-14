@@ -1,5 +1,4 @@
 import { haversine } from './overpass';
-import { edgeKey, isEdgeDestroyed } from './mrtDamage';
 
 /**
  * Singapore's rail network, baked from OpenStreetMap by `npm run bake:mrt` into
@@ -8,11 +7,9 @@ import { edgeKey, isEdgeDestroyed } from './mrtDamage';
  * Two things use it. The map overlay draws it — real track geometry, official
  * liveries, station codes — and the tunnel planner reuses that same overlay so
  * both views stay in lockstep. Travel walks it: no train has run in months, so
- * a trip is a planned tunnel crawl along a chosen route (possibly many stops),
- * with some edges collapsed each run. Collapsed bores stay walkable — they are
- * a brutal crawl, not a wall. `findRoute` / `findRoutes` prefer intact hops
- * and still offer a shorter rubble shortcut; `neighbours` is the one-hop
- * building block.
+ * a trip is a planned tunnel crawl along a chosen route (possibly many stops).
+ * `findRoute` / `findRoutes` pick the fewest-stop paths; `neighbours` is the
+ * one-hop building block.
  */
 
 export interface MrtStation {
@@ -82,16 +79,12 @@ export interface MrtRoute {
   changes: number;
   /** Distance along the tunnels, which is what the ride actually costs. */
   meters: number;
-  /** Adjacent hops on this path that are collapsed this run. */
-  collapsedHops: number;
-  /** Track metres of those collapsed hops. */
-  collapsedMeters: number;
 }
 
-/** Whether collapsed bores are skipped (`avoid`) or walked (`allow`). */
-export type CollapsedPolicy = 'avoid' | 'allow';
-
-export type DestroyedEdges = ReadonlySet<string> | readonly string[] | null | undefined;
+/** Undirected edge key — order-independent. */
+export function edgeKey(a: string, b: string): string {
+  return a < b ? `${a}|${b}` : `${b}|${a}`;
+}
 
 /**
  * Tie-break only: prefer fewer line changes when hop counts match.
@@ -257,8 +250,6 @@ export interface JourneyHop {
   lineName: string;
   color: string;
   meters: number;
-  /** True when this hop is a collapsed bore this run. */
-  collapsed?: boolean;
 }
 
 /** One station on a planned crawl. `isTransfer` is a change on *this* route. */
@@ -280,46 +271,32 @@ export interface MrtSegment {
   line: MrtLine;
   /** Distance along the tunnel between the two platforms. */
   meters: number;
-  /** True when this hop is a collapsed bore this run — passable, brutal. */
-  collapsed?: boolean;
 }
 
 /**
- * The stations one stop away. Collapsed hops stay in the list and are flagged
- * so the caller can warn; they are not skipped. Two stations can be joined by
- * more than one line; the shortest wins.
+ * The stations one stop away. Two stations can be joined by more than one
+ * line; the shortest wins.
  */
-export function neighbours(
-  net: MrtNetwork,
-  stationId: string,
-  destroyed?: DestroyedEdges,
-): MrtSegment[] {
+export function neighbours(net: MrtNetwork, stationId: string): MrtSegment[] {
   const out = new Map<string, MrtSegment>();
   for (const edge of net.adjacency.get(stationId) ?? []) {
     const station = net.byId.get(edge.to);
     const line = net.lineByCode.get(edge.line);
     if (!station || !line) continue;
-    const collapsed = isEdgeDestroyed(destroyed, stationId, edge.to);
     const seen = out.get(edge.to);
     if (seen && seen.meters <= edge.meters) continue;
     out.set(edge.to, {
       station,
       line,
       meters: Math.round(edge.meters),
-      collapsed,
     });
   }
   return [...out.values()].sort((a, b) => a.meters - b.meters);
 }
 
 /** The segment joining two stations, or null if they aren't neighbours. */
-export function adjacentEdge(
-  net: MrtNetwork,
-  fromId: string,
-  toId: string,
-  destroyed?: DestroyedEdges,
-): MrtSegment | null {
-  return neighbours(net, fromId, destroyed).find((n) => n.station.id === toId) ?? null;
+export function adjacentEdge(net: MrtNetwork, fromId: string, toId: string): MrtSegment | null {
+  return neighbours(net, fromId).find((n) => n.station.id === toId) ?? null;
 }
 
 const FALLBACK_HOP = { code: '', name: 'Tunnel', color: '#9c9890' };
@@ -336,7 +313,6 @@ export function journeyStrip(
   opts?: {
     names?: readonly string[];
     fallback?: { code: string; name: string; color: string };
-    destroyed?: DestroyedEdges;
   },
 ): JourneyStrip {
   const fallback = opts?.fallback ?? FALLBACK_HOP;
@@ -344,7 +320,7 @@ export function journeyStrip(
   for (let i = 1; i < stationIds.length; i++) {
     const fromId = stationIds[i - 1];
     const toId = stationIds[i];
-    const seg = net ? adjacentEdge(net, fromId, toId, opts?.destroyed) : null;
+    const seg = net ? adjacentEdge(net, fromId, toId) : null;
     const shown = seg && net ? displayLine(net, seg.line) : null;
     const prev = hops[hops.length - 1];
     hops.push({
@@ -354,7 +330,6 @@ export function journeyStrip(
       lineName: shown?.name ?? prev?.lineName ?? fallback.name,
       color: shown?.color ?? prev?.color ?? fallback.color,
       meters: seg?.meters ?? 0,
-      collapsed: seg?.collapsed ?? isEdgeDestroyed(opts?.destroyed, fromId, toId),
     });
   }
 
@@ -381,11 +356,10 @@ export function codeOnLine(stop: JourneyStop, lineCode: string): string {
 export function tunnelSegmentBetween(
   from: { mrtStationId?: string },
   to: { mrtStationId?: string },
-  destroyed?: DestroyedEdges,
 ): MrtSegment | null {
   const net = cached;
   if (!net || !from.mrtStationId || !to.mrtStationId) return null;
-  return adjacentEdge(net, from.mrtStationId, to.mrtStationId, destroyed);
+  return adjacentEdge(net, from.mrtStationId, to.mrtStationId);
 }
 
 interface SearchNode {
@@ -400,32 +374,20 @@ const EMPTY_ROUTE: MrtRoute = {
   stops: 0,
   changes: 0,
   meters: 0,
-  collapsedHops: 0,
-  collapsedMeters: 0,
 };
 
-function pathToRoute(
-  net: MrtNetwork,
-  arrived: SearchNode,
-  destroyed?: DestroyedEdges,
-): MrtRoute {
+function pathToRoute(net: MrtNetwork, arrived: SearchNode): MrtRoute {
   const path: SearchNode[] = [];
   for (let n: SearchNode | null = arrived; n; n = n.prev) path.unshift(n);
 
   const legs: MrtLeg[] = [];
   let meters = 0;
-  let collapsedHops = 0;
-  let collapsedMeters = 0;
   for (let i = 1; i < path.length; i++) {
     const prevStation = net.byId.get(path[i - 1].station)!;
     const station = net.byId.get(path[i].station)!;
     const line = net.lineByCode.get(path[i].line!)!;
     const hop = haversine(prevStation.lat, prevStation.lng, station.lat, station.lng);
     meters += hop;
-    if (isEdgeDestroyed(destroyed, prevStation.id, station.id)) {
-      collapsedHops += 1;
-      collapsedMeters += hop;
-    }
 
     const last = legs[legs.length - 1];
     if (last && last.line.code === line.code) {
@@ -442,15 +404,12 @@ function pathToRoute(
     stops: path.length - 1,
     changes: Math.max(0, legs.length - 1),
     meters: Math.round(meters),
-    collapsedHops,
-    collapsedMeters: Math.round(collapsedMeters),
   };
 }
 
 /**
  * Shortest ride by **fewest stations**, with a light tie-break for fewer line
- * changes. `avoid` skips collapsed bores (intact detour). `allow` walks them
- * (fewest hops, rubble included). Returns null if disconnected under that policy.
+ * changes. Returns null if the two stations aren't connected.
  *
  * Dijkstra over (station, line-you-arrived-on) pairs.
  */
@@ -458,10 +417,8 @@ export function findRoute(
   net: MrtNetwork,
   fromId: string,
   toId: string,
-  destroyed?: DestroyedEdges,
-  policy: CollapsedPolicy = 'avoid',
-  /** Extra undirected keys to skip (Yen-lite), counted separately from collapsed. */
-  forbid?: DestroyedEdges,
+  /** Undirected edge keys to skip (Yen-lite alternates). */
+  forbid?: ReadonlySet<string>,
 ): MrtRoute | null {
   const from = net.byId.get(fromId);
   const to = net.byId.get(toId);
@@ -482,8 +439,7 @@ export function findRoute(
       break;
     }
     for (const edge of net.adjacency.get(node.station) ?? []) {
-      if (isEdgeDestroyed(forbid, node.station, edge.to)) continue;
-      if (policy === 'avoid' && isEdgeDestroyed(destroyed, node.station, edge.to)) continue;
+      if (forbid?.has(edgeKey(node.station, edge.to))) continue;
       const change = node.line !== null && node.line !== edge.line;
       const cost = node.cost + HOP_COST + (change ? CHANGE_TIEBREAK : 0);
       const nextKey = `${edge.to}|${edge.line}`;
@@ -497,7 +453,7 @@ export function findRoute(
   }
 
   if (!arrived) return null;
-  return pathToRoute(net, arrived, destroyed);
+  return pathToRoute(net, arrived);
 }
 
 /** Ordered station ids along a route, including the origin. */
@@ -533,8 +489,6 @@ function yenAlts(
   fromId: string,
   toId: string,
   primary: MrtRoute,
-  destroyed: DestroyedEdges,
-  policy: CollapsedPolicy,
   seen: Set<string>,
   out: MrtRoute[],
   limit: number,
@@ -542,7 +496,7 @@ function yenAlts(
   const pathIds = routeStationIds(primary, fromId);
   for (let i = 1; i < pathIds.length && out.length < limit; i++) {
     const hopForbid = new Set([edgeKey(pathIds[i - 1], pathIds[i])]);
-    const alt = findRoute(net, fromId, toId, destroyed, policy, hopForbid);
+    const alt = findRoute(net, fromId, toId, hopForbid);
     if (!alt || alt.stops === 0) continue;
     pushUniqueRoute(out, seen, fromId, alt, limit);
   }
@@ -554,92 +508,46 @@ function yenAlts(
     const idx = pathIds.indexOf(hub);
     if (idx <= 0 || idx >= pathIds.length - 1) continue;
     const hopForbid = new Set([edgeKey(pathIds[idx], pathIds[idx + 1])]);
-    const alt = findRoute(net, fromId, toId, destroyed, policy, hopForbid);
+    const alt = findRoute(net, fromId, toId, hopForbid);
     if (!alt || alt.stops === 0) continue;
     pushUniqueRoute(out, seen, fromId, alt, limit);
   }
 }
 
 /**
- * Up to `limit` distinct routes from A to B. Default is the fewest-stop
- * **intact** path. A shorter walk that crawls collapsed bores is offered as a
- * risky shortcut. Further candidates come from briefly forbidding edges on
- * earlier paths (Yen-lite).
+ * Up to `limit` distinct routes from A to B. The first is the fewest-stop
+ * path; further candidates come from briefly forbidding edges on it (Yen-lite).
  */
-export function findRoutes(
-  net: MrtNetwork,
-  fromId: string,
-  toId: string,
-  destroyed?: DestroyedEdges,
-  limit = 3,
-): MrtRoute[] {
-  const intact = findRoute(net, fromId, toId, destroyed, 'avoid');
-  const shortest = findRoute(net, fromId, toId, destroyed, 'allow');
-  if (!intact && !shortest) return [];
+export function findRoutes(net: MrtNetwork, fromId: string, toId: string, limit = 3): MrtRoute[] {
+  const primary = findRoute(net, fromId, toId);
+  if (!primary) return [];
 
   const out: MrtRoute[] = [];
   const seen = new Set<string>();
-  if (intact) pushUniqueRoute(out, seen, fromId, intact, limit);
-  if (shortest && (!intact || shortest.stops < intact.stops)) {
-    pushUniqueRoute(out, seen, fromId, shortest, limit);
-  }
+  pushUniqueRoute(out, seen, fromId, primary, limit);
+  if (limit <= 1 || primary.stops === 0) return out;
 
-  const primary = intact ?? shortest;
-  if (!primary || limit <= 1 || primary.stops === 0) return out.slice(0, limit);
-
-  yenAlts(
-    net,
-    fromId,
-    toId,
-    primary,
-    destroyed,
-    intact ? 'avoid' : 'allow',
-    seen,
-    out,
-    limit,
-  );
-
+  yenAlts(net, fromId, toId, primary, seen, out, limit);
   return out.slice(0, limit);
 }
 
 /**
  * The ride between two locations, or null if either isn't a station the network
- * knows, the network isn't loaded, or no line connects them. Prefers an intact
- * path; falls back to a collapsed crawl if every route is ruined.
+ * knows, the network isn't loaded, or no line connects them.
  */
 export function mrtRouteBetween(
   from: { mrtStationId?: string },
   to: { mrtStationId?: string },
-  destroyed?: DestroyedEdges,
 ): MrtRoute | null {
   const net = cached;
   if (!net || !from.mrtStationId || !to.mrtStationId) return null;
-  return (
-    findRoute(net, from.mrtStationId, to.mrtStationId, destroyed, 'avoid') ??
-    findRoute(net, from.mrtStationId, to.mrtStationId, destroyed, 'allow')
-  );
-}
-
-/** Per-hop collapsed flags along an ordered station-id path (length = ids-1). */
-export function hopCollapsedFlags(
-  stationIds: readonly string[],
-  destroyed?: DestroyedEdges,
-): boolean[] {
-  const flags: boolean[] = [];
-  for (let i = 1; i < stationIds.length; i++) {
-    flags.push(isEdgeDestroyed(destroyed, stationIds[i - 1], stationIds[i]));
-  }
-  return flags;
+  return findRoute(net, from.mrtStationId, to.mrtStationId);
 }
 
 /** Human label for a planner route option. */
 export function routeOptionLabel(route: MrtRoute, index: number): string {
   const stops = `${route.stops} stop${route.stops === 1 ? '' : 's'}`;
-  if (route.collapsedHops > 0) {
-    const n = route.collapsedHops;
-    return `Through collapsed (${stops} · ${n} ruined)`;
-  }
-  if (index === 0) return `Fewest intact (${stops})`;
+  if (index === 0) return `Fewest stops (${stops})`;
   if (route.changes === 0 && route.legs[0]) {
     return `Via ${route.legs[0].line.name} · ${route.stops} stops`;
   }
