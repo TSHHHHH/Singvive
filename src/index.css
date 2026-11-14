@@ -1891,7 +1891,7 @@ select optgroup {
   will-change: transform, opacity;
 }
 .menu-map.menu-map--shown {
-  opacity: 0.85;
+  opacity: 0.95;
 }
 .menu-map.menu-map--drift {
   animation: menu-drift 24s linear both;

@@ -21,10 +21,12 @@ import { SCENES, type Scene } from '../map/menuScenes';
  * The whole map is torn down with the menu when a run starts.
  */
 
-const ZOOM = 15.7;
-const PITCH = 62;
+// Full building height is reached at z16 (buildings.ts ZOOM_RISE_SPAN); a steep
+// tilt then carries the skyline out toward the horizon.
+const ZOOM = 16;
+const PITCH = 72;
 /** Buildings inside this disc stand (and can burn); further out stay flat. */
-const REVEAL_M = 1400;
+const REVEAL_M = 4000;
 /** How long one scene drifts before the cut. Matches `menu-drift` in index.css. */
 const SCENE_MS = 24_000;
 const FADE_MS = 1100;
