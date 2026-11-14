@@ -1339,6 +1339,16 @@
     },
     "tunnel": {
       "ariaSchematic": "隧道示意图。滚动缩放，拖动平移。",
+      "serviceLines": "服务支线",
+      "lines": "线路",
+      "service": {
+        "walkway": "维修通道",
+        "cable": "电缆廊道",
+        "drain": "排水涵洞",
+        "vent": "通风横洞",
+        "evac": "紧急疏散通道",
+        "oldbore": "废弃隧道"
+      },
       "you": "你",
       "unknown": "???",
       "farAhead": "你看不了那么远",

@@ -137,16 +137,14 @@ export type ServiceKind = 'walkway' | 'cable' | 'drain' | 'vent' | 'evac' | 'old
  * (NS EW CG NE CC CE DT TE BP SE SW PE PW), and colours stay clear of the
  * official liveries so a side passage never reads as a real line.
  */
-export const SERVICE_KINDS: Record<ServiceKind, { code: string; name: string }> = {
-  walkway: { code: 'MW', name: 'Maintenance Walkway' },
-  cable: { code: 'CB', name: 'Cable Gallery' },
-  drain: { code: 'DR', name: 'Drainage Culvert' },
-  vent: { code: 'VA', name: 'Ventilation Adit' },
-  evac: { code: 'EV', name: 'Evacuation Passage' },
-  oldbore: { code: 'OB', name: 'Old Bore' },
+export const SERVICE_KINDS: Record<ServiceKind, { code: string; name: string; color: string }> = {
+  walkway: { code: 'MW', name: 'Maintenance Walkway', color: '#e8c547' },
+  cable: { code: 'CB', name: 'Cable Gallery', color: '#e2629b' },
+  drain: { code: 'DR', name: 'Drainage Culvert', color: '#62b6e8' },
+  vent: { code: 'VA', name: 'Ventilation Adit', color: '#a9c94a' },
+  evac: { code: 'EV', name: 'Evacuation Passage', color: '#20b2a6' },
+  oldbore: { code: 'OB', name: 'Old Bore', color: '#b39ddb' },
 };
-
-const SERVICE_COLORS = ['#e2629b', '#20b2a6', '#62b6e8', '#a9c94a', '#b39ddb', '#e8c547'] as const;
 
 // ------------------------------------------------------------ node table --
 
@@ -753,16 +751,16 @@ export function generateTunnelRun(rng: Rng, ctx: TunnelCtx): TunnelRun {
         if (!n) break;
         chain.push(n);
       }
-      const r = shape.fork(`svcname:${start.id}`);
-      const kind = r.pick(Object.keys(SERVICE_KINDS) as ServiceKind[]);
-      const code = SERVICE_KINDS[kind].code;
+      // Two neighbouring passages never share a kind, so they never share a colour.
       const prev = services[services.length - 1];
-      const palette = SERVICE_COLORS.filter((col) => col !== prev?.color);
+      const kinds = (Object.keys(SERVICE_KINDS) as ServiceKind[]).filter((k) => k !== prev?.kind);
+      const kind = shape.fork(`svcname:${start.id}`).pick(kinds);
+      const { code, color } = SERVICE_KINDS[kind];
       const line: ServiceLine = {
         id: `svc${services.length}`,
         code,
         kind,
-        color: r.pick(palette),
+        color,
         lane,
         nodes: chain.map((n) => n.id),
       };

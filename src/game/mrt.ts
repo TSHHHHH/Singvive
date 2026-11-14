@@ -242,6 +242,43 @@ export function displayLine(net: MrtNetwork, line: MrtLine): MrtLine {
   return (line.parent ? net.lineByCode.get(line.parent) : null) ?? line;
 }
 
+/**
+ * The line each hop of a path rides. Where two lines share a hop (City Hall →
+ * Raffles Place is both NS and EW), keep riding the line you're already on, or
+ * board the one the next hop continues on — so a trip doesn't flicker to a
+ * line it never uses.
+ */
+function hopLines(net: MrtNetwork, ids: readonly string[]): (MrtLine | null)[] {
+  const options: string[][] = [];
+  for (let i = 1; i < ids.length; i++) {
+    const codes = (net.adjacency.get(ids[i - 1]) ?? [])
+      .filter((e) => e.to === ids[i])
+      .sort((a, b) => a.meters - b.meters)
+      .map((e) => e.line);
+    options.push([...new Set(codes)]);
+  }
+  const chosen: (string | null)[] = options.map(() => null);
+  for (let i = 0; i < options.length; i++) {
+    const opts = options[i];
+    if (!opts.length) continue;
+    const prev = chosen[i - 1];
+    if (prev && opts.includes(prev)) {
+      chosen[i] = prev;
+      continue;
+    }
+    // Look ahead for the line the following hops keep using.
+    let pick = opts[0];
+    for (let j = i + 1; j < options.length; j++) {
+      const common = opts.filter((c) => options[j].includes(c));
+      if (!common.length) break;
+      pick = common[0];
+      if (common.length === 1) break;
+    }
+    chosen[i] = pick;
+  }
+  return chosen.map((c) => (c ? net.lineByCode.get(c) ?? null : null));
+}
+
 /** One hop on a planned crawl, coloured as the map draws it (branch → parent). */
 export interface JourneyHop {
   fromId: string;
@@ -316,12 +353,14 @@ export function journeyStrip(
   },
 ): JourneyStrip {
   const fallback = opts?.fallback ?? FALLBACK_HOP;
+  const lines = net ? hopLines(net, stationIds) : [];
   const hops: JourneyHop[] = [];
   for (let i = 1; i < stationIds.length; i++) {
     const fromId = stationIds[i - 1];
     const toId = stationIds[i];
     const seg = net ? adjacentEdge(net, fromId, toId) : null;
-    const shown = seg && net ? displayLine(net, seg.line) : null;
+    const line = lines[i - 1] ?? seg?.line ?? null;
+    const shown = line && net ? displayLine(net, line) : null;
     const prev = hops[hops.length - 1];
     hops.push({
       fromId,

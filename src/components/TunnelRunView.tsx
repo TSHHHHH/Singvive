@@ -11,7 +11,13 @@ import {
 import { useShallow } from 'zustand/react/shallow';
 import { useGame } from '../game/store';
 import { Icon } from '../icons/Icon';
-import { codeOnLine, journeyStrip } from '../game/mrt';
+import {
+  codeOnLine,
+  displayLine,
+  journeyStrip,
+  type JourneyStrip,
+  type MrtNetwork,
+} from '../game/mrt';
 import { FACTION_CONFIG } from '../game/factions';
 import { priceList } from '../game/events';
 import {
@@ -19,6 +25,7 @@ import {
   CARRIAGE_INVERT_MINUTES,
   CARRIAGE_SMASH_MINUTES,
   TUNNEL_HAZARD,
+  SERVICE_KINDS,
   TUNNEL_NODE_META,
   canExitHere,
   crawlPlace,
@@ -39,17 +46,18 @@ import { tip } from './tips';
 
 /**
  * One planned crawl. The header is an in-train station strip — next stop,
- * livery, transfers — then a perspective schematic of the node tree: a
- * main running line with octilinear turnouts, like a subway diagram.
+ * livery, transfers — then the crawl drawn as a metro map: the running line
+ * in each hop's real livery, platforms as interchange boxes carrying every
+ * real code, and the side passages as their own coded service lines that
+ * peel off at 45° and rejoin a few stops on.
  *
  * Replaces the map for the length of the walk (it is a view, not a modal).
  */
 
-/** Tilt of the schematic plane. Milder than a bore so the network reads as a map. */
-const TILT = 50;
-/** Side adits — a second "line" off the through running track. */
+/** Old saves have no service lines; their side passages draw in this. */
 const BRANCH_COLOR = '#c45b8c';
 const MAP_VOID = '#0c0c0e';
+const STOP_FILL = '#f4f1ea';
 const ZOOM_MIN = 0.4;
 const ZOOM_MAX = 2.7;
 
@@ -101,12 +109,6 @@ export function TunnelRunView() {
   const canWalk = !blocked && ahead.some((n) => n.id === selected.id);
   const mayExit = canExitHere(run, here);
   const place = crawlPlace(run);
-  const platformCodes: Record<string, string> = {};
-  for (let i = 0; i < strip.stops.length; i++) {
-    const stop = strip.stops[i];
-    const hop = strip.hops[i - 1] ?? strip.hops[i];
-    platformCodes[stop.id] = codeOnLine(stop, hop?.lineCode ?? '');
-  }
 
   return (
     <div className="flex h-full w-full min-h-0 min-w-0 flex-col overflow-hidden bg-concrete-950">
@@ -115,9 +117,9 @@ export function TunnelRunView() {
       {/* ---- the map ---- */}
       <TunnelMap
         run={run}
+        strip={strip}
+        net={net}
         selectedId={selected.id}
-        platformCodes={platformCodes}
-        lineColor={run.lineColor || '#9c9890'}
         onSelect={setSelectedId}
       />
 
@@ -167,9 +169,26 @@ interface FloorPt {
 interface Edge {
   key: string;
   d: string;
+  color: string;
   main: boolean;
   kind: 'latent' | 'walked' | 'live';
-  order: number;
+}
+
+/** One line on this crawl's legend: a real line leg or a service line. */
+interface LegendEntry {
+  key: string;
+  code: string;
+  name: string;
+  color: string;
+  service: boolean;
+}
+
+interface Roundel {
+  key: string;
+  code: string;
+  color: string;
+  pt: FloorPt;
+  small: boolean;
 }
 
 function fmtPt(p: FloorPt): string {
@@ -196,26 +215,19 @@ function hash01(n: number): number {
 }
 
 /**
- * Integer track offset per column. Several subway-map personalities so
- * crawls don't all share the same gentle zigzag.
+ * Integer track offset per column, so the running line bends like a real
+ * schematic instead of ruling a straight bar. A few personalities, picked by
+ * the run id; a step is at most one unit per column, so every bend is 45°.
  */
 function buildShifts(cols: number, phase: number, maxShift: number): number[] {
   const seed = Math.floor(phase * 10000);
   const out = new Array<number>(cols).fill(0);
   if (cols <= 1) return out;
-  const style = Math.floor(hash01(seed) * 5);
+  const style = Math.floor(hash01(seed) * 4);
   const clampS = (s: number) => Math.max(-maxShift, Math.min(maxShift, s));
 
   if (style === 0) {
-    const dir = hash01(seed + 1) < 0.5 ? -1 : 1;
-    let s = 0;
-    for (let c = 1; c < cols; c++) {
-      const h = hash01(seed + c * 3);
-      if (h < 0.58) s = clampS(s + dir);
-      else if (h > 0.9) s = clampS(s - dir);
-      out[c] = s;
-    }
-  } else if (style === 1) {
+    // Long straights with the odd dog-leg.
     let s = 0;
     let hold = 2 + Math.floor(hash01(seed + 9) * 3);
     for (let c = 1; c < cols; c++) {
@@ -229,41 +241,29 @@ function buildShifts(cols: number, phase: number, maxShift: number): number[] {
       hold = 2 + Math.floor(hash01(seed + c * 13) * 3);
       out[c] = s;
     }
-  } else if (style === 2) {
+  } else if (style === 1) {
+    // One gentle S across the whole trip.
     const sign = hash01(seed + 6) < 0.5 ? 1 : -1;
-    const cycles = hash01(seed + 4) < 0.45 ? 1 : 1.35;
     for (let c = 1; c < cols; c++) {
       const t = c / (cols - 1);
-      let s = Math.round(Math.sin(t * Math.PI * cycles) * maxShift * sign);
+      let s = Math.round(Math.sin(t * Math.PI * 2) * maxShift * sign);
       if (Math.abs(s - out[c - 1]) > 1) s = out[c - 1] + Math.sign(s - out[c - 1]);
       out[c] = clampS(s);
     }
-  } else if (style === 3) {
+  } else if (style === 2) {
+    // Two steps the same way, like a line crossing the river.
     const dir = hash01(seed + 7) < 0.5 ? -1 : 1;
     const a = Math.max(1, Math.floor(cols * (0.2 + hash01(seed + 8) * 0.2)));
-    const extra = maxShift > 1 && hash01(seed + 10) > 0.4 ? 1 : 0;
-    const b = Math.min(cols - 1, a + 1 + extra);
+    const b = Math.min(cols - 1, a + 2 + Math.floor(hash01(seed + 10) * 3));
     let s = 0;
     for (let c = 1; c < cols; c++) {
       if (c === a || c === b) s = clampS(s + dir);
       out[c] = s;
     }
   } else {
-    let s = 0;
-    for (let c = 1; c < cols; c++) {
-      const h = hash01(seed + c * 19);
-      if (h < 0.16) s = clampS(s - 1);
-      else if (h > 0.84) s = clampS(s + 1);
-      out[c] = s;
-    }
+    // Ruler straight.
   }
   return out;
-}
-
-function laneOffset(lane: number, phase: number): number {
-  if (lane === 1) return 0;
-  const wide = hash01(Math.floor(phase * 10000) + lane * 19) > 0.72;
-  return (lane - 1) * (wide ? 2 : 1);
 }
 
 function unit(from: FloorPt, to: FloorPt): FloorPt {
@@ -274,17 +274,32 @@ function unit(from: FloorPt, to: FloorPt): FloorPt {
 }
 
 /**
- * One rule: 45° until an axis is exhausted, then ortho. Equal |dx| and |dy|
- * is a pure diagonal — no elbow. Never a 90° hook.
+ * Metro-map routing between two stops one column apart: run straight along
+ * the line, then take the offset as one 45° diagonal centred in the gap.
+ * Nothing but 0° and 45° headings ever reaches the page.
  */
-function octilinear(a: FloorPt, b: FloorPt): FloorPt[] {
-  const dx = b.x - a.x;
-  const dy = b.y - a.y;
-  const adx = Math.abs(dx);
-  const ady = Math.abs(dy);
-  if (adx < 2 || ady < 2 || Math.abs(adx - ady) < 2) return [a, b];
-  const d = Math.min(adx, ady);
-  return [a, { x: a.x + Math.sign(dx) * d, y: a.y + Math.sign(dy) * d }, b];
+function octilinear(a: FloorPt, b: FloorPt, horizontal: boolean): FloorPt[] {
+  const along = horizontal ? b.x - a.x : b.y - a.y;
+  const across = horizontal ? b.y - a.y : b.x - a.x;
+  const aAlong = Math.abs(along);
+  const aAcross = Math.abs(across);
+  if (aAcross < 2 || aAlong < 2) return [a, b];
+  if (aAcross >= aAlong - 1) {
+    // Not enough room for a straight — diagonal then square off.
+    const d = Math.min(aAlong, aAcross);
+    const mid = horizontal
+      ? { x: a.x + Math.sign(along) * d, y: a.y + Math.sign(across) * d }
+      : { x: a.x + Math.sign(across) * d, y: a.y + Math.sign(along) * d };
+    return [a, mid, b];
+  }
+  const straight = (aAlong - aAcross) / 2;
+  const p1 = horizontal
+    ? { x: a.x + Math.sign(along) * straight, y: a.y }
+    : { x: a.x, y: a.y + Math.sign(along) * straight };
+  const p2 = horizontal
+    ? { x: b.x - Math.sign(along) * straight, y: b.y }
+    : { x: b.x, y: b.y - Math.sign(along) * straight };
+  return [a, p1, p2, b];
 }
 
 /** Circular fillets, same radius on every 45° heading change. */
@@ -319,40 +334,56 @@ function roundedPath(pts: FloorPt[], radius: number): string {
   return d;
 }
 
-/** Prefer lane 1 (and platforms) so the spine is the through running line. */
-function mainSpine(run: TunnelRun): Set<string> {
-  const ids = new Set<string>();
-  let cur = run.columns[0]?.[0];
-  const seen = new Set<string>();
-  while (cur && !seen.has(cur)) {
-    seen.add(cur);
-    ids.add(cur);
-    const node = run.nodes[cur];
-    if (!node?.next.length) break;
-    const kids = node.next.map((id) => run.nodes[id]).filter(Boolean);
-    kids.sort(
-      (a, b) => Math.abs(a.lane - 1) - Math.abs(b.lane - 1) || a.lane - b.lane,
-    );
-    cur = kids[0]?.id;
-  }
-  return ids;
+/** Which station hop (0-based) a column sits in. A platform opens the hop after it. */
+function hopAt(platformCols: readonly number[], col: number, hopCount: number): number {
+  let n = 0;
+  for (const pc of platformCols) if (pc <= col) n++;
+  return clamp(n - 1, 0, Math.max(0, hopCount - 1));
 }
 
 /**
- * Graph laid out as a tilted schematic. Edges are octilinear; CSS perspective
- * recedes the network without turning strokes into a 3D bore.
+ * Codes for every stop on the running line: platforms keep their real code on
+ * the hop's line; the tunnel between EW14 and EW15 counts EW14·1, EW14·2…
+ */
+function runningCodes(
+  run: TunnelRun,
+  strip: JourneyStrip,
+  platformCols: readonly number[],
+): Map<string, string> {
+  const out = new Map<string, string>();
+  const counter = new Map<number, number>();
+  for (const ids of run.columns) {
+    for (const id of ids) {
+      const node = run.nodes[id];
+      if (!node || node.lane !== 1 || node.kind === 'platform') continue;
+      const hop = hopAt(platformCols, node.col, strip.hops.length);
+      const from = strip.stops[hop];
+      const line = strip.hops[hop]?.lineCode ?? '';
+      const base = from ? codeOnLine(from, line) : '';
+      const k = (counter.get(hop) ?? 0) + 1;
+      counter.set(hop, k);
+      out.set(id, base ? `${base}·${k}` : `·${k}`);
+    }
+  }
+  return out;
+}
+
+/**
+ * The crawl as a metro map. Flat, octilinear, and laid along whichever axis
+ * the panel is longer in, so a desktop column reads left to right and a phone
+ * reads bottom to top.
  */
 function TunnelMap({
   run,
+  strip,
+  net,
   selectedId,
-  platformCodes,
-  lineColor,
   onSelect,
 }: {
   run: TunnelRun;
+  strip: JourneyStrip;
+  net: MrtNetwork | null;
   selectedId: string;
-  platformCodes: Record<string, string>;
-  lineColor: string;
   onSelect: (id: string) => void;
 }) {
   const surfaceRef = useRef<HTMLDivElement>(null);
@@ -377,8 +408,9 @@ function TunnelMap({
   const here = currentNode(run);
   const phase = useMemo(() => seedPhase(run.id), [run.id]);
   const camRef = useRef({ x: 0, y: 0, z: 1 });
-  const { t } = useT();
+  const { locale, t } = useT();
   const ariaLabel = t('ui.tunnel.ariaSchematic');
+  const horizontal = view.w > 0 && view.w >= view.h * 1.15;
 
   useLayoutEffect(() => {
     const el = surfaceRef.current;
@@ -393,42 +425,54 @@ function TunnelMap({
   const layout = useMemo(() => {
     const maxCol = Object.values(run.nodes).reduce((m, n) => Math.max(m, n.col), 0);
     const cols = Math.max(2, run.columns.length, maxCol + 1);
-    const cell = 112;
-    const pad = 96;
-    const maxShift = 3;
+    // Along the line / across it. Labels sit across in the vertical layout,
+    // so lanes need more room there.
+    const along = horizontal ? 132 : 104;
+    const across = horizontal ? 92 : 132;
+    const pad = 120;
+    const maxShift = 1;
     const shifts = buildShifts(cols, phase, maxShift);
-    const yAt: number[] = new Array(cols);
-    yAt[cols - 1] = pad;
-    for (let c = cols - 2; c >= 0; c--) {
-      yAt[c] = (yAt[c + 1] ?? pad) + cell;
-    }
+    const services = new Map((run.services ?? []).map((s) => [s.id, s]));
+    const platformCols = Object.values(run.nodes)
+      .filter((n) => n.kind === 'platform')
+      .map((n) => n.col)
+      .sort((a, b) => a - b);
+
     const at = new Map<string, FloorPt>();
     for (const node of Object.values(run.nodes)) {
-      const shift = shifts[node.col] ?? 0;
-      at.set(node.id, {
-        x: pad + (shift + laneOffset(node.lane, phase) + maxShift) * cell,
-        y: yAt[node.col] ?? pad + (cols - 1 - node.col) * cell,
-      });
+      const v = (shifts[node.col] ?? 0) + (node.lane - 1) + maxShift + 1;
+      const u = node.col;
+      at.set(
+        node.id,
+        horizontal
+          ? { x: pad + u * along, y: pad + v * across }
+          : { x: pad + v * across, y: pad + (cols - 1 - u) * along },
+      );
     }
     let maxX = pad;
     let maxY = pad;
     for (const pt of at.values()) {
-      if (!Number.isFinite(pt.x) || !Number.isFinite(pt.y)) continue;
       maxX = Math.max(maxX, pt.x);
       maxY = Math.max(maxY, pt.y);
     }
     const worldW = Math.max(maxX + pad, 320);
     const worldH = Math.max(maxY + pad, 320);
-    const spine = mainSpine(run);
+
+    const hopColor = (col: number) =>
+      strip.hops[hopAt(platformCols, col, strip.hops.length)]?.color || run.lineColor || '#9c9890';
+    const serviceOf = (node: TunnelNode) => (node.service ? services.get(node.service) : undefined);
+
     const edges: Edge[] = [];
-    const cornerR = cell * 0.42;
+    const cornerR = Math.min(along, across) * 0.5;
     for (const node of Object.values(run.nodes)) {
       for (const nextId of node.next) {
         const target = run.nodes[nextId];
         const a = at.get(node.id);
         const b = at.get(nextId);
         if (!target || !a || !b) continue;
-        const main = spine.has(node.id) && spine.has(target.id);
+        const main = node.lane === 1 && target.lane === 1;
+        const svc = serviceOf(node) ?? serviceOf(target);
+        const color = main ? hopColor(node.col) : (svc?.color ?? BRANCH_COLOR);
         const kind: Edge['kind'] =
           node.id === here.id
             ? 'live'
@@ -437,53 +481,110 @@ function TunnelMap({
               : 'latent';
         edges.push({
           key: `${node.id}>${nextId}`,
-          d: roundedPath(octilinear(a, b), cornerR),
+          d: roundedPath(octilinear(a, b, horizontal), cornerR),
+          color,
           main,
           kind,
-          order: node.col + target.col,
         });
       }
     }
-    edges.sort((a, b) => Number(a.main) - Number(b.main) || b.order - a.order);
+    // Service lines under the running line, like a real map's trunk.
+    edges.sort((x, y) => Number(x.main) - Number(y.main));
 
-    const hubs = Object.values(run.nodes)
-      .filter((n) => n.kind === 'platform')
-      .map((n) => ({ id: n.id, pt: at.get(n.id)! }))
-      .filter((h) => h.pt);
+    // A running-line stop where a service line peels off or rejoins is an
+    // interchange; so is a service stop with a crossover back to the trunk.
+    const interchange = new Set<string>();
+    for (const node of Object.values(run.nodes)) {
+      for (const nextId of node.next) {
+        const target = run.nodes[nextId];
+        if (!target || node.lane === target.lane) continue;
+        interchange.add(node.id);
+        interchange.add(target.id);
+      }
+    }
+
+    // Roundels: each real line where the trip boards it, each service line
+    // where it peels off. Offset outward so they never sit on a stop.
+    const roundels: Roundel[] = [];
+    const legend: LegendEntry[] = [];
+    let lastLine = '';
+    for (let h = 0; h < strip.hops.length; h++) {
+      const hop = strip.hops[h];
+      if (hop.lineCode === lastLine) continue;
+      lastLine = hop.lineCode;
+      legend.push({
+        key: `line-${h}`,
+        code: hop.lineCode,
+        name: hop.lineName,
+        color: hop.color,
+        service: false,
+      });
+      const pc = platformCols[h];
+      const anchor = pc !== undefined ? run.columns[pc]?.[0] : undefined;
+      const pt = anchor ? at.get(anchor) : undefined;
+      if (!pt) continue;
+      // Platform columns never carry side passages, so straight across from
+      // the box is always clear.
+      const off = horizontal ? { x: pt.x, y: pt.y - across * 0.85 } : { x: pt.x - across * 1.05, y: pt.y };
+      roundels.push({ key: `r-${h}`, code: hop.lineCode, color: hop.color, pt: off, small: false });
+    }
+    const listed = new Set<string>();
+    for (const svc of run.services ?? []) {
+      if (listed.has(svc.kind)) continue;
+      listed.add(svc.kind);
+      legend.push({
+        key: svc.id,
+        code: svc.code,
+        name: msgOr(`ui.tunnel.service.${svc.kind}`, SERVICE_KINDS[svc.kind]?.name ?? svc.code, undefined, locale),
+        color: svc.color,
+        service: true,
+      });
+    }
+
+    const codes = runningCodes(run, strip, platformCols);
 
     const dots = Object.values(run.nodes)
       .map((n) => {
         const pt = at.get(n.id);
-        if (!pt) return null;
-        return {
-          id: n.id,
-          pt,
-          hub: n.kind === 'platform',
-          main: spine.has(n.id),
-        };
+        if (!pt || n.kind === 'platform') return null;
+        return { id: n.id, pt, interchange: interchange.has(n.id), color: n.lane === 1 ? hopColor(n.col) : (serviceOf(n)?.color ?? BRANCH_COLOR) };
       })
       .filter((d): d is NonNullable<typeof d> => !!d);
 
-    return { at, edges, hubs, dots, cell, worldW, worldH };
-  }, [run, here.id, phase]);
+    return {
+      at,
+      edges,
+      dots,
+      roundels,
+      legend,
+      codes,
+      services,
+      hopColor,
+      along,
+      across,
+      worldW,
+      worldH,
+    };
+  }, [run, strip, here.id, phase, horizontal, locale]);
 
   const homeCam = useMemo(() => {
     const pt = layout.at.get(here.id);
     const vw = view.w || 720;
     const vh = view.h || 480;
-    const z = clamp(vh / (layout.cell * 5.4), 0.55, 1.2);
-    if (!pt || !Number.isFinite(pt.x) || !Number.isFinite(pt.y)) {
-      return { z, x: vw / 2, y: vh * 0.72 };
-    }
-    return { z, x: vw / 2 - pt.x * z, y: vh * 0.72 - pt.y * z };
-  }, [layout, here.id, view.w, view.h]);
+    const span = horizontal ? vw / (layout.along * 5.2) : vh / (layout.along * 5.6);
+    const z = clamp(span, 0.55, 1.15);
+    const ax = horizontal ? vw * 0.3 : vw / 2;
+    const ay = horizontal ? vh / 2 : vh * 0.72;
+    if (!pt) return { z, x: ax, y: ay };
+    return { z, x: ax - pt.x * z, y: ay - pt.y * z };
+  }, [layout, here.id, view.w, view.h, horizontal]);
 
   const applied = cam ?? homeCam;
   camRef.current = applied;
 
   useLayoutEffect(() => {
     setCam(null);
-  }, [run.id]);
+  }, [run.id, horizontal]);
 
   const zoomAt = useCallback((cx: number, cy: number, nextZ: number) => {
     const cur = camRef.current;
@@ -505,7 +606,6 @@ function TunnelMap({
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
   }, [zoomAt]);
-
   const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0 && e.pointerType === 'mouse') return;
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -595,6 +695,12 @@ function TunnelMap({
     panned.current = false;
   };
 
+
+  const platformBox = (node: TunnelNode) => {
+    const stop = node.stationIndex !== undefined ? strip.stops[node.stationIndex] : undefined;
+    return { stop, codes: stop?.codes.length ? stop.codes : node.stationId ? [node.stationId] : [] };
+  };
+
   return (
     <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
       <div
@@ -604,186 +710,275 @@ function TunnelMap({
         className={`relative min-h-0 min-w-0 flex-1 touch-none overflow-hidden ${
           dragging ? 'cursor-grabbing' : 'cursor-grab'
         }`}
-        style={{ perspective: '1600px', perspectiveOrigin: '50% 30%' }}
+        style={{
+          backgroundColor: MAP_VOID,
+          backgroundImage:
+            'radial-gradient(circle at 1px 1px, rgba(232,229,221,0.06) 1px, transparent 0)',
+          backgroundSize: '24px 24px',
+        }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={endPan}
         onPointerCancel={endPan}
         onClickCapture={onClickCapture}
       >
-        {layout && (
-          <div
-            className="absolute inset-0 origin-bottom"
-            style={{
-              transform: `rotateX(${TILT}deg)`,
-              transformStyle: 'preserve-3d',
-            }}
+        <div
+          className="absolute left-0 top-0"
+          style={{
+            width: layout.worldW,
+            height: layout.worldH,
+            transform: `translate(${applied.x}px, ${applied.y}px) scale(${applied.z})`,
+            transformOrigin: '0 0',
+          }}
+        >
+          <svg
+            className="pointer-events-none absolute inset-0 overflow-visible"
+            width={layout.worldW}
+            height={layout.worldH}
+            aria-hidden
           >
-            <div
-              className="absolute left-0 top-0"
-              style={{
-                width: layout.worldW,
-                height: layout.worldH,
-                transform: `translate(${applied.x}px, ${applied.y}px) scale(${applied.z})`,
-                transformOrigin: '0 0',
-              }}
-            >
-            <svg
-              className="pointer-events-none absolute inset-0 overflow-visible"
-              width={layout.worldW}
-              height={layout.worldH}
-              aria-hidden
-            >
-              <defs>
-                <filter id="sv-line-glow" x="-40%" y="-40%" width="180%" height="180%">
-                  <feGaussianBlur stdDeviation="2.2" result="b" />
-                  <feMerge>
-                    <feMergeNode in="b" />
-                    <feMergeNode in="SourceGraphic" />
-                  </feMerge>
-                </filter>
-              </defs>
-              {layout.hubs.map((h) => (
-                <g key={`hub-${h.id}`} opacity={0.85}>
-                  <circle
-                    cx={h.pt.x}
-                    cy={h.pt.y}
-                    r={layout.cell * 0.42}
-                    fill="none"
-                    stroke={lineColor}
-                    strokeWidth={1.4}
-                    opacity={0.45}
-                    vectorEffect="non-scaling-stroke"
-                  />
-                  <circle
-                    cx={h.pt.x}
-                    cy={h.pt.y}
-                    r={layout.cell * 0.58}
-                    fill="none"
-                    stroke={BRANCH_COLOR}
-                    strokeWidth={1.2}
-                    opacity={0.32}
-                    vectorEffect="non-scaling-stroke"
-                  />
-                  <circle
-                    cx={h.pt.x}
-                    cy={h.pt.y}
-                    r={layout.cell * 0.74}
-                    fill="none"
-                    stroke={lineColor}
-                    strokeWidth={1}
-                    opacity={0.16}
-                    vectorEffect="non-scaling-stroke"
-                  />
-                </g>
-              ))}
-              {layout.edges.map((e) => (
+            <defs>
+              <filter
+                id="sv-line-glow"
+                filterUnits="userSpaceOnUse"
+                x={0}
+                y={0}
+                width={layout.worldW}
+                height={layout.worldH}
+              >
+                <feGaussianBlur stdDeviation="3" result="b" />
+                <feMerge>
+                  <feMergeNode in="b" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+            </defs>
+            {layout.edges.map((e) => (
+              <path
+                key={`case-${e.key}`}
+                d={e.d}
+                fill="none"
+                stroke={MAP_VOID}
+                strokeWidth={e.main ? 16 : 12}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            ))}
+            {layout.edges.map((e) => (
+              <path
+                key={`line-${e.key}`}
+                d={e.d}
+                fill="none"
+                stroke={e.color}
+                strokeWidth={e.main ? 10 : 6.5}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                opacity={e.kind === 'walked' ? 0.32 : e.kind === 'live' ? 1 : 0.9}
+                filter={e.kind === 'live' ? 'url(#sv-line-glow)' : undefined}
+              />
+            ))}
+            {layout.edges
+              .filter((e) => e.kind === 'live')
+              .map((e) => (
                 <path
-                  key={`case-${e.key}`}
+                  key={`live-${e.key}`}
                   d={e.d}
                   fill="none"
+                  stroke="#ffffff"
+                  strokeWidth={2}
+                  strokeLinecap="round"
+                  strokeDasharray="6 10"
+                  opacity={0.85}
+                >
+                  <animate attributeName="stroke-dashoffset" from="32" to="0" dur="1.2s" repeatCount="indefinite" />
+                </path>
+              ))}
+            {layout.dots.map((d) =>
+              d.interchange ? (
+                <rect
+                  key={`dot-${d.id}`}
+                  x={d.pt.x - 11}
+                  y={d.pt.y - 11}
+                  width={22}
+                  height={22}
+                  rx={7}
+                  fill={STOP_FILL}
                   stroke={MAP_VOID}
-                  strokeWidth={e.main ? 14 : 8}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  opacity={e.kind === 'walked' ? 0.55 : 0.95}
-                  vectorEffect="non-scaling-stroke"
+                  strokeWidth={3.5}
                 />
-              ))}
-              {layout.edges.map((e) => (
-                <path
-                  key={`line-${e.key}`}
-                  d={e.d}
-                  fill="none"
-                  stroke={e.main ? lineColor : BRANCH_COLOR}
-                  strokeWidth={e.main ? 8 : 3.5}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  opacity={e.kind === 'walked' ? 0.45 : e.kind === 'live' ? 1 : 0.82}
-                  filter={e.kind === 'live' ? 'url(#sv-line-glow)' : undefined}
-                  vectorEffect="non-scaling-stroke"
-                />
-              ))}
-              {layout.edges
-                .filter((e) => e.main)
-                .map((e) => (
-                  <path
-                    key={`gap-${e.key}`}
-                    d={e.d}
-                    fill="none"
-                    stroke={MAP_VOID}
-                    strokeWidth={3.2}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    opacity={e.kind === 'walked' ? 0.5 : 0.95}
-                    vectorEffect="non-scaling-stroke"
-                  />
-                ))}
-              {layout.edges
-                .filter((e) => e.kind === 'live')
-                .map((e) => (
-                  <path
-                    key={`live-${e.key}`}
-                    d={e.d}
-                    fill="none"
-                    stroke="#f4f1ea"
-                    strokeWidth={1.6}
-                    strokeLinecap="round"
-                    strokeDasharray="7 11"
-                    opacity={0.7}
-                    vectorEffect="non-scaling-stroke"
-                  />
-                ))}
-              {layout.dots.map((d) => (
+              ) : (
                 <circle
                   key={`dot-${d.id}`}
                   cx={d.pt.x}
                   cy={d.pt.y}
-                  r={d.hub ? 7.5 : 5}
-                  fill={d.hub ? lineColor : d.main ? '#e8e6e1' : BRANCH_COLOR}
+                  r={7.5}
+                  fill={STOP_FILL}
                   stroke={MAP_VOID}
-                  strokeWidth={2}
-                  vectorEffect="non-scaling-stroke"
+                  strokeWidth={3.5}
                 />
-              ))}
-            </svg>
+              ),
+            )}
+            {layout.roundels.map((r) => (
+              <g key={r.key}>
+                <circle cx={r.pt.x} cy={r.pt.y} r={20} fill={STOP_FILL} stroke={r.color} strokeWidth={6} />
+                <text
+                  x={r.pt.x}
+                  y={r.pt.y + 5}
+                  textAnchor="middle"
+                  fontSize={14}
+                  fontWeight={800}
+                  fill="#111"
+                  style={{ fontFamily: 'inherit' }}
+                >
+                  {r.code}
+                </text>
+              </g>
+            ))}
+          </svg>
 
-            {run.columns.flatMap((ids) =>
-              ids.map((id) => {
-                const node = run.nodes[id];
-                const pt = layout.at.get(id);
-                if (!node || !pt) return null;
+          {run.columns.flatMap((ids) =>
+            ids.map((id) => {
+              const node = run.nodes[id];
+              const pt = layout.at.get(id);
+              if (!node || !pt) return null;
+              if (node.kind === 'platform') {
+                const { stop, codes } = platformBox(node);
                 return (
-                  <NodePip
+                  <PlatformBox
                     key={node.id}
                     run={run}
                     node={node}
                     x={pt.x}
                     y={pt.y}
+                    name={stop?.name ?? node.name}
+                    codes={codes}
+                    net={net}
+                    fallbackColor={layout.hopColor(node.col)}
                     selected={node.id === selectedId}
-                    platformCode={
-                      node.kind === 'platform' && node.stationId
-                        ? platformCodes[node.stationId]
-                        : undefined
-                    }
                     onSelect={onSelect}
                   />
                 );
-              }),
-            )}
-            </div>
-          </div>
-        )}
+              }
+              const svc = node.service ? layout.services.get(node.service) : undefined;
+              const code = node.lane === 1 ? layout.codes.get(id) : node.code;
+              const color = node.lane === 1 ? layout.hopColor(node.col) : (svc?.color ?? BRANCH_COLOR);
+              return (
+                <NodePip
+                  key={node.id}
+                  run={run}
+                  node={node}
+                  x={pt.x}
+                  y={pt.y}
+                  code={code}
+                  color={color}
+                  side={horizontal ? (node.lane === 0 ? 'above' : 'below') : node.lane === 0 ? 'left' : 'right'}
+                  selected={node.id === selectedId}
+                  onSelect={onSelect}
+                />
+              );
+            }),
+          )}
+        </div>
 
-        <div
-          className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-concrete-950 via-concrete-950/70 to-transparent"
-          aria-hidden
-        />
-        <div
-          className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-concrete-950/80 to-transparent"
-          aria-hidden
-        />
+        <CrawlLegend entries={layout.legend} compact={view.w > 0 && view.w < 560} />
       </div>
+    </div>
+  );
+}
+
+/** Dark text on the light liveries (gold, lime), white on the rest. */
+function inkOn(hex: string): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex);
+  if (!m) return '#fff';
+  const n = parseInt(m[1], 16);
+  const r = (n >> 16) & 255;
+  const g = (n >> 8) & 255;
+  const b = n & 255;
+  return 0.299 * r + 0.587 * g + 0.114 * b > 160 ? '#111' : '#fff';
+}
+
+/** A station code chip: line colour block, code in bold, like a platform sign. */
+function CodeBadge({ code, color, size = 'sm' }: { code: string; color: string; size?: 'sm' | 'md' }) {
+  return (
+    <span
+      className={`inline-block rounded-[3px] font-bold leading-none tabular-nums ${
+        size === 'md' ? 'px-1.5 py-[3px] text-body' : 'px-1 py-[2px] text-micro'
+      }`}
+      style={{ background: color, color: inkOn(color) }}
+    >
+      {code}
+    </span>
+  );
+}
+
+function codeColor(net: MrtNetwork | null, code: string, fallback: string): string {
+  const prefix = code.replace(/[0-9].*$/, '');
+  const line = net?.lineByCode.get(prefix);
+  if (!line || !net) return fallback;
+  return displayLine(net, line).color;
+}
+
+function stateRing(isHere: boolean, isNext: boolean): string {
+  if (isHere) return 'ring-2 ring-astral shadow-[0_0_18px_rgba(43,196,217,0.55)]';
+  if (isNext) return 'ring-2 ring-signal/80';
+  return '';
+}
+
+/** A real station on the trip, drawn as a metro-map interchange box. */
+function PlatformBox({
+  run,
+  node,
+  x,
+  y,
+  name,
+  codes,
+  net,
+  fallbackColor,
+  selected,
+  onSelect,
+}: {
+  run: TunnelRun;
+  node: TunnelNode;
+  x: number;
+  y: number;
+  name: string;
+  codes: string[];
+  net: MrtNetwork | null;
+  fallbackColor: string;
+  selected: boolean;
+  onSelect: (id: string) => void;
+}) {
+  const { t } = useT();
+  const here = currentNode(run);
+  const isHere = node.id === here.id;
+  const isNext = here.next.includes(node.id);
+  const revealed = isRevealed(run, node);
+  const past = node.state === 'done' && !isHere;
+  return (
+    <div
+      className="absolute"
+      style={{ left: x, top: y, zIndex: 300, transform: 'translate(-50%, -50%)', opacity: past ? 0.55 : 1 }}
+    >
+      <button
+        type="button"
+        onClick={() => onSelect(node.id)}
+        disabled={!revealed && !isNext}
+        {...tip(t('ui.tunnel.metaTitle', { label: t('ui.tunnel.meta.platform.label'), name }))}
+        className={`flex items-center gap-2 rounded-xl border-[3px] border-[#e8e6e1] bg-[#121214] px-3 py-1.5 text-left ${stateRing(
+          isHere,
+          isNext,
+        )} ${selected ? 'outline outline-1 outline-offset-4 outline-concrete-200/50' : ''}`}
+      >
+        <span className="flex flex-col">
+          <span className="max-w-[9rem] truncate text-read font-bold leading-tight text-white">{name}</span>
+          {isHere && <span className="text-micro uppercase tracking-wider text-astral">{t('ui.tunnel.you')}</span>}
+        </span>
+        <span className="flex flex-col gap-[3px]">
+          {codes.map((c) => (
+            <CodeBadge key={c} code={c} color={codeColor(net, c, fallbackColor)} />
+          ))}
+        </span>
+      </button>
     </div>
   );
 }
@@ -793,16 +988,20 @@ function NodePip({
   node,
   x,
   y,
+  code,
+  color,
+  side,
   selected,
-  platformCode,
   onSelect,
 }: {
   run: TunnelRun;
   node: TunnelNode;
   x: number;
   y: number;
+  code?: string;
+  color: string;
+  side: 'above' | 'below' | 'left' | 'right';
   selected: boolean;
-  platformCode?: string;
   onSelect: (id: string) => void;
 }) {
   const { locale, t } = useT();
@@ -810,36 +1009,17 @@ function NodePip({
   const isHere = node.id === here.id;
   const isNext = here.next.includes(node.id);
   const revealed = isRevealed(run, node);
+  const past = node.state === 'done' && !isHere;
   const meta = TUNNEL_NODE_META[node.kind];
-  const metaLabel = msgOr(
-    `ui.tunnel.meta.${node.kind}.label`,
-    meta.label,
-    undefined,
-    locale,
-  );
-  const showLabel = isHere || isNext || node.col <= here.col + 2;
+  const metaLabel = msgOr(`ui.tunnel.meta.${node.kind}.label`, meta.label, undefined, locale);
+  const name = revealed ? node.name : t('ui.tunnel.unknown');
 
-  const discTone = isHere
-    ? 'border-astral bg-astral/25 shadow-[0_0_16px_rgba(110,180,220,0.45)]'
-    : isNext
-      ? 'border-signal/80 bg-signal/10'
-      : 'border-transparent bg-transparent';
-
-  const iconTone = isHere
-    ? 'text-astral'
-    : isNext
-      ? 'text-signal'
-      : node.state === 'done'
-        ? 'text-concrete-400'
-        : 'text-concrete-400';
-
-  const label = isHere
-    ? t('ui.tunnel.you')
-    : revealed
-      ? (platformCode ?? node.name)
-      : t('ui.tunnel.unknown');
-
-  const pad = node.kind === 'platform' ? 'h-11 w-11' : 'h-9 w-9';
+  const labelPos: Record<typeof side, string> = {
+    above: 'bottom-full left-1/2 -translate-x-1/2 mb-1.5 items-center text-center',
+    below: 'top-full left-1/2 -translate-x-1/2 mt-1.5 items-center text-center',
+    left: 'right-full top-1/2 -translate-y-1/2 mr-1.5 items-end text-right',
+    right: 'left-full top-1/2 -translate-y-1/2 ml-1.5 items-start text-left',
+  };
 
   return (
     <div
@@ -847,48 +1027,89 @@ function NodePip({
       style={{
         left: x,
         top: y,
-        zIndex: 400 - node.col,
+        zIndex: isHere || isNext ? 250 : 200,
         transform: 'translate(-50%, -50%)',
-        transformStyle: 'preserve-3d',
-        opacity: isHere || isNext || revealed ? 1 : 0.5,
+        opacity: past ? 0.45 : revealed || isNext ? 1 : 0.6,
       }}
     >
       <button
         type="button"
         onClick={() => onSelect(node.id)}
         disabled={!revealed && !isNext}
-        {...tip(
-          revealed
-            ? t('ui.tunnel.metaTitle', { label: metaLabel, name: node.name })
-            : t('ui.tunnel.farAhead'),
-        )}
-        className={`relative block ${pad} ${selected ? 'outline outline-1 outline-offset-2 outline-concrete-200/40' : ''}`}
+        {...tip(revealed ? t('ui.tunnel.metaTitle', { label: metaLabel, name: node.name }) : t('ui.tunnel.farAhead'))}
+        className={`relative block h-9 w-9 rounded-full ${selected ? 'outline outline-1 outline-offset-2 outline-concrete-200/50' : ''}`}
       >
         <span
-          className={`absolute inset-[18%] rounded-full border ${discTone} ${
-            isNext ? 'hover:bg-signal/20' : ''
+          className={`absolute inset-[22%] rounded-full ${stateRing(isHere, isNext)} ${
+            isNext ? 'hover:bg-signal/25' : ''
           }`}
         />
       </button>
       <div
-        className="pointer-events-none absolute bottom-1/2 left-1/2 flex flex-col items-center"
-        style={{
-          transform: `translate(-50%, -100%) rotateX(-${TILT}deg)`,
-          transformOrigin: 'center bottom',
-        }}
+        className={`pointer-events-none absolute flex w-max max-w-[8.5rem] flex-col gap-0.5 rounded bg-[#0c0c0e]/80 px-1 py-0.5 ${labelPos[side]}`}
       >
-        <span className={iconTone}>
-          <Icon name={revealed ? meta.icon : 'tunnel.unknown'} size={isHere ? 28 : 24} />
-        </span>
-        {showLabel && (
-          <span className="mt-0.5 max-w-[9.5rem] truncate text-center text-body font-semibold leading-tight text-concrete-200">
-            {label}
-            {revealed && isNext && node.kind !== 'platform' ? (
-              <span className="text-hiss"> ▲{nodeThreat(node)}</span>
-            ) : null}
+        <span className="flex items-center gap-1">
+          {code && <CodeBadge code={code} color={color} />}
+          <span className={isHere ? 'text-astral' : isNext ? 'text-signal' : 'text-concrete-400'}>
+            <Icon name={revealed ? meta.icon : 'tunnel.unknown'} size={16} />
           </span>
-        )}
+        </span>
+        <span
+          className={`max-w-[8.5rem] truncate text-body font-semibold leading-tight ${
+            isHere ? 'text-astral' : revealed ? 'text-concrete-100' : 'text-concrete-400'
+          }`}
+        >
+          {isHere ? t('ui.tunnel.you') : name}
+          {revealed && isNext ? <span className="text-hiss"> ▲{nodeThreat(node)}</span> : null}
+        </span>
       </div>
+    </div>
+  );
+}
+
+/** Lines on this crawl, metro-legend style: real lines first, then service lines. */
+function CrawlLegend({ entries, compact }: { entries: LegendEntry[]; compact: boolean }) {
+  const { t } = useT();
+  const [open, setOpen] = useState<boolean | null>(null);
+  if (!entries.length) return null;
+  const shown = open ?? !compact;
+  if (!shown) {
+    return (
+      <button
+        type="button"
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={() => setOpen(true)}
+        className="absolute right-2 top-2 z-[500] flex items-center gap-1 rounded border border-white/15 bg-concrete-900/90 px-2 py-1 text-micro text-white/75 shadow-signage"
+      >
+        {entries.map((e) => (
+          <span key={e.key} className="inline-block h-2.5 w-1 rounded-sm" style={{ background: e.color }} />
+        ))}
+        <span className="ml-1">{t('ui.tunnel.lines')}</span>
+      </button>
+    );
+  }
+  return (
+    <div
+      className={`absolute right-2 top-2 z-[500] max-w-[46%] rounded border border-white/15 bg-concrete-900/90 p-2 text-micro text-white/75 shadow-signage ${
+        compact ? 'max-w-[70%] cursor-pointer' : 'pointer-events-none'
+      }`}
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={compact ? () => setOpen(false) : undefined}
+    >
+      {entries.map((e, i) => (
+        <div key={e.key}>
+          {e.service && !entries[i - 1]?.service && (
+            <div className="mb-0.5 mt-1 border-t border-white/10 pt-1 uppercase tracking-wider text-white/40">
+              {t('ui.tunnel.serviceLines')}
+            </div>
+          )}
+          <div className="flex items-center gap-1.5 py-[1px]">
+            <span className="inline-block h-1 w-5 shrink-0 rounded" style={{ background: e.color }} />
+            <CodeBadge code={e.code} color={e.color} />
+            <span className="truncate">{e.name}</span>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

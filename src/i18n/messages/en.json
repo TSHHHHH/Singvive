@@ -1339,6 +1339,16 @@
     },
     "tunnel": {
       "ariaSchematic": "Tunnel schematic. Scroll to zoom, drag to pan.",
+      "serviceLines": "Service lines",
+      "lines": "Lines",
+      "service": {
+        "walkway": "Maintenance Walkway",
+        "cable": "Cable Gallery",
+        "drain": "Drainage Culvert",
+        "vent": "Ventilation Adit",
+        "evac": "Evacuation Passage",
+        "oldbore": "Old Bore"
+      },
       "you": "you",
       "unknown": "???",
       "farAhead": "You cannot see that far ahead",
