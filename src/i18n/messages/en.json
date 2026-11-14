@@ -22,6 +22,8 @@
       "subtitle": "18000+ real locations · permadeath · extract or die",
       "newSurvivor": "New Survivor",
       "continueRun": "Continue Run",
+      "continueDetail": "Day {day} · {time}",
+      "unknownPlace": "Somewhere on the island",
       "topScores": "Top scores",
       "loadingWorld": "Loading worldwide scores…",
       "worldUnreachable": "Worldwide board unreachable.",
