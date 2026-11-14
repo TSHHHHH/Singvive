@@ -1854,6 +1854,8 @@ select optgroup {
 @keyframes dice-verdict {
   0% { transform: scale(1.7); opacity: 0; letter-spacing: 0.4em; }
   100% { transform: scale(1); opacity: 1; }
+}
+
 /* Vital meter change tag: pops in beside the number, then drifts off. */
 @keyframes vital-delta {
   0% {
