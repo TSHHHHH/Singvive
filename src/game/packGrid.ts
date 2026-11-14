@@ -6,7 +6,7 @@ export type PackGrid = {
 };
 
 /** Base pack with no bag equipped. Keep in sync with `BACKPACK_DIMS`. */
-export const DEFAULT_PACK_GRID: PackGrid = { w: 5, h: 4 };
+export const DEFAULT_PACK_GRID: PackGrid = { w: 3, h: 2 };
 
 /** Starting silhouette when the loot editor sets slot to bag. */
 export const DEFAULT_BAG_PACK_GRID: PackGrid = { w: 6, h: 4 };
