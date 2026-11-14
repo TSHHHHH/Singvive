@@ -1421,6 +1421,7 @@ export function GameScreen() {
            behind it — opaque, so nothing shows through mid-slide. On mobile the
            slide-out covers the whole screen, so the rail stays below it. */}
       <aside
+        data-inventory-zone
         className={`relative flex-col border-white/10 bg-concrete-900/70 lg:z-[750] lg:flex lg:h-full lg:w-[408px] lg:shrink-0 lg:border-r lg:bg-concrete-900 ${
           mobileView === 'hub' ? show(true) : 'hidden'
         } lg:flex ${backgrounded}`}
@@ -1615,7 +1616,7 @@ export function GameScreen() {
             : undefined
         }
       >
-        <div className="flex h-full flex-col border-r border-white/15 bg-concrete-900 shadow-signage">
+        <div data-inventory-zone className="flex h-full flex-col border-r border-white/15 bg-concrete-900 shadow-signage">
           <div className="flex shrink-0 items-center justify-between border-b border-white/10 p-3">
             <h3 className="text-read font-bold text-signal">
               {sidePanel && (

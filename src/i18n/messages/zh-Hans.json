@@ -448,9 +448,33 @@
       "carry": "负重",
       "encumbered": "超重",
       "loose": "散装携带",
-      "looseHint": "背包装不下的东西。按 ×{mult} 计重，会发出声响，战斗中拿不到。拖进格子即可收进背包。",
-      "looseEmpty": "没有散装物品。背包装不下的东西会放在这里。",
       "carryLoose": "散装携带",
+      "multiSelect": "多选",
+      "shiftClickGesture": "Shift+点击",
+      "throwAway": "丢弃",
+      "dragOutGesture": "拖出面板",
+      "discard": {
+        "title": "丢弃这件物品？",
+        "titleMany": "丢弃 {n} 件物品？",
+        "bodyMany": "丢掉就没了，不会再在这里找到。",
+        "body": "丢掉就没了，不会再在这里找到。",
+        "more": "还有 {n} 件",
+        "total": "减轻 {kg} kg",
+        "totalLeft": "留下 {kg} kg",
+        "dontAsk": "不再询问",
+        "cancel": "保留",
+        "confirm": "丢弃",
+        "ghost": "丢弃"
+      },
+      "carriedHint": "背包装不下的东西。按 ×{mult} 计重，会发出声响，战斗中拿不到。把格子里的物品拖到这里即可散装携带，把行拖进格子即可收进背包。",
+      "looseEmpty": "没有散装物品。背包装不下的东西会放在这里。",
+      "carriedNoMatch": "没有符合筛选条件的物品。",
+      "sortBy": "排序",
+      "sort": { "weight": "重量", "perUnit": "单件重量", "name": "名称", "kind": "类别" },
+      "sortFlip": "反转顺序",
+      "filterAll": "全部",
+      "filterClear": "清除筛选",
+      "perUnit": "{kg}/件",
       "bagCut": "背包 −{n}%",
       "loadKg": "{load} / {carry} 公斤",
       "loadEncumbered": "{load} / {carry} 公斤 · 超重",
@@ -526,6 +550,8 @@
       "injury": "腿和腰受损 {n} HP/公里",
       "loud": "脚步声大",
       "pinned": "无法移动——超过上限两倍",
+      "statusAria": "负重：{tier}。悬停查看惩罚",
+      "statusSub": "{load} / {carry} kg · 上限的 {pct}%",
       "tier": {
         "light": "轻松",
         "burdened": "吃力",
@@ -1938,6 +1964,14 @@
     "combatFx": {
       "label": "战斗震屏与血迹",
       "description": "命中时屏幕震动、溅血与伤害数字。仅限电脑版。开启「减少动态效果」时只保留淡入淡出，不再移动。",
+      "options": {
+        "on": "开",
+        "off": "关"
+      }
+    },
+    "confirmDiscard": {
+      "label": "丢弃物品前确认",
+      "description": "丢弃物品（拖出物品栏或点「丢弃」）前先询问。在确认窗口勾选「不再询问」会关闭此项。",
       "options": {
         "on": "开",
         "off": "关"

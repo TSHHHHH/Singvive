@@ -39,8 +39,10 @@ import { ItemInspectBody } from './ItemInspectBody';
 import { useInventoryInteraction } from './InventoryInteractionContext';
 import { TipHint } from '../TipHint';
 import { LOAD_TIP_CLASS, LoadTipBody } from '../loadTip';
-import { loadDebuffBrief, loadTierLabel, loadTierShown, loadTierTone } from '../loadTier';
-import { LoosePile } from './LoosePile';
+import { loadTierShown, loadTierTone } from '../loadTier';
+import { CarriedList } from './CarriedList';
+import { LoadStatusIcon } from '../LoadStatusIcon';
+import { useDiscardGate } from './useDiscardGate';
 import { torsoCarryMult } from '../../game/survival';
 import { itemName, useT } from '../../i18n';
 import { tip } from '../tips';
@@ -51,12 +53,15 @@ const PC_INVENTORY_HINT_KEYS = [
   { actionKey: 'ui.inventory.stashOrPack', keysKey: 'ui.inventory.ctrlClickGesture' },
   { actionKey: 'ui.inventory.quickActions', keysKey: 'ui.inventory.rightClickGesture' },
   { actionKey: 'ui.inventory.moveRotate', keysKey: 'ui.inventory.dragRotateGesture' },
+  { actionKey: 'ui.inventory.multiSelect', keysKey: 'ui.inventory.shiftClickGesture' },
+  { actionKey: 'ui.inventory.throwAway', keysKey: 'ui.inventory.dragOutGesture' },
 ] as const;
 
 const TOUCH_INVENTORY_HINT_KEYS = [
   { actionKey: 'ui.inventory.inspect', keysKey: 'ui.inventory.holdGesture' },
   { actionKey: 'ui.inventory.selectItem', keysKey: 'ui.inventory.tapGesture' },
   { actionKey: 'ui.inventory.move', keysKey: 'ui.inventory.dragGesture' },
+  { actionKey: 'ui.inventory.throwAway', keysKey: 'ui.inventory.dragOutGesture' },
 ] as const;
 
 function InventoryControlsHint({ coarse }: { coarse: boolean }): ReactNode {
@@ -112,16 +117,19 @@ export function InventoryPanel({
   const transferItem = useGame((s) => s.transferItem);
   const equipItem = useGame((s) => s.equipItem);
   const unequipItem = useGame((s) => s.unequipItem);
-  const dropItem = useGame((s) => s.dropItem);
   const repairItem = useGame((s) => s.repairItem);
   const tearForRags = useGame((s) => s.tearForRags);
   const confirmTempStash = useGame((s) => s.confirmTempStash);
   const inCombat = useGame((s) => !!s.combat && !s.combat.over);
+  const { gate: gateDiscard, dialog: discardDialog } = useDiscardGate();
 
   const {
     selectedUid,
     setSelectedUid,
+    multiSelected,
+    requestDiscard,
     dragUid,
+    dragUids,
     drag,
     stashContainer,
     hasTempStash,
@@ -196,8 +204,8 @@ export function InventoryPanel({
   const loadPct = carry > 0 ? (loadKg / carry) * 50 : 0;
   const barClass =
     !fx || fx.strain <= 0 ? 'bg-signal' : fx.ratio < 1 ? 'bg-amber-400' : 'bg-hiss';
-  const bagCut = Math.round(bagWeightReduction(equipment) * 100);
-  const debuffs = fx ? loadDebuffBrief(fx, t) : [];
+  const bagShare = bagWeightReduction(equipment);
+  const bagCut = Math.round(bagShare * 100);
 
   const gridHandlers = {
     onItemPointerDown,
@@ -206,6 +214,8 @@ export function InventoryPanel({
     onItemPointerEnter,
     onItemPointerLeave,
     onItemPointerMove,
+    multiSelected,
+    draggingUids: dragUids,
     suppressTip: true,
   };
 
@@ -333,10 +343,11 @@ export function InventoryPanel({
                           </button>
                         )}
                         <button
-                          onClick={() => {
-                            dropItem(inspected.uid);
-                            setSelectedUid(null);
-                          }}
+                          onClick={() =>
+                            requestDiscard(
+                              multiSelected.has(inspected.uid) ? [...multiSelected] : [inspected.uid],
+                            )
+                          }
                           className="w-full rounded border border-hiss/40 px-1.5 py-1 text-body leading-tight text-hiss/80 hover:bg-hiss/10"
                           {...tip(t('ui.inventory.dropGone'))}
                         >
@@ -490,7 +501,7 @@ export function InventoryPanel({
             {...gridHandlers}
           />
 
-          <LoosePile
+          <CarriedList
             items={items}
             selectedUid={selectedUid}
             draggingUid={dragUid}
@@ -498,11 +509,12 @@ export function InventoryPanel({
             dropValid={
               drag?.target?.type === 'grid' && drag.target.container === LOOSE && drag.target.valid
             }
-            pileRef={(el) => registerGrid(LOOSE, el)}
+            listRef={(el) => registerGrid(LOOSE, el)}
             {...gridHandlers}
           />
 
           <div className="flex items-center gap-2 text-body">
+            {fx && <LoadStatusIcon fx={fx} loadKg={loadKg} carryKg={carry} />}
             <TipHint
               className="flex min-w-0 flex-1 items-center gap-2"
               placement="top"
@@ -539,16 +551,6 @@ export function InventoryPanel({
               </span>
             )}
           </div>
-          {fx && fx.strain > 0 && (
-            <div className={`-mt-2 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-micro ${loadTierTone(fx)}`}>
-              <span className="rounded border border-current px-1 font-bold uppercase tracking-widest">
-                {loadTierLabel(fx, t)}
-              </span>
-              {debuffs.map((d) => (
-                <span key={d}>{d}</span>
-              ))}
-            </div>
-          )}
         </>
       )}
 
@@ -566,11 +568,17 @@ export function InventoryPanel({
           />
           <button
             type="button"
-            onClick={() => confirmTempStash()}
+            onClick={() =>
+              gateDiscard(
+                items.filter((i) => i.container === TEMP_STASH).map((i) => i.uid),
+                confirmTempStash,
+              )
+            }
             className="mt-2 w-full rounded bg-signal/80 py-1.5 text-body font-bold text-black hover:bg-signal"
           >
             {t('ui.inventory.confirmAbandon')}
           </button>
+          {discardDialog}
         </div>
       )}
 

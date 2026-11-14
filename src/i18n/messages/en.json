@@ -449,9 +449,33 @@
       "carry": "Carry",
       "encumbered": "Encumbered",
       "loose": "Carried loose",
-      "looseHint": "Doesn't fit the pack. Counts ×{mult} weight, rattles, and can't be reached in a fight. Drag into the grid to pack it.",
-      "looseEmpty": "Nothing loose. Anything that won't fit the pack lands here.",
       "carryLoose": "Carry loose",
+      "multiSelect": "Select several",
+      "shiftClickGesture": "Shift+click",
+      "throwAway": "Throw away",
+      "dragOutGesture": "Drag out of panel",
+      "discard": {
+        "title": "Throw this away?",
+        "titleMany": "Throw away {n} items?",
+        "bodyMany": "They're gone for good. You won't find them here again.",
+        "body": "It's gone for good. You won't find it here again.",
+        "more": "+{n} more",
+        "total": "{kg} kg lighter",
+        "totalLeft": "{kg} kg left behind",
+        "dontAsk": "Don't ask again",
+        "cancel": "Keep",
+        "confirm": "Throw away",
+        "ghost": "Throw away"
+      },
+      "carriedHint": "Doesn't fit the pack. Counts ×{mult} weight, rattles, and can't be reached in a fight. Drag a tile here to carry it loose, or drag a row into the grid to pack it.",
+      "looseEmpty": "Nothing loose. Anything that won't fit the pack lands here.",
+      "carriedNoMatch": "Nothing carried matches this filter.",
+      "sortBy": "Sort",
+      "sort": { "weight": "Weight", "perUnit": "kg / unit", "name": "Name", "kind": "Type" },
+      "sortFlip": "Flip order",
+      "filterAll": "All",
+      "filterClear": "Clear filter",
+      "perUnit": "{kg}/u",
       "bagCut": "Bag −{n}%",
       "loadKg": "{load} / {carry} kg",
       "loadEncumbered": "{load} / {carry} kg · Encumbered",
@@ -526,6 +550,8 @@
       "injury": "Hurts legs and back {n} HP/km",
       "loud": "Loud footsteps",
       "pinned": "Can't travel — over twice your limit",
+      "statusAria": "Load: {tier}. Hover for penalties",
+      "statusSub": "{load} / {carry} kg · {pct}% of your limit",
       "tier": {
         "light": "Light",
         "burdened": "Burdened",
@@ -1938,6 +1964,14 @@
     "combatFx": {
       "label": "Combat shake & blood",
       "description": "Screen shake, blood splatter and damage numbers when blows land. Desktop only. Reduce motion keeps the fades and drops the movement.",
+      "options": {
+        "on": "On",
+        "off": "Off"
+      }
+    },
+    "confirmDiscard": {
+      "label": "Confirm throwing items away",
+      "description": "Ask before items are thrown away — by dragging them out of the inventory or with Drop. \"Don't ask again\" in that window turns this off.",
       "options": {
         "on": "On",
         "off": "Off"

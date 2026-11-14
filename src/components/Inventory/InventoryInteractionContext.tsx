@@ -36,6 +36,8 @@ import { ItemContextMenu, type ContextMenuAction } from './ItemContextMenu';
 import { Icon } from '../../icons/Icon';
 import { itemIcon } from './itemIcon';
 import { useT } from '../../i18n';
+import { useSetting, useSettings } from '../../game/settings';
+import { DiscardConfirm } from './DiscardConfirm';
 
 interface GridDrop {
   type: 'grid';
@@ -51,10 +53,27 @@ interface SlotDrop {
   slot: EquipSlot;
   valid: boolean;
 }
-type DropTarget = GridDrop | SlotDrop | null;
+/** Dropped outside every inventory panel: throw it away. */
+interface DiscardDrop {
+  type: 'discard';
+  valid: true;
+}
+type DropTarget = GridDrop | SlotDrop | DiscardDrop | null;
+
+/** Anything tagged with this attribute counts as "inside the inventory". */
+const INVENTORY_ZONE_ATTR = 'data-inventory-zone';
+
+function outsideInventoryZone(clientX: number, clientY: number): boolean {
+  if (typeof document === 'undefined') return false;
+  const el = document.elementFromPoint(clientX, clientY);
+  if (!el) return false; // off-window: don't throw things away by accident
+  return !el.closest(`[${INVENTORY_ZONE_ATTR}]`);
+}
 
 interface DragState {
   uid: string;
+  /** Every item in the drag: just `uid`, or the whole multi-selection. */
+  uids: string[];
   pointerId: number;
   grabDX: number;
   grabDY: number;
@@ -65,6 +84,7 @@ interface DragState {
 }
 
 const DRAG_THRESHOLD_PX = 6;
+const EMPTY_UIDS: readonly string[] = [];
 
 interface PendingDrag {
   uid: string;
@@ -94,7 +114,14 @@ type CtxMenu = {
 export type InventoryInteractionApi = {
   selectedUid: string | null;
   setSelectedUid: (uid: string | null) => void;
+  /** Shift-click selection (size 0 or ≥2 in practice). */
+  multiSelected: ReadonlySet<string>;
+  clearMultiSelected: () => void;
+  /** Throw items away, asking first unless the player turned that off. */
+  requestDiscard: (uids: string[]) => void;
   dragUid: string | null;
+  /** Other items riding along in a group drag. */
+  dragUids: readonly string[];
   drag: DragState | null;
   stashContainer: string | null;
   hasTempStash: boolean;
@@ -137,6 +164,7 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
   const loadGunFromMagazine = useGame((s) => s.loadGunFromMagazine);
   const refillFirearm = useGame((s) => s.refillFirearm);
   const tunnel = useGame((s) => s.tunnel);
+  const confirmDiscard = useSetting('confirmDiscard') !== 'off';
   const inCombat = useGame((s) => !!s.combat && !s.combat.over);
 
   const { t } = useT();
@@ -147,6 +175,12 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
   const cardActions = coarse && !isPhone;
 
   const [selectedUid, setSelectedUid] = useState<string | null>(null);
+  const [multiUids, setMultiUids] = useState<string[]>([]);
+  const multiRef = useRef<string[]>([]);
+  multiRef.current = multiUids;
+  const selectedRef = useRef<string | null>(null);
+  selectedRef.current = selectedUid;
+  const [discardUids, setDiscardUids] = useState<string[] | null>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
   const [hover, setHover] = useState<HoverTarget | null>(null);
   const [ctxMenu, setCtxMenu] = useState<CtxMenu | null>(null);
@@ -202,6 +236,7 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
     pcShortcuts,
     coarse,
     cardActions,
+    confirmDiscard,
   });
   liveRef.current = {
     items,
@@ -222,6 +257,26 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
     pcShortcuts,
     coarse,
     cardActions,
+    confirmDiscard,
+  };
+
+  const requestDiscard = useCallback((uids: string[]) => {
+    const live = liveRef.current;
+    const real = uids.filter((u) => live.items.some((i) => i.uid === u));
+    if (real.length === 0) return;
+    if (!live.confirmDiscard) {
+      for (const u of real) live.dropItem(u);
+      setMultiUids([]);
+      setSelectedUid(null);
+      return;
+    }
+    setDiscardUids(real);
+  }, []);
+
+  /** The selection a drop / discard action should act on for `uid`. */
+  const groupFor = (uid: string): string[] => {
+    const multi = multiRef.current.filter((u) => liveRef.current.items.some((i) => i.uid === u));
+    return multi.length > 1 && multi.includes(uid) ? multi : [uid];
   };
 
   const clearHoverTimer = () => {
@@ -303,7 +358,7 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
       if (!el) continue;
       const r = el.getBoundingClientRect();
       if (clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom) {
-        let valid = canEquip(def, slot);
+        let valid = canEquip(def, slot) && (dragRef.current?.uids.length ?? 1) <= 1;
         if (valid && slot === 'offHand' && isTwoHandedEquipped(liveEq)) valid = false;
         return { type: 'slot', slot, valid };
       }
@@ -320,7 +375,9 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
           cellY: 0,
           w,
           h,
-          valid: inst.container !== LOOSE,
+          valid: (dragRef.current?.uids ?? [inst.uid]).some(
+            (u) => liveItems.find((i) => i.uid === u)?.container !== LOOSE,
+          ),
         };
       }
     }
@@ -342,9 +399,15 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
       let cellY = Math.round((clientY - r.top - grabDY) / CELL);
       cellX = Math.max(0, Math.min(dims.w - w, cellX));
       cellY = Math.max(0, Math.min(dims.h - h, cellY));
-      const valid = canPlace(container, liveItems, { x: cellX, y: cellY, w, h }, inst.uid);
+      const group = dragRef.current?.uids ?? [inst.uid];
+      // A group drop auto-places each item, so the exact cell doesn't matter.
+      const valid =
+        group.length > 1
+          ? group.some((u) => liveItems.find((i) => i.uid === u)?.container !== container)
+          : canPlace(container, liveItems, { x: cellX, y: cellY, w, h }, inst.uid);
       return { type: 'grid', container, cellX, cellY, w, h, valid };
     }
+    if (outsideInventoryZone(clientX, clientY)) return { type: 'discard', valid: true };
     return null;
   };
 
@@ -360,15 +423,17 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
     if (!inst) return;
     const next: DragState = {
       uid: pending.uid,
+      uids: groupFor(pending.uid),
       pointerId: pending.pointerId,
       grabDX: pending.grabDX,
       grabDY: pending.grabDY,
       rotated: pending.rotated,
       clientX,
       clientY,
-      target: hitTest(clientX, clientY, inst, pending.rotated),
+      target: null,
     };
     dragRef.current = next;
+    next.target = hitTest(clientX, clientY, inst, pending.rotated);
     setDrag(next);
     try {
       pending.el.setPointerCapture(pending.pointerId);
@@ -383,11 +448,19 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
     }
     const current = dragRef.current;
     if (!current || current.pointerId !== pointerId) return;
-    const { items: liveItems, moveItem: move, equipItem: equip } = liveRef.current;
+    const { items: liveItems, moveItem: move, equipItem: equip, transferItem: transfer } =
+      liveRef.current;
     const inst = liveItems.find((i) => i.uid === current.uid);
     const t = current.target;
     if (inst && t) {
-      if (t.type === 'grid' && t.valid) {
+      if (t.type === 'discard') {
+        requestDiscard(current.uids);
+      } else if (t.type === 'grid' && t.valid && current.uids.length > 1) {
+        for (const u of current.uids) {
+          const it = liveRef.current.items.find((i) => i.uid === u);
+          if (it && it.container !== t.container) transfer(u, t.container);
+        }
+      } else if (t.type === 'grid' && t.valid) {
         move(current.uid, t.container, t.cellX, t.cellY, current.rotated);
       } else if (t.type === 'slot' && t.valid) {
         equip(current.uid, t.slot);
@@ -415,6 +488,29 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
       return;
     }
 
+    const onGridItem = live.items.some((i) => i.uid === inst.uid);
+
+    // Shift+click → add to / remove from the multi-selection (not equipped kit).
+    if (e.shiftKey && !live.coarse && onGridItem) {
+      e.preventDefault();
+      dismissHover();
+      const prev = multiRef.current.filter((u) => live.items.some((i) => i.uid === u));
+      const anchor = selectedRef.current;
+      const base =
+        prev.length > 0
+          ? prev
+          : anchor && anchor !== inst.uid && live.items.some((i) => i.uid === anchor)
+            ? [anchor]
+            : [];
+      const next = base.includes(inst.uid) ? base.filter((u) => u !== inst.uid) : [...base, inst.uid];
+      setMultiUids(next);
+      setSelectedUid(next.includes(inst.uid) ? inst.uid : (next[next.length - 1] ?? null));
+      return;
+    }
+    // A plain click outside the selection starts over; inside it, keeps the
+    // group so it can be dragged together.
+    if (!multiRef.current.includes(inst.uid)) setMultiUids([]);
+
     dragStartedRef.current = false;
     setSelectedUid(inst.uid);
 
@@ -437,8 +533,7 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
     }
 
     // Equipped items aren't on a grid — select only (no drag from slot chrome).
-    const onGrid = live.items.some((i) => i.uid === inst.uid);
-    if (!onGrid) return;
+    if (!onGridItem) return;
 
     const el = gridRefs.current[inst.container];
     if (!el) return;
@@ -448,12 +543,13 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
       pointerId: e.pointerId,
       startX: e.clientX,
       startY: e.clientY,
-      grabDX: e.clientX - (r.left + inst.x * CELL),
-      grabDY: e.clientY - (r.top + inst.y * CELL),
+      // Loose rows aren't on cells: hold the ghost by its middle instead.
+      grabDX: inst.container === LOOSE ? CELL / 2 : e.clientX - (r.left + inst.x * CELL),
+      grabDY: inst.container === LOOSE ? CELL / 2 : e.clientY - (r.top + inst.y * CELL),
       rotated: inst.rotated,
       el: e.currentTarget as HTMLElement,
     };
-  }, [dismissHover]);
+  }, [dismissHover]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onItemDoubleClick = useCallback(
     (inst: ItemInstance) => {
@@ -564,7 +660,10 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
 
     const onKeyDown = (e: KeyboardEvent) => {
       const current = dragRef.current;
-      if (!current) return;
+      if (!current) {
+        if (e.key === 'Escape' && multiRef.current.length) setMultiUids([]);
+        return;
+      }
       if (e.code !== 'KeyR' || e.repeat) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       const inst = liveRef.current.items.find((i) => i.uid === current.uid);
@@ -578,6 +677,7 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
         rotated,
         target: hitTest(current.clientX, current.clientY, inst, rotated),
       };
+      if (current.uids.length > 1) return;
       dragRef.current = next;
       setDrag(next);
     };
@@ -614,11 +714,22 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
     slotRefs.current[slot] = el;
   }, []);
 
+  // Drop uids that left the inventory (used, dropped, crafted away).
+  const multiSelected = useMemo(() => {
+    const live = new Set(items.map((i) => i.uid));
+    return new Set(multiUids.filter((u) => live.has(u)));
+  }, [multiUids, items]);
+  const clearMultiSelected = useCallback(() => setMultiUids([]), []);
+
   const api = useMemo<InventoryInteractionApi>(
     () => ({
       selectedUid,
       setSelectedUid,
+      multiSelected,
+      clearMultiSelected,
+      requestDiscard,
       dragUid: drag?.uid ?? null,
+      dragUids: drag?.uids ?? EMPTY_UIDS,
       drag,
       stashContainer,
       hasTempStash,
@@ -639,6 +750,9 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
     }),
     [
       selectedUid,
+      multiSelected,
+      clearMultiSelected,
+      requestDiscard,
       drag,
       stashContainer,
       hasTempStash,
@@ -669,6 +783,7 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
   })();
 
   const hoverInst = hover && !drag ? findInst(hover.uid) : null;
+  const discarding = drag?.target?.type === 'discard';
 
   const itemActionsFor = (target: ItemInstance): ContextMenuAction[] => {
     const live = liveRef.current;
@@ -801,10 +916,7 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
       label: t('ui.inventory.drop'),
       danger: true,
       title: t('ui.inventory.dropGone'),
-      onSelect: () => {
-        live.dropItem(target.uid);
-        setSelectedUid(null);
-      },
+      onSelect: () => requestDiscard(groupFor(target.uid)),
     });
     return actions;
   };
@@ -835,8 +947,10 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
               top: drag.clientY - drag.grabDY,
               width: dragGhost.w * CELL - 2,
               height: dragGhost.h * CELL - 2,
-              background: `${tileColor(dragGhost.def)}aa`,
-              boxShadow: `inset 0 0 0 1px ${tileColor(dragGhost.def)}`,
+              background: discarding ? '#e0342b88' : `${tileColor(dragGhost.def)}aa`,
+              boxShadow: discarding
+                ? 'inset 0 0 0 2px #e0342b'
+                : `inset 0 0 0 1px ${tileColor(dragGhost.def)}`,
             }}
           >
             <Icon
@@ -844,6 +958,16 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
               size={Math.min(dragGhost.w, dragGhost.h) > 1 ? 26 : 18}
               className="drop-shadow"
             />
+            {drag.uids.length > 1 && (
+              <span className="absolute -right-2 -top-2 rounded-full bg-signal px-1.5 text-micro font-bold leading-tight text-black tabular-nums">
+                {drag.uids.length}
+              </span>
+            )}
+            {discarding && (
+              <span className="absolute left-1/2 top-full mt-1 -translate-x-1/2 whitespace-nowrap rounded bg-hiss px-1.5 py-0.5 text-micro font-bold uppercase tracking-wider text-black">
+                {t('ui.inventory.discard.ghost')}
+              </span>
+            )}
           </div>,
           document.body,
         )}
@@ -858,6 +982,20 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
           stacked={isPhone}
           actions={peekActions}
           onClose={hover.pinned ? dismissHover : undefined}
+        />
+      )}
+      {discardUids && (
+        <DiscardConfirm
+          uids={discardUids}
+          onCancel={() => setDiscardUids(null)}
+          onConfirm={(dontAsk) => {
+            const live = liveRef.current;
+            for (const u of discardUids) live.dropItem(u);
+            if (dontAsk) useSettings.getState().setSetting('confirmDiscard', 'off');
+            setDiscardUids(null);
+            setMultiUids([]);
+            setSelectedUid(null);
+          }}
         />
       )}
       {ctxMenu && ctxInst && ctxActions.length > 0 && (

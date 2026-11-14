@@ -43,6 +43,10 @@ interface Props {
   items: ItemInstance[];
   selectedUid: string | null;
   draggingUid: string | null;
+  /** Shift-click multi-selection; dragged together, drawn as selected. */
+  multiSelected?: ReadonlySet<string>;
+  /** Uids riding along in a group drag (dimmed like the dragged one). */
+  draggingUids?: readonly string[];
   preview: DragPreview | null;
   gridRef: (el: HTMLDivElement | null) => void;
   onItemPointerDown: (e: React.PointerEvent, inst: ItemInstance) => void;
@@ -64,6 +68,8 @@ export function InventoryGrid({
   items,
   selectedUid,
   draggingUid,
+  multiSelected,
+  draggingUids,
   preview,
   gridRef,
   onItemPointerDown,
@@ -145,8 +151,8 @@ export function InventoryGrid({
           {cells.map((inst) => {
             const def = itemDef(inst.defId);
             const { w, h } = footprint(def, inst.rotated);
-            const isDragging = draggingUid === inst.uid;
-            const selected = selectedUid === inst.uid;
+            const isDragging = draggingUid === inst.uid || !!draggingUids?.includes(inst.uid);
+            const selected = selectedUid === inst.uid || !!multiSelected?.has(inst.uid);
             const wears = hasCondition(inst);
             const cond = conditionPct(inst);
             const broken = isBroken(inst);
