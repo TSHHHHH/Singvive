@@ -635,6 +635,12 @@ export function GameScreen() {
     travelRange + blipMargin(awarenessValue) * detectMult,
     sight,
   );
+  // The map follows the walking pin with its departure range, just like the
+  // buildings and fog. Gameplay/hazard checks keep the actual current range.
+  const mapBlipRange = sightLimitedRange(
+    mapRangeTarget + blipMargin(awarenessValue) * detectMult,
+    sight,
+  );
   // Quantised so energy ticks don't rewrite the veil's style every hour.
   const nightVeilAlpha = Math.round(veilAlpha(time, sight) * 20) / 20;
 
@@ -1632,7 +1638,7 @@ export function GameScreen() {
                 selectedId={sel?.id ?? null}
                 hereId={currentPositionId}
                 travelRange={mapRangeTarget}
-                blipRange={blipRange}
+                blipRange={mapBlipRange}
                 veilRadiusM={blipRange}
                 veilAlpha={nightVeilAlpha}
                 exploredArea={exploredArea}

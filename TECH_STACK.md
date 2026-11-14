@@ -69,7 +69,9 @@ goes flat. MapLibre zoom is the old Leaflet zoom − 1 (the saved zoom key moved
   single current travel-range ring; fog and building updates are throttled to 80 ms during its tween.
   During a glide the
   sight disc follows the pin (`useSightCenter` in `GameMap.tsx`, every 100 ms), so fog and
-  buildings reveal along the walk and arrival has nothing left to change.
+  buildings and location markers reveal along the walk. Marker presentation uses that
+  same centre and holds departure sensing range until arrival, then eases to the
+  post-trip range. Gameplay position and location recognition still commit on arrival.
 - **Island edge** (`components/EdgeVignette.tsx`, slot `edge`): the run map is a disc around the island; past `EDGE_CLEAR_M` the ground fades to near-black by `EDGE_DARK_M`, and the camera is held to `RUN_BOX` (`mapStyle.ts`), just inside that ring. The fog box reaches past it so there is no straight edge.
 - **3D** (`buildings.ts`, setting `mapView3d`) extrudes the basemap's buildings from `LOD_ZOOM` 15.
   A building stands only inside the current travel-range disc, including explored and discovered

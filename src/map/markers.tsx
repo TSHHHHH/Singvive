@@ -64,7 +64,14 @@ export function MapMarker({
     const m = createMarker(icon, lat, lng);
     const el = m.getElement();
     entered.current = false;
-    if (fadeMs > 0) m.setOpacity(0);
+    if (fadeMs > 0) {
+      // Before addTo(), setOpacity only records MapLibre's target. Its first
+      // render is deferred while the camera moves, so also seed the DOM now:
+      // otherwise the badge paints at 1 and fades down to its normal opacity.
+      m.setOpacity(0);
+      el.style.opacity = '0';
+      el.style.transition = 'none';
+    }
     el.addEventListener('click', (ev) => {
       if (!click.current) return;
       // Keep the map's own click (ground pick) from firing underneath.
@@ -127,6 +134,7 @@ export function MapMarker({
     el.style.pointerEvents = visible ? '' : 'none';
     const show = () => {
       entered.current = true;
+      el.style.removeProperty('transition');
       // MapLibre rewrites opacity during moves; keep its own target in sync.
       m.setOpacity(visible ? opacity ?? 1 : 0);
     };

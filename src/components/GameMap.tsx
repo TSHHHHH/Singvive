@@ -529,7 +529,8 @@ const SIGHT_STEP_MS = 100;
  * Where the player can see from: `home`, or during a glide the pin's spot on
  * the same clock as `PlayerMarker`, sampled every SIGHT_STEP_MS. The fog edge
  * and the buildings then move with the walker, so arrival has nothing left to
- * reveal. Cosmetic only: POI visibility still keys off the store's position.
+ * reveal. The same centre drives marker presentation; gameplay position and
+ * location recognition still commit through the store on arrival.
  */
 function useSightCenter(home: { lat: number; lng: number }, travelAnim: TravelAnim | null) {
   const [sight, setSight] = useState(home);
@@ -571,6 +572,7 @@ function SightLayers({
   ringReach,
   view3d,
   onEngine,
+  poiLayer,
 }: {
   home: { lat: number; lng: number };
   travelAnim: TravelAnim | null;
@@ -581,8 +583,11 @@ function SightLayers({
   ringReach: number;
   view3d: boolean;
   onEngine: (engine: BuildingEngine | null) => void;
+  poiLayer: Omit<PoiLayerProps, 'home'>;
 }) {
   const sight = useSightCenter(home, travelAnim);
+  const sensedRange = useAnimatedNumber(poiLayer.blipRange, REVEAL_MS);
+  const sensedRadius = useThrottledNumber(sensedRange, 80);
   return (
     <>
       <FogOverlay exploredArea={exploredArea} currentRevealCenter={sight} currentRevealRadius={reach} />
@@ -590,6 +595,7 @@ function SightLayers({
       {/* Never hit-tested: the fills cover everywhere you can walk, so a
           clickable ring would swallow every ground pick inside your range. */}
       <RangeRing home={sight} travelRange={ringReach} />
+      <PoiLayer {...poiLayer} home={sight} blipRange={sensedRadius} />
     </>
   );
 }
@@ -1591,8 +1597,8 @@ const RumourLayer = memo(function RumourLayer({ annotations }: { annotations: Ma
 /**
  * Viewport-cull + `poiLooksSame`: hidden and off-screen POIs must not become
  * markers. Mapping the whole `locations` dict does not scale with an island
- * crossing. `blipRange` is the stable sensing radius — do not pass the
- * travel-ring tween in here or every marker rememos for 600 ms after a walk.
+ * crossing. SightLayers samples the moving centre and sensing-radius tween
+ * for marker visibility, keeping those updates out of GameScreen.
  */
 function GameMapInner({
   home,
@@ -1709,6 +1715,7 @@ function GameMapInner({
           ringReach={ringRange}
           view3d={view3d}
           onEngine={setEngine}
+          poiLayer={{ pois, blipRange, selectedId, hereId, playerAtSite, onSelect, engine, worked, evacZoneId }}
         />
 
         {/* Drawn under the pins — ground, not a destination. */}
@@ -1718,18 +1725,6 @@ function GameMapInner({
 
         {trekTarget && <MapMarker lat={trekTarget.lat} lng={trekTarget.lng} icon={trekTargetIcon()} zIndex={800} />}
 
-        <PoiLayer
-          pois={pois}
-          home={home}
-          blipRange={blipRange}
-          selectedId={selectedId}
-          hereId={hereId}
-          playerAtSite={playerAtSite}
-          onSelect={onSelect}
-          engine={engine}
-          worked={worked}
-          evacZoneId={evacZoneId}
-        />
         <BlockView engine={engine} pois={pois} pad={`${padTop}:${padLeft}:${padRight}:${padBottom}`} />
 
         {mapAnnotations.length > 0 && <RumourLayer annotations={mapAnnotations} />}
