@@ -15,6 +15,7 @@ import { FOG_COLOUR, FOG_TOTAL } from './fogGeometry';
 import { anchorOf, dimHex, inDisc, mixHex, pointInRing, pxPerMetre, toLngLatRing, type Disc, type LngLatPair } from './geo';
 import { alive } from './layers';
 import { breakBuilding, type RuinKind } from './ruinModel';
+import { cityDamage, hash01 } from './cityDamage';
 import { landmarkBaseHeight } from './landmarkGeometry';
 
 /**
@@ -35,10 +36,11 @@ import { landmarkBaseHeight } from './landmarkGeometry';
  *   broken model (ruinModel.ts) near the player and a low stump further out.
  *   Height cuts are a feature-state factor (`ruin`), never a filter.
  * - **City damage.** The rest of the city is hit too, picked by a stable hash
- *   of the feature id: some buildings are scorched, a few have collapsed
- *   (stumps, with broken models for the nearest), and a handful burn (ground
- *   glow, flames and a smoke column on the nearest). A site's own states
- *   override these.
+ *   of the feature id (cityDamage.ts): some buildings are scorched, a few
+ *   have collapsed (stumps, with broken models for the nearest), and only the
+ *   most destroyed still burn, with a fire sized to the damage (ground glow,
+ *   flames and a smoke column on the nearest). A site's own states override
+ *   these.
  * - **Zoom.** Below LOD_ZOOM the basemap's flat building fills draw instead;
  *   heights grow in across one zoom level, so pinching in raises the city.
  *
@@ -97,18 +99,15 @@ const RUIN_BUDGET_MS = 8;
 /** Lower than this there is nothing to break: it just stays a stump. */
 const RUIN_MIN_H = 6;
 
-/** Share of ordinary buildings that are scorched, collapsed, burning. */
-const SCORCH_SHARE = 0.07;
-const COLLAPSE_SHARE = 0.03;
-const FIRE_SHARE = 0.01;
 const BURN_COLOR = '#2c1a10';
-/** Shorter than this a building has nothing to collapse / no roof worth a fire. */
-const COLLAPSE_MIN_H = 10;
-const FIRE_MIN_H = 6;
 /** Broken models for collapsed ordinary buildings, after the sites' own. */
 const MAX_WRECKS = 24;
-/** Fires with a glow and a smoke column; the rest just look burnt. */
-const MAX_FIRES = 14;
+/**
+ * Fires with a glow and a smoke column; the rest just look burnt. A fire is
+ * seen from FIRE_RANGE_M at full strength, half that while it smoulders, so a
+ * big blaze reads across the district and a small one only close by.
+ */
+const MAX_FIRES = 6;
 const FIRE_RANGE_M = 1600;
 /** Wrecks and fires are re-picked once the sight disc moves this far. */
 const REPICK_M = 25;
@@ -129,19 +128,6 @@ const SOLID_OPACITY = 0.9;
 const FIRE_GLOW_LAYER = 'fires-3d-glow';
 const FIRE_CORE_LAYER = 'fires-3d-core';
 
-/** Stable 0..1 hash of a site id, so a ruin looks the same every visit. */
-function hash01(id: string, salt: number): number {
-  let h = 0x811c9dc5 ^ salt;
-  for (let i = 0; i < id.length; i++) {
-    h ^= id.charCodeAt(i);
-    h = Math.imul(h, 0x01000193);
-  }
-  h ^= h >>> 13;
-  h = Math.imul(h, 0x5bd1e995);
-  h ^= h >>> 15;
-  return (h >>> 0) / 4294967296;
-}
-
 /** How much of a ruined building still stands (height × this). */
 function stumpFactor(siteId: string, tier: DestructionTier): number {
   if (tier === 2) return 0.5 + 0.25 * hash01(siteId, 3);
@@ -149,35 +135,41 @@ function stumpFactor(siteId: string, tier: DestructionTier): number {
   return 1;
 }
 
-/** How much of a collapsed ordinary building still stands. */
-const ambientStump = (key: string): number => 0.3 + 0.3 * hash01(key, 3);
+/** How much of a damaged ordinary building still stands (collapsed, burnt out). */
+const ambientStump = (key: string, h: number): number => cityDamage(key, h).stands;
 
-/** Puffs per smoke column, spread evenly over one 7 s climb. */
+/** Puffs per smoke column at full blaze, spread evenly over one 7 s climb. */
 const SMOKE_PUFFS = 8;
 
-/** Flames and a smoke column, one marker per fire (index.css .fx-*). */
-function smokeElement(seed: number): { el: HTMLDivElement; puffs: HTMLDivElement } {
+/**
+ * Flames and a smoke column, one marker per fire (index.css .fx-*). `burn`
+ * (0..1) sizes it: a smoulder is one flame and a thin wisp, a full blaze three
+ * flames and a thick column.
+ */
+function smokeElement(seed: number, burn: number): { el: HTMLDivElement; puffs: HTMLDivElement } {
   const el = document.createElement('div');
   el.style.pointerEvents = 'none';
   const puffs = document.createElement('div');
   puffs.className = 'fx-smoke';
   const salt = Math.floor(seed * 1e6);
   // Flames first so the smoke rolls over them.
-  for (let i = 0; i < 3; i++) {
+  const flames = 1 + Math.round(2 * burn);
+  for (let i = 0; i < flames; i++) {
     const flame = document.createElement('div');
     flame.className = 'fx-flame';
-    flame.style.setProperty('--fx-dx', `${(i - 1) * 9}px`);
+    flame.style.setProperty('--fx-dx', `${(i - (flames - 1) / 2) * 9}px`);
     flame.style.animationDelay = `${(-i * 0.17 - seed).toFixed(2)}s`;
     flame.style.animationDuration = `${(0.35 + 0.2 * hash01(String(i), salt + 1)).toFixed(2)}s`;
-    if (i !== 1) flame.style.height = '22px';
+    if (flames > 1 && i !== 1) flame.style.height = '22px';
     puffs.appendChild(flame);
   }
   // One wind direction per fire, with a little spread per puff.
   const lean = seed < 0.5 ? -1 : 1;
-  for (let i = 0; i < SMOKE_PUFFS; i++) {
+  const n = Math.round(3 + (SMOKE_PUFFS - 3) * burn);
+  for (let i = 0; i < n; i++) {
     const puff = document.createElement('div');
     puff.className = 'fx-puff';
-    puff.style.animationDelay = `${(-i * (7 / SMOKE_PUFFS) - seed * 7).toFixed(2)}s`;
+    puff.style.animationDelay = `${(-i * (7 / n) - seed * 7).toFixed(2)}s`;
     puff.style.setProperty('--fx-drift', `${Math.round(lean * (25 + 45 * hash01(String(i), salt)))}px`);
     puffs.appendChild(puff);
   }
@@ -320,6 +312,8 @@ interface Fire {
   lng: number;
   h: number;
   phase: number;
+  /** 0 smouldering … 1 fully ablaze (cityDamage). */
+  burn: number;
   smoke: Marker;
   puffs: HTMLDivElement;
 }
@@ -1089,8 +1083,9 @@ export class BuildingEngine {
 
   /**
    * Fold one freshly indexed building into the city's damage: soot, a stump, a
-   * fire. Picks are a stable hash of the feature id, so the same buildings are
-   * wrecked every visit. A site's own states override these (see heightExpr).
+   * fire, all from its one destruction severity (cityDamage.ts). Stable per
+   * feature id, so the same buildings are wrecked every visit. A site's own
+   * states override these (see heightExpr).
    */
   private markDamage(id: FeatureId, c: Indexed) {
     if (c.part) {
@@ -1098,15 +1093,14 @@ export class BuildingEngine {
       return;
     }
     const key = String(id);
-    const fire = c.h >= FIRE_MIN_H && hash01(key, 7) < FIRE_SHARE;
-    const collapse = c.h >= COLLAPSE_MIN_H && hash01(key, 2) < COLLAPSE_SHARE;
-    if (fire) this.fireIds.add(id);
-    if (collapse && !fire) this.collapsedIds.add(id);
+    const dmg = cityDamage(key, c.h);
+    if (dmg.level === 'intact') return;
+    if (dmg.level === 'burning') this.fireIds.add(id);
+    if (dmg.level === 'collapsed') this.collapsedIds.add(id);
     if (this.damaged.has(id)) return;
-    if (!fire && !collapse && hash01(key, 1) >= SCORCH_SHARE) return;
     this.damaged.add(id);
     const state: Record<string, unknown> = { scorch: true };
-    if (collapse) state.aruin = ambientStump(key);
+    if (dmg.stands < 1) state.aruin = dmg.stands;
     this.map.setFeatureState({ source: this.src, sourceLayer: this.sl, id }, state);
   }
 
@@ -1244,7 +1238,7 @@ export class BuildingEngine {
     const model = this.ruinCache.get(key);
     if (!key.startsWith('b:') || !model || model.owner === undefined || !this.map.getSource(this.src)) return;
     const target = (id: FeatureId) => ({ source: this.src, sourceLayer: this.sl, id });
-    this.map.setFeatureState(target(model.owner), { aruin: on ? 0 : ambientStump(String(model.owner)) });
+    this.map.setFeatureState(target(model.owner), { aruin: on ? 0 : ambientStump(String(model.owner), this.index.get(model.owner)?.h ?? 0) });
     for (const id of model.parts) this.map.setFeatureState(target(id), { aruin: on ? 0 : 1 });
   }
 
@@ -1321,7 +1315,8 @@ export class BuildingEngine {
       const c = this.index.get(id);
       if (!c || this.featureToSite.has(id)) continue;
       const d = metresBetween(live.lat, live.lng, c.lat, c.lng);
-      if (d <= FIRE_RANGE_M) near.push([d, id]);
+      const { burn } = cityDamage(String(id), c.h);
+      if (d <= FIRE_RANGE_M * (0.5 + 0.5 * burn)) near.push([d, id]);
     }
     near.sort((a, b) => a[0] - b[0]);
     const want = new Set(near.slice(0, MAX_FIRES).map(([, id]) => id));
@@ -1337,10 +1332,12 @@ export class BuildingEngine {
       if (!c) continue;
       const at = this.footprintCentre(id) ?? { lat: c.lat, lng: c.lng };
       const phase = hash01(String(id), 5);
-      const { el, puffs } = smokeElement(phase);
+      const dmg = cityDamage(String(id), c.h);
+      const { el, puffs } = smokeElement(phase, dmg.burn);
       const smoke = new Marker({ element: el, anchor: 'center' }).setLngLat([at.lng, at.lat]).addTo(this.map);
       this.map.setFeatureState({ source: this.src, sourceLayer: this.sl, id }, { burn: true });
-      this.fires.set(id, { ...at, h: c.h, phase: phase * Math.PI * 2, smoke, puffs });
+      // Smoke leaves what is left of the roof, not where it used to be.
+      this.fires.set(id, { ...at, h: c.h * dmg.stands, phase: phase * Math.PI * 2, burn: dmg.burn, smoke, puffs });
     }
     this.drawFires();
   }
@@ -1381,7 +1378,10 @@ export class BuildingEngine {
       features.push({
         type: 'Feature',
         geometry: { type: 'Point', coordinates: [f.lng, f.lat] },
-        properties: { w: 0.6 + 0.16 * Math.sin(f.phase), s: 38 + Math.min(f.h, 80) * 0.6 },
+        properties: {
+          w: (0.35 + 0.35 * f.burn) * (1 + 0.25 * Math.sin(f.phase)),
+          s: (38 + Math.min(f.h, 80) * 0.6) * (0.6 + 0.4 * f.burn),
+        },
       });
     }
     (this.map.getSource(FIRE_SOURCE) as GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features });
@@ -1402,7 +1402,7 @@ export class BuildingEngine {
       el.style.display = rise > 0.5 ? '' : 'none';
       if (rise <= 0.5) continue;
       f.smoke.setOffset([0, -f.h * rise * pxPerMetre(z, f.lat) * lift]);
-      f.puffs.style.transform = `scale(${scale.toFixed(2)})`;
+      f.puffs.style.transform = `scale(${(scale * (0.65 + 0.35 * f.burn)).toFixed(2)})`;
     }
   }
 
