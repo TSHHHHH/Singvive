@@ -1830,3 +1830,26 @@ select optgroup {
     transition: none;
   }
 }
+
+/* Vital meter change tag: pops in beside the number, then drifts off. */
+@keyframes vital-delta {
+  0% {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  15% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+}
+.vital-delta {
+  display: inline-block;
+  animation: vital-delta 1.6s ease-out 1 forwards;
+}
