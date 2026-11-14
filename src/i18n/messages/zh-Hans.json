@@ -450,6 +450,22 @@
       "encumbered": "超重",
       "loose": "散装携带",
       "carryLoose": "散装携带",
+      "multiSelect": "多选",
+      "shiftClickGesture": "Shift+点击",
+      "throwAway": "丢弃",
+      "dragOutGesture": "拖出面板",
+      "discard": {
+        "title": "丢弃这件物品？",
+        "titleMany": "丢弃 {n} 件物品？",
+        "bodyMany": "丢掉就没了，不会再在这里找到。",
+        "body": "丢掉就没了，不会再在这里找到。",
+        "more": "还有 {n} 件",
+        "total": "减轻 {kg} kg",
+        "dontAsk": "不再询问",
+        "cancel": "保留",
+        "confirm": "丢弃",
+        "ghost": "丢弃"
+      },
       "carriedHint": "背包装不下的东西。按 ×{mult} 计重，会发出声响，战斗中拿不到。把格子里的物品拖到这里即可散装携带，把行拖进格子即可收进背包。",
       "looseEmpty": "没有散装物品。背包装不下的东西会放在这里。",
       "carriedNoMatch": "没有符合筛选条件的物品。",
@@ -1948,6 +1964,14 @@
     "combatFx": {
       "label": "战斗震屏与血迹",
       "description": "命中时屏幕震动、溅血与伤害数字。仅限电脑版。开启「减少动态效果」时只保留淡入淡出，不再移动。",
+      "options": {
+        "on": "开",
+        "off": "关"
+      }
+    },
+    "confirmDiscard": {
+      "label": "丢弃物品前确认",
+      "description": "丢弃物品（拖出物品栏或点「丢弃」）前先询问。在确认窗口勾选「不再询问」会关闭此项。",
       "options": {
         "on": "开",
         "off": "关"

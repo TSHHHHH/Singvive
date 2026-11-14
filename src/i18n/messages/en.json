@@ -451,6 +451,22 @@
       "encumbered": "Encumbered",
       "loose": "Carried loose",
       "carryLoose": "Carry loose",
+      "multiSelect": "Select several",
+      "shiftClickGesture": "Shift+click",
+      "throwAway": "Throw away",
+      "dragOutGesture": "Drag out of panel",
+      "discard": {
+        "title": "Throw this away?",
+        "titleMany": "Throw away {n} items?",
+        "bodyMany": "They're gone for good. You won't find them here again.",
+        "body": "It's gone for good. You won't find it here again.",
+        "more": "+{n} more",
+        "total": "{kg} kg lighter",
+        "dontAsk": "Don't ask again",
+        "cancel": "Keep",
+        "confirm": "Throw away",
+        "ghost": "Throw away"
+      },
       "carriedHint": "Doesn't fit the pack. Counts ×{mult} weight, rattles, and can't be reached in a fight. Drag a tile here to carry it loose, or drag a row into the grid to pack it.",
       "looseEmpty": "Nothing loose. Anything that won't fit the pack lands here.",
       "carriedNoMatch": "Nothing carried matches this filter.",
@@ -1948,6 +1964,14 @@
     "combatFx": {
       "label": "Combat shake & blood",
       "description": "Screen shake, blood splatter and damage numbers when blows land. Desktop only. Reduce motion keeps the fades and drops the movement.",
+      "options": {
+        "on": "On",
+        "off": "Off"
+      }
+    },
+    "confirmDiscard": {
+      "label": "Confirm throwing items away",
+      "description": "Ask before items are thrown away — by dragging them out of the inventory or with Drop. \"Don't ask again\" in that window turns this off.",
       "options": {
         "on": "On",
         "off": "Off"

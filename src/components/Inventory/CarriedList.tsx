@@ -73,6 +73,8 @@ interface Props {
   items: ItemInstance[];
   selectedUid: string | null;
   draggingUid: string | null;
+  multiSelected?: ReadonlySet<string>;
+  draggingUids?: readonly string[];
   /** True while something from the grid is being dragged over the list. */
   dropActive: boolean;
   dropValid: boolean;
@@ -97,6 +99,8 @@ export function CarriedList({
   items,
   selectedUid,
   draggingUid,
+  multiSelected,
+  draggingUids,
   dropActive,
   dropValid,
   listRef,
@@ -264,8 +268,8 @@ export function CarriedList({
           {shown.map((r) => {
             const { inst, def } = r;
             const hex = tileColor(def);
-            const selected = inst.uid === selectedUid;
-            const dragging = inst.uid === draggingUid;
+            const selected = inst.uid === selectedUid || !!multiSelected?.has(inst.uid);
+            const dragging = inst.uid === draggingUid || !!draggingUids?.includes(inst.uid);
             const cond =
               inst.condition !== undefined && def.maxCondition
                 ? Math.max(0, Math.min(100, Math.round(inst.condition)))

@@ -52,12 +52,15 @@ const PC_INVENTORY_HINT_KEYS = [
   { actionKey: 'ui.inventory.stashOrPack', keysKey: 'ui.inventory.ctrlClickGesture' },
   { actionKey: 'ui.inventory.quickActions', keysKey: 'ui.inventory.rightClickGesture' },
   { actionKey: 'ui.inventory.moveRotate', keysKey: 'ui.inventory.dragRotateGesture' },
+  { actionKey: 'ui.inventory.multiSelect', keysKey: 'ui.inventory.shiftClickGesture' },
+  { actionKey: 'ui.inventory.throwAway', keysKey: 'ui.inventory.dragOutGesture' },
 ] as const;
 
 const TOUCH_INVENTORY_HINT_KEYS = [
   { actionKey: 'ui.inventory.inspect', keysKey: 'ui.inventory.holdGesture' },
   { actionKey: 'ui.inventory.selectItem', keysKey: 'ui.inventory.tapGesture' },
   { actionKey: 'ui.inventory.move', keysKey: 'ui.inventory.dragGesture' },
+  { actionKey: 'ui.inventory.throwAway', keysKey: 'ui.inventory.dragOutGesture' },
 ] as const;
 
 function InventoryControlsHint({ coarse }: { coarse: boolean }): ReactNode {
@@ -113,7 +116,6 @@ export function InventoryPanel({
   const transferItem = useGame((s) => s.transferItem);
   const equipItem = useGame((s) => s.equipItem);
   const unequipItem = useGame((s) => s.unequipItem);
-  const dropItem = useGame((s) => s.dropItem);
   const repairItem = useGame((s) => s.repairItem);
   const tearForRags = useGame((s) => s.tearForRags);
   const confirmTempStash = useGame((s) => s.confirmTempStash);
@@ -122,7 +124,10 @@ export function InventoryPanel({
   const {
     selectedUid,
     setSelectedUid,
+    multiSelected,
+    requestDiscard,
     dragUid,
+    dragUids,
     drag,
     stashContainer,
     hasTempStash,
@@ -207,6 +212,8 @@ export function InventoryPanel({
     onItemPointerEnter,
     onItemPointerLeave,
     onItemPointerMove,
+    multiSelected,
+    draggingUids: dragUids,
     suppressTip: true,
   };
 
@@ -334,10 +341,11 @@ export function InventoryPanel({
                           </button>
                         )}
                         <button
-                          onClick={() => {
-                            dropItem(inspected.uid);
-                            setSelectedUid(null);
-                          }}
+                          onClick={() =>
+                            requestDiscard(
+                              multiSelected.has(inspected.uid) ? [...multiSelected] : [inspected.uid],
+                            )
+                          }
                           className="w-full rounded border border-hiss/40 px-1.5 py-1 text-body leading-tight text-hiss/80 hover:bg-hiss/10"
                           {...tip(t('ui.inventory.dropGone'))}
                         >
