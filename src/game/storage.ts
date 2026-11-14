@@ -97,11 +97,6 @@ export interface SavedRun {
   tunnel?: TunnelRun | null;
   /** Run counter behind every tunnel rng key. @see TunnelRun.seq */
   tunnelSeq?: number;
-  /**
-   * Undirected edge keys collapsed this run. Absent on older saves — resume
-   * re-rolls from seed with the same fork so the corridor stays stable.
-   */
-  destroyedTunnelEdges?: string[];
   /** Doorway-event rate limiter, so reloading can't farm encounters. */
   eventClock?: EventClock;
   /** How each faction feels about you. Absent on saves from before standing. */

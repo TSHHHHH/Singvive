@@ -67,11 +67,8 @@ import {
   adjacentEdge,
   displayLine,
   getMrtNetwork,
-  hopCollapsedFlags,
   loadMrtNetwork,
-  nearestStationAny,
 } from './mrt';
-import { rollDestroyedTunnels } from './mrtDamage';
 import {
   canExitHere,
   CARRIAGE_BAIT_CHANCE,
@@ -601,13 +598,6 @@ interface State {
    */
   evacManifestRevealed: boolean;
   escaped: boolean; // true on a victory ending
-
-  /**
-   * Undirected edge keys (`a|b`) collapsed this run. Seeded at spawn with a
-   * soft bias toward the first-evac corridor. Empty until the network rolls.
-   * Collapsed hops stay walkable — a brutal crawl, not a wall.
-   */
-  destroyedTunnelEdges: string[];
 
   maxHp: number; // base max HP; effective max is reduced by injuries
   meters: Meters;
@@ -1336,7 +1326,6 @@ export const useGame = create<State>((set, get) => {
         evacDemand: s.evacDemand,
         evacDemandBias: s.evacDemandBias,
         evacManifestRevealed: s.evacManifestRevealed,
-        destroyedTunnelEdges: s.destroyedTunnelEdges,
         hdbBlocks: s.hdb ? { ...s.hdbBlocks, [s.hdb.locationId]: s.hdb } : s.hdbBlocks,
         tunnel: s.tunnel,
         tunnelSeq: s.tunnelSeq,
@@ -3047,7 +3036,7 @@ export const useGame = create<State>((set, get) => {
     if (from.mrtStationId !== stationIds[0]) return;
 
     for (let i = 1; i < stationIds.length; i++) {
-      if (!adjacentEdge(net, stationIds[i - 1], stationIds[i], s.destroyedTunnelEdges)) {
+      if (!adjacentEdge(net, stationIds[i - 1], stationIds[i])) {
         pushLog('That route isn\'t on the rail map.', 'bad');
         return;
       }
@@ -3077,18 +3066,15 @@ export const useGame = create<State>((set, get) => {
       });
 
       const hopMeters: number[] = [];
-      const hopCollapsed = hopCollapsedFlags(stationIds, cur.destroyedTunnelEdges);
       let meters = 0;
-      let collapsedMeters = 0;
       let mode: 'mrt' | 'lrt' = 'lrt';
       let lineCode = '';
       let lineName = 'Tunnel';
       let lineColor = '#9c9890';
       for (let i = 1; i < stationIds.length; i++) {
-        const seg = adjacentEdge(net, stationIds[i - 1], stationIds[i], cur.destroyedTunnelEdges)!;
+        const seg = adjacentEdge(net, stationIds[i - 1], stationIds[i])!;
         hopMeters.push(seg.meters);
         meters += seg.meters;
-        if (seg.collapsed) collapsedMeters += seg.meters;
         if (seg.line.mode === 'mrt') mode = 'mrt';
         if (i === 1) {
           const line = displayLine(net, seg.line);
@@ -3105,7 +3091,6 @@ export const useGame = create<State>((set, get) => {
         cur.meters.energy,
         cur.hour,
         moveFactor(cur),
-        collapsedMeters,
         loadOf(cur).tunnelTravelMult,
       );
       const run = generateTunnelRun(
@@ -3115,7 +3100,6 @@ export const useGame = create<State>((set, get) => {
           to,
           stations,
           hopMeters,
-          hopCollapsed,
           lineCode,
           lineName,
           lineColor,
@@ -3134,18 +3118,6 @@ export const useGame = create<State>((set, get) => {
         run.id,
         `${run.fromName} → ${run.stationNames?.[run.stationNames.length - 1] ?? run.toName}`,
       );
-      const ruined = hopCollapsed.filter(Boolean).length;
-      if (ruined > 0) {
-        pushLog(
-          ruined === 1
-            ? 'Part of this walk crosses a collapsed bore — rubble, packs, no camps.'
-            : `${ruined} stretches of this walk are collapsed bores — rubble, packs, no camps.`,
-          'bad',
-          undefined,
-          undefined,
-          runScope,
-        );
-      }
       pushLog(
         stationIds.length > 2
           ? `You drop off the platform at ${fromNow.name} — ${stationIds.length - 1} stops toward ${to.name}.`
@@ -3384,8 +3356,8 @@ export const useGame = create<State>((set, get) => {
 
       let bodyParts = cur.bodyParts;
       if (cfg.wound) {
-        const lo = node.collapsedBore ? cfg.wound.collapsedMin : cfg.wound.min;
-        const hi = node.collapsedBore ? cfg.wound.collapsedMax : cfg.wound.max;
+        const lo = cfg.wound.min;
+        const hi = cfg.wound.max;
         bodyParts = applyWound(cur.bodyParts, rng.int(lo, hi), rng);
       }
       set({
@@ -3686,7 +3658,6 @@ export const useGame = create<State>((set, get) => {
     evacDemandBias: null,
     evacManifestRevealed: false,
     escaped: false,
-    destroyedTunnelEdges: [],
     maxHp: 100,
     meters: initialMeters(),
     bodyParts: initialBodyParts(100),
@@ -3887,22 +3858,6 @@ export const useGame = create<State>((set, get) => {
       const evacDeadline = totalGameHour(1, START_HOUR) + firstWindow;
       const firstDemand = rollEvacDemand(rng.fork('evacdemand:first'), 1);
 
-      // Collapse some tunnels this run — medium density, soft bias toward the
-      // rail corridor between spawn and the first evac beacon.
-      let destroyedTunnelEdges: string[] = [];
-      if (net) {
-        const fromSt = nearestStationAny(net, spawn.lat, spawn.lng);
-        const evacForBias = evacZoneId ? locations[evacZoneId] : null;
-        const toSt = evacForBias
-          ? nearestStationAny(net, evacForBias.lat, evacForBias.lng)
-          : null;
-        destroyedTunnelEdges = rollDestroyedTunnels(
-          rng.fork('mrt:destroyed'),
-          net,
-          toSt ? { fromStationId: fromSt.id, toStationId: toSt.id } : null,
-        );
-      }
-
       set({
         hordeLevel: TOWN_FIELD_START_HORDE,
         groundZeroId: groundZero.id,
@@ -3913,7 +3868,6 @@ export const useGame = create<State>((set, get) => {
         evacDemandBias: firstDemand.bias,
         evacManifestRevealed: false,
         escaped: false,
-        destroyedTunnelEdges,
       });
       const evacLoc = evacZoneId ? locations[evacZoneId] : null;
       if (evacLoc) {
@@ -4465,7 +4419,7 @@ export const useGame = create<State>((set, get) => {
         return;
       }
       for (let i = 1; i < stationIds.length; i++) {
-        if (!adjacentEdge(net, stationIds[i - 1], stationIds[i], s.destroyedTunnelEdges)) {
+        if (!adjacentEdge(net, stationIds[i - 1], stationIds[i])) {
           pushLog('That route isn\'t on the rail map.', 'bad');
           return;
         }
@@ -4542,22 +4496,11 @@ export const useGame = create<State>((set, get) => {
       const node = run.nodes[nodeId];
       if (!node || !reachable(run).some((n) => n.id === nodeId)) return;
 
-      const leaving = currentNode(run);
       // The walk between columns is charged first: whatever is on the node
       // happens after you have already spent the minutes getting to it.
       const walked = tunnelTick(run.minutesPerHop / 60);
       if (!walked) return;
       const nextRun = stepTo(walked, nodeId);
-      if (node.collapsedBore && !leaving.collapsedBore) {
-        const nodeScope = tunnelNodeScope(run.id, nodeId, node.name);
-        pushLog(
-          'The crown came down through here. You crawl the rubble — this stretch will not be kind.',
-          'bad',
-          undefined,
-          undefined,
-          nodeScope,
-        );
-      }
       set({ tunnel: nextRun });
       // Save the move itself before resolving it. A fight is never part of a
       // save, so without this a reload mid-contact would rewind you to the
@@ -7560,7 +7503,6 @@ export const useGame = create<State>((set, get) => {
         evacDemandBias: null,
         evacManifestRevealed: false,
         escaped: false,
-        destroyedTunnelEdges: [],
         combat: null,
         _combatRng: null,
         hdb: null,
@@ -7619,24 +7561,12 @@ export const useGame = create<State>((set, get) => {
           /* outlines stay missing for fallback worlds */
         });
       // Stations were bound to the network when the run was created; get it
-      // back in memory so the tunnels still route — and so old saves can
-      // re-roll destroyed edges from seed before play resumes.
-      void loadMrtNetwork().then((net) => {
+      // back in memory so the tunnels still route before play resumes.
+      void loadMrtNetwork().then(() => {
       syncBackpackBonuses(
         sumTraitMod(run.character.traitIds, 'gridWidthBonus'),
         coerceEquipment(run.equipment),
       );
-      let destroyedTunnelEdges = run.destroyedTunnelEdges ?? [];
-      if (!destroyedTunnelEdges.length && net && run.spawn) {
-        const fromSt = nearestStationAny(net, run.spawn.lat, run.spawn.lng);
-        const evac = run.evacZoneId ? run.locations[run.evacZoneId] : null;
-        const toSt = evac ? nearestStationAny(net, evac.lat, evac.lng) : null;
-        destroyedTunnelEdges = rollDestroyedTunnels(
-          new Rng(run.seed).fork('mrt:destroyed'),
-          net,
-          toSt ? { fromStationId: fromSt.id, toStationId: toSt.id } : null,
-        );
-      }
       set({
         phase: 'game',
         character: run.character,
@@ -7683,7 +7613,6 @@ export const useGame = create<State>((set, get) => {
           return { evacDemand: rolled.demand, evacDemandBias: rolled.bias };
         })(),
         escaped: false,
-        destroyedTunnelEdges,
         travelAnim: null,
         worldLoading: false,
         worldError: null,

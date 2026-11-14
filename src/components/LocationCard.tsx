@@ -304,9 +304,7 @@ function TunnelButton({ seg, onTunnel }: { seg: MrtSegment | null; onTunnel: () 
     <button onClick={onTunnel} className={BTN.tinted} style={tint(line?.color ?? '#2bc4d9')}>
       <Icon name="action.mrt" /> {t('ui.location.planTunnels')}
       <BtnSub>
-        {seg?.collapsed
-          ? t('ui.location.collapsedBore')
-          : seg
+        {seg
             ? t('ui.location.tunnelMeta', {
                 line: line ? `${line.name} · ` : '',
                 meters: seg.meters,

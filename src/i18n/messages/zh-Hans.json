@@ -329,7 +329,6 @@
       "leaveBlock": "离开组屋",
       "route": "路线",
       "planTunnels": "规划隧道路线",
-      "collapsedBore": "坍塌隧道 · 高风险",
       "tunnelMeta": "{line}{meters} 米 · 无天气影响，无距离限制",
       "tunnelMetaRoute": "路线 · 无天气影响，无距离限制",
       "pickStation": "选择任意车站 · 虚线部分为坍塌路段，通行艰难",
@@ -1347,6 +1346,16 @@
     },
     "tunnel": {
       "ariaSchematic": "隧道示意图。滚动缩放，拖动平移。",
+      "serviceLines": "服务支线",
+      "lines": "线路",
+      "service": {
+        "walkway": "维修通道",
+        "cable": "电缆廊道",
+        "drain": "排水涵洞",
+        "vent": "通风横洞",
+        "evac": "紧急疏散通道",
+        "oldbore": "废弃隧道"
+      },
       "you": "你",
       "unknown": "???",
       "farAhead": "你看不了那么远",
@@ -1447,12 +1456,10 @@
       "checkpointHeld": "{name} · STA 控制着隧道",
       "unrevealedBlurb": "太远了，看不清。走近才知道。",
       "eliteBlurb": "有个东西一直在隧道里跟着你。",
-      "collapsedBlurb": "隧道坍塌 — 碎石、敌群，没有营地。",
       "exitHint": "每个车站都有楼梯通往地面，也可以继续走向隧道另一端。",
       "forwardHint": "到下一站才能回到地面。这段隧道只能继续向前。",
       "directionsNone": "从这里没有通往{name}的隧道路线。可规划其他路线，或走地面。",
       "directionsVia": "经{line}，共 {stops} 站",
-      "directionsCollapsed": "前往{name}需{where}，但地下路线必须穿过坍塌隧道。可规划行程，或走地面。",
       "directionsRoute": "前往{name}需{where}。打开隧道规划，可一次走完全程。"
     },
     "mrt": {
@@ -1465,11 +1472,7 @@
       "backToMap": "返回地图",
       "goldPlanned": "金色 = 计划路线",
       "noPath": "无法到达 {name}——路网未连通。",
-      "allCollapsed": "通往 {name} 的每条隧道都要爬坍塌段——碎石、尸潮，无营地。",
-      "shortcutCollapsed": "此捷径要爬坍塌段——将是一趟苦差。",
       "tooSpent": "太疲惫了——先休息",
-      "crawlCollapsed": "爬坍塌段 · {n} 站",
-      "crawlCollapsedPlural": "爬坍塌段 · {n} 站",
       "enterTunnels": "进入隧道 · {n} 站",
       "enterTunnelsPlural": "进入隧道 · {n} 站",
       "pickDestination": "选择目的地",
@@ -1477,8 +1480,7 @@
       "changes": " · 换乘 {n} 次",
       "changesPlural": " · 换乘 {n} 次",
       "noChanges": " · 无需换乘",
-      "throughCollapsed": "经坍塌段（{stops} · {n} 段损毁）",
-      "fewestIntact": "最少完好站（{stops}）",
+      "fewestStops": "最少站数（{stops}）",
       "viaLine": "经 {line} · {n} 站",
       "viaCodes": "{codes} · {n} 站 · 换乘 {changes} 次",
       "viaCodesPlural": "{codes} · {n} 站 · 换乘 {changes} 次",
@@ -1486,7 +1488,6 @@
       "stopsMany": "{n} 站",
       "tooltipHere": "（此处）",
       "tooltipDestination": "（目的地）",
-      "legendCollapsed": "虚线=坍塌·可通行，通行艰难",
       "osmBaked": "OSM · 烘焙于 {date}"
     },
     "stationStrip": {
@@ -1494,13 +1495,11 @@
       "changeTo": "换乘至",
       "now": "当前",
       "nowNamed": "当前：{name}",
-      "collapsedBore": "坍塌隧道",
       "alighting": "即将下车",
       "changeAt": "换乘于",
       "changeAtNamed": "换乘于 {name}",
       "next": "下一站",
       "nextNamed": "下一站：{name}",
-      "crawlRubble": "爬过碎石",
       "toLine": "至 {line}",
       "stopsLeft": " · 剩 {n} 站",
       "stopsLeftPlural": " · 剩 {n} 站",
@@ -2029,7 +2028,7 @@
     "tunnels": {
       "title": "隧道",
       "bullets": [
-        "在地铁站台选择“规划隧道行程”可打开线路图。选定目的地后，默认路线优先选择完好线路上站数最少的走法。每局都有部分隧道坍塌，仍可通行，但会遇到瓦砾和敌群，没有营地补给。它们有时能缩短长途路线，代价是更高风险。",
+        "在地铁站台选择“规划隧道行程”可打开线路图。选定目的地后，从站数最少的几条路线中挑选。隧道里，维修通道等支线会从主线分出，几站后再并回——每条都是不同的路线选择。",
         "确认路线后，整个行程会连续进行。站点条显示线路、下一站和换乘处。你可以在中途车站离开，也可以继续走到终点。地下不受地面移动范围和天气限制，步行消耗比地面低，但沉重的背包仍会让你疲劳。",
         "站间隧道可能出现岔路。可沿主线前进，也可进入经过几个节点后再汇合的支线。根据当前状态选择路线，一旦迈出去，就不能再走另一条。",
         "营地可提供睡觉、包扎或交换物资的机会，也是地下唯一能睡的地方。不同障碍各有风险：积水里可能藏着受感染的水獭，坠物会造成重伤，断电路段会耽误时间。少见的敌情可能是一直尾随你的潜行者。STA 可能在下站楼梯或隧道检查站收取通行费。"
@@ -2040,7 +2039,7 @@
       "bullets": [
         "地图信标标出撤离集结点。须在限时窗口内带着物资赶到，只计算背包中的货物，储藏点和已装备物品不算。首次在撤离点联络机组，会得知本次物资需求；该需求在本窗口内保持不变。若背包物资已达标，这次联络也会直接发射信号弹。",
         "燃料贡献最大，其次是药品和弹药；瓶装水贡献较少，食物、废料和武器几乎不计。途中电台只会给出大致判断，具体需求须抵达撤离点后才能确认。烧水会消耗可用于撤离的燃料。",
-        "错过窗口后，等候一段时间会开放新的撤离点；期间尸潮仍会持续上升。坍塌隧道可能迫使你绕路前往首个信标，也可以冒险穿过瓦砾。"
+        "错过窗口后，等候一段时间会开放新的撤离点；期间尸潮仍会持续上升。"
       ]
     },
     "score": {
