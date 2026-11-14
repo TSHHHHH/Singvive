@@ -10,6 +10,7 @@
     "lint": "oxlint --max-warnings=23 && node scripts/check-type-scale.mjs && node scripts/check-zh-hans-glossary.mjs",
     "lint:type": "node scripts/check-type-scale.mjs",
     "test": "vitest run",
+    "sim:kits": "node scripts/sim-kits.mjs",
     "sim:combat": "node scripts/sim-combat.mjs",
     "sim:encounters": "node scripts/sim-encounters.mjs",
     "sim:carry": "node scripts/sim-carry.mjs",

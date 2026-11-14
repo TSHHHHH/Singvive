@@ -1748,11 +1748,20 @@
         "stealth": "Stealth",
         "scavenge": "Scavenge",
         "needs": "Needs",
-        "people": "People"
+        "people": "People",
+        "gear": "Gear"
       },
       "blockReason": {
         "conflict": "conflicts with a picked trait",
         "points": "not enough points"
+      },
+      "kit": {
+        "startsWith": "Starts with",
+        "title": "Starting kit",
+        "worn": "worn",
+        "oneOf": "{n} random from: {items}",
+        "dropped": "Starts without: {items}",
+        "hint": "Gear from traits and job outfits. Random finds roll from the run seed."
       }
     },
     "exploration": {
@@ -2449,7 +2458,11 @@
     "towel_vest": "Towel-Padded Vest",
     "magazine_guards": "Magazine Shin Guards",
     "sling_bag": "Improvised Sling Bag",
-    "treated_bedroll": "Repellent-Treated Bedroll"
+    "treated_bedroll": "Repellent-Treated Bedroll",
+    "energy_gel": "Energy Gel",
+    "ifak_pouch": "IFAK Pouch",
+    "tingkat_lunch": "Tingkat Lunch",
+    "golf_umbrella": "Golf Umbrella"
   },
   "enemy": {
     "shambler": "Shambler",
@@ -3390,6 +3403,55 @@
       "effects": [
         "−10% travel speed",
         "−1 awareness"
+      ]
+    },
+    "go_bag": {
+      "name": "Go-Bag",
+      "description": "The emergency bag the pamphlets told everyone to pack. You actually packed it.",
+      "effects": [
+        "Starting gear only"
+      ]
+    },
+    "prepper": {
+      "name": "Prepper",
+      "description": "Your family laughed at the shelf of tins in the storeroom. Nobody is laughing now.",
+      "effects": [
+        "Starting gear only"
+      ]
+    },
+    "medicine_cabinet": {
+      "name": "Medicine Cabinet",
+      "description": "You emptied the bathroom cabinet into your pockets on the way out.",
+      "effects": [
+        "Starting gear only"
+      ]
+    },
+    "heirloom_blade": {
+      "name": "Kampung Heirloom",
+      "description": "Grandfather’s parang hung over the door for forty years. It came down sharp.",
+      "effects": [
+        "Starting gear only"
+      ]
+    },
+    "weekend_cyclist": {
+      "name": "Weekend Cyclist",
+      "description": "Sunday rides round the island. The bike is gone; the helmet and gloves are not.",
+      "effects": [
+        "Starting gear only"
+      ]
+    },
+    "supper_run": {
+      "name": "Supper Run",
+      "description": "You were out buying supper when the sirens started. At least you did not drop it.",
+      "effects": [
+        "Starting gear only"
+      ]
+    },
+    "just_popped_out": {
+      "name": "Just Popped Out",
+      "description": "You only went down for kopi. Flip-flops, a grocery tote, and no jacket.",
+      "effects": [
+        "Worse starting clothes"
       ]
     }
   },

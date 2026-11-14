@@ -119,7 +119,6 @@ import {
   ensureDestruction,
   isStreetLootPoi,
   itemDef,
-  ITEMS,
   rollFactionRaidLoot,
   rollLoot,
   rollStreetLoot,
@@ -127,7 +126,6 @@ import {
   type LootStack,
 } from './loot';
 import {
-  addToGrid,
   canPlace,
   canEquip,
   canTearForRags,
@@ -326,6 +324,7 @@ import {
   pruneMapAnnotations,
 } from './intel';
 import { applyStartingFactionIntel } from './startingIntel';
+import { resolveStartingKit, type KitLine } from './startingKit';
 import { tickLocationClock } from './locationClock';
 import { POI_CONFIG } from './poi';
 import {
@@ -3974,44 +3973,34 @@ export const useGame = create<State>((set, get) => {
         );
       }
 
-      // Starting kit comes from ItemDef.startingItem flags (editable in the DEV loot browser).
-      // Equip first (incl. bag), sync the pack silhouette, then pack leftovers into that mask.
+      // Starting kit: base `startingItem` flags plus trait kits (startingKit.ts).
+      // Equip first (incl. bag), sync the pack silhouette, then pack the rest —
+      // anything that does not fit rides loose. Pools roll off the run seed.
       let items: ItemInstance[] = [];
       const equipment = emptyEquipment();
-      const packStarters: { defId: string; count: number }[] = [];
-      for (const def of Object.values(ITEMS)) {
-        if (!def.startingItem) continue;
-        if (def.slot && !equipment[def.slot]) {
-          equipment[def.slot] = {
-            uid: `equip_start_${def.id}`,
-            defId: def.id,
-            container: `equip:${def.slot}`,
-            x: 0,
-            y: 0,
-            rotated: false,
-            stack: 1,
-            condition: def.maxCondition ?? 100,
-          };
-        } else {
-          packStarters.push({
-            defId: def.id,
-            count: Math.max(1, def.startingCount ?? 1),
-          });
-        }
+      const kit = resolveStartingKit(get().character!.traitIds, rng.fork('startingKit'));
+      for (const [slot, line] of Object.entries(kit.equip) as [EquipSlot, KitLine][]) {
+        const def = itemDef(line.id);
+        equipment[slot] = {
+          uid: `equip_start_${def.id}`,
+          defId: def.id,
+          container: `equip:${slot}`,
+          x: 0,
+          y: 0,
+          rotated: false,
+          stack: 1,
+          condition: def.maxCondition ?? 100,
+        };
       }
+      const packStarters = kit.pack.map((l) => ({ defId: l.id, count: l.count }));
       const traitW = sumTraitMod(get().character!.traitIds, 'gridWidthBonus');
       syncBackpackBonuses(traitW, equipment);
 
       let kitLeftover = 0;
       for (const { defId, count } of packStarters) {
-        const packed = addToGrid(items, 'backpack', defId, count);
+        const packed = addToCarry(items, defId, count);
         items = packed.items;
-        kitLeftover += packed.leftover;
-        if (import.meta.env.DEV && packed.leftover > 0) {
-          console.error(
-            `[start] starting kit could not fit ${defId} ×${packed.leftover} in the pack grid`,
-          );
-        }
+        kitLeftover += packed.loose;
       }
       const packLegal = items
         .filter((i) => i.container === 'backpack')
@@ -4020,11 +4009,11 @@ export const useGame = create<State>((set, get) => {
           const { w, h } = footprint(d, i.rotated);
           return canPlace('backpack', items, { x: i.x, y: i.y, w, h }, i.uid);
         });
-      if (import.meta.env.DEV && (!packLegal || kitLeftover > 0)) {
-        console.error(
-          '[start] starting bag packGrid is illegal for the starting kit',
-          { packLegal, kitLeftover },
-        );
+      if (import.meta.env.DEV && !packLegal) {
+        console.error('[start] starting bag packGrid is illegal for the starting kit', {
+          packLegal,
+          kitLeftover,
+        });
       }
 
       // Hubs exist independently of player knowledge. Only starting intel

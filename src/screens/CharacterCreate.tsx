@@ -29,7 +29,14 @@ import { TRAIT_TAG_ORDER, traitTags, type TraitTag } from '../game/traitTags';
 import type { Occupation, Trait } from '../game/types';
 import { Icon } from '../icons/Icon';
 import { TipHint, useCoarsePointer } from '../components/TipHint';
-import { traitDescription, traitEffects, traitHoverText, traitName, useT } from '../i18n';
+import { itemName, traitDescription, traitEffects, traitHoverText, traitName, useT } from '../i18n';
+import {
+  kitLines,
+  resolveStartingKit,
+  traitKit,
+  type KitEntry,
+  type KitLine,
+} from '../game/startingKit';
 import { tip } from '../components/tips';
 
 type Side = 'positive' | 'negative';
@@ -54,6 +61,12 @@ function sortTraitsByPoints(items: Trait[], dir: PointSort, locale: ReturnType<t
     if (d !== 0) return d * mul;
     return traitName(a.id, locale).localeCompare(traitName(b.id, locale), locale);
   });
+}
+
+/** "Bandage ×2" — item name with a count when there is more than one. */
+function kitLabel(e: KitEntry | KitLine, locale: ReturnType<typeof useT>['locale']): string {
+  const n = e.count ?? 1;
+  return n > 1 ? `${itemName(e.id, locale)} ×${n}` : itemName(e.id, locale);
 }
 
 function SectionLabel({ children, right }: { children: ReactNode; right?: ReactNode }) {
@@ -273,6 +286,53 @@ export function CharacterCreate() {
     </div>
   );
 
+  const kit = resolveStartingKit(traitIds);
+  const listSep = locale === 'zh-Hans' ? '、' : ', ';
+  const poolLine = (p: { pick: number; from: KitEntry[] }) =>
+    t('ui.create.kit.oneOf', { n: p.pick, items: p.from.map((e) => kitLabel(e, locale)).join(listSep) });
+
+  /** One build's whole kit: what is worn, then what is packed, trait gear highlighted. */
+  const kitBlock = (
+    <div className="flex flex-wrap gap-1" {...tip(t('ui.create.kit.hint'))}>
+      {kitLines(kit).map((line) => {
+        const worn = Object.values(kit.equip).includes(line);
+        const fromTrait = line.source !== 'base';
+        return (
+          <span
+            key={`${worn ? 'w' : 'p'}:${line.id}`}
+            className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-micro ${
+              fromTrait ? 'border-signal/30 bg-signal/10 text-signal' : 'border-white/10 bg-white/5 text-white/60'
+            }`}
+          >
+            {kitLabel(line, locale)}
+            {worn && <span className="opacity-50">· {t('ui.create.kit.worn')}</span>}
+          </span>
+        );
+      })}
+      {kit.pools.map((p) => (
+        <span
+          key={`pool:${p.trait}`}
+          className="rounded border border-dashed border-signal/30 px-1.5 py-0.5 text-micro text-signal/80"
+        >
+          {poolLine(p)}
+        </span>
+      ))}
+    </div>
+  );
+
+  /** What one trait adds (detail panel, mobile tip). */
+  const traitKitText = (id: string): string[] => {
+    const k = traitKit(id);
+    if (!k) return [];
+    const out: string[] = [];
+    if (k.items?.length) out.push(k.items.map((e) => kitLabel(e, locale)).join(listSep));
+    if (k.pool) out.push(poolLine(k.pool));
+    if (k.drop?.length) {
+      out.push(t('ui.create.kit.dropped', { items: k.drop.map((d) => itemName(d, locale)).join(listSep) }));
+    }
+    return out;
+  };
+
   const selectedChips =
     traitIds.length === 0 ? (
       <p className="text-micro text-white/35">{t('ui.create.noTraits')}</p>
@@ -341,6 +401,10 @@ export function CharacterCreate() {
       <div>
         <SectionLabel>{t('ui.skills.starting')}</SectionLabel>
         {skillsLine}
+      </div>
+      <div>
+        <SectionLabel>{t('ui.create.kit.title')}</SectionLabel>
+        {kitBlock}
       </div>
     </div>
   );
@@ -502,6 +566,16 @@ export function CharacterCreate() {
           <span className="text-hiss">{tList(`occupation.${picked.id}.strugglesWith`).join(locale === 'zh-Hans' ? '、' : ', ')}</span>
         </div>
       </div>
+      {picked.traitIds.some((id) => traitKit(id)) && (
+        <div className="mt-2 text-micro">
+          <span className="block uppercase text-white/40">{t('ui.create.kit.startsWith')}</span>
+          {picked.traitIds.flatMap(traitKitText).map((line) => (
+            <span key={line} className="block text-concrete-50">
+              {line}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   ) : (
     <p className="rounded border border-dashed border-white/10 p-3 text-body text-white/40">
@@ -588,7 +662,11 @@ export function CharacterCreate() {
         </button>
         {coarsePointer && (
           <TipHint
-            tip={why ? `${traitHoverText(tr.id, locale)}\n(${why})` : traitHoverText(tr.id, locale)}
+            tip={[
+              traitHoverText(tr.id, locale),
+              ...traitKitText(tr.id).map((line) => `🎒 ${line}`),
+              ...(why ? [`(${why})`] : []),
+            ].join('\n')}
             tipClassName={TRAIT_TIP_PANEL}
             placement="top"
             className="shrink-0 pr-1"
@@ -729,6 +807,16 @@ export function CharacterCreate() {
           <li key={line}>• {line}</li>
         ))}
       </ul>
+      {traitKit(focusTrait.id) && (
+        <div className="mt-2 border-t border-white/10 pt-1.5">
+          <span className="text-label uppercase text-white/40">{t('ui.create.kit.startsWith')}</span>
+          <ul className="mt-0.5 space-y-0.5 text-body text-signal">
+            {traitKitText(focusTrait.id).map((line) => (
+              <li key={line}>• {line}</li>
+            ))}
+          </ul>
+        </div>
+      )}
       {focusBlockedWhy && <p className="mt-1.5 text-micro text-hiss">{focusBlockedWhy}</p>}
     </div>
   ) : (

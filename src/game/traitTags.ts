@@ -3,7 +3,18 @@
  * simulation reads these. Every trait carries at least one tag (pinned by
  * `traitTags.test.ts`), so a filter never hides a trait from every chip.
  */
-export type TraitTag = 'combat' | 'body' | 'medical' | 'stealth' | 'scavenge' | 'needs' | 'people';
+import { hasTraitKit } from './startingKit';
+
+export type TraitTag =
+  | 'combat'
+  | 'body'
+  | 'medical'
+  | 'stealth'
+  | 'scavenge'
+  | 'needs'
+  | 'people'
+  /** Derived: any trait that adds to the starting kit (see startingKit.ts). */
+  | 'gear';
 
 export const TRAIT_TAG_ORDER: TraitTag[] = [
   'combat',
@@ -13,6 +24,7 @@ export const TRAIT_TAG_ORDER: TraitTag[] = [
   'scavenge',
   'needs',
   'people',
+  'gear',
 ];
 
 export const TRAIT_TAG_LABELS: Record<TraitTag, string> = {
@@ -23,6 +35,7 @@ export const TRAIT_TAG_LABELS: Record<TraitTag, string> = {
   scavenge: 'Scavenge',
   needs: 'Needs',
   people: 'People',
+  gear: 'Gear',
 };
 
 export const TRAIT_TAGS: Record<string, TraitTag[]> = {
@@ -68,6 +81,12 @@ export const TRAIT_TAGS: Record<string, TraitTag[]> = {
   operator: ['scavenge', 'people'],
   site_foreman: ['scavenge'],
   made_man: ['people'],
+  go_bag: ['needs'],
+  prepper: ['needs', 'scavenge'],
+  medicine_cabinet: ['medical'],
+  heirloom_blade: ['combat'],
+  weekend_cyclist: ['combat', 'body'],
+  supper_run: ['needs'],
   // negative
   light_pockets: ['scavenge'],
   aircon_addict: ['body', 'needs'],
@@ -100,8 +119,10 @@ export const TRAIT_TAGS: Record<string, TraitTag[]> = {
   tone_deaf: ['people'],
   loud_soles: ['stealth'],
   lost_without_maps: ['body', 'stealth'],
+  just_popped_out: ['body'],
 };
 
 export function traitTags(id: string): TraitTag[] {
-  return TRAIT_TAGS[id] ?? [];
+  const tags = TRAIT_TAGS[id] ?? [];
+  return hasTraitKit(id) ? [...tags, 'gear'] : tags;
 }

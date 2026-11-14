@@ -4292,5 +4292,74 @@
     "stackable": false,
     "maxStack": 1,
     "sleepGear": true
+  },
+  "energy_gel": {
+    "id": "energy_gel",
+    "name": "Energy Gel",
+    "w": 1,
+    "h": 1,
+    "weight": 0.05,
+    "effect": {
+      "kind": "energy",
+      "energy": 16
+    },
+    "value": 5,
+    "stackable": true,
+    "maxStack": 6,
+    "color": "#c9a441"
+  },
+  "ifak_pouch": {
+    "id": "ifak_pouch",
+    "name": "IFAK Pouch",
+    "w": 1,
+    "h": 2,
+    "weight": 0.35,
+    "effect": {
+      "kind": "heal",
+      "health": 20,
+      "partHeal": 45,
+      "stopsBleeding": "all"
+    },
+    "value": 22,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#5a6b4a"
+  },
+  "tingkat_lunch": {
+    "id": "tingkat_lunch",
+    "name": "Tingkat Lunch",
+    "w": 2,
+    "h": 2,
+    "weight": 1,
+    "effect": {
+      "kind": "food",
+      "hunger": 55,
+      "thirst": 10
+    },
+    "value": 12,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#b58a3a",
+    "maxCondition": 100,
+    "perishable": true
+  },
+  "golf_umbrella": {
+    "id": "golf_umbrella",
+    "name": "Golf Umbrella",
+    "w": 1,
+    "h": 3,
+    "weight": 0.8,
+    "effect": {
+      "kind": "misc"
+    },
+    "value": 9,
+    "stackable": false,
+    "maxStack": 1,
+    "color": "#2f4f7f",
+    "slot": "offHand",
+    "modifiers": {
+      "defenseBonus": 1,
+      "blockChance": 0.08
+    }
   }
 }
