@@ -39,8 +39,9 @@ import { ItemInspectBody } from './ItemInspectBody';
 import { useInventoryInteraction } from './InventoryInteractionContext';
 import { TipHint } from '../TipHint';
 import { LOAD_TIP_CLASS, LoadTipBody } from '../loadTip';
-import { loadDebuffBrief, loadTierLabel, loadTierShown, loadTierTone } from '../loadTier';
-import { LoosePile } from './LoosePile';
+import { loadTierShown, loadTierTone } from '../loadTier';
+import { CarriedList } from './CarriedList';
+import { LoadStatusIcon } from '../LoadStatusIcon';
 import { torsoCarryMult } from '../../game/survival';
 import { itemName, useT } from '../../i18n';
 import { tip } from '../tips';
@@ -196,8 +197,8 @@ export function InventoryPanel({
   const loadPct = carry > 0 ? (loadKg / carry) * 50 : 0;
   const barClass =
     !fx || fx.strain <= 0 ? 'bg-signal' : fx.ratio < 1 ? 'bg-amber-400' : 'bg-hiss';
-  const bagCut = Math.round(bagWeightReduction(equipment) * 100);
-  const debuffs = fx ? loadDebuffBrief(fx, t) : [];
+  const bagShare = bagWeightReduction(equipment);
+  const bagCut = Math.round(bagShare * 100);
 
   const gridHandlers = {
     onItemPointerDown,
@@ -490,19 +491,24 @@ export function InventoryPanel({
             {...gridHandlers}
           />
 
-          <LoosePile
+          <CarriedList
             items={items}
+            bagCut={bagShare}
             selectedUid={selectedUid}
             draggingUid={dragUid}
             dropActive={drag?.target?.type === 'grid' && drag.target.container === LOOSE}
             dropValid={
               drag?.target?.type === 'grid' && drag.target.container === LOOSE && drag.target.valid
             }
-            pileRef={(el) => registerGrid(LOOSE, el)}
+            listRef={(el) => registerGrid(LOOSE, el)}
+            onTogglePlace={(inst) =>
+              transferItem(inst.uid, inst.container === LOOSE ? BACKPACK : LOOSE)
+            }
             {...gridHandlers}
           />
 
           <div className="flex items-center gap-2 text-body">
+            {fx && <LoadStatusIcon fx={fx} loadKg={loadKg} carryKg={carry} />}
             <TipHint
               className="flex min-w-0 flex-1 items-center gap-2"
               placement="top"
@@ -539,16 +545,6 @@ export function InventoryPanel({
               </span>
             )}
           </div>
-          {fx && fx.strain > 0 && (
-            <div className={`-mt-2 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-micro ${loadTierTone(fx)}`}>
-              <span className="rounded border border-current px-1 font-bold uppercase tracking-widest">
-                {loadTierLabel(fx, t)}
-              </span>
-              {debuffs.map((d) => (
-                <span key={d}>{d}</span>
-              ))}
-            </div>
-          )}
         </>
       )}
 
