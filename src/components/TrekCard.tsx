@@ -51,7 +51,7 @@ export function TrekCard({
   onTrek,
 }: Props) {
   const { t } = useT();
-  const label = riskLabel(risk.encounterChance);
+  const label = riskLabel(risk.fightChance);
   const blocked = energyLow || outOfRange || tooClose || noDryRoute;
   const energyHit = risk.energyCost + vegetationEnergy;
 

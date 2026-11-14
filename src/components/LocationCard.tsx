@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import { hasTraitFlag, sumTraitMod } from '../game/character';
 import { Icon } from '../icons/Icon';
 import { tip } from './tips';
@@ -41,6 +41,14 @@ import { BtnSub, Dots, Ledger, LedgerRow, LedgerRule, Note, PlaceStack } from '.
 import { LocationIdentity } from './LocationIdentity';
 import { SiteFacilitiesPanel } from './SiteFacilitiesPanel';
 import { BTN, tint } from './placeCardStyle';
+import { SEARCH_RISK_COLOR, searchRiskLevel, type SearchRiskLevel } from '../game/encounterOdds';
+
+const SEARCH_RISK_KEY = {
+  low: 'ui.location.searchRiskLow',
+  uneasy: 'ui.location.searchRiskUneasy',
+  high: 'ui.location.searchRiskHigh',
+  dire: 'ui.location.searchRiskDire',
+} as const satisfies Record<SearchRiskLevel, string>;
 import {
   destructionDisplayLabel,
   poiCategoryLabel,
@@ -144,7 +152,7 @@ function CardSplit({
 function RouteRow({ routeRisk }: { routeRisk?: TrekRisk | null }) {
   const { t } = useT();
   if (!routeRisk) return null;
-  const label = riskLabel(routeRisk.encounterChance);
+  const label = riskLabel(routeRisk.fightChance);
   return (
     <LedgerRow icon="combat.encounter" label={t('ui.location.route')}>
       <span style={{ color: label.color }}>{label.text}</span>
@@ -770,14 +778,42 @@ function KnownCard({
             ? t('ui.location.searchesLeft', { n: searchesLabel })
             : t('ui.location.searchesLeftPlural', { n: searchesLabel });
 
+  // The live odds of the next search turning into a fight — only where you
+  // stand, since night, noise and the site's last fight all move it.
+  const hour = useGame((s) => s.hour);
+  const hordeLevel = useGame((s) => s.hordeLevel);
+  const skills = useGame((s) => s.skills);
+  const liveLoc = useGame((s) => (here ? s.locations[sel.id] : undefined));
+  const searchRisk = useMemo(
+    () => (here && liveLoc ? useGame.getState().peekSearchRisk(liveLoc.id) : null),
+    // Inputs the odds read; the store getter does the math.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [here, liveLoc, hour, day, hordeLevel, character, skills],
+  );
+  const searchRiskRow =
+    searchRisk === null || searchingHere ? null : (
+      <LedgerRow
+        icon="combat.encounter"
+        label={t('ui.location.searchRisk')}
+        tip={t('ui.location.searchRiskTip')}
+      >
+        <span style={{ color: SEARCH_RISK_COLOR[searchRiskLevel(searchRisk)] }}>
+          {t(SEARCH_RISK_KEY[searchRiskLevel(searchRisk)])}
+        </span>
+      </LedgerRow>
+    );
+
   const dangerRow = (
-    <LedgerRow
-      icon="combat.encounter"
-      label={t('ui.location.danger')}
-      tip={`${t('ui.location.danger')} ${dngr} of 5`}
-    >
-      <Dots filled={dngr} of={5} color={dangerColor(dngr)} />
-    </LedgerRow>
+    <>
+      <LedgerRow
+        icon="combat.encounter"
+        label={t('ui.location.danger')}
+        tip={`${t('ui.location.danger')} ${dngr} of 5`}
+      >
+        <Dots filled={dngr} of={5} color={dangerColor(dngr)} />
+      </LedgerRow>
+      {searchRiskRow}
+    </>
   );
 
   const siteRows = (

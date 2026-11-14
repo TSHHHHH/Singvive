@@ -1,9 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { Rng } from './rng';
-import { quietPathAmbush, resolveCrossing, type TrekRisk } from './wilds';
+import {
+  crossingFightChance,
+  quietPathAmbush,
+  resolveCrossing,
+  riskLabel,
+  trekRisk,
+  type HazardZone,
+  type TrekRisk,
+} from './wilds';
 
 const emptyRisk = (encounterChance = 1): TrekRisk => ({
   encounterChance,
+  fightChance: encounterChance,
   energyCost: 5,
   combatDanger: 2,
   hazards: [],
@@ -92,5 +101,60 @@ describe('resolveCrossing quiet path', () => {
     const a = resolveCrossing(new Rng('CROSS-SEED'), emptyRisk(), opts);
     const b = resolveCrossing(new Rng('CROSS-SEED'), emptyRisk(), opts);
     expect(a).toEqual(b);
+  });
+});
+
+describe('route fight chance', () => {
+  const zone = (kind: HazardZone['kind'], severity: number) =>
+    ({ id: `${kind}${severity}`, kind, severity, lat: 1.3, lng: 103.8, radiusM: 60 }) as HazardZone;
+  const priced = (hazards: HazardZone[], band: 'day' | 'night', dist = 400) =>
+    trekRisk(
+      'seed',
+      { lat: 1.3, lng: 103.8 },
+      { lat: 1.3 + dist / 111000, lng: 103.8 },
+      { band, hordeIntensity: 0.2, weatherEncounterMod: 0, traitEncounterMod: 0 },
+      hazards,
+    );
+  const measured = (risk: TrekRisk, band: 'day' | 'night', n = 6000) => {
+    let fights = 0;
+    for (let i = 0; i < n; i++) {
+      const o = resolveCrossing(new Rng(`F${i}`), risk, {
+        mode: 'road',
+        siteDanger: 2,
+        dexterity: 5,
+        checkBonus: 0,
+        band,
+        habitat: null,
+        pressure: 0.2,
+        forest: false,
+        weather: 'clear',
+      });
+      if (o.ambush) fights++;
+    }
+    return fights / n;
+  };
+
+  it('predicts what resolveCrossing actually does', () => {
+    for (const [hz, band] of [
+      [[], 'day'],
+      [[], 'night'],
+      [[zone('gang_patrol', 1)], 'day'],
+      [[zone('night_swarm', 2)], 'night'],
+    ] as const) {
+      const risk = priced([...hz], band);
+      expect(Math.abs(measured(risk, band) - risk.fightChance)).toBeLessThan(0.03);
+    }
+  });
+
+  it('labels a patrolled road worse than a long quiet one', () => {
+    const patrol = priced([zone('gang_patrol', 1)], 'day');
+    const longQuiet = priced([], 'night', 1200);
+    expect(patrol.fightChance).toBeGreaterThan(longQuiet.fightChance);
+    expect(riskLabel(patrol.fightChance).text).not.toBe('Uneasy');
+  });
+
+  it('counts the floodwater animal and ignores terrain-only hazards', () => {
+    expect(crossingFightChance(0.5, [zone('floodwater', 1)], false)).toBeCloseTo(0.55);
+    expect(crossingFightChance(0.5, [zone('collapse', 2)], false)).toBe(0);
   });
 });

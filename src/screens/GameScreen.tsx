@@ -60,7 +60,6 @@ import { unplayableMessage, walkabilityOf } from '../game/playable';
 import { routeLandPath } from '../game/route';
 import { vegetationCost } from '../game/vegetation';
 import {
-  bleedEncounterMod,
   computeEvacBonus,
   computeScore,
   headAwarenessPenalty,
@@ -72,7 +71,6 @@ import {
 } from '../game/survival';
 import { useAmbience } from '../audio/useAmbience';
 import {
-  equipEncounterChanceMod,
   equipTravelSpeedFactor,
   loadEffectsFor,
   totalLootValue,
@@ -100,6 +98,7 @@ import {
   hazardsAtPoint,
   sensedHazardField,
   trekRisk,
+  isWetWeather,
   HAZARD_CONFIG,
   NIGHT_SWARM_SENSE_M,
   TREK_MIN_DISTANCE_M,
@@ -287,6 +286,7 @@ export function GameScreen() {
     tunnelEnterRoute,
     rest,
     peekRestPreview,
+    peekRouteEncounterMod,
     notify,
   } = useGame.getState();
 
@@ -362,6 +362,7 @@ export function GameScreen() {
   const inCombat = useGame((s) => s.combat !== null);
   const awaitingStance = useGame((s) => s.combat?.awaitingStance ?? false);
   const mapAnnotations = useGame((s) => s.mapAnnotations);
+  const skills = useGame((s) => s.skills);
   const intelNoteCount = useMemo(
     () => items.filter((i) => itemDef(i.defId).effect.kind === 'intel').length,
     [items],
@@ -770,6 +771,14 @@ export function GameScreen() {
     ],
   );
 
+  // The player's own side of a crossing's odds — the same sum the roll uses.
+  const routeEncounterMod = useMemo(
+    () => peekRouteEncounterMod(time),
+    // Inputs the store getter reads (traits, skills, gear, wounds, load).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [peekRouteEncounterMod, time, character, skills, equipment, bodyParts, items],
+  );
+
   const trekInfo = useMemo(() => {
     if (!trekTarget || !character) return null;
     const via =
@@ -797,10 +806,9 @@ export function GameScreen() {
           hordeIntensity: hordeIntensity(hordeLevel),
           pressureAt,
           weatherEncounterMod: weatherEncounterMod(weather),
-          traitEncounterMod:
-            sumTraitMod(character.traitIds, 'encounterChanceMod') +
-            equipEncounterChanceMod(equipment) +
-            bleedEncounterMod(bodyParts),
+          wet: isWetWeather(weather),
+          // Same player-side sum the roll uses (skills, night traits, load included).
+          traitEncounterMod: routeEncounterMod,
           safe: spawn ?? undefined,
           day,
           sight,
@@ -823,8 +831,7 @@ export function GameScreen() {
     weather,
     trekDist,
     blipRange,
-    bodyParts,
-    equipment,
+    routeEncounterMod,
     hazardPressure,
     previewRoute,
     day,
@@ -864,10 +871,9 @@ export function GameScreen() {
           hordeIntensity: hordeIntensity(hordeLevel),
           pressureAt,
           weatherEncounterMod: weatherEncounterMod(weather),
-          traitEncounterMod:
-            sumTraitMod(character.traitIds, 'encounterChanceMod') +
-            equipEncounterChanceMod(equipment) +
-            bleedEncounterMod(bodyParts),
+          wet: isWetWeather(weather),
+          // Same player-side sum the roll uses (skills, night traits, load included).
+          traitEncounterMod: routeEncounterMod,
           safe: spawn ?? undefined,
           day,
           sight,
@@ -891,8 +897,7 @@ export function GameScreen() {
     day,
     hordeLevel,
     weather,
-    equipment,
-    bodyParts,
+    routeEncounterMod,
     blipRange,
     currentPositionId,
     pressureAt,

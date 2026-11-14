@@ -1,5 +1,6 @@
 import type { DestructionTier, LocationSize, TimeOfDay, WeatherKind } from './types';
 import type { HazardKind } from './wilds';
+import type { Rng } from './rng';
 
 // ---------------------------------------------------------------------------
 // Log flavour.
@@ -524,10 +525,12 @@ function pick<T>(arr: T[]): T {
 }
 
 /** Diary line for a hazard bite — consequence first, not the map label. */
-export function flavorHazard(kind: HazardKind, beat: HazardBeat): string {
+export function flavorHazard(kind: HazardKind, beat: HazardBeat, rng?: Rng): string {
+  // Seeded when the caller has a run stream, so a crossing replays word for word.
+  const choose = <T>(arr: T[]): T => (rng ? rng.pick(arr) : pick(arr));
   const pool = HAZARD_POOLS[kind][beat];
-  if (pool && pool.length > 0) return pick(pool);
-  return pick(HAZARD_POOLS.horde_pocket.cross ?? ['The ground here takes its toll.']);
+  if (pool && pool.length > 0) return choose(pool);
+  return choose(HAZARD_POOLS.horde_pocket.cross ?? ['The ground here takes its toll.']);
 }
 
 function fill(tpl: string, ctx: FlavorCtx & { sizeLine?: string; ruinLine?: string }): string {

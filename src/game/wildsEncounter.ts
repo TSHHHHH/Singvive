@@ -11,11 +11,12 @@ import {
 } from './enemies';
 import { inVegetation, inInlandWater, isWalkable, isZonesLoaded } from './playable';
 import type { HazardKind } from './wilds';
+import { FLOODWATER_ANIMAL_CHANCE } from './wilds';
 
 export type { AnimalHabitat };
 
 export const URBAN_AMBUSH_ANIMAL_CHANCE = 0.3;
-export const FLOODWATER_ANIMAL_CHANCE = 0.55;
+export { FLOODWATER_ANIMAL_CHANCE };
 export const FOREST_TREK_ANIMAL_CHANCE = 0.6;
 
 /** Habitat of a walkable point. Water interiors are not walkable; banks count as urban unless forested. */
