@@ -312,6 +312,13 @@ export type IconName =
   | 'trait.field_dressing'
   | 'trait.calm_hands'
   | 'trait.frugal'
+  | 'trait.go_bag'
+  | 'trait.prepper'
+  | 'trait.medicine_cabinet'
+  | 'trait.heirloom_blade'
+  | 'trait.weekend_cyclist'
+  | 'trait.supper_run'
+  | 'trait.just_popped_out'
   | 'trait.aircon_addict'
   | 'trait.picky_eater'
   | 'trait.glass_jaw'
@@ -537,6 +544,13 @@ export const EMOJI_FALLBACK: Record<IconName, string> = {
   'trait.field_dressing': '🩹',
   'trait.calm_hands': '✋',
   'trait.frugal': '🪙',
+  'trait.go_bag': '🎒',
+  'trait.prepper': '🥫',
+  'trait.medicine_cabinet': '💊',
+  'trait.heirloom_blade': '🗡️',
+  'trait.weekend_cyclist': '🚲',
+  'trait.supper_run': '🍢',
+  'trait.just_popped_out': '🩴',
   'trait.aircon_addict': '❄️',
   'trait.picky_eater': '🍽️',
   'trait.glass_jaw': '😵',

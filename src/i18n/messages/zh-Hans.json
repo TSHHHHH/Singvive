@@ -1699,11 +1699,20 @@
         "stealth": "潜行",
         "scavenge": "搜刮",
         "needs": "生存需求",
-        "people": "人脉"
+        "people": "人脉",
+        "gear": "装备"
       },
       "blockReason": {
         "conflict": "与已选特质冲突",
         "points": "点数不足"
+      },
+      "kit": {
+        "startsWith": "初始携带",
+        "title": "初始装备",
+        "worn": "穿戴",
+        "oneOf": "随机 {n} 件：{items}",
+        "dropped": "初始没有：{items}",
+        "hint": "来自特质与职业服装的装备。随机物品由本局种子决定。"
       }
     },
     "stashLog": {
@@ -2286,7 +2295,11 @@
     "towel_vest": "毛巾软垫背心",
     "magazine_guards": "杂志护胫",
     "sling_bag": "简易斜挎包",
-    "treated_bedroll": "驱虫布铺"
+    "treated_bedroll": "驱虫布铺",
+    "energy_gel": "能量胶",
+    "ifak_pouch": "单兵急救包",
+    "tingkat_lunch": "叠叠饭盒",
+    "golf_umbrella": "高尔夫伞"
   },
   "enemy": {
     "shambler": "蹒跚丧尸",
@@ -3227,6 +3240,55 @@
       "effects": [
         "赶路速度 −10%",
         "警觉 −1"
+      ]
+    },
+    "go_bag": {
+      "name": "应急背包",
+      "description": "宣传册叫大家准备的应急包，你是真的备好了。",
+      "effects": [
+        "仅提供初始装备"
+      ]
+    },
+    "prepper": {
+      "name": "囤货达人",
+      "description": "家人笑过储物间那一排罐头。现在没人笑了。",
+      "effects": [
+        "仅提供初始装备"
+      ]
+    },
+    "medicine_cabinet": {
+      "name": "家庭药箱",
+      "description": "出门前，你把浴室药柜整个倒进了口袋。",
+      "effects": [
+        "仅提供初始装备"
+      ]
+    },
+    "heirloom_blade": {
+      "name": "甘榜传家宝",
+      "description": "祖父的巴冷刀在门上挂了四十年。取下来时依然锋利。",
+      "effects": [
+        "仅提供初始装备"
+      ]
+    },
+    "weekend_cyclist": {
+      "name": "周末骑手",
+      "description": "每个星期天环岛骑行。车没了，头盔和手套还在。",
+      "effects": [
+        "仅提供初始装备"
+      ]
+    },
+    "supper_run": {
+      "name": "宵夜外带",
+      "description": "警报响起时你正在买宵夜。至少你没把它弄丢。",
+      "effects": [
+        "仅提供初始装备"
+      ]
+    },
+    "just_popped_out": {
+      "name": "只是下楼一下",
+      "description": "你只是下楼买杯咖啡。拖鞋、购物袋，没有外套。",
+      "effects": [
+        "初始衣着更差"
       ]
     }
   },

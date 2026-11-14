@@ -494,6 +494,70 @@ export const TRAITS: Trait[] = [
     awarenessMod: 1,
   },
 
+  // ===== GEAR-ONLY TRAITS =====
+  // No stat changes: the whole trait is what you had on you when it fell.
+  // Kits live in `startingKit.ts` (TRAIT_KITS) and show in character create.
+  {
+    id: 'go_bag',
+    name: 'Go-Bag',
+    description: 'The emergency bag the pamphlets told everyone to pack. You actually packed it.',
+    category: 'positive',
+    cost: 2,
+    icon: 'trait.go_bag',
+    effects: ['Starting gear only'],
+    conflicts: [],
+  },
+  {
+    id: 'prepper',
+    name: 'Prepper',
+    description: 'Your family laughed at the shelf of tins in the storeroom. Nobody is laughing now.',
+    category: 'positive',
+    cost: 3,
+    icon: 'trait.prepper',
+    effects: ['Starting gear only'],
+    conflicts: [],
+  },
+  {
+    id: 'medicine_cabinet',
+    name: 'Medicine Cabinet',
+    description: 'You emptied the bathroom cabinet into your pockets on the way out.',
+    category: 'positive',
+    cost: 1,
+    icon: 'trait.medicine_cabinet',
+    effects: ['Starting gear only'],
+    conflicts: [],
+  },
+  {
+    id: 'heirloom_blade',
+    name: 'Kampung Heirloom',
+    description: 'Grandfather’s parang hung over the door for forty years. It came down sharp.',
+    category: 'positive',
+    cost: 2,
+    icon: 'trait.heirloom_blade',
+    effects: ['Starting gear only'],
+    conflicts: [],
+  },
+  {
+    id: 'weekend_cyclist',
+    name: 'Weekend Cyclist',
+    description: 'Sunday rides round the island. The bike is gone; the helmet and gloves are not.',
+    category: 'positive',
+    cost: 1,
+    icon: 'trait.weekend_cyclist',
+    effects: ['Starting gear only'],
+    conflicts: [],
+  },
+  {
+    id: 'supper_run',
+    name: 'Supper Run',
+    description: 'You were out buying supper when the sirens started. At least you did not drop it.',
+    category: 'positive',
+    cost: 1,
+    icon: 'trait.supper_run',
+    effects: ['Starting gear only'],
+    conflicts: [],
+  },
+
   // ===== NEGATIVE TRAITS =====
   {
     id: 'aircon_addict',
@@ -996,6 +1060,16 @@ export const TRAITS: Trait[] = [
     conflicts: ['train_memory', 'tekong_legs', 'estate_memory'],
     travelSpeedMod: -0.1,
     awarenessMod: -1,
+  },
+  {
+    id: 'just_popped_out',
+    name: 'Just Popped Out',
+    description: 'You only went down for kopi. Flip-flops, a grocery tote, and no jacket.',
+    category: 'negative',
+    cost: -1,
+    icon: 'trait.just_popped_out',
+    effects: ['Worse starting clothes'],
+    conflicts: [],
   },
 ];
 
