@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useGame } from '../game/store';
-import { REST_LENGTHS, type RestLength, type RestOutcome } from '../game/restPlan';
+import { REST_LENGTHS, REST_WAKE_FLOOR, type RestLength, type RestOutcome } from '../game/restPlan';
 import { formatClock } from '../game/survival';
 import { useClockFormat } from '../game/settings';
 import { restAmbushLabel } from '../game/wilds';
@@ -19,35 +19,87 @@ function hoursLabel(hours: number, t: ReturnType<typeof useT>['t']): string {
   return m === 0 ? t('ui.sleep.dialog.hours', { h }) : t('ui.sleep.dialog.hoursMinutes', { h, m });
 }
 
+const GAIN = '#5fbf6a';
+const LOSS = '#d9542b';
+
+/**
+ * Before → after as a meter: the part you keep in the meter's colour, what the
+ * rest adds as a bright green segment, what it costs as a red hatched one.
+ */
 function Row({
   icon,
   label,
   from,
   to,
+  max = 100,
+  color,
   goodWhenUp = true,
+  floor,
 }: {
   icon: IconName;
   label: string;
   from: number;
   to: number;
+  max?: number;
+  color: string;
   goodWhenUp?: boolean;
+  /** Draw the starving line on the track. */
+  floor?: number;
 }) {
   const a = Math.round(from);
   const b = Math.round(to);
   const diff = b - a;
-  const tone =
-    diff === 0 ? 'text-white/45' : diff > 0 === goodWhenUp ? 'text-signal' : 'text-hiss';
+  const pct = (v: number) => Math.max(0, Math.min(100, (v / max) * 100));
+  const lo = pct(Math.min(from, to));
+  const hi = pct(Math.max(from, to));
+  const good = diff === 0 ? null : diff > 0 === goodWhenUp;
+  const deltaColor = good === null ? 'rgba(255,255,255,0.35)' : good ? GAIN : LOSS;
+  const rising = to > from;
   return (
-    <li className="flex items-center justify-between gap-3 text-body">
-      <span className="flex items-center gap-1.5 text-white/60">
-        <Icon name={icon} /> {label}
-      </span>
-      <span className="tabular-nums text-white/80">
-        {a} → {b}{' '}
-        <span className={`inline-block min-w-[3ch] text-right ${tone}`}>
-          {diff > 0 ? `+${diff}` : diff === 0 ? '±0' : diff}
+    <li className="flex flex-col gap-1">
+      <div className="flex items-center justify-between gap-3 text-body">
+        <span className="flex items-center gap-1.5 text-white/70">
+          <Icon name={icon} /> {label}
         </span>
-      </span>
+        <span className="flex items-center gap-2 tabular-nums">
+          <span className="text-white/45">{a}</span>
+          <span className="text-white/30">→</span>
+          <span className="font-bold text-white/90">{b}</span>
+          <span
+            className="min-w-[3.25rem] rounded px-1.5 py-0.5 text-center text-body font-bold"
+            style={{ color: deltaColor, backgroundColor: good === null ? 'rgba(255,255,255,0.06)' : `${deltaColor}26` }}
+          >
+            {diff > 0 ? `▲ ${diff}` : diff < 0 ? `▼ ${-diff}` : '±0'}
+          </span>
+        </span>
+      </div>
+      <div className="relative h-3 overflow-hidden rounded-sm bg-white/[0.07]" aria-hidden>
+        <div className="absolute inset-y-0 left-0" style={{ width: `${lo}%`, backgroundColor: color, opacity: 0.55 }} />
+        {hi > lo && (
+          <div
+            className="absolute inset-y-0"
+            style={
+              rising
+                ? {
+                    left: `${lo}%`,
+                    width: `${hi - lo}%`,
+                    backgroundColor: deltaColor,
+                    boxShadow: `0 0 8px ${deltaColor}`,
+                  }
+                : {
+                    left: `${lo}%`,
+                    width: `${hi - lo}%`,
+                    backgroundImage: `repeating-linear-gradient(135deg, ${deltaColor} 0 3px, transparent 3px 6px)`,
+                    outline: `1px solid ${deltaColor}`,
+                    outlineOffset: '-1px',
+                  }
+            }
+          />
+        )}
+        {floor != null && (
+          <div className="absolute inset-y-0 z-10 w-0.5 -translate-x-1/2 bg-hiss" style={{ left: `${pct(floor)}%` }} />
+        )}
+      </div>
     </li>
   );
 }
@@ -153,11 +205,11 @@ export function RestDialog({ onClose }: { onClose: () => void }) {
         </p>
       )}
 
-      <ul className="flex flex-col gap-1">
-        <Row icon="meter.energy" label={t('ui.condition.energy')} from={outcome.before.energy} to={outcome.after.energy} />
-        <Row icon="meter.health" label={t('ui.condition.health')} from={outcome.hpBefore} to={outcome.hpAfter} />
-        <Row icon="meter.hunger" label={t('ui.condition.hunger')} from={outcome.before.hunger} to={outcome.after.hunger} />
-        <Row icon="meter.thirst" label={t('ui.condition.thirst')} from={outcome.before.thirst} to={outcome.after.thirst} />
+      <ul className="flex flex-col gap-2.5">
+        <Row icon="meter.energy" label={t('ui.condition.energy')} from={outcome.before.energy} to={outcome.after.energy} color="#e8e5dd" />
+        <Row icon="meter.health" label={t('ui.condition.health')} from={outcome.hpBefore} to={outcome.hpAfter} max={outcome.hpMax} color="#d92d2d" />
+        <Row icon="meter.hunger" label={t('ui.condition.hunger')} from={outcome.before.hunger} to={outcome.after.hunger} color="#b7b3a9" floor={REST_WAKE_FLOOR} />
+        <Row icon="meter.thirst" label={t('ui.condition.thirst')} from={outcome.before.thirst} to={outcome.after.thirst} color="#2bc4d9" floor={REST_WAKE_FLOOR} />
         {outcome.infectionDelta > 0 && (
           <Row
             icon="meter.infection"
@@ -165,6 +217,7 @@ export function RestDialog({ onClose }: { onClose: () => void }) {
             from={outcome.before.infection}
             to={outcome.before.infection + outcome.infectionDelta}
             goodWhenUp={false}
+            color="#8fbf4a"
           />
         )}
       </ul>
