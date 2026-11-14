@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useGame } from '../game/store';
 import { itemDef } from '../game/loot';
-import { SEARCH_DIMS, footprint } from '../game/inventory';
+import { footprint } from '../game/inventory';
 import {
-  searchProgress,
   hasFoggedOrSearching,
   type SearchSlot,
 } from '../game/searchSession';
@@ -12,13 +11,11 @@ import { Icon } from '../icons/Icon';
 import { itemIcon } from './Inventory/itemIcon';
 import { formatClock } from '../game/survival';
 import { useClockFormat } from '../game/settings';
-import { SearchFindRevealCell } from './SearchFindRevealCell';
-import { CELL, gridItemIconSize } from './Inventory/InventoryGrid';
+import { SearchLootList } from './SearchLootList';
 import { ItemHoverCard } from './Inventory/ItemHoverCard';
 import { GuideInfoButton } from './GuideInfoButton';
 import type { GuideTopic } from '../content/guideContent';
 import { itemName, useT } from '../i18n';
-import { tip } from './tips';
 import { LIVE_NODE_BAND } from './logTimeline';
 
 type Variant = 'timeline' | 'card';
@@ -48,7 +45,7 @@ export function SearchSessionNode({
   const abortSearch = useGame((s) => s.abortSearch);
   const completeSearch = useGame((s) => s.completeSearch);
   const clock = useClockFormat();
-  const { locale, t } = useT();
+  const { t } = useT();
   const [now, setNow] = useState(() => Date.now());
   const [hoverSlotId, setHoverSlotId] = useState<string | null>(null);
   const [hoverPos, setHoverPos] = useState<{ x: number; y: number } | null>(null);
@@ -66,8 +63,11 @@ export function SearchSessionNode({
 
   useEffect(() => () => window.clearTimeout(denyClear.current), []);
 
+  // Per-frame loop drives tickSearch + the bars. It stops once every slot is
+  // revealed, so a finished search sitting open costs nothing at idle.
+  const searching = session ? hasFoggedOrSearching(session) : false;
   useEffect(() => {
-    if (!session) return;
+    if (!session || !searching) return;
     const loop = () => {
       setNow(Date.now());
       tickSearch();
@@ -75,7 +75,7 @@ export function SearchSessionNode({
     };
     raf.current = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf.current);
-  }, [session?.nonce, tickSearch]);
+  }, [session?.nonce, searching, tickSearch]);
 
   useEffect(() => {
     lastWhisperSeen.current = null;
@@ -105,9 +105,6 @@ export function SearchSessionNode({
 
   if (!session) return null;
 
-  const dims = SEARCH_DIMS;
-  const progress = searchProgress(session, now);
-  const searchingId = session.queue[0] ?? null;
   const stillSearching = hasFoggedOrSearching(session);
   const foundCount = session.slots.filter((s) => s.state === 'found').length;
   const clearHover = () => {
@@ -145,102 +142,21 @@ export function SearchSessionNode({
 
   const gridAndActions = (
     <>
-      <div className="flex items-stretch gap-2.5">
-        <div className={`relative shrink-0 overflow-visible ${variant === 'timeline' ? '-m-2 p-2' : ''}`}>
-          <div
-            className="relative overflow-visible rounded border border-white/10 bg-black/40"
-            style={{
-              width: dims.w * CELL,
-              height: dims.h * CELL,
-              backgroundImage:
-                'linear-gradient(#ffffff10 1px, transparent 1px), linear-gradient(90deg, #ffffff10 1px, transparent 1px)',
-              backgroundSize: `${CELL}px ${CELL}px`,
-            }}
-            onMouseLeave={clearHover}
-          >
-            {session.slots.map((slot) => {
-              if (slot.state === 'abandoned' || slot.state === 'taken') return null;
-              const def = itemDef(slot.defId);
-              const { w, h } = footprint(def, slot.rotated);
-              const isSearching =
-                slot.state === 'searching' || (slot.state === 'fogged' && slot.id === searchingId);
-              const isFogged = slot.state === 'fogged' || slot.state === 'searching';
-              const cellStyle = {
-                left: slot.x * CELL + 1,
-                top: slot.y * CELL + 1,
-                width: w * CELL - 2,
-                height: h * CELL - 2,
-                zIndex: isSearching ? 8 : slot.state === 'found' && slot.highlight ? 9 : 5,
-              } as const;
+      <SearchLootList
+        session={session}
+        now={now}
+        hoverSlotId={hoverSlotId}
+        onHover={(id, e) => {
+          setHoverSlotId(id);
+          if (floatCard && e) setHoverPos({ x: e.clientX, y: e.clientY });
+        }}
+        onLeave={clearHover}
+        onPrioritize={prioritizeSearchSlot}
+        onTake={takeSearchItem}
+        nameTips={!floatCard}
+      />
 
-              if (!isFogged) {
-                const highlight = slot.highlight ?? null;
-                return (
-                  <SearchFindRevealCell
-                    key={slot.id}
-                    def={def}
-                    count={slot.count}
-                    condition={slot.condition}
-                    highlight={highlight}
-                    playKey={`${session.nonce}-${slot.id}-${slot.uid ?? 'pending'}`}
-                    animate={!!highlight}
-                    forceMotion
-                    iconSize={gridItemIconSize(w, h)}
-                    tip={floatCard ? undefined : itemName(def.id, locale)}
-                    onMouseEnter={() => setHoverSlotId(slot.id)}
-                    onPointerEnter={(e) => {
-                      setHoverSlotId(slot.id);
-                      if (floatCard) setHoverPos({ x: e.clientX, y: e.clientY });
-                    }}
-                    onPointerMove={(e) => {
-                      setHoverSlotId(slot.id);
-                      if (floatCard) setHoverPos({ x: e.clientX, y: e.clientY });
-                    }}
-                    onPointerLeave={clearHover}
-                    onFocus={() => setHoverSlotId(slot.id)}
-                    onClick={() => {
-                      if (slot.uid) takeSearchItem(slot.uid);
-                    }}
-                    className="absolute cursor-pointer"
-                    style={cellStyle}
-                  />
-                );
-              }
-
-              const ring =
-                hoverSlotId === slot.id ? 'ring-2 ring-white/50' : 'ring-1 ring-black/40';
-
-              return (
-                <button
-                  key={slot.id}
-                  type="button"
-                  {...tip(t('ui.search.clickNext'))}
-                  onMouseEnter={() => setHoverSlotId(slot.id)}
-                  onFocus={() => setHoverSlotId(slot.id)}
-                  onClick={() => prioritizeSearchSlot(slot.id)}
-                  className={`absolute flex cursor-pointer flex-col items-center justify-center rounded text-center transition hover:brightness-125 ${ring}`}
-                  style={{
-                    ...cellStyle,
-                    background: '#1a1a1ecc',
-                  }}
-                >
-                  <span className="text-title text-white/25">?</span>
-                  {isSearching && (
-                    <span
-                      className="pointer-events-none absolute inset-1 rounded border border-signal/40"
-                      style={{
-                        background: `linear-gradient(to top, rgba(143,191,75,0.35) ${progress * 100}%, transparent ${progress * 100}%)`,
-                      }}
-                    />
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {!floatCard && <SearchHoverPanel slot={hovered} gridH={dims.h * CELL} />}
-      </div>
+      {!floatCard && hovered && <SearchHoverPanel slot={hovered} />}
 
       {floatCard && hoverInst && hoverPos && (
         <ItemHoverCard
@@ -336,19 +252,10 @@ export function SearchSessionNode({
   );
 }
 
-function SearchHoverPanel({
-  slot,
-  gridH,
-}: {
-  slot: SearchSlot | null;
-  gridH: number;
-}) {
+function SearchHoverPanel({ slot }: { slot: SearchSlot | null }) {
   const { t } = useT();
   return (
-    <div
-      className="min-w-0 flex-1 overflow-hidden rounded border border-white/15 bg-concrete-900/80 px-2.5 py-2"
-      style={{ minHeight: gridH }}
-    >
+    <div className="mt-2 max-h-40 min-w-0 overflow-hidden rounded border border-white/15 bg-concrete-900/80 px-2.5 py-2">
       {!slot ? (
         <p className="text-micro text-white/30">{t('ui.search.hoverDetails')}</p>
       ) : slot.state === 'fogged' || slot.state === 'searching' ? (
