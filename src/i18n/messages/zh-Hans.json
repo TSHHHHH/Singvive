@@ -1558,6 +1558,30 @@
         "wildlife": "占据此地的东西不睡觉。",
         "damp": "地面潮湿，难以安睡。",
         "collapse": "铺盖下的楼板并不稳固。"
+      },
+      "dialog": {
+        "title": "休息",
+        "length": "休息时长",
+        "morning": "睡到 08:00",
+        "hours": "{h}小时",
+        "minutes": "{m}分钟",
+        "hoursMinutes": "{h}小时{m}分",
+        "wake": "醒来时间",
+        "confirm": "睡 {dur}",
+        "cannot": "无法入睡",
+        "ambush": "遇袭风险",
+        "collapse": "瓦砾塌动",
+        "recovery": "此处睡眠质量：恢复 {pct}%。",
+        "woke": {
+          "hunger": "饥饿会在 {dur} 后把你弄醒。",
+          "thirst": "口渴会在 {dur} 后把你弄醒。",
+          "blood": "伤口会在 {dur} 后把你疼醒。",
+          "restless": "太饿或太渴，睡不久——只能打个 {dur} 的盹。"
+        },
+        "blocked": {
+          "meters": "又饿又渴，根本睡不着。先吃点或喝点东西。",
+          "blood": "你流血太严重，睡不了。先处理伤口。"
+        }
       }
     },
     "trek": {

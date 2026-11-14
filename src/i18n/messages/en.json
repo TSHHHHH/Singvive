@@ -1558,6 +1558,30 @@
         "wildlife": "Whatever claimed this stretch does not sleep.",
         "damp": "Damp ground — sleep comes harder.",
         "collapse": "Unstable slabs under the bedroll."
+      },
+      "dialog": {
+        "title": "Rest",
+        "length": "Rest length",
+        "morning": "Until 08:00",
+        "hours": "{h}h",
+        "minutes": "{m}m",
+        "hoursMinutes": "{h}h {m}m",
+        "wake": "You wake",
+        "confirm": "Sleep {dur}",
+        "cannot": "Can't sleep",
+        "ambush": "Ambush risk",
+        "collapse": "Rubble shifts",
+        "recovery": "Sleep quality here: {pct}% recovery.",
+        "woke": {
+          "hunger": "Hunger will wake you after {dur}.",
+          "thirst": "Thirst will wake you after {dur}.",
+          "blood": "Your wounds will wake you after {dur}.",
+          "restless": "Too hungry or thirsty to sleep long — you can only doze {dur}."
+        },
+        "blocked": {
+          "meters": "Hunger and thirst won't let you sleep. Eat or drink first.",
+          "blood": "You're bleeding too badly to sleep. Patch up first."
+        }
       }
     },
     "trek": {
