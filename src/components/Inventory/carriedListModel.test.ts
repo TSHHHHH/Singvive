@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ItemInstance } from '../../game/types';
-import { BACKPACK, LOOSE } from '../../game/inventory';
+import { BACKPACK, LOOSE, LOOSE_WEIGHT_MULT } from '../../game/inventory';
 import { itemDef } from '../../game/loot';
 import {
   carriedKind,
@@ -44,8 +44,8 @@ describe('carried list', () => {
     const crowbar = rows.find((r) => r.inst.uid === 'a')!;
     expect(crowbar.kg).toBeCloseTo(1.5 * 0.8); // packed: bag cut
     const scrap = rows.find((r) => r.inst.uid === 'b')!;
-    expect(scrap.kg).toBeCloseTo(3 * 1.25); // loose penalty
-    expect(scrap.perUnitKg).toBeCloseTo(1.5 * 1.25);
+    expect(scrap.kg).toBeCloseTo(3 * LOOSE_WEIGHT_MULT); // loose penalty
+    expect(scrap.perUnitKg).toBeCloseTo(1.5 * LOOSE_WEIGHT_MULT);
   });
 
   it('sorts heaviest first, or lightest when flipped', () => {

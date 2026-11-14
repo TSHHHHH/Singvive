@@ -2177,7 +2177,7 @@
         "At a place, start a search: a fogged grid reveals finds one by one in real time. Street sites usually turn up a handful of items — condition tracks how wrecked the place looks.",
         "First visit sizes up the footprint and ruin (Intact → Gutted). Ruin sets the condition band: Intact is Brand New, Damaged is Slightly Used, Ravaged is Heavily Used, Gutted is Old & Torn. A hot site does not turn junk into mint gear.",
         "Click a fogged cell to search it next. Click found items (or Take all) into your pack; what doesn't fit the grid you carry loose. Nothing is ever left behind for lack of space.",
-        "Equipped bags change the pack's cell shape, not just its size — holes cannot hold loot. A bag also takes weight off what is packed in it (daypack 15% up to military rucksack 45%), so packing well lets you carry more. Loose items count ×1.25, rattle, and can't be reached mid-fight.",
+        "Equipped bags change the pack's cell shape, not just its size — holes cannot hold loot. A bag also takes weight off what is packed in it (daypack 30% up to military rucksack 65%), so packing well lets you carry more. Loose items count ×1.5, rattle, and can't be reached mid-fight.",
         "Worn kit counts toward load. Over your limit you are Heavy (slower, louder); past 150% you are Straining (can't flee, every km hurts legs and back); past 200% you are Pinned and can't walk until you drop something. The carry bar names the tier and its penalties.",
         "Each site has limited searches. Leaving early still spends a partial charge. Take what you want — Done or Leave abandons the rest.",
         "Map notes turn up in searches — decipher them from the pack to mark hidden sites. Faction outposts also offer daily intel when you are Known; notes are portable and one-shot.",
@@ -2932,7 +2932,7 @@
       "description": "You were built to haul.",
       "effects": [
         "Backpack +2 columns",
-        "+6 kg carry capacity"
+        "+4 kg carry capacity"
       ]
     },
     "light_pockets": {
@@ -2963,7 +2963,7 @@
       "name": "Strong Back",
       "description": "Years of hauling crates or laundry bags.",
       "effects": [
-        "+4 kg carry capacity"
+        "+3 kg carry capacity"
       ]
     },
     "iron_stomach": {

@@ -809,6 +809,10 @@ export function containerWeight(items: ItemInstance[], container: Container = BA
     .reduce((s, i) => s + itemWeight(i), 0);
 }
 
+/** Carry capacity per point of Strength / Endurance: 15 kg at 5/5. */
+export const CARRY_KG_PER_STR = 2;
+export const CARRY_KG_PER_END = 1;
+
 /** Max carrying capacity from build + any equipped weightCapacityBonus. */
 export function maxCarry(
   attrs: Attributes,
@@ -816,7 +820,7 @@ export function maxCarry(
   carryCapacityMod = 0,
   carryMult = 1,
 ): number {
-  let base = attrs.strength * 3 + attrs.endurance * 2 + carryCapacityMod;
+  let base = attrs.strength * CARRY_KG_PER_STR + attrs.endurance * CARRY_KG_PER_END + carryCapacityMod;
   for (const slot of Object.keys(equipment) as EquipSlot[]) {
     const inst = equipment[slot];
     if (!inst) continue;
@@ -826,10 +830,10 @@ export function maxCarry(
   return Math.max(1, Math.round(base * Math.max(0.25, carryMult)));
 }
 
-/** Pack ratio at and below which load does nothing. ~14 kg on a 25 kg character. */
+/** Pack ratio at and below which load does nothing. ~8 kg on a 15 kg character. */
 export const LOAD_COMFORT = 0.55;
 /** Loose items are awkward: they count this much more than their weight. */
-export const LOOSE_WEIGHT_MULT = 1.25;
+export const LOOSE_WEIGHT_MULT = 1.5;
 /** Load at which the survivor can't flee a fight any more. */
 export const LOAD_NO_FLEE = 1.5;
 /** Load past which the survivor can't walk at all: drop something. */
@@ -863,7 +867,7 @@ export function carriedBreakdown(
 
 /**
  * Weight the survivor feels: packed contents (less the bag's reduction), loose
- * items (×1.25), and worn gear (bag empty-weight, armour, weapons). Equipped
+ * items (×1.5), and worn gear (bag empty-weight, armour, weapons). Equipped
  * items leave the grid, so they would otherwise be free.
  */
 export function carriedWeight(items: ItemInstance[], equipment: Equipment): number {

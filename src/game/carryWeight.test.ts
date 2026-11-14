@@ -19,6 +19,7 @@ import {
   loadStrain,
   loadTier,
   LOOSE,
+  maxCarry,
   LOOSE_WEIGHT_MULT,
   packGridForBag,
   syncBackpackBonuses,
@@ -113,9 +114,9 @@ describe('carried weight', () => {
   it('an equipped bag takes its reduction off packed weight only', () => {
     const eq = withBag('military_rucksack');
     const bag = itemDef('military_rucksack');
-    expect(bagWeightReduction(eq)).toBeCloseTo(0.45);
+    expect(bagWeightReduction(eq)).toBeCloseTo(0.65);
     const packed = carriedWeight([inst('canned_food', BACKPACK, { stack: 10 })], eq);
-    expect(packed).toBeCloseTo(bag.weight + can * 10 * 0.55);
+    expect(packed).toBeCloseTo(bag.weight + can * 10 * 0.35);
     const loose = carriedWeight([inst('canned_food', LOOSE, { stack: 10 })], eq);
     expect(loose).toBeCloseTo(bag.weight + can * 10 * LOOSE_WEIGHT_MULT);
   });
@@ -127,6 +128,24 @@ describe('carried weight', () => {
     for (let i = 1; i < cuts.length; i++) expect(cuts[i]).toBeGreaterThanOrEqual(cuts[i - 1]!);
     expect(bagWeightReduction(emptyEquipment())).toBe(0);
     expect(bagWeightReduction(withBag('grocery_tote'))).toBe(0);
+  });
+
+  it('a good bag nearly doubles what fits before Heavy (5/5 survivor)', () => {
+    const attrs = { strength: 5, agility: 5, endurance: 5, perception: 5, intelligence: 5, charisma: 5 };
+    expect(maxCarry(attrs, emptyEquipment())).toBe(15);
+    // Real kg you can hold at 100% load if `packKg` goes in the pack and the rest is loose.
+    const kgBeforeHeavy = (bag: string | null, packKg: number) => {
+      const eq = bag ? withBag(bag) : emptyEquipment();
+      const cap = maxCarry(attrs, eq);
+      const bagKg = bag ? itemDef(bag).weight : 0;
+      const packedFelt = packKg * (1 - bagWeightReduction(eq));
+      return packKg + (cap - bagKg - packedFelt) / LOOSE_WEIGHT_MULT;
+    };
+    const none = kgBeforeHeavy(null, 8); // 20 pocket cells
+    const ruck = kgBeforeHeavy('military_rucksack', 16); // 38 cells
+    expect(none).toBeLessThan(13);
+    expect(ruck).toBeGreaterThan(none * 1.6);
+    expect(ruck).toBeLessThan(24);
   });
 
   it('a broken bag stops helping', () => {
