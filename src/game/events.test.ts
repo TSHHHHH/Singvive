@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Rng } from './rng';
-import { rollPreScavengeEvent } from './events';
+import { doorwayThreat, rollPreScavengeEvent, threatWeight } from './events';
 import type { LocationState } from './types';
 
 function loc(
@@ -86,5 +86,62 @@ describe('rollPreScavengeEvent', () => {
       }
       expect(found, `expected ${kind} at ${category}`).toBe(true);
     }
+  });
+});
+
+describe('doorway events read the situation', () => {
+  const tally = (site: LocationState, ctx: Parameters<typeof rollPreScavengeEvent>[2], n = 3000) => {
+    const counts: Record<string, number> = {};
+    let fired = 0;
+    for (let i = 0; i < n; i++) {
+      const e = rollPreScavengeEvent(new Rng(`T${i}`).fork('event'), site, ctx);
+      if (e) {
+        fired++;
+        counts[e.kind] = (counts[e.kind] ?? 0) + 1;
+      }
+    }
+    const share = (k: string) => (counts[k] ?? 0) / Math.max(1, fired);
+    return { rate: fired / n, share };
+  };
+  const day = { day: 5, time: 'day' as const, weather: 'clear' as const, standing: {} };
+  const night = { ...day, time: 'night' as const, pressure: 0.5 };
+
+  it('fires more often at a hot doorway than a calm one', () => {
+    const calm = tally(loc('s', 'supermarket', { currentDanger: 1 }), day);
+    const hot = tally(loc('s', 'supermarket', { currentDanger: 4 }), night);
+    expect(hot.rate).toBeGreaterThan(calm.rate + 0.2);
+  });
+
+  it('counts recent noise at the door', () => {
+    const quiet = tally(loc('s', 'supermarket', { currentDanger: 2 }), day);
+    const loud = tally(loc('s', 'supermarket', { currentDanger: 2, tempDangerBoost: 2 }), day);
+    expect(loud.rate).toBeGreaterThan(quiet.rate + 0.1);
+  });
+
+  it('turns hostile when hot and friendly when calm', () => {
+    const calm = tally(loc('s', 'supermarket', { currentDanger: 1 }), day);
+    const hot = tally(loc('s', 'supermarket', { currentDanger: 4 }), night);
+    expect(hot.share('armed_raider')).toBeGreaterThan(calm.share('armed_raider') * 1.5);
+    expect(calm.share('quiet_tap')).toBeGreaterThan(hot.share('quiet_tap') * 2);
+  });
+
+  it('never repeats the last scene when another fits', () => {
+    for (let i = 0; i < 500; i++) {
+      const e = rollPreScavengeEvent(new Rng(`R${i}`).fork('event'), loc('s', 'supermarket'), {
+        ...day,
+        lastKind: 'rival_scavenger',
+      });
+      expect(e?.kind).not.toBe('rival_scavenger');
+    }
+  });
+
+  it('threat stays in 0..1 and weights stay positive', () => {
+    const t = doorwayThreat(loc('s', 'police', { currentDanger: 9, tempDangerBoost: 9 }), {
+      ...night,
+      pressure: 3,
+    });
+    expect(t).toBeLessThanOrEqual(1);
+    expect(threatWeight('desperate_survivor', 1)).toBeGreaterThan(0);
+    expect(threatWeight('armed_raider', 0)).toBeGreaterThan(0);
   });
 });

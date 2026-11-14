@@ -622,8 +622,16 @@ export const TREK_BASE_ENERGY = 7;
 const OPEN_GROUND_ENCOUNTER_MULT = 1.8;
 
 export interface TrekRisk {
-  /** 0..1 chance the crossing is interrupted by something hostile. */
+  /**
+   * 0..1 chance the quiet-road roll fires at all. Only part of what it fires is
+   * a fight (see {@link quietPathWeights}); never show this to the player.
+   */
   encounterChance: number;
+  /**
+   * 0..1 chance the crossing actually ends in a fight, given the hazards this
+   * risk was priced with. This is what the route label reads.
+   */
+  fightChance: number;
   /** Energy burned on arrival, on top of the clock's own drain. */
   energyCost: number;
   /** Danger tier (1..5) any fight out here is built at. */
@@ -653,6 +661,8 @@ export function trekRisk(
     sight?: number;
     /** Worn light power — a lit survivor at night is a beacon. */
     lightPower?: number;
+    /** Rain or storm — reshapes what a quiet-road roll turns into. */
+    wet?: boolean;
   },
   hazardsOverride?: HazardZone[],
   via?: { lat: number; lng: number }[],
@@ -695,8 +705,10 @@ export function trekRisk(
     worst = Math.max(worst, z.severity);
   }
 
+  const encounterChance = Math.max(0, Math.min(0.95, p));
   return {
-    encounterChance: Math.max(0, Math.min(0.95, p)),
+    encounterChance,
+    fightChance: crossingFightChance(encounterChance, hazards, opts.wet ?? false),
     energyCost: Math.round(energyCost),
     combatDanger: Math.max(1, Math.min(5, 2 + worst)),
     hazards,
@@ -723,6 +735,48 @@ function ambushChanceFor(kind: HazardKind, severity: number): number {
   return 0;
 }
 
+/** Water-borne animals that rise at a flooded crossing when nothing else did. */
+export const FLOODWATER_ANIMAL_CHANCE = 0.55;
+
+/** What a quiet-road roll turns into, in weights — shared by the roll and the readout. */
+export function quietPathWeights(wet: boolean): [QuietPathPick, number][] {
+  return [
+    ['find', 18],
+    ['detour', 12],
+    ['weather', wet ? 10 : 0],
+    ['ambush', 45],
+    ['nothing', wet ? 15 : 25],
+  ];
+}
+
+/**
+ * Probability a crossing ends in a fight, mirroring {@link resolveCrossing} and
+ * the store's floodwater fallback exactly: the worst combat hazard rolls first;
+ * failing that, floodwater can still throw up an animal; a road with no hazards
+ * at all rolls the quiet path, of which only the ambush slice is a fight.
+ */
+export function crossingFightChance(
+  encounterChance: number,
+  hazards: readonly HazardZone[],
+  wet: boolean,
+): number {
+  const byId = new Map<string, HazardZone>();
+  for (const z of hazards) byId.set(z.id, z);
+  const unique = [...byId.values()];
+  let combat = 0;
+  for (const z of unique) {
+    if (COMBAT_KINDS.has(z.kind)) combat = Math.max(combat, ambushChanceFor(z.kind, z.severity));
+  }
+  const flooded = unique.some((z) => z.kind === 'floodwater');
+  if (unique.length > 0) {
+    return combat + (1 - combat) * (flooded ? FLOODWATER_ANIMAL_CHANCE : 0);
+  }
+  const weights = quietPathWeights(wet);
+  const total = weights.reduce((sum, [, w]) => sum + w, 0);
+  const ambush = weights.find(([k]) => k === 'ambush')?.[1] ?? 0;
+  return encounterChance * (ambush / total);
+}
+
 export interface CrossingOutcome {
   energyCost: number;
   extraHours: number;
@@ -740,6 +794,8 @@ export interface CrossingOutcome {
 }
 
 const WET_WEATHER: readonly WeatherKind[] = ['rain', 'thunderstorm'];
+export const isWetWeather = (w: WeatherKind | undefined): boolean =>
+  w !== undefined && WET_WEATHER.includes(w);
 
 const TRAVEL_DETOUR_LINES = [
   'A blocked lane forces a long detour. The clock does not care.',
@@ -795,13 +851,7 @@ function rollQuietPath(
   },
 ): Pick<CrossingOutcome, 'ambush' | 'travelFind' | 'travelDetour' | 'weatherDrain' | 'extraHours' | 'logs'> {
   const wet = opts.weather !== undefined && WET_WEATHER.includes(opts.weather);
-  const weights: [QuietPathPick, number][] = [
-    ['find', 18],
-    ['detour', 12],
-    ['weather', wet ? 10 : 0],
-    ['ambush', 45],
-    ['nothing', wet ? 15 : 25],
-  ];
+  const weights = quietPathWeights(wet);
   const pick = rng.weighted(weights.filter(([, w]) => w > 0));
 
   if (pick === 'find') {
@@ -866,6 +916,9 @@ export function resolveCrossing(
   let travelDetour = false;
   let weatherDrain = 0;
 
+  // Wording draws from its own fork so it never shifts the outcome rolls.
+  const flavorRng = rng.fork('flavor');
+
   const byId = new Map<string, HazardZone>();
   for (const z of risk.hazards) byId.set(z.id, z);
   const unique = [...byId.values()];
@@ -881,19 +934,19 @@ export function resolveCrossing(
       if (!ok) {
         woundHp += 6 + z.severity * 3;
         woundPreferLeg = true;
-        logs.push({ text: flavorHazard('collapse', 'wound'), tone: 'bad' });
+        logs.push({ text: flavorHazard('collapse', 'wound', flavorRng), tone: 'bad' });
       } else {
-        logs.push({ text: flavorHazard('collapse', 'clear'), tone: 'info' });
+        logs.push({ text: flavorHazard('collapse', 'clear', flavorRng), tone: 'info' });
       }
     } else if (z.kind === 'floodwater') {
       extraHours += 0.12 * z.severity;
-      logs.push({ text: flavorHazard('floodwater', 'cross'), tone: 'bad' });
+      logs.push({ text: flavorHazard('floodwater', 'cross', flavorRng), tone: 'bad' });
       if (rng.chance(0.1 * z.severity)) {
         infectionDelta += 4 * z.severity;
-        logs.push({ text: flavorHazard('floodwater', 'infect'), tone: 'bad' });
+        logs.push({ text: flavorHazard('floodwater', 'infect', flavorRng), tone: 'bad' });
       }
     } else if (COMBAT_KINDS.has(z.kind)) {
-      logs.push({ text: flavorHazard(z.kind, 'cross'), tone: 'bad' });
+      logs.push({ text: flavorHazard(z.kind, 'cross', flavorRng), tone: 'bad' });
       const p = ambushChanceFor(z.kind, z.severity);
       if (p >= combatChance) {
         combatChance = p;
@@ -901,7 +954,7 @@ export function resolveCrossing(
       }
       if (z.kind === 'horde_pocket' && z.severity >= 3) {
         infectionDelta += 3;
-        logs.push({ text: flavorHazard('horde_pocket', 'infect'), tone: 'bad' });
+        logs.push({ text: flavorHazard('horde_pocket', 'infect', flavorRng), tone: 'bad' });
       }
     }
   }
@@ -950,11 +1003,11 @@ export function resolveCrossing(
   };
 }
 
-/** Coarse label for the trek card — never an exact percentage. */
+/** Coarse label for the trek card — never an exact percentage. Pass `fightChance`. */
 export function riskLabel(chance: number): { text: string; color: string } {
-  if (chance < 0.12) return { text: 'Quiet, far as you can tell', color: '#b7b3a9' };
-  if (chance < 0.28) return { text: 'Uneasy', color: '#cfccc4' };
-  if (chance < 0.45) return { text: 'Bad ground', color: '#d9683d' };
+  if (chance < 0.08) return { text: 'Quiet, far as you can tell', color: '#b7b3a9' };
+  if (chance < 0.22) return { text: 'Uneasy', color: '#cfccc4' };
+  if (chance < 0.6) return { text: 'Bad ground', color: '#d9683d' };
   return { text: 'Suicide run', color: '#d92d2d' };
 }
 

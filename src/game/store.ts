@@ -353,6 +353,7 @@ import {
   TREK_LIGHT_RADIUS,
   TREK_MIN_DISTANCE_M,
   resolveCrossing,
+  isWetWeather,
   hazardsAtPoint,
   type HazardKind,
   type CrossingOutcome,
@@ -373,6 +374,7 @@ import {
 } from './restPlan';
 import { vegetationCost } from './vegetation';
 import { habitatAt, rollWildsEncounter, FLOODWATER_ANIMAL_CHANCE } from './wildsEncounter';
+import { nextSearchStreak, searchAmbushChance } from './encounterOdds';
 import type { AnimalHabitat } from './enemies';
 import {
   addHeat,
@@ -799,6 +801,10 @@ interface State {
   peekSleepConditions: () => SleepConditions;
   /** Recovery + night-priced ambush chance (same math rest() rolls). */
   peekRestPreview: () => RestPreview;
+  /** Chance the next search at a site turns into a fight (same math the roll uses); null if unsearchable. */
+  peekSearchRisk: (locationId: string) => number | null;
+  /** The player's own encounter modifiers on a crossing (same sum the road / trek roll uses). */
+  peekRouteEncounterMod: (band: TimeOfDay) => number;
   /** Eat / drink / bandage / load ammo / etc. Named applyItem so oxlint doesn't treat it as a Hook. */
   applyItem: (uid: string) => void;
   moveItem: (uid: string, container: string, x: number, y: number, rotated: boolean) => boolean;
@@ -1101,6 +1107,20 @@ export const useGame = create<State>((set, get) => {
           s.bodyParts ? torsoCarryMult(s.bodyParts) : 1,
         )
       : loadEffects(0);
+
+  /** Player-side encounter modifiers on a crossing; the trek card previews the same sum. */
+  const routeEncounterMod = (s: State, band: TimeOfDay): number => {
+    if (!s.character) return 0;
+    const traits = s.character.traitIds;
+    return (
+      sumTraitMod(traits, 'encounterChanceMod') +
+      skillMods(s.skills).encounterChanceMod +
+      (band === 'night' || band === 'dusk' ? sumTraitMod(traits, 'nightEncounterChanceMod') : 0) +
+      equipEncounterChanceMod(s.equipment) +
+      bleedEncounterMod(s.bodyParts) +
+      loadOf(s).encounterMod
+    );
+  };
 
   /**
    * Combat resolution prelude, hoisted out of `combatTick`.
@@ -2498,6 +2518,8 @@ export const useGame = create<State>((set, get) => {
       time: timeOfDay(s.hour),
       weather: weatherKindFor(s.seed, s.day),
       standing: s.factionStanding,
+      pressure: pressureFn()(loc.lat, loc.lng),
+      lastKind: clock.lastKind,
     });
 
     if (event) {
@@ -2506,7 +2528,7 @@ export const useGame = create<State>((set, get) => {
       set({
         pendingEvent: { locationId, event },
         _eventRng: eventRng,
-        _eventClock: { ...clock, lastAt: now, count: clock.count + 1 },
+        _eventClock: { ...clock, lastAt: now, count: clock.count + 1, lastKind: event.kind },
       });
       return;
     }
@@ -2547,27 +2569,41 @@ export const useGame = create<State>((set, get) => {
       return;
     }
     const encRng = new Rng(s.seed).fork(`encroll:${loc.id}:${s.day}:${loc.remainingSearches}`);
-    const band = timeOfDay(s.hour);
-    let encChance = 0.08 + doomDanger(loc) * 0.12;
-    if (band === 'night') encChance += 0.2;
-    else if (band === 'dusk') encChance += 0.08;
-    encChance += weatherEncounterMod(weatherKindFor(s.seed, s.day));
-    // Local neighbourhood pressure — a Fallen town is not a Stirring one.
-    encChance += pressureFn()(loc.lat, loc.lng) * 0.3;
-    encChance += sumTraitMod(s.character!.traitIds, 'encounterChanceMod') + skillPackage().encounterChanceMod;
-    if (band === 'night' || band === 'dusk') {
-      encChance += sumTraitMod(s.character!.traitIds, 'nightEncounterChanceMod');
+    const encChance = searchChanceAt(loc);
+    const ambushed = encRng.chance(encChance);
+    {
+      // The site remembers its last fight (see encounterOdds.ts).
+      const locs = get().locations;
+      const cur = locs[locationId];
+      if (cur) {
+        const searchesSinceAmbush = nextSearchStreak(cur.searchesSinceAmbush, ambushed);
+        set({ locations: { ...locs, [locationId]: { ...cur, searchesSinceAmbush } } });
+      }
     }
-    // Ambush-prone builds get jumped more often when a search turns into a fight.
-    const ambushMult = Math.max(0.15, 1 + sumTraitMod(s.character!.traitIds, 'ambushChanceMod') + skillPackage().ambushChanceMod);
-    encChance = Math.max(0.02, Math.min(0.95, encChance * (0.7 + 0.3 * ambushMult)));
 
-    if (encRng.chance(encChance)) {
+    if (ambushed) {
       startZombieCombat(locationId, true);
       pushLog(flavor('ambush', { name: loc.name }), 'bad', undefined, undefined, siteLogScope(locationId));
     } else {
       resolveSearch(locationId, false);
     }
+  };
+
+  /** What the next search roll at a site costs — the roll and the card both read this. */
+  const searchChanceAt = (loc: LocationState): number => {
+    const s = get();
+    const band = timeOfDay(s.hour);
+    const traits = s.character?.traitIds ?? [];
+    return searchAmbushChance({
+      danger: doomDanger(loc),
+      band,
+      weatherMod: weatherEncounterMod(weatherKindFor(s.seed, s.day)),
+      pressure: pressureFn()(loc.lat, loc.lng),
+      encounterMod: sumTraitMod(traits, 'encounterChanceMod') + skillPackage().encounterChanceMod,
+      nightEncounterMod: sumTraitMod(traits, 'nightEncounterChanceMod'),
+      ambushMod: sumTraitMod(traits, 'ambushChanceMod') + skillPackage().ambushChanceMod,
+      searchesSinceAmbush: loc.searchesSinceAmbush,
+    });
   };
 
   /**
@@ -4046,15 +4082,9 @@ export const useGame = create<State>((set, get) => {
           hordeIntensity: hordeIntensity(now.hordeLevel),
           pressureAt: pressureFn(),
           weatherEncounterMod: weatherEncounterMod(weather),
+          wet: isWetWeather(weather),
           traitEncounterMod:
-            sumTraitMod(now.character!.traitIds, 'encounterChanceMod') +
-            skillMods(now.skills).encounterChanceMod +
-            (band === 'night' || band === 'dusk'
-              ? sumTraitMod(now.character!.traitIds, 'nightEncounterChanceMod')
-              : 0) +
-            equipEncounterChanceMod(now.equipment) +
-            bleedEncounterMod(now.bodyParts) +
-            load.encounterMod +
+            routeEncounterMod(now, band) +
             (now.escort?.toId === loc.id ? ESCORT_ENCOUNTER_MOD : 0),
           safe: now.spawn ?? undefined,
           day: now.day,
@@ -4324,15 +4354,8 @@ export const useGame = create<State>((set, get) => {
           hordeIntensity: hordeIntensity(now.hordeLevel),
           pressureAt: pressureFn(),
           weatherEncounterMod: weatherEncounterMod(weather),
-          traitEncounterMod:
-            sumTraitMod(now.character!.traitIds, 'encounterChanceMod') +
-            skillMods(now.skills).encounterChanceMod +
-            (trekBand === 'night' || trekBand === 'dusk'
-              ? sumTraitMod(now.character!.traitIds, 'nightEncounterChanceMod')
-              : 0) +
-            equipEncounterChanceMod(now.equipment) +
-            bleedEncounterMod(now.bodyParts) +
-            load.encounterMod,
+          wet: isWetWeather(weather),
+          traitEncounterMod: routeEncounterMod(now, trekBand),
           safe: now.spawn ?? undefined,
           day: now.day,
           ...darkOpts(now, trekBand, weather),
@@ -5613,6 +5636,15 @@ export const useGame = create<State>((set, get) => {
     peekSleepConditions: () => peekRestFromState().conditions,
 
     peekRestPreview: () => peekRestFromState(),
+    peekSearchRisk: (locationId) => {
+      const s = get();
+      const loc = s.locations[locationId];
+      if (!loc || !s.character || loc.factionId || loc.category === 'residential' || loc.exhausted) {
+        return null;
+      }
+      return searchChanceAt(loc);
+    },
+    peekRouteEncounterMod: (band) => routeEncounterMod(get(), band),
 
     applyItem: (uid) => {
       const s = get();
