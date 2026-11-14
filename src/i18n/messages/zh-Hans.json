@@ -22,6 +22,8 @@
       "subtitle": "18000+ 真实地点 · 永久死亡 · 要么撤离，要么死亡",
       "newSurvivor": "新幸存者",
       "continueRun": "继续游戏",
+      "continueDetail": "第 {day} 天 · {time}",
+      "unknownPlace": "岛上某处",
       "topScores": "最高分",
       "loadingWorld": "正在加载全球分数…",
       "worldUnreachable": "无法访问全球排行榜。",

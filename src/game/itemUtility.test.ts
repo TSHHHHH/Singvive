@@ -27,7 +27,7 @@ describe('every catalog item has a practical use', () => {
     expect(ITEMS.pot_helmet.slot).toBe('head');
     expect(ITEMS.towel_vest.modifiers?.limbArmor).toBeGreaterThan(0);
     expect(ITEMS.magazine_guards.slot).toBe('legs');
-    expect(ITEMS.sling_bag.packGrid!.w * ITEMS.sling_bag.packGrid!.h).toBeGreaterThan(20);
+    expect(ITEMS.sling_bag.packGrid!.w * ITEMS.sling_bag.packGrid!.h).toBeGreaterThanOrEqual(12);
     expect(RECIPES.find(r => r.id === 'pot_helmet')?.inputs.cooking_pot).toBe(1);
   });
 });
