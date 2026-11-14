@@ -1334,6 +1334,20 @@ export interface CheckResult {
   success: boolean;
 }
 
+/**
+ * A resolved check, kept for the UI to play back as a die roll. The outcome is
+ * already decided and applied when this is set — the animation only shows it.
+ */
+export interface ShownRoll extends CheckResult {
+  /** Increments per roll, so the same numbers twice still replay. */
+  id: number;
+  attr: AttributeKey;
+  attrValue: number;
+  bonus: number;
+  /** What the roll was for, in the player's words ("Pry it open"). */
+  label: string;
+}
+
 /** Resolve an attribute check: d20 + attribute vs DC (natural 20 always passes). */
 export function rollCheck(
   rng: Rng,

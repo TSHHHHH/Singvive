@@ -241,6 +241,19 @@ export const SETTINGS_SCHEMA: SettingDef[] = [
     default: 'on',
   },
   {
+    key: 'diceFx',
+    label: 'Dice rolls',
+    description:
+      'Roll a d20 on screen when a check decides the outcome. Tap to skip. Reduce motion shows the result without the tumble.',
+    tab: 'accessibility',
+    control: 'toggle',
+    options: [
+      { value: 'on', label: 'On' },
+      { value: 'off', label: 'Off' },
+    ],
+    default: 'on',
+  },
+  {
     key: 'tooltips',
     label: 'Hover tips',
     description:
