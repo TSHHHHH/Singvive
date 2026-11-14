@@ -93,9 +93,13 @@ describe('tunnel crawl generation', () => {
       for (const svc of run.services ?? []) {
         const first = run.nodes[svc.nodes[0]];
         const last = run.nodes[svc.nodes[svc.nodes.length - 1]];
+        // It branches from the running line, or (a deep passage) from the
+        // service line it hangs off, and goes back the same way.
+        const parent = svc.lane < 0 ? 0 : svc.lane > 2 ? 2 : 1;
+        const ok = (lane: number) => lane === parent || lane === 1;
         const feeders = Object.values(run.nodes).filter((n) => n.next.includes(first.id));
-        expect(feeders.some((n) => n.lane === 1)).toBe(true);
-        expect(last.next.some((id) => run.nodes[id].lane === 1)).toBe(true);
+        expect(feeders.some((n) => ok(n.lane))).toBe(true);
+        expect(last.next.some((id) => ok(run.nodes[id].lane))).toBe(true);
       }
     }
   });
@@ -114,6 +118,26 @@ describe('tunnel crawl generation', () => {
         expect(mids).toBeLessThanOrEqual(MAX_MID_COLS);
       }
     }
+  });
+
+  it('varies the branching: deep passages, cross-trunk cuts, early exits', () => {
+    let deep = 0;
+    let cross = 0;
+    let early = 0;
+    for (const seed of SEEDS) {
+      const run = gen(seed, 5);
+      for (const n of Object.values(run.nodes)) {
+        if (n.lane < 0 || n.lane > 2) deep++;
+        for (const id of n.next) {
+          const t = run.nodes[id];
+          if ((n.lane === 0 && t.lane === 2) || (n.lane === 2 && t.lane === 0)) cross++;
+          if (n.lane !== 1 && t.lane === 1 && n.next.length > 1) early++;
+        }
+      }
+    }
+    expect(deep).toBeGreaterThan(0);
+    expect(cross).toBeGreaterThan(0);
+    expect(early).toBeGreaterThan(0);
   });
 
   it('offers a fork on every hop between platforms', () => {
@@ -147,6 +171,8 @@ describe('tunnel crawl generation', () => {
         stack.push(...node.next);
       }
       expect(seen.has(end)).toBe(true);
+      // And nothing is generated that no route can reach.
+      expect(seen.size).toBe(Object.keys(run.nodes).length);
     }
   });
 });

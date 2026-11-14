@@ -1839,9 +1839,11 @@ export function GameScreen() {
               )}
             </>
           )}
-          {/* Inside a block, tunnel or planner, keep the existing context card
-              at bottom centre. The open map uses the edge inspector above. */}
-          {!isPhone && !edgeInspector && (hereSlot || (desktopTarget && targetSlot)) && (
+          {/* Inside a block or the planner, keep the existing context card
+              at bottom centre. The open map uses the edge inspector above.
+              The tunnel crawl has its own node panel there, so it gets none —
+              the card used to float over the crawl's walk button. */}
+          {!isPhone && !edgeInspector && !tunnel && (hereSlot || (desktopTarget && targetSlot)) && (
             <div
               className="pointer-events-none absolute z-[600] flex items-end justify-center gap-2"
               style={{

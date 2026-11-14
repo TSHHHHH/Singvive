@@ -522,10 +522,15 @@ function orderExits(node: TunnelNode, nodes: Record<string, TunnelNode>): void {
   });
 }
 
+/** The lane a side passage branches from: deep passages hang off a service line. */
+const parentLane = (lane: number): number => (lane < 0 ? 0 : lane > 2 ? 2 : 1);
+
 /**
- * Spine always runs through. A side node peels off the previous spine node.
- * If the next column has a same-lane adit, the side bore continues (a parallel
- * track); otherwise it rejoins. Sometimes a crossover offers both.
+ * Wire the crawl. The running line always runs through. A service line peels
+ * off the lane it hangs from once, runs on its own, and rejoins at its far
+ * end — with variations so no two forks look alike: a passage can surface
+ * early onto its parent, a second entry can feed it mid-run, and where
+ * passages sit either side of the trunk, one can cut across it to the other.
  */
 function linkSpineAndAdits(
   rng: Rng,
@@ -535,19 +540,59 @@ function linkSpineAndAdits(
   for (let c = 0; c < columns.length - 1; c++) {
     spineOf(columns, nodes, c).next = [spineOf(columns, nodes, c + 1).id];
   }
-  for (let c = 1; c < columns.length - 1; c++) {
-    const prev = spineOf(columns, nodes, c - 1);
-    const join = spineOf(columns, nodes, c + 1);
-    for (const id of columns[c]) {
-      const node = nodes[id];
-      if (node.lane === 1) continue;
-      if (!prev.next.includes(node.id)) prev.next.push(node.id);
-      const cont = nodeOnLane(columns, nodes, c + 1, node.lane);
-      const r = rng.fork(`xo:${node.id}`);
-      if (cont && r.chance(0.34)) node.next = [join.id, cont.id];
-      else if (cont) node.next = [cont.id];
-      else node.next = [join.id];
+  const link = (from: TunnelNode | undefined, to: TunnelNode | undefined) => {
+    if (from && to && !from.next.includes(to.id)) from.next.push(to.id);
+  };
+  /** Optional variations never give a stop a third way on — keeps forks readable. */
+  const extra = (from: TunnelNode | undefined, to: TunnelNode | undefined) => {
+    if (from && to && from.next.length < 2 && !from.next.includes(to.id)) {
+      from.next.push(to.id);
+      return true;
     }
+    return false;
+  };
+  const sideAt = (c: number) =>
+    [0, 2, -1, 3]
+      .map((lane) => nodeOnLane(columns, nodes, c, lane))
+      .filter((n): n is TunnelNode => !!n);
+  const prevParentOf = (c: number, lane: number) =>
+    nodeOnLane(columns, nodes, c - 1, parentLane(lane)) ?? spineOf(columns, nodes, c - 1);
+  const nextParentOf = (c: number, lane: number) =>
+    nodeOnLane(columns, nodes, c + 1, parentLane(lane)) ?? spineOf(columns, nodes, c + 1);
+
+  // Pass 1 — the shape every service line must have: one way in where it
+  // peels off, straight along, one way out where it rejoins.
+  for (let c = 1; c < columns.length - 1; c++) {
+    for (const node of sideAt(c)) {
+      node.next = [];
+      const prevSame = nodeOnLane(columns, nodes, c - 1, node.lane);
+      const cont = nodeOnLane(columns, nodes, c + 1, node.lane);
+      if (!prevSame) link(prevParentOf(c, node.lane), node);
+      link(node, cont ?? nextParentOf(c, node.lane));
+    }
+  }
+
+  // Pass 2 — variations, so no two forks look alike: a passage can surface
+  // early onto its parent, a second entry can feed it mid-run, and once per
+  // hop a passage can cut across the trunk to the passage opposite.
+  let crossedThisHop = false;
+  for (let c = 1; c < columns.length - 1; c++) {
+    if (spineOf(columns, nodes, c).kind === 'platform') crossedThisHop = false;
+    for (const node of sideAt(c)) {
+      const r = rng.fork(`xo:${node.id}`);
+      const prevSame = nodeOnLane(columns, nodes, c - 1, node.lane);
+      const cont = nodeOnLane(columns, nodes, c + 1, node.lane);
+      if (prevSame && r.chance(0.15)) extra(prevParentOf(c, node.lane), node);
+      if (cont && r.chance(0.22)) extra(node, nextParentOf(c, node.lane));
+    }
+    if (crossedThisHop) continue;
+    const top = nodeOnLane(columns, nodes, c, 0);
+    const bottom = nodeOnLane(columns, nodes, c, 2);
+    const topNext = nodeOnLane(columns, nodes, c + 1, 0);
+    const bottomNext = nodeOnLane(columns, nodes, c + 1, 2);
+    const x = rng.fork(`cross:${c}`);
+    if (top && bottomNext && x.chance(0.3)) crossedThisHop = extra(top, bottomNext);
+    else if (bottom && topNext && x.chance(0.3)) crossedThisHop = extra(bottom, topNext);
   }
   for (const node of Object.values(nodes)) orderExits(node, nodes);
 }
@@ -685,7 +730,13 @@ export function generateTunnelRun(rng: Rng, ctx: TunnelCtx): TunnelRun {
         c++;
         continue;
       }
-      const want = r.weighted([[1, 3] as const, [2, 4] as const, [3, 3] as const]);
+      const want = r.weighted([
+        [1, 2] as const,
+        [2, 3] as const,
+        [3, 3] as const,
+        [4, 2] as const,
+        [5, 1] as const,
+      ]);
       let len = 0;
       while (len < want && c + len < columns.length - 1) {
         if (spineOf(columns, nodes, c + len).kind === 'platform') break;
@@ -721,11 +772,28 @@ export function generateTunnelRun(rng: Rng, ctx: TunnelCtx): TunnelRun {
     placeAdit(pick, side, shape.fork(`needplace:${c}`));
   }
 
+  // Deep passages: a service line of three or more stops can grow its own
+  // branch further out, which leaves it and rejoins it before it ends.
+  for (const lane of [0, 2]) {
+    const deep = lane === 0 ? -1 : 3;
+    for (let c = 1; c < columns.length - 1; c++) {
+      if (!nodeOnLane(columns, nodes, c, lane) || nodeOnLane(columns, nodes, c - 1, lane)) continue;
+      let end = c;
+      while (nodeOnLane(columns, nodes, end + 1, lane)) end++;
+      const runLen = end - c + 1;
+      const r = shape.fork(`deep:${lane}:${c}`);
+      if (runLen < 3 || !r.chance(0.45)) continue;
+      const start = c + 1 + r.int(0, runLen - 3);
+      const len = r.int(1, Math.min(2, end - start));
+      for (let k = start; k < start + len; k++) placeAdit(k, deep, r.fork(`place:${k}`));
+    }
+  }
+
   // Name the runs: every maximal same-lane chain of side nodes is one line.
   const services: ServiceLine[] = [];
   const codeCount: Record<string, number> = {};
   for (let c = 1; c < columns.length - 1; c++) {
-    for (const lane of [0, 2]) {
+    for (const lane of [-1, 0, 2, 3]) {
       const start = nodeOnLane(columns, nodes, c, lane);
       if (!start || start.service) continue;
       const chain: TunnelNode[] = [];

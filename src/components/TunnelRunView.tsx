@@ -871,7 +871,7 @@ function TunnelMap({
                   y={pt.y}
                   code={code}
                   color={color}
-                  side={horizontal ? (node.lane === 0 ? 'above' : 'below') : node.lane === 0 ? 'left' : 'right'}
+                  side={horizontal ? (node.lane <= 0 ? 'above' : 'below') : node.lane <= 0 ? 'left' : 'right'}
                   selected={node.id === selectedId}
                   onSelect={onSelect}
                 />
