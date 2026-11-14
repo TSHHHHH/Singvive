@@ -1775,6 +1775,7 @@
       "tooManyLeads": "Six active leads · visit one before adding more",
       "clueFound": "You find a clue pointing to {name}.",
       "nearbyRecognized": "You recognize {count} nearby places. Their conditions are still unknown.",
+      "recognitionNotice": "Nearby places recognized · {count}",
       "leadCompleted": "Lead visited: {name}.",
       "mapRead": "You mark {count} nearby places in your logbook.",
       "mapEmpty": "The map has no new nearby places to mark.",

@@ -707,6 +707,9 @@ interface State {
   /** Local leads persist independently of the scrolling timeline. */
   explorationLeads: ExplorationLead[];
   readLocalMap: () => void;
+  /** Ephemeral identity-reveal cue; never part of a saved run. */
+  nearbyRecognition: readonly string[];
+  dismissNearbyRecognition: (cue: readonly string[]) => void;
 
   log: GameLogEntry[];
   /**
@@ -1742,7 +1745,10 @@ export const useGame = create<State>((set, get) => {
     const awarenessValue = s.character.attributes.perception + equipAwarenessMod(s.equipment)
       + traitAwarenessMod(s.character.traitIds) - headAwarenessPenalty(s.bodyParts);
     const locations = recognizeNearby(s.locations, s.currentPos, recognitionRadius(awarenessValue, sight, weather));
-    if (locations !== s.locations) set({ locations });
+    if (locations !== s.locations) {
+      const ids = Object.keys(locations).filter(id => locations[id].identified && !s.locations[id]?.identified);
+      set({ locations, nearbyRecognition: [...new Set([...s.nearbyRecognition, ...ids])] });
+    }
   };
 
   /** Add local identity-only leads. Never snapshot danger, stock or ownership. */
@@ -3802,6 +3808,10 @@ export const useGame = create<State>((set, get) => {
     escort: null,
     mapAnnotations: [],
     explorationLeads: [],
+    nearbyRecognition: [],
+    dismissNearbyRecognition: (cue) => {
+      if (get().nearbyRecognition === cue) set({ nearbyRecognition: [] });
+    },
     log: [],
     inventoryOpenToken: 0,
     deathCause: null,
@@ -3817,6 +3827,7 @@ export const useGame = create<State>((set, get) => {
       set({
         character: c,
         explorationLeads: [],
+        nearbyRecognition: [],
         maxHp,
         meters: initialMeters(),
         bodyParts: initialBodyParts(maxHp),
@@ -7681,6 +7692,7 @@ export const useGame = create<State>((set, get) => {
         escort: null,
         mapAnnotations: [],
         explorationLeads: [],
+        nearbyRecognition: [],
         log: [],
         stats: emptyRunStats(),
         hasSavedRun: !!loadRun(),
@@ -7732,6 +7744,7 @@ export const useGame = create<State>((set, get) => {
         character: run.character,
         seed: run.seed,
         explorationLeads: normalizeExplorationLeads(run.explorationLeads, run.locations),
+        nearbyRecognition: [],
         spawn: run.spawn,
         locations: rehydrateLocationOutlines(run.locations),
         currentPositionId: run.currentPositionId,

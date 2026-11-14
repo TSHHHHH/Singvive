@@ -41,6 +41,7 @@ import { SleepQualityIndicator } from '../components/SleepQualityIndicator';
 import { RestDialog } from '../components/RestDialog';
 import { ObjectiveBar } from '../components/ObjectiveBar';
 import { ActivityBadge } from '../components/ActivityBadge';
+import { NearbyRecognitionNotice } from '../components/NearbyRecognitionNotice';
 import { ObjectivesPanel } from '../components/ObjectivesPanel';
 import { tip } from '../components/tips';
 import { DayLogsModal } from '../components/DayLogsModal';
@@ -1662,6 +1663,7 @@ export function GameScreen() {
               : 'relative flex h-full min-h-0 min-w-0 flex-1 overflow-hidden'
           }
         >
+          <NearbyRecognitionNotice leftInset={isPhone ? 0 : panelInset} rightInset={isPhone || !timelineBeside ? 0 : tlW + HUD_EDGE} />
           {tunnel ? (
             <TunnelRunView />
           ) : hdb && !hdbOverMap ? (

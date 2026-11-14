@@ -51,6 +51,7 @@ describe('local exploration store integration', () => {
     }
     expect(after.locations.distant.identified).not.toBe(true);
     expect(after.exploredArea).toBe(before.exploredArea);
+    expect(after.nearbyRecognition).toEqual([]);
     after.readLocalMap();
     expect(useGame.getState().hour).toBe(after.hour);
     expect(useGame.getState().explorationLeads).toBe(after.explorationLeads);
@@ -127,15 +128,30 @@ describe('local exploration store integration', () => {
 
   it('resets leads for a new survivor', () => {
     useGame.getState().readLocalMap();
+    useGame.setState({ nearbyRecognition: ['clinic'] });
     useGame.getState().commitCharacter(useGame.getState().character!);
     expect(useGame.getState().explorationLeads).toEqual([]);
+    expect(useGame.getState().nearbyRecognition).toEqual([]);
+  });
+
+  it('dismisses only the displayed cue and never persists the animation', () => {
+    const oldCue = ['clinic'];
+    const newCue = ['market'];
+    useGame.setState({ nearbyRecognition: newCue });
+    useGame.getState().dismissNearbyRecognition(oldCue);
+    expect(useGame.getState().nearbyRecognition).toBe(newCue);
+    useGame.getState().readLocalMap();
+    flushPersist();
+    expect(JSON.parse(localStorage.getItem('singvive.run.v7')!)).not.toHaveProperty('nearbyRecognition');
+    useGame.getState().dismissNearbyRecognition(newCue);
+    expect(useGame.getState().nearbyRecognition).toEqual([]);
   });
 
   it('completes a lead only on arrival and recognizes nearby exteriors without visiting them', async () => {
     useGame.getState().readLocalMap();
     const s = useGame.getState();
     const target = s.locations[s.explorationLeads[0].targetId];
-    const neighbour = { ...site('neighbour', 0, 'community'), lat: target.lat + 0.00004 };
+    const neighbour = { ...site('neighbour', 0, 'clinic'), lat: target.lat + 0.00009 };
     useGame.setState({ locations: { ...s.locations, neighbour },
       // Keep this small controlled world: no external bake expansion is needed.
       expandedCells: [`${Math.round(target.lat / 0.009)},${Math.round(target.lng / 0.009)}`],
@@ -153,5 +169,6 @@ describe('local exploration store integration', () => {
     expect(arrived.locations.neighbour.discovered).toBe(false);
     expect(arrived.locations.neighbour.lastSeen).toBeNull();
     expect(arrived.locations.neighbour.visited).not.toBe(true);
+    expect(arrived.nearbyRecognition).toEqual(['neighbour']);
   });
 });

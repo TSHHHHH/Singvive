@@ -6,7 +6,7 @@ import { WeatherFx } from './WeatherFx';
 import { Atmosphere3d } from './Atmosphere3d';
 import type { WeatherDom } from './useAtmosphere';
 import { TimeOfDayFx } from './TimeOfDayFx';
-import { poiIcon, identifiedIcon, playerIcon, unknownIcon, evacIcon, dangerColor, rumourIcon, trekTargetIcon, knownFactionColor } from './mapIcons';
+import { poiIcon, identifiedIcon, playerIcon, playerLocationIcon, unknownIcon, evacIcon, dangerColor, rumourIcon, trekTargetIcon, knownFactionColor } from './mapIcons';
 import { POI_CONFIG } from '../game/poi';
 import { haversine } from '../game/overpass';
 import { visibilityOf } from '../game/fog';
@@ -46,6 +46,8 @@ import { MapMarker } from '../map/markers';
 import { createMarker } from '../map/markerDom';
 import { installOverlay, setData } from '../map/layers';
 import { PoiSources } from '../map/poiSources';
+import { useMarkerPresence } from '../map/useMarkerPresence';
+import { REVEAL_MS } from '../map/revealMotion';
 import { EMPTY_FC, boxContains, circleFeature, dimHex, fc, lineFeature, padBox, toLngLatRing, type LatLngBox } from '../map/geo';
 import { BuildingEngine, LOD_ZOOM, type Site3d } from '../map/buildings';
 import { hdbScar, STOREY_M, type HdbDungeon } from '../game/hdbDungeon';
@@ -76,6 +78,8 @@ const VIEWPORT_DEBOUNCE_MS = 100;
 const MAX_POIS_ON_SCREEN = 450;
 /** Full badges and footprints become useful at neighbourhood scale. */
 const POI_DETAIL_ZOOM = 14;
+/** The full player capsule is useful close up; overview maps need less occlusion. */
+const PLAYER_CAPSULE_ZOOM = 17;
 
 /** Style layers whose clicks belong to a feature, not to the ground under it. */
 const POI_FILL_LAYER = 'poi-fill';
@@ -603,12 +607,14 @@ const containerSize = (map: MlMap) => {
  */
 function PlayerMarker({
   home,
+  atSite,
   travelAnim,
   veilRadiusM,
   veilAlpha,
   onMove,
 }: {
   home: { lat: number; lng: number };
+  atSite: boolean;
   travelAnim: TravelAnim | null;
   veilRadiusM: number;
   veilAlpha: number;
@@ -644,6 +650,12 @@ function PlayerMarker({
     // Created once per map; position is driven below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map]);
+
+  // Keep glide/camera/veil ownership here; the site renders the joined capsule.
+  useEffect(() => {
+    const el = markerRef.current?.getElement();
+    if (el) el.style.visibility = atSite ? 'hidden' : '';
+  }, [map, atSite]);
 
   // One camera chase for the marker's whole life. The glide and the arrival
   // only move its target, so the camera never restarts mid-motion: it keeps
@@ -785,8 +797,7 @@ function PlayerMarker({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [travelAnim, home, map]);
 
-  // The pin hangs above the point it marks, so in a dense block it can cover a
-  // POI just north of the player. It never takes pointer events, so the fade
+  // The standalone pin can cover a nearby POI. It never takes pointer events, so the fade
   // is driven from the container's own mousemove: inside the pin's footprint,
   // it goes see-through.
   useEffect(() => {
@@ -798,8 +809,11 @@ function PlayerMarker({
       const p = map.project([posRef.current.lng, posRef.current.lat]);
       const dx = e.clientX - rect.left - p.x;
       const dy = e.clientY - rect.top - p.y;
-      // Footprint relative to the anchor (the tip): 30px wide, 36px tall above it.
-      el.classList.toggle('is-faded', dx > -16 && dx < 16 && dy > -38 && dy < 4);
+      // Follow the standalone icon's geometry when fading under the cursor.
+      const { size, anchor } = playerIcon();
+      el.classList.toggle('is-faded',
+        dx > -anchor[0] - 1 && dx < size[0] - anchor[0] + 1 &&
+        dy > -anchor[1] - 2 && dy < size[1] - anchor[1] + 2);
     };
     const onLeave = () => markerRef.current?.getElement()?.classList.remove('is-faded');
     container.addEventListener('mousemove', onMove);
@@ -1189,6 +1203,7 @@ interface PoiLayerProps {
   blipRange: number;
   selectedId: string | null;
   hereId: string | null;
+  playerAtSite: boolean;
   onSelect: (poi: Poi) => void;
   /** The 3D building engine, when the map is in 3D. */
   engine: BuildingEngine | null;
@@ -1335,19 +1350,21 @@ const POI_LAYERS = [POI_FILL_LAYER, 'poi-line', 'poi-line-dash'];
 const NO_ROOFS: ReadonlyMap<string, number> = new Map();
 
 const PoiLayer = memo(
-  function PoiLayer({ pois, home, blipRange, selectedId, hereId, onSelect, engine, worked, evacZoneId }: PoiLayerProps) {
+  function PoiLayer({ pois, home, blipRange, selectedId, hereId, playerAtSite, onSelect, engine, worked, evacZoneId }: PoiLayerProps) {
     const map = useMapGL();
+    const recognition = useGame(s => s.nearbyRecognition);
+    const reduced = useReducedMotion();
     const box = usePaddedBounds();
     const [detail, setDetail] = useState(() => map.getZoom() >= POI_DETAIL_ZOOM);
-    // Only crossing the detail boundary re-renders React during a zoom. The
+    const [fullCapsule, setFullCapsule] = useState(() => map.getZoom() >= PLAYER_CAPSULE_ZOOM);
+    // Only crossing a detail boundary re-renders React during a zoom. The
     // circle layer's maxzoom follows the camera directly between those crossings.
     useMapEvent('zoom', () => {
       const next = map.getZoom() >= POI_DETAIL_ZOOM;
       if (next !== detail) setDetail(next);
+      const full = map.getZoom() >= PLAYER_CAPSULE_ZOOM;
+      if (full !== fullCapsule) setFullCapsule(full);
     });
-
-    const keepBadge = (poi: Poi) =>
-      poi.id === selectedId || poi.id === hereId || beaconKindOf(poi, evacZoneId) !== null;
 
     const looks = useMemo(() => {
       const inView: { poi: Poi; d: number; vis: string }[] = [];
@@ -1376,6 +1393,11 @@ const PoiLayer = memo(
         lookOf(poi, vis, selectedId === poi.id, poi.id === hereId, worked.get(poi.id) ?? 0),
       );
     }, [pois, box, home.lat, home.lng, blipRange, selectedId, hereId, worked, evacZoneId]);
+
+    const badges = useMemo(() => looks
+      .filter((l) => detail || l.poi.id === selectedId || l.poi.id === hereId || recognition.includes(l.poi.id) || beaconKindOf(l.poi, evacZoneId) !== null)
+      .map((look) => ({ id: look.poi.id, look })), [looks, detail, selectedId, hereId, evacZoneId, recognition]);
+    const fadingBadges = useMarkerPresence(badges, reduced ? 0 : REVEAL_MS, MAX_POIS_ON_SCREEN);
 
     useEffect(
       () =>
@@ -1436,10 +1458,10 @@ const PoiLayer = memo(
           fill: l.outline?.fill ?? l.color3d,
           line: l.outline?.line ?? l.color3d,
           opacity: l.opacity,
-          badge: l.poi.id === selectedId || l.poi.id === hereId || beaconKindOf(l.poi, evacZoneId) !== null,
+          badge: l.poi.id === selectedId || l.poi.id === hereId || recognition.includes(l.poi.id) || beaconKindOf(l.poi, evacZoneId) !== null,
         },
       })));
-    }, [map, looks, selectedId, hereId, evacZoneId]);
+    }, [map, looks, selectedId, hereId, evacZoneId, recognition]);
 
     // In 3D the buildings take over from the outlines once they stand: a site
     // with a building is its building, one without is just its badge.
@@ -1508,20 +1530,27 @@ const PoiLayer = memo(
 
     return (
       <>
-        {looks.filter((l) => detail || keepBadge(l.poi)).map((l) => (
-          <MapMarker
-            key={l.poi.id}
-            lat={l.poi.lat}
-            lng={l.poi.lng}
-            icon={l.icon}
-            opacity={l.opacity}
-            roof={engine ? roofs.get(l.poi.id) ?? 0 : 0}
-            ring={l.poi.id === selectedId}
-            zIndex={l.poi.id === selectedId ? 10 : undefined}
-            beacon={engine ? beaconKindOf(l.poi, evacZoneId) : null}
-            onClick={() => onSelect(l.poi)}
-          />
-        ))}
+        {fadingBadges.map(({ item: { look: l }, removeAt }) => {
+          const playerHere = playerAtSite && l.poi.id === hereId;
+          return (
+            <MapMarker
+              key={l.poi.id}
+              lat={l.poi.lat}
+              lng={l.poi.lng}
+              icon={playerHere ? playerLocationIcon(l.icon, !fullCapsule) : l.icon}
+              opacity={l.opacity}
+              visible={removeAt === null}
+              fadeMs={reduced ? 0 : REVEAL_MS}
+              roof={!playerHere && engine ? roofs.get(l.poi.id) ?? 0 : 0}
+              ring={l.poi.id === selectedId}
+              recognized={recognition.includes(l.poi.id)}
+              // Nearby sites stay visible and tappable even inside the capsule's footprint.
+              zIndex={playerHere ? 0 : l.poi.id === selectedId ? 10 : 1}
+              beacon={!playerHere && engine ? beaconKindOf(l.poi, evacZoneId) : null}
+              onClick={() => onSelect(l.poi)}
+            />
+          );
+        })}
       </>
     );
   },
@@ -1530,6 +1559,7 @@ const PoiLayer = memo(
     prev.blipRange === next.blipRange &&
     prev.selectedId === next.selectedId &&
     prev.hereId === next.hereId &&
+    prev.playerAtSite === next.playerAtSite &&
     prev.onSelect === next.onSelect &&
     prev.engine === next.engine &&
     prev.worked === next.worked &&
@@ -1597,6 +1627,7 @@ function GameMapInner({
   const reachRadius = useThrottledNumber(ringRange, 80);
   const pathIdSet = useMemo(() => new Set(pathHazardIds), [pathHazardIds]);
   const view3d = useSetting('mapView3d') === 'on';
+  const playerAtSite = !!hereId && !travelAnim;
   const inBlock = useGame((s) => !!s.hdb);
   const [initial] = useState(() => ({
     zoom: loadZoom(view3d ? DEFAULT_ZOOM_3D : DEFAULT_ZOOM),
@@ -1688,6 +1719,7 @@ function GameMapInner({
           blipRange={blipRange}
           selectedId={selectedId}
           hereId={hereId}
+          playerAtSite={playerAtSite}
           onSelect={onSelect}
           engine={engine}
           worked={worked}
@@ -1715,6 +1747,7 @@ function GameMapInner({
         <NoiseWaves pulses={noisePulses} />
         <PlayerMarker
           home={home}
+          atSite={playerAtSite}
           travelAnim={travelAnim}
           veilRadiusM={veilRadiusM}
           veilAlpha={veilAlpha}

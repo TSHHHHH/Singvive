@@ -32,9 +32,9 @@ export function identifiedIcon(category: PoiCategory): MapIcon {
   const cached = identifiedIconCache.get(category);
   if (cached) return cached;
   const icon: MapIcon = {
-    html: `<div style="width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#252a29;border:2px dashed #b7b3a9;box-sizing:border-box;">${iconMarkup(POI_CONFIG[category].icon, { size: 15, color: '#e8e5dd' })}</div>`,
-    size: [30, 30],
-    anchor: [15, 15],
+    html: `<div style="width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#1c211f;border:2px dashed #e8e5dd;box-shadow:0 0 0 2px #08080a,0 3px 6px #0009;box-sizing:border-box;">${iconMarkup(POI_CONFIG[category].icon, { size: 19, color: '#fff5e0' })}</div>`,
+    size: [34, 34],
+    anchor: [17, 17],
   };
   identifiedIconCache.set(category, icon);
   return icon;
@@ -58,6 +58,9 @@ export function poiIcon(poi: Poi): MapIcon {
   const held = !outpost && !!poi.factionId && poi.isFactionRevealed;
   // Lift faction hues against the dark glyph, including the Syndicate's red.
   const markerColor = factionColor ? mixHex(factionColor, '#ffffff', 0.2) : cfg.color;
+  // Depletion mutes the fill, never the glyph or the danger ring.
+  const fillColor = dim ? mixHex(markerColor, '#40433e', 0.7) : markerColor;
+  const glyphColor = dim ? '#e8e5dd' : '#08080a';
 
   const key = `${poi.category}|${danger}|${dim ? 1 : 0}|${outpost ? poi.factionId : 0}|${held ? poi.factionId : 0}`;
   const cached = poiIconCache.get(key);
@@ -65,22 +68,22 @@ export function poiIcon(poi: Poi): MapIcon {
 
   const glyph =
     outpost && poi.factionId
-      ? iconMarkup(FACTION_CONFIG[poi.factionId].icon, { size: 15, color: '#08080a' })
-      : iconMarkup(cfg.icon, { size: 15, color: '#08080a' });
+      ? iconMarkup(FACTION_CONFIG[poi.factionId].icon, { size: 19, color: glyphColor })
+      : iconMarkup(cfg.icon, { size: 19, color: glyphColor });
   const badge =
     held && poi.factionId ? iconMarkup(FACTION_CONFIG[poi.factionId].icon, { size: 9, color: markerColor }) : '';
   const borderColor = outpost ? '#f0ead8' : ring;
-  const px = outpost ? 34 : 30;
+  const px = outpost ? 38 : 34;
   const icon: MapIcon = {
     html: `<div style="position:relative;width:${px}px;height:${px}px;">
       <div style="
         width:100%;height:100%;border-radius:50%;
         display:flex;align-items:center;justify-content:center;
         font-size:15px;line-height:1;
-        background:${markerColor};
+        background:${fillColor};
         border:${outpost ? 3 : 2}px solid ${borderColor};
         ${outpost ? `outline:2px solid ${factionColor};outline-offset:1px;` : ''}
-        opacity:${dim ? 0.4 : 1};
+        box-shadow:0 0 0 ${outpost ? 5 : 2}px #08080a,0 3px 6px #0009;
         box-sizing:border-box;
       ">${glyph}</div>
       ${badge ? `<div style="position:absolute;right:-1px;bottom:-1px;width:14px;height:14px;border-radius:50%;background:#08080a;border:1.5px solid ${markerColor};display:flex;align-items:center;justify-content:center;line-height:1;">${badge}</div>` : ''}
@@ -119,22 +122,38 @@ const UNKNOWN_ICON: MapIcon = {
 };
 export const unknownIcon = (): MapIcon => UNKNOWN_ICON;
 
-/** The player's marker — used both for the spawn preview and their live
- *  position on the game map. A person, not a house.
- *
- *  A teardrop rather than a disc: it hangs *above* the point it marks, so in a
- *  POI-dense block it no longer sits on top of the pin for the place the player
- *  is standing in. The trade is that it now covers whatever is a few pixels
- *  north of them instead, which is what `.player-pin` fading in index.css is
- *  for — the pin never eats a click, and it gets out of the way visually when
- *  the cursor enters its footprint. */
+const playerLocationCache = new WeakMap<MapIcon, MapIcon>();
+const compactPlayerLocationCache = new WeakMap<MapIcon, MapIcon>();
+
+/** One clickable capsule at a site, anchored on its location badge. */
+export function playerLocationIcon(location: MapIcon, compact = false): MapIcon {
+  const cache = compact ? compactPlayerLocationCache : playerLocationCache;
+  const cached = cache.get(location);
+  if (cached) return cached;
+  const scale = compact ? 0.7 : 1;
+  const inset = compact ? 6 : 8;
+  const siteTop = compact ? 24 : 32;
+  const width = location.size[0] * scale + inset * 2;
+  const height = location.size[1] * scale + siteTop + inset;
+  const icon: MapIcon = {
+    html: `<div class="player-location${compact ? ' player-location--compact' : ''}" style="width:${width}px;height:${height}px;">
+      <div class="player-location__human">${iconMarkup('combat.player', { size: compact ? 14 : 18, color: '#fff5e0' })}</div>
+      <div class="player-location__site" style="left:${inset - 2}px;top:${siteTop - 2}px;transform:scale(${scale});">${location.html}</div>
+    </div>`,
+    size: [width, height],
+    anchor: [inset + location.anchor[0] * scale, siteTop + location.anchor[1] * scale],
+  };
+  cache.set(location, icon);
+  return icon;
+}
+
+/** Standalone human marker for spawn, open ground, and travel. At a site the
+ *  POI owns the combined capsule, while this marker keeps driving the camera. */
 const PLAYER_ICON: MapIcon = {
   className: 'player-pin',
-  html: `<div class="player-pin__body">
-    <div class="player-pin__glyph">${iconMarkup('combat.player', { size: 16, color: '#e8e5dd' })}</div>
-  </div><div class="player-pin__ground"></div>`,
-  size: [30, 38],
-  anchor: [15, 36],
+  html: `<div class="player-pin__avatar">${iconMarkup('combat.player', { size: 18, color: '#fff5e0' })}</div>`,
+  size: [32, 32],
+  anchor: [16, 16],
 };
 export const playerIcon = (): MapIcon => PLAYER_ICON;
 

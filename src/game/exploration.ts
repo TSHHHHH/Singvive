@@ -13,6 +13,7 @@ type Facility = NonNullable<ExplorationLead['facility']>;
 const EXTERIOR_CATEGORIES = new Set<PoiCategory>([
   'supermarket', 'fuel', 'police', 'hospital', 'residential', 'housing',
   'community', 'park', 'foodcourt', 'mrt', 'school', 'landmark',
+  'clinic', 'pharmacy', 'convenience', 'hardware', 'eatery',
 ]);
 const PUBLIC_CATEGORIES = new Set<PoiCategory>([
   'hospital', 'clinic', 'pharmacy', 'supermarket', 'police', 'community', 'park', 'foodcourt', 'mrt', 'school', 'landmark',
@@ -48,23 +49,49 @@ function crosses(a: Position, b: Position, c: [number, number], d: [number, numb
   return orient(a, b, p) * orient(a, b, q) <= 0 && orient(p, q, a) * orient(p, q, b) <= 0;
 }
 
+/** Distance to the visible frontage, using a local projection for metre-scale geometry. */
+function recognitionPoint(origin: Position, loc: LocationState): Position {
+  const ring = loc.outline;
+  if (!ring || ring.length < 3 || inside(origin, ring)) return loc;
+  const lngScale = Math.cos(origin.lat * Math.PI / 180);
+  let nearest: Position = loc;
+  let best = Infinity;
+  for (let i = 0; i < ring.length; i++) {
+    const [ay, ax] = ring[i], [by, bx] = ring[(i + 1) % ring.length];
+    const x = (ax - origin.lng) * lngScale, y = ay - origin.lat;
+    const dx = (bx - ax) * lngScale, dy = by - ay;
+    const lengthSq = dx * dx + dy * dy;
+    const t = lengthSq ? Math.max(0, Math.min(1, -(x * dx + y * dy) / lengthSq)) : 0;
+    const distanceSq = (x + t * dx) ** 2 + (y + t * dy) ** 2;
+    if (distanceSq < best) {
+      best = distanceSq;
+      nearest = { lat: ay + t * (by - ay), lng: ax + t * (bx - ax) };
+    }
+  }
+  return nearest;
+}
+
 /** Conservative occlusion using available POI footprints, not a full GIS sightline. */
 export function recognizeNearby(locations: Record<string, LocationState>, origin: Position, radiusM: number): Record<string, LocationState> {
   if (!(radiusM > 0)) return locations;
   const all = Object.values(locations);
   const candidates = all.filter(loc => !loc.identified && !loc.discovered && EXTERIOR_CATEGORIES.has(loc.category)
-    && haversine(origin.lat, origin.lng, loc.lat, loc.lng) <= radiusM);
+    // A large footprint must never reveal a pin hundreds of metres away.
+    && haversine(origin.lat, origin.lng, loc.lat, loc.lng) <= 60);
   if (candidates.length === 0) return locations;
   const footprints = all.filter(loc => loc.outline && loc.outline.length >= 3);
   let next = locations;
   for (const loc of candidates) {
+    const target = recognitionPoint(origin, loc);
+    if (haversine(origin.lat, origin.lng, target.lat, target.lng) > radiusM) continue;
     const blocked = footprints.some(building => {
       if (building.id === loc.id) return false;
       const ring = building.outline!;
-      // Embedded shops are not exterior signs, even if their containing building is known.
-      if (inside(loc, ring)) return true;
+      // Shared footprints must not hide neighbours from a player already inside.
       if (inside(origin, ring)) return false;
-      return ring.some((point, i) => crosses(origin, loc, point, ring[(i + 1) % ring.length]));
+      // From outside, embedded shops still require entering the building.
+      if (inside(loc, ring)) return true;
+      return ring.some((point, i) => crosses(origin, target, point, ring[(i + 1) % ring.length]));
     });
     if (blocked) continue;
     if (next === locations) next = { ...locations };

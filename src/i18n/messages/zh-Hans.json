@@ -1775,6 +1775,7 @@
       "tooManyLeads": "已有六条待办线索 · 先到访一处再添加",
       "clueFound": "你找到一条指向{name}的线索。",
       "nearbyRecognized": "你辨认出附近{count}处地点，内部情况仍未知。",
+      "recognitionNotice": "辨认出附近地点 · {count}",
       "leadCompleted": "线索地点已到访：{name}。",
       "mapRead": "你在记录本上标记了{count}处附近地点。",
       "mapEmpty": "地图上没有可新增的附近地点。",

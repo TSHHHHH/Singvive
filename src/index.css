@@ -992,7 +992,7 @@ select optgroup {
   transform: none;
 }
 
-/* The player's teardrop pin. Same reason as the beacon above: kept out of the
+/* The player's map marker. Same reason as the beacon above: kept out of the
    marker HTML so the icon stays one cached MapIcon.
 
    `pointer-events: none` is the whole trick behind the hover fade. Doing it the
@@ -1005,6 +1005,47 @@ select optgroup {
 .player-pin.player-pin {
   pointer-events: none;
   transition: opacity 0.15s ease;
+}
+.player-pin__avatar,
+.player-location {
+  box-sizing: border-box;
+  background: #1c211f;
+  border: 2px solid #e8e5dd;
+  box-shadow: 0 0 0 2px #08080a, 0 3px 8px #0009;
+}
+.player-pin__avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.player-location {
+  position: relative;
+  border-radius: 999px;
+}
+.player-location__human {
+  position: absolute;
+  top: 6px;
+  left: 0;
+  right: 0;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.player-location__site {
+  position: absolute;
+  transform-origin: top left;
+}
+.player-location--compact .player-location__human {
+  top: 4px;
+  height: 16px;
+}
+.maplibregl-marker.is-picked > .player-location::after,
+.maplibregl-marker.is-recognized > .player-location::before {
+  border-radius: 999px;
 }
 /* `!important`: MapLibre's Marker writes an inline opacity on every move. */
 .player-pin.is-faded {
@@ -1506,6 +1547,18 @@ select optgroup {
    `--roof-lift` (px per metre at the current zoom and pitch) current. One
    variable per frame moves every badge. `translate` stacks with the marker's
    own transform instead of replacing it. */
+/* Animate metres, not projected pixels: camera movement must stay immediate. */
+@property --roof {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0;
+}
+.maplibregl-marker.marker-reveal {
+  transition:
+    opacity var(--marker-reveal-ms, 0ms) var(--marker-reveal-easing, linear),
+    --roof var(--marker-reveal-ms, 0ms) var(--marker-reveal-easing, linear);
+}
+.maplibregl-marker.marker-reveal > *,
 .maplibregl-marker.has-roof > * {
   translate: 0 calc(var(--roof, 0) * var(--roof-lift, 0) * -1px);
 }
@@ -1521,6 +1574,31 @@ select optgroup {
   border: 2px solid #fff5d6;
   box-shadow: 0 0 0 2px #08080a, 0 0 12px #f0c04080;
   pointer-events: none;
+}
+
+/* Recognition uses a separate ring so selection and roof motion remain intact. */
+.maplibregl-marker.is-recognized > * { position: relative; }
+.maplibregl-marker.is-recognized > *::before {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  border: 2px solid #e8e5dd;
+  border-radius: 50%;
+  pointer-events: none;
+  animation: recognition-ring 1.4s ease-out 3;
+}
+@keyframes recognition-ring {
+  from { transform: scale(0.9); opacity: 0.95; }
+  to { transform: scale(1.8); opacity: 0; }
+}
+.recognition-notice { animation: recognition-notice-in 180ms ease-out; }
+@keyframes recognition-notice-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .maplibregl-marker.is-recognized > *::before { animation: none; opacity: 0.8; }
+  .recognition-notice { animation: none; }
 }
 
 /* Landmark beacons in the 3D run map (map/beacons.ts, components/Beacons3d.tsx):

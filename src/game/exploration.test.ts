@@ -52,6 +52,34 @@ describe('nearby recognition', () => {
     expect(next.behind.identified).not.toBe(true);
     expect(next.shop.identified).not.toBe(true);
   });
+  it.each(['clinic', 'pharmacy', 'convenience', 'hardware', 'eatery'] as const)(
+    'recognizes a nearby visible %s sign', category => {
+      const shop = site('shop', 20, { category });
+      expect(recognizeNearby(record(shop), origin, 35).shop).toEqual({ ...shop, identified: true });
+    },
+  );
+  it('recognizes a neighbouring tenant in the same footprint using baked Bishan market geometry', () => {
+    const outline: [number, number][] = [[1.34562, 103.85503], [1.34542, 103.85499],
+      [1.34534, 103.85533], [1.34554, 103.85538], [1.34562, 103.85503]];
+    const here = site('wet-market', 0, { category: 'foodcourt', lat: 1.34549, lng: 103.85519,
+      outline, discovered: true });
+    const neighbour = site('market', 0, { category: 'foodcourt', lat: 1.34549, lng: 103.85513, outline });
+    const next = recognizeNearby(record(here, neighbour), here, 35);
+    expect(next.market).toEqual({ ...neighbour, identified: true });
+    expect(next['wet-market']).toBe(here);
+  });
+  it('uses a nearby building edge but never reveals a distant centre', () => {
+    const nearby = site('nearby', 50, { outline: ring(25, 75) });
+    expect(recognizeNearby(record(nearby), origin, 35).nearby.identified).toBe(true);
+    expect(recognizeNearby(record(nearby), origin, 17.5).nearby).toBe(nearby);
+    const distant = site('distant', 250, { outline: ring(25, 475) });
+    expect(recognizeNearby(record(distant), origin, 35).distant).toBe(distant);
+  });
+  it('keeps intervening buildings opaque when recognizing an edge', () => {
+    const nearby = site('nearby', 50, { outline: ring(25, 75) });
+    const wall = site('wall', 15, { category: 'industrial', outline: ring(10, 20) });
+    expect(recognizeNearby(record(nearby, wall), origin, 35).nearby).toBe(nearby);
+  });
   it('does not identify synthetic waypoints or overwrite known memories', () => {
     const known = site('known', 10, { discovered: true });
     const waypoint = site('waypoint', 10, { category: 'waypoint' });

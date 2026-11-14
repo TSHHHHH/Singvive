@@ -1,8 +1,8 @@
 import { Icon } from '../icons/Icon';
 
 /**
- * The teardrop player pin used on the world map. Same CSS (`.player-pin`) so
- * HDB cutaway and Leaflet share one look.
+ * Compact teardrop player pin for HDB cutaways and legends. The world map
+ * uses a human avatar or a combined player/location capsule.
  */
 export function PlayerPin({
   size = 'md',

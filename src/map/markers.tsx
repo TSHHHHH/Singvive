@@ -4,6 +4,7 @@ import type { MapIcon } from '../components/mapIcons';
 import type { BeaconKind } from './beacons';
 import { useMapGL } from './hooks';
 import { createMarker, setMarkerIcon } from './markerDom';
+import { REVEAL_EASING } from './revealMotion';
 
 interface MapMarkerProps {
   lat: number;
@@ -13,6 +14,9 @@ interface MapMarkerProps {
   /** Stack order among markers (Leaflet's zIndexOffset). */
   zIndex?: number;
   opacity?: number;
+  /** Location badges retain their DOM through an exit fade. */
+  visible?: boolean;
+  fadeMs?: number;
   /**
    * Roof height in metres (3D). The badge rides up to it by the map's
    * `--roof-lift` px-per-metre, which the building engine keeps current.
@@ -20,6 +24,8 @@ interface MapMarkerProps {
   roof?: number;
   /** Selection ring around the badge in both flat and 3D views. */
   ring?: boolean;
+  /** Brief identity-reveal highlight, independent of selection and danger. */
+  recognized?: boolean;
   /** Optional native hover title (TipLayer adopts it). */
   title?: string;
   /**
@@ -40,19 +46,25 @@ export function MapMarker({
   onClick,
   zIndex,
   opacity,
+  visible = true,
+  fadeMs = 0,
   roof = 0,
   ring = false,
+  recognized = false,
   title,
   beacon = null,
 }: MapMarkerProps) {
   const map = useMapGL();
   const ref = useRef<Marker | null>(null);
   const click = useRef(onClick);
-  click.current = onClick;
+  click.current = visible ? onClick : undefined;
+  const entered = useRef(false);
 
   useEffect(() => {
     const m = createMarker(icon, lat, lng);
     const el = m.getElement();
+    entered.current = false;
+    if (fadeMs > 0) m.setOpacity(0);
     el.addEventListener('click', (ev) => {
       if (!click.current) return;
       // Keep the map's own click (ground pick) from firing underneath.
@@ -86,9 +98,10 @@ export function MapMarker({
     if (roof > 0) el.style.setProperty('--roof', roof.toFixed(1));
     else el.style.removeProperty('--roof');
     el.classList.toggle('is-picked', ring);
+    el.classList.toggle('is-recognized', recognized);
     el.classList.toggle('on-beacon', !!beacon);
     el.classList.toggle('on-beacon--evac', beacon === 'evac');
-  }, [roof, ring, beacon]);
+  }, [roof, ring, beacon, recognized]);
 
   useEffect(() => {
     ref.current?.setLngLat([lng, lat]);
@@ -99,12 +112,32 @@ export function MapMarker({
     if (!m) return;
     const el = m.getElement();
     el.style.zIndex = zIndex !== undefined ? String(zIndex) : '';
-    // The Marker rewrites style.opacity on every move; go through its API.
-    m.setOpacity(opacity ?? 1);
     el.style.cursor = onClick ? 'pointer' : '';
     if (title) el.title = title;
     else el.removeAttribute('title');
-  }, [zIndex, opacity, onClick, title]);
+  }, [zIndex, onClick, title]);
+
+  useEffect(() => {
+    const m = ref.current;
+    if (!m) return;
+    const el = m.getElement();
+    el.classList.add('marker-reveal');
+    el.style.setProperty('--marker-reveal-ms', `${fadeMs}ms`);
+    el.style.setProperty('--marker-reveal-easing', REVEAL_EASING);
+    el.style.pointerEvents = visible ? '' : 'none';
+    const show = () => {
+      entered.current = true;
+      // MapLibre rewrites opacity during moves; keep its own target in sync.
+      m.setOpacity(visible ? opacity ?? 1 : 0);
+    };
+    if (entered.current || fadeMs <= 0 || !visible) {
+      show();
+      return;
+    }
+    // Commit the transparent first frame before transitioning a new marker.
+    let frame = requestAnimationFrame(() => { frame = requestAnimationFrame(show); });
+    return () => cancelAnimationFrame(frame);
+  }, [map, opacity, visible, fadeMs]);
 
   return null;
 }

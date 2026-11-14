@@ -169,9 +169,15 @@ ground for rest; landmarks are not selected as guaranteed indoor spawn shelters.
   awareness equipment/traits (less head-injury penalties) identifies obvious nearby exterior
   sites. Base radius is `clamp(20 + awareness × 3, 20, 60)` metres: 35 m at awareness 5.
   Existing night sight reduces it; rain ×0.75, haze ×0.6, thunderstorm ×0.5 reduce it further.
-  Known building footprints block intervening/embedded sites; absent geometry uses an
+  Nearby shop signs (including clinics, pharmacies, convenience shops, hardware and eateries)
+  are eligible. Distance uses the nearest building edge where available, with a hard 60 m
+  limit to the site's pin. Known footprints block intervening/embedded sites from outside;
+  a shared footprint does not hide neighbours once inside. Absent geometry uses an
   exterior-category approximation, not complete line of sight. Waiting and camera movement
   never roll discoveries. The travel ring is unchanged.
+  Newly recognized pins pulse briefly alongside a small count notice; reduced-motion
+  players get a static ring. This cue lasts about four seconds, never moves the camera,
+  and is not saved or replayed when continuing a run.
 - **Local leads.** A site's first completed street search has a seeded 35% chance to yield one
   nearby lead (within 800 m), including a completed empty search. Aborted searches grant none.
   Leads prefer useful facilities and survival destinations, exclude visited/known sites and

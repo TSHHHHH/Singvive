@@ -16,6 +16,7 @@ import { alive } from './layers';
 import { breakBuilding, type RuinKind } from './ruinModel';
 import { cityDamage, hash01 } from './cityDamage';
 import { landmarkBaseHeight } from './landmarkGeometry';
+import { REVEAL_MS } from './revealMotion';
 
 /**
  * The 3D run map's buildings: the basemap's own footprints extruded to their
@@ -52,7 +53,6 @@ export const LOD_ZOOM = 15;
 /** Heights grow from 0 to full across this much zoom above LOD_ZOOM. */
 const ZOOM_RISE_SPAN = 1;
 /** How long a building takes to rise out of the ground when revealed. */
-const RISE_MS = 600;
 /** After tiles load, wait this long before indexing their buildings. */
 const INDEX_DEBOUNCE_MS = 300;
 /**
@@ -877,7 +877,7 @@ export class BuildingEngine {
         this.rising.delete(id);
         continue;
       }
-      const t = Math.min(1, (now - r.start) / RISE_MS);
+      const t = Math.min(1, (now - r.start) / REVEAL_MS);
       const e = 1 - (1 - t) ** 3; // ease-out: quick start, soft landing
       r.v = t >= 1 ? r.to : r.from + (r.to - r.from) * e;
       this.map.setFeatureState({ source: this.src, sourceLayer: this.sl, id }, { rise: r.v });
