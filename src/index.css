@@ -1947,3 +1947,42 @@ body:has([data-dock-resizing='true']) * {
   from { transform: scaleX(0); }
   to { transform: scaleX(1); }
 }
+
+/* Body care stays quiet between actions; only the brief confirmation moves. */
+.care-action {
+  transition: background-color 140ms ease, outline-color 140ms ease;
+}
+.care-action:not(:disabled):hover {
+  background-color: rgba(255, 255, 255, 0.06);
+}
+.care-action:focus-visible {
+  outline: 2px solid #7fd0cb;
+  outline-offset: 2px;
+}
+.care-body-feedback {
+  animation: care-body-feedback 2.6s ease-out both;
+}
+.care-result {
+  animation: care-result 180ms ease-out both;
+}
+@keyframes care-body-feedback {
+  0%, 18% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes care-result {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .care-action,
+  .care-doll path,
+  .care-overview * {
+    transition: none;
+  }
+  .care-body-feedback,
+  .care-result,
+  .care-doll .pulse-danger,
+  .care-overview .pulse-danger {
+    animation: none;
+  }
+}

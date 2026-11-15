@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useGame } from '../game/store';
 import { itemDef } from '../game/loot';
+import { careForItem } from '../game/woundCare';
 import { footprint } from '../game/inventory';
 import {
   hasFoggedOrSearching,
@@ -367,9 +368,10 @@ function describeSearchItem(def: ItemDef, slot: SearchSlot, t: ReturnType<typeof
       if (e.infectionRisk) lines.push(t('ui.search.infectionRisk', { n: e.infectionRisk }));
       break;
     case 'heal':
-      lines.push(
-        t('ui.search.heal', { n: e.health }) + (e.stopsBleeding ? t('ui.search.stopsBleeding', { kind: t(`ui.search.bleed.${e.stopsBleeding}`) }) : ''),
-      );
+      {
+        const care = careForItem(def.id);
+        if (care) lines.push(t(`ui.care.effect.${care}`));
+      }
       break;
     case 'cure':
       lines.push(t('ui.search.cure', { n: e.infection }));

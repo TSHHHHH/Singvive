@@ -8,6 +8,14 @@
 
 ## 1. Architecture
 
+### Wound care
+
+`src/game/woundCare.ts` owns independent treatment eligibility, targeting and stabilization; `canCareWithItem` prevents wasting supplies such as an improvised dressing on a stable wound. `survival.ts` creates injuries, ages dressings and advances tissue/fracture recovery, splitting at care expiry transitions. `tickInjuries` accepts a recovery multiplier shared by `store.advanceTime` and `restPlan`, including hydration, shelter sleep and medical skill/trait effects. Protected service-bed sleep also receives recovery support. Treatment never directly adds HP.
+
+`applyItem(uid, partId?)` supports explicit Body-panel targets and automatic eligible targets for inventory callers. It validates accessibility and eligibility before consuming supplies, spends game minutes, then schedules the normal debounced save. First-aid kits preserve three uses through `ItemInstance.careUses`. `lastCare` is transient presentation feedback; wound fields and kit uses persist in the existing `singvive.run.v7` format. `migrateBodyParts` supplies care defaults for old saves.
+
+The existing `ConditionPanel` hosts compact care rows and the medical silhouette; only affected parts need controls. Wound state is visible without inspection. There are no new map-parent subscriptions or real-time recovery timers: recovery advances with the game clock.
+
 | Concern | Choice |
 |---|---|
 | Framework | React 19 + TypeScript 6 + Vite 8 |

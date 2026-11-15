@@ -576,8 +576,8 @@ function survivalRows(traits: Trait[], weather: WeatherState, bodyParts: BodyPar
   const sleep = traitSources(traits, 'sleepRestoreMod');
   if (sleep.length) rows.push(row('sleepRestore', 'survival', 'pct', sleep, true));
 
-  const heal = traitSources(traits, 'healBonus');
-  if (heal.length) rows.push(row('healBonus', 'survival', 'flat', heal, true));
+  const heal = traitSources(traits, 'healBonus').map(source => ({ ...source, amount: source.amount / 100 }));
+  if (heal.length) rows.push(row('healBonus', 'survival', 'pct', heal, true));
 
   const food = traitSources(traits, 'foodEffectMod');
   if (food.length) rows.push(row('foodEffect', 'survival', 'pct', food, true));

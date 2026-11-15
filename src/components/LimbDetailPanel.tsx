@@ -79,19 +79,21 @@ function barColor(pct: number): string {
 
 function StatusIcon({ chip }: { chip: StatusChip }) {
   return (
-    <span
-      className={`group/tip relative inline-flex cursor-help ${
+    <button
+      type="button"
+      aria-label={`${chip.label}. ${chip.detail}`}
+      className={`care-action group/tip relative inline-flex cursor-help rounded ${
         chip.tone === 'danger' ? 'text-hiss' : 'text-concrete-200'
       } ${chip.tone === 'danger' && chip.icon === 'status.bleeding' ? 'pulse-danger' : ''}`}
     >
       <Icon name={chip.icon} size={12} title={chip.label} />
-      <span className="pointer-events-none absolute bottom-full right-0 z-30 mb-1.5 hidden w-max max-w-[14rem] rounded border border-white/15 bg-concrete-900 px-2 py-1.5 text-left shadow-signage group-hover/tip:block">
+      <span className="pointer-events-none absolute bottom-full right-0 z-30 mb-1.5 hidden w-max max-w-[14rem] rounded border border-white/15 bg-concrete-900 px-2 py-1.5 text-left shadow-signage group-hover/tip:block group-focus/tip:block" aria-hidden="true">
         <span className="block text-label uppercase text-white/50">
           {chip.label}
         </span>
         <span className="mt-0.5 block text-micro text-concrete-200">{chip.detail}</span>
       </span>
-    </span>
+    </button>
   );
 }
 
@@ -109,7 +111,6 @@ function LimbRow({
   const { t } = useT();
   const pct = partConditionPct(part);
   const chips = statusChips(partId, part, t);
-  const low = pct < 25;
 
   const hpText = `${Math.round(part.hp)}/${part.maxHp}`;
 
@@ -120,6 +121,8 @@ function LimbRow({
       }`}
       onMouseEnter={() => onHover(partId)}
       onMouseLeave={() => onHover(null)}
+      onFocus={() => onHover(partId)}
+      onBlur={() => onHover(null)}
     >
       <span className="w-9 shrink-0 text-label uppercase text-white/45">
         {t(`ui.body.parts.${partId}`)}
@@ -129,7 +132,7 @@ function LimbRow({
         aria-label={`${t(`ui.body.parts.${partId}`)} ${hpText}`}
       >
         <div
-          className={`absolute inset-y-0 left-0 transition-all duration-300 ${low ? 'pulse-danger' : ''}`}
+          className={`absolute inset-y-0 left-0 transition-all duration-300 ${part.bleed === 'major' ? 'pulse-danger' : ''}`}
           style={{ width: `${Math.max(0, Math.min(100, pct))}%`, background: barColor(pct) }}
         />
         <span className="relative z-[1] flex items-center justify-end px-1.5 py-0.5 text-body tabular-nums leading-none text-white/80 [text-shadow:0_1px_1px_rgba(0,0,0,0.85)]">
@@ -155,7 +158,7 @@ interface Props {
 /** Compact list of every limb — HP at a glance, status icons with hover detail. */
 export function LimbDetailPanel({ bodyParts, highlighted = null, onHover }: Props) {
   return (
-    <div className="flex h-full min-h-[120px] flex-col justify-center gap-0.5 rounded border border-white/10 bg-black/25 p-1.5">
+    <div className="care-overview flex h-full min-h-[120px] flex-col justify-center gap-0.5 rounded border border-white/10 bg-black/25 p-1.5">
       {ORDER.map((id) => (
         <LimbRow
           key={id}
