@@ -1,6 +1,10 @@
+import { practiceExpedition } from './expeditionSurvivor';
+import { PRACTICE_XP } from '../game/skills';
 import { Rng } from '../game/rng';
 import { MAX_PLAYERS, SITES } from './model';
 import type { Action, Command, RoomState, SiteId, Survivor } from './model';
+import type { IslandCatalog } from './islandWorld';
+import { applyIslandCommand, cancelIslandAction, completeIslandAction, dropIslandBelongings, hurtIsland, initializeIslandSurvivor, islandAttack, islandDefense, islandFlee, rescueIsland, tickIslandSurvivors } from './islandActions';
 
 const BEAT = 2000;
 const DOWNED_MS = 30000;
@@ -34,6 +38,7 @@ export function joinRoom(room: RoomState, id: string, name: string): string | nu
   if (!name.trim() || name.trim().length > 24) return 'Use a name of 1–24 characters.';
   if (room.phase === 'running' && !room.players.some(isActive)) return 'No active survivor remains.';
   room.players.push(fresh(id, name.trim()));
+  if (room.world) initializeIslandSurvivor(room,room.players[room.players.length - 1]);
   if (!room.hostId) room.hostId = id;
   room.ready = []; room.resumeAt = null;
   note(room, `${name.trim()} joined the expedition.`);
@@ -41,7 +46,8 @@ export function joinRoom(room: RoomState, id: string, name: string): string | nu
 }
 function die(room: RoomState, p: Survivor) {
   const cache = here(room, p);
-  cache.medical += p.medical; cache.food += p.food;
+  if (room.world) dropIslandBelongings(room,p);
+  else { cache.medical += p.medical; cache.food += p.food; }
   p.medical = 0; p.food = 0; p.hp = 0; p.status = 'dead';
   p.action = null; p.fighting = false; p.downedUntil = null;
   note(room, `${p.name} died. Their supplies remain at ${p.site}.`);
@@ -55,10 +61,11 @@ function finishIfEmpty(room: RoomState) {
 }
 function hurt(room: RoomState, p: Survivor, amount: number) {
   if (!isActive(p)) return;
-  p.hp = Math.max(0, p.hp - amount);
-  if (p.action?.kind === 'rescue' || p.action?.kind === 'rest' || p.action?.kind === 'search') {
+  if (room.world) hurtIsland(room,p,amount);
+  else p.hp = Math.max(0, p.hp - amount);
+  if (p.action?.kind === 'rescue' || p.action?.kind === 'rest' || p.action?.kind === 'search' || p.action?.kind === 'craft') {
     note(room, `${p.name}'s ${p.action.kind} was interrupted.`);
-    p.action = null;
+    cancelIslandAction(room,p);
   }
   if (p.hp === 0) {
     p.status = 'downed'; p.downedUntil = room.simMs + DOWNED_MS;
@@ -69,7 +76,7 @@ function hurt(room: RoomState, p: Survivor, amount: number) {
 function startAction(room: RoomState, p: Survivor, kind: Action['kind'], duration: number, target?: string) {
   p.action = { kind, startedAt: room.simMs, endsAt: room.simMs + duration, ...(target ? { target } : {}) };
 }
-function completeAction(room: RoomState, p: Survivor) {
+function completeAction(room: RoomState, p: Survivor, catalog?: IslandCatalog) {
   const action = p.action;
   if (!action || action.endsAt > room.simMs || !isActive(p)) return;
   p.action = null;
@@ -79,18 +86,22 @@ function completeAction(room: RoomState, p: Survivor) {
       note(room, `${p.name} arrived at ${p.site}.`);
       break;
     case 'search':
-      here(room, p).medical += p.site === 'pharmacy' ? 1 : 0;
-      here(room, p).food += p.site === 'market' ? 2 : 1;
+      if (!room.world) {
+        here(room, p).medical += p.site === 'pharmacy' ? 1 : 0;
+        here(room, p).food += p.site === 'market' ? 2 : 1;
+      }
       note(room, `${p.name} uncovered supplies in the shared cache.`);
       break;
     case 'rest':
-      p.hp = Math.min(maxHp(p), p.hp + 20);
+      if (!room.world) p.hp = Math.min(maxHp(p), p.hp + 20);
       note(room, `${p.name} finished resting.`);
       break;
     case 'rescue': {
       const target = room.players.find((other) => other.id === action.target);
       if (target?.status !== 'downed' || target.site !== p.site || p.medical < 1) break;
-      p.medical--; target.status = 'active'; target.hp = 30; target.wounds++;
+      if (room.world) { if (!rescueIsland(p,target)) break; }
+      else { p.medical--; target.hp = 30; }
+      target.status = 'active'; target.wounds++;
       target.downedUntil = null;
       note(room, `${p.name} rescued ${target.name}. Lasting injuries remain.`);
       break;
@@ -100,19 +111,28 @@ function completeAction(room: RoomState, p: Survivor) {
       note(room, `${p.name} extracted alive on life ${p.life}.`);
       break;
   }
+  if (room.world) {
+    completeIslandAction(room,p,action,catalog);
+    if (isActive(p) && p.hp <= 0) hurt(room,p,0);
+  }
 }
 function combatBeat(room: RoomState) {
-  for (const site of SITES) {
+  const occupied = new Set(room.players.filter((p) => p.status === 'active').map((p) => p.site));
+  const sites = room.world ? [...occupied].map((id) => room.world!.locations[id]) : SITES;
+  for (const site of sites) {
     const state = room.sites[site.id];
     const exposed = room.players.filter((p) => isActive(p) && p.site === site.id && p.action?.kind !== 'travel');
     if (state.enemyHp <= 0 || !exposed.length) continue;
     state.round++;
     for (const p of exposed.filter((p) => p.fighting)) {
       const rng = new Rng(room.seed).fork(`coop:${site.id}:${state.round}:${p.id}`);
-      const damage = (p.stance === 'aggressive' ? 13 : p.stance === 'precision' ? 11 : 8) + rng.int(0, 4);
+      const base = room.world ? islandAttack(p) : 8;
+      const damage = base + (p.stance === 'aggressive' ? 5 : p.stance === 'precision' ? 3 : 0) + rng.int(0, 4);
       state.enemyHp = Math.max(0, state.enemyHp - damage);
+      if (room.world && p.expedition) practiceExpedition(p.expedition, 'fighting', PRACTICE_XP.meleeHit);
       if (state.enemyHp === 0) {
         p.kills++;
+        if (room.world && p.expedition) practiceExpedition(p.expedition, 'fighting', PRACTICE_XP.meleeKill);
         note(room, `${p.name} landed the final hit. ${site.name} is clear.`);
         for (const ally of exposed) ally.fighting = false;
         break;
@@ -120,16 +140,16 @@ function combatBeat(room: RoomState) {
     }
     if (state.enemyHp > 0) {
       const target = exposed[(state.round - 1) % exposed.length];
-      hurt(room, target, target.stance === 'guarded' ? 10 : 15);
+      hurt(room, target, Math.max(1,(target.stance === 'guarded' ? 10 : 15) - (room.world ? islandDefense(target) : 0)));
     }
   }
-  if (room.simMs % 60000 === 0) {
+  if (!room.world && room.simMs % 60000 === 0) {
     for (const p of room.players) if (isActive(p)) hurt(room, p, 2);
   }
 }
 
 /** Advance from server wall time. No browser timers, I/O or unseeded randomness. */
-export function advanceRoom(room: RoomState, now: number): void {
+export function advanceRoom(room: RoomState, now: number, catalog?: IslandCatalog): void {
   now = Math.max(room.wallAt, now);
   let elapsed = now - room.wallAt;
   if (room.phase !== 'running') { room.wallAt = now; return; }
@@ -145,16 +165,19 @@ export function advanceRoom(room: RoomState, now: number): void {
   const target = room.simMs + elapsed;
   while (room.simMs < target && room.phase === 'running') {
     const deadlines = room.players.flatMap((p) => [p.action?.endsAt ?? Infinity, p.downedUntil ?? Infinity]);
+    const before = room.simMs;
     room.simMs = Math.min(target, room.nextCombatAt, ...deadlines);
+    tickIslandSurvivors(room,room.simMs - before);
+    for (const p of room.players) if (p.status === 'active' && p.hp <= 0) hurt(room,p,0);
     // Expiry wins a same-instant race with rescue completion.
     for (const p of room.players) if (p.status === 'downed' && p.downedUntil! <= room.simMs) die(room, p);
-    for (const p of room.players) completeAction(room, p);
+    for (const p of room.players) completeAction(room, p, catalog);
     if (room.simMs >= room.nextCombatAt) { combatBeat(room); room.nextCombatAt += BEAT; }
     finishIfEmpty(room);
   }
 }
-export function setConnected(room: RoomState, id: string, connected: boolean, now: number): void {
-  advanceRoom(room, now);
+export function setConnected(room: RoomState, id: string, connected: boolean, now: number, catalog?: IslandCatalog): void {
+  advanceRoom(room, now, catalog);
   const player = room.players.find((p) => p.id === id);
   if (!player || player.connected === connected) return;
   player.connected = connected;
@@ -172,11 +195,12 @@ export function setConnected(room: RoomState, id: string, connected: boolean, no
   }
 }
 
-export function applyCommand(room: RoomState, id: string, command: Command, now: number): string | null {
-  advanceRoom(room, now);
+export function applyCommand(room: RoomState, id: string, command: Command, now: number, catalog?: IslandCatalog): string | null {
+  advanceRoom(room, now, catalog);
   const p = room.players.find((player) => player.id === id);
   if (!p || !p.connected) return 'Connect to the room before acting.';
   if (room.phase === 'ended') return 'This expedition has ended.';
+  if (command.type === 'spawn' || command.type === 'occupation') return applyIslandCommand(room,p,command,catalog) ?? (room.world ? null : 'This is a legacy room.');
   if (command.type === 'start') {
     if (room.phase !== 'lobby' || room.hostId !== id) return 'Only the host can start the lobby.';
     room.phase = 'running'; room.wallAt = now;
@@ -198,26 +222,34 @@ export function applyCommand(room: RoomState, id: string, command: Command, now:
   if (room.pause) return 'The room is paused.';
   if (command.type === 'replace') {
     if (p.status !== 'dead') return 'Only a dead survivor can be replaced.';
-    if (!room.players.some((other) => other.id !== id && isActive(other) && other.site === 'shelter' && !other.action)) return 'An active teammate must wait at the rendezvous.';
+    if (!room.players.some((other) => other.id !== id && isActive(other) && other.site === (room.world?.spawn ?? 'shelter') && !other.action)) return 'An active teammate must wait at the rendezvous.';
+    const occupation = p.expedition?.character.occupationId;
     Object.assign(p, fresh(id, p.name, p.life + 1), { connected: true });
+    if (room.world) initializeIslandSurvivor(room,p,occupation,false);
     note(room, `${p.name} returned as a new survivor, without replenished supplies.`);
     return null;
   }
   if (!isActive(p)) return 'Your survivor cannot act.';
   if (command.type === 'cancel') {
     if (p.action?.kind === 'travel') return 'Finish travelling before changing direction.';
-    p.action = null; return null;
+    if (p.action?.kind === 'treat') return 'Finish treatment before taking another action.';
+    cancelIslandAction(room,p); return null;
   }
   if (command.type === 'stance') { p.stance = command.stance; return null; }
   if (command.type === 'flee') {
     if (p.action?.kind === 'travel') return 'Already travelling.';
+    if (p.action?.kind === 'treat') return 'Finish treatment before taking another action.';
     if (here(room, p).enemyHp <= 0) return 'There is no encounter to flee.';
-    p.fighting = false; p.action = null; hurt(room, p, 8);
-    if (isActive(p)) startAction(room, p, 'travel', 8000, 'shelter');
+    cancelIslandAction(room,p);
+    if (room.world) { const error = islandFlee(room,p,catalog); if (error) return error; }
+    p.fighting = false; hurt(room, p, 8);
+    if (isActive(p) && !room.world) startAction(room, p, 'travel', 8000, 'shelter');
     finishIfEmpty(room);
     return null;
   }
   if (p.action) return 'Your survivor is busy. Wait or cancel first.';
+  const islandResult = applyIslandCommand(room,p,command,catalog);
+  if (islandResult !== undefined) return islandResult;
   const site = here(room, p);
   switch (command.type) {
     case 'fight':
@@ -252,12 +284,14 @@ export function applyCommand(room: RoomState, id: string, command: Command, now:
     case 'search':
       if (site.enemyHp > 0) return 'Clear the encounter before searching.';
       if (site.searches < 1) return 'This site has already been searched.';
-      site.searches--; startAction(room, p, 'search', 6000); return null;
+      site.searches--; startAction(room, p, 'search', room.world ? 15000 : 6000, room.world ? String(site.searches) : undefined); return null;
     case 'rest':
       if (site.enemyHp > 0) return 'Clear the encounter before resting.';
-      p.fighting = false; startAction(room, p, 'rest', 20000); return null;
+      p.fighting = false; startAction(room, p, 'rest', room.world ? 240000 : 20000); return null;
     case 'extract':
-      if (p.site !== 'evac') return 'Reach extraction before boarding.';
+      if (p.site !== (room.world?.evac ?? 'evac')) return 'Reach extraction before boarding.';
+      if (site.enemyHp > 0) return 'Clear the encounter before boarding.';
       startAction(room, p, 'extract', 5000); return null;
+    default: return 'This action is unavailable in this room.';
   }
 }

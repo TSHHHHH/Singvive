@@ -19,11 +19,33 @@
 
 ### Co-op prototype (experimental branch)
 
-The menu's **Online co-op prototype** opens a separate four-site schematic expedition,
-not the full island run. Up to four survivors join with an invite code and act independently.
-One real second represents one game minute. Travel takes eight seconds, search six, rest
-twenty and boarding five. Health, supplies and combat are deliberately simplified for this
-network prototype; solo balance and the existing injury system are unchanged.
+The menu's **Online co-op prototype** opens a separate expedition across Singapore.
+Up to four survivors join with an invite code and act independently. The host chooses
+Bishan, Tampines, Jurong East, Woodlands or Chinatown; each survivor chooses an occupation.
+One real second represents one game minute. Surface journeys use validated land routes
+in hops up to 1.2 km, with duration determined by distance, equipment, injuries and weather.
+Free-ground waypoints allow crossing beyond known POIs. Exploration is shared with the squad;
+live cache and enemy information depends on the viewer's current sight. Old saved schematic
+rooms keep their original four-site rules.
+
+Each survivor carries real items and equipment and has independent hunger, hydration,
+energy, infection, body injuries and skills. Searching takes 15 seconds and reserves one
+finite search; the resulting items go into the shared cache. Pickup and nearby transfers
+are serialized by the server. Field crafting reserves ingredients and produces its output
+when the action finishes; cancellation refunds reserved ingredients. Rest lasts 240 seconds
+and may be cancelled. Wound treatment and rescue use actual medical supplies. Travel,
+searching, combat, medicine and crafting grant practice through the solo skill rules.
+
+Reaching an MRT station reveals adjacent tunnel exits from the committed rail network.
+Tunnel travel is on foot, costs 1.5 times the walking duration, and reveals surface sites
+only at its endpoint. Faction ownership is seeded metadata; faction services are not yet
+available in co-op.
+
+HDB void decks support a shared generated block layout with independent survivor positions.
+Open landings and open/half-open searchable units are accessible through timed stairs and
+door actions. Unit caches, traps and enemies persist across visits; teammates must reach
+the same room to trade or rescue. Locked/barricaded doors, roof access, heat/hunting,
+NPC services and room intelligence remain unavailable in this first interior pass.
 
 The server owns the shared clock, finite caches and encounter outcomes. Anyone can pause;
 all connected participants ready up for a three-second resume countdown. A disconnect
@@ -31,11 +53,15 @@ pauses the room for a 15-second reconnect grace period; remaining players may th
 up and continue. The absent survivor remains exposed if play resumes. An empty room stays
 paused. Paused players can inspect state but cannot perform gameplay actions.
 
-The market contains one shared hostile encounter. Nearby survivors explicitly join attacks,
+First arrivals can trigger seeded shared encounters. Survivors at the same site explicitly join attacks,
 choose a stance or flee; the enemy can attack any exposed active survivor at that site.
+Combat currently resolves in two-second beats using melee equipment, body protection and
+skills. Firearms fall back to unarmed attacks; ammunition-based shooting and the solo
+combat gauge are not integrated. Flee retreats along a valid previous journey.
 Downed survivors have 30 simulation seconds for a nearby teammate to complete a five-second
 rescue. The rescuer needs a medical charge, spent only on success; damage interrupts rescue.
-Rescue returns 30 HP and a lasting wound that reduces maximum health. If everyone is down,
+Rescue restores 30% of each body part's maximum HP, stops bleeding and leaves crippling injuries.
+It provides a small survival-meter floor so a rescued survivor can act. If everyone is down,
 there is no rescuer and the expedition ends. Expiry takes precedence over a rescue completing
 at exactly the same instant.
 
@@ -45,6 +71,11 @@ Extraction is individual and extracted seats cannot return. When nobody remains 
 remaining downed survivors die and the room ends. This prototype does not submit solo scores.
 Rooms and reconnect credentials are separate from solo saves; server rooms expire after
 24 hours without a successful join, connection or sequenced command.
+
+The island expansion is not complete solo-system parity. Advanced faction services,
+firearms, book study, intelligence chains, world facilities, horde-driven timed extraction
+and solo scoring remain separate. Co-op extraction uses a seeded destination and five-second
+boarding; each survivor may board independently.
 
 You wake up in a fallen Singapore. Supplies run low, night makes the streets dangerous, and nearby
 **noise** can draw trouble. Knowing nothing of what's around you, you push out into the fog,

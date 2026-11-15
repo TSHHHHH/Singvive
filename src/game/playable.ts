@@ -152,7 +152,8 @@ function inAny(
   return false;
 }
 
-function applyZones(data: ZonesData): ZonesData {
+/** Install the committed geometry supplied by a browser or authoritative server asset loader. */
+export function installZones(data: ZonesData): ZonesData {
   zones = data;
   landIdx = indexRings(data.land);
   waterIdx = indexRings(data.water);
@@ -175,7 +176,7 @@ async function loadZones(): Promise<ZonesData> {
   if (!Array.isArray(data.water)) data.water = [];
   if (!Array.isArray(data.restricted)) data.restricted = [];
   if (!Array.isArray(data.vegetation)) data.vegetation = [];
-  return applyZones(data);
+  return installZones(data);
 }
 
 /** Fetch + cache zones. Concurrent callers share one in-flight request. */

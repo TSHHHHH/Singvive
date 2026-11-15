@@ -37,7 +37,7 @@ try {
   await assert.rejects(openClient({ ...credentials[0], token: '0'.repeat(64) }), /403|socket hang up/);
   for (const c of credentials) clients.push(await openClient(c));
   async function until(predicate) {
-    const end = Date.now() + 12000;
+    const end = Date.now() + 30000;
     while (!predicate()) { if (Date.now() > end) throw new Error('Timed out waiting for room state'); await new Promise((r) => setTimeout(r, 50)); }
   }
   async function command(client, payload) {
@@ -51,6 +51,19 @@ try {
   }
   await until(() => clients.every((c) => c.state.players.filter((p) => p.connected).length === 4));
   await command(clients[0], { type: 'start' });
+  if (clients[0].state.world) {
+    await command(clients[0], { type: 'search' });
+    await command(clients[1], { type: 'rest' });
+    const site = clients[0].state.players[0].site;
+    await until(() => clients[0].state.sites[site].items.length > 0);
+    assert.equal(clients[0].state.players[1].action.kind, 'rest');
+    const uid = clients[0].state.sites[site].items[0].uid;
+    const seq = await command(clients[0], { type: 'takeItem', uid });
+    clients[0].ws.send(JSON.stringify({ type: 'command', seq, command: { type: 'takeItem', uid } }));
+    await new Promise((r) => setTimeout(r, 200));
+    assert.equal(clients[0].state.players[0].expedition.items.filter((item) => item.uid === uid).length, 1);
+    assert(!clients[0].state.sites[site].items.some((item) => item.uid === uid));
+  } else {
   await command(clients[0], { type: 'travel', site: 'pharmacy' });
   await command(clients[1], { type: 'rest' });
   await until(() => clients[0].state.players[0].site === 'pharmacy');
@@ -61,6 +74,8 @@ try {
   clients[0].ws.send(JSON.stringify({ type: 'command', seq, command: { type: 'take', item: 'medical' } }));
   await new Promise((r) => setTimeout(r, 200));
   assert.equal(clients[0].state.players[0].medical, 2, 'Duplicate command must not mint supplies');
+  }
+  const medical = clients[0].state.players[0].medical;
   await command(clients[2], { type: 'pause' });
   const frozen = clients[2].state.simMs;
   await new Promise((r) => setTimeout(r, 2200));
@@ -71,7 +86,7 @@ try {
   await until(() => clients[0].state.pause?.reason.includes('disconnected'));
   const returned = await openClient(credentials[3]);
   assert.equal(returned.state.players.length, 4, 'Reconnect must reuse the seat');
-  assert.equal(returned.state.players[0].medical, 2, 'Reconnect must recover authoritative supplies');
+  assert.equal(returned.state.players[0].medical, medical, 'Reconnect must recover authoritative supplies');
   const replaced = new Promise((resolve) => returned.ws.once('close', (code) => resolve(code)));
   await openClient(credentials[3]);
   assert.equal(await replaced, 4001, 'A duplicate seat must replace the old connection');
@@ -82,7 +97,10 @@ try {
     const { tmpdir } = await import('node:os');
     const { join } = await import('node:path');
     const checkpoint = join(tmpdir(), 'singvive-coop-restart.local.json');
-    await writeFile(checkpoint, JSON.stringify({ credentials: credentials[0], medical: 2 }));
+    const snapshot = clients[0].state;
+    await writeFile(checkpoint, JSON.stringify({ credentials: credentials[0], medical,
+      island: snapshot.world ? { world: snapshot.world, sites: snapshot.sites,
+        expedition: snapshot.players[0].expedition } : undefined }));
     console.log('Restart checkpoint saved to OS temp; credentials not printed.');
   }
 } finally { for (const ws of sockets) ws.close(); }

@@ -1,4 +1,4 @@
-import { Component, useEffect, useState, useSyncExternalStore, type FormEvent, type ReactNode } from 'react';
+import { Component, lazy, Suspense, useEffect, useState, useSyncExternalStore, type FormEvent, type ReactNode } from 'react';
 import { useT } from '../i18n/useT';
 import { useCoopCopy } from './copy';
 import { CoopClient, enterRoom, readSession, type ClientState } from './client';
@@ -8,6 +8,7 @@ const PANEL = 'border border-white/15 bg-concrete-900';
 const INPUT = 'w-full rounded-sm border border-white/20 bg-concrete-950 px-3 py-3 text-read text-signal outline-none focus:border-signal';
 
 const STANCES: Stance[] = ['guarded', 'aggressive', 'precision'];
+const IslandScreen = lazy(() => import('./IslandScreen'));
 
 function Button({ children, onClick, disabled = false, primary = false, title, type = 'button' }: {
   children: ReactNode; onClick?: () => void; disabled?: boolean; primary?: boolean; title?: string; type?: 'button' | 'submit';
@@ -53,13 +54,13 @@ function Lobby({ onEnter, saved }: { onEnter: (credentials: Credentials) => void
         <section>
           <Kicker>{t('ui.coop.privateExpedition')}</Kicker>
           <h1 className="mt-4 max-w-sm text-marquee uppercase text-signal">{t('ui.coop.heroFirst')}<br />{t('ui.coop.heroSecond')}</h1>
-          <p className="mt-5 max-w-sm text-read text-white/60">{t('ui.coop.intro')}</p>
+          <p className="mt-5 max-w-sm text-read text-white/60">{t('ui.coopIsland.intro')}</p>
           <div className="mt-7 space-y-4 border-l border-white/20 pl-4 text-body text-white/55">
             <p><span className="text-signal">{t('ui.coop.stepOne')}</span><br />{t('ui.coop.stepOneBody')}</p>
             <p><span className="text-signal">{t('ui.coop.stepTwo')}</span><br />{t('ui.coop.stepTwoBody')}</p>
             <p><span className="text-signal">{t('ui.coop.stepThree')}</span><br />{t('ui.coop.stepThreeBody')}</p>
           </div>
-          <p className="mt-7 text-body text-white/35">{t('ui.coop.prototypeNote')}</p>
+          <p className="mt-7 text-body text-white/35">{t('ui.coopIsland.prototypeNote')}</p>
         </section>
         <section className={`${PANEL} self-start p-5 sm:p-6`} aria-labelledby="lobby-heading">
           <Kicker>{t('ui.coop.connectHeading')}</Kicker>
@@ -203,6 +204,7 @@ function Room({ credentials, onLobby }: { credentials: Credentials; onLobby: () 
     try { await navigator.clipboard.writeText(url.toString()); setCopied(true); setCopyFailed(false); }
     catch { setCopied(false); setCopyFailed(true); }
   }
+  if (room?.world && me) return <Suspense fallback={<main className="flex min-h-full items-center justify-center bg-concrete-950 p-6 text-read text-white/50">{t('ui.coop.establishing')}</main>}><IslandScreen room={room} me={me} state={state} client={client} credentials={credentials} onLobby={onLobby} /></Suspense>;
   return <main className="min-h-full bg-concrete-950 px-3 pb-8 pt-4 sm:px-6">
     <div className="mx-auto max-w-7xl">
       <header className="flex flex-wrap items-center justify-between gap-4 border-b border-white/15 pb-4">

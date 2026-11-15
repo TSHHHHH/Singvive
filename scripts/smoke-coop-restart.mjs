@@ -7,7 +7,7 @@ import { WebSocket } from 'ws';
 const origin = process.env.COOP_TEST_ORIGIN || 'http://localhost:5190';
 assert(['localhost', '127.0.0.1'].includes(new URL(origin).hostname), 'Local smoke tests only');
 const checkpoint = join(tmpdir(), 'singvive-coop-restart.local.json');
-const { credentials: c, medical } = JSON.parse(await readFile(checkpoint, 'utf8'));
+const { credentials: c, medical, island } = JSON.parse(await readFile(checkpoint, 'utf8'));
 const ws = new WebSocket(`${origin.replace('http', 'ws')}/api/coop/${c.room}/ws?playerId=${c.playerId}&token=${c.token}`, { origin });
 try {
   const snapshot = await new Promise((resolve, reject) => {
@@ -23,5 +23,11 @@ try {
   assert.equal(snapshot.room.phase, 'running');
   assert(snapshot.room.pause, 'An empty/restarted room must stay paused');
   assert(snapshot.nextSeq > 1, 'Command receipts must survive restart');
+  if (island) {
+    assert.deepEqual(snapshot.room.world, island.world, 'Discovered island metadata must survive normalized storage');
+    assert.deepEqual(snapshot.room.sites, island.sites, 'Shared cache depletion and items must survive normalized storage');
+    assert.deepEqual(snapshot.room.players.find((p) => p.id === c.playerId).expedition, island.expedition,
+      'Individual inventory, body and survival meters must survive restart');
+  }
   console.log('PASS: server restart retained room, supplies, player identity, pause and command sequence.');
 } finally { ws.close(); await unlink(checkpoint); }
