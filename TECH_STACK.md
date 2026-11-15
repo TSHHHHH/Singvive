@@ -146,12 +146,20 @@ remain store actions. Sources and event memory persist under **`singvive.run.v7`
 defaults for existing saves and the existing debounce/flush policy. The global escalation,
 automatic overrun ending and geographic front no longer drive gameplay.
 
-**Desktop HUD (`lg:` and up).** The survivor rail is 304px below 1360px viewport width,
-320px from 1360px, and 336px from 1600px. Its width and all slide-out/map offsets share
+**Desktop HUD (`lg:` and up).** The survivor rail defaults to 384px (360px below a
+1440px viewport). Players can drag its right edge or focus the separator and use arrow
+keys to resize; Home/End select the limits, and double-click/Enter resets the default.
+The range is 320–560px, capped at 40% of the viewport. The committed preference lives
+in `survivorRailWidth` in the existing settings blob; shrinking the viewport clamps the
+displayed width without overwriting that preference. Escape, blur and pointer cancellation
+cancel an unfinished resize. A stable scrollbar gutter prevents content-width changes
+when sections expand. Its width and all slide-out/map offsets share
 `--survivor-rail-w` and `railW` in `GameScreen`. Clock, weather, Rest and a compact
 `ObjectiveBar` sit above `SurvivorDock`. Labelled health, energy, food and water stick to
 the top of the scrolling content. Body and Backpack start open together, each with one
-heading and its own collapse control. Body shows limbs and attributes; the compact tool
+compact clickable heading and its own collapse control; Backpack omits cell counts.
+The footer groups 2D/3D as a view selector and keeps the rail overlay as an independent
+toggle. Body shows limbs and attributes; the compact tool
 row opens Stash, Craft or More (Logbook, Stats, Skills, Timeline, Day logs and Settings).
 Stash automatically reveals the backpack beside the equipment/stash slide-out. Closing
 Stash or switching to Craft keeps the backpack open; collapsing a section leaves the

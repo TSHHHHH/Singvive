@@ -102,12 +102,12 @@ export function InventoryPanel({
   onClose,
   layout = 'full',
   collapsed = false,
-  headerControl,
+  onToggle,
 }: {
   onClose?: () => void;
   layout?: InventoryLayout;
   collapsed?: boolean;
-  headerControl?: ReactNode;
+  onToggle?: () => void;
 }) {
   const { locale, t } = useT();
   const items = useGame((s) => s.items);
@@ -497,7 +497,7 @@ export function InventoryPanel({
             grid={BACKPACK}
             title={t('ui.inventory.backpack')}
             titleAccessory={<InventoryControlsHint coarse={coarse} />}
-            headerControl={headerControl}
+            onToggle={onToggle}
             collapsed={collapsed}
             largeCells
             items={items}

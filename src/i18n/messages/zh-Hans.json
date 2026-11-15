@@ -1091,6 +1091,10 @@
       "jumpLatest": "最新动态"
     },
     "dock": {
+      "resize": "调整幸存者侧栏宽度",
+      "resizeHint": "拖动调整宽度 · 方向键微调 · 双击或回车恢复默认",
+      "mapView": "地图视图",
+      "view2dTip": "显示平面地图",
       "body": "身体",
       "vitals": "生存状态",
       "food": "饱食",
