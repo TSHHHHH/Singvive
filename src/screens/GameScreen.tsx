@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type CSSProperties } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useGame } from '../game/store';
 import { GameMap } from '../components/GameMap';
@@ -204,8 +204,6 @@ const railHotkey = (id: RailKey): string => RAIL_HOTKEYS[RAIL_KEYS.indexOf(id)];
 /** Gap between HUD pieces, and between them and the screen edge, px. */
 const HUD_GAP = 12;
 const HUD_EDGE = 16;
-/** Desktop survivor rail width, px (matches `lg:w-[408px]`). */
-const RAIL_W = 408;
 const SLIDE_OUT_W = 360;
 const INSPECTOR_W = 352;
 /** Bottom-anchored desktop HUD clears MapLibre's ~24px attribution bar, px. */
@@ -911,7 +909,8 @@ export function GameScreen() {
     setActivityFocus((previous) => ({ id, nonce: (previous?.nonce ?? 0) + 1 }));
   };
   const tlW = hdb ? Math.round(Math.max(320, Math.min(520, vw * 0.27))) : timelineWidth(vw);
-  const mapW = vw - RAIL_W;
+  const railW = vw >= 1600 ? 336 : vw >= 1360 ? 320 : 304;
+  const mapW = vw - railW;
   // Preserve the pin preference, but let idle history compact while a tool
   // needs the space. Live decisions still take priority over browsing panels.
   const timelineFits = isPhone || !sidePanel || mapW >= SLIDE_OUT_W + INSPECTOR_W + tlW + HUD_EDGE * 2 + HUD_GAP;
@@ -1199,7 +1198,7 @@ export function GameScreen() {
     const bottom = (pairH > 0 ? pairH + HUD_GAP : 0) + HUD_BOTTOM;
     const left = HUD_EDGE + panelInset;
     let right = HUD_EDGE + (timelineBeside ? tlW : TICKER_W) + HUD_GAP;
-    if (vw - RAIL_W - left - right < HDB_MIN_W && !timelineBeside) {
+    if (vw - railW - left - right < HDB_MIN_W && !timelineBeside) {
       // The ticker now floats over the strips' column: start the dock below
       // its header button so Leave is never under it.
       right = HUD_EDGE;
@@ -1357,7 +1356,7 @@ export function GameScreen() {
   return (
     <InventoryInteractionProvider>
     {/* data-combat-shake-root: CombatFx shakes this on desktop hits. */}
-    <div className={shellClass} data-combat-shake-root="">
+    <div className={shellClass} style={{ '--survivor-rail-w': `${railW}px` } as CSSProperties} data-combat-shake-root="">
       <PhoneStatusBar onOpenStatus={() => goToPhoneTab('hub')} weather={weather} onOpenActivity={openActivityTimeline} />
 
       {/* Click map / timeline to dismiss any slide-out. Phone: leave the status
@@ -1379,7 +1378,7 @@ export function GameScreen() {
            slide-out covers the whole screen, so the rail stays below it. */}
       <aside
         data-inventory-zone
-        className={`relative flex-col border-white/10 bg-concrete-900/70 lg:z-[750] lg:flex lg:h-full lg:w-[408px] lg:shrink-0 lg:border-r lg:bg-concrete-900 ${
+        className={`relative flex-col border-white/10 bg-concrete-900/70 lg:z-[750] lg:flex lg:h-full lg:w-[var(--survivor-rail-w)] lg:shrink-0 lg:border-r lg:bg-concrete-900 ${
           mobileView === 'hub' ? show(true) : 'hidden'
         } lg:flex ${backgrounded}`}
       >
@@ -1523,14 +1522,14 @@ export function GameScreen() {
            Phone: sits between the status bar and bottom nav so meters stay
            visible while you eat/drink from inventory. */}
       {/* Craft widens only into spare space, leaving the location actions visible.
-          Closed, it parks its own width plus the 408px rail off the left edge,
+          Closed, it parks its own width plus the responsive rail off the left edge,
           so it slides out from behind the rail instead of fading in on top. */}
       <div
         data-side-panel={sidePanel ?? undefined}
-        className={`absolute left-0 z-[700] w-full transition-[transform,width] duration-200 ease-out max-lg:bottom-[calc(var(--mobile-nav-h)+env(safe-area-inset-bottom,0px))] max-lg:top-[var(--mobile-status-bar-h)] lg:inset-y-0 lg:left-[408px] ${
+        className={`absolute left-0 z-[700] w-full transition-[transform,width] duration-200 ease-out max-lg:bottom-[calc(var(--mobile-nav-h)+env(safe-area-inset-bottom,0px))] max-lg:top-[var(--mobile-status-bar-h)] lg:inset-y-0 lg:left-[var(--survivor-rail-w)] ${
           sidePanel
             ? 'translate-x-0'
-            : 'pointer-events-none -translate-x-full lg:-translate-x-[calc(100%+408px)]'
+            : 'pointer-events-none -translate-x-full lg:-translate-x-[calc(100%+var(--survivor-rail-w))]'
         } ${backgrounded}`}
         style={!isPhone ? { width: slideOutW } : undefined}
       >

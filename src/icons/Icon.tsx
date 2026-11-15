@@ -42,6 +42,7 @@ export function Icon({ name, size, className = '', title }: Props) {
   if (!tint) {
     return (
       <img
+        draggable={false}
         src={src}
         alt={title ?? ''}
         aria-hidden={title ? undefined : true}

@@ -146,17 +146,28 @@ remain store actions. Sources and event memory persist under **`singvive.run.v7`
 defaults for existing saves and the existing debounce/flush policy. The global escalation,
 automatic overrun ending and geographic front no longer drive gameplay.
 
-**Desktop HUD (`lg:` and up).** The 408px survivor rail sits down the left edge (clock, weather,
-Rest, a compact `ObjectiveBar`, and `SurvivorDock`). The dock keeps labelled health, energy,
-food and water visible; Condition, Backpack and More start collapsed and open one at a time
-from an icon-and-label tray. Condition reveals limbs and attributes; More holds Logbook,
-Stats, Skills, Timeline, Day logs and Settings. Stash automatically reveals the backpack
-beside the equipment/stash slide-out so drag-and-drop still spans both grids. The dock
-selection is independent of the slide-out: closing Stash or switching to Craft keeps the
-backpack open, and collapsing a dock section leaves the slide-out open. Bleeding,
-injuries, infection and heavy load remain visible as clickable warnings even with details
-collapsed. Escape collapses rail details after any slide-out is closed. Disclosure state is
-local to the mounted desktop dock; the phone retains its full Condition panel and tabs.
+**Desktop HUD (`lg:` and up).** The survivor rail is 304px below 1360px viewport width,
+320px from 1360px, and 336px from 1600px. Its width and all slide-out/map offsets share
+`--survivor-rail-w` and `railW` in `GameScreen`. Clock, weather, Rest and a compact
+`ObjectiveBar` sit above `SurvivorDock`. Labelled health, energy, food and water stick to
+the top of the scrolling content. Body and Backpack start open together, each with one
+heading and its own collapse control. Body shows limbs and attributes; the compact tool
+row opens Stash, Craft or More (Logbook, Stats, Skills, Timeline, Day logs and Settings).
+Stash automatically reveals the backpack beside the equipment/stash slide-out. Closing
+Stash or switching to Craft keeps the backpack open; collapsing a section leaves the
+slide-out open. Bleeding/infection share one clickable summary, and a heavy-load warning
+appears when Backpack is collapsed. Escape dismisses transient details, More or a slide-out;
+it does not collapse the two pinned sections. Disclosure state is local to the mounted
+desktop dock; the phone retains its full Condition panel and tabs.
+
+Backpack cells adapt to the available width between 48–56px, with horizontal scrolling
+for bags wider than the readable minimum; stash/search grids retain their compact sizing.
+Drag coordinates scale the grab offset between source and destination cell sizes. Native
+image drag is disabled, release recomputes the destination, and cancellation/blur/Escape
+abort the gesture without moving or discarding an item. Item hover cards pin after two
+seconds on desktop and then allow crafting-detail expansion and item actions. Close with
+the close button, outside click or Escape; scrolling the source or starting a drag also
+dismisses the card. Touch keeps its hold-to-inspect behavior.
 An `ActivityBadge` beside weather shows Quiet / Stirred / Hunting and opens the timeline. Phone chrome repeats the compact weather/activity pair. Optional incidents use `GameLogEntry.activityEvent` snapshots, rendered by `ActivityEventCard`; outcomes survive replacement, expiry and v7 reloads. The Island front
 control and neighbourhood status wash are removed. A pinned map footer holds the 3D and Rail map toggles.
 The phone keeps those toggles on the map, `showModeToggles`), with panels in the slide-out beside it; the map fills the rest. The rail, slide-out

@@ -101,9 +101,13 @@ export type InventoryLayout = 'full' | 'backpack' | 'equipStash';
 export function InventoryPanel({
   onClose,
   layout = 'full',
+  collapsed = false,
+  headerControl,
 }: {
   onClose?: () => void;
   layout?: InventoryLayout;
+  collapsed?: boolean;
+  headerControl?: ReactNode;
 }) {
   const { locale, t } = useT();
   const items = useGame((s) => s.items);
@@ -493,6 +497,9 @@ export function InventoryPanel({
             grid={BACKPACK}
             title={t('ui.inventory.backpack')}
             titleAccessory={<InventoryControlsHint coarse={coarse} />}
+            headerControl={headerControl}
+            collapsed={collapsed}
+            largeCells
             items={items}
             selectedUid={selectedUid}
             draggingUid={dragUid}
@@ -501,56 +508,60 @@ export function InventoryPanel({
             {...gridHandlers}
           />
 
-          <CarriedList
-            items={items}
-            selectedUid={selectedUid}
-            draggingUid={dragUid}
-            dropActive={drag?.target?.type === 'grid' && drag.target.container === LOOSE}
-            dropValid={
-              drag?.target?.type === 'grid' && drag.target.container === LOOSE && drag.target.valid
-            }
-            listRef={(el) => registerGrid(LOOSE, el)}
-            {...gridHandlers}
-          />
+          {!collapsed && (
+            <>
+              <CarriedList
+                items={items}
+                selectedUid={selectedUid}
+                draggingUid={dragUid}
+                dropActive={drag?.target?.type === 'grid' && drag.target.container === LOOSE}
+                dropValid={
+                  drag?.target?.type === 'grid' && drag.target.container === LOOSE && drag.target.valid
+                }
+                listRef={(el) => registerGrid(LOOSE, el)}
+                {...gridHandlers}
+              />
 
-          <div className="flex items-center gap-2 text-body">
-            {fx && <LoadStatusIcon fx={fx} loadKg={loadKg} carryKg={carry} />}
-            <TipHint
-              className="flex min-w-0 flex-1 items-center gap-2"
-              placement="top"
-              tipClassName={LOAD_TIP_CLASS}
-              tip={
-                fx ? (
-                  <LoadTipBody fx={fx} t={t} title={t('ui.inventory.carry')} />
-                ) : (
-                  t('ui.inventory.carry')
-                )
-              }
-            >
-              <span className="shrink-0 uppercase tracking-widest text-white/40">
-                {t('ui.inventory.carry')}
-              </span>
-              <div className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-white/10">
-                <div
-                  className={`h-full rounded-full transition-[width] duration-200 ${barClass}`}
-                  style={{ width: `${Math.min(100, loadPct)}%` }}
-                />
+              <div className="flex items-center gap-2 text-body">
+                {fx && <LoadStatusIcon fx={fx} loadKg={loadKg} carryKg={carry} />}
+                <TipHint
+                  className="flex min-w-0 flex-1 items-center gap-2"
+                  placement="top"
+                  tipClassName={LOAD_TIP_CLASS}
+                  tip={
+                    fx ? (
+                      <LoadTipBody fx={fx} t={t} title={t('ui.inventory.carry')} />
+                    ) : (
+                      t('ui.inventory.carry')
+                    )
+                  }
+                >
+                  <span className="shrink-0 uppercase tracking-widest text-white/40">
+                    {t('ui.inventory.carry')}
+                  </span>
+                  <div className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-white/10">
+                    <div
+                      className={`h-full rounded-full transition-[width] duration-200 ${barClass}`}
+                      style={{ width: `${Math.min(100, loadPct)}%` }}
+                    />
+                  </div>
+                  <span className={`tabular-nums ${fx ? loadTierTone(fx) : 'text-white/60'} ${fx && loadTierShown(fx) ? 'font-semibold' : ''}`}>
+                    {t('ui.inventory.loadKg', { load: loadKg.toFixed(1), carry })}
+                  </span>
+                  {bagCut > 0 && (
+                    <span className="shrink-0 text-micro text-emerald-300/80">
+                      {t('ui.inventory.bagCut', { n: bagCut })}
+                    </span>
+                  )}
+                </TipHint>
+                {holstered && (
+                  <span className={holsterLoaded === 0 ? 'font-semibold text-hiss' : 'text-white/50'}>
+                    {t('ui.inventory.holstered', { n: holsterLoaded, cap: holsterCap })}
+                  </span>
+                )}
               </div>
-              <span className={`tabular-nums ${fx ? loadTierTone(fx) : 'text-white/60'} ${fx && loadTierShown(fx) ? 'font-semibold' : ''}`}>
-                {t('ui.inventory.loadKg', { load: loadKg.toFixed(1), carry })}
-              </span>
-              {bagCut > 0 && (
-                <span className="shrink-0 text-micro text-emerald-300/80">
-                  {t('ui.inventory.bagCut', { n: bagCut })}
-                </span>
-              )}
-            </TipHint>
-            {holstered && (
-              <span className={holsterLoaded === 0 ? 'font-semibold text-hiss' : 'text-white/50'}>
-                {t('ui.inventory.holstered', { n: holsterLoaded, cap: holsterCap })}
-              </span>
-            )}
-          </div>
+            </>
+          )}
         </>
       )}
 

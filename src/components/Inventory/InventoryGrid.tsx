@@ -11,9 +11,9 @@ import {
 import { conditionBarColor, tileColor } from '../../game/itemTileColor';
 import { packCellKey } from '../../game/packGrid';
 import { Icon } from '../../icons/Icon';
-import { itemName, useLocale } from '../../i18n';
+import { itemName, useT } from '../../i18n';
 import { itemIcon } from './itemIcon';
-import type { ReactNode } from 'react';
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { tip } from '../tips';
 
 export const CELL = 34;
@@ -40,6 +40,9 @@ interface Props {
   title: string;
   /** Optional control next to the title (e.g. `?` tip for PC shortcuts). */
   titleAccessory?: ReactNode;
+  headerControl?: ReactNode;
+  collapsed?: boolean;
+  largeCells?: boolean;
   items: ItemInstance[];
   selectedUid: string | null;
   draggingUid: string | null;
@@ -65,6 +68,9 @@ export function InventoryGrid({
   grid,
   title,
   titleAccessory,
+  headerControl,
+  collapsed = false,
+  largeCells = false,
   items,
   selectedUid,
   draggingUid,
@@ -80,8 +86,20 @@ export function InventoryGrid({
   onItemPointerMove,
   suppressTip = false,
 }: Props) {
-  const locale = useLocale();
+  const { locale, t } = useT();
   const dims = dimsFor(grid);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [availableWidth, setAvailableWidth] = useState(0);
+  useLayoutEffect(() => {
+    const el = containerRef.current;
+    if (!el || !largeCells) return;
+    const measure = () => setAvailableWidth(el.clientWidth);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [largeCells]);
+  const cell = largeCells ? Math.max(48, Math.min(56, Math.floor((availableWidth - 2) / dims.w))) : CELL;
   const cells = items.filter((i) => i.container === grid);
   const showPreview = preview && preview.grid === grid;
   const blocked = blockedCellsFor(grid);
@@ -96,38 +114,40 @@ export function InventoryGrid({
   const usable = dims.w * dims.h - holes.length;
 
   return (
-    <div>
-      <div className="mb-1 flex items-center justify-between text-plate uppercase text-white/40">
+    <div ref={containerRef} className="min-w-0">
+      <div className="mb-1 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-label uppercase text-white/40">
         <span className="inline-flex items-center gap-1.5">
           <span>{title}</span>
           {titleAccessory}
         </span>
-        <span>
-          {holes.length > 0 ? `${usable} cells · ${dims.w}×${dims.h}` : `${dims.w}×${dims.h}`}
+        <span className="ml-auto flex items-center gap-1.5 whitespace-nowrap">
+          {holes.length > 0 ? t('ui.stats.packCells', { n: usable, w: dims.w, h: dims.h }) : `${dims.w}×${dims.h}`}
+          {headerControl}
         </span>
       </div>
-      <div className="overflow-x-auto">
+      {!collapsed && <div className="overflow-x-auto overscroll-x-contain">
         <div
           ref={gridRef}
           data-grid={grid}
+          data-cell-size={cell}
           className="relative touch-none select-none rounded border border-white/10 bg-black/40"
           style={{
-            width: dims.w * CELL,
-            height: dims.h * CELL,
+            width: dims.w * cell + 2,
+            height: dims.h * cell + 2,
             backgroundImage:
               'linear-gradient(#ffffff10 1px, transparent 1px), linear-gradient(90deg, #ffffff10 1px, transparent 1px)',
-            backgroundSize: `${CELL}px ${CELL}px`,
+            backgroundSize: `${cell}px ${cell}px`,
           }}
         >
-          {holes.map((cell) => (
+          {holes.map((hole) => (
             <div
-              key={packCellKey(cell.x, cell.y)}
+              key={packCellKey(hole.x, hole.y)}
               className="pointer-events-none absolute z-[1] bg-black/55"
               style={{
-                left: cell.x * CELL,
-                top: cell.y * CELL,
-                width: CELL,
-                height: CELL,
+                left: hole.x * cell,
+                top: hole.y * cell,
+                width: cell,
+                height: cell,
                 backgroundImage:
                   'repeating-linear-gradient(-45deg, transparent, transparent 4px, #ffffff12 4px, #ffffff12 5px)',
               }}
@@ -138,10 +158,10 @@ export function InventoryGrid({
             <div
               className="pointer-events-none absolute z-20 rounded"
               style={{
-                left: preview!.cellX * CELL,
-                top: preview!.cellY * CELL,
-                width: preview!.w * CELL - 2,
-                height: preview!.h * CELL - 2,
+                left: preview!.cellX * cell,
+                top: preview!.cellY * cell,
+                width: preview!.w * cell - 2,
+                height: preview!.h * cell - 2,
                 background: preview!.valid ? '#6b8e2355' : '#c0392b55',
                 border: `2px dashed ${preview!.valid ? '#8fbf4b' : '#e0342b'}`,
               }}
@@ -160,6 +180,8 @@ export function InventoryGrid({
             return (
               <div
                 key={inst.uid}
+                data-uid={inst.uid}
+                onDragStart={(e) => e.preventDefault()}
                 onPointerDown={(e) => onItemPointerDown(e, inst)}
                 onDoubleClick={() => onItemDoubleClick?.(inst)}
                 onContextMenu={(e) => onItemContextMenu?.(e, inst)}
@@ -174,10 +196,10 @@ export function InventoryGrid({
                       : 'ring-1 ring-black/40'
                 }`}
                 style={{
-                  left: inst.x * CELL + 1,
-                  top: inst.y * CELL + 1,
-                  width: w * CELL - 2,
-                  height: h * CELL - 2,
+                  left: inst.x * cell + 1,
+                  top: inst.y * cell + 1,
+                  width: w * cell - 2,
+                  height: h * cell - 2,
                   background: `${tileColor(def)}66`,
                   boxShadow: `inset 0 0 0 1px ${tileColor(def)}`,
                   opacity: isDragging ? 0.25 : 1,
@@ -193,8 +215,8 @@ export function InventoryGrid({
               >
                 <Icon
                   name={itemIcon(def)}
-                  size={gridItemIconSize(w, h)}
-                  className="drop-shadow"
+                  size={largeCells ? Math.min(w, h) * cell - 16 : gridItemIconSize(w, h)}
+                  className="pointer-events-none drop-shadow"
                 />
                 {def.stackable && inst.stack > 1 && (
                   <span className="absolute bottom-0 right-0 rounded-tl bg-black/60 px-1 text-micro font-bold text-white">
@@ -216,7 +238,7 @@ export function InventoryGrid({
             );
           })}
         </div>
-      </div>
+      </div>}
     </div>
   );
 }

@@ -6,10 +6,10 @@ import { useT } from '../../i18n';
 import { ItemInspectBody } from './ItemInspectBody';
 import type { ContextMenuAction } from './ItemContextMenu';
 import { clampBox, placeNear } from '../tips/clamp';
-import { LONG_PRESS_MS, tip } from '../tips';
+import { tip } from '../tips';
 
 const OFFSET = 14;
-const CARD_W = 'w-56';
+const CARD_W = 'w-64';
 const GAP = 6;
 
 function HoverPanel({
@@ -42,19 +42,22 @@ export function ItemHoverCard({
   stacked = false,
   actions,
   onClose,
+  pinPending = false,
 }: {
   inst: ItemInstance;
   equipment: Equipment;
   equipSlot: EquipSlot | null;
   clientX: number;
   clientY: number;
-  /** When set (coarse pin), sit beside the tile instead of the cursor. */
+  /** Pinned cards sit beside the tile instead of following the cursor. */
   anchorEl?: HTMLElement | null;
   /** Phone: stack Equipped / Candidate vertically. */
   stacked?: boolean;
-  /** Tablet coarse: Use / Equip / … on the card. Phone leaves this empty. */
+  /** Desktop: Use / Equip / … on the pinned card. Phone uses its inspect strip. */
   actions?: ContextMenuAction[];
   onClose?: () => void;
+  /** Only show the dwell cue when the owner has armed a pin timer. */
+  pinPending?: boolean;
 }) {
   const { t } = useT();
   const ref = useRef<HTMLDivElement>(null);
@@ -74,62 +77,85 @@ export function ItemHoverCard({
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const rect = el.getBoundingClientRect();
-    if (anchorEl) {
-      const next = placeNear(
-        anchorEl.getBoundingClientRect(),
-        rect.width,
-        rect.height,
-        'bottom',
-        GAP,
-      );
-      setPos({ left: next.left, top: next.top });
-      return;
-    }
-    setPos(clampBox(rect.width, rect.height, clientX + OFFSET, clientY + OFFSET));
+    const position = () => {
+      const rect = el.getBoundingClientRect();
+      const next = anchorEl?.isConnected
+        ? placeNear(anchorEl.getBoundingClientRect(), rect.width, rect.height, stacked ? 'bottom' : 'right', GAP)
+        : clampBox(rect.width, rect.height, clientX + OFFSET, clientY + OFFSET);
+      setPos((prev) => prev.left === next.left && prev.top === next.top ? prev : { left: next.left, top: next.top });
+    };
+    position();
+    const observer = new ResizeObserver(position);
+    observer.observe(el);
+    window.addEventListener('resize', position);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', position);
+    };
   }, [clientX, clientY, inst.uid, dual, stacked, hasActions, anchorEl]);
 
   useEffect(() => {
     if (!onClose) return;
     const close = onClose;
     const onDown = (e: PointerEvent) => {
-      // iOS synthesizes mouse pointerdown after a hold; ignore or the pin vanishes.
-      if (e.pointerType === 'mouse') return;
       if (ref.current?.contains(e.target as Node)) return;
+      // A touch hold can synthesize a mouse event on its original tile.
+      if (anchorEl?.contains(e.target as Node)) return;
       close();
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') close();
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      e.stopPropagation();
+      close();
     };
-    let attached = false;
-    const attach = () => {
-      if (attached) return;
-      attached = true;
-      document.addEventListener('pointerdown', onDown, true);
+    const onScroll = (e: Event) => {
+      if (ref.current?.contains(e.target as Node)) return;
+      close();
     };
-    // Don't dismiss on the same press that opened the pin.
-    document.addEventListener('pointerup', attach, { once: true });
-    const fallback = window.setTimeout(attach, LONG_PRESS_MS + 200);
-    document.addEventListener('keydown', onKey);
+    document.addEventListener('pointerdown', onDown, true);
+    window.addEventListener('keydown', onKey, true);
+    document.addEventListener('scroll', onScroll, true);
+    // Keyboard panel switches can remove the anchor without a pointer/scroll event.
+    const observer = new MutationObserver(() => {
+      if (anchorEl && !anchorEl.isConnected) close();
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
     return () => {
-      window.clearTimeout(fallback);
-      document.removeEventListener('pointerup', attach);
       document.removeEventListener('pointerdown', onDown, true);
-      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('keydown', onKey, true);
+      document.removeEventListener('scroll', onScroll, true);
+      observer.disconnect();
     };
-  }, [onClose]);
+  }, [onClose, anchorEl]);
 
   return createPortal(
     <div
       ref={ref}
       data-item-peek=""
+      data-inventory-zone
       className={`fixed z-[920] flex max-h-[calc(100dvh-16px)] max-w-[calc(100vw-16px)] items-start gap-2 overflow-y-auto ${
         stacked ? 'flex-col' : dual ? 'flex-row' : ''
       } ${interactive ? '' : 'pointer-events-none'}`}
       style={{ left: pos.left, top: pos.top }}
-      role="tooltip"
+      role={interactive ? 'dialog' : 'tooltip'}
+      aria-label={t('ui.inventory.inspect')}
     >
       <HoverPanel className={dual ? 'border-signal/35' : undefined}>
+        {interactive ? (
+          <div className="mb-1 flex items-center justify-between gap-2 text-label text-white/50">
+            <span>{t('ui.inventory.detailsPinned')}</span>
+            <button type="button" onClick={onClose} aria-label={t('ui.common.close')}
+              className="flex min-h-8 min-w-8 items-center justify-center rounded hover:bg-white/10 hover:text-white">✕</button>
+          </div>
+        ) : pinPending ? (
+          <div className="mb-2 space-y-1" key={inst.uid}>
+            <span className="text-label text-white/40">{t('ui.inventory.hoverToPin')}</span>
+            <div className="h-0.5 overflow-hidden rounded bg-white/10" aria-hidden>
+              <div className="h-full origin-left bg-signal/60 animate-[item-pin-progress_1880ms_linear_forwards]" />
+            </div>
+          </div>
+        ) : null}
         <ItemInspectBody
           inst={inst}
           equipment={equipment}
