@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
+import { DockSectionHeader } from './DockSectionHeader';
 import { useShallow } from 'zustand/react/shallow';
 import { useGame } from '../game/store';
 import { MeterBar } from './MeterBar';
@@ -24,7 +25,7 @@ export function ConditionPanel({
   showMeters = true,
   compact = false,
   collapsed = false,
-  headerControl,
+  onToggle,
 }: {
   dollHeight?: number;
   onOpenGuide?: (topic: GuideTopic) => void;
@@ -34,9 +35,10 @@ export function ConditionPanel({
   showMeters?: boolean;
   compact?: boolean;
   collapsed?: boolean;
-  headerControl?: ReactNode;
+  onToggle?: () => void;
 }) {
   const { locale, t } = useT();
+  const contentId = useId();
   const { meters, bodyParts, lastCare } = useGame(
     useShallow((s) => ({ meters: s.meters, bodyParts: s.bodyParts, lastCare: s.lastCare })),
   );
@@ -57,7 +59,10 @@ export function ConditionPanel({
 
   return (
     <section className="rounded-lg border border-white/15 bg-concrete-900/80 p-2.5">
-      <div className="mb-2 flex items-baseline justify-between gap-2">
+      {onToggle ? (
+        <DockSectionHeader title={t('ui.dock.body')} open={!collapsed} onToggle={onToggle} controls={contentId}
+          accessory={onOpenGuide && <GuideInfoButton topic="body" onOpen={onOpenGuide} />} />
+      ) : <div className="mb-2 flex items-baseline justify-between gap-2">
         <div className="flex items-center gap-1.5">
           <h4 className="text-plate uppercase text-white/30">{t(compact ? 'ui.dock.body' : 'ui.condition.title')}</h4>
           {onOpenGuide && <GuideInfoButton topic="body" onOpen={onOpenGuide} />}
@@ -77,10 +82,10 @@ export function ConditionPanel({
                 : t('ui.condition.bleeding')}
             </span>
           )}
-          {headerControl}
         </div>
-      </div>
+      </div>}
 
+      <div id={contentId} hidden={collapsed}>
       {!collapsed && (
         <>
           <div className="mb-2.5 grid grid-cols-[auto_minmax(0,1fr)] gap-1.5">
@@ -152,6 +157,7 @@ export function ConditionPanel({
           {showSurvivorStats && <SurvivorStatsGrid />}
         </>
       )}
+      </div>
     </section>
   );
 }

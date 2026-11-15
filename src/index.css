@@ -91,6 +91,11 @@ select optgroup {
 }
 
 /* thin scrollbars */
+body:has([data-dock-resizing='true']) * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+
 * {
   scrollbar-width: thin;
   scrollbar-color: #3a3a3c transparent;
