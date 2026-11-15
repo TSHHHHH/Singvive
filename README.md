@@ -11,7 +11,8 @@ seed, so no two survivors face the same city.
 **Status:** feature-rich and fully playable on desktop and mobile — crafting, faction trade, HDB
 cutaways, tunnel runs, extraction, and an in-game guide are all implemented end to end.
 
-**Experimental co-op:** this branch includes a private, up-to-four-player schematic expedition.
+**Experimental co-op:** this branch includes private expeditions for up to four players across Singapore,
+with independent survivors, shared exploration and finite loot. Some advanced solo systems remain separate.
 Choose **Online co-op prototype** on the menu. See [TECH_STACK.md](TECH_STACK.md#experimental-online-co-op-prototype)
 for setup and [GAME_DESIGN.md](GAME_DESIGN.md#co-op-prototype-experimental-branch) for prototype rules.
 

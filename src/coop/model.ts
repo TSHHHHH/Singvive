@@ -1,3 +1,7 @@
+import type { IslandInteriorCommand } from './islandBuildings';
+import type { ItemInstance } from '../game/types';
+import type { IslandPoint, IslandWorld } from './islandModel';
+import type { ExpeditionCommand, ExpeditionCraft, ExpeditionSurvivor } from './expeditionSurvivor';
 export const PROTOCOL_VERSION = 1;
 export const MAX_PLAYERS = 4;
 export const SITES = [
@@ -6,16 +10,17 @@ export const SITES = [
   { id: 'market', name: 'Market', x: 57, y: 55, description: 'Food and a hostile encounter. Teammates can join the fight.', links: ['shelter', 'pharmacy', 'evac'] },
   { id: 'evac', name: 'Extraction', x: 83, y: 22, description: 'Board individually. The expedition continues for those left behind.', links: ['pharmacy', 'market'] },
 ] as const;
-export type SiteId = typeof SITES[number]['id'];
+export type SiteId = string;
 export type Stance = 'guarded' | 'aggressive' | 'precision';
 export type LifeStatus = 'active' | 'downed' | 'dead' | 'extracted';
-export type Action = { kind: 'travel' | 'search' | 'rest' | 'rescue' | 'extract'; startedAt: number; endsAt: number; target?: string };
+export type Action = { kind: 'travel' | 'search' | 'rest' | 'rescue' | 'extract' | 'craft' | 'treat'; startedAt: number; endsAt: number; target?: string; route?: IslandPoint[]; mode?: 'surface' | 'tunnel' | 'interior'; travelHours?: number; craft?: ExpeditionCraft };
 export interface Survivor {
   id: string; name: string; connected: boolean; status: LifeStatus; site: SiteId;
   hp: number; wounds: number; medical: number; food: number; stance: Stance;
   action: Action | null; fighting: boolean; downedUntil: number | null; life: number; kills: number;
+  expedition?: ExpeditionSurvivor; previousSite?: string;
 }
-export interface SiteState { searches: number; medical: number; food: number; enemyHp: number; round: number }
+export interface SiteState { searches: number; medical: number; food: number; enemyHp: number; round: number; items?: ItemInstance[] }
 export interface RoomState {
   version: 1; code: string; seed: string; revision: number; phase: 'lobby' | 'running' | 'ended';
   hostId: string; simMs: number; wallAt: number; nextCombatAt: number;
@@ -23,10 +28,19 @@ export interface RoomState {
   ready: string[]; resumeAt: number | null;
   players: Survivor[]; sites: Record<SiteId, SiteState>;
   log: { at: number; text: string }[];
+  world?: IslandWorld;
 }
 export type Command =
+  | IslandInteriorCommand
   | { type: 'start' | 'pause' | 'ready' | 'cancel' | 'search' | 'rest' | 'fight' | 'flee' | 'extract' | 'replace' | 'eat' }
   | { type: 'travel'; site: SiteId }
+  | { type: 'tunnel'; stationId: string }
+  | { type: 'trek'; lat: number; lng: number }
+  | { type: 'spawn'; district: string }
+  | { type: 'occupation'; occupationId: string }
+  | { type: 'takeItem'; uid: string }
+  | { type: 'giveItem'; uid: string; playerId: string }
+  | ExpeditionCommand
   | { type: 'stance'; stance: Stance }
   | { type: 'rescue'; playerId: string }
   | { type: 'take'; item: 'medical' | 'food' }

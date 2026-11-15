@@ -926,7 +926,7 @@ export interface GenerateDungeonOpts {
  */
 export function generateDungeon(
   rng: Rng,
-  loc: LocationState,
+  loc: Pick<LocationState, 'id' | 'name' | 'currentDanger'>,
   archetype: HdbArchetype,
   opts: GenerateDungeonOpts = {},
 ): HdbDungeon {

@@ -36,7 +36,7 @@ export interface MrtLine {
   shape: [number, number][][];
 }
 
-interface MrtFile {
+export interface MrtFile {
   generatedAt: string;
   attribution: string;
   lines: MrtLine[];
@@ -96,7 +96,7 @@ const HOP_COST = 1000;
 /** How far a surface POI can sit from a baked station and still *be* it. */
 export const STATION_MATCH_M = 220;
 
-function buildNetwork(file: MrtFile): MrtNetwork {
+export function buildNetwork(file: MrtFile): MrtNetwork {
   const byId = new Map<string, MrtStation>();
   const byCode = new Map<string, MrtStation>();
   for (const s of file.stations) {

@@ -13,8 +13,8 @@
 Open **Online co-op prototype** from the menu, or `/?coop=1` on the Workers build. Create
 a room and share its invite link with up to three others. Each tab stores its own reconnect
 credentials in `sessionStorage`; refreshing restores the seat, but closing the tab may lose
-the credential. Invite links contain only the room code. This is a compact schematic test
-expedition, not the full island. The static itch build has no co-op backend.
+the credential. Invite links contain only the room code. New rooms use the committed Singapore
+map; existing schematic rooms retain their original rules. The static itch build has no co-op backend.
 
 The prototype UI and current event logs support English and Simplified Chinese. Raw
 client/server diagnostic errors and unrecognized future log messages remain in English.
@@ -23,6 +23,21 @@ client/server diagnostic errors and unrecognized future log messages remain in E
 simulation and `protocol.ts` validates inbound commands. `client.ts` maintains one outstanding
 sequenced command and reconnects with authoritative snapshots. The co-op entry is loaded
 separately from App and the solo single-instance lock; it never writes `singvive.run.v7`.
+
+The optional `world.version: 1` extension preserves saved schematic rooms. `islandWorld.ts`
+indexes immutable POIs by spatial cell and validates land routes on the server. `islandActions.ts`
+integrates independent survivors using the pure solo inventory, survival, wound-care, crafting
+and skill modules. `worker/islandAssets.ts` loads the versioned POI index, walkability zones
+and MRT network through `ASSETS`; no map bake or external Overpass request runs at room creation.
+Only discovered metadata belongs in room snapshots. Live site caches/enemies are filtered to
+the viewer's current sight. IslandMap uses the existing MapLibre style and fog geometry with
+viewport-culling and a 450-site marker cap.
+
+`islandSystems.ts` validates MRT adjacency from the baked network. `islandBuildings.ts`
+reuses generated HDB floors but stores each survivor in a distinct landing/unit site ID;
+the solo dungeon cursor is never shared. The generated layout lives on its parent location,
+while depletion and enemies live in separate site records. Interior child sites are omitted
+from map markers and only the current room's live interior state is sent to each player.
 
 `worker/coop.ts` routes `/api/coop`, room joins and WebSocket upgrades to one SQLite-backed
 `CoopRoom` Durable Object per code. This is an explicit co-op exception to the browser-only
@@ -34,6 +49,12 @@ alarms; paused/lobby/ended rooms schedule only resume or expiry. Downtime longer
 seconds pauses the room rather than resolving an unattended catch-up. All-disconnected rooms
 pause, including after a server restart. Ended/abandoned state expires after 24 hours without
 client activity.
+
+Island location and site records are normalized into `island_objects(kind,id,value)`.
+Persistence compares serialized records and writes only changed rows, atomically with the
+core room and command receipt. Startup hydrates those records before accepting commands.
+The pure simulation remains separate from Worker I/O. Full snapshots and active alarms still
+have a usage cost; this expansion has no large-scale concurrency benchmark yet.
 
 The `COOP_ROOMS` binding and `coop-v1` SQLite migration in `wrangler.jsonc` work with Workers
 Free. D1 remains the solo honor board; prototype results stay in the room. No D1 schema change
@@ -50,6 +71,10 @@ npm test -- src/coop/simulation.test.ts src/coop/protocol.test.ts
 node scripts/smoke-coop.mjs
 ```
 
+For restart coverage, run the smoke test with `COOP_RESTART_CHECK=1`, restart the local dev
+server, then run `node scripts/smoke-coop-restart.mjs`. It compares exploration, live caches,
+individual survivor state and command receipts against a temporary local checkpoint.
+
 `COOP_TEST_ORIGIN` can select another localhost port. The socket test refuses non-local hosts
 and creates disposable rooms. Multiple browser tabs on `/?coop=1` can join the same room.
 Use `npm run dev -- --host 0.0.0.0` only when intentionally testing from other devices on
@@ -57,8 +82,9 @@ your LAN; otherwise the local-only server is sufficient.
 
 Free-plan budgeting: begin with one private room, persist outcomes rather than animation
 frames, and monitor duration plus SQL rows written. Hibernation does not make active simulation
-free. Free-plan quota exhaustion interrupts operations. This branch does not deploy anything;
-public rollout needs measured usage, room-admission controls and broader device/network testing.
+free. Free-plan quota exhaustion interrupts operations. The multiplayer branch is connected
+to automatic deployment; pushing it updates the test Worker. Broader rollout needs measured
+usage, room-admission controls and more device/network testing.
 
 ### Wound care
 

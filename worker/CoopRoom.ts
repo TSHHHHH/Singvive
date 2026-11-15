@@ -3,6 +3,8 @@ import { advanceRoom, applyCommand, createRoom, joinRoom, setConnected } from '.
 import { parseEnvelope } from '../src/coop/protocol';
 import type { RoomState, ServerMessage } from '../src/coop/model';
 import { coopJson, readName } from './coop';
+import { loadIslandAssets } from './islandAssets';
+import { initializeIsland, projectIslandRoom, type IslandCatalog } from '../src/coop/islandWorld';
 
 interface Identity { digest: number[]; seq: number; error?: string; connection: string }
 interface SavedRoom { room: RoomState; identities: Record<string, Identity>; expiresAt: number }
@@ -12,12 +14,24 @@ const RETENTION = 24 * 60 * 60 * 1000;
 /** One bounded expedition. SQL writes synchronously serialize state and command receipts. */
 export class CoopRoom extends DurableObject<Env> {
   private saved: SavedRoom | null;
+  private catalog?: IslandCatalog;
+  private storedObjects = new Map<string,string>();
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
     ctx.storage.sql.exec('CREATE TABLE IF NOT EXISTS room (id INTEGER PRIMARY KEY CHECK (id = 1), value TEXT NOT NULL)');
+    ctx.storage.sql.exec('CREATE TABLE IF NOT EXISTS island_objects (kind TEXT NOT NULL, id TEXT NOT NULL, value TEXT NOT NULL, PRIMARY KEY(kind, id))');
     const rows = ctx.storage.sql.exec<{ value: string }>('SELECT value FROM room WHERE id = 1').toArray();
     this.saved = rows[0] ? JSON.parse(rows[0].value) as SavedRoom : null;
+    if (this.saved?.room.world) {
+      for (const row of ctx.storage.sql.exec<{kind:string;id:string;value:string}>('SELECT kind, id, value FROM island_objects').toArray()) {
+        this.storedObjects.set(`${row.kind}:${row.id}`,row.value);
+        if (row.kind === 'site') this.saved.room.sites[row.id] = JSON.parse(row.value) as RoomState['sites'][string];
+        else this.saved.room.world.locations[row.id] = JSON.parse(row.value) as NonNullable<RoomState['world']>['locations'][string];
+      }
+    }
+    ctx.blockConcurrencyWhile(async () => {
+    if (this.saved?.room.world) this.catalog = await loadIslandAssets(env.ASSETS);
     if (this.saved) {
       const { room } = this.saved;
       const sockets = ctx.getWebSockets();
@@ -31,8 +45,9 @@ export class CoopRoom extends DurableObject<Env> {
         room.resumeAt = null; room.ready = []; room.wallAt = Date.now();
       }
       // Preserve transition side effects: host succession, readiness and disconnect grace.
-      for (const p of room.players) setConnected(room, p.id, live.includes(p), Date.now());
+      for (const p of room.players) setConnected(room, p.id, live.includes(p), Date.now(), this.catalog);
     }
+    });
   }
 
   private attachment(ws: WebSocket): Attachment | null {
@@ -48,12 +63,36 @@ export class CoopRoom extends DurableObject<Env> {
     if (!this.saved || !a) return;
     const identity = this.saved.identities[a.playerId];
     if (!identity || identity.connection !== a.connection) return;
-    this.send(ws, { type: 'snapshot', room: this.saved.room, playerId: a.playerId, nextSeq: identity.seq + 1, serverNow: Date.now() });
+    this.send(ws, { type: 'snapshot', room: projectIslandRoom(this.saved.room,a.playerId), playerId: a.playerId, nextSeq: identity.seq + 1, serverNow: Date.now() });
   }
   private persist() {
     if (!this.saved) return;
     this.saved.room.revision++;
-    this.ctx.storage.sql.exec('INSERT INTO room (id, value) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET value = excluded.value', JSON.stringify(this.saved));
+    const saved = this.saved;
+    const storedObjects = new Map(this.storedObjects);
+    this.ctx.storage.transactionSync(() => {
+      let core = saved;
+      if (saved.room.world) {
+        const seen = new Set<string>();
+        const objects = [['site',saved.room.sites],['location',saved.room.world.locations]] as const;
+        for (const [kind, record] of objects) for (const [id,value] of Object.entries(record)) {
+          const key = `${kind}:${id}`; seen.add(key);
+          const json = JSON.stringify(value);
+          if (storedObjects.get(key) === json) continue;
+          this.ctx.storage.sql.exec('INSERT INTO island_objects(kind,id,value) VALUES(?,?,?) ON CONFLICT(kind,id) DO UPDATE SET value=excluded.value',kind,id,json);
+          storedObjects.set(key,json);
+        }
+        for (const key of storedObjects.keys()) if (!seen.has(key)) {
+          const colon = key.indexOf(':');
+          this.ctx.storage.sql.exec('DELETE FROM island_objects WHERE kind=? AND id=?',key.slice(0,colon),key.slice(colon+1));
+          storedObjects.delete(key);
+        }
+        // Keep static/discovered site records out of the hot room row and update only changed rows.
+        core = { ...saved, room: { ...saved.room, sites: {}, world: { ...saved.room.world, locations: {} } } };
+      }
+      this.ctx.storage.sql.exec('INSERT INTO room (id, value) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET value = excluded.value', JSON.stringify(core));
+    });
+    this.storedObjects = storedObjects;
   }
   private broadcast() { for (const ws of this.ctx.getWebSockets()) this.snapshot(ws); }
   private async schedule() {
@@ -69,7 +108,7 @@ export class CoopRoom extends DurableObject<Env> {
       room.pause = { reason: 'Connection to the room was interrupted. Ready up to resume.', by: null, graceUntil: 0 };
       room.ready = []; room.resumeAt = null;
     }
-    advanceRoom(room, now);
+    advanceRoom(room, now, this.catalog);
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -84,7 +123,11 @@ export class CoopRoom extends DurableObject<Env> {
       const now = Date.now();
       if (url.pathname === '/create') {
         if (this.saved) return coopJson({ error: 'Room already exists.' }, 409);
-        this.saved = { room: createRoom(url.searchParams.get('code')!, crypto.randomUUID(), now), identities: {}, expiresAt: now + RETENTION };
+        try { this.catalog = await loadIslandAssets(this.env.ASSETS); }
+        catch (error) { console.error('Could not load committed island assets', error); return coopJson({ error: 'Island data is temporarily unavailable. Try creating a room again.' }, 503); }
+        const room = createRoom(url.searchParams.get('code')!, crypto.randomUUID(), now);
+        initializeIsland(room,this.catalog);
+        this.saved = { room, identities: {}, expiresAt: now + RETENTION };
       }
       if (!this.saved) return coopJson({ error: 'Room not found.' }, 404);
       this.advance(now);
@@ -112,7 +155,7 @@ export class CoopRoom extends DurableObject<Env> {
     for (const old of this.ctx.getWebSockets(playerId)) old.close(4001, 'Connected from another tab.');
     server.serializeAttachment({ playerId, connection: identity.connection, window: Date.now(), count: 0 } satisfies Attachment);
     this.ctx.acceptWebSocket(server, [playerId]);
-    setConnected(this.saved.room, playerId, true, Date.now());
+    setConnected(this.saved.room, playerId, true, Date.now(), this.catalog);
     this.saved.expiresAt = Date.now() + RETENTION;
     this.persist(); this.broadcast(); await this.schedule();
     return new Response(null, { status: 101, webSocket: client });
@@ -134,7 +177,7 @@ export class CoopRoom extends DurableObject<Env> {
     }
     if (envelope.seq !== identity.seq + 1) { this.send(ws, { type: 'error', error: 'Command sequence out of order. Reconnect to synchronize.' }); this.snapshot(ws); return; }
     this.advance(now);
-    const error = applyCommand(this.saved.room, a.playerId, envelope.command, now);
+    const error = applyCommand(this.saved.room, a.playerId, envelope.command, now, this.catalog);
     identity.seq = envelope.seq; identity.error = error ?? undefined;
     this.saved.expiresAt = now + RETENTION;
     this.persist();
@@ -146,7 +189,7 @@ export class CoopRoom extends DurableObject<Env> {
     const a = this.attachment(ws);
     if (!this.saved || !a || this.saved.identities[a.playerId]?.connection !== a.connection) return;
     this.advance(Date.now());
-    setConnected(this.saved.room, a.playerId, false, Date.now());
+    setConnected(this.saved.room, a.playerId, false, Date.now(), this.catalog);
     this.persist(); this.broadcast(); await this.schedule();
     try { ws.close(1000, 'Disconnected.'); } catch { /* Already closed. */ }
   }
