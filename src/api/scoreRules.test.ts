@@ -2,7 +2,7 @@
 // oxlint-disable-next-line typescript/triple-slash-reference -- The Worker uses a separate global Env declaration.
 /// <reference path="../../worker/env.d.ts" />
 import { describe, expect, it } from 'vitest';
-import worker from '../../worker/index';
+import worker from '../../worker/handler';
 import {
   EVAC_BONUS,
   LOOT_MAX,

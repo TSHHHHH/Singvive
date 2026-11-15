@@ -8,6 +8,58 @@
 
 ## 1. Architecture
 
+### Experimental online co-op prototype
+
+Open **Online co-op prototype** from the menu, or `/?coop=1` on the Workers build. Create
+a room and share its invite link with up to three others. Each tab stores its own reconnect
+credentials in `sessionStorage`; refreshing restores the seat, but closing the tab may lose
+the credential. Invite links contain only the room code. This is a compact schematic test
+expedition, not the full island. The static itch build has no co-op backend.
+
+The prototype UI and current event logs support English and Simplified Chinese. Raw
+client/server diagnostic errors and unrecognized future log messages remain in English.
+
+`src/coop/model.ts` defines the versioned room protocol; `simulation.ts` is the pure deterministic
+simulation and `protocol.ts` validates inbound commands. `client.ts` maintains one outstanding
+sequenced command and reconnects with authoritative snapshots. The co-op entry is loaded
+separately from App and the solo single-instance lock; it never writes `singvive.run.v7`.
+
+`worker/coop.ts` routes `/api/coop`, room joins and WebSocket upgrades to one SQLite-backed
+`CoopRoom` Durable Object per code. This is an explicit co-op exception to the browser-only
+solo architecture. The server checks same-origin requests, hashes random seat tokens, caps
+messages, limits command frequency and replaces old connections to the same seat. Room state
+and per-player sequence receipts are written together before acknowledgements. Socket
+attachments identify connections across hibernation. Active rooms advance on two-second
+alarms; paused/lobby/ended rooms schedule only resume or expiry. Downtime longer than 30
+seconds pauses the room rather than resolving an unattended catch-up. All-disconnected rooms
+pause, including after a server restart. Ended/abandoned state expires after 24 hours without
+client activity.
+
+The `COOP_ROOMS` binding and `coop-v1` SQLite migration in `wrangler.jsonc` work with Workers
+Free. D1 remains the solo honor board; prototype results stay in the room. No D1 schema change
+is needed. Regenerate binding declarations after configuration changes:
+
+```bash
+npx wrangler types worker/bindings.d.ts --include-runtime false
+```
+
+Local checks (dev server must be running for the socket smoke test):
+
+```bash
+npm test -- src/coop/simulation.test.ts src/coop/protocol.test.ts
+node scripts/smoke-coop.mjs
+```
+
+`COOP_TEST_ORIGIN` can select another localhost port. The socket test refuses non-local hosts
+and creates disposable rooms. Multiple browser tabs on `/?coop=1` can join the same room.
+Use `npm run dev -- --host 0.0.0.0` only when intentionally testing from other devices on
+your LAN; otherwise the local-only server is sufficient.
+
+Free-plan budgeting: begin with one private room, persist outcomes rather than animation
+frames, and monitor duration plus SQL rows written. Hibernation does not make active simulation
+free. Free-plan quota exhaustion interrupts operations. This branch does not deploy anything;
+public rollout needs measured usage, room-admission controls and broader device/network testing.
+
 ### Wound care
 
 `src/game/woundCare.ts` owns independent treatment eligibility, targeting and stabilization; `canCareWithItem` prevents wasting supplies such as an improvised dressing on a stable wound. `survival.ts` creates injuries, ages dressings and advances tissue/fracture recovery, splitting at care expiry transitions. `tickInjuries` accepts a recovery multiplier shared by `store.advanceTime` and `restPlan`, including hydration, shelter sleep and medical skill/trait effects. Protected service-bed sleep also receives recovery support. Treatment never directly adds HP.
@@ -880,11 +932,12 @@ determinism, finite facilities, action guards and v7 persistence.
 
 ### Client-side scale pressure
 
-Per `AGENTS.md`: the Worker is scores only, and all scale pressure is in the browser — the WebGL
+For solo gameplay, the Worker handles the score board, and scale pressure is in the browser — the WebGL
 map and its DOM markers, the 3.8 MB `public/pois.json` parse, and localStorage. Land A* and walkability scans are
 the CPU hotspots, not combat resolution. The guardrails that keep this working (viewport
 culling, cached polygon fog, debounced persist, location identity preservation) are listed in
-`AGENTS.md` under "Performance / scale" — read that before touching the map.
+`AGENTS.md` under "Performance / scale" — read that before touching the map. The separate co-op
+prototype uses the server-owned room simulation described above.
 
 Below zoom 14, ordinary POIs use one WebGL circle layer instead of individual DOM
 markers and building outlines. Selecting a dot restores its full badge; the current
