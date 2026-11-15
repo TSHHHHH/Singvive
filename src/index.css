@@ -1937,3 +1937,8 @@ select optgroup {
     background: linear-gradient(to bottom, rgba(8, 9, 11, 0.35), rgba(8, 9, 11, 0.62) 30%, rgba(8, 9, 11, 0.74));
   }
 }
+
+@keyframes item-pin-progress {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
