@@ -127,7 +127,7 @@
       },
       "limbCoach": {
         "title": "You're hurt",
-        "blurb": "Open Condition to see the body doll. Bandage bleeds; splint fractures. Bad limbs change how you move and fight.",
+        "blurb": "Open Body to see wounds and choose bandaging, cleaning, pain relief or support. Care stabilizes; time heals.",
         "openGuide": "Open Body guide",
         "effect": {
           "head": "Head wound — aim, search, and awareness suffer.",
@@ -616,7 +616,7 @@
         "defense": "Defence",
         "travel": "Travel",
         "loot": "Loot",
-        "heal": "Heal bonus",
+        "heal": "Recovery bonus",
         "craft": "Craft cost",
         "encounter": "Encounters"
       },
@@ -970,7 +970,7 @@
         "thirstDrain": "Thirst drain",
         "energyDrain": "Energy drain",
         "sleepRestore": "Sleep restore",
-        "healBonus": "Heal bonus",
+        "healBonus": "Recovery bonus",
         "foodEffect": "Food effect",
         "searchSpeed": "Search speed",
         "searchBonus": "Extra searches",
@@ -1843,14 +1843,14 @@
       "crippled": "Crippled",
       "majorDetail": "Drains this limb until dressed. Raises encounter chance (+10% each, capped) — blood trail draws them in.",
       "minorDetail": "Slow drain; may clot on its own. Still raises encounter chance (+4% each, capped). Dress it if you can.",
-      "fracturedLeg": "Needs a splint. Slows travel and shrinks how far you can push in one go.",
-      "fracturedArm": "Needs a splint. Hurts aim and melee until set.",
-      "fracturedOther": "Needs a splint. Slows recovery and taxes combat.",
+      "fracturedLeg": "Slows travel and shortens each push. A splint supports healing; an unsupported fracture still heals slowly.",
+      "fracturedArm": "Hurts aim and melee. A splint supports healing; an unsupported fracture still heals slowly.",
+      "fracturedOther": "Heals over days. A splint provides support; an unsupported fracture still heals slowly.",
       "criticalTorso": "Vital zone wrecked — another solid hit here ends the run.",
       "criticalHead": "Vital zone wrecked — overkill spills into the body.",
-      "crippledLeg": "Limb wrecked. Travel crawls; passive heal caps at 70% until treated.",
-      "crippledArm": "Limb wrecked. Heavy combat penalty; passive heal caps at 70% until treated.",
-      "crippledOther": "Limb wrecked. Passive heal caps at 70% until treated."
+      "crippledLeg": "Severely injured; travel crawls. Tissue and fractures recover gradually, with care providing support.",
+      "crippledArm": "Severely injured; heavy combat penalty. Tissue and fractures recover gradually, with care providing support.",
+      "crippledOther": "Severely injured. Tissue and fractures recover gradually, with care providing support."
     },
     "hazards": {
       "horde_pocket": {
@@ -1962,6 +1962,71 @@
       "dismissed": "You leave it alone. The disturbance fades naturally.",
       "responded": "You responded to this disturbance.",
       "expired": "The opportunity has passed. Any remaining noise will fade."
+    },
+    "care": {
+      "title": "Wound care",
+      "optional": "Treat as needed",
+      "time": "Care time",
+      "minutes": "{n} min",
+      "uses": "uses",
+      "available": "available",
+      "action": {
+        "bandage": "Bandage",
+        "clean": "Clean",
+        "pain": "Pain relief",
+        "splint": "Splint",
+        "firstAid": "First aid",
+        "support": "Support"
+      },
+      "effect": {
+        "bandage": "Stops bleeding; protects recovery.",
+        "clean": "Removes dirt for faster recovery.",
+        "pain": "Eases injury penalties for 4 hours.",
+        "splint": "Supports a fracture as it heals.",
+        "firstAid": "Cleans, dresses, supports and eases pain.",
+        "support": "One vitamin C tablet supports all current injuries: +25% recovery for 8 hours."
+      },
+      "result": {
+        "bandage": "{part} bandaged.",
+        "clean": "{part} cleaned.",
+        "pain": "Pain eased in {part}.",
+        "splint": "{part} supported; healing takes time.",
+        "firstAid": "{part} cared for; healing takes time.",
+        "support": "Recovery supported for {part} and all current injuries."
+      },
+      "wound": {
+        "bruise": "Bruise",
+        "cut": "Cut",
+        "deep": "Deep wound"
+      },
+      "dirty": "Dirty",
+      "dirtyHint": "Dirty wound · slower recovery",
+      "dressingClean": "Clean dressing",
+      "dressingSoiled": "Soiled dressing · slower recovery",
+      "fractureSupported": "Fracture supported · healing",
+      "fractureUnsupported": "Fracture unsupported · slower healing",
+      "painActive": "Pain relief · about {n}h left",
+      "recovering": "Recovering",
+      "chooseSupply": "Choose supply for {action}",
+      "improvisedEffect": "Stops bleeding; dirty dressing slows recovery.",
+      "noSupplies": "No suitable care supplies within reach.",
+      "unavailable": "No supplies for: {actions}",
+      "busy": "Finish the current action to provide care.",
+      "recoveryHint": "Care stabilizes; time heals. Food, water and undisturbed sleep support recovery.",
+      "supplyCost": "{item} ×1 · {n} left",
+      "kitCost": "{item} · 1 charge / {n} left",
+      "shortEffect": {
+        "bandage": "Stops bleeding",
+        "clean": "Removes dirt",
+        "pain": "Relief · 4h",
+        "splint": "Supports fracture",
+        "firstAid": "Combined care",
+        "support": "+25% · 8h"
+      },
+      "improvisedShort": "Stops bleed · dirty",
+      "stock": "{n} left",
+      "recoveryPaused": "Recovery paused · major bleeding",
+      "supportActive": "Recovery +25% · about {n}h left"
     }
   },
   "settings": {
@@ -2151,11 +2216,11 @@
     "body": {
       "title": "Body",
       "bullets": [
-        "Six limbs share one health pool. A hit lands on a part — bandage bleeds, splint fractures, and don't let a limb hit zero untreated (crippled heals only up to 70%).",
-        "Bad legs slow travel on the map. One wrecked leg is a limp; both wrecked is a crawl. Legs do not throttle how fast you fill the combat gauge.",
-        "Right arm is your weapon arm (accuracy). Left arm is guard — shields and a free off-hand lose tempo when it's mauled.",
-        "Head wounds tax aim, rummage speed, and awareness. Torso wounds raise energy drain and cut how much you can carry.",
-        "Open Condition anytime for the body doll. The first time you're hurt, a short coach points you there."
+        "Six parts add up to your total health. Wounds, dressings and splints are visible in Body. Care stabilizes injuries; it never instantly restores limb HP or cures a fracture.",
+        "Bandage, clean, relieve pain and splint independently, in any order, or leave an injury alone. Dirty wounds still recover more slowly. Cleaning is never required before bandaging.",
+        "Clean dressings support recovery and soil after about 12 hours; replace them when useful. Improvised bandages stop bleeding but leave a dirty dressing that slows recovery. Pain relief lasts 4 hours.",
+        "Fractures heal over days: 72 supported-equivalent hours, at 45% speed without support. Food, water, undisturbed sleep and less strain help recovery. A first-aid kit gives 3 comprehensive single-part treatments.",
+        "Bad legs slow map travel. The right arm affects weapon accuracy; the left affects guard and off-hand tempo. Head wounds affect aim, search and awareness. Torso wounds raise energy drain and reduce carry capacity."
       ]
     },
     "fight": {
@@ -2810,7 +2875,7 @@
       "description": "Clinic shifts taught you triage the hard way.",
       "effects": [
         "+1 Medicine",
-        "Healing items restore +5 HP",
+        "Wound recovery +5%",
         "35% less infection gain"
       ]
     },
@@ -2997,7 +3062,7 @@
       "description": "You keep a roll of gauze in every pocket.",
       "effects": [
         "+1 Medicine",
-        "Healing items restore +3 HP",
+        "Wound recovery +3%",
         "Leg injuries heal 30% faster"
       ]
     },
@@ -3164,7 +3229,7 @@
       "description": "A&E nights. You close holes other people would bleed out of.",
       "effects": [
         "+2 Medicine",
-        "Healing items restore +12 HP",
+        "Wound recovery +12%",
         "55% infection resist",
         "Minor bleeds clot much faster"
       ]

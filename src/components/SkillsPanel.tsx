@@ -117,7 +117,7 @@ export function SkillsPanel() {
             <>
               <dt>{t('ui.skills.mod.heal')}</dt>
               <dd className="text-right tabular-nums text-concrete-50">
-                {fmt(mods.healBonus)}
+                {fmt(mods.healBonus)}%
               </dd>
             </>
           )}

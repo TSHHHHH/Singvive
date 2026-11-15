@@ -399,9 +399,7 @@
     "weight": 0.1,
     "effect": {
       "kind": "heal",
-      "health": 8,
-      "partHeal": 25,
-      "stopsBleeding": "one"
+      "health": 0
     },
     "value": 8,
     "stackable": true,
@@ -417,10 +415,7 @@
     "weight": 0.1,
     "effect": {
       "kind": "heal",
-      "health": 3,
-      "partHeal": 10,
-      "stopsBleeding": "one",
-      "infectionRisk": 10
+      "health": 0
     },
     "value": 3,
     "stackable": true,
@@ -435,7 +430,7 @@
     "weight": 0.1,
     "effect": {
       "kind": "heal",
-      "health": 15
+      "health": 0
     },
     "value": 7,
     "stackable": true,
@@ -450,9 +445,7 @@
     "weight": 1.2,
     "effect": {
       "kind": "heal",
-      "health": 40,
-      "partHeal": 60,
-      "stopsBleeding": "all"
+      "health": 0
     },
     "value": 26,
     "stackable": false,
@@ -483,8 +476,8 @@
     "h": 2,
     "weight": 0.2,
     "effect": {
-      "kind": "cure",
-      "infection": 25
+      "kind": "heal",
+      "health": 0
     },
     "value": 15,
     "stackable": true,
@@ -500,7 +493,7 @@
     "weight": 0.1,
     "effect": {
       "kind": "heal",
-      "health": 10
+      "health": 0
     },
     "value": 6,
     "stackable": true,
@@ -545,8 +538,7 @@
     "weight": 0.3,
     "effect": {
       "kind": "heal",
-      "health": 5,
-      "partHeal": 70
+      "health": 0
     },
     "value": 14,
     "stackable": false,
@@ -2382,8 +2374,7 @@
     "weight": 0.1,
     "effect": {
       "kind": "heal",
-      "health": 8,
-      "stopsBleeding": "one"
+      "health": 0
     },
     "value": 5,
     "stackable": true,
@@ -2398,7 +2389,7 @@
     "weight": 0.08,
     "effect": {
       "kind": "heal",
-      "health": 5
+      "health": 0
     },
     "value": 4,
     "stackable": true,
@@ -4344,9 +4335,7 @@
     "weight": 0.35,
     "effect": {
       "kind": "heal",
-      "health": 20,
-      "partHeal": 45,
-      "stopsBleeding": "all"
+      "health": 0
     },
     "value": 22,
     "stackable": false,

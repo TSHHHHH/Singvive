@@ -446,6 +446,8 @@ export interface ItemDef {
 export type Container = string;
 
 export interface ItemInstance {
+  /** Remaining first-aid kit treatments; older kits default to three uses. */
+  careUses?: number;
   /** Mixed without heat: food/energy benefits halve, hydration is unchanged. */
   coldPrepared?: boolean;
   uid: string;
@@ -626,6 +628,8 @@ export type BodyPartId =
  * clots, and it has to be dressed with something.
  */
 export type BleedLevel = 'none' | 'minor' | 'major';
+export type WoundKind = 'bruise' | 'cut' | 'deep';
+export type DressingState = 'none' | 'clean' | 'soiled';
 
 export interface BodyPart {
   hp: number;
@@ -636,10 +640,23 @@ export interface BodyPart {
    * `none` and `major` — a major never clots, and that is the whole point of it.
    */
   bleedHours: number;
-  /** Heavy blow on an arm/leg — cleared by a splint, slows recovery until then. */
+  /** Heavy blow on an arm/leg; support helps while the fracture heals over days. */
   fractured?: boolean;
-  /** Limb hit 0 HP without proper treatment — passive heal caps at 70% max. */
+  /** Part hit 0 HP; functional loss persists until tissue and any fracture recover. */
   crippled?: boolean;
+  /** Optional for existing v7 saves; inferred from legacy injury state on load. */
+  wound?: WoundKind;
+  dirty?: boolean;
+  dressing?: DressingState;
+  /** Game hours since the current dressing was applied. */
+  dressingHours?: number;
+  splinted?: boolean;
+  /** Remaining game hours of local pain relief; never restores structural HP. */
+  painReliefHours?: number;
+  /** Remaining game hours of dietary recovery support; never immediate HP. */
+  recoveryBoostHours?: number;
+  /** Supported-equivalent hours of fracture recovery, toward a 72-hour recovery. */
+  fractureRecoveryHours?: number;
   /**
    * Torso was already Critical (0 HP) and took another solid hit / head spill.
    * That follow-up ends the run — emptying the body once alone does not.

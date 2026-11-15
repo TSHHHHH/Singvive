@@ -1,9 +1,10 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useGame } from '../game/store';
 import { MeterBar } from './MeterBar';
 import { BodyDoll } from './BodyDoll';
 import { LimbDetailPanel } from './LimbDetailPanel';
+import { WoundCarePanel, type CareFeedback } from './WoundCarePanel';
 import { AttributeRow } from './AttributeRow';
 import { SurvivorStatsGrid } from './SurvivorStatsGrid';
 import { GuideInfoButton } from './GuideInfoButton';
@@ -36,10 +37,19 @@ export function ConditionPanel({
   headerControl?: ReactNode;
 }) {
   const { locale, t } = useT();
-  const { meters, bodyParts } = useGame(
-    useShallow((s) => ({ meters: s.meters, bodyParts: s.bodyParts })),
+  const { meters, bodyParts, lastCare } = useGame(
+    useShallow((s) => ({ meters: s.meters, bodyParts: s.bodyParts, lastCare: s.lastCare })),
   );
   const [hovered, setHovered] = useState<BodyPartId | null>(null);
+  const [feedback, setFeedback] = useState<CareFeedback | null>(null);
+  const seenCare = useRef(lastCare?.sequence ?? 0);
+  useEffect(() => {
+    if (!lastCare || lastCare.sequence === seenCare.current) return;
+    seenCare.current = lastCare.sequence;
+    setFeedback(lastCare);
+    const timer = window.setTimeout(() => setFeedback(null), 2600);
+    return () => window.clearTimeout(timer);
+  }, [lastCare]);
   const hp = totalHp(bodyParts);
   const hpMax = totalMaxHp(bodyParts);
   const minorCount = countBleeding(bodyParts, 'minor');
@@ -80,10 +90,13 @@ export function ConditionPanel({
                 height={dollHeight}
                 selectedPart={hovered}
                 onHover={setHovered}
+                careFeedback={feedback}
               />
             </div>
             <LimbDetailPanel bodyParts={bodyParts} highlighted={hovered} onHover={setHovered} />
           </div>
+
+          <WoundCarePanel bodyParts={bodyParts} feedback={feedback} onHighlight={setHovered} />
 
           {showMeters && (
             <div className="mb-2.5 flex flex-col gap-1.5">

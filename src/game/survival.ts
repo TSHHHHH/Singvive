@@ -2,6 +2,8 @@ import { t } from '../i18n/t';
 import type { LocaleId } from '../i18n/types';
 import type { BleedLevel, BodyPart, BodyPartId, BodyParts, ItemModifiers, Meters } from './types';
 import type { Rng } from './rng';
+import { applyCare, chooseCareTarget, DRESSING_SOIL_HOURS, FRACTURE_RECOVERY_HOURS } from './woundCare';
+export { recoverySupportMultiplier } from './woundCare';
 
 export const HOURS_PER_DAY = 24;
 export const START_HOUR = 8; // survivors wake at 8am
@@ -242,11 +244,9 @@ const HIT_ZONE_WEIGHTS: [BodyPartId, number][] = [
 ];
 
 export const HEAD_CRIT_DAMAGE_MULT = 1.6;
-export const CRIPPLED_HEAL_CAP = 0.7;
 const FRACTURE_MIN_DAMAGE = 15;
 const FRACTURE_CHANCE = 0.22;
 const PART_REGEN_PER_HOUR = 2;
-const CRIPPLED_REGEN_CAP = CRIPPLED_HEAL_CAP;
 
 // ---------- Bleeding ----------
 
@@ -342,9 +342,9 @@ export function bleedEncounterMod(parts: BodyParts): number {
  * Travel only; do not feed combat gauge fill.
  */
 function legTravelContribution(part: BodyPart): number {
-  let r = part.hp / Math.max(1, part.maxHp);
+  let r = functionalPartRatio(part);
   if (part.crippled) r = Math.min(r, 0.1);
-  if (part.fractured) r *= 0.3;
+  if (part.fractured) r *= part.splinted ? 0.55 : 0.3;
   return r;
 }
 
@@ -370,14 +370,20 @@ function partRatio(part: BodyPart): number {
   return part.hp / Math.max(1, part.maxHp);
 }
 
+/** Relief eases a quarter of the soft-tissue loss; fracture/cripple penalties remain. */
+function functionalPartRatio(part: BodyPart): number {
+  const ratio = partRatio(part);
+  return (part.painReliefHours ?? 0) > 0 ? ratio + (1 - ratio) * 0.25 : ratio;
+}
+
 /**
  * Attack accuracy penalty from arms. Right = weapon arm, left = guard / off-hand.
  */
 export function armCombatPenalty(parts: BodyParts): number {
   const right = parts.rightArm;
   const left = parts.leftArm;
-  let weapon = (1 - partRatio(right)) * 3.5;
-  let guard = (1 - partRatio(left)) * 1.5;
+  let weapon = (1 - functionalPartRatio(right)) * 3.5;
+  let guard = (1 - functionalPartRatio(left)) * 1.5;
   if (right.fractured) weapon += 2;
   if (right.crippled) weapon += 2;
   if (left.fractured) guard += 1;
@@ -390,15 +396,15 @@ export function armCombatPenalty(parts: BodyParts): number {
  */
 export function guardArmFactor(parts: BodyParts): number {
   const left = parts.leftArm;
-  let f = partRatio(left);
-  if (left.fractured) f *= 0.55;
+  let f = functionalPartRatio(left);
+  if (left.fractured) f *= left.splinted ? 0.7 : 0.55;
   if (left.crippled) f = Math.min(f, 0.25);
   return Math.max(0.15, f);
 }
 
 /** Head wound → attack accuracy (0..3). */
 export function headCombatPenalty(parts: BodyParts): number {
-  return Math.round((1 - partRatio(parts.head)) * 3);
+  return Math.round((1 - functionalPartRatio(parts.head)) * 3);
 }
 
 /**
@@ -406,7 +412,7 @@ export function headCombatPenalty(parts: BodyParts): number {
  * divide speedFactor by this (higher duration when hurt).
  */
 export function headSearchFactor(parts: BodyParts): number {
-  return 0.65 + 0.35 * partRatio(parts.head);
+  return 0.65 + 0.35 * functionalPartRatio(parts.head);
 }
 
 /** Flat perception/awareness loss from a battered skull. */
@@ -416,7 +422,7 @@ export function headAwarenessPenalty(parts: BodyParts): number {
 
 /** Multiplier on hourly energy drain from torso trauma (1 = healthy). */
 export function torsoEnergyDrainMult(parts: BodyParts): number {
-  return 1 + (1 - partRatio(parts.torso)) * 0.35;
+  return 1 + (1 - functionalPartRatio(parts.torso)) * 0.35;
 }
 
 /** Multiplier on carry capacity from torso trauma (1 = healthy). */
@@ -506,9 +512,17 @@ function applyDamageToSinglePart(
   // Follow-up force into an already-empty torso is a mortal wound.
   const mortalWound =
     zone === 'torso' && current.hp <= 0 ? true : current.mortalWound;
+  const wound = damage >= MAJOR_BLEED_MIN_DAMAGE || bleed === 'major' || current.wound === 'deep'
+    ? 'deep'
+    : bleed === 'minor' || damage >= 4 || current.wound === 'cut' ? 'cut' : 'bruise';
   return {
     ...parts,
-    [zone]: { ...current, hp, bleed, bleedHours, fractured, crippled, mortalWound },
+    [zone]: {
+      ...current, hp, bleed, bleedHours, fractured, crippled, mortalWound, wound,
+      dirty: wound !== 'bruise' || !!current.dirty,
+      dressing: current.dressing && current.dressing !== 'none' ? 'soiled' : 'none',
+      fractureRecoveryHours: fractured && !current.fractured ? 0 : current.fractureRecoveryHours,
+    },
   };
 }
 
@@ -659,18 +673,6 @@ export function applyWound(
   });
 }
 
-function regenCap(part: BodyPart): number {
-  if (part.crippled && part.fractured) return Math.round(part.maxHp * CRIPPLED_REGEN_CAP);
-  if (part.crippled) return Math.round(part.maxHp * CRIPPLED_REGEN_CAP);
-  return part.maxHp;
-}
-
-function tickPartBleedDrain(part: BodyPart, hours: number): BodyPart {
-  if (part.bleed === 'none') return part;
-  const drain = BLEED_DRAIN[part.bleed] * hours;
-  return { ...part, hp: Math.max(0, part.hp - drain) };
-}
-
 /**
  * Advance injuries: bleed drain on parts, clotting, passive regen. Returns
  * whether a major bleed is blocking recovery.
@@ -682,47 +684,66 @@ export function tickInjuries(
   hunger = 50,
   legHealMod = 0,
   bleedStopBonus = 0,
+  recoveryMult = 1,
 ): { parts: BodyParts; blocksRegen: boolean } {
+  if (hours <= 0) return { parts, blocksRegen: BODY_PART_IDS.some((id) => parts[id].bleed === 'major') };
   const next = {} as BodyParts;
-  let blocksRegen = false;
-  const regenMult = hpRegenMultiplier(hunger);
+  const blocksRegen = BODY_PART_IDS.some((id) => parts[id].bleed === 'major');
+  const regenMult = hpRegenMultiplier(hunger) * Math.max(0.1, recoveryMult);
   const legMult = Math.max(0.1, 1 + legHealMod);
 
   for (const id of BODY_PART_IDS) {
-    let p = tickPartBleedDrain(parts[id], hours);
-    if (p.bleed === 'major') blocksRegen = true;
+    let p = parts[id];
     const partRegenMult = id === 'leftLeg' || id === 'rightLeg' ? legMult : 1;
-
-    if (p.bleed === 'major') {
-      if (p.hp <= 0) p = { ...p, crippled: true };
-      next[id] = p;
-      continue;
-    }
-
-    if (p.bleed === 'minor') {
-      const left = selfStopDisabled
-        ? p.bleedHours
-        : Math.max(0, p.bleedHours - hours * (1 + bleedStopBonus));
-      const rate = PART_REGEN_PER_HOUR * hours * 0.5 * regenMult * partRegenMult;
-      const cap = regenCap(p);
+    const clotRate = selfStopDisabled ? 0 : Math.max(0.1, 1 + bleedStopBonus);
+    let remaining = hours;
+    // Split only at real care/recovery transitions so a long rest and small clock ticks agree.
+    while (remaining > 1e-9) {
+      if (p.bleed === 'minor' && clotRate > 0 && p.bleedHours <= 1e-9) {
+        p = { ...p, bleed: 'none', bleedHours: 0 };
+      }
+      if (p.dressing === 'clean' && (p.dressingHours ?? 0) >= DRESSING_SOIL_HOURS - 1e-9) {
+        p = { ...p, dressing: 'soiled' };
+      }
+      if (p.fractured && (p.fractureRecoveryHours ?? 0) >= FRACTURE_RECOVERY_HOURS - 1e-9) {
+        p = { ...p, fractured: false, splinted: false, fractureRecoveryHours: FRACTURE_RECOVERY_HOURS };
+      }
+      const supplementMult = (p.recoveryBoostHours ?? 0) > 1e-9 ? 1.25 : 1;
+      const fractureRate = p.fractured && !blocksRegen
+        ? (p.splinted ? 1 : 0.45) * regenMult * partRegenMult * supplementMult : 0;
+      let step = remaining;
+      if ((p.recoveryBoostHours ?? 0) > 1e-9) step = Math.min(step, p.recoveryBoostHours!);
+      if (p.bleed === 'minor' && clotRate > 0) step = Math.min(step, p.bleedHours / clotRate);
+      if (p.dressing === 'clean') step = Math.min(step, DRESSING_SOIL_HOURS - (p.dressingHours ?? 0));
+      if (fractureRate > 0) step = Math.min(step, (FRACTURE_RECOVERY_HOURS - (p.fractureRecoveryHours ?? 0)) / fractureRate);
+      const tissueMult = p.wound === 'deep' ? 0.35 : p.wound === 'cut' ? 0.6 : 1;
+      const dirtMult = p.dirty ? 0.65 : 1;
+      const dressingMult = p.dressing === 'clean' ? 1.15 : p.dressing === 'soiled' ? 0.65 : 1;
+      const regenRate = blocksRegen ? 0
+        : PART_REGEN_PER_HOUR * regenMult * partRegenMult * tissueMult * dirtMult * dressingMult * supplementMult * (p.bleed === 'minor' ? 0.5 : 1);
+      const bleed = p.bleed === 'minor' && clotRate > 0 && p.bleedHours - step * clotRate <= 1e-9 ? 'none' : p.bleed;
+      const dressingHours = p.dressing && p.dressing !== 'none' ? (p.dressingHours ?? 0) + step : 0;
+      const fractureRecoveryHours = (p.fractureRecoveryHours ?? 0) + step * fractureRate;
+      const healed = !!p.fractured && fractureRecoveryHours >= FRACTURE_RECOVERY_HOURS - 1e-9;
       p = {
         ...p,
-        hp: Math.min(cap, p.hp + rate),
-        bleed: left > 0 ? 'minor' : 'none',
-        bleedHours: left,
+        hp: Math.max(0, Math.min(p.maxHp, p.hp + step * (regenRate - BLEED_DRAIN[p.bleed]))),
+        bleed, bleedHours: bleed === 'none' ? 0 : Math.max(0, p.bleedHours - step * clotRate),
+        dressingHours,
+        dressing: p.dressing === 'clean' && dressingHours >= DRESSING_SOIL_HOURS - 1e-9 ? 'soiled' : p.dressing,
+        painReliefHours: Math.max(0, (p.painReliefHours ?? 0) - step),
+        recoveryBoostHours: Math.max(0, (p.recoveryBoostHours ?? 0) - step),
+        fractureRecoveryHours: Math.min(FRACTURE_RECOVERY_HOURS, fractureRecoveryHours),
+        fractured: healed ? false : p.fractured,
+        splinted: healed ? false : p.splinted,
       };
       if (p.hp <= 0) p = { ...p, crippled: true };
-      next[id] = p;
-      continue;
+      else if (p.hp >= p.maxHp * 0.85 && !p.fractured) p = { ...p, crippled: false };
+      if (p.hp >= p.maxHp && !p.fractured && p.bleed === 'none') {
+        p = { ...p, wound: undefined, dirty: false, dressing: 'none', dressingHours: 0, splinted: false };
+      }
+      remaining -= step;
     }
-
-    if (!blocksRegen) {
-      const rate = PART_REGEN_PER_HOUR * hours * regenMult * partRegenMult;
-      const cap = regenCap(p);
-      p = { ...p, hp: Math.min(cap, p.hp + rate) };
-    }
-    if (p.hp <= 0) p = { ...p, crippled: true };
-    else if (p.hp >= p.maxHp * 0.85 && !p.fractured) p = { ...p, crippled: false };
     next[id] = p;
   }
 
@@ -779,13 +800,10 @@ export function migrateBodyParts(
   totalMaxHp: number,
 ): BodyParts {
   if (!parts) return initialBodyParts(totalMaxHp);
-  const sample = parts[BODY_PART_IDS[0]] as BodyPart & { condition?: number };
-  if (sample && typeof sample.hp === 'number' && typeof sample.maxHp === 'number') {
-    return parts;
-  }
   const next = initialBodyParts(totalMaxHp);
   for (const id of BODY_PART_IDS) {
-    const legacy = parts[id] as BodyPart & { condition?: number };
+    const legacy = parts[id] as (BodyPart & { condition?: number }) | undefined;
+    if (!legacy) continue;
     const pct =
       typeof legacy.condition === 'number'
         ? legacy.condition / 100
@@ -794,11 +812,23 @@ export function migrateBodyParts(
           : 1;
     next[id] = {
       ...next[id],
-      hp: Math.max(0, Math.round(next[id].maxHp * pct)),
+      ...legacy,
+      maxHp: legacy.maxHp ?? next[id].maxHp,
+      hp: typeof legacy.hp === 'number' && typeof legacy.maxHp === 'number'
+        ? Math.max(0, Math.min(legacy.maxHp, legacy.hp))
+        : Math.max(0, Math.round(next[id].maxHp * pct)),
       bleed: legacy.bleed ?? 'none',
       bleedHours: legacy.bleedHours ?? 0,
       fractured: legacy.fractured ?? false,
       crippled: legacy.crippled ?? legacy.hp === 0,
+      wound: legacy.wound ?? (legacy.bleed === 'major' ? 'deep' : legacy.bleed === 'minor' ? 'cut' : pct < 1 ? 'bruise' : undefined),
+      dirty: legacy.dirty ?? (legacy.bleed === 'major' || legacy.bleed === 'minor'),
+      dressing: legacy.dressing ?? 'none',
+      dressingHours: Math.max(0, legacy.dressingHours ?? 0),
+      splinted: legacy.splinted ?? false,
+      painReliefHours: Math.max(0, legacy.painReliefHours ?? 0),
+      recoveryBoostHours: Math.max(0, legacy.recoveryBoostHours ?? 0),
+      fractureRecoveryHours: Math.max(0, legacy.fractureRecoveryHours ?? 0),
     };
   }
   return next;
@@ -820,47 +850,23 @@ export function treatInjuries(
   stopsBleeding: 'one' | 'all' | undefined,
   clearsFracture = false,
 ): BodyParts {
-  const next: BodyParts = { ...parts };
-
+  let next = parts;
   if (stopsBleeding === 'all') {
     for (const id of BODY_PART_IDS) {
-      if (next[id].bleed !== 'none') next[id] = { ...next[id], bleed: 'none', bleedHours: 0 };
+      if (next[id].bleed !== 'none') next = applyCare(next, id, 'bandage');
     }
   } else if (stopsBleeding === 'one') {
-    let worst: BodyPartId | null = null;
-    for (const id of BODY_PART_IDS) {
-      if (next[id].bleed === 'none') continue;
-      if (
-        worst === null ||
-        BLEED_RANK[next[id].bleed] > BLEED_RANK[next[worst].bleed] ||
-        (BLEED_RANK[next[id].bleed] === BLEED_RANK[next[worst].bleed] &&
-          next[id].hp < next[worst].hp)
-      ) {
-        worst = id;
-      }
-    }
-    if (worst) next[worst] = { ...next[worst], bleed: 'none', bleedHours: 0 };
+    const target = chooseCareTarget(next, 'bandage');
+    if (target) next = applyCare(next, target, 'bandage');
   }
-
-  if (partHeal > 0 || clearsFracture) {
-    let target: BodyPartId | null = null;
-    for (const id of BODY_PART_IDS) {
-      if (next[id].hp < next[id].maxHp && (target === null || next[id].hp < next[target].hp)) {
-        target = id;
-      }
-    }
-    if (target) {
-      const p = next[target];
-      next[target] = {
-        ...p,
-        hp: Math.min(p.maxHp, p.hp + partHeal),
-        fractured: clearsFracture ? false : p.fractured,
-        crippled: clearsFracture ? false : p.crippled && p.hp + partHeal < p.maxHp * CRIPPLED_HEAL_CAP,
-      };
-      if (next[target].hp >= next[target].maxHp * 0.85) {
-        next[target] = { ...next[target], crippled: false };
-      }
-    }
+  if (clearsFracture) {
+    const target = chooseCareTarget(next, 'splint');
+    if (target) next = applyCare(next, target, 'splint');
+  }
+  if (partHeal > 0) {
+    const action = partHeal >= 40 ? 'firstAid' : 'pain';
+    const target = chooseCareTarget(next, action);
+    if (target) next = applyCare(next, target, action);
   }
 
   return next;

@@ -263,10 +263,18 @@ ground for rest; landmarks are not selected as guaranteed indoor spawn shelters.
   - **Arms are handed:** right = weapon accuracy, left = guard / off-hand block & free-hand tempo.
   - **Head** wounds tax attack accuracy, search speed, and awareness.
   - **Torso** wounds raise energy drain and cut carry capacity.
-  - **Crippled** limbs (0 HP without proper treatment) cap passive heal at 70% until splinted/cleared.
+  - **Crippled** limbs (0 HP) remain impaired during recovery; care supports recovery without an obligatory treatment sequence.
   - **Passive regen** when stable — but **major bleeding blocks regen** until you bandage it.
-- **Treatment:** bandage (stops one bleed + dresses a wound), medkit (stops all bleeds + big heal),
-  painkillers (HP only), antibiotics/antiseptic (infection), splint (clears fracture).
+- **Wound care:** treatment stabilizes, time heals. Bruises, cuts and deep wounds recover at different rates. Dirty wounds still heal, at 65% of their clean rate; cleaning is optional and independent of dressing. Hunger, hydration, sleep conditions and Medicine/medical traits influence recovery. No medical item grants instant limb HP.
+  - **Bandage / plasters:** dress the chosen part and stop its bleeding (3 minutes). Cleaning is not a prerequisite. An improvised dressing controls bleeding but leaves the wound dirty and the dressing soiled; repeating it after bleeding stops provides no benefit and does not spend supplies.
+  - **Antiseptic:** clean the chosen wound (5 minutes), without stopping bleeding or changing systemic infection.
+  - **Painkillers / Tiger Balm:** temporary relief on the chosen part (1 minute, 4 game hours of relief); ease soft-tissue functional penalties without restoring HP or removing structural injuries.
+  - **Splint:** support a fracture (10 minutes); it still heals gradually. Unsupported fractures also recover, more slowly. Baseline fracture recovery is 72 supported equivalent hours, modified by recovery conditions.
+  - **First-aid kit:** three targeted care charges; each cleans, dresses, relieves pain and supports a fracture on one part (8 minutes). The smaller **IFAK pouch** provides one such treatment. No instant HP gain or fracture cure.
+  - **Vitamin C:** optional recovery support (1 minute), giving currently injured parts 25% faster gradual recovery for 8 game hours. Existing support does not stack or refresh. This is a gameplay abstraction, not an instant heal.
+  - **Dressings:** clean dressings modestly support recovery; after 12 game hours they become soiled and slow recovery. Replacement is optional. New trauma can soil the dressing and reopen a wound. No recurring random bleed simply for skipping maintenance.
+  - **Antibiotics / Po Chai Pills:** retain their separate systemic infection effects. Dirt is a local healing penalty, not another lethal infection meter.
+  - **Interface:** the existing Body panel shows injuries and independent care actions without an inspection step. The medical silhouette retains wound marks, dressings and splints; treatment briefly highlights the affected part. Healthy parts stay quiet. Inventory use selects an eligible part automatically; Body actions target explicitly. Care spends game time and carried/accessible supplies, and is unavailable during combat, travel or an unresolved action.
 - **Teaching:** How-to-play includes a **Body** topic; first meaningful injury shows a one-shot coach
   (settings flag `limbCoachSeen`).
 - Death causes: overwhelmed (HP 0), starvation, dehydration, infection, fatal head/torso wound.

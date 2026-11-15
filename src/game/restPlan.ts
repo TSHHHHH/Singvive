@@ -11,6 +11,7 @@ import {
   totalMaxHp,
 } from './survival';
 import { applySleepRecovery } from './sleep';
+import { recoverySupportMultiplier } from './woundCare';
 import type { BodyParts, Meters } from './types';
 
 // ---------------------------------------------------------------------------
@@ -70,7 +71,7 @@ export interface RestPlanInput {
   sleepRestoreMod: number;
   /** Same options `advanceTime` hands `tickMeters`; `sleeping` is forced on. */
   meterOpts: Omit<NonNullable<Parameters<typeof tickMeters>[2]>, 'sleeping'>;
-  injury: { selfStopDisabled: boolean; legHealMod: number; bleedStopBonus: number };
+  injury: { selfStopDisabled: boolean; legHealMod: number; bleedStopBonus: number; careRecoveryMult?: number };
   /** Per-night ambush chance from `restAmbushPreview` (0 when walls + bed hold). */
   nightAmbushChance: number;
   floodSleep: boolean;
@@ -136,6 +137,7 @@ export function planRest(input: RestPlanInput): RestOutcome {
       meters.hunger,
       input.injury.legHealMod,
       input.injury.bleedStopBonus,
+      recoverySupportMultiplier(meters.thirst, input.recoveryMult) * (input.injury.careRecoveryMult ?? 1),
     );
     const nextParts = tickSystemicDamage(healed, meters, step);
     const nextMeters = tickMeters(meters, step, { ...input.meterOpts, sleeping: true });
