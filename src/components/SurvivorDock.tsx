@@ -62,13 +62,6 @@ export function SurvivorDock({
     return () => window.removeEventListener('keydown', onKey);
   }, [moreOpen, sidePanel, blocked]);
 
-  const toggleButton = (open: boolean, label: string, id: string, toggle: () => void) => (
-    <button type="button" onClick={toggle} aria-expanded={open} aria-controls={id}
-      aria-label={`${t(open ? 'ui.hud.collapse' : 'ui.hud.expand')} ${label}`}
-      className="flex min-h-8 min-w-8 shrink-0 items-center justify-center rounded text-body text-white/60 hover:bg-white/10 hover:text-white focus-visible:outline focus-visible:outline-signal">
-      <span aria-hidden>{open ? '⌃' : '⌄'}</span>
-    </button>
-  );
   const trayClass = (active: boolean) =>
     `flex min-h-10 min-w-0 items-center justify-center gap-2 rounded border px-2 py-1.5 text-label focus-visible:outline focus-visible:outline-signal ${
       active ? 'border-signal/60 bg-signal/10 text-signal' : 'border-white/10 text-white/65 hover:bg-white/5 hover:text-white'
@@ -116,11 +109,11 @@ export function SurvivorDock({
       <div ref={bodyRef} id="survivor-dock-body" className="scroll-mt-36">
         <ConditionPanel onOpenGuide={onOpenGuide} showSurvivorStats={false} showMeters={false}
           compact collapsed={!bodyOpen}
-          headerControl={toggleButton(bodyOpen, t('ui.dock.body'), 'survivor-dock-body', () => setBodyOpen(!bodyOpen))} />
+          onToggle={() => setBodyOpen(!bodyOpen)} />
       </div>
       <div ref={packRef} id="survivor-dock-pack" className="scroll-mt-36 rounded-lg border border-white/15 bg-black/15 p-2.5">
         <InventoryPanel layout="backpack" collapsed={!packOpen}
-          headerControl={toggleButton(packOpen, t('ui.inventory.backpack'), 'survivor-dock-pack', () => setPackOpen(!packOpen))} />
+          onToggle={() => setPackOpen(!packOpen)} />
       </div>
     </div>
   );

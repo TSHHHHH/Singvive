@@ -13,7 +13,8 @@ import { packCellKey } from '../../game/packGrid';
 import { Icon } from '../../icons/Icon';
 import { itemName, useT } from '../../i18n';
 import { itemIcon } from './itemIcon';
-import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { DockSectionHeader } from '../DockSectionHeader';
 import { tip } from '../tips';
 
 export const CELL = 34;
@@ -40,7 +41,7 @@ interface Props {
   title: string;
   /** Optional control next to the title (e.g. `?` tip for PC shortcuts). */
   titleAccessory?: ReactNode;
-  headerControl?: ReactNode;
+  onToggle?: () => void;
   collapsed?: boolean;
   largeCells?: boolean;
   items: ItemInstance[];
@@ -68,7 +69,7 @@ export function InventoryGrid({
   grid,
   title,
   titleAccessory,
-  headerControl,
+  onToggle,
   collapsed = false,
   largeCells = false,
   items,
@@ -87,6 +88,7 @@ export function InventoryGrid({
   suppressTip = false,
 }: Props) {
   const { locale, t } = useT();
+  const contentId = useId();
   const dims = dimsFor(grid);
   const containerRef = useRef<HTMLDivElement>(null);
   const [availableWidth, setAvailableWidth] = useState(0);
@@ -115,16 +117,18 @@ export function InventoryGrid({
 
   return (
     <div ref={containerRef} className="min-w-0">
-      <div className="mb-1 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-label uppercase text-white/40">
+      {onToggle ? (
+        <DockSectionHeader title={title} open={!collapsed} onToggle={onToggle} controls={contentId} accessory={titleAccessory} />
+      ) : <div className="mb-1 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-label uppercase text-white/40">
         <span className="inline-flex items-center gap-1.5">
           <span>{title}</span>
           {titleAccessory}
         </span>
-        <span className="ml-auto flex items-center gap-1.5 whitespace-nowrap">
+        {grid !== 'backpack' && <span className="ml-auto flex items-center gap-1.5 whitespace-nowrap">
           {holes.length > 0 ? t('ui.stats.packCells', { n: usable, w: dims.w, h: dims.h }) : `${dims.w}×${dims.h}`}
-          {headerControl}
-        </span>
-      </div>
+        </span>}
+      </div>}
+      <div id={contentId} hidden={collapsed}>
       {!collapsed && <div className="overflow-x-auto overscroll-x-contain">
         <div
           ref={gridRef}
@@ -239,6 +243,7 @@ export function InventoryGrid({
           })}
         </div>
       </div>}
+      </div>
     </div>
   );
 }

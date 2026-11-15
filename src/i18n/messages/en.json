@@ -1091,6 +1091,10 @@
       "jumpLatest": "Latest"
     },
     "dock": {
+      "resize": "Resize survivor dock",
+      "resizeHint": "Drag to resize · arrow keys to adjust · double-click or Enter to reset",
+      "mapView": "Map view",
+      "view2dTip": "Show the flat map",
       "body": "Body",
       "vitals": "Survival",
       "food": "Food",
