@@ -115,6 +115,15 @@ export function Menu() {
           >
             {t('ui.menu.newSurvivor')}
           </button>
+          {import.meta.env.MODE !== 'itch' && (
+            <a
+              href="/?coop=1"
+              className="flex items-center justify-between gap-3 rounded-sm border border-white/15 bg-black/30 px-5 py-3 text-left text-read text-white/70 transition hover:border-white/40 hover:bg-white/5 hover:text-white"
+            >
+              <span>{t('ui.coop.menu')}</span>
+              <span className="text-label uppercase text-white/40">{t('ui.coop.menuBadge')}</span>
+            </a>
+          )}
         </div>
 
         <div className="mx-auto mt-8 max-w-md text-left">

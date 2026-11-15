@@ -3,6 +3,10 @@
   "name": "singvive",
   "compatibility_date": "2026-08-11",
   "main": "./worker/index.ts",
+  "durable_objects": {
+    "bindings": [{ "name": "COOP_ROOMS", "class_name": "CoopRoom" }],
+  },
+  "migrations": [{ "tag": "coop-v1", "new_sqlite_classes": ["CoopRoom"] }],
   "assets": {
     "not_found_handling": "single-page-application",
     "run_worker_first": ["/api/*"],

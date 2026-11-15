@@ -17,6 +17,35 @@
 
 ## 1. Vision
 
+### Co-op prototype (experimental branch)
+
+The menu's **Online co-op prototype** opens a separate four-site schematic expedition,
+not the full island run. Up to four survivors join with an invite code and act independently.
+One real second represents one game minute. Travel takes eight seconds, search six, rest
+twenty and boarding five. Health, supplies and combat are deliberately simplified for this
+network prototype; solo balance and the existing injury system are unchanged.
+
+The server owns the shared clock, finite caches and encounter outcomes. Anyone can pause;
+all connected participants ready up for a three-second resume countdown. A disconnect
+pauses the room for a 15-second reconnect grace period; remaining players may then ready
+up and continue. The absent survivor remains exposed if play resumes. An empty room stays
+paused. Paused players can inspect state but cannot perform gameplay actions.
+
+The market contains one shared hostile encounter. Nearby survivors explicitly join attacks,
+choose a stance or flee; the enemy can attack any exposed active survivor at that site.
+Downed survivors have 30 simulation seconds for a nearby teammate to complete a five-second
+rescue. The rescuer needs a medical charge, spent only on success; damage interrupts rescue.
+Rescue returns 30 HP and a lasting wound that reduces maximum health. If everyone is down,
+there is no rescuer and the expedition ends. Expiry takes precedence over a rescue completing
+at exactly the same instant.
+
+Dead survivors leave supplies at their location. They can return as a fresh survivor only
+while another active survivor waits idle at the rendezvous. Replacements receive no supplies.
+Extraction is individual and extracted seats cannot return. When nobody remains active,
+remaining downed survivors die and the room ends. This prototype does not submit solo scores.
+Rooms and reconnect credentials are separate from solo saves; server rooms expire after
+24 hours without a successful join, connection or sequenced command.
+
 You wake up in a fallen Singapore. Supplies run low, night makes the streets dangerous, and nearby
 **noise** can draw trouble. Knowing nothing of what's around you, you push out into the fog,
 chart real places by walking to them, scavenge what you can carry, and manage a failing body until it
