@@ -389,7 +389,8 @@ import type { AnimalHabitat } from './enemies';
 import {
   addHeat,
   dropHeat,
-  scoutFloor,
+  scoutUnit,
+  needsScout,
   breachOutcome,
   currentFloor,
   generateDungeon,
@@ -637,8 +638,8 @@ interface State {
   hdbHoverLevel: number | null;
   /** Room picked on a level strip (UI only); the action card targets it. */
   hdbSelUnit: string | null;
-  /** First-visit scouting playback. Runtime-only; the resolved intel lives in hdb. */
-  hdbScout: { locationId: string; level: number; startedAt: number; rolls: RoomScoutRoll[] } | null;
+  /** Playback of the room just read on first pick. Runtime-only; the intel lives in hdb. */
+  hdbScout: { locationId: string; level: number; unitId: string; startedAt: number; roll: RoomScoutRoll } | null;
 
   /**
    * The tunnel segment you're currently walking, if any. Deliberately NOT
@@ -2691,26 +2692,12 @@ export const useGame = create<State>((set, get) => {
   };
 
   /**
-   * Reading the corridor is what stepping onto a floor *is* — never an action
-   * the player has to spend a click on. Sharper senses simply see more doors.
+   * Stepping onto a floor for the first time: the theme shows itself, but no
+   * door is read yet. Each room is sized up when the player picks it.
    */
   const sweepFloor = (level: number) => {
     const s = get();
     if (!s.hdb) return;
-    const rng = new Rng(s.seed).fork(`sweep:${s.hdb.locationId}:${level}:${s.day}`);
-    const res = scoutFloor(
-      rng,
-      s.character!.attributes,
-      s.hdb,
-      level,
-      sumTraitMod(s.character!.traitIds, 'hdbScoutBonus'),
-    );
-    set({
-      hdb: res.dungeon,
-      hdbScout: res.rolls.length
-        ? { locationId: s.hdb.locationId, level, startedAt: Date.now(), rolls: res.rolls }
-        : null,
-    });
     const label = storeyLabel(s.hdb, level);
     const theme = s.hdb.floors[level - 1]?.theme;
     if (theme && theme !== 'ordinary') {
@@ -2722,10 +2709,44 @@ export const useGame = create<State>((set, get) => {
         hdbFloorScope(s.hdb.locationId, level, storeyLabel(s.hdb, level)),
       );
     }
+  };
+
+  /**
+   * Read one room from the corridor the first time it is picked. Perception and
+   * Dexterity roll against the floor's sweep stream forked by room, so a room
+   * reads the same whichever order the doors are picked in. `show` plays the
+   * dice in the action card; a door opened without a pick reads silently.
+   */
+  const scoutHdbRoom = (unitId: string, show: boolean) => {
+    const s = get();
+    if (!s.hdb || !s.character) return;
+    const level = s.hdb.currentLevel;
+    const unit = currentFloor(s.hdb).units.find((u) => u.id === unitId);
+    if (!needsScout(unit)) return;
+    const rng = new Rng(s.seed).fork(`sweep:${s.hdb.locationId}:${level}:${s.day}`);
+    const res = scoutUnit(
+      rng,
+      s.character.attributes,
+      s.hdb,
+      level,
+      unitId,
+      sumTraitMod(s.character.traitIds, 'hdbScoutBonus'),
+    );
+    if (!res.roll) return;
+    set({
+      hdb: res.dungeon,
+      hdbScout: show
+        ? { locationId: s.hdb.locationId, level, unitId, startedAt: Date.now(), roll: res.roll }
+        : get().hdbScout,
+    });
+    const { perception, dexterity } = res.roll;
+    const read = [perception.success && 'who is behind it', dexterity.success && 'what is inside']
+      .filter(Boolean)
+      .join(' and ');
     pushLog(
-      res.read === 0
-        ? `Level ${label}: the corridor tells you nothing.`
-        : `Level ${label}: you read ${res.read} of ${res.total} units from the corridor.`,
+      read
+        ? `${unit!.label}: from the corridor you read ${read}.`
+        : `${unit!.label}: the doorway tells you nothing.`,
       'info',
       undefined,
       undefined,
@@ -6498,7 +6519,9 @@ export const useGame = create<State>((set, get) => {
     },
 
     setHdbSelUnit: (id) => {
-      if (get().hdbSelUnit !== id) set({ hdbSelUnit: id });
+      if (get().hdbSelUnit === id) return;
+      set({ hdbSelUnit: id });
+      if (id && !hdbBusy()) scoutHdbRoom(id, true);
     },
     setHdbHoverLevel: (level) => {
       if (get().hdbHoverLevel !== level) set({ hdbHoverLevel: level });
@@ -6577,7 +6600,9 @@ export const useGame = create<State>((set, get) => {
         pushLog('That door is already hanging. Use what is inside.', 'info');
         return;
       }
-      resolveHdbDoor(unitId, breachOutcome(s.hdb, unit, level), unit.entry);
+      scoutHdbRoom(unitId, false);
+      const read = currentFloor(get().hdb!).units.find((u) => u.id === unitId) ?? unit;
+      resolveHdbDoor(unitId, breachOutcome(get().hdb!, read, level), unit.entry);
     },
 
     hdbPick: (unitId) => {
@@ -6617,8 +6642,10 @@ export const useGame = create<State>((set, get) => {
       }
       applyPracticeXp('trades', PRACTICE_XP.hdbPick);
       pushLog('The lock turns without a sound.', 'good');
-      const quiet = { ...unit, entry: 'ajar' as const };
-      resolveHdbDoor(unitId, breachOutcome(g.hdb, quiet, level), 'ajar', { skipTime: true });
+      scoutHdbRoom(unitId, false);
+      const known = currentFloor(get().hdb!).units.find((u) => u.id === unitId) ?? unit;
+      const quiet = { ...known, entry: 'ajar' as const };
+      resolveHdbDoor(unitId, breachOutcome(get().hdb!, quiet, level), 'ajar', { skipTime: true });
     },
 
     hdbTravel: (level) => {
