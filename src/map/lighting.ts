@@ -17,7 +17,7 @@ import type { TimeOfDay } from '../game/types';
  *   halfway with a warm cast, night sinks it to blue-black. Applied by
  *   repainting the basemap layers once per phase change.
  * - **Shadows.** The ground shadow a standing building throws, as one convex
- *   polygon per building, and the short drop shadow the flat 2D map uses.
+ *   polygon per building (3D only).
  */
 
 export type LightPhase = 'dawn' | 'day' | 'dusk' | 'night';
