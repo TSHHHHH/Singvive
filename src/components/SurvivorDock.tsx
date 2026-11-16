@@ -6,7 +6,6 @@ import type { LoadEffects } from '../game/inventory';
 import type { GuideTopic } from '../content/guideContent';
 import { useT } from '../i18n';
 import { Icon } from '../icons/Icon';
-import type { IconName } from '../icons/keys';
 import { ConditionPanel } from './ConditionPanel';
 import { InventoryPanel } from './Inventory/InventoryPanel';
 import { loadTierLabel, loadTierShown } from './loadTier';
@@ -14,17 +13,9 @@ import { isModalOpen } from './modalStack';
 import { tip } from './tips';
 import { VitalMeter } from './VitalMeter';
 
-type Section = 'condition' | 'backpack' | 'more';
-
-/** Desktop disclosure only. The phone keeps its full Status tab. */
+/** Desktop dock. Body and pack stay together; the phone retains its tabs. */
 export function SurvivorDock({
-  sidePanel,
-  onPanelChange,
-  onOpenGuide,
-  load,
-  tools,
-  blocked,
-  hotkeys,
+  sidePanel, onPanelChange, onOpenGuide, load, tools, blocked, hotkeys,
 }: {
   sidePanel: string | null;
   onPanelChange: (panel: 'inventory' | 'craft' | null) => void;
@@ -38,128 +29,91 @@ export function SurvivorDock({
   const { meters, bodyParts } = useGame(
     useShallow((s) => ({ meters: s.meters, bodyParts: s.bodyParts })),
   );
-  const [section, setSection] = useState<Section | null>(() => sidePanel === 'inventory' ? 'backpack' : null);
-  const triggers = useRef<Partial<Record<Section, HTMLButtonElement | null>>>({});
-  // Opening stash exposes both grids, including from hotkeys / loot actions.
-  // Keep that selection after the slide-out closes or switches to another tool.
+  const [bodyOpen, setBodyOpen] = useState(true);
+  const [packOpen, setPackOpen] = useState(true);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreButton = useRef<HTMLButtonElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const packRef = useRef<HTMLDivElement>(null);
   const [previousPanel, setPreviousPanel] = useState(sidePanel);
   if (previousPanel !== sidePanel) {
     setPreviousPanel(sidePanel);
-    if (sidePanel === 'inventory') setSection('backpack');
+    if (sidePanel === 'inventory') setPackOpen(true);
   }
-  const visible = section;
   const major = countBleeding(bodyParts, 'major');
   const minor = countBleeding(bodyParts, 'minor');
   const injured = Object.values(bodyParts).some((p) => p.hp < p.maxHp || p.fractured || p.crippled);
   const needsCare = major > 0 || minor > 0 || injured || meters.infection > 0;
   const heavy = load != null && loadTierShown(load);
-  const careLabel = major
-    ? t('ui.condition.bleedingOut')
-    : minor
-      ? t('ui.condition.bleeding')
-      : injured ? t('ui.dock.injured') : '';
+  const careLabel = major ? t('ui.condition.bleedingOut') : minor
+    ? t('ui.condition.bleeding') : injured ? t('ui.dock.injured') : '';
   const infectionLabel = meters.infection > 0
-    ? `${t('ui.condition.infection')} ${Math.round(meters.infection)}%`
-    : '';
-  const conditionSummary = [careLabel, infectionLabel].filter(Boolean).join(' · ');
-
-  const toggle = (next: Section) => {
-    setSection(visible === next ? null : next);
-  };
-  const close = () => {
-    if (visible) triggers.current[visible]?.focus();
-    setSection(null);
-  };
+    ? `${t('ui.condition.infection')} ${Math.round(meters.infection)}%` : '';
 
   useEffect(() => {
-    // GameScreen owns Escape while a slide-out or modal is open.
-    if (!section || sidePanel || blocked) return;
+    if (!moreOpen || sidePanel || blocked) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape' || e.defaultPrevented || isModalOpen()) return;
       e.preventDefault();
-      triggers.current[section]?.focus();
-      setSection(null);
+      setMoreOpen(false);
+      moreButton.current?.focus();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [section, sidePanel, blocked]);
+  }, [moreOpen, sidePanel, blocked]);
 
-  const sectionLabel = (id: Section) => t(
-    id === 'condition' ? 'ui.condition.title' : id === 'backpack' ? 'ui.inventory.backpack' : 'ui.dock.more',
-  );
   const trayClass = (active: boolean) =>
-    `relative flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded border px-1 py-2 text-label transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-signal ${
-      active ? 'border-signal/60 bg-signal/10 text-signal' : 'border-transparent text-white/65 hover:bg-white/5 hover:text-white'
+    `flex min-h-10 min-w-0 items-center justify-center gap-2 rounded border px-2 py-1.5 text-label focus-visible:outline focus-visible:outline-signal ${
+      active ? 'border-signal/60 bg-signal/10 text-signal' : 'border-white/10 text-white/65 hover:bg-white/5 hover:text-white'
     }`;
-  const sectionButton = (id: Section, icon: IconName | null, alert = false) => (
-    <button
-      key={id}
-      ref={(el) => { triggers.current[id] = el; }}
-      type="button"
-      onClick={() => toggle(id)}
-      aria-expanded={visible === id}
-      aria-controls="survivor-dock-details"
-      className={trayClass(visible === id)}
-    >
-      {icon ? <Icon name={icon} size={18} /> : <span aria-hidden className="text-read leading-none">•••</span>}
-      <span>{id === 'condition' ? t('ui.dock.body') : sectionLabel(id)}</span>
-      {alert && <span aria-hidden className="absolute right-2 top-1 text-label text-hiss">!</span>}
-    </button>
-  );
 
   return (
-    <div className="space-y-2.5">
-      <section aria-label={t('ui.dock.vitals')} className="rounded-lg border border-white/15 bg-black/15 p-2.5">
-        <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+    <div className="space-y-2" data-survivor-dock>
+      <section aria-label={t('ui.dock.vitals')} className="sticky top-0 z-20 rounded-lg border border-white/15 bg-concrete-900 p-2.5 shadow-sm">
+        <div className="grid grid-cols-2 gap-x-3 gap-y-2">
           <VitalMeter label={t('ui.condition.health')} icon="meter.health" value={totalHp(bodyParts)} max={totalMaxHp(bodyParts)} />
           <VitalMeter label={t('ui.condition.energy')} icon="meter.energy" value={meters.energy} hint={meterModifiers('energy', meters, locale).map((m) => m.text).join('\n')} />
           <VitalMeter label={t('ui.dock.food')} icon="meter.hunger" value={meters.hunger} hint={meterModifiers('hunger', meters, locale).map((m) => m.text).join('\n')} />
           <VitalMeter label={t('ui.dock.water')} icon="meter.thirst" value={meters.thirst} hint={meterModifiers('thirst', meters, locale).map((m) => m.text).join('\n')} />
         </div>
-        {(needsCare || heavy) && (
-          <div className="mt-2.5 flex flex-wrap gap-1.5 border-t border-white/10 pt-2" aria-live="polite">
-            {needsCare && (
-              <button type="button" onClick={() => setSection('condition')} className="rounded border border-hiss/40 px-2 py-1 text-label text-hiss hover:bg-hiss/10">
-                <Icon name={major || minor ? 'status.bleeding' : 'action.status'} />{' '}
-                {conditionSummary}
-              </button>
-            )}
-            {heavy && (
-              <button type="button" onClick={() => setSection('backpack')} className="rounded border border-hiss/40 px-2 py-1 text-label text-hiss hover:bg-hiss/10">
-                <Icon name="meta.weight" /> {loadTierLabel(load, t)}
-              </button>
-            )}
+        {(needsCare || (heavy && !packOpen)) && (
+          <div className="mt-2 flex flex-wrap gap-1.5 border-t border-white/10 pt-2" aria-live="polite">
+            {needsCare && <button type="button" onClick={() => {
+              setBodyOpen(true);
+              bodyRef.current?.scrollIntoView({ block: 'nearest' });
+            }} className="min-h-8 rounded border border-hiss/40 px-2 py-1 text-label text-hiss hover:bg-hiss/10">
+              <Icon name={major || minor ? 'status.bleeding' : 'action.status'} />{' '}
+              {[careLabel, infectionLabel].filter(Boolean).join(' · ')}
+            </button>}
+            {heavy && !packOpen && <button type="button" onClick={() => {
+              setPackOpen(true);
+              packRef.current?.scrollIntoView({ block: 'nearest' });
+            }} className="min-h-8 rounded border border-hiss/40 px-2 py-1 text-label text-hiss hover:bg-hiss/10">
+              <Icon name="meta.weight" /> {loadTierLabel(load, t)}
+            </button>}
           </div>
         )}
       </section>
-
-      <nav aria-label={t('ui.dock.tools')} className="grid grid-cols-5 gap-0.5 rounded-lg border border-white/15 bg-black/20 p-1">
-        {sectionButton('condition', 'action.status', needsCare)}
-        {sectionButton('backpack', 'action.inventory', heavy)}
+      <nav aria-label={t('ui.dock.tools')} className="grid grid-cols-3 gap-1">
         <button type="button" onClick={() => onPanelChange(sidePanel === 'inventory' ? null : 'inventory')} aria-expanded={sidePanel === 'inventory'} aria-keyshortcuts={hotkeys.inventory} className={trayClass(sidePanel === 'inventory')} {...tip(t('ui.hud.hotkey', { label: t('ui.phone.stash'), key: hotkeys.inventory }))}>
-          <Icon name="action.stash" size={18} />
-          <span>{t('ui.phone.stash')}</span>
+          <Icon name="action.stash" size={18} /><span>{t('ui.phone.stash')}</span>
         </button>
         <button type="button" onClick={() => onPanelChange(sidePanel === 'craft' ? null : 'craft')} aria-expanded={sidePanel === 'craft'} aria-keyshortcuts={hotkeys.craft} className={trayClass(sidePanel === 'craft')} {...tip(t('ui.hud.hotkey', { label: t('ui.phone.craft'), key: hotkeys.craft }))}>
-          <Icon name="action.craft" size={18} />
-          <span>{t('ui.phone.craft')}</span>
+          <Icon name="action.craft" size={18} /><span>{t('ui.phone.craft')}</span>
         </button>
-        {sectionButton('more', null)}
+        <button ref={moreButton} type="button" onClick={() => setMoreOpen(!moreOpen)} aria-expanded={moreOpen} aria-controls="survivor-dock-more" className={trayClass(moreOpen)}>
+          <span aria-hidden>•••</span><span>{t('ui.dock.more')}</span>
+        </button>
       </nav>
-      <div id="survivor-dock-details" hidden={!visible}>
-        {visible && (
-          <>
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <span className="text-label uppercase text-white/50">{sectionLabel(visible)}</span>
-              <button type="button" onClick={close} className="rounded px-2 py-1 text-label text-white/60 hover:bg-white/5 hover:text-white">
-                {t('ui.hud.collapse')} <span aria-hidden>⌃</span>
-              </button>
-            </div>
-            {visible === 'condition' && <ConditionPanel onOpenGuide={onOpenGuide} showSurvivorStats={false} showMeters={false} />}
-            {visible === 'backpack' && <InventoryPanel layout="backpack" />}
-            {visible === 'more' && tools}
-          </>
-        )}
+      {moreOpen && <div id="survivor-dock-more">{tools}</div>}
+      <div ref={bodyRef} id="survivor-dock-body" className="scroll-mt-36">
+        <ConditionPanel onOpenGuide={onOpenGuide} showSurvivorStats={false} showMeters={false}
+          compact collapsed={!bodyOpen}
+          onToggle={() => setBodyOpen(!bodyOpen)} />
+      </div>
+      <div ref={packRef} id="survivor-dock-pack" className="scroll-mt-36 rounded-lg border border-white/15 bg-black/15 p-2.5">
+        <InventoryPanel layout="backpack" collapsed={!packOpen}
+          onToggle={() => setPackOpen(!packOpen)} />
       </div>
     </div>
   );

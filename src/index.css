@@ -91,6 +91,11 @@ select optgroup {
 }
 
 /* thin scrollbars */
+body:has([data-dock-resizing='true']) * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+
 * {
   scrollbar-width: thin;
   scrollbar-color: #3a3a3c transparent;
@@ -1880,4 +1885,104 @@ select optgroup {
 .vital-delta {
   display: inline-block;
   animation: vital-delta 1.6s ease-out 1 forwards;
+}
+
+/* Home screen backdrop (components/MenuBackdrop.tsx). Everything that moves
+   here is transform or opacity, so the map itself never re-renders for it. */
+.menu-map {
+  opacity: 0;
+  transition: opacity 1100ms ease;
+  transform-origin: 50% 60%;
+  will-change: transform, opacity;
+}
+.menu-map.menu-map--shown {
+  opacity: 0.95;
+}
+.menu-map.menu-map--drift {
+  animation: menu-drift 24s linear both;
+}
+@keyframes menu-drift {
+  from {
+    transform: scale(1.04) translate3d(0, 0, 0);
+  }
+  to {
+    transform: scale(1.16) translate3d(-1.5%, -1%, 0);
+  }
+}
+.menu-map .maplibregl-ctrl-attrib {
+  opacity: 0.5;
+}
+.menu-fog {
+  position: absolute;
+  inset: -20%;
+  background:
+    radial-gradient(40% 30% at 25% 70%, rgba(150, 160, 170, 0.12), transparent 70%),
+    radial-gradient(45% 25% at 75% 35%, rgba(150, 160, 170, 0.1), transparent 70%),
+    radial-gradient(60% 30% at 50% 100%, rgba(120, 130, 140, 0.14), transparent 70%);
+}
+.menu-fog--drift {
+  animation: menu-fog 40s ease-in-out infinite alternate;
+  will-change: transform;
+}
+@keyframes menu-fog {
+  from {
+    transform: translate3d(-4%, 0, 0);
+  }
+  to {
+    transform: translate3d(4%, -2%, 0);
+  }
+}
+.menu-dim {
+  background:
+    radial-gradient(ellipse 34rem 120% at 50% 45%, rgba(8, 9, 11, 0.82), rgba(8, 9, 11, 0.45) 70%, transparent),
+    linear-gradient(to bottom, rgba(8, 9, 11, 0.55), rgba(8, 9, 11, 0.15) 35%, rgba(8, 9, 11, 0.6));
+}
+@media (max-width: 640px) {
+  .menu-dim {
+    background: linear-gradient(to bottom, rgba(8, 9, 11, 0.35), rgba(8, 9, 11, 0.62) 30%, rgba(8, 9, 11, 0.74));
+  }
+}
+
+@keyframes item-pin-progress {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+/* Body care stays quiet between actions; only the brief confirmation moves. */
+.care-action {
+  transition: background-color 140ms ease, outline-color 140ms ease;
+}
+.care-action:not(:disabled):hover {
+  background-color: rgba(255, 255, 255, 0.06);
+}
+.care-action:focus-visible {
+  outline: 2px solid #7fd0cb;
+  outline-offset: 2px;
+}
+.care-body-feedback {
+  animation: care-body-feedback 2.6s ease-out both;
+}
+.care-result {
+  animation: care-result 180ms ease-out both;
+}
+@keyframes care-body-feedback {
+  0%, 18% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes care-result {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .care-action,
+  .care-doll path,
+  .care-overview * {
+    transition: none;
+  }
+  .care-body-feedback,
+  .care-result,
+  .care-doll .pulse-danger,
+  .care-overview .pulse-danger {
+    animation: none;
+  }
 }

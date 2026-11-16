@@ -11,6 +11,11 @@ seed, so no two survivors face the same city.
 **Status:** feature-rich and fully playable on desktop and mobile — crafting, faction trade, HDB
 cutaways, tunnel runs, extraction, and an in-game guide are all implemented end to end.
 
+**Experimental co-op:** this branch includes private expeditions for up to four players across Singapore,
+with independent survivors, shared exploration and finite loot. Some advanced solo systems remain separate.
+Choose **Online co-op prototype** on the menu. See [TECH_STACK.md](TECH_STACK.md#experimental-online-co-op-prototype)
+for setup and [GAME_DESIGN.md](GAME_DESIGN.md#co-op-prototype-experimental-branch) for prototype rules.
+
 <!-- screenshot: drop a gameplay capture here -->
 
 ---
@@ -104,7 +109,7 @@ src/
   i18n/        message catalogs and the t / useT helpers
   icons/       icon registry (emoji fallbacks, drop-in PNGs)
   api/         same-origin worldwide score client
-worker/        Cloudflare Worker — GET/POST /api/scores → D1
+worker/        Cloudflare Worker — solo scores/runs → D1; co-op rooms → Durable Objects
 public/        pre-baked map data (pois, mrt, zones, towns) — committed, so runs work offline
 scripts/       manual bake scripts for refreshing map data
 ```
@@ -118,8 +123,9 @@ given seed, forked per system, and testable without a DOM. No React, no `fetch`,
 ## Stack
 
 React 19 · TypeScript 6 (strict) · Vite 8 · Zustand 5 · MapLibre GL (2D/3D) · Tailwind 3 ·
-oxlint · Vitest · Cloudflare Workers + D1. Run state is localStorage; the only runtime API is
-same-origin `/api/scores`.
+oxlint · Vitest · Cloudflare Workers + D1 + Durable Objects. Solo run state is localStorage;
+same-origin `/api/scores` and `/api/runs` support the board. The experimental co-op mode uses
+`/api/coop` and server-owned room state.
 
 ---
 

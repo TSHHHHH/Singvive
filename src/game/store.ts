@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type {
   AttributeKey,
+  BodyPartId,
   BodyParts,
   Character,
   CombatState,
@@ -160,6 +161,7 @@ import {
   TEAR_RAGS_YIELD,
   repair as repairInstance,
   syncBackpackBonuses,
+  refitBackpack,
   TEMP_STASH,
   slotForZone,
   spoil,
@@ -445,6 +447,7 @@ import {
   freshActivity, normalizeActivity, pruneActivity, respondActivity, type ActivityState,
 } from './activity';
 import { t } from '../i18n/t';
+import { applyCare, canCareWithItem, careForItem, chooseCareTarget, CARE_MINUTES, recoverySupportMultiplier, type CareAction } from './woundCare';
 import { activeLocale } from './eventCopy';
 import {
   GHOST_RADIUS,
@@ -600,6 +603,8 @@ interface State {
   maxHp: number; // base max HP; effective max is reduced by injuries
   meters: Meters;
   bodyParts: BodyParts;
+  /** Ephemeral feedback; wound state itself is saved in bodyParts. */
+  lastCare: { partId: BodyPartId; action: CareAction; sequence: number } | null;
   day: number;
   hour: number;
 
@@ -810,7 +815,7 @@ interface State {
   /** The player's own encounter modifiers on a crossing (same sum the road / trek roll uses). */
   peekRouteEncounterMod: (band: TimeOfDay) => number;
   /** Eat / drink / bandage / load ammo / etc. Named applyItem so oxlint doesn't treat it as a Hook. */
-  applyItem: (uid: string) => void;
+  applyItem: (uid: string, partId?: BodyPartId) => void;
   moveItem: (uid: string, container: string, x: number, y: number, rotated: boolean) => boolean;
   rotateItem: (uid: string) => void;
   transferItem: (uid: string, toContainer: string) => void;
@@ -1552,6 +1557,7 @@ export const useGame = create<State>((set, get) => {
       selfStopDisabled: hasTraitFlag(traitIds, 'bleedingSelfStopDisabled'),
       legHealMod: sumTraitMod(traitIds, 'legHealMod') + skillPackage().legHealMod,
       bleedStopBonus: sumTraitMod(traitIds, 'bleedStopBonus') + skillPackage().bleedStopBonus,
+      careRecoveryMult: 1 + (sumTraitMod(traitIds, 'healBonus') + skillPackage().healBonus) / 100,
     };
   };
 
@@ -1606,6 +1612,9 @@ export const useGame = create<State>((set, get) => {
         s.meters.hunger,
         injury.legHealMod,
         injury.bleedStopBonus,
+        // Unplanned sleeping paths are protected service beds/camps. Ordinary
+        // rest passes its condition-specific recovery through the planned result.
+        recoverySupportMultiplier(s.meters.thirst, sleeping ? 1 : 0) * injury.careRecoveryMult,
       );
       partsAfterSystemic = tickSystemicDamage(bodyParts, s.meters, hours);
       meters = tickMeters(s.meters, hours, {
@@ -3770,6 +3779,7 @@ export const useGame = create<State>((set, get) => {
     maxHp: 100,
     meters: initialMeters(),
     bodyParts: initialBodyParts(100),
+    lastCare: null,
     day: 1,
     hour: START_HOUR,
     items: [],
@@ -3830,6 +3840,7 @@ export const useGame = create<State>((set, get) => {
         maxHp,
         meters: initialMeters(),
         bodyParts: initialBodyParts(maxHp),
+        lastCare: null,
         phase: 'spawn',
         day: 1,
         hour: START_HOUR,
@@ -5676,7 +5687,7 @@ export const useGame = create<State>((set, get) => {
     },
     peekRouteEncounterMod: (band) => routeEncounterMod(get(), band),
 
-    applyItem: (uid) => {
+    applyItem: (uid, partId) => {
       const s = get();
       // Fights are committed — no mid-swing bandages from the pack.
       if (s.combat && !s.combat.over) {
@@ -5686,14 +5697,37 @@ export const useGame = create<State>((set, get) => {
       const inst = s.items.find((i) => i.uid === uid);
       if (!inst) return;
       const def = itemDef(inst.defId);
-      const healBonus = sumTraitMod(s.character!.traitIds, 'healBonus') + skillPackage().healBonus;
+      const care = careForItem(def.id);
+      if (care) {
+        if (s.phase !== 'game' || !s.character || s.travelAnim || s.pendingEvent || s.pendingSearch) return;
+        if (!isCarried(inst.container) && inst.container !== TEMP_STASH &&
+            (inst.container !== s.currentPositionId || s.tunnel)) return;
+        const target = partId ?? chooseCareTarget(s.bodyParts, care);
+        if (!target || !canCareWithItem(s.bodyParts[target], def.id)) return;
+        let parts = applyCare(s.bodyParts, target, care);
+        if (parts === s.bodyParts) return;
+        if (def.id === 'improvised_bandage') {
+          parts = { ...parts, [target]: { ...parts[target], dirty: true, dressing: 'soiled' } };
+        }
+        const uses = inst.careUses ?? 3;
+        const items = def.id === 'medkit' && uses > 1
+          ? s.items.map(i => i.uid === uid ? { ...i, careUses: uses - 1 } : i)
+          : consumeOne(s.items, uid);
+        set({ bodyParts: parts, items,
+          lastCare: { partId: target, action: care, sequence: (s.lastCare?.sequence ?? 0) + 1 } });
+        applyPracticeXp('medicine', PRACTICE_XP.healUse);
+        pushLog(t(`ui.care.result.${care}`, { part: t(`ui.body.parts.${target}`) }), 'good');
+        advanceTime(CARE_MINUTES[care] / 60);
+        persist();
+        return;
+      }
       // Freshness pays. A wilting packet still feeds, just not as much — and the
       // log says so, so the player learns to eat the old stuff first.
       const fresh = (base: number) => scaledRestore(inst, base);
       const faded = hasCondition(inst) && consumableScale(inst) < 1;
       const foodEffectMod = sumTraitMod(s.character!.traitIds, 'foodEffectMod');
       const m = { ...s.meters };
-      let newBodyParts = s.bodyParts;
+      const newBodyParts = s.bodyParts;
       let consumed = false;
       // Spoiled food still feeds you — it just asks for something back.
       let spoiledInfection = 0;
@@ -5736,32 +5770,8 @@ export const useGame = create<State>((set, get) => {
           break;
         }
         case 'heal': {
-          const healAmt =
-            fresh((effect.partHeal ?? 0) + (effect.health ?? 0)) + healBonus;
-          newBodyParts = treatInjuries(
-            s.bodyParts,
-            healAmt,
-            effect.stopsBleeding,
-            def.id === 'splint',
-          );
-          // A dirty dressing buys you the bleed and charges you the infection.
-          // The Polyclinic Nurse's training takes most of that sting out.
-          const risk = effect.infectionRisk ?? 0;
-          if (risk > 0) {
-            const resist = sumTraitMod(s.character!.traitIds, 'infectionResist') + skillPackage().infectionResist;
-            m.infection = clampMeter(m.infection + risk * (1 - resist));
-          }
-          applyPracticeXp('medicine', PRACTICE_XP.healUse);
-          consumed = true;
-          pushLog(
-            effect.stopsBleeding
-              ? risk > 0
-                ? `Bound the wound with ${def.name}. Bleeding stopped — it is not clean.`
-                : `Used ${def.name}. Bleeding stopped, wound dressed.`
-              : `Used ${def.name}. Patched up.`,
-            risk > 0 ? 'info' : 'good',
-          );
-          break;
+          // Medical items need a care action; they never grant instant HP.
+          return;
         }
         case 'cure':
           m.infection = clampMeter(m.infection - fresh(effect.infection));
@@ -7740,11 +7750,12 @@ export const useGame = create<State>((set, get) => {
         currentPos: run.currentPos,
         equipment: coerceEquipment(run.equipment),
         bodyParts: migrateBodyParts(run.bodyParts, run.maxHp),
+        lastCare: null,
         meters: migrateMeters(run.meters as Meters & { health?: number }),
         maxHp: run.maxHp,
         day: run.day,
         hour: run.hour,
-        items: run.items,
+        items: refitBackpack(run.items),
         clothingTears: run.clothingTears ?? OWN_CLOTHES_TEARS,
         kills: run.kills,
         stats: normalizeRunStats(run.stats),

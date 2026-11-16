@@ -1,4 +1,5 @@
 import { itemDef } from '../../game/loot';
+import { careForItem, CARE_MINUTES } from '../../game/woundCare';
 import { effectiveDamage, equipDefenseBonus, scaledRestore, preparedEffect } from '../../game/inventory';
 import { weaponSpeedFactor } from '../../game/combat';
 import { packGridUsableCount, resolveItemPackGrid } from '../../game/packGrid';
@@ -291,9 +292,15 @@ export function itemStatLines(
         if (e.energy != null) lines.push(line('en', t('ui.stats.energy'), restore(e.energy)));
         break;
       case 'heal':
-        lines.push(
-          line('hp', t('ui.stats.heal'), t('ui.stats.healHp', { n: scaledRestore(inst, e.health) })),
-        );
+        {
+          const care = careForItem(def.id);
+          if (care) {
+            lines.push(line('hp', t(`ui.care.action.${care}`), t(`ui.care.effect.${care}`)));
+            lines.push(line('hp', t('ui.care.time'), t('ui.care.minutes', { n: CARE_MINUTES[care] })));
+            if (def.id === 'medkit') lines.push(line('hp', t('ui.care.uses'), `${inst.careUses ?? 3}`));
+            if (def.id === 'improvised_bandage') lines.push(line('hp', t('ui.care.dirty'), t('ui.care.dirtyHint')));
+          }
+        }
         break;
       case 'cure':
         lines.push(line('inf', t('ui.stats.cure'), `−${scaledRestore(inst, e.infection)}`));

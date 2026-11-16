@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type CSSProperties } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useGame } from '../game/store';
 import { GameMap } from '../components/GameMap';
@@ -12,6 +12,8 @@ import {
 } from '../game/mrt';
 import { ConditionPanel } from '../components/ConditionPanel';
 import { SurvivorDock } from '../components/SurvivorDock';
+import { DockResizeHandle } from '../components/DockResizeHandle';
+import { useDockWidth } from '../components/useDockWidth';
 import { StatsPanel } from '../components/StatsPanel';
 import { SkillsPanel } from '../components/SkillsPanel';
 import { LogPanel } from '../components/LogPanel';
@@ -204,8 +206,6 @@ const railHotkey = (id: RailKey): string => RAIL_HOTKEYS[RAIL_KEYS.indexOf(id)];
 /** Gap between HUD pieces, and between them and the screen edge, px. */
 const HUD_GAP = 12;
 const HUD_EDGE = 16;
-/** Desktop survivor rail width, px (matches `lg:w-[408px]`). */
-const RAIL_W = 408;
 const SLIDE_OUT_W = 360;
 const INSPECTOR_W = 352;
 /** Bottom-anchored desktop HUD clears MapLibre's ~24px attribution bar, px. */
@@ -911,7 +911,9 @@ export function GameScreen() {
     setActivityFocus((previous) => ({ id, nonce: (previous?.nonce ?? 0) + 1 }));
   };
   const tlW = hdb ? Math.round(Math.max(320, Math.min(520, vw * 0.27))) : timelineWidth(vw);
-  const mapW = vw - RAIL_W;
+  const dockSizing = useDockWidth(vw);
+  const railW = dockSizing.width;
+  const mapW = vw - railW;
   // Preserve the pin preference, but let idle history compact while a tool
   // needs the space. Live decisions still take priority over browsing panels.
   const timelineFits = isPhone || !sidePanel || mapW >= SLIDE_OUT_W + INSPECTOR_W + tlW + HUD_EDGE * 2 + HUD_GAP;
@@ -1199,7 +1201,7 @@ export function GameScreen() {
     const bottom = (pairH > 0 ? pairH + HUD_GAP : 0) + HUD_BOTTOM;
     const left = HUD_EDGE + panelInset;
     let right = HUD_EDGE + (timelineBeside ? tlW : TICKER_W) + HUD_GAP;
-    if (vw - RAIL_W - left - right < HDB_MIN_W && !timelineBeside) {
+    if (vw - railW - left - right < HDB_MIN_W && !timelineBeside) {
       // The ticker now floats over the strips' column: start the dock below
       // its header button so Leave is never under it.
       right = HUD_EDGE;
@@ -1357,7 +1359,7 @@ export function GameScreen() {
   return (
     <InventoryInteractionProvider>
     {/* data-combat-shake-root: CombatFx shakes this on desktop hits. */}
-    <div className={shellClass} data-combat-shake-root="">
+    <div className={shellClass} style={{ '--survivor-rail-w': `${railW}px` } as CSSProperties} data-combat-shake-root="">
       <PhoneStatusBar onOpenStatus={() => goToPhoneTab('hub')} weather={weather} onOpenActivity={openActivityTimeline} />
 
       {/* Click map / timeline to dismiss any slide-out. Phone: leave the status
@@ -1379,11 +1381,13 @@ export function GameScreen() {
            slide-out covers the whole screen, so the rail stays below it. */}
       <aside
         data-inventory-zone
-        className={`relative flex-col border-white/10 bg-concrete-900/70 lg:z-[750] lg:flex lg:h-full lg:w-[408px] lg:shrink-0 lg:border-r lg:bg-concrete-900 ${
+        style={{ transitionProperty: 'filter, opacity' }}
+        className={`relative flex-col border-white/10 bg-concrete-900/70 lg:z-[750] lg:flex lg:h-full lg:w-[var(--survivor-rail-w)] lg:shrink-0 lg:border-r lg:bg-concrete-900 ${
           mobileView === 'hub' ? show(true) : 'hidden'
         } lg:flex ${backgrounded}`}
       >
         {/* --- time, day, weather, rest --- */}
+        {!isPhone && <DockResizeHandle {...dockSizing} />}
         <div className="relative z-20 shrink-0 space-y-2 border-b border-white/10 p-2.5">
           <DigitalClock day={day} hour={hour} band={time} />
           <div className="flex items-center justify-between gap-2">
@@ -1405,7 +1409,7 @@ export function GameScreen() {
         </div>
 
         {/* --- who you are and what you're for: scrolls if the rail is short --- */}
-        <div className="min-h-0 flex-1 overflow-y-auto p-2.5">
+        <div className="min-h-0 flex-1 overflow-y-auto p-2.5 lg:[scrollbar-gutter:stable]" data-dock-scroll>
           <div className="space-y-2.5">
             <ObjectiveBar
               compact={!isPhone}
@@ -1485,29 +1489,31 @@ export function GameScreen() {
 
         {/* Desktop map controls; phone keeps these on its map surface. */}
         {!isPhone && (
-          <div className="shrink-0 border-t border-white/10 p-2.5">
-            <div className="mt-1.5 flex justify-end gap-1.5">
-              <button
-                onClick={() => setSetting('mapView3d', view3d ? 'off' : 'on')}
-                aria-pressed={view3d}
-                className={`rounded border px-2.5 text-body transition-colors ${
-                  view3d ? 'border-signal bg-signal/15 text-signal' : 'border-white/15 text-white/70 hover:bg-white/5'
-                }`}
-                {...tip(t('ui.hud.view3dTip'), { label: true })}
-              >
-                3D
-              </button>
-              <button
-                onClick={() => setSetting('railOverlay', showRail ? 'off' : 'on')}
-                aria-pressed={showRail}
-                className={`flex items-center gap-1.5 rounded border px-2.5 text-body transition-colors ${
-                  showRail ? 'border-signal bg-signal/15 text-signal' : 'border-white/15 text-white/70 hover:bg-white/5'
-                }`}
-                {...tip(t('ui.hud.railTip'), { label: true })}
-              >
-                <Icon name="action.mrt" /> {t('ui.hud.railMap')}
-              </button>
+          <div className="flex shrink-0 items-center justify-between gap-2 border-t border-white/10 px-3 py-2" data-dock-map-controls>
+            <div role="group" aria-label={t('ui.dock.mapView')} className="flex items-center gap-0.5 rounded bg-black/30 p-0.5">
+              {(['2D', '3D'] as const).map((mode) => (
+                <button key={mode} type="button"
+                  onClick={() => setSetting('mapView3d', mode === '3D' ? 'on' : 'off')}
+                  aria-pressed={view3d === (mode === '3D')}
+                  className={`min-h-8 min-w-11 rounded px-2.5 text-body transition-colors focus-visible:outline focus-visible:outline-signal ${
+                    view3d === (mode === '3D') ? 'bg-white/10 text-signal shadow-sm' : 'text-white/45 hover:text-white'
+                  }`}
+                  {...tip(t(mode === '3D' ? 'ui.hud.view3dTip' : 'ui.dock.view2dTip'))}
+                >{mode}</button>
+              ))}
             </div>
+            <button
+              type="button"
+              onClick={() => setSetting('railOverlay', showRail ? 'off' : 'on')}
+              aria-pressed={showRail}
+              className={`flex min-h-8 items-center gap-2 rounded px-2 text-body transition-colors focus-visible:outline focus-visible:outline-signal ${
+                showRail ? 'bg-signal/10 text-signal' : 'text-white/50 hover:bg-white/5 hover:text-white'
+              }`}
+              {...tip(t('ui.hud.railTip'), { label: true })}
+            >
+              <Icon name="action.mrt" /> {t('ui.hud.railMap')}
+              <span aria-hidden className={`h-1.5 w-1.5 rounded-full ${showRail ? 'bg-signal' : 'bg-white/20'}`} />
+            </button>
           </div>
         )}
 
@@ -1523,14 +1529,14 @@ export function GameScreen() {
            Phone: sits between the status bar and bottom nav so meters stay
            visible while you eat/drink from inventory. */}
       {/* Craft widens only into spare space, leaving the location actions visible.
-          Closed, it parks its own width plus the 408px rail off the left edge,
+          Closed, it parks its own width plus the responsive rail off the left edge,
           so it slides out from behind the rail instead of fading in on top. */}
       <div
         data-side-panel={sidePanel ?? undefined}
-        className={`absolute left-0 z-[700] w-full transition-[transform,width] duration-200 ease-out max-lg:bottom-[calc(var(--mobile-nav-h)+env(safe-area-inset-bottom,0px))] max-lg:top-[var(--mobile-status-bar-h)] lg:inset-y-0 lg:left-[408px] ${
+        className={`absolute left-0 z-[700] w-full transition-[transform,width] duration-200 ease-out max-lg:bottom-[calc(var(--mobile-nav-h)+env(safe-area-inset-bottom,0px))] max-lg:top-[var(--mobile-status-bar-h)] lg:inset-y-0 lg:left-[var(--survivor-rail-w)] ${
           sidePanel
             ? 'translate-x-0'
-            : 'pointer-events-none -translate-x-full lg:-translate-x-[calc(100%+408px)]'
+            : 'pointer-events-none -translate-x-full lg:-translate-x-[calc(100%+var(--survivor-rail-w))]'
         } ${backgrounded}`}
         style={!isPhone ? { width: slideOutW } : undefined}
       >

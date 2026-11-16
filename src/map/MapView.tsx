@@ -28,6 +28,8 @@ export interface MapViewProps {
   bearing?: number;
   /** Allow rotate / tilt gestures (the 3D run map). 2D maps keep north up. */
   rotate?: boolean;
+  /** False: no gestures at all (a backdrop the UI sits on). Default true. */
+  interactive?: boolean;
   className?: string;
   style?: CSSProperties;
   children?: ReactNode;
@@ -45,6 +47,7 @@ export function MapView({
   maxPitch = 60,
   bearing = 0,
   rotate = false,
+  interactive = true,
   className,
   style,
   children,
@@ -52,7 +55,7 @@ export function MapView({
 }: MapViewProps) {
   const boxRef = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<MlMap | null>(null);
-  const init = useRef({ center, zoom, minZoom, maxZoom, bounds, pitch, maxPitch, bearing, rotate, onLoad });
+  const init = useRef({ center, zoom, minZoom, maxZoom, bounds, pitch, maxPitch, bearing, rotate, interactive, onLoad });
 
   useEffect(() => {
     const box = boxRef.current;
@@ -74,6 +77,7 @@ export function MapView({
             [o.bounds.east, o.bounds.north],
           ]
         : undefined,
+      interactive: o.interactive,
       dragRotate: o.rotate,
       pitchWithRotate: o.rotate,
       touchPitch: o.rotate,

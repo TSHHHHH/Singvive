@@ -17,6 +17,66 @@
 
 ## 1. Vision
 
+### Co-op prototype (experimental branch)
+
+The menu's **Online co-op prototype** opens a separate expedition across Singapore.
+Up to four survivors join with an invite code and act independently. The host chooses
+Bishan, Tampines, Jurong East, Woodlands or Chinatown; each survivor chooses an occupation.
+One real second represents one game minute. Surface journeys use validated land routes
+in hops up to 1.2 km, with duration determined by distance, equipment, injuries and weather.
+Free-ground waypoints allow crossing beyond known POIs. Exploration is shared with the squad;
+live cache and enemy information depends on the viewer's current sight. Old saved schematic
+rooms keep their original four-site rules.
+
+Each survivor carries real items and equipment and has independent hunger, hydration,
+energy, infection, body injuries and skills. Searching takes 15 seconds and reserves one
+finite search; the resulting items go into the shared cache. Pickup and nearby transfers
+are serialized by the server. Field crafting reserves ingredients and produces its output
+when the action finishes; cancellation refunds reserved ingredients. Rest lasts 240 seconds
+and may be cancelled. Wound treatment and rescue use actual medical supplies. Travel,
+searching, combat, medicine and crafting grant practice through the solo skill rules.
+
+Reaching an MRT station reveals adjacent tunnel exits from the committed rail network.
+Tunnel travel is on foot, costs 1.5 times the walking duration, and reveals surface sites
+only at its endpoint. Faction ownership is seeded metadata; faction services are not yet
+available in co-op.
+
+HDB void decks support a shared generated block layout with independent survivor positions.
+Open landings and open/half-open searchable units are accessible through timed stairs and
+door actions. Unit caches, traps and enemies persist across visits; teammates must reach
+the same room to trade or rescue. Locked/barricaded doors, roof access, heat/hunting,
+NPC services and room intelligence remain unavailable in this first interior pass.
+
+The server owns the shared clock, finite caches and encounter outcomes. Anyone can pause;
+all connected participants ready up for a three-second resume countdown. A disconnect
+pauses the room for a 15-second reconnect grace period; remaining players may then ready
+up and continue. The absent survivor remains exposed if play resumes. An empty room stays
+paused. Paused players can inspect state but cannot perform gameplay actions.
+
+First arrivals can trigger seeded shared encounters. Survivors at the same site explicitly join attacks,
+choose a stance or flee; the enemy can attack any exposed active survivor at that site.
+Combat currently resolves in two-second beats using melee equipment, body protection and
+skills. Firearms fall back to unarmed attacks; ammunition-based shooting and the solo
+combat gauge are not integrated. Flee retreats along a valid previous journey.
+Downed survivors have 30 simulation seconds for a nearby teammate to complete a five-second
+rescue. The rescuer needs a medical charge, spent only on success; damage interrupts rescue.
+Rescue restores 30% of each body part's maximum HP, stops bleeding and leaves crippling injuries.
+It provides a small survival-meter floor so a rescued survivor can act. If everyone is down,
+there is no rescuer and the expedition ends. Expiry takes precedence over a rescue completing
+at exactly the same instant.
+
+Dead survivors leave supplies at their location. They can return as a fresh survivor only
+while another active survivor waits idle at the rendezvous. Replacements receive no supplies.
+Extraction is individual and extracted seats cannot return. When nobody remains active,
+remaining downed survivors die and the room ends. This prototype does not submit solo scores.
+Rooms and reconnect credentials are separate from solo saves; server rooms expire after
+24 hours without a successful join, connection or sequenced command.
+
+The island expansion is not complete solo-system parity. Advanced faction services,
+firearms, book study, intelligence chains, world facilities, horde-driven timed extraction
+and solo scoring remain separate. Co-op extraction uses a seeded destination and five-second
+boarding; each survivor may board independently.
+
 You wake up in a fallen Singapore. Supplies run low, night makes the streets dangerous, and nearby
 **noise** can draw trouble. Knowing nothing of what's around you, you push out into the fog,
 chart real places by walking to them, scavenge what you can carry, and manage a failing body until it
@@ -263,10 +323,18 @@ ground for rest; landmarks are not selected as guaranteed indoor spawn shelters.
   - **Arms are handed:** right = weapon accuracy, left = guard / off-hand block & free-hand tempo.
   - **Head** wounds tax attack accuracy, search speed, and awareness.
   - **Torso** wounds raise energy drain and cut carry capacity.
-  - **Crippled** limbs (0 HP without proper treatment) cap passive heal at 70% until splinted/cleared.
+  - **Crippled** limbs (0 HP) remain impaired during recovery; care supports recovery without an obligatory treatment sequence.
   - **Passive regen** when stable — but **major bleeding blocks regen** until you bandage it.
-- **Treatment:** bandage (stops one bleed + dresses a wound), medkit (stops all bleeds + big heal),
-  painkillers (HP only), antibiotics/antiseptic (infection), splint (clears fracture).
+- **Wound care:** treatment stabilizes, time heals. Bruises, cuts and deep wounds recover at different rates. Dirty wounds still heal, at 65% of their clean rate; cleaning is optional and independent of dressing. Hunger, hydration, sleep conditions and Medicine/medical traits influence recovery. No medical item grants instant limb HP.
+  - **Bandage / plasters:** dress the chosen part and stop its bleeding (3 minutes). Cleaning is not a prerequisite. An improvised dressing controls bleeding but leaves the wound dirty and the dressing soiled; repeating it after bleeding stops provides no benefit and does not spend supplies.
+  - **Antiseptic:** clean the chosen wound (5 minutes), without stopping bleeding or changing systemic infection.
+  - **Painkillers / Tiger Balm:** temporary relief on the chosen part (1 minute, 4 game hours of relief); ease soft-tissue functional penalties without restoring HP or removing structural injuries.
+  - **Splint:** support a fracture (10 minutes); it still heals gradually. Unsupported fractures also recover, more slowly. Baseline fracture recovery is 72 supported equivalent hours, modified by recovery conditions.
+  - **First-aid kit:** three targeted care charges; each cleans, dresses, relieves pain and supports a fracture on one part (8 minutes). The smaller **IFAK pouch** provides one such treatment. No instant HP gain or fracture cure.
+  - **Vitamin C:** optional recovery support (1 minute), giving currently injured parts 25% faster gradual recovery for 8 game hours. Existing support does not stack or refresh. This is a gameplay abstraction, not an instant heal.
+  - **Dressings:** clean dressings modestly support recovery; after 12 game hours they become soiled and slow recovery. Replacement is optional. New trauma can soil the dressing and reopen a wound. No recurring random bleed simply for skipping maintenance.
+  - **Antibiotics / Po Chai Pills:** retain their separate systemic infection effects. Dirt is a local healing penalty, not another lethal infection meter.
+  - **Interface:** the existing Body panel shows injuries and independent care actions without an inspection step. The medical silhouette retains wound marks, dressings and splints; treatment briefly highlights the affected part. Healthy parts stay quiet. Inventory use selects an eligible part automatically; Body actions target explicitly. Care spends game time and carried/accessible supplies, and is unavailable during combat, travel or an unresolved action.
 - **Teaching:** How-to-play includes a **Body** topic; first meaningful injury shows a one-shot coach
   (settings flag `limbCoachSeen`).
 - Death causes: overwhelmed (HP 0), starvation, dehydration, infection, fatal head/torso wound.

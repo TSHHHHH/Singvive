@@ -22,6 +22,7 @@ import {
   maxCarry,
   LOOSE_WEIGHT_MULT,
   packGridForBag,
+  refitBackpack,
   syncBackpackBonuses,
 } from './inventory';
 import { applyStrainInjury, initialBodyParts } from './survival';
@@ -45,8 +46,8 @@ const withBag = (bagId: string): Equipment => ({
 });
 
 /** Fill the pockets until the grid refuses another power bank (1×1, no stacking). */
-function fullPockets(): ItemInstance[] {
-  syncBackpackBonuses(0, emptyEquipment());
+function fullPockets(bag?: string): ItemInstance[] {
+  syncBackpackBonuses(0, bag ? withBag(bag) : emptyEquipment());
   let items: ItemInstance[] = [];
   for (let n = 0; n < 40; n++) {
     const r = addToGrid(items, BACKPACK, 'powerbank', 1);
@@ -91,8 +92,18 @@ describe('carried loose', () => {
     expect(carrySlot([], itemDef('canned_food')).container).toBe(BACKPACK);
   });
 
+  it('refits a saved pack that no longer fits the pockets', () => {
+    const items = fullPockets('hiking_pack');
+    syncBackpackBonuses(0, emptyEquipment());
+    const out = refitBackpack(items);
+    expect(out).toHaveLength(items.length);
+    expect(out.some((i) => i.container === LOOSE)).toBe(true);
+    expect(refitBackpack(out)).toBe(out);
+  });
+
   it('a smaller bag spills to loose rather than refusing', () => {
-    const items = fullPockets();
+    const items = fullPockets('hiking_pack');
+    syncBackpackBonuses(0, emptyEquipment());
     const tote = packGridForBag(0, inst('grocery_tote', 'equip:bag'));
     const out = arrangeOrLoose(tote, items);
     expect(out).toHaveLength(items.length);

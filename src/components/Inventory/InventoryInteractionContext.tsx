@@ -29,6 +29,7 @@ import { useCoarsePointer } from '../TipHint';
 import { useIsPhoneLayout } from '../useIsPhoneLayout';
 import { HOVER_DELAY_MS, LONG_PRESS_MS } from '../tips';
 import { CELL, type DragPreview } from './InventoryGrid';
+import { dropCell } from './gridMetrics';
 import { EQUIP_SLOTS } from './equipSlots';
 import { isConsumableUsable } from './itemStatLines';
 import { ItemHoverCard } from './ItemHoverCard';
@@ -77,6 +78,7 @@ interface DragState {
   pointerId: number;
   grabDX: number;
   grabDY: number;
+  cellSize: number;
   rotated: boolean;
   clientX: number;
   clientY: number;
@@ -84,6 +86,7 @@ interface DragState {
 }
 
 const DRAG_THRESHOLD_PX = 6;
+const HOVER_PIN_MS = 2000;
 const EMPTY_UIDS: readonly string[] = [];
 
 interface PendingDrag {
@@ -93,6 +96,7 @@ interface PendingDrag {
   startY: number;
   grabDX: number;
   grabDY: number;
+  cellSize: number;
   rotated: boolean;
   el: HTMLElement;
 }
@@ -171,8 +175,7 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
   const isPhone = useIsPhoneLayout();
   const coarse = useCoarsePointer();
   const pcShortcuts = !isPhone && !coarse;
-  /** Coarse + desktop chrome: peek card is the only Use / Equip surface. */
-  const cardActions = coarse && !isPhone;
+  const cardActions = !isPhone;
 
   const [selectedUid, setSelectedUid] = useState<string | null>(null);
   const [multiUids, setMultiUids] = useState<string[]>([]);
@@ -183,6 +186,9 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
   const [discardUids, setDiscardUids] = useState<string[] | null>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
   const [hover, setHover] = useState<HoverTarget | null>(null);
+  const hoverRef = useRef<HoverTarget | null>(null);
+  hoverRef.current = hover;
+  const pinTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [ctxMenu, setCtxMenu] = useState<CtxMenu | null>(null);
   const pendingDrag = useRef<PendingDrag | null>(null);
   const dragRef = useRef<DragState | null>(null);
@@ -280,6 +286,10 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
   };
 
   const clearHoverTimer = () => {
+    if (pinTimer.current) {
+      clearTimeout(pinTimer.current);
+      pinTimer.current = null;
+    }
     if (hoverTimer.current) {
       clearTimeout(hoverTimer.current);
       hoverTimer.current = null;
@@ -299,6 +309,7 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
     hoverUidRef.current = null;
     holdPeekRef.current = null;
     peekLockedRef.current = false;
+    hoverRef.current = null;
     setHover(null);
   }, []);
 
@@ -353,9 +364,10 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
     const { items: liveItems, equipment: liveEq, stashContainer: stash, hasTempStash: temp } =
       liveRef.current;
     const def = itemDef(inst.defId);
+    const underPointer = document.elementFromPoint(clientX, clientY);
     for (const { slot } of EQUIP_SLOTS) {
       const el = slotRefs.current[slot];
-      if (!el) continue;
+      if (!el || !underPointer || !el.contains(underPointer)) continue;
       const r = el.getBoundingClientRect();
       if (clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom) {
         let valid = canEquip(def, slot) && (dragRef.current?.uids.length ?? 1) <= 1;
@@ -364,7 +376,7 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
       }
     }
     const looseEl = gridRefs.current[LOOSE];
-    if (looseEl) {
+    if (looseEl && underPointer && looseEl.contains(underPointer)) {
       const r = looseEl.getBoundingClientRect();
       if (clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom) {
         const { w, h } = footprint(def, rotated);
@@ -389,16 +401,18 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
     ];
     for (const container of grids) {
       const el = gridRefs.current[container];
-      if (!el) continue;
+      if (!el || !el.getClientRects().length) continue;
       const r = el.getBoundingClientRect();
       if (clientX < r.left || clientX > r.right || clientY < r.top || clientY > r.bottom) continue;
+      // Scrolled-out cells and grids behind another surface aren't drop targets.
+      if (!underPointer || !el.contains(underPointer)) continue;
       const dims = dimsFor(container);
       const grabDX = dragRef.current?.grabDX ?? 0;
       const grabDY = dragRef.current?.grabDY ?? 0;
-      let cellX = Math.round((clientX - r.left - grabDX) / CELL);
-      let cellY = Math.round((clientY - r.top - grabDY) / CELL);
-      cellX = Math.max(0, Math.min(dims.w - w, cellX));
-      cellY = Math.max(0, Math.min(dims.h - h, cellY));
+      const targetCell = Number(el.dataset.cellSize) || CELL;
+      const sourceCell = dragRef.current?.cellSize ?? targetCell;
+      const cellX = dropCell(clientX, r.left + el.clientLeft, grabDX, sourceCell, targetCell, dims.w, w);
+      const cellY = dropCell(clientY, r.top + el.clientTop, grabDY, sourceCell, targetCell, dims.h, h);
       const group = dragRef.current?.uids ?? [inst.uid];
       // A group drop auto-places each item, so the exact cell doesn't matter.
       const valid =
@@ -427,6 +441,7 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
       pointerId: pending.pointerId,
       grabDX: pending.grabDX,
       grabDY: pending.grabDY,
+      cellSize: pending.cellSize,
       rotated: pending.rotated,
       clientX,
       clientY,
@@ -472,6 +487,7 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
 
   const onItemPointerDown = useCallback((e: React.PointerEvent, inst: ItemInstance) => {
     if (e.button !== 0) return;
+    dismissHover();
     const live = liveRef.current;
     setCtxMenu(null);
 
@@ -538,14 +554,19 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
     const el = gridRefs.current[inst.container];
     if (!el) return;
     const r = el.getBoundingClientRect();
+    const cellSize = Number(el.dataset.cellSize) || CELL;
+    // Own the gesture from the initial press, even when it begins on artwork.
+    e.preventDefault();
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* detached target */ }
     pendingDrag.current = {
       uid: inst.uid,
       pointerId: e.pointerId,
       startX: e.clientX,
       startY: e.clientY,
       // Loose rows aren't on cells: hold the ghost by its middle instead.
-      grabDX: inst.container === LOOSE ? CELL / 2 : e.clientX - (r.left + inst.x * CELL),
-      grabDY: inst.container === LOOSE ? CELL / 2 : e.clientY - (r.top + inst.y * CELL),
+      grabDX: inst.container === LOOSE ? cellSize / 2 : e.clientX - (r.left + el.clientLeft + inst.x * cellSize),
+      grabDY: inst.container === LOOSE ? cellSize / 2 : e.clientY - (r.top + el.clientTop + inst.y * cellSize),
+      cellSize,
       rotated: inst.rotated,
       el: e.currentTarget as HTMLElement,
     };
@@ -573,7 +594,7 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
     (e: React.PointerEvent, inst: ItemInstance) => {
       if (liveRef.current.coarse) return;
       if (e.pointerType !== 'mouse') return;
-      if (dragRef.current) return;
+      if (dragRef.current || pendingDrag.current || hoverRef.current?.pinned) return;
       clearHoverTimer();
       hoverUidRef.current = inst.uid;
       const { clientX, clientY } = e;
@@ -582,12 +603,19 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
         if (hoverUidRef.current !== inst.uid || dragRef.current) return;
         setHover({ uid: inst.uid, clientX, clientY, el, pinned: false });
       }, HOVER_DELAY_MS);
+      pinTimer.current = setTimeout(() => {
+        if (hoverUidRef.current !== inst.uid || dragRef.current || pendingDrag.current) return;
+        const pinned: HoverTarget = { uid: inst.uid, clientX, clientY, el, pinned: true };
+        hoverRef.current = pinned;
+        setHover(pinned);
+      }, HOVER_PIN_MS);
     },
     [],
   );
 
   const onItemPointerLeave = useCallback((inst: ItemInstance) => {
     if (liveRef.current.coarse) return;
+    if (hoverRef.current?.pinned) return;
     if (hoverUidRef.current === inst.uid) {
       clearHoverTimer();
       hoverUidRef.current = null;
@@ -655,11 +683,29 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
         }
       }
       peekLockedRef.current = false;
+      const current = dragRef.current;
+      const inst = current && liveRef.current.items.find((i) => i.uid === current.uid);
+      if (current && inst && current.pointerId === e.pointerId) {
+        current.target = hitTest(e.clientX, e.clientY, inst, current.rotated);
+      }
       endDrag(e.pointerId);
+    };
+
+    const cancelDrag = () => {
+      pendingDrag.current = null;
+      dragRef.current = null;
+      setDrag(null);
+      dismissHover();
     };
 
     const onKeyDown = (e: KeyboardEvent) => {
       const current = dragRef.current;
+      if (e.key === 'Escape' && (current || pendingDrag.current)) {
+        e.preventDefault();
+        e.stopPropagation();
+        cancelDrag();
+        return;
+      }
       if (!current) {
         if (e.key === 'Escape' && multiRef.current.length) setMultiUids([]);
         return;
@@ -684,13 +730,15 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
 
     window.addEventListener('pointermove', onPointerMove, { passive: false });
     window.addEventListener('pointerup', onPointerUp);
-    window.addEventListener('pointercancel', onPointerUp);
-    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('pointercancel', cancelDrag);
+    window.addEventListener('blur', cancelDrag);
+    window.addEventListener('keydown', onKeyDown, true);
     return () => {
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
-      window.removeEventListener('pointercancel', onPointerUp);
-      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('pointercancel', cancelDrag);
+      window.removeEventListener('blur', cancelDrag);
+      window.removeEventListener('keydown', onKeyDown, true);
       clearHoverTimer();
       clearHoldTimer();
     };
@@ -779,10 +827,29 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
     if (!inst) return null;
     const gDef = itemDef(inst.defId);
     const { w, h } = footprint(gDef, drag.rotated);
-    return { inst, def: gDef, w, h };
+    const targetCell = drag.target?.type === 'grid'
+      ? Number(gridRefs.current[drag.target.container]?.dataset.cellSize) : 0;
+    return { inst, def: gDef, w, h, cell: targetCell || drag.cellSize };
   })();
 
   const hoverInst = hover && !drag ? findInst(hover.uid) : null;
+  useEffect(() => {
+    // A used, transferred, or removed item must not leave an invisible pin lock.
+    if (hover && !drag && (!hoverInst || !hover.el?.isConnected)) dismissHover();
+  }, [hover, hoverInst, drag, dismissHover]);
+
+  useEffect(() => {
+    const onScroll = (e: Event) => {
+      if ((e.target as Element).closest?.('[data-item-peek]')) return;
+      dismissHover();
+    };
+    document.addEventListener('scroll', onScroll, true);
+    window.addEventListener('resize', dismissHover);
+    return () => {
+      document.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('resize', dismissHover);
+    };
+  }, [dismissHover]);
   const discarding = drag?.target?.type === 'discard';
 
   const itemActionsFor = (target: ItemInstance): ContextMenuAction[] => {
@@ -924,7 +991,7 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
   const ctxInst = ctxMenu ? findInst(ctxMenu.uid) : null;
   const ctxActions = ctxInst ? itemActionsFor(ctxInst) : [];
   const peekActions =
-    hoverInst && cardActions
+    hoverInst && cardActions && hover?.pinned
       ? itemActionsFor(hoverInst).map((a) => ({
           ...a,
           onSelect: () => {
@@ -943,10 +1010,10 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
           <div
             className="pointer-events-none fixed z-[900] flex flex-col items-center justify-center rounded opacity-90 shadow-lg"
             style={{
-              left: drag.clientX - drag.grabDX,
-              top: drag.clientY - drag.grabDY,
-              width: dragGhost.w * CELL - 2,
-              height: dragGhost.h * CELL - 2,
+              left: drag.clientX - drag.grabDX / drag.cellSize * dragGhost.cell,
+              top: drag.clientY - drag.grabDY / drag.cellSize * dragGhost.cell,
+              width: dragGhost.w * dragGhost.cell - 2,
+              height: dragGhost.h * dragGhost.cell - 2,
               background: discarding ? '#e0342b88' : `${tileColor(dragGhost.def)}aa`,
               boxShadow: discarding
                 ? 'inset 0 0 0 2px #e0342b'
@@ -955,7 +1022,7 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
           >
             <Icon
               name={itemIcon(dragGhost.def)}
-              size={Math.min(dragGhost.w, dragGhost.h) > 1 ? 26 : 18}
+              size={Math.max(18, Math.min(dragGhost.w, dragGhost.h) * dragGhost.cell - 16)}
               className="drop-shadow"
             />
             {drag.uids.length > 1 && (
@@ -981,6 +1048,7 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
           anchorEl={hover.pinned ? hover.el : null}
           stacked={isPhone}
           actions={peekActions}
+          pinPending={!hover.pinned && !coarse}
           onClose={hover.pinned ? dismissHover : undefined}
         />
       )}

@@ -16,8 +16,8 @@ import {
   type CarriedSort,
 } from './carriedListModel';
 
-const ROW_H = 30;
-const ICON_BOX = 22;
+const ROW_H = 40;
+const ICON_BOX = 32;
 const MAX_VISIBLE_ROWS = 12;
 const PREFS_KEY = 'singvive.carriedList.v1';
 
@@ -278,6 +278,7 @@ export function CarriedList({
               <li key={inst.uid}>
                 <div
                   data-uid={inst.uid}
+                  onDragStart={(e) => e.preventDefault()}
                   onPointerDown={(e) => onItemPointerDown(e, inst)}
                   onDoubleClick={() => onItemDoubleClick?.(inst)}
                   onContextMenu={(e) => onItemContextMenu?.(e, inst)}

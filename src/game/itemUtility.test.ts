@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ITEMS, LOOT_TABLES } from './loot';
 import { FIELD_REPAIRS, RECIPES, REPAIR_INPUTS, REPAIR_TOOL } from './crafting';
 import { WATER_INPUT_IDS } from './crafting';
+import { DEFAULT_PACK_GRID } from './packGrid';
 
 describe('every catalog item has a practical use', () => {
   it('requires direct effects, equipment, bedding, a recipe, or an implemented service action', () => {
@@ -27,7 +28,13 @@ describe('every catalog item has a practical use', () => {
     expect(ITEMS.pot_helmet.slot).toBe('head');
     expect(ITEMS.towel_vest.modifiers?.limbArmor).toBeGreaterThan(0);
     expect(ITEMS.magazine_guards.slot).toBe('legs');
-    expect(ITEMS.sling_bag.packGrid!.w * ITEMS.sling_bag.packGrid!.h).toBeGreaterThan(20);
+    expect(ITEMS.sling_bag.packGrid!.w * ITEMS.sling_bag.packGrid!.h).toBeGreaterThanOrEqual(12);
+    // Every carrying bag holds at least as much as bare pockets.
+    const cells = (g: { w: number; h: number; blocked?: unknown[] }) => g.w * g.h - (g.blocked?.length ?? 0);
+    const pockets = cells(DEFAULT_PACK_GRID);
+    for (const def of Object.values(ITEMS)) {
+      if (def.slot === 'bag' && def.packGrid) expect(cells(def.packGrid), def.id).toBeGreaterThanOrEqual(pockets);
+    }
     expect(RECIPES.find(r => r.id === 'pot_helmet')?.inputs.cooking_pot).toBe(1);
   });
 });

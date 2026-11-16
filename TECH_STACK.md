@@ -8,6 +8,92 @@
 
 ## 1. Architecture
 
+### Experimental online co-op prototype
+
+Open **Online co-op prototype** from the menu, or `/?coop=1` on the Workers build. Create
+a room and share its invite link with up to three others. Each tab stores its own reconnect
+credentials in `sessionStorage`; refreshing restores the seat, but closing the tab may lose
+the credential. Invite links contain only the room code. New rooms use the committed Singapore
+map; existing schematic rooms retain their original rules. The static itch build has no co-op backend.
+
+The prototype UI and current event logs support English and Simplified Chinese. Raw
+client/server diagnostic errors and unrecognized future log messages remain in English.
+
+`src/coop/model.ts` defines the versioned room protocol; `simulation.ts` is the pure deterministic
+simulation and `protocol.ts` validates inbound commands. `client.ts` maintains one outstanding
+sequenced command and reconnects with authoritative snapshots. The co-op entry is loaded
+separately from App and the solo single-instance lock; it never writes `singvive.run.v7`.
+
+The optional `world.version: 1` extension preserves saved schematic rooms. `islandWorld.ts`
+indexes immutable POIs by spatial cell and validates land routes on the server. `islandActions.ts`
+integrates independent survivors using the pure solo inventory, survival, wound-care, crafting
+and skill modules. `worker/islandAssets.ts` loads the versioned POI index, walkability zones
+and MRT network through `ASSETS`; no map bake or external Overpass request runs at room creation.
+Only discovered metadata belongs in room snapshots. Live site caches/enemies are filtered to
+the viewer's current sight. IslandMap uses the existing MapLibre style and fog geometry with
+viewport-culling and a 450-site marker cap.
+
+`islandSystems.ts` validates MRT adjacency from the baked network. `islandBuildings.ts`
+reuses generated HDB floors but stores each survivor in a distinct landing/unit site ID;
+the solo dungeon cursor is never shared. The generated layout lives on its parent location,
+while depletion and enemies live in separate site records. Interior child sites are omitted
+from map markers and only the current room's live interior state is sent to each player.
+
+`worker/coop.ts` routes `/api/coop`, room joins and WebSocket upgrades to one SQLite-backed
+`CoopRoom` Durable Object per code. This is an explicit co-op exception to the browser-only
+solo architecture. The server checks same-origin requests, hashes random seat tokens, caps
+messages, limits command frequency and replaces old connections to the same seat. Room state
+and per-player sequence receipts are written together before acknowledgements. Socket
+attachments identify connections across hibernation. Active rooms advance on two-second
+alarms; paused/lobby/ended rooms schedule only resume or expiry. Downtime longer than 30
+seconds pauses the room rather than resolving an unattended catch-up. All-disconnected rooms
+pause, including after a server restart. Ended/abandoned state expires after 24 hours without
+client activity.
+
+Island location and site records are normalized into `island_objects(kind,id,value)`.
+Persistence compares serialized records and writes only changed rows, atomically with the
+core room and command receipt. Startup hydrates those records before accepting commands.
+The pure simulation remains separate from Worker I/O. Full snapshots and active alarms still
+have a usage cost; this expansion has no large-scale concurrency benchmark yet.
+
+The `COOP_ROOMS` binding and `coop-v1` SQLite migration in `wrangler.jsonc` work with Workers
+Free. D1 remains the solo honor board; prototype results stay in the room. No D1 schema change
+is needed. Regenerate binding declarations after configuration changes:
+
+```bash
+npx wrangler types worker/bindings.d.ts --include-runtime false
+```
+
+Local checks (dev server must be running for the socket smoke test):
+
+```bash
+npm test -- src/coop/simulation.test.ts src/coop/protocol.test.ts
+node scripts/smoke-coop.mjs
+```
+
+For restart coverage, run the smoke test with `COOP_RESTART_CHECK=1`, restart the local dev
+server, then run `node scripts/smoke-coop-restart.mjs`. It compares exploration, live caches,
+individual survivor state and command receipts against a temporary local checkpoint.
+
+`COOP_TEST_ORIGIN` can select another localhost port. The socket test refuses non-local hosts
+and creates disposable rooms. Multiple browser tabs on `/?coop=1` can join the same room.
+Use `npm run dev -- --host 0.0.0.0` only when intentionally testing from other devices on
+your LAN; otherwise the local-only server is sufficient.
+
+Free-plan budgeting: begin with one private room, persist outcomes rather than animation
+frames, and monitor duration plus SQL rows written. Hibernation does not make active simulation
+free. Free-plan quota exhaustion interrupts operations. The multiplayer branch is connected
+to automatic deployment; pushing it updates the test Worker. Broader rollout needs measured
+usage, room-admission controls and more device/network testing.
+
+### Wound care
+
+`src/game/woundCare.ts` owns independent treatment eligibility, targeting and stabilization; `canCareWithItem` prevents wasting supplies such as an improvised dressing on a stable wound. `survival.ts` creates injuries, ages dressings and advances tissue/fracture recovery, splitting at care expiry transitions. `tickInjuries` accepts a recovery multiplier shared by `store.advanceTime` and `restPlan`, including hydration, shelter sleep and medical skill/trait effects. Protected service-bed sleep also receives recovery support. Treatment never directly adds HP.
+
+`applyItem(uid, partId?)` supports explicit Body-panel targets and automatic eligible targets for inventory callers. It validates accessibility and eligibility before consuming supplies, spends game minutes, then schedules the normal debounced save. First-aid kits preserve three uses through `ItemInstance.careUses`. `lastCare` is transient presentation feedback; wound fields and kit uses persist in the existing `singvive.run.v7` format. `migrateBodyParts` supplies care defaults for old saves.
+
+The existing `ConditionPanel` hosts compact care rows and the medical silhouette; only affected parts need controls. Wound state is visible without inspection. There are no new map-parent subscriptions or real-time recovery timers: recovery advances with the game clock.
+
 | Concern | Choice |
 |---|---|
 | Framework | React 19 + TypeScript 6 + Vite 8 |
@@ -146,17 +232,36 @@ remain store actions. Sources and event memory persist under **`singvive.run.v7`
 defaults for existing saves and the existing debounce/flush policy. The global escalation,
 automatic overrun ending and geographic front no longer drive gameplay.
 
-**Desktop HUD (`lg:` and up).** The 408px survivor rail sits down the left edge (clock, weather,
-Rest, a compact `ObjectiveBar`, and `SurvivorDock`). The dock keeps labelled health, energy,
-food and water visible; Condition, Backpack and More start collapsed and open one at a time
-from an icon-and-label tray. Condition reveals limbs and attributes; More holds Logbook,
-Stats, Skills, Timeline, Day logs and Settings. Stash automatically reveals the backpack
-beside the equipment/stash slide-out so drag-and-drop still spans both grids. The dock
-selection is independent of the slide-out: closing Stash or switching to Craft keeps the
-backpack open, and collapsing a dock section leaves the slide-out open. Bleeding,
-injuries, infection and heavy load remain visible as clickable warnings even with details
-collapsed. Escape collapses rail details after any slide-out is closed. Disclosure state is
-local to the mounted desktop dock; the phone retains its full Condition panel and tabs.
+**Desktop HUD (`lg:` and up).** The survivor rail defaults to 384px (360px below a
+1440px viewport). Players can drag its right edge or focus the separator and use arrow
+keys to resize; Home/End select the limits, and double-click/Enter resets the default.
+The range is 320–560px, capped at 40% of the viewport. The committed preference lives
+in `survivorRailWidth` in the existing settings blob; shrinking the viewport clamps the
+displayed width without overwriting that preference. Escape, blur and pointer cancellation
+cancel an unfinished resize. A stable scrollbar gutter prevents content-width changes
+when sections expand. Its width and all slide-out/map offsets share
+`--survivor-rail-w` and `railW` in `GameScreen`. Clock, weather, Rest and a compact
+`ObjectiveBar` sit above `SurvivorDock`. Labelled health, energy, food and water stick to
+the top of the scrolling content. Body and Backpack start open together, each with one
+compact clickable heading and its own collapse control; Backpack omits cell counts.
+The footer groups 2D/3D as a view selector and keeps the rail overlay as an independent
+toggle. Body shows limbs and attributes; the compact tool
+row opens Stash, Craft or More (Logbook, Stats, Skills, Timeline, Day logs and Settings).
+Stash automatically reveals the backpack beside the equipment/stash slide-out. Closing
+Stash or switching to Craft keeps the backpack open; collapsing a section leaves the
+slide-out open. Bleeding/infection share one clickable summary, and a heavy-load warning
+appears when Backpack is collapsed. Escape dismisses transient details, More or a slide-out;
+it does not collapse the two pinned sections. Disclosure state is local to the mounted
+desktop dock; the phone retains its full Condition panel and tabs.
+
+Backpack cells adapt to the available width between 48–56px, with horizontal scrolling
+for bags wider than the readable minimum; stash/search grids retain their compact sizing.
+Drag coordinates scale the grab offset between source and destination cell sizes. Native
+image drag is disabled, release recomputes the destination, and cancellation/blur/Escape
+abort the gesture without moving or discarding an item. Item hover cards pin after two
+seconds on desktop and then allow crafting-detail expansion and item actions. Close with
+the close button, outside click or Escape; scrolling the source or starting a drag also
+dismisses the card. Touch keeps its hold-to-inspect behavior.
 An `ActivityBadge` beside weather shows Quiet / Stirred / Hunting and opens the timeline. Phone chrome repeats the compact weather/activity pair. Optional incidents use `GameLogEntry.activityEvent` snapshots, rendered by `ActivityEventCard`; outcomes survive replacement, expiry and v7 reloads. The Island front
 control and neighbourhood status wash are removed. A pinned map footer holds the 3D and Rail map toggles.
 The phone keeps those toggles on the map, `showModeToggles`), with panels in the slide-out beside it; the map fills the rest. The rail, slide-out
@@ -853,11 +958,12 @@ determinism, finite facilities, action guards and v7 persistence.
 
 ### Client-side scale pressure
 
-Per `AGENTS.md`: the Worker is scores only, and all scale pressure is in the browser — the WebGL
+For solo gameplay, the Worker handles the score board, and scale pressure is in the browser — the WebGL
 map and its DOM markers, the 3.8 MB `public/pois.json` parse, and localStorage. Land A* and walkability scans are
 the CPU hotspots, not combat resolution. The guardrails that keep this working (viewport
 culling, cached polygon fog, debounced persist, location identity preservation) are listed in
-`AGENTS.md` under "Performance / scale" — read that before touching the map.
+`AGENTS.md` under "Performance / scale" — read that before touching the map. The separate co-op
+prototype uses the server-owned room simulation described above.
 
 Below zoom 14, ordinary POIs use one WebGL circle layer instead of individual DOM
 markers and building outlines. Selecting a dot restores its full badge; the current
