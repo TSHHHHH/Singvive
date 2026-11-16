@@ -6,6 +6,8 @@ import { WeatherFx } from './WeatherFx';
 import { Atmosphere3d } from './Atmosphere3d';
 import type { WeatherDom } from './useAtmosphere';
 import { TimeOfDayFx } from './TimeOfDayFx';
+import { Daylight } from './Daylight';
+import { lightPhase } from '../map/lighting';
 import { poiIcon, identifiedIcon, playerIcon, playerLocationIcon, unknownIcon, evacIcon, dangerColor, rumourIcon, trekTargetIcon, knownFactionColor } from './mapIcons';
 import { POI_CONFIG } from '../game/poi';
 import { haversine } from '../game/overpass';
@@ -904,6 +906,8 @@ interface Props {
   /** today's sky — drives the cosmetic weather overlay only */
   weather: WeatherKind;
   time: TimeOfDay;
+  /** clock hour (0..24): drives the day/night light and shadows, stepped per whole hour */
+  hour: number;
   /** open-ground spot the player is considering crossing to */
   trekTarget: { lat: number; lng: number } | null;
   /** land-aware preview / en-route polyline (null = nothing to draw) */
@@ -1618,6 +1622,7 @@ function GameMapInner({
   pathHazardIds = [],
   weather,
   time,
+  hour,
   trekTarget,
   travelPath,
   travelPathBlocked,
@@ -1639,6 +1644,7 @@ function GameMapInner({
   const reachRadius = useThrottledNumber(ringRange, 80);
   const pathIdSet = useMemo(() => new Set(pathHazardIds), [pathHazardIds]);
   const view3d = useSetting('mapView3d') === 'on';
+  const lighting = useSetting('mapLighting') !== 'off';
   const playerAtSite = !!hereId && !travelAnim;
   const inBlock = useGame((s) => !!s.hdb);
   const [initial] = useState(() => ({
@@ -1700,7 +1706,8 @@ function GameMapInner({
         <CameraChrome target={focusTarget} inset={!(view3d && inBlock)} top={padTop} left={padLeft} right={padRight} bottom={padBottom} />
         <Camera3d on={view3d} />
         {!(view3d && inBlock) && <KeyboardCamera home={home} />}
-        {view3d && <Atmosphere3d kind={weather} time={time} dom={weatherDom} />}
+        {view3d && <Atmosphere3d kind={weather} hour={hour} dom={weatherDom} />}
+        <Daylight hour={hour} weather={weather} view3d={view3d} engine={view3d ? engine : null} />
         <GroundPicker onPick={onPickGround} engine={engine} onSite={selectSite} />
         {/* Soft-cost forest wash — under fog so only explored ground shows green. */}
         <VegetationOverlay />
@@ -1798,8 +1805,8 @@ function GameMapInner({
       )}
 
       {/* ---- the sky, over everything on the map but under the chrome ---- */}
-      <WeatherFx kind={weather} time={time} view3d={view3d} dom={weatherDom} />
-      <TimeOfDayFx time={time} />
+      <WeatherFx kind={weather} time={time} hour={hour} view3d={view3d} dom={weatherDom} />
+      <TimeOfDayFx time={time} dawn={lighting && lightPhase(hour) === 'dawn'} />
 
       {/* ---- diegetic vignettes: the frame tells you how bad it is ---- */}
       {vitals.infected && <div className="vignette-infection pointer-events-none absolute inset-0 z-[450]" />}
