@@ -2016,6 +2016,43 @@ body:has([data-dock-resizing='true']) * {
   filter: saturate(0.55) brightness(1.1);
 }
 
+/* Unknown "?" blips rest as small soft dots and grow into the badge on hover,
+   when picked, as the here capsule, or when travelling to the cursor would
+   identify them (`is-hinted`, map/useRecognitionHint.ts). Transform and
+   colour only: compositor work, never a map repaint. */
+.blip-unknown {
+  color: transparent;
+  transform: scale(0.38);
+  box-shadow: 0 0 10px 3px #e8e5dd66;
+  transition: transform 160ms cubic-bezier(0, 0, 0.25, 1), color 120ms linear, box-shadow 160ms linear;
+}
+.maplibregl-marker:hover > .blip-unknown,
+.maplibregl-marker.is-hinted > .blip-unknown,
+.maplibregl-marker.is-picked > .blip-unknown,
+.player-location .blip-unknown {
+  color: #1a1204;
+  transform: none;
+  box-shadow: none;
+}
+/* A hinted blip carries a faint ring: "go there and you'll know what this is". */
+.maplibregl-marker.is-hinted > .blip-unknown {
+  box-shadow: 0 0 0 3px #08080a, 0 0 0 4.5px #e8e5dd99;
+}
+@media (prefers-reduced-motion: reduce) {
+  .blip-unknown { transition: none; }
+}
+
+/* Film grain over the map ground (MapGrain.tsx): static, under the markers. */
+.map-grain {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-repeat: repeat;
+  background-size: 128px 128px;
+  opacity: 0.045;
+  mix-blend-mode: screen;
+}
+
 /* Post-fight summary: rows settle in one after another, then sit still. */
 .combat-summary-row {
   animation: combat-summary-row 280ms ease-out both;
