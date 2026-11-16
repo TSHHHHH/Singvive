@@ -26,6 +26,8 @@ interface MapMarkerProps {
   ring?: boolean;
   /** Brief identity-reveal highlight, independent of selection and danger. */
   recognized?: boolean;
+  /** Hover preview: travelling to the cursor would identify this site. */
+  hinted?: boolean;
   /** Optional native hover title (TipLayer adopts it). */
   title?: string;
   /**
@@ -51,6 +53,7 @@ export function MapMarker({
   roof = 0,
   ring = false,
   recognized = false,
+  hinted = false,
   title,
   beacon = null,
 }: MapMarkerProps) {
@@ -106,9 +109,10 @@ export function MapMarker({
     else el.style.removeProperty('--roof');
     el.classList.toggle('is-picked', ring);
     el.classList.toggle('is-recognized', recognized);
+    el.classList.toggle('is-hinted', hinted);
     el.classList.toggle('on-beacon', !!beacon);
     el.classList.toggle('on-beacon--evac', beacon === 'evac');
-  }, [roof, ring, beacon, recognized]);
+  }, [roof, ring, beacon, recognized, hinted]);
 
   useEffect(() => {
     ref.current?.setLngLat([lng, lat]);

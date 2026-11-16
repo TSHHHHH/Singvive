@@ -48,6 +48,7 @@ import { createMarker } from '../map/markerDom';
 import { installOverlay, setData } from '../map/layers';
 import { PoiSources } from '../map/poiSources';
 import { useMarkerPresence } from '../map/useMarkerPresence';
+import { useRecognitionHint } from '../map/useRecognitionHint';
 import { REVEAL_MS } from '../map/revealMotion';
 import { RangeMotion, sampleMotion } from '../map/rangeMotion';
 import { EMPTY_FC, boxContains, circleFeature, dimHex, fc, lineFeature, padBox, toLngLatRing, type LatLngBox } from '../map/geo';
@@ -1429,6 +1430,7 @@ const PoiLayer = memo(
   function PoiLayer({ pois, home, blipRange, selectedId, hereId, playerAtSite, onSelect, engine, worked, evacZoneId }: PoiLayerProps) {
     const map = useMapGL();
     const recognition = useGame(s => s.nearbyRecognition);
+    const hinted = useRecognitionHint();
     const reduced = useReducedMotion();
     const box = usePaddedBounds();
     const [detail, setDetail] = useState(() => map.getZoom() >= POI_DETAIL_ZOOM);
@@ -1630,6 +1632,7 @@ const PoiLayer = memo(
               roof={!playerHere && engine ? roofs.get(l.poi.id) ?? 0 : 0}
               ring={l.poi.id === selectedId}
               recognized={recognition.includes(l.poi.id)}
+              hinted={hinted.has(l.poi.id)}
               // Nearby sites stay visible and tappable even inside the capsule's footprint.
               zIndex={playerHere ? 0 : l.poi.id === selectedId ? 10 : 1}
               beacon={!playerHere && engine ? beaconKindOf(l.poi, evacZoneId) : null}
