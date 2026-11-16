@@ -2394,7 +2394,16 @@
     },
     "sound": {
       "label": "Sound",
-      "description": "Ambient sound — wind, rain, the night chorus, and the things out there. Synthesised live; starts after your first click.",
+      "description": "All sound: the ambience synthesised live — wind, rain, the night chorus, and the things out there — plus sound effects. Starts after your first click.",
+      "options": {
+        "off": "Off",
+        "quiet": "Quiet",
+        "full": "Full"
+      }
+    },
+    "sfx": {
+      "label": "Sound effects",
+      "description": "Effects for clicks, searching, fighting, wounds and the like, on top of the ambience. Follows the Sound setting above.",
       "options": {
         "off": "Off",
         "quiet": "Quiet",

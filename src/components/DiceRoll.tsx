@@ -6,6 +6,7 @@ import type { ShownRoll } from '../game/events';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { Icon } from '../icons/Icon';
 import { useT } from '../i18n';
+import { sfx } from '../audio/sfx';
 
 // ---------------------------------------------------------------------------
 // The d20, on screen.
@@ -80,6 +81,16 @@ function DiceOverlay({ roll }: { roll: ShownRoll }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [roll, dismissRoll, still],
   );
+
+  // Sound follows the animation: tumble, land, then the verdict.
+  useEffect(() => {
+    if (phase === 'tumble') sfx.play('dice.tumble');
+    else if (phase === 'landed') sfx.play('dice.land');
+    else if (phase === 'verdict') {
+      const id = roll.roll === 20 ? 'dice.nat20' : roll.roll === 1 && !roll.success ? 'dice.nat1' : roll.success ? 'dice.success' : 'dice.fail';
+      sfx.play(id);
+    }
+  }, [phase, roll]);
 
   useEffect(() => {
     if (still) {

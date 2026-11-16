@@ -4,10 +4,11 @@ export const OPEN_LOOT_EVENT = 'singvive:open-loot';
 export const OPEN_ENEMY_EVENT = 'singvive:open-enemy';
 export const OPEN_ICON_EVENT = 'singvive:open-icon';
 export const OPEN_LOCALE_EVENT = 'singvive:open-locale';
+export const OPEN_SOUND_EVENT = 'singvive:open-sound';
 export const CLOSE_DEV_TOOLS_EVENT = 'singvive:close-dev-tools';
 export const DEV_TOOL_STATE_EVENT = 'singvive:dev-tool-state';
 
-export type DevToolId = 'loot' | 'enemies' | 'icons' | 'locale';
+export type DevToolId = 'loot' | 'enemies' | 'icons' | 'locale' | 'sound';
 
 export type OpenLootDetail = {
   itemId?: string;
@@ -28,6 +29,7 @@ export type OpenLocaleDetail = {
   /** Prefill the namespace filter when known. */
   namespace?: 'ui' | 'settings' | 'guide' | 'item' | 'enemy' | 'recipe' | 'trait' | 'all';
 };
+export type OpenSoundDetail = { cue?: string };
 export type CloseDevToolsDetail = { except?: DevToolId };
 export type DevToolStateDetail = { tool: DevToolId; open: boolean };
 
@@ -81,5 +83,12 @@ export function openLocaleEditor(detail: OpenLocaleDetail = {}): void {
   closeDevTools('locale');
   window.dispatchEvent(
     new CustomEvent<OpenLocaleDetail>(OPEN_LOCALE_EVENT, { detail }),
+  );
+}
+
+export function openSoundConsole(detail: OpenSoundDetail = {}): void {
+  closeDevTools('sound');
+  window.dispatchEvent(
+    new CustomEvent<OpenSoundDetail>(OPEN_SOUND_EVENT, { detail }),
   );
 }
