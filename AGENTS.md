@@ -35,7 +35,7 @@ Scale pressure is **client-side** (WebGL map + DOM markers, `pois.json` parse, l
 - POI layers must be **viewport-culled** (bounds padded 0.2, cap 450). Mapping every `locations` entry into a Marker/feature does not scale with island crossing. Hidden POIs must not become markers or GeoJSON features.
 - Keep MapLibre out of the menu chunk (`React.lazy` for spawn/game/create/death screens; `manualChunks` puts it in `maplibre`). Do not add a second mapping library.
 - `advanceTime` / noise / faction expand must **preserve location identity** for untouched sites. Cloning the whole `locations` record re-renders the map HUD.
-- Fog is ground polygons (`src/map/fogGeometry.ts`): world minus the union of explored discs, cached, minus the live sight disc per update. Do not rebuild the explored union on energy ticks.
+- Fog is ground polygons (`src/map/fogGeometry.ts`): world minus the union of explored discs, cached, minus the live sight disc per update. Do not rebuild the explored union on energy ticks. The travel range eases in a `RangeMotion` (`src/map/rangeMotion.ts`) outside React: ring and fog edge redraw per frame, buildings and markers sample it (`sampleMotion`). Do not put the range tween back in React state; it re-renders the whole map tree every frame.
 - 3D buildings use **feature-state** only (rise, colour, selected). Never `setFilter` / re-add the extrusion layer per tick, and keep the building index to loaded tiles (`querySourceFeatures`).
 - `bakedPois.ts` parses the island bake once per page. A 30 km evac query is the spawn hitch — do not add another full-island scan. Prefetch the bake on the spawn screen.
 
