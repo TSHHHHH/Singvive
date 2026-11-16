@@ -3,11 +3,13 @@ import type { ExploredCircle } from '../game/fog';
 import { useMapGL } from '../map/hooks';
 import { installOverlay, setData } from '../map/layers';
 import { FOG_BANDS, FOG_COLOUR, FOG_TOTAL, FogGeometry, bandOpacity } from '../map/fogGeometry';
+import type { RangeMotion } from '../map/rangeMotion';
 
 export interface FogOverlayProps {
   exploredArea: ExploredCircle[];
   currentRevealCenter: { lat: number; lng: number };
-  currentRevealRadius: number;
+  /** the live sight radius; the fog edge follows it frame by frame */
+  revealRadius: RangeMotion;
 }
 
 /**
@@ -21,7 +23,7 @@ export interface FogOverlayProps {
  */
 const bandIds = Array.from({ length: FOG_BANDS }, (_, k) => `fog-${k}`);
 
-export function FogOverlay({ exploredArea, currentRevealCenter, currentRevealRadius }: FogOverlayProps) {
+export function FogOverlay({ exploredArea, currentRevealCenter, revealRadius }: FogOverlayProps) {
   const map = useMapGL();
   const geom = useRef(new FogGeometry());
 
@@ -42,15 +44,22 @@ export function FogOverlay({ exploredArea, currentRevealCenter, currentRevealRad
 
   const { lat, lng } = currentRevealCenter;
   useEffect(() => {
-    let bands;
-    try {
-      bands = geom.current.compute(exploredArea, { lat, lng, radius: currentRevealRadius });
-    } catch {
-      // polygon-clipping can throw on a degenerate union; keep last frame.
-      return;
-    }
-    bands.forEach((data, k) => setData(map, bandIds[k], data));
-  }, [map, exploredArea, lat, lng, currentRevealRadius]);
+    // Cutting one disc from the cached explored base is ~1 ms, so the edge
+    // keeps pace with the travel ring instead of stepping behind it. A busy
+    // GeoJSON worker coalesces the uploads to the latest one.
+    const draw = (radius: number) => {
+      let bands;
+      try {
+        bands = geom.current.compute(exploredArea, { lat, lng, radius });
+      } catch {
+        // polygon-clipping can throw on a degenerate union; keep last frame.
+        return;
+      }
+      bands.forEach((data, k) => setData(map, bandIds[k], data));
+    };
+    draw(revealRadius.value);
+    return revealRadius.subscribe(draw);
+  }, [map, exploredArea, lat, lng, revealRadius]);
 
   return null;
 }

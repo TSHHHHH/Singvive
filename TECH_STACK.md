@@ -122,7 +122,7 @@ src/
                and `t` / `useT`; player primer is `guide.*` keys; zh voice/glossary in
                docs/i18n-zh-hans.md
   content/     guide topic routing (`guideContent.ts`) — copy lives in i18n
-  hooks/       shared React hooks (e.g. useAnimatedNumber)
+  hooks/       shared React hooks (e.g. useReducedMotion)
   icons/       icon registry + keys (emoji fallbacks → drop-in PNGs)
   dev/         DEV-only editors + Dev menu (loot / enemies / icons / locale) — never imported from game/
   components/  GameMap, FogOverlay, Inventory/*, CraftingPanel, CombatPanel,

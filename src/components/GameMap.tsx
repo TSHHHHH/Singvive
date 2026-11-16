@@ -28,7 +28,6 @@ import { useMrtNetwork } from './useMrtNetwork';
 import { VegetationOverlay } from './UnplayableOverlay';
 import { Icon } from '../icons/Icon';
 import { pathFromProgress, pathUntil, pointAlongPath } from '../game/route';
-import { useAnimatedNumber, useThrottledNumber } from '../hooks/useAnimatedNumber';
 import {
   CAMERA_CUT_SCREENS,
   CAMERA_EDGE,
@@ -51,6 +50,7 @@ import { installOverlay, setData } from '../map/layers';
 import { PoiSources } from '../map/poiSources';
 import { useMarkerPresence } from '../map/useMarkerPresence';
 import { REVEAL_MS } from '../map/revealMotion';
+import { RangeMotion, sampleMotion } from '../map/rangeMotion';
 import { EMPTY_FC, boxContains, circleFeature, dimHex, fc, lineFeature, padBox, toLngLatRing, type LatLngBox } from '../map/geo';
 import { BuildingEngine, LOD_ZOOM, type Site3d } from '../map/buildings';
 import { hdbScar, STOREY_M, type HdbDungeon } from '../game/hdbDungeon';
@@ -494,7 +494,7 @@ function Buildings3d({
 }: {
   home: { lat: number; lng: number };
   /** current travel range: buildings inside it stand */
-  radius: number;
+  radius: RangeMotion;
   onEngine: (engine: BuildingEngine | null) => void;
 }) {
   const map = useMapGL();
@@ -516,8 +516,13 @@ function Buildings3d({
     engine?.setInstant(reduced);
   }, [engine, reduced]);
 
+  // Each building eases its own rise, so a coarse sample of the radius
+  // looks the same as every frame and costs a fraction of the index walks.
   useEffect(() => {
-    engine?.setReveal({ lat: home.lat, lng: home.lng, radius });
+    if (!engine) return;
+    const reveal = (r: number) => engine.setReveal({ lat: home.lat, lng: home.lng, radius: r });
+    reveal(radius.value);
+    return sampleMotion(radius, BUILDING_SAMPLE_MS, reveal);
   }, [engine, home.lat, home.lng, radius]);
 
   // Pointer over a site's building, like over a 2D outline.
@@ -530,6 +535,10 @@ function Buildings3d({
   });
   return null;
 }
+
+/** How often the 3D buildings and the markers re-read a moving range (ms). */
+const BUILDING_SAMPLE_MS = 80;
+const MARKER_SAMPLE_MS = 120;
 
 /** How often the sight disc catches up with the walking pin (ms). */
 const SIGHT_STEP_MS = 100;
@@ -570,15 +579,16 @@ function useSightCenter(home: { lat: number; lng: number }, travelAnim: TravelAn
 
 /**
  * The fog, 3D buildings and planning ring share the current travel range,
- * centred on the walking pin. Fog and building updates are throttled while
- * the ring animates smoothly.
+ * centred on the walking pin. The range eases outside React (RangeMotion):
+ * the ring and the fog edge redraw every frame, the buildings and markers
+ * sample it, and none of it re-renders this tree while it moves.
  */
 function SightLayers({
   home,
   travelAnim,
   exploredArea,
   reach,
-  ringReach,
+  sensed,
   view3d,
   onEngine,
   poiLayer,
@@ -586,27 +596,35 @@ function SightLayers({
   home: { lat: number; lng: number };
   travelAnim: TravelAnim | null;
   exploredArea: ExploredCircle[];
-  /** throttled, for the fog and the buildings */
-  reach: number;
-  /** per-frame tween, for the ring line */
-  ringReach: number;
+  /** the travel range, easing */
+  reach: RangeMotion;
+  /** the sensing range for blips, easing */
+  sensed: RangeMotion;
   view3d: boolean;
   onEngine: (engine: BuildingEngine | null) => void;
-  poiLayer: Omit<PoiLayerProps, 'home'>;
+  poiLayer: Omit<PoiLayerProps, 'home' | 'blipRange'>;
 }) {
   const sight = useSightCenter(home, travelAnim);
-  const sensedRange = useAnimatedNumber(poiLayer.blipRange, REVEAL_MS);
-  const sensedRadius = useThrottledNumber(sensedRange, 80);
   return (
     <>
-      <FogOverlay exploredArea={exploredArea} currentRevealCenter={sight} currentRevealRadius={reach} />
+      <FogOverlay exploredArea={exploredArea} currentRevealCenter={sight} revealRadius={reach} />
       {view3d && <Buildings3d home={sight} radius={reach} onEngine={onEngine} />}
       {/* Never hit-tested: the fills cover everywhere you can walk, so a
           clickable ring would swallow every ground pick inside your range. */}
-      <RangeRing home={sight} travelRange={ringReach} />
-      <PoiLayer {...poiLayer} home={sight} blipRange={sensedRadius} />
+      <RangeRing home={sight} range={reach} />
+      <SensedPoiLayer {...poiLayer} home={sight} sensed={sensed} />
     </>
   );
+}
+
+/** PoiLayer fed a sample of the easing sensing range; only it re-renders. */
+function SensedPoiLayer({ sensed, ...rest }: Omit<PoiLayerProps, 'blipRange'> & { sensed: RangeMotion }) {
+  const [blipRange, setBlipRange] = useState(sensed.value);
+  useEffect(() => {
+    setBlipRange(sensed.value);
+    return sampleMotion(sensed, MARKER_SAMPLE_MS, setBlipRange);
+  }, [sensed]);
+  return <PoiLayer {...rest} blipRange={blipRange} />;
 }
 
 const containerSize = (map: MlMap) => {
@@ -1136,12 +1154,15 @@ function TravelPath({
  * boundary of fog reveal and building rise.
  * Non-interactive: taps inside are ground picks.
  */
+/** Ring vertices: smooth at any zoom you can see the whole ring from. */
+const RING_STEPS = 96;
+
 const RangeRing = memo(function RangeRing({
   home,
-  travelRange,
+  range,
 }: {
   home: { lat: number; lng: number };
-  travelRange: number;
+  range: RangeMotion;
 }) {
   const map = useMapGL();
   useEffect(
@@ -1157,10 +1178,14 @@ const RangeRing = memo(function RangeRing({
       ]),
     [map],
   );
+  // One small polygon per animation frame while the range eases; nothing
+  // once it lands.
   useEffect(() => {
-    const on = travelRange > 0;
-    setData(map, 'range-src', on ? fc([circleFeature(home.lat, home.lng, travelRange, {}, 96)]) : EMPTY_FC);
-  }, [map, home.lat, home.lng, travelRange]);
+    const draw = (r: number) =>
+      setData(map, 'range-src', r > 0 ? fc([circleFeature(home.lat, home.lng, r, {}, RING_STEPS)]) : EMPTY_FC);
+    draw(range.value);
+    return range.subscribe(draw);
+  }, [map, home.lat, home.lng, range]);
   return null;
 });
 
@@ -1627,6 +1652,9 @@ const RumourLayer = memo(function RumourLayer({ annotations }: { annotations: Ma
  * crossing. SightLayers samples the moving centre and sensing-radius tween
  * for marker visibility, keeping those updates out of GameScreen.
  */
+/** How long the travel range takes to ease to a new value. */
+const RANGE_EASE_MS = 600;
+
 function GameMapInner({
   home,
   pois,
@@ -1662,9 +1690,19 @@ function GameMapInner({
 }: Props) {
   const { t } = useT();
   const evacPoi = evacZoneId ? pois.find((p) => p.id === evacZoneId) : null;
-  // Tween lives here so GameScreen does not re-render at 60 fps after travel.
-  const ringRange = useAnimatedNumber(travelRange, 600);
-  const reachRadius = useThrottledNumber(ringRange, 80);
+  // The ranges ease outside React: nothing here re-renders while they move.
+  const reducedRange = useReducedMotion();
+  const [reach] = useState(() => new RangeMotion(travelRange, RANGE_EASE_MS));
+  const [sensed] = useState(() => new RangeMotion(blipRange, REVEAL_MS));
+  useEffect(() => reach.set(travelRange, reducedRange), [reach, travelRange, reducedRange]);
+  useEffect(() => sensed.set(blipRange, reducedRange), [sensed, blipRange, reducedRange]);
+  useEffect(
+    () => () => {
+      reach.destroy();
+      sensed.destroy();
+    },
+    [reach, sensed],
+  );
   const pathIdSet = useMemo(() => new Set(pathHazardIds), [pathHazardIds]);
   const view3d = useSetting('mapView3d') === 'on';
   const lighting = useSetting('mapLighting') !== 'off';
@@ -1748,11 +1786,11 @@ function GameMapInner({
           home={home}
           travelAnim={travelAnim}
           exploredArea={exploredArea}
-          reach={reachRadius}
-          ringReach={ringRange}
+          reach={reach}
+          sensed={sensed}
           view3d={view3d}
           onEngine={setEngine}
-          poiLayer={{ pois, blipRange, selectedId, hereId, playerAtSite, onSelect, engine, worked, evacZoneId }}
+          poiLayer={{ pois, selectedId, hereId, playerAtSite, onSelect, engine, worked, evacZoneId }}
         />
 
         {/* Drawn under the pins — ground, not a destination. */}
