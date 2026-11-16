@@ -1,7 +1,8 @@
 import type { Map as MlMap } from 'maplibre-gl';
-import type { TimeOfDay, WeatherKind } from '../game/types';
+import type { WeatherKind } from '../game/types';
 import { dimHex, mixHex } from './geo';
 import { alive } from './layers';
+import type { LightPhase, Sun } from './lighting';
 
 /**
  * The 3D run map's weather, drawn into the world rather than over it.
@@ -39,7 +40,26 @@ export interface Atmosphere {
   hazeAlpha: number;
   /** How far down the screen the depth haze reaches, 0..1. */
   hazeReach: number;
+  /**
+   * Compass bearing the light comes from, when it follows the game's sun
+   * (light anchored to the map, so turning the camera turns the lit faces).
+   * null: the old fixed light from the viewport's lower left.
+   */
+  sunAz?: number | null;
 }
+
+/**
+ * How much cloud softens the sun, 0 hard light … 1 a lid of cloud: it holds
+ * the light overhead and fades the ground shadows.
+ */
+export const WEATHER_DIFFUSE: Record<WeatherKind, number> = {
+  clear: 0,
+  heat: 0,
+  haze: 0.45,
+  cloudy: 0.8,
+  rain: 0.65,
+  thunderstorm: 0.7,
+};
 
 /** The 3D look as it was before weather: dark, neutral, no depth haze. */
 export const BASE_ATMOSPHERE: Atmosphere = {
@@ -131,7 +151,8 @@ const WEATHER: Record<WeatherKind, Atmosphere> = {
 };
 
 /** How dusk and night recolour whatever the weather made. */
-const TIME: Record<Exclude<TimeOfDay, 'day'>, { light: string; k: number; dim: number; air: string; ak: number }> = {
+const TIME: Record<Exclude<LightPhase, 'day'>, { light: string; k: number; dim: number; air: string; ak: number }> = {
+  dawn: { light: '#ffb08c', k: 0.4, dim: 0.95, air: '#2a1a28', ak: 0.35 },
   dusk: { light: '#ff8a4a', k: 0.45, dim: 0.88, air: '#3a1c0c', ak: 0.45 },
   night: { light: '#6a7ca4', k: 0.6, dim: 0.72, air: '#03060c', ak: 0.65 },
 };
@@ -170,7 +191,14 @@ export function mixAtmosphere(a: Atmosphere, b: Atmosphere, t: number): Atmosphe
     haze: mixHex(a.haze, b.haze, t),
     hazeAlpha: lerp(a.hazeAlpha, b.hazeAlpha, t),
     hazeReach: lerp(a.hazeReach, b.hazeReach, t),
+    sunAz: b.sunAz == null || a.sunAz == null ? b.sunAz : lerpAngle(a.sunAz, b.sunAz, t),
   };
+}
+
+/** Shortest-way blend of two compass bearings. */
+function lerpAngle(a: number, b: number, t: number): number {
+  const d = ((((b - a) % 360) + 540) % 360) - 180;
+  return (a + d * t + 360) % 360;
 }
 
 /**
@@ -178,8 +206,16 @@ export function mixAtmosphere(a: Atmosphere, b: Atmosphere, t: number): Atmosphe
  * setting (0 off, partial for subtle, 1 full); time of day applies at any
  * strength, because dusk and night are gameplay reads.
  */
-export function atmosphereFor(kind: WeatherKind, time: TimeOfDay, strength: number): Atmosphere {
-  const w = mixAtmosphere(BASE_ATMOSPHERE, WEATHER[kind], strength);
+export function atmosphereFor(kind: WeatherKind, time: LightPhase, strength: number, sun?: Sun): Atmosphere {
+  let w = mixAtmosphere(BASE_ATMOSPHERE, WEATHER[kind], strength);
+  if (sun) {
+    // The game's sun places the light: low at dawn and dusk, high at noon,
+    // held overhead by cloud. Kept between 20° and 70° from overhead so roofs
+    // and walls both still read.
+    const own = Math.max(20, Math.min(70, 90 - sun.alt));
+    const d = WEATHER_DIFFUSE[kind] * strength;
+    w = { ...w, sunAz: sun.az, polar: lerp(own, w.polar, d) };
+  }
   if (time === 'day') return { ...w, light: liftLight(w.light) };
   const t = TIME[time];
   return {
@@ -369,11 +405,12 @@ export class AtmosphereDriver {
       'fog-ground-blend': 0.85,
       'atmosphere-blend': 0,
     });
+    const world = a.sunAz != null;
     this.map.setLight({
-      anchor: 'viewport',
+      anchor: world ? 'map' : 'viewport',
       color: f ? mixHex(a.light, FLASH_LIGHT, f) : a.light,
       intensity: a.intensity + 0.3 * f,
-      position: [1.5, 210, f ? lerp(a.polar, 20, f) : a.polar],
+      position: [1.5, world ? a.sunAz! : 210, f ? lerp(a.polar, 20, f) : a.polar],
     });
     const el = this.bolt?.();
     if (el) el.style.opacity = f ? f.toFixed(3) : '0';
