@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { ambience } from '../audio/ambience';
-import type { WeatherKind } from '../game/types';
+import type { TimeOfDay, WeatherKind } from '../game/types';
 import { AtmosphereDriver } from '../map/atmosphere';
 import { useMapGL } from '../map/hooks';
 import { useAtmosphere, type WeatherDom } from './useAtmosphere';
 
 /** Mounts the atmosphere driver on the 3D run map. */
-export function Atmosphere3d({ kind, hour, dom }: { kind: WeatherKind; hour: number; dom: WeatherDom }) {
+export function Atmosphere3d({ kind, time, dom }: { kind: WeatherKind; time: TimeOfDay; dom: WeatherDom }) {
   const map = useMapGL();
-  const { atmos, lightning, still } = useAtmosphere(kind, hour);
+  const { atmos, lightning, still } = useAtmosphere(kind, time);
   const [driver, setDriver] = useState<AtmosphereDriver | null>(null);
   const first = useRef(true);
 
