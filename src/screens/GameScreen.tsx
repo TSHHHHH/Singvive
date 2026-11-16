@@ -1658,7 +1658,6 @@ export function GameScreen() {
                 }
                 weather={weather}
                 time={time}
-                hour={hour}
                 trekTarget={trekTarget}
                 travelPath={travelPath}
                 travelPathBlocked={travelPathBlocked}
