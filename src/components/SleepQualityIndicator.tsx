@@ -6,7 +6,6 @@ import {
 } from '../game/sleep';
 import { restAmbushLabel } from '../game/wilds';
 import { Icon } from '../icons/Icon';
-import { resolveIcon } from '../icons/registry';
 import { TipHint } from './TipHint';
 import { useT } from '../i18n';
 
@@ -27,45 +26,14 @@ function ambushTextKey(chance: number): string {
   return 'suicide';
 }
 
-/** Wide short roof — asset is ~2:1, so skip the square Icon box. Sized in em so it tracks HUD type. */
-function SleepRoof({ active }: { active: boolean }) {
-  const src = resolveIcon('sleep.roof').asset?.src;
-  if (!src) {
-    return (
-      <Icon
-        name="sleep.roof"
-        className={`absolute left-1/2 top-0 -translate-x-1/2 ${active ? '' : 'opacity-20'}`}
-      />
-    );
-  }
-  return (
-    <span
-      aria-hidden
-      className={`absolute left-1/2 top-0 h-[0.95em] w-full -translate-x-1/2 ${active ? 'opacity-100' : 'opacity-20'}`}
-      style={{
-        backgroundColor: 'currentColor',
-        WebkitMaskImage: `url("${src}")`,
-        maskImage: `url("${src}")`,
-        WebkitMaskSize: '100% 100%',
-        maskSize: '100% 100%',
-        WebkitMaskRepeat: 'no-repeat',
-        maskRepeat: 'no-repeat',
-      }}
-    />
-  );
-}
-
 /**
- * House-shaped rest quality glyph to the left of Rest: roof, walls, and bed
- * as condition flags; recovery % and night ambush sit beside the silhouette.
+ * Rest quality chip to the left of Rest: one full-size bed icon, toned by how
+ * well you'd recover here, with recovery % over night-ambush %. Walls, roof
+ * and bedding are spelled out with their multipliers in the tooltip.
  */
 export function SleepQualityIndicator({ preview }: { preview: RestPreview }) {
   const { t } = useT();
   const conditions = preview.conditions;
-  const roofOn = conditions.roof === 'yes';
-  const bedOn = conditions.bed === 'bed';
-  const wallOpacity =
-    conditions.enclosed === 'full' ? 1 : conditions.enclosed === 'partial' ? 0.45 : 0.15;
   const totalPct = Math.round(conditions.recoveryMult * 100);
   const ambushPct = Math.round(preview.ambushChance * 100);
   const ambush = restAmbushLabel(preview.ambushChance);
@@ -75,7 +43,7 @@ export function SleepQualityIndicator({ preview }: { preview: RestPreview }) {
     <TipHint className="inline-flex" tip={<SleepTip preview={preview} />}>
       <div
         role="img"
-        className="flex cursor-help items-center gap-1 border-b border-dashed border-white/20 text-body text-white"
+        className="flex h-8 cursor-help items-center gap-1 rounded border border-dashed border-white/20 px-1 text-body"
         aria-label={t('ui.sleep.aria', {
           pct: totalPct,
           ambushPct,
@@ -83,23 +51,8 @@ export function SleepQualityIndicator({ preview }: { preview: RestPreview }) {
           summary: sleepSummary(preview, t),
         })}
       >
-        <div className="relative h-[2.25em] w-[2.4em] shrink-0" aria-hidden>
-          <SleepRoof active={roofOn} />
-          <div className="absolute inset-x-[0.08em] bottom-0 top-[0.8em] grid grid-cols-[0.18em_1fr_0.18em] items-stretch gap-x-[0.12em]">
-            <span
-              className="rounded-[1px] bg-current"
-              style={{ opacity: wallOpacity }}
-            />
-            <div className="flex items-center justify-center">
-              <Icon name="sleep.bed" className={bedOn ? 'opacity-100' : 'opacity-20'} />
-            </div>
-            <span
-              className="rounded-[1px] bg-current"
-              style={{ opacity: wallOpacity }}
-            />
-          </div>
-        </div>
-        <div className="flex flex-col items-start leading-none">
+        <Icon name="sleep.bed" size={18} className={factorTone(conditions.recoveryMult)} />
+        <div className="flex flex-col items-start leading-none" aria-hidden>
           <span className="font-bold tabular-nums text-white/90">{totalPct}%</span>
           <span className="mt-0.5 font-bold tabular-nums" style={{ color: ambush.color }}>
             {preview.ambushChance <= 0 ? t('ui.sleep.safe') : `${ambushPct}%`}
