@@ -5,7 +5,14 @@ import { TipHint } from './TipHint';
 import { useT } from '../i18n';
 
 /** Weather readout that reveals its buffs/debuffs on hover (or tap on touch). */
-export function WeatherBadge({ weather }: { weather: WeatherKind }) {
+export function WeatherBadge({
+  weather,
+  compact = false,
+}: {
+  weather: WeatherKind;
+  /** Icon-only square chip for the one-line rail HUD; the name moves into the tip. */
+  compact?: boolean;
+}) {
   const { t } = useT();
   const effects = weatherEffects(weather);
   const kindLabel = t(`ui.weather.${weather}`);
@@ -28,9 +35,19 @@ export function WeatherBadge({ weather }: { weather: WeatherKind }) {
         </>
       }
     >
-      <span className="flex cursor-help items-center gap-1 border-b border-dashed border-white/20">
-        <Icon name={WEATHER_ICON[weather]} /> {kindLabel}
-      </span>
+      {compact ? (
+        <span
+          role="img"
+          aria-label={t('ui.weather.aria', { kind: kindLabel })}
+          className="hud-chip flex h-8 w-8 cursor-help items-center justify-center rounded border border-dashed border-white/20 text-white/80"
+        >
+          <Icon name={WEATHER_ICON[weather]} size={18} />
+        </span>
+      ) : (
+        <span className="flex cursor-help items-center gap-1 border-b border-dashed border-white/20">
+          <Icon name={WEATHER_ICON[weather]} /> {kindLabel}
+        </span>
+      )}
     </TipHint>
   );
 }

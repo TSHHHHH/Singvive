@@ -42,6 +42,9 @@ import { ActivityBadge } from '../components/ActivityBadge';
 import { NearbyRecognitionNotice } from '../components/NearbyRecognitionNotice';
 import { ObjectivesPanel } from '../components/ObjectivesPanel';
 import { tip } from '../components/tips';
+import { useUnseen } from '../components/railBadges';
+import { loadTierLabel, loadTierShown } from '../components/loadTier';
+import { canCraft, RECIPES } from '../game/crafting';
 import { DayLogsModal } from '../components/DayLogsModal';
 import { GuideModal } from '../components/GuideModal';
 import { DiceRoll } from '../components/DiceRoll';
@@ -950,6 +953,42 @@ export function GameScreen() {
     [setSetting, timelinePinned],
   );
 
+  // ---- red-dot notices on the rail menu ------------------------------------
+  const gameLog = useGame((s) => s.log);
+  const leads = useGame((s) => s.explorationLeads);
+  const craftReadyIds = useMemo(
+    () => RECIPES.filter((r) => canCraft(r, items, true).ok).map((r) => r.id),
+    [items],
+  );
+  const unseen = useUnseen(
+    {
+      craft: craftReadyIds,
+      logbook: [
+        ...leads.filter((l) => l.completedDay === undefined).map((l) => `lead:${l.id}`),
+        ...mapAnnotations.map((a) => `rumour:${a.id}`),
+        ...items.filter((i) => itemDef(i.defId).effect.kind === 'intel').map((i) => `intel:${i.uid}`),
+      ],
+      skills: Object.entries(skills).map(([id, p]) => `${id}:${p.level}`),
+      timeline: gameLog
+        .slice(0, 40)
+        .filter((e) => e.tone === 'bad' || e.activityEvent)
+        .map((e) => String(e.id)),
+    },
+    {
+      craft: sidePanel === 'craft',
+      logbook: sidePanel === 'logbook',
+      skills: sidePanel === 'skills',
+      timeline: timelineFull,
+    },
+  );
+  const railBadge: Partial<Record<RailKey, string>> = {
+    ...(load && loadTierShown(load) ? { inventory: loadTierLabel(load, t) } : null),
+    ...(unseen.craft ? { craft: t('ui.hud.badge.craft') } : null),
+    ...(unseen.logbook ? { logbook: t('ui.hud.badge.logbook') } : null),
+    ...(unseen.skills ? { skills: t('ui.hud.badge.skills') } : null),
+    ...(unseen.timeline ? { timeline: t('ui.hud.badge.timeline') } : null),
+  };
+
   // 1–9 toggle the rail's panels and shortcuts in order (Esc closing the
   // slide-out lives with the slide-out). They stand down for modals, text
   // fields and the contact gate. Camera keys are letters, arrows and +/-, so
@@ -1402,21 +1441,27 @@ export function GameScreen() {
       >
         {/* --- time, day, weather, rest --- */}
         {!isPhone && <DockResizeHandle {...dockSizing} />}
-        <div className="relative z-20 shrink-0 space-y-2 border-b border-white/10 p-2.5">
-          <DigitalClock day={day} hour={hour} band={time} />
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <WeatherBadge weather={weather} />
+        {/* One strip: day + phase over the time, then weather, surroundings,
+            shelter and Rest. Labels that the icons already carry (the band
+            name, the weather name) live in tooltips and aria labels. */}
+        <div className="relative z-20 shrink-0 border-b border-white/10 p-2.5">
+          <div
+            className="hud-strip flex flex-wrap items-center justify-between gap-1.5 rounded-lg border border-white/15 bg-concrete-900/80 px-2 py-1.5"
+            style={{ boxShadow: 'inset 0 0 12px rgba(0,0,0,.6)' }}
+          >
+            <DigitalClock day={day} hour={hour} band={time} variant="strip" />
+            <div className="hud-strip-tools ml-auto flex min-w-0 items-center gap-1">
+              <WeatherBadge weather={weather} compact />
               <ActivityBadge onOpenTimeline={openActivityTimeline} />
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
               <SleepQualityIndicator preview={sleepPreview} />
               <button
                 onClick={() => setRestOpen(true)}
-                className="rounded border border-white/15 px-2.5 py-1 text-body transition hover:bg-white/5"
+                className="hud-strip-rest flex h-8 shrink-0 items-center gap-1 rounded border border-white/15 px-2 text-body transition hover:bg-white/5"
+                aria-label={t('ui.game.rest')}
                 {...tip(sleepPreview.conditions.summary)}
               >
-                <Icon name="action.sleep" /> {t('ui.game.rest')}
+                <Icon name="action.sleep" />
+                <span className="hud-strip-rest-label">{t('ui.game.rest')}</span>
               </button>
             </div>
           </div>
@@ -1467,34 +1512,39 @@ export function GameScreen() {
             ) : (
               <SurvivorDock
                 sidePanel={sidePanel}
-                onPanelChange={setSidePanel}
                 onOpenGuide={setGuideTopic}
                 load={load}
-                blocked={overlayOpen || awaitingStance}
-                hotkeys={{ inventory: railHotkey('inventory'), craft: railHotkey('craft') }}
-                tools={
-                  <div className="grid grid-cols-2 gap-1.5">
-                    {(['logbook', 'stats', 'skills', 'timeline', 'dayLogs', 'settings'] as const).map((id) => {
+                menu={
+                  <nav aria-label={t('ui.dock.tools')} className="grid grid-cols-8 gap-1">
+                    {(['inventory', 'craft', 'logbook', 'stats', 'skills', 'timeline', 'dayLogs', 'settings'] as const).map((id) => {
                       const utility = id === 'timeline' || id === 'dayLogs' || id === 'settings';
                       const active = id === 'timeline' ? timelinePinned : id === 'dayLogs' ? dayLogsOpen : id === 'settings' ? settingsOpen : sidePanel === id;
                       const label = t(utility ? `ui.hud.${id}` : sidePanelLabelKey(id));
-                      const icon: IconName = id === 'timeline' ? 'action.log' : id === 'dayLogs' ? 'action.dayLogs' : id === 'settings' ? 'action.settings' : SIDE_PANEL_ICONS[id];
+                      const icon: IconName = id === 'inventory' ? 'action.stash' : id === 'craft' ? 'action.craft' : id === 'timeline' ? 'action.log' : id === 'dayLogs' ? 'action.dayLogs' : id === 'settings' ? 'action.settings' : SIDE_PANEL_ICONS[id];
+                      const badge = railBadge[id];
+                      const name = badge ? `${label} · ${badge}` : label;
                       return (
                         <button
                           key={id}
                           type="button"
                           onClick={() => activateRail(id)}
                           aria-pressed={active}
-                          className={`flex min-h-10 items-center gap-2 rounded border px-2 py-1.5 text-body transition ${active ? 'border-signal bg-signal/15 text-signal' : 'border-white/15 text-white/70 hover:bg-white/5'}`}
-                          {...railTip(label, id)}
+                          aria-keyshortcuts={railHotkey(id)}
+                          className={`relative flex h-9 min-w-0 items-center justify-center rounded border transition focus-visible:outline focus-visible:outline-signal ${active ? 'border-signal/60 bg-signal/10 text-signal' : 'border-white/10 text-white/65 hover:bg-white/5 hover:text-white'}`}
+                          {...railTip(name, id)}
                         >
-                          <Icon name={icon} />
-                          <span className="min-w-0 flex-1 text-left">{label}</span>
-                          <span aria-hidden className="text-micro text-white/35">{railHotkey(id)}</span>
+                          <Icon name={icon} size={18} />
+                          {badge && (
+                            <span
+                              aria-hidden
+                              data-rail-badge={id}
+                              className="absolute right-1 top-1 h-2 w-2 rounded-full bg-hiss ring-2 ring-concrete-900"
+                            />
+                          )}
                         </button>
                       );
                     })}
-                  </div>
+                  </nav>
                 }
               />
             )}

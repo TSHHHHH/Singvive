@@ -9,6 +9,7 @@ import { useClockAdvance } from './useClockAdvance';
 import { RollingDigits } from './clockDigits';
 import { useTickingClock } from './useTickingClock';
 import { useReducedMotion } from '../hooks/useReducedMotion';
+import { tip } from './tips';
 
 const BAND_COLOR: Record<TimeOfDay, string> = {
   day: '#e8e5dd',
@@ -32,8 +33,11 @@ export function DigitalClock({
   /**
    * `lock`: the desktop HUD phone's lock screen — big centred time, day and
    * band above it, no LCD card. Same spent-time cue, as a glow.
+   * `strip`: the desktop rail's one-line HUD — day number over the phase icon,
+   * then the time. No card of its own (the strip is the card); the band name
+   * lives in the tooltip / aria label, the icon carries it at a glance.
    */
-  variant?: 'panel' | 'lock';
+  variant?: 'panel' | 'lock' | 'strip';
 }) {
   const { t } = useT();
   const clock = useClockFormat();
@@ -59,6 +63,58 @@ export function DigitalClock({
       +{formatDuration(Math.round(fx.deltaHours * 60))}
     </span>
   );
+
+  if (variant === 'strip') {
+    const dayLabel = t('ui.clock.day', { day: face.day });
+    const bandLabel = t(`ui.clock.band.${band}`);
+    const timeText = `${hh}:${mm}${meridiem ? ` ${meridiem}` : ''}`;
+    return (
+      <div
+        className="hud-strip-clock flex shrink-0 items-center gap-2 leading-none"
+        role="group"
+        aria-label={`${dayLabel} · ${bandLabel} · ${timeText}`}
+        {...tip(`${dayLabel} · ${bandLabel}`)}
+      >
+        <span className="flex flex-col items-center gap-1" aria-hidden>
+          <span
+            className={`whitespace-nowrap text-label uppercase text-white/45 ${
+              fx?.dayChanged ? 'clock-label-flash' : ''
+            }`}
+          >
+            {dayLabel}
+          </span>
+          <Icon
+            name={icon}
+            size={14}
+            className={fx?.kind === 'band' ? 'clock-label-flash' : ''}
+          />
+        </span>
+        <span
+          key={fx?.nonce ?? 'idle'}
+          className={`relative flex items-baseline gap-1 overflow-visible ${
+            fx ? `clock-pulse-phone ${pulse}` : ''
+          }`}
+          style={{ '--clock-accent': color } as CSSProperties}
+          aria-hidden
+        >
+          <span
+            className="text-marquee tabular-nums"
+            style={{ color, textShadow: `0 0 8px ${color}66` }}
+          >
+            <RollingDigits text={hh} still={still} />
+            <span className="animate-pulse">:</span>
+            <RollingDigits text={mm} still={still} />
+          </span>
+          {meridiem && (
+            <span className="text-plate uppercase" style={{ color }}>
+              {meridiem}
+            </span>
+          )}
+          {delta}
+        </span>
+      </div>
+    );
+  }
 
   if (variant === 'lock') {
     return (

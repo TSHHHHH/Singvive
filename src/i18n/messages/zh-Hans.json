@@ -1162,6 +1162,12 @@
       "injured": "受伤 · 查看身体"
     },
     "hud": {
+      "badge": {
+        "craft": "有新配方可制作",
+        "logbook": "有新线索或情报",
+        "skills": "技能已升级",
+        "timeline": "日志中有新危险"
+      },
       "timeline": "时间线",
       "dayLogs": "往日日志",
       "settings": "设置",
@@ -1194,7 +1200,8 @@
       "thunderstorm": "雷暴",
       "haze": "霾",
       "heat": "热浪",
-      "effects": "{kind}——效果"
+      "effects": "{kind}——效果",
+      "aria": "天气：{kind}"
     },
     "poi": {
       "supermarket": "超市",
