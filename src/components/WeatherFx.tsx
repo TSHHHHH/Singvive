@@ -88,21 +88,18 @@ const MOVING = new Set(['wx-rain-far', 'wx-rain-back', 'wx-rain-near', 'wx-haze-
 function WeatherFxInner({
   kind,
   time,
-  hour,
   view3d = false,
   dom,
 }: {
   kind: WeatherKind;
   time: TimeOfDay;
-  /** Clock hour, for the 3D light's sun. */
-  hour: number;
   /** The 3D view is on: tints come from the map's light, see Atmosphere3d. */
   view3d?: boolean;
   dom?: WeatherDom;
 }) {
   const mode = useSetting('weatherFx');
   const still = useReducedMotion();
-  const { atmos, lightning } = useAtmosphere(kind, hour);
+  const { atmos, lightning } = useAtmosphere(kind, time);
   if (mode === 'off') return null;
 
   if (view3d && dom) {

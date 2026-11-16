@@ -28,6 +28,7 @@ import { enemyName, useT } from '../i18n';
 import { GuideInfoButton } from './GuideInfoButton';
 import type { GuideTopic } from '../content/guideContent';
 import { CombatFx } from './CombatFx';
+import { CombatSummary } from './CombatSummary';
 import { useIsPhoneLayout } from './useIsPhoneLayout';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useSetting } from '../game/settings';
@@ -131,6 +132,21 @@ export function CombatPanel({
     const id = requestAnimationFrame(() => setOutcomeClass(next));
     return () => cancelAnimationFrame(id);
   }, [combat?.over, combat?.outcome]);
+
+  // Enter / Space leaves a fight you survived, so the summary is one key away from the map.
+  const survived = !!combat?.over && combat.outcome !== 'dead';
+  useEffect(() => {
+    if (!survived) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const el = e.target as HTMLElement | null;
+      if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT|BUTTON)$/.test(el.tagName))) return;
+      e.preventDefault();
+      combatContinue();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [survived, combatContinue]);
 
   if (!combat || !character) return null;
 
@@ -393,12 +409,30 @@ export function CombatPanel({
         </div>
       )}
 
+      {survived && combat.tally && (combat.outcome === 'win' || combat.outcome === 'flee') && (
+        <CombatSummary
+          tally={combat.tally}
+          outcome={combat.outcome}
+          round={combat.round}
+          hpBefore={combat.playerHpSnapshot}
+          hpAfter={currentHp}
+          hpMax={maxHp}
+          drops={combat.outcome === 'win' ? (combat.context.drops ?? []) : []}
+          animate={!reducedMotion}
+        />
+      )}
+
       {combat.over ? (
         <button
           onClick={combatContinue}
-          className="shrink-0 rounded bg-signal/90 py-1.5 text-read font-bold text-black hover:bg-signal"
+          className="relative shrink-0 rounded bg-signal/90 py-1.5 text-read font-bold text-black hover:bg-signal"
         >
           {combat.outcome === 'dead' ? t('ui.combat.seeResults') : t('ui.combat.continue')}
+          {survived && !isPhone && (
+            <kbd className="absolute right-2 top-1/2 -translate-y-1/2 rounded border border-black/30 px-1 text-micro font-normal text-black/60">
+              {t('ui.combat.summary.continueKey')}
+            </kbd>
+          )}
         </button>
       ) : (
         <div className="flex shrink-0 flex-col gap-1">

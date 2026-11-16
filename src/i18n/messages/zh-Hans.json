@@ -262,7 +262,65 @@
       "fxCrit": "暴击",
       "fists": "拳头",
       "bashing": "{weapon}（挥砸）",
-      "brokenWeapon": "拳头（{weapon}已损坏）"
+      "brokenWeapon": "拳头（{weapon}已损坏）",
+      "summary": {
+        "title": "战斗结束",
+        "verdict": {
+          "flawless": "毫发无伤",
+          "clean": "干净利落",
+          "bloodied": "挂彩",
+          "barely": "死里逃生",
+          "escaped": "成功脱身"
+        },
+        "verdictTip": {
+          "flawless": "没有受到任何攻击。",
+          "clean": "挨了几下，但没有开放性伤口。",
+          "bloodied": "你赢了，但有伤口或在流血。去看看伤口处理。",
+          "barely": "骨折、大出血、肢体残废或生命值很低。下一场战斗前先处理伤势。",
+          "escaped": "你脱离了接触，活了下来。"
+        },
+        "turns": "T{n}",
+        "minutes": "{n} 分钟",
+        "timeTip": "{turns} 回合 · 战斗耗时 {min} 游戏分钟",
+        "you": "你",
+        "them": "对方",
+        "dealt": "{n}",
+        "dealtTip": "造成伤害",
+        "hits": "{hits}/{swings}",
+        "hitsTip": "命中 / 攻击：{swings} 次中命中 {hits} 次（{rate}）。\n掷骰前平均命中率 {odds}。",
+        "hitsTipShots": "命中 / 攻击：{swings} 次中命中 {hits} 次（{rate}），其中 {shots} 次为射击。\n掷骰前平均命中率 {odds}。",
+        "odds": "{n}%",
+        "crits": "{n}",
+        "critsTip": "暴击次数 · 单次最高伤害 {best}",
+        "best": "最高 {n}",
+        "kill": "击杀",
+        "killTip": "成功击杀",
+        "taken": "{n}",
+        "takenTip": "战斗中损失的生命值",
+        "landed": "{hits}/{attacks}",
+        "landedTip": "对方命中你的攻击：{attacks} 次中 {hits} 次（{rate}）。\n对方掷骰平均有 {odds} 的概率突破你的防御，其余被闪避或格挡。",
+        "landedTipFlee": "对方命中你的攻击：{attacks} 次中 {hits} 次（{rate}），包括你逃跑时的追击。",
+        "dodges": "{n}",
+        "dodgesTip": "闪避",
+        "blocks": "{n}",
+        "blocksTip": "用副手格挡",
+        "infection": "+{n}",
+        "infectionTip": "被咬增加的感染",
+        "health": "{before} → {after}",
+        "healthTip": "战斗前 → 战斗后生命值（上限 {max}）",
+        "noWounds": "没有新伤",
+        "noWoundsTip": "这场战斗没有留下需要处理的新伤。",
+        "partHits": "−{n}",
+        "partTip": "{part}：被击中 {hits} 次，−{dmg} 生命",
+        "woundNew": "新伤口：{wound}",
+        "bleedMinor": "开始流血",
+        "bleedMajor": "大出血——需要包扎",
+        "fractured": "骨折",
+        "crippled": "残废",
+        "drops": "尸体上",
+        "dropsTip": "继续时自动拾取",
+        "continueKey": "Enter"
+      }
     },
     "location": {
       "unidentified": "类型未知",
@@ -2389,15 +2447,6 @@
       "options": {
         "off": "关",
         "subtle": "轻微",
-        "full": "完整"
-      }
-    },
-    "mapLighting": {
-      "label": "昼夜光影",
-      "description": "地图跟着时钟走：白天是被照亮的水泥色，黎明和黄昏有低斜的金色阳光，夜里是蓝黑色，建筑会投下随太阳转动的影子。只在整点变化时更新，几乎不耗性能；很慢的手机可以关掉影子。",
-      "options": {
-        "off": "关",
-        "noShadows": "无影子",
         "full": "完整"
       }
     },
