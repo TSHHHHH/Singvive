@@ -23,6 +23,8 @@ import { NoiseWaves } from './NoiseWaves';
 import { MrtOverlay, MrtLineLegend, MRT_STATION_LAYER } from './MrtOverlay';
 import { useMrtNetwork } from './useMrtNetwork';
 import { VegetationOverlay } from './UnplayableOverlay';
+import { DistrictNames } from './DistrictNames';
+import { MapGrain } from './MapGrain';
 import { Icon } from '../icons/Icon';
 import { pathFromProgress, pathUntil, pointAlongPath } from '../game/route';
 import {
@@ -589,6 +591,7 @@ function SightLayers({
   view3d,
   onEngine,
   poiLayer,
+  planning,
 }: {
   home: { lat: number; lng: number };
   travelAnim: TravelAnim | null;
@@ -600,6 +603,8 @@ function SightLayers({
   view3d: boolean;
   onEngine: (engine: BuildingEngine | null) => void;
   poiLayer: Omit<PoiLayerProps, 'home' | 'blipRange'>;
+  /** A trip is being planned (route preview up, not walking): the ring steps forward. */
+  planning: boolean;
 }) {
   const sight = useSightCenter(home, travelAnim);
   return (
@@ -608,7 +613,7 @@ function SightLayers({
       {view3d && <Buildings3d home={sight} radius={reach} onEngine={onEngine} />}
       {/* Never hit-tested: the fills cover everywhere you can walk, so a
           clickable ring would swallow every ground pick inside your range. */}
-      <RangeRing home={sight} range={reach} />
+      <RangeRing home={sight} range={reach} planning={planning} />
       <SensedPoiLayer {...poiLayer} home={sight} sensed={sensed} />
     </>
   );
@@ -1152,12 +1157,18 @@ function TravelPath({
 /** Ring vertices: smooth at any zoom you can see the whole ring from. */
 const RING_STEPS = 96;
 
+/** Ring line at rest (a quiet edge) and while planning a trip (the read you need). */
+const RING_QUIET = { width: 1, opacity: 0.4 };
+const RING_PLANNING = { width: 1.5, opacity: 0.95 };
+
 const RangeRing = memo(function RangeRing({
   home,
   range,
+  planning,
 }: {
   home: { lat: number; lng: number };
   range: RangeMotion;
+  planning: boolean;
 }) {
   const map = useMapGL();
   useEffect(
@@ -1168,11 +1179,25 @@ const RangeRing = memo(function RangeRing({
           id: 'range-line',
           type: 'line',
           source: 'range-src',
-          paint: { 'line-color': '#e8e5dd', 'line-width': 1.5, 'line-opacity': 1, 'line-dasharray': [2.7, 4] },
+          paint: {
+            'line-color': '#e8e5dd',
+            'line-width': RING_QUIET.width,
+            'line-opacity': RING_QUIET.opacity,
+            'line-dasharray': [2.7, 4],
+            'line-width-transition': { duration: 200, delay: 0 },
+            'line-opacity-transition': { duration: 200, delay: 0 },
+          },
         },
       ]),
     [map],
   );
+  // Only on a planning change: a short paint transition, then still.
+  useEffect(() => {
+    if (!map.getLayer('range-line')) return;
+    const look = planning ? RING_PLANNING : RING_QUIET;
+    map.setPaintProperty('range-line', 'line-width', look.width);
+    map.setPaintProperty('range-line', 'line-opacity', look.opacity);
+  }, [map, planning]);
   // One small polygon per animation frame while the range eases; nothing
   // once it lands.
   useEffect(() => {
@@ -1762,8 +1787,10 @@ function GameMapInner({
         {!(view3d && inBlock) && <KeyboardCamera home={home} />}
         {view3d && <Atmosphere3d kind={weather} time={time} dom={weatherDom} />}
         <GroundPicker onPick={onPickGround} engine={engine} onSite={selectSite} />
-        {/* Soft-cost forest wash — under fog so only explored ground shows green. */}
+        {/* Water, forest wash and expressways — under fog so only explored ground shows. */}
         <VegetationOverlay />
+        <DistrictNames />
+        <MapGrain />
         {/* Outside the island disc the world fades to black. */}
         <EdgeVignette />
         {/* Fog + 3D buildings. Overlays draw by slot, not mount order. */}
@@ -1776,6 +1803,7 @@ function GameMapInner({
           view3d={view3d}
           onEngine={setEngine}
           poiLayer={{ pois, selectedId, hereId, playerAtSite, onSelect, engine, worked, evacZoneId }}
+          planning={!!travelPath && travelPath.length > 1 && !travelAnim}
         />
 
         {/* Drawn under the pins — ground, not a destination. */}
