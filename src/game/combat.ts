@@ -22,6 +22,7 @@ import { environmentCombatMods, timeAccuracyPenalty } from './weather';
 import { itemDef } from './loot';
 import { equipLightPower, hasTraitFlag, sumTraitMod } from './character';
 import { darkAimDelta } from './nightSight';
+import { d20HitChance } from './combatTally';
 import {
   armorScaledMod,
   effectiveDamage,
@@ -586,6 +587,8 @@ export function secondsPerAction(speed: number): number {
 
 export interface PlayerActionResult {
   zombieHpAfter: number;
+  /** Pre-roll chance the main attack connects (0..1). Display only — the summary card. */
+  hitChance: number;
   log: CombatLogEntry[];
   zombieDead: boolean;
   /** Whether this swing connected (including crits). */
@@ -608,6 +611,8 @@ export interface PlayerActionResult {
 
 export interface EnemyActionResult {
   playerDamage: number;
+  /** Pre-roll chance the attack beats your defence, before dodge / block. Display only. */
+  hitChance: number;
   infectionGain: number;
   log: CombatLogEntry[];
   limbDamageMult: number;
@@ -861,6 +866,7 @@ export function resolvePlayerAction(
 
   return {
     zombieHpAfter: Math.max(0, zombieHp),
+    hitChance: d20HitChance(pAtkMod, pTarget, critFloor),
     log,
     zombieDead: zombieHp <= 0,
     hit,
@@ -977,6 +983,7 @@ export function resolvePlayerFireAction(
 
   return {
     zombieHpAfter: Math.max(0, zombieHp),
+    hitChance: d20HitChance(pAtkMod, pTarget, 17),
     log,
     zombieDead: zombieHp <= 0,
     hit,
@@ -1162,6 +1169,7 @@ export function resolveEnemyAction(
 
   return {
     playerDamage,
+    hitChance: d20HitChance(zombie.attack + env.zombieAttack, defense, 20),
     infectionGain,
     log,
     limbDamageMult: stance.limbDamageMult,
