@@ -2011,26 +2011,17 @@
       "fractureUnsupported": "Fracture unsupported · slower healing",
       "painActive": "Pain relief · about {n}h left",
       "recovering": "Recovering",
-      "chooseSupply": "Choose supply for {action}",
       "improvisedEffect": "Stops bleeding; dirty dressing slows recovery.",
       "noSupplies": "No suitable care supplies within reach.",
-      "unavailable": "No supplies for: {actions}",
       "busy": "Finish the current action to provide care.",
       "recoveryHint": "Care stabilizes; time heals. Food, water and undisturbed sleep support recovery.",
       "supplyCost": "{item} ×1 · {n} left",
       "kitCost": "{item} · 1 charge / {n} left",
-      "shortEffect": {
-        "bandage": "Stops bleeding",
-        "clean": "Removes dirt",
-        "pain": "Relief · 4h",
-        "splint": "Supports fracture",
-        "firstAid": "Combined care",
-        "support": "+25% · 8h"
-      },
-      "improvisedShort": "Stops bleed · dirty",
-      "stock": "{n} left",
       "recoveryPaused": "Recovery paused · major bleeding",
-      "supportActive": "Recovery +25% · about {n}h left"
+      "supportActive": "Recovery +25% · about {n}h left",
+      "noSupplyFor": "No suitable supply within reach.",
+      "tapAgain": "Tap again to apply.",
+      "statusLabel": "Condition"
     },
     "coop": {
       "menu": "Co-op expedition",

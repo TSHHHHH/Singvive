@@ -2011,26 +2011,17 @@
       "fractureUnsupported": "骨折未固定，愈合较慢",
       "painActive": "止痛中，约余{n}小时",
       "recovering": "恢复中",
-      "chooseSupply": "选择{action}用品",
       "improvisedEffect": "可止血；污损敷料会拖慢恢复。",
       "noSupplies": "附近没有可用的护理用品。",
-      "unavailable": "缺少用品：{actions}",
       "busy": "忙碌中，结束当前行动后可护理。",
       "recoveryHint": "护理稳定伤势，恢复需要时间。食物、水分和安稳睡眠有助恢复。",
       "supplyCost": "{item} ×1 · 余{n}份",
       "kitCost": "{item} · 消耗1次，余{n}次",
-      "shortEffect": {
-        "bandage": "止血",
-        "clean": "去除污物",
-        "pain": "止痛 · 4小时",
-        "splint": "支撑骨折",
-        "firstAid": "综合护理",
-        "support": "+25% · 8小时"
-      },
-      "improvisedShort": "止血 · 污损",
-      "stock": "余{n}",
       "recoveryPaused": "恢复暂停 · 仍有严重出血",
-      "supportActive": "恢复 +25% · 约余{n}小时"
+      "supportActive": "恢复 +25% · 约余{n}小时",
+      "noSupplyFor": "附近没有合适的护理用品。",
+      "tapAgain": "再点一次即可使用。",
+      "statusLabel": "状况"
     },
     "coop": {
       "menu": "合作远征",
