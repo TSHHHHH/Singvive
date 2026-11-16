@@ -1,9 +1,8 @@
 import { useMemo, type RefObject } from 'react';
 import { useSetting } from '../game/settings';
-import type { WeatherKind } from '../game/types';
+import type { TimeOfDay, WeatherKind } from '../game/types';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { atmosphereFor, type Atmosphere } from '../map/atmosphere';
-import { keyLight, lightPhase, phaseBand } from '../map/lighting';
 
 /** The DOM halves of the 3D weather, owned by WeatherFx and driven from the map. */
 export interface WeatherDom {
@@ -16,23 +15,15 @@ export interface WeatherDom {
 const STRENGTH = { off: 0, subtle: 0.6, full: 1 } as const;
 
 /**
- * The 3D atmosphere for today's sky and hour, resolved against the
- * weatherFx and mapLighting settings and reduced motion. Shared by the map driver and WeatherFx's depth haze so
+ * The 3D atmosphere for today's sky, resolved against the weatherFx setting
+ * and reduced motion. Shared by the map driver and WeatherFx's depth haze so
  * both read the same numbers.
  */
-export function useAtmosphere(kind: WeatherKind, hour: number) {
+export function useAtmosphere(kind: WeatherKind, time: TimeOfDay) {
   const mode = useSetting('weatherFx');
-  const lighting = useSetting('mapLighting') !== 'off';
   const still = useReducedMotion();
   const strength = STRENGTH[mode as keyof typeof STRENGTH] ?? 0;
-  // Whole hours only: the light moves when the clock crosses an hour, not per minute.
-  const h = Math.floor(hour);
-  // Lighting off keeps the old three-band look (no dawn).
-  const phase = lighting ? lightPhase(h) : phaseBand(lightPhase(h));
-  const atmos = useMemo<Atmosphere>(
-    () => atmosphereFor(kind, phase, strength, lighting ? keyLight(h) : undefined),
-    [kind, phase, strength, lighting, h],
-  );
+  const atmos = useMemo<Atmosphere>(() => atmosphereFor(kind, time, strength), [kind, time, strength]);
   const lightning = strength > 0 && !still && kind === 'thunderstorm';
   return { atmos, lightning, still, strength };
 }

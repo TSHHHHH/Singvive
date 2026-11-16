@@ -6,7 +6,7 @@ import type { TimeOfDay } from '../game/types';
  * night are gameplay reads, not cosmetic rain. Static viewport gradients only
  * (same compositor rule as WeatherFx). A one-shot flash remounts on band change.
  */
-function TimeOfDayFxInner({ time, dawn = false }: { time: TimeOfDay; dawn?: boolean }) {
+function TimeOfDayFxInner({ time }: { time: TimeOfDay }) {
   const prev = useRef<TimeOfDay | null>(null);
   const [flash, setFlash] = useState<{ nonce: number; band: TimeOfDay } | null>(null);
 
@@ -26,8 +26,7 @@ function TimeOfDayFxInner({ time, dawn = false }: { time: TimeOfDay; dawn?: bool
     return () => window.clearTimeout(t);
   }, [flash]);
 
-  // Dawn is a look, not a band: the first daylight hours get a cool rose wash.
-  const wash = time === 'night' ? 'tod-night' : time === 'dusk' ? 'tod-dusk' : dawn ? 'tod-dawn' : null;
+  const wash = time === 'night' ? 'tod-night' : time === 'dusk' ? 'tod-dusk' : null;
   if (!wash && !flash) return null;
 
   return (
