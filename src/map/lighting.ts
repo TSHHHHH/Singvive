@@ -31,6 +31,61 @@ export function lightPhase(hour: number): LightPhase {
   return 'night';
 }
 
+/**
+ * The light moves in steps of this many hours (10 game minutes), never
+ * continuously: each step is one repaint, and none happen in between.
+ */
+export const LIGHT_STEP_H = 1 / 6;
+
+/** A 0..24 clock time snapped down to its light step. */
+export function stepHour(hour: number): number {
+  const h = ((hour % 24) + 24) % 24;
+  return Math.floor(h / LIGHT_STEP_H + 1e-6) * LIGHT_STEP_H;
+}
+
+/**
+ * The look's keyframes through the day: each phase holds between its two
+ * keys and blends into the next across the gap. Sunrise ~07:00 and sunset
+ * ~19:10 sit inside the blends, so the light turns as the sun does.
+ */
+const KEYS: [number, LightPhase][] = [
+  [5, 'night'],
+  [6.25, 'dawn'],
+  [7.5, 'dawn'],
+  [9, 'day'],
+  [15.5, 'day'],
+  [17.75, 'dusk'],
+  [18.75, 'dusk'],
+  [20, 'night'],
+];
+
+export interface LightBlend {
+  a: LightPhase;
+  b: LightPhase;
+  /** 0 all `a` … 1 all `b`. */
+  t: number;
+}
+
+/** Where a clock time sits between the look's keyframes (stepped, eased). */
+export function lightBlend(hour: number): LightBlend {
+  const h = stepHour(hour);
+  if (h < KEYS[0][0] || h >= KEYS[KEYS.length - 1][0]) return { a: 'night', b: 'night', t: 0 };
+  for (let i = 0; i < KEYS.length - 1; i++) {
+    const [h0, a] = KEYS[i];
+    const [h1, b] = KEYS[i + 1];
+    if (h >= h0 && h < h1) {
+      const x = a === b ? 0 : (h - h0) / (h1 - h0);
+      return { a, b, t: x * x * (3 - 2 * x) };
+    }
+  }
+  return { a: 'night', b: 'night', t: 0 };
+}
+
+/** How much of each phase a blend holds. */
+export function blendWeight(bl: LightBlend, p: LightPhase): number {
+  return (bl.a === p ? 1 - bl.t : 0) + (bl.b === p ? bl.t : 0);
+}
+
 /** The gameplay band a light phase belongs to (dawn is daytime). */
 export function phaseBand(p: LightPhase): TimeOfDay {
   return p === 'dawn' ? 'day' : p;
@@ -52,11 +107,11 @@ const SET_AZ = 248;
 const MOON: Sun = { az: 315, alt: 55 };
 
 /**
- * The sun for a clock hour. Callers pass a whole hour; the sun is placed at
- * the middle of it, so 07:xx already has the sun up and casting long shadows.
+ * The sun for a clock time, stepped every LIGHT_STEP_H and placed at the
+ * middle of the step, so the light only moves when the clock crosses one.
  */
 export function sunAt(hour: number): Sun {
-  const h = Math.floor(((hour % 24) + 24) % 24) + 0.5;
+  const h = stepHour(hour) + LIGHT_STEP_H / 2;
   const t = (h - SUNRISE) / (SUNSET - SUNRISE);
   if (t <= 0 || t >= 1) {
     // Down: the sky is lit from where it went (or will come up).
@@ -122,6 +177,22 @@ export const GRADES: Record<LightPhase, Grade> = {
   dusk: { gain: 1.2, lift: [14, 6, 0], light: 0.45, tint: [1.04, 0.86, 0.7] },
   night: { gain: 0.8, lift: [0, 2, 8], light: 0, tint: [1, 1, 1] },
 };
+
+const lerpN = (a: number, b: number, t: number) => a + (b - a) * t;
+
+/** Blend two grades. */
+export function mixGrade(x: Grade, y: Grade, t: number): Grade {
+  if (t <= 0) return x;
+  if (t >= 1) return y;
+  const v3 = (p: number[], q: number[]) => p.map((c, i) => lerpN(c, q[i], t)) as [number, number, number];
+  return { gain: lerpN(x.gain, y.gain, t), lift: v3(x.lift, y.lift), light: lerpN(x.light, y.light, t), tint: v3(x.tint, y.tint) };
+}
+
+/** The ground grade for a clock time: its keyframes' grades, blended. */
+export function gradeAt(hour: number): Grade {
+  const bl = lightBlend(hour);
+  return mixGrade(GRADES[bl.a], GRADES[bl.b], bl.t);
+}
 
 /** Dark Matter's ground brightness, and where it lands by day. */
 const DARK_GROUND_L = 14;

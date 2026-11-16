@@ -967,7 +967,7 @@ export class BuildingEngine {
 
   /**
    * Where the sun is for the ground shadows; null hides them. Called when
-   * the game hour or weather changes, never per frame.
+   * the light's clock steps or the weather changes, never per frame.
    */
   setSun(sun: ShadowSun | null) {
     const map = this.map;
@@ -975,7 +975,9 @@ export class BuildingEngine {
     this.sun = sun;
     map.setLayoutProperty(SHADOW_LAYER, 'visibility', sun ? 'visible' : 'none');
     if (sun) map.setPaintProperty(SHADOW_LAYER, 'fill-color', sun.color);
-    this.queueShadows(true);
+    // Debounced: a fade through a clock jump moves the sun every 140 ms, but
+    // only where it lands needs drawing.
+    this.queueShadows();
   }
 
   private queueShadows(now = false) {

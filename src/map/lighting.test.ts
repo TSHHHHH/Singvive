@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { timeOfDay } from '../game/weather';
 import {
   GRADES,
+  blendWeight,
+  gradeAt,
+  lightBlend,
+  stepHour,
   dayColor,
   MAX_SHADOW_RATIO,
   gradeColor,
@@ -48,8 +52,9 @@ describe('sunAt', () => {
     expect(Math.abs(sunAt(12).az - 180)).toBeLessThan(15);
   });
 
-  it('only moves when the hour does', () => {
-    expect(sunAt(10.1)).toEqual(sunAt(10.9));
+  it('only moves when the clock crosses a 10-minute step', () => {
+    expect(sunAt(10.01)).toEqual(sunAt(10.15));
+    expect(sunAt(10.2).az).toBeGreaterThan(sunAt(10.1).az);
   });
 
   it('keeps a light on the 3D buildings at night', () => {
@@ -123,5 +128,40 @@ describe('ground grade', () => {
     expect(g[4]).not.toBe('#101010');
     expect(String(g[6])).toMatch(/^rgba\(.*,0\.5\)$/);
     expect(gradePaint(3, GRADES.day)).toBe(3);
+  });
+});
+
+describe('gradual light', () => {
+  it('steps the clock in 10-minute steps', () => {
+    expect(stepHour(17.26)).toBeCloseTo(17 + 1 / 6);
+    expect(stepHour(-1)).toBeCloseTo(23);
+  });
+
+  it('holds each phase, then blends into the next', () => {
+    expect(lightBlend(12)).toEqual({ a: 'day', b: 'day', t: 0 });
+    expect(lightBlend(2)).toEqual({ a: 'night', b: 'night', t: 0 });
+    const mid = lightBlend(17);
+    expect([mid.a, mid.b]).toEqual(['day', 'dusk']);
+    expect(mid.t).toBeGreaterThan(0.2);
+    expect(mid.t).toBeLessThan(0.8);
+  });
+
+  it('dims smoothly through the evening, never brightening on the way down', () => {
+    let prev = Infinity;
+    for (let h = 15; h <= 20.01; h += 1 / 6) {
+      const l = gradeAt(h).light;
+      expect(l).toBeLessThanOrEqual(prev + 1e-9);
+      prev = l;
+    }
+    expect(gradeAt(15).light).toBe(1);
+    expect(gradeAt(20).light).toBe(0);
+  });
+
+  it('weights always add up to one', () => {
+    for (let h = 0; h < 24; h += 0.25) {
+      const bl = lightBlend(h);
+      const sum = (['dawn', 'day', 'dusk', 'night'] as const).reduce((a, p) => a + blendWeight(bl, p), 0);
+      expect(sum).toBeCloseTo(1);
+    }
   });
 });
