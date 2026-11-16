@@ -1986,3 +1986,15 @@ body:has([data-dock-resizing='true']) * {
     animation: none;
   }
 }
+
+/* Day/night lighting: dawn's wash. Rose low on the screen where the sun
+   comes up through the haze, cooler and clearing toward the top. Static,
+   like the dusk and night washes above. */
+.tod-dawn {
+  background: linear-gradient(
+    to top,
+    rgba(196, 110, 120, 0.16),
+    rgba(255, 176, 140, 0.08) 45%,
+    rgba(60, 70, 110, 0.12)
+  );
+}

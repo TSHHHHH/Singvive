@@ -17,6 +17,8 @@ import { breakBuilding, type RuinKind } from './ruinModel';
 import { cityDamage, hash01 } from './cityDamage';
 import { landmarkBaseHeight } from './landmarkGeometry';
 import { REVEAL_MS } from './revealMotion';
+import { groundShadowBefore } from './daylight';
+import { shadowDir, shadowRing } from './lighting';
 
 /**
  * The 3D run map's buildings: the basemap's own footprints extruded to their
@@ -114,6 +116,19 @@ const FIRE_SOURCE = 'fires-3d-src';
 /** The storey band: a lit collar round the block you are inside, at your row. */
 const BAND_SOURCE = 'storey-band-src';
 export const BAND_LAYER = 'storey-band';
+const SHADOW_SOURCE = 'shadows-3d-src';
+export const SHADOW_LAYER = 'shadows-3d';
+/** Shadows are redrawn this long after the last reveal change, so a pan's worth of reveals costs one setData. */
+const SHADOW_DEBOUNCE_MS = 250;
+
+/** Where the light comes from and how long, and how dark, the shadows it throws are. */
+export interface ShadowSun {
+  az: number;
+  /** Shadow length per metre of height. */
+  ratio: number;
+  /** Opaque shadow colour (see daylight.ts `shadowColor`). */
+  color: string;
+}
 const BAND_COLOR = '#f0a020';
 /** How far the collar stands off the wall, so it never z-fights the facade. */
 const BAND_STANDOFF_M = 1.2;
@@ -367,6 +382,11 @@ export class BuildingEngine {
   /** Buildings whose scorch / stump state is already on. */
   private damaged = new Set<FeatureId>();
   private heightCorrected = new Set<FeatureId>();
+  /** Footprint rings of the indexed buildings ([lng, lat]), every tile piece. */
+  private footprints = new Map<FeatureId, number[][][]>();
+  private sun: ShadowSun | null = null;
+  private shadowTimer: ReturnType<typeof setTimeout> | null = null;
+  private shadowKey = '';
   private lastPick: { lat: number; lng: number } | null = null;
   private fires = new Map<FeatureId, Fire>();
 
@@ -568,6 +588,24 @@ export class BuildingEngine {
       // then tint the band instead of hiding it behind their depth.
       BUILDINGS_LAYER,
     );
+    // Ground shadows: one opaque fill under the roads (see daylight.ts),
+    // fading in with the heights across the LOD zoom band.
+    map.addSource(SHADOW_SOURCE, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+    map.addLayer(
+      {
+        id: SHADOW_LAYER,
+        type: 'fill',
+        source: SHADOW_SOURCE,
+        minzoom: LOD_ZOOM,
+        layout: { visibility: 'none' },
+        paint: {
+          'fill-color': '#000000',
+          'fill-antialias': false,
+          'fill-opacity': ['interpolate', ['linear'], ['zoom'], LOD_ZOOM, 0, LOD_ZOOM + ZOOM_RISE_SPAN, 1],
+        },
+      },
+      groundShadowBefore(map),
+    );
     // Sky and light belong to the weather: see atmosphere.ts.
 
     map.on('sourcedata', this.onSourceData);
@@ -588,6 +626,7 @@ export class BuildingEngine {
     if (this.settleTimer) clearTimeout(this.settleTimer);
     if (this.riseRaf) cancelAnimationFrame(this.riseRaf);
     if (this.ruinTimer) clearTimeout(this.ruinTimer);
+    if (this.shadowTimer) clearTimeout(this.shadowTimer);
     for (const f of this.fires.values()) f.smoke.remove();
     this.fires.clear();
     if (!alive(map)) return;
@@ -600,6 +639,8 @@ export class BuildingEngine {
     if (map.getSource(FIRE_SOURCE)) map.removeSource(FIRE_SOURCE);
     if (map.getLayer(BAND_LAYER)) map.removeLayer(BAND_LAYER);
     if (map.getSource(BAND_SOURCE)) map.removeSource(BAND_SOURCE);
+    if (map.getLayer(SHADOW_LAYER)) map.removeLayer(SHADOW_LAYER);
+    if (map.getSource(SHADOW_SOURCE)) map.removeSource(SHADOW_SOURCE);
     for (const l of this.flatLayers) if (map.getLayer(l.id)) map.setLayerZoomRange(l.id, l.min, l.max);
     // No id: clears every state this engine put on the building layer.
     if (map.getSource(this.src)) map.removeFeatureState({ source: this.src, sourceLayer: this.sl });
@@ -812,11 +853,20 @@ export class BuildingEngine {
     const map = this.map;
     if (!map.getSource(this.src) || map.getZoom() < LOD_ZOOM) return;
     const next = new Map<FeatureId, Indexed>();
+    const prints = new Map<FeatureId, number[][][]>();
     this.partIds.clear();
     this.collapsedIds.clear();
     this.fireIds.clear();
     for (const f of map.querySourceFeatures(this.src, { sourceLayer: this.sl })) {
-      if (f.id === undefined || next.has(f.id)) continue;
+      if (f.id === undefined) continue;
+      // A building cut by tile edges comes back once per tile: keep every
+      // piece's outline for its shadow, index it once.
+      const g = f.geometry;
+      const outer = g.type === 'Polygon' ? [g.coordinates[0]] : g.type === 'MultiPolygon' ? g.coordinates.map((p) => p[0]) : [];
+      const had = prints.get(f.id);
+      if (had) had.push(...outer);
+      else prints.set(f.id, outer);
+      if (next.has(f.id)) continue;
       const at = anchorOf(f.geometry);
       if (!at) continue;
       const props = f.properties as Record<string, unknown>;
@@ -834,6 +884,7 @@ export class BuildingEngine {
     }
     const first = this.index.size === 0;
     this.index = next;
+    this.footprints = prints;
     this.pickDamage(true);
     // The first reveal (entering 3D, loading a run) is instant; tiles that
     // load later rise in.
@@ -864,6 +915,7 @@ export class BuildingEngine {
       }
     }
     this.publishRoofs();
+    this.queueShadows();
     if (snap) this.placeSmoke();
     if (this.rising.size && !this.riseRaf) this.riseRaf = requestAnimationFrame(this.stepRise);
   }
@@ -889,10 +941,80 @@ export class BuildingEngine {
     if (this.rising.size) this.riseRaf = requestAnimationFrame(this.stepRise);
   };
 
+  // --- Shadows ----------------------------------------------------------------
+
+  /**
+   * Where the sun is for the ground shadows; null hides them. Called when
+   * the game hour or weather changes, never per frame.
+   */
+  setSun(sun: ShadowSun | null) {
+    const map = this.map;
+    if (this.destroyed || !alive(map) || !map.getLayer(SHADOW_LAYER)) return;
+    this.sun = sun;
+    map.setLayoutProperty(SHADOW_LAYER, 'visibility', sun ? 'visible' : 'none');
+    if (sun) map.setPaintProperty(SHADOW_LAYER, 'fill-color', sun.color);
+    this.queueShadows(true);
+  }
+
+  private queueShadows(now = false) {
+    if (!this.sun || this.destroyed) return;
+    if (this.shadowTimer) clearTimeout(this.shadowTimer);
+    this.shadowTimer = null;
+    if (now) this.drawShadows();
+    else
+      this.shadowTimer = setTimeout(() => {
+        this.shadowTimer = null;
+        this.drawShadows();
+      }, SHADOW_DEBOUNCE_MS);
+  }
+
+  /**
+   * One convex shadow per standing building (lighting.ts `shadowRing`),
+   * as a single GeoJSON source. Drawn at the buildings' target heights: a
+   * building rising in already throws its full shadow. Skipped when nothing
+   * that shapes it has changed.
+   */
+  private drawShadows() {
+    const map = this.map;
+    const sun = this.sun;
+    if (!sun || this.destroyed || !alive(map)) return;
+    const src = map.getSource(SHADOW_SOURCE) as GeoJSONSource | undefined;
+    if (!src) return;
+    const standing: FeatureId[] = [];
+    for (const [id, r] of this.rise) {
+      if (r.to === 1 && this.index.has(id) && !this.collapsedIds.has(id)) standing.push(id);
+    }
+    // A visited site's ruin cuts its building down; so does its shadow.
+    const cut = new Map<FeatureId, number>();
+    for (const [siteId, ids] of this.siteFeatures) {
+      const k = stumpFactor(siteId, this.sites.get(siteId)?.ruin ?? 0);
+      if (k !== 1) for (const id of ids) cut.set(id, k);
+    }
+    const key = `${sun.az.toFixed(1)}|${sun.ratio.toFixed(3)}|${standing.join(',')}|${[...cut].join(',')}`;
+    if (key === this.shadowKey) return;
+    this.shadowKey = key;
+    const dir = shadowDir(sun.az);
+    const polys: number[][][][] = [];
+    for (const id of standing) {
+      const c = this.index.get(id)!;
+      const h = c.h * (cut.get(id) ?? 1);
+      for (const ring of this.footprints.get(id) ?? []) {
+        const s = shadowRing(ring, h, sun.ratio, dir);
+        if (s) polys.push([s]);
+      }
+    }
+    src.setData({
+      type: 'FeatureCollection',
+      features: polys.length ? [{ type: 'Feature', properties: {}, geometry: { type: 'MultiPolygon', coordinates: polys } }] : [],
+    });
+  }
+
   // --- Sites → buildings --------------------------------------------------------
 
   private onIdle = () => {
     this.matchSites();
+    // Site matches and ruin tiers settle here; a no-op unless they moved a shadow.
+    this.queueShadows();
   };
 
   private ringOf(site: Site3d): LngLatPair[] | null {
