@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import {
+  defaultFor,
   SETTINGS_TABS,
   settingsForTab,
   useSettings,
@@ -59,7 +60,7 @@ export function SettingsModal({
                     <SettingControl
                       key={def.key}
                       def={def}
-                      value={values[def.key] ?? def.default}
+                      value={values[def.key] ?? defaultFor(def)}
                       onChange={(next) => setSetting(def.key, next)}
                     />
                   ))}
