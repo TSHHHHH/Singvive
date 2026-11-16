@@ -109,13 +109,16 @@ const RUMOUR_ICON: MapIcon = {
 export const rumourIcon = (): MapIcon => RUMOUR_ICON;
 
 /** Anonymous "?" blip — something is there, but you must go find out what.
- *  White + glow so it stands out against the dark map. */
+ *  Rests as a small soft dot so a district full of unknowns stays calm; the
+ *  "?" badge grows back on hover, when picked, or as the here capsule
+ *  (`.blip-unknown` in index.css). The marker box keeps the full 24px, so
+ *  the dot's tap and hover target never shrinks. */
 const UNKNOWN_ICON: MapIcon = {
-  html: `<div style="
+  html: `<div class="blip-unknown" style="
     width:24px;height:24px;border-radius:50%;
     display:flex;align-items:center;justify-content:center;
-    font-size:14px;font-weight:700;color:#1a1204;cursor:pointer;
-    background:#e8e5dd;border:2px solid #ffffff;
+    font-size:14px;font-weight:700;cursor:pointer;
+    background:#e8e5dd;border:2px solid #ffffff;box-sizing:border-box;
   ">?</div>`,
   size: [24, 24],
   anchor: [12, 12],

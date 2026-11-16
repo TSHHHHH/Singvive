@@ -1,4 +1,6 @@
 import type { TimeOfDay, WeatherKind } from '../game/types';
+import { audioContext } from './context';
+import { sfx } from './sfx';
 
 // ---------------------------------------------------------------------------
 // Procedural ambience — every sound is synthesised with the Web Audio API, so
@@ -124,14 +126,32 @@ class AmbienceEngine {
 
   /** Thunder for a strike just seen, `delay` seconds behind the flash. */
   strike(delay: number): void {
-    if (!this.ready() || this.params.underground || this.params.weather !== 'thunderstorm') return;
+    if (this.params.underground || this.params.weather !== 'thunderstorm') return;
+    // An assigned thunder file replaces the synth rumble.
+    if (sfx.play('world.thunder', { delayMs: delay * 1000 })) return;
+    if (!this.ready()) return;
     this.thunder(delay);
   }
 
   stinger(kind: StingerKind): void {
+    if (sfx.play(kind === 'nightfall' ? 'world.nightfall' : 'combat.contact')) return;
     if (!this.ready()) return;
     if (kind === 'nightfall') this.siren();
     else this.contactHit();
+  }
+
+  /**
+   * Dip the beds under a big cue for `seconds`, then glide back. Ducks the
+   * whole ambience master; overlapping ducks just extend the dip.
+   */
+  duck(amount: number, seconds: number): void {
+    if (!this.ctx || !this.master || this.volume === 0) return;
+    const t = this.ctx.currentTime;
+    const g = this.master.gain;
+    const full = this.volume * 0.9;
+    g.cancelScheduledValues(t);
+    g.setTargetAtTime(full * (1 - amount), t, 0.08);
+    g.setTargetAtTime(full, t + seconds, 0.6);
   }
 
   /** Stop the loop and silence the beds (leaving the game screen). */
@@ -148,11 +168,8 @@ class AmbienceEngine {
   }
 
   private build(): void {
-    const Ctx: typeof AudioContext | undefined =
-      window.AudioContext ??
-      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!Ctx) return;
-    const ctx = new Ctx();
+    const ctx = audioContext();
+    if (!ctx) return;
     this.ctx = ctx;
 
     const master = ctx.createGain();
@@ -378,7 +395,9 @@ class AmbienceEngine {
       this.gecko();
     }
     if (Math.random() < (0.004 + night * 0.01 + p.dread * 0.006) * dt) this.clank();
-    if (!this.skyThunder && p.weather === 'thunderstorm' && Math.random() < 0.025 * dt) this.thunder();
+    if (!this.skyThunder && p.weather === 'thunderstorm' && Math.random() < 0.025 * dt) {
+      if (!sfx.play('world.thunder')) this.thunder();
+    }
   }
 
   // ---- voices ----------------------------------------------------------------
@@ -712,6 +731,9 @@ class AmbienceEngine {
 
 /** One engine per page — the AudioContext is expensive and browsers cap them. */
 export const ambience = new AmbienceEngine();
+
+// Big cues (stingers, crits) dip the beds so they cut through.
+sfx.setDucker((amount, seconds) => ambience.duck(amount, seconds));
 
 /** Setting value → master volume. */
 export function soundVolume(setting: string): number {

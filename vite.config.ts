@@ -2,6 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { cloudflare } from '@cloudflare/vite-plugin'
 import { lootDevApi } from './vite.loot-dev-api.ts'
+import { soundDevApi } from './vite.sound-dev-api.ts'
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
@@ -10,7 +11,7 @@ export default defineConfig(({ mode }) => {
   const itch = mode === 'itch';
   return {
     base: itch ? './' : '/',
-    plugins: [react(), lootDevApi(), ...(itch ? [] : [cloudflare()])],
+    plugins: [react(), lootDevApi(), soundDevApi(), ...(itch ? [] : [cloudflare()])],
     // Honour PORT so two dev servers can run side by side; 5190 stays the default.
     server: { port: Number(process.env.PORT) || 5190 },
     build: {

@@ -14,6 +14,8 @@ import { DevLootBrowser } from './dev/LootBrowser';
 import { DevEnemyBrowser } from './dev/EnemyBrowser';
 import { DevIconBrowser } from './dev/IconBrowser';
 import { DevLocaleEditor } from './dev/LocaleEditor';
+import { DevSoundConsole } from './dev/SoundConsole';
+import { useSfx } from './audio/useSfx';
 
 // Leaflet stays out of the menu chunk. Do not statically import spawn/game
 // screens here — that pulls the map into first paint.
@@ -29,6 +31,12 @@ const GameScreen = lazy(() =>
 const DeathScreen = lazy(() =>
   import('./screens/DeathScreen').then((m) => ({ default: m.DeathScreen })),
 );
+
+/** Sound effects: volume, unlock, UI clicks and the cue director. */
+function SfxSync() {
+  useSfx();
+  return null;
+}
 
 function FontSizeSync() {
   const fontSize = useSetting('fontSize');
@@ -134,6 +142,7 @@ export default function App() {
   return (
     <div className="h-full w-full overflow-hidden">
       <FontSizeSync />
+      <SfxSync />
       <MotionSync />
       <LocaleSync />
       <PersistFlush />
@@ -156,6 +165,7 @@ export default function App() {
       {import.meta.env.DEV && <DevEnemyBrowser />}
       {import.meta.env.DEV && <DevIconBrowser />}
       {import.meta.env.DEV && <DevLocaleEditor />}
+      {import.meta.env.DEV && <DevSoundConsole />}
     </div>
   );
 }

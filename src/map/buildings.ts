@@ -68,7 +68,30 @@ const CREEP_PX_PER_S = 30;
 const MAX_DEFER_MS = 2000;
 
 export const BUILDINGS_LAYER = 'buildings-3d';
-const BASE_BUILDING_COLOR = '#2a2e2a';
+/**
+ * Ordinary buildings shade by height: low blocks sink toward the ground, towers
+ * catch more light, so the city reads as a skyline instead of one grey mass. A
+ * small per-building nudge (by feature id) breaks up rows of equal blocks.
+ * Data-driven paint, set once: no per-frame or per-tick cost.
+ */
+const BUILDING_SHADES: ReadonlyArray<readonly [number, string]> = [
+  [0, '#1a1c18'],
+  [15, '#262922'],
+  [40, '#343832'],
+  [120, '#4a4f4b'],
+];
+/** Metres of "virtual height" the id nudge adds at most. */
+const SHADE_JITTER_M = 8;
+const BASE_BUILDING_COLOR = [
+  'interpolate',
+  ['linear'],
+  [
+    '+',
+    ['coalesce', ['get', 'render_height'], ['get', 'height'], 8],
+    ['*', ['%', ['to-number', ['id'], 0], 5], SHADE_JITTER_M / 4],
+  ],
+  ...BUILDING_SHADES.flat(),
+];
 /**
  * An unrevealed footprint draws over the ground fog, so it takes the colour
  * the fog gives the ground, undershot a little: extrusion lighting brightens
@@ -469,10 +492,11 @@ export class BuildingEngine {
             ['feature-state', 'color'],
             [
               'case',
+              // Colours, not strings: the height-shade branch is an interpolated colour.
               ['boolean', ['feature-state', 'burn'], false],
-              BURN_COLOR,
+              ['to-color', BURN_COLOR],
               ['boolean', ['feature-state', 'scorch'], false],
-              SCORCH_COLOR,
+              ['to-color', SCORCH_COLOR],
               BASE_BUILDING_COLOR,
             ],
           ]),

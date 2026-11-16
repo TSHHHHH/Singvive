@@ -27,7 +27,8 @@
     "preview": "vite preview",
     "deploy": "npm run build && wrangler deploy",
     "db:migrate": "wrangler d1 migrations apply singvive-scores --remote",
-    "db:migrate:local": "wrangler d1 migrations apply singvive-scores --local"
+    "db:migrate:local": "wrangler d1 migrations apply singvive-scores --local",
+    "audio:manifest": "node scripts/audio-manifest.mjs"
   },
   "dependencies": {
     "maplibre-gl": "^5.24.0",

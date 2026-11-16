@@ -5,6 +5,7 @@ import {
   openIconBrowser,
   openLocaleEditor,
   openLootEditor,
+  openSoundConsole,
   type DevToolId,
   type DevToolStateDetail,
 } from './devBridge';
@@ -17,6 +18,7 @@ const TOOLS: { id: DevToolId; label: string; open: () => void }[] = [
   { id: 'enemies', label: 'Enemies', open: () => openEnemyEditor() },
   { id: 'icons', label: 'Icons', open: () => openIconBrowser() },
   { id: 'locale', label: 'Locale', open: () => openLocaleEditor() },
+  { id: 'sound', label: 'Sound', open: () => openSoundConsole() },
 ];
 
 function readHidden(): boolean {

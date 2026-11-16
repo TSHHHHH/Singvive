@@ -810,6 +810,11 @@ interface State {
   rest: (length?: RestLength) => void;
   /** Exactly what `rest(length)` will do — the Rest dialog's preview. */
   peekRestPlan: (length: RestLength) => { preview: RestPreview; outcome: RestOutcome };
+  /**
+   * Unknown sites that arriving at `pos` would identify, by the same rule as
+   * arrival recognition. Read-only: a map hover preview, never a state change.
+   */
+  peekRecognition: (pos: { lat: number; lng: number }) => string[];
   /** Preview sleep quality for the Rest button (same evaluator as rest()). */
   peekSleepConditions: () => SleepConditions;
   /** Recovery + night-priced ambush chance (same math rest() rolls). */
@@ -1750,15 +1755,22 @@ export const useGame = create<State>((set, get) => {
     return false;
   };
 
-  /** Recognition is an arrival action, never a passive tick or a map-camera effect. */
-  const recognizeSurroundings = () => {
-    const s = get();
-    if (s.phase !== 'game' || !s.character || s.hdb || s.tunnel) return;
+  /** Today's recognition radius in metres, or 0 when recognition can't happen. */
+  const recognitionRadiusNow = (s: State): number => {
+    if (s.phase !== 'game' || !s.character || s.hdb || s.tunnel) return 0;
     const weather = weatherKindFor(s.seed, s.day);
     const sight = darkOpts(s, timeOfDay(s.hour), weather).sight;
     const awarenessValue = s.character.attributes.perception + equipAwarenessMod(s.equipment)
       + traitAwarenessMod(s.character.traitIds) - headAwarenessPenalty(s.bodyParts);
-    const locations = recognizeNearby(s.locations, s.currentPos, recognitionRadius(awarenessValue, sight, weather));
+    return recognitionRadius(awarenessValue, sight, weather);
+  };
+
+  /** Recognition is an arrival action, never a passive tick or a map-camera effect. */
+  const recognizeSurroundings = () => {
+    const s = get();
+    const radius = recognitionRadiusNow(s);
+    if (!(radius > 0)) return;
+    const locations = recognizeNearby(s.locations, s.currentPos, radius);
     if (locations !== s.locations) {
       const ids = Object.keys(locations).filter(id => locations[id].identified && !s.locations[id]?.identified);
       set({ locations, nearbyRecognition: [...new Set([...s.nearbyRecognition, ...ids])] });
@@ -5693,6 +5705,15 @@ export const useGame = create<State>((set, get) => {
         return;
       }
       persist();
+    },
+
+    peekRecognition: (pos) => {
+      const s = get();
+      const radius = recognitionRadiusNow(s);
+      if (!(radius > 0)) return [];
+      const next = recognizeNearby(s.locations, pos, radius);
+      if (next === s.locations) return [];
+      return Object.keys(next).filter(id => next[id].identified && !s.locations[id]?.identified);
     },
 
     peekRestPlan: (length) => {
