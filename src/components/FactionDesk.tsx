@@ -198,11 +198,11 @@ export function FactionDesk({
         <div className="grid grid-cols-2 gap-2">
           <button onClick={sneakEnter} className={BTN.secondary} {...tip(t('ui.location.sneakHint'))}>
             {t('ui.location.sneakIn')}
-            <BtnSub>{t('ui.location.desk.sneakSub')}</BtnSub>
+            <BtnSub hint>{t('ui.location.desk.sneakSub')}</BtnSub>
           </button>
           <button onClick={forceEnter} className={BTN.danger} {...tip(t('ui.location.forceHint'))}>
             {t('ui.location.forceEnter')}
-            <BtnSub>{t('ui.location.desk.forceSub')}</BtnSub>
+            <BtnSub hint>{t('ui.location.desk.forceSub')}</BtnSub>
           </button>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -284,9 +284,10 @@ export function FactionDesk({
               aria-expanded={s === 'escort' ? escortOpen : undefined}
               className={i === 0 ? BTN.tinted : BTN.secondary}
               style={i === 0 ? tint(cfg.color) : undefined}
+              {...tip(sub[s])}
             >
               <Icon name={SERVICE_ICON[s]} /> {serviceLabel(t, s, fid)}
-              <BtnSub>{sub[s]}</BtnSub>
+              <BtnSub hint>{sub[s]}</BtnSub>
             </button>
           ))}
         </div>

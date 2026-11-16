@@ -114,11 +114,24 @@ function CardSplit({
   actions,
   info,
   compact,
+  wide,
 }: {
   actions: ReactNode;
   info: ReactNode;
   compact?: boolean;
+  /** Desktop edge inspector: read on the left, act on the right. */
+  wide?: boolean;
 }) {
+  if (wide) {
+    return (
+      <div className="grid grid-cols-2 items-start gap-4">
+        <div className="min-w-0">{info}</div>
+        <div className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(8.5rem,1fr))] gap-2 [&>:not(button)]:col-span-full">
+          {actions}
+        </div>
+      </div>
+    );
+  }
   // Phone: actions first, stacked. Desktop (the current-location card): the
   // place reads first and the buttons sit in a row under it; anything that is
   // not a button (faction services) takes a full row.
@@ -278,9 +291,9 @@ function StationCodes({ sel }: { sel: LocationState }) {
 function PlanTunnelsButton({ onPlan }: { onPlan: () => void }) {
   const { t } = useT();
   return (
-    <button type="button" onClick={onPlan} className={BTN.tinted} style={tint('#2bc4d9')}>
+    <button type="button" onClick={onPlan} className={BTN.tinted} style={tint('#2bc4d9')} {...tip(t('ui.location.pickStation'))}>
       <Icon name="action.mrt" /> {t('ui.location.route')}
-      <BtnSub>{t('ui.location.pickStation')}</BtnSub>
+      <BtnSub hint>{t('ui.location.pickStation')}</BtnSub>
     </button>
   );
 }
@@ -677,8 +690,8 @@ function KnownCard({
         ? t('ui.location.factionOutpost')
         : t('ui.location.factionTerritory')
       : siteStatus;
-    return (
-      <PlaceStack>
+    const readCol = (
+      <>
         <LocationIdentity
           category={sel.category}
           title={sel.name}
@@ -737,6 +750,10 @@ function KnownCard({
           <RouteRow routeRisk={routeRisk} />
         </Ledger>
 
+      </>
+    );
+    const actCol = (
+      <>
         <RouteNotes
           routeRisk={routeRisk}
           routeBlind={routeBlind}
@@ -769,6 +786,17 @@ function KnownCard({
           {canTunnel && <TunnelButton seg={tunnelSeg ?? null} onTunnel={onTunnel} />}
           {tunnelHint && <Note>{tunnelHint}</Note>}
         </div>
+      </>
+    );
+    return inspector ? (
+      <div className="grid grid-cols-2 items-start gap-4">
+        <PlaceStack>{readCol}</PlaceStack>
+        <PlaceStack>{actCol}</PlaceStack>
+      </div>
+    ) : (
+      <PlaceStack>
+        {readCol}
+        {actCol}
       </PlaceStack>
     );
   }
@@ -777,6 +805,7 @@ function KnownCard({
     <PlaceStack>
       <CardSplit
         compact={compact}
+        wide={inspector && !compact}
         actions={actions}
         info={
           <PlaceStack>
