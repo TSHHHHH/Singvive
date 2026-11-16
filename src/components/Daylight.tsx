@@ -8,8 +8,8 @@ import { useMapGL } from '../map/hooks';
 import { gradeAt, shadowRatio, shadowStrength, sunAt } from '../map/lighting';
 
 /**
- * Time of day on the run map: the basemap grade, building tone and ground shadows
- * (cast by the standing 3D buildings; the flat map has none).
+ * Time of day on the run map's ground: the basemap grade, and shadows (a
+ * drop shadow on the flat map, cast shadows from the standing 3D buildings).
  * Keyed to the stepped light hour (useLightHour), so it changes only when
  * the game clock crosses a 10-minute step, never on a timer. The 3D light itself is Atmosphere3d's.
  */
@@ -52,14 +52,14 @@ export function Daylight({
     engine.setTone(t.base, t.flat);
   }, [engine, on, grade]);
 
-  // Shadows are 3D only: the flat map reads as a plan, where they only add noise.
   useEffect(() => {
-    if (!engine) return;
+    if (!driver) return;
     const sun = sunAt(hour);
     const strength = shadows ? shadowStrength(sun.alt, diffuse) : 0;
     const cast = strength > 0 ? { az: sun.az, ratio: shadowRatio(sun.alt), color: shadowColor(grade, strength) } : null;
-    engine.setSun(view3d ? cast : null);
-  }, [engine, view3d, shadows, hour, grade, diffuse]);
+    driver.setDropShadow(!view3d ? cast : null);
+    engine?.setSun(view3d ? cast : null);
+  }, [driver, engine, view3d, shadows, hour, grade, diffuse]);
 
   return null;
 }

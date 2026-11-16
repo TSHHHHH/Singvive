@@ -1,9 +1,9 @@
 import type { Map as MlMap } from 'maplibre-gl';
 import { BASEMAP, GROUND_COLOR } from './mapStyle';
-import { dimHex, mixHex } from './geo';
+import { dimHex, mixHex, pxPerMetre } from './geo';
 import { FOG_BANDS, FOG_COLOUR, FOG_TOTAL } from './fogGeometry';
 import { alive } from './layers';
-import { gradePaint, gradeRgb, type Grade } from './lighting';
+import { gradePaint, gradeRgb, shadowDir, type Grade } from './lighting';
 
 /**
  * Applies the time of day to the basemap itself (see lighting.ts).
@@ -20,6 +20,13 @@ const COLOR_PROPS: Record<string, string[]> = {
   fill: ['fill-color', 'fill-outline-color'],
   line: ['line-color'],
 };
+
+export const DROP_SHADOW_LAYER = 'daylight-drop-shadow';
+
+/** Flat-map drop shadow: what a nominal mid-rise block throws, metres per unit of ratio. */
+const DROP_HEIGHT_M = 9;
+/** Cap on the flat drop shadow, metres: past this it stops reading as a shadow. */
+const DROP_MAX_M = 18;
 
 /**
  * Where ground shadows go in the basemap stack: under the first road line,
@@ -47,12 +54,11 @@ export const groundColor = (g: Grade) => gradeHex(GROUND_COLOR, g);
 /** The opaque colour of a shadow on the graded ground, at a strength 0..1. */
 export function shadowColor(grade: Grade, strength: number): string {
   const k = Math.max(0, Math.min(1, strength));
-  // A shadow halves the ground. By day it goes a little further and leans
-  // blue (sky-lit): on the light map the plain building fills are themselves
-  // mid-grey, and a shadow any lighter than them disappears into them.
+  // By day a shadow takes a third off the ground and leans blue (sky-lit);
+  // on the dark map it halves it.
   const g = groundColor(grade);
   const light = grade.light;
-  return mixHex(g, mixHex(dimHex(g, 0.5 - 0.05 * light), '#2a3550', 0.2 * light), k);
+  return mixHex(g, mixHex(dimHex(g, 0.5 + 0.17 * light), '#2a3550', 0.15 * light), k);
 }
 
 /** Night's (the original) plain building colour; see buildings.ts. */
@@ -85,6 +91,7 @@ export class DaylightDriver {
   /** The basemap's own colours, as styled, by layer and property. */
   private readonly original = new Map<string, Map<string, unknown>>();
   private grade = '';
+  private drop: string | null = null;
   private fog = FOG_COLOUR;
 
   constructor(map: MlMap) {
@@ -126,9 +133,59 @@ export class DaylightDriver {
     }
   };
 
+  /**
+   * The flat map's drop shadow: a copy of every building footprint, slid
+   * away from the sun, under the roads. One fill layer whose offset is a
+   * zoom-only expression, so it costs one extra fill draw per frame and
+   * nothing at all when the camera is still. null removes it.
+   */
+  setDropShadow(opts: { az: number; ratio: number; color: string } | null) {
+    const map = this.map;
+    if (!alive(map)) return;
+    const key = opts ? `${opts.az.toFixed(1)}|${opts.ratio.toFixed(3)}|${opts.color}` : null;
+    if (key === this.drop) return;
+    this.drop = key;
+    if (!opts || opts.ratio <= 0) {
+      if (map.getLayer(DROP_SHADOW_LAYER)) map.removeLayer(DROP_SHADOW_LAYER);
+      return;
+    }
+    const lat = map.getCenter().lat;
+    const len = Math.min(DROP_MAX_M, DROP_HEIGHT_M * opts.ratio);
+    const [ex, ny] = shadowDir(opts.az);
+    // fill-translate is in screen pixels (y down): metres × px-per-metre,
+    // doubling per zoom so the shadow stays the same size on the ground.
+    const at = (z: number) => {
+      const k = len * pxPerMetre(z, lat);
+      return ['literal', [ex * k, -ny * k]];
+    };
+    const translate = ['interpolate', ['exponential', 2], ['zoom'], 13, at(13), 20, at(20)];
+    if (!map.getLayer(DROP_SHADOW_LAYER)) {
+      map.addLayer(
+        {
+          id: DROP_SHADOW_LAYER,
+          type: 'fill',
+          source: BASEMAP.source,
+          'source-layer': BASEMAP.buildingLayer,
+          minzoom: 13,
+          paint: {
+            'fill-color': opts.color,
+            'fill-antialias': false,
+            'fill-translate-anchor': 'map',
+            'fill-translate': translate as unknown as [number, number],
+          },
+        },
+        groundShadowBefore(map),
+      );
+    } else {
+      map.setPaintProperty(DROP_SHADOW_LAYER, 'fill-color', opts.color);
+      map.setPaintProperty(DROP_SHADOW_LAYER, 'fill-translate', translate);
+    }
+  }
+
   destroy() {
     if (!alive(this.map)) return;
     this.map.off('styledata', this.paintFog);
     this.setGrade(null);
+    this.setDropShadow(null);
   }
 }
