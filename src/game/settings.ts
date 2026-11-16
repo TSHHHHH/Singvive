@@ -149,7 +149,7 @@ export const SETTINGS_SCHEMA: SettingDef[] = [
     key: 'mapLighting',
     label: 'Day & night lighting',
     description:
-      'The map follows the clock: lit concrete by day, a low gold sun at dawn and dusk, blue-black at night, and buildings throw shadows that swing with the sun. Changes only when the hour does, so it costs almost nothing; turn shadows off on very slow phones.',
+      'The map follows the clock: lit concrete by day, a low gold sun at dawn and dusk, blue-black at night, and in 3D the buildings throw shadows that swing with the sun. Changes only as the clock moves, so it costs almost nothing; turn shadows off on very slow phones.',
     tab: 'display',
     options: [
       { value: 'off', label: 'Off' },
