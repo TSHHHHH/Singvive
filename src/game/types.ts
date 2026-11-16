@@ -855,6 +855,8 @@ export interface CombatState {
   firePrepared?: boolean;
   /** Next player gauge fill reloads the holstered gun from the backpack. */
   reloadPrepared?: boolean;
+  /** Per-fight counters for the post-fight summary. Display only; absent until the first action. */
+  tally?: import('./combatTally').CombatTally;
 }
 
 // ---------- Run statistics ----------
