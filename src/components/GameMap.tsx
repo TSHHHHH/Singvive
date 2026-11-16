@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { LngLat, Map as MlMap, Marker } from 'maplibre-gl';
+import type { ExpressionSpecification, LngLat, Map as MlMap, Marker } from 'maplibre-gl';
 import type { Feature } from 'geojson';
 import type { DestructionTier, Poi, TimeOfDay, WeatherKind, MapAnnotation } from '../game/types';
 import { WeatherFx } from './WeatherFx';
@@ -80,6 +80,12 @@ const VIEWPORT_DEBOUNCE_MS = 100;
 const MAX_POIS_ON_SCREEN = 450;
 /** Full badges and footprints become useful at neighbourhood scale. */
 const POI_DETAIL_ZOOM = 14;
+/**
+ * Below this the island is a haze of sites: the dots fade out over half a
+ * zoom step and only the badges that steer you (here, target, beacons) stay.
+ */
+const POI_HIDE_ZOOM = 13;
+const POI_HIDE_FADE = 0.5;
 /** The full player capsule is useful close up; overview maps need less occlusion. */
 const PLAYER_CAPSULE_ZOOM = 17;
 
@@ -1365,6 +1371,12 @@ function workedKeyOf(blocks: Record<string, HdbDungeon>): string {
 const NO_WORKED: ReadonlyMap<string, number> = new Map();
 
 const POI_LAYERS = [POI_FILL_LAYER, 'poi-line', 'poi-line-dash'];
+/** A dot's own opacity, hidden under its badge, faded in from POI_HIDE_ZOOM. */
+const dotFade: ExpressionSpecification = [
+  'interpolate', ['linear'], ['zoom'],
+  POI_HIDE_ZOOM, 0,
+  POI_HIDE_ZOOM + POI_HIDE_FADE, ['case', ['boolean', ['feature-state', 'badge'], false], 0, ['coalesce', ['feature-state', 'opacity'], 0]],
+];
 const NO_ROOFS: ReadonlyMap<string, number> = new Map();
 
 const PoiLayer = memo(
@@ -1375,11 +1387,14 @@ const PoiLayer = memo(
     const box = usePaddedBounds();
     const [detail, setDetail] = useState(() => map.getZoom() >= POI_DETAIL_ZOOM);
     const [fullCapsule, setFullCapsule] = useState(() => map.getZoom() >= PLAYER_CAPSULE_ZOOM);
+    const [far, setFar] = useState(() => map.getZoom() < POI_HIDE_ZOOM);
     // Only crossing a detail boundary re-renders React during a zoom. The
-    // circle layer's maxzoom follows the camera directly between those crossings.
+    // circle layer's zoom range follows the camera directly between those crossings.
     useMapEvent('zoom', () => {
       const next = map.getZoom() >= POI_DETAIL_ZOOM;
       if (next !== detail) setDetail(next);
+      const out = map.getZoom() < POI_HIDE_ZOOM;
+      if (out !== far) setFar(out);
       const full = map.getZoom() >= PLAYER_CAPSULE_ZOOM;
       if (full !== fullCapsule) setFullCapsule(full);
     });
@@ -1413,13 +1428,19 @@ const PoiLayer = memo(
     }, [pois, box, home.lat, home.lng, blipRange, selectedId, hereId, worked, evacZoneId]);
 
     const badges = useMemo(() => looks
-      .filter((l) => detail || l.poi.id === selectedId || l.poi.id === hereId || recognition.includes(l.poi.id) || beaconKindOf(l.poi, evacZoneId) !== null)
-      .map((look) => ({ id: look.poi.id, look })), [looks, detail, selectedId, hereId, evacZoneId, recognition]);
+      .filter((l) => detail || l.poi.id === selectedId || l.poi.id === hereId || (!far && recognition.includes(l.poi.id)) || beaconKindOf(l.poi, evacZoneId) !== null)
+      .map((look) => ({ id: look.poi.id, look })), [looks, detail, far, selectedId, hereId, evacZoneId, recognition]);
     const fadingBadges = useMarkerPresence(badges, reduced ? 0 : REVEAL_MS, MAX_POIS_ON_SCREEN);
 
     useEffect(
       () =>
-        installOverlay(map, 'poi', { 'poi-src': 'geojson', 'poi-dots-src': 'geojson' }, [
+        // Site ids are OSM strings ("way/123"); MapLibre only keys feature-state
+        // by numeric feature ids, so promote the `id` property instead. Without
+        // it every feature gets no state and its colours fall back to black.
+        installOverlay(map, 'poi', {
+          'poi-src': { type: 'geojson', data: EMPTY_FC, promoteId: 'id' },
+          'poi-dots-src': { type: 'geojson', data: EMPTY_FC, promoteId: 'id' },
+        }, [
           {
             id: POI_FILL_LAYER,
             type: 'fill',
@@ -1449,15 +1470,16 @@ const PoiLayer = memo(
             id: POI_DOT_LAYER,
             type: 'circle',
             source: 'poi-dots-src',
+            minzoom: POI_HIDE_ZOOM,
             maxzoom: POI_DETAIL_ZOOM,
 
             paint: {
-              'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 3, POI_DETAIL_ZOOM, 6],
+              'circle-radius': ['interpolate', ['linear'], ['zoom'], POI_HIDE_ZOOM, 3, POI_DETAIL_ZOOM, 6],
               'circle-color': ['feature-state', 'fill'],
-              'circle-opacity': ['case', ['boolean', ['feature-state', 'badge'], false], 0, ['feature-state', 'opacity']],
+              'circle-opacity': dotFade,
               'circle-stroke-color': ['feature-state', 'line'],
               'circle-stroke-width': 1.5,
-              'circle-stroke-opacity': ['case', ['boolean', ['feature-state', 'badge'], false], 0, ['feature-state', 'opacity']],
+              'circle-stroke-opacity': dotFade,
             },
           },
         ]),
