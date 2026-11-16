@@ -4,6 +4,7 @@ import { useClockFormat } from '../game/settings';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useT } from '../i18n';
 import { LogEntryBody } from './logTimeline';
+import { scheduleChain } from './tickerSequence';
 import { tip } from './tips';
 
 /** How many of today's newest lines the ticker holds. */
@@ -39,48 +40,67 @@ export function LogTicker({
   const clock = useClockFormat();
   const reduced = useReducedMotion();
 
-  // Stored newest-first: the head of the list is what just happened.
-  const rows = useMemo(
+  // Stored newest-first: the head of the list is what just happened. Take a
+  // few extra so a chain longer than the ticker still plays through it.
+  const pool = useMemo(
     () =>
       log
-        .slice(0, TICKER_ROWS * 2)
+        .slice(0, TICKER_ROWS * 3)
         .filter((e) => e.day === day)
-        .slice(0, TICKER_ROWS)
+        .slice(0, TICKER_ROWS * 2)
         .reverse(),
     [log, day],
   );
 
-  // When each id first showed up here. On mount, lines the ticker already
-  // showed (or everything, on a page load) count as old news; lines that
-  // landed while the full timeline had the slot count as just arrived.
+  // When each id appears here. On mount, lines the ticker already showed (or
+  // everything, on a page load) count as old news; lines that landed while
+  // the full timeline had the slot replay as a chain like any other.
   const seen = useRef<Map<number, number> | null>(null);
+  const animate = useRef(new Set<number>());
+  const cursor = useRef(-Infinity);
   const [now, setNow] = useState(() => Date.now());
   if (seen.current === null) {
     const mark = shownUpTo;
-    const t0 = Date.now();
-    seen.current = new Map(rows.map((e) => [e.id, mark !== null && e.id > mark ? t0 : 0]));
+    seen.current = new Map(pool.filter((e) => mark === null || e.id <= mark).map((e) => [e.id, 0]));
   }
   const arrived: Map<number, number> = seen.current;
-  for (const e of rows) if (!arrived.has(e.id)) arrived.set(e.id, Date.now());
+  // New lines play in order, one after another, so a chain of events reads
+  // cause then effect instead of landing as one block.
+  const incoming = pool.filter((e) => !arrived.has(e.id));
+  if (incoming.length > 0) {
+    const plan = scheduleChain(incoming.length, Date.now(), cursor.current, { reduced });
+    incoming.forEach((e, i) => {
+      arrived.set(e.id, plan.starts[i]);
+      if (!reduced) animate.current.add(e.id);
+    });
+    cursor.current = plan.cursor;
+  }
   const newestId = log.length > 0 ? log[0].id : 0;
   useEffect(() => {
     shownUpTo = Math.max(shownUpTo ?? 0, newestId);
   }, [newestId]);
 
-  // Re-render when the next fresh line is due to fade.
-  const nextFade = rows.reduce((m, e) => {
-    const at = (arrived.get(e.id) ?? 0) + TICKER_HOLD_MS;
-    return at > now && at < m ? at : m;
+  // Only lines whose turn has come take a slot, so each one slides in at the
+  // bottom as the oldest steps off the top.
+  const rows = pool.filter((e) => (arrived.get(e.id) ?? 0) <= now).slice(-TICKER_ROWS);
+
+  // Re-render when the next queued line is due, or the next fresh line is
+  // due to fade. Fades follow the same order, oldest first.
+  const nextTick = pool.reduce((m, e) => {
+    const at = arrived.get(e.id) ?? 0;
+    if (at > now) return Math.min(m, at);
+    const fade = at + TICKER_HOLD_MS;
+    return fade > now ? Math.min(m, fade) : m;
   }, Infinity);
   useEffect(() => {
-    if (nextFade === Infinity) return;
-    const id = window.setTimeout(() => setNow(Date.now()), nextFade - Date.now() + 50);
+    if (nextTick === Infinity) return;
+    const id = window.setTimeout(() => setNow(Date.now()), Math.max(0, nextTick - Date.now()) + 30);
     return () => window.clearTimeout(id);
-  }, [nextFade]);
+  }, [nextTick]);
   // A new line arriving restarts the clock so it reads as fresh.
   useEffect(() => {
     setNow(Date.now());
-  }, [rows]);
+  }, [pool]);
 
   const timeW = clock === '12' ? '3.4rem' : '2.5rem';
 
@@ -102,6 +122,8 @@ export function LogTicker({
               <li
                 key={e.id}
                 className={`rounded border border-white/10 bg-concrete-900/75 px-2 py-1 shadow-signage backdrop-blur-sm ${
+                  animate.current.has(e.id) ? 'ticker-line-in' : ''
+                } ${
                   reduced ? '' : 'transition-opacity duration-700'
                 } ${
                   fresh
