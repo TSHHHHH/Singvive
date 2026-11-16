@@ -2,7 +2,7 @@ import type { Map as MlMap } from 'maplibre-gl';
 import type { WeatherKind } from '../game/types';
 import { dimHex, mixHex } from './geo';
 import { alive } from './layers';
-import { GRADES, type LightPhase, type Sun } from './lighting';
+import type { LightPhase, Sun } from './lighting';
 
 /**
  * The 3D run map's weather, drawn into the world rather than over it.
@@ -150,9 +150,6 @@ const WEATHER: Record<WeatherKind, Atmosphere> = {
   },
 };
 
-/** The sky over the daylight map (lighting on). */
-const DAY_SKY = { sky: '#8e9aa0', horizon: '#c4c0b4', fog: '#b8b4a8' };
-
 /** How dusk and night recolour whatever the weather made. */
 const TIME: Record<Exclude<LightPhase, 'day'>, { light: string; k: number; dim: number; air: string; ak: number }> = {
   dawn: { light: '#ffb08c', k: 0.4, dim: 0.95, air: '#2a1a28', ak: 0.35 },
@@ -218,16 +215,6 @@ export function atmosphereFor(kind: WeatherKind, time: LightPhase, strength: num
     const own = Math.max(20, Math.min(70, 90 - sun.alt));
     const d = WEATHER_DIFFUSE[kind] * strength;
     w = { ...w, sunAz: sun.az, polar: lerp(own, w.polar, d) };
-    // The daylight map is light: a dark sky behind it reads as a hole.
-    const k = GRADES[time].light * (1 - 0.5 * d);
-    if (k > 0) {
-      w = {
-        ...w,
-        sky: mixHex(w.sky, DAY_SKY.sky, k),
-        horizon: mixHex(w.horizon, DAY_SKY.horizon, k),
-        fog: mixHex(w.fog, DAY_SKY.fog, k),
-      };
-    }
   }
   if (time === 'day') return { ...w, light: liftLight(w.light) };
   const t = TIME[time];

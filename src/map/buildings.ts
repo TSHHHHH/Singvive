@@ -275,25 +275,13 @@ function pieceExpr(prop: 'base' | 'top') {
 }
 
 /** Fogged flat colour while down, site colour once standing; selection lives on the badge. */
-/** A standing building's colour: burning, scorched, a site's own, or plain `base`. */
-function buildingColor(base: string, flat: string) {
-  return standingColor(
-    [
-      'coalesce',
-      ['feature-state', 'color'],
-      ['case', ['boolean', ['feature-state', 'burn'], false], BURN_COLOR, ['boolean', ['feature-state', 'scorch'], false], SCORCH_COLOR, base],
-    ],
-    flat,
-  );
-}
-
-function standingColor(color: unknown, flat = FLAT_COLOR) {
+function standingColor(color: unknown) {
   return [
     'interpolate',
     ['linear'],
     ['coalesce', ['feature-state', 'rise'], 0],
     0,
-    flat,
+    FLAT_COLOR,
     1,
     ['to-color', color],
   ] as unknown as string;
@@ -496,7 +484,18 @@ export class BuildingEngine {
         'source-layer': this.sl,
         minzoom: LOD_ZOOM,
         paint: {
-          'fill-extrusion-color': buildingColor(BASE_BUILDING_COLOR, FLAT_COLOR),
+          'fill-extrusion-color': standingColor([
+            'coalesce',
+            ['feature-state', 'color'],
+            [
+              'case',
+              ['boolean', ['feature-state', 'burn'], false],
+              BURN_COLOR,
+              ['boolean', ['feature-state', 'scorch'], false],
+              SCORCH_COLOR,
+              BASE_BUILDING_COLOR,
+            ],
+          ]),
           'fill-extrusion-height': heightExpr(false),
           'fill-extrusion-base': heightExpr(true),
           'fill-extrusion-opacity': 0.9,
@@ -942,32 +941,11 @@ export class BuildingEngine {
     if (this.rising.size) this.riseRaf = requestAnimationFrame(this.stepRise);
   };
 
-  // --- Time of day -------------------------------------------------------------
-
-  private tone = '';
-
-  /**
-   * Recolour the plain buildings for the time of day: `base` for a standing
-   * block, `flat` for a footprint still lying in the fog. Sites, ruins'
-   * scorch and fires keep their own colours. One paint change per call,
-   * made only when the light phase changes.
-   */
-  setTone(base: string, flat: string) {
-    const map = this.map;
-    const key = `${base}|${flat}`;
-    if (key === this.tone || this.destroyed || !alive(map) || !map.getLayer(BUILDINGS_LAYER)) return;
-    this.tone = key;
-    const color = buildingColor(base, flat);
-    map.setPaintProperty(BUILDINGS_LAYER, 'fill-extrusion-color', color);
-    map.setPaintProperty(FOCUS_LAYER, 'fill-extrusion-color', color);
-    map.setPaintProperty(RUINS_LAYER, 'fill-extrusion-color', standingColor(['coalesce', ['feature-state', 'color'], RUIN_COLORS.shell], flat));
-  }
-
   // --- Shadows ----------------------------------------------------------------
 
   /**
    * Where the sun is for the ground shadows; null hides them. Called when
-   * the light's clock steps or the weather changes, never per frame.
+   * the game hour or weather changes, never per frame.
    */
   setSun(sun: ShadowSun | null) {
     const map = this.map;
@@ -975,9 +953,7 @@ export class BuildingEngine {
     this.sun = sun;
     map.setLayoutProperty(SHADOW_LAYER, 'visibility', sun ? 'visible' : 'none');
     if (sun) map.setPaintProperty(SHADOW_LAYER, 'fill-color', sun.color);
-    // Debounced: a fade through a clock jump moves the sun every 140 ms, but
-    // only where it lands needs drawing.
-    this.queueShadows();
+    this.queueShadows(true);
   }
 
   private queueShadows(now = false) {

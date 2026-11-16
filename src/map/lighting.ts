@@ -12,10 +12,10 @@ import type { TimeOfDay } from '../game/types';
  * - **Sun.** Where the sun is for an hour, roughly as it really runs over
  *   Singapore: up about 07:00 in the east-south-east, high (≈70°) a little
  *   after 13:00, down about 19:10 in the west-south-west.
- * - **Ground grade.** A per-phase palette for the basemap's own fills and
- *   lines: daylight turns the dark map into a light one, dawn and dusk sit
- *   halfway with a warm cast, night sinks it to blue-black. Applied by
- *   repainting the basemap layers once per phase change.
+ * - **Ground grade.** A per-phase colour grade for the basemap's own fills
+ *   and lines (`c × gain + lift`): daylight lifts the dark map to lit
+ *   concrete, night sinks it to blue-black. Applied by repainting the basemap
+ *   layers once per phase change.
  * - **Shadows.** The ground shadow a standing building throws, as one convex
  *   polygon per building, and the short drop shadow the flat 2D map uses.
  */
@@ -29,61 +29,6 @@ export function lightPhase(hour: number): LightPhase {
   if (h >= 8 && h < 17) return 'day';
   if (h >= 17 && h < 19) return 'dusk';
   return 'night';
-}
-
-/**
- * The light moves in steps of this many hours (10 game minutes), never
- * continuously: each step is one repaint, and none happen in between.
- */
-export const LIGHT_STEP_H = 1 / 6;
-
-/** A 0..24 clock time snapped down to its light step. */
-export function stepHour(hour: number): number {
-  const h = ((hour % 24) + 24) % 24;
-  return Math.floor(h / LIGHT_STEP_H + 1e-6) * LIGHT_STEP_H;
-}
-
-/**
- * The look's keyframes through the day: each phase holds between its two
- * keys and blends into the next across the gap. Sunrise ~07:00 and sunset
- * ~19:10 sit inside the blends, so the light turns as the sun does.
- */
-const KEYS: [number, LightPhase][] = [
-  [5, 'night'],
-  [6.25, 'dawn'],
-  [7.5, 'dawn'],
-  [9, 'day'],
-  [15.5, 'day'],
-  [17.75, 'dusk'],
-  [18.75, 'dusk'],
-  [20, 'night'],
-];
-
-export interface LightBlend {
-  a: LightPhase;
-  b: LightPhase;
-  /** 0 all `a` … 1 all `b`. */
-  t: number;
-}
-
-/** Where a clock time sits between the look's keyframes (stepped, eased). */
-export function lightBlend(hour: number): LightBlend {
-  const h = stepHour(hour);
-  if (h < KEYS[0][0] || h >= KEYS[KEYS.length - 1][0]) return { a: 'night', b: 'night', t: 0 };
-  for (let i = 0; i < KEYS.length - 1; i++) {
-    const [h0, a] = KEYS[i];
-    const [h1, b] = KEYS[i + 1];
-    if (h >= h0 && h < h1) {
-      const x = a === b ? 0 : (h - h0) / (h1 - h0);
-      return { a, b, t: x * x * (3 - 2 * x) };
-    }
-  }
-  return { a: 'night', b: 'night', t: 0 };
-}
-
-/** How much of each phase a blend holds. */
-export function blendWeight(bl: LightBlend, p: LightPhase): number {
-  return (bl.a === p ? 1 - bl.t : 0) + (bl.b === p ? bl.t : 0);
 }
 
 /** The gameplay band a light phase belongs to (dawn is daytime). */
@@ -107,11 +52,11 @@ const SET_AZ = 248;
 const MOON: Sun = { az: 315, alt: 55 };
 
 /**
- * The sun for a clock time, stepped every LIGHT_STEP_H and placed at the
- * middle of the step, so the light only moves when the clock crosses one.
+ * The sun for a clock hour. Callers pass a whole hour; the sun is placed at
+ * the middle of it, so 07:xx already has the sun up and casting long shadows.
  */
 export function sunAt(hour: number): Sun {
-  const h = stepHour(hour) + LIGHT_STEP_H / 2;
+  const h = Math.floor(((hour % 24) + 24) % 24) + 0.5;
   const t = (h - SUNRISE) / (SUNSET - SUNRISE);
   if (t <= 0 || t >= 1) {
     // Down: the sky is lit from where it went (or will come up).
@@ -148,75 +93,23 @@ export function shadowStrength(alt: number, diffuse = 0): number {
 // --- Ground grade -------------------------------------------------------------
 
 export interface Grade {
-  /** Dark half: multiplies each channel… */
+  /** Multiplies each channel. */
   gain: number;
-  /** …then adds this, per channel, 0..255. */
+  /** Then added, per channel, 0..255. */
   lift: [number, number, number];
-  /**
-   * How far toward the daylight palette, 0 (the dark map, graded) … 1 (a
-   * light map). See `dayColor`.
-   */
-  light: number;
-  /** Colour cast over the result, per channel multiplier. */
-  tint: [number, number, number];
 }
 
 /**
- * The basemap is CARTO Dark Matter: ground #0e0e0e, road fills a shade
- * darker, road casings and buildings a few steps lighter, water slate.
- * Lifting those colours only ever gets a dark-grey map, which still reads as
- * night, so daylight swaps to a light palette instead (`dayColor`): the dark
- * map's brightness is inverted around the ground, which is what turns Dark
- * Matter into a Positron-like light map: road fills come out lighter than
- * the ground, casings, buildings and water darker. Dawn and dusk sit halfway
- * with a warm cast; night is the dark map, a little bluer.
+ * The basemap is CARTO Dark Matter: ground #0e0e0e, roads a few steps up.
+ * Daylight roughly doubles it into dim concrete (still a dark, dead city);
+ * night takes some away and pushes it blue.
  */
 export const GRADES: Record<LightPhase, Grade> = {
-  dawn: { gain: 1.3, lift: [10, 6, 10], light: 0.55, tint: [1, 0.9, 0.92] },
-  day: { gain: 1, lift: [0, 0, 0], light: 1, tint: [1, 0.995, 0.965] },
-  dusk: { gain: 1.2, lift: [14, 6, 0], light: 0.45, tint: [1.04, 0.86, 0.7] },
-  night: { gain: 0.8, lift: [0, 2, 8], light: 0, tint: [1, 1, 1] },
+  dawn: { gain: 1.45, lift: [14, 9, 14] },
+  day: { gain: 1.9, lift: [15, 15, 12] },
+  dusk: { gain: 1.3, lift: [20, 9, 0] },
+  night: { gain: 0.8, lift: [0, 2, 8] },
 };
-
-const lerpN = (a: number, b: number, t: number) => a + (b - a) * t;
-
-/** Blend two grades. */
-export function mixGrade(x: Grade, y: Grade, t: number): Grade {
-  if (t <= 0) return x;
-  if (t >= 1) return y;
-  const v3 = (p: number[], q: number[]) => p.map((c, i) => lerpN(c, q[i], t)) as [number, number, number];
-  return { gain: lerpN(x.gain, y.gain, t), lift: v3(x.lift, y.lift), light: lerpN(x.light, y.light, t), tint: v3(x.tint, y.tint) };
-}
-
-/** The ground grade for a clock time: its keyframes' grades, blended. */
-export function gradeAt(hour: number): Grade {
-  const bl = lightBlend(hour);
-  return mixGrade(GRADES[bl.a], GRADES[bl.b], bl.t);
-}
-
-/** Dark Matter's ground brightness, and where it lands by day. */
-const DARK_GROUND_L = 14;
-const DAY_GROUND_L = 172;
-/** How strongly brightness differences invert by day. */
-const DAY_CONTRAST = 1.5;
-/** How much of a colour's own hue (water's slate, parks' green) survives into day. */
-const DAY_CHROMA = 1.6;
-
-const luma = (r: number, g: number, b: number) => 0.299 * r + 0.587 * g + 0.114 * b;
-
-/** A dark-map colour's daylight counterpart (brightness inverted around the ground). */
-export function dayColor(r: number, g: number, b: number): [number, number, number] {
-  const l = luma(r, g, b);
-  const day = DAY_GROUND_L - (l - DARK_GROUND_L) * DAY_CONTRAST;
-  return [r, g, b].map((c) => day + (c - l) * DAY_CHROMA) as [number, number, number];
-}
-
-/** One colour through a grade, as 0..255 channels (unclamped). */
-export function gradeRgb(r: number, g: number, b: number, gr: Grade): [number, number, number] {
-  const dark = [r, g, b].map((c, i) => c * gr.gain + gr.lift[i]);
-  const day = gr.light > 0 ? dayColor(r, g, b) : dark;
-  return dark.map((d, i) => (d + (day[i] - d) * gr.light) * gr.tint[i]) as [number, number, number];
-}
 
 /** Parse a CSS colour MapLibre accepts in a style: #rgb, #rrggbb(aa), rgb(a), hsl(a). */
 export function parseColor(s: string): [number, number, number, number] | null {
@@ -261,7 +154,7 @@ const clamp255 = (v: number) => Math.max(0, Math.min(255, Math.round(v)));
 export function gradeColor(s: string, g: Grade): string {
   const c = parseColor(s);
   if (!c) return s;
-  const [r, gg, b] = gradeRgb(c[0], c[1], c[2], g).map(clamp255);
+  const [r, gg, b] = [0, 1, 2].map((i) => clamp255(c[i] * g.gain + g.lift[i]));
   return c[3] >= 1 ? `rgb(${r},${gg},${b})` : `rgba(${r},${gg},${b},${+c[3].toFixed(3)})`;
 }
 
