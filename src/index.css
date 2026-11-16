@@ -2040,3 +2040,12 @@ body:has([data-dock-resizing='true']) * {
     width: 1.75rem;
   }
 }
+
+/* Post-fight summary: rows settle in one after another, then sit still. */
+.combat-summary-row {
+  animation: combat-summary-row 280ms ease-out both;
+}
+@keyframes combat-summary-row {
+  0% { opacity: 0; transform: translateY(4px); }
+  100% { opacity: 1; transform: none; }
+}

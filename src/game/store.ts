@@ -266,6 +266,7 @@ import {
   TERRAIN,
   STANCES,
 } from './combat';
+import { emptyTally, tallyEnemyAction, tallyPlayerAction } from './combatTally';
 import {
   canCombatReload,
   clearFirearmSlotConflict,
@@ -7235,6 +7236,14 @@ export const useGame = create<State>((set, get) => {
             zombie,
             round,
             log,
+            tally: tallyPlayerAction(c.tally ?? emptyTally(), {
+              hit: res.hit,
+              critical: res.critical,
+              damageDealt: res.damageDealt,
+              hitChance: res.hitChance,
+              minutes: res.timeCostHours * 60,
+              shot: true,
+            }),
             firePrepared: false,
             reloadPrepared: false,
             acting: 'player' as const,
@@ -7310,6 +7319,13 @@ export const useGame = create<State>((set, get) => {
           zombie,
           round,
           log,
+          tally: tallyPlayerAction(c.tally ?? emptyTally(), {
+            hit: res.hit,
+            critical: res.critical,
+            damageDealt: res.damageDealt,
+            hitChance: res.hitChance,
+            minutes: res.timeCostHours * 60,
+          }),
           acting: 'player' as const,
           playerGauge: playerGauge - GAUGE_FULL,
           enemyGauge: Math.min(enemyGauge, GAUGE_FULL),
@@ -7408,6 +7424,19 @@ export const useGame = create<State>((set, get) => {
         playerGauge: Math.min(playerGauge, GAUGE_FULL),
         impact,
         firstHitTaken,
+        tally: tallyEnemyAction(
+          c.tally ?? emptyTally(),
+          {
+            hitChance: res.hitChance,
+            rollHit: res.dodged || res.blocked || !!res.hitZone,
+            dodged: res.dodged,
+            blocked: res.blocked,
+            infection: res.infectionGain,
+            zone: res.hitZone,
+          },
+          s.bodyParts,
+          bodyParts,
+        ),
       };
       set({
         meters,
@@ -7447,6 +7476,7 @@ export const useGame = create<State>((set, get) => {
         load.fleeDcMod,
       );
       let fleeWearSlot: EquipSlot | null = null;
+      let fleeZone: BodyPartId | null = null;
       let firstHitTaken = s.combat.firstHitTaken === true;
       let fleeIncoming = res.playerDamage;
       if (fleeIncoming > 0 && !firstHitTaken) {
@@ -7458,6 +7488,7 @@ export const useGame = create<State>((set, get) => {
         fleeIncoming > 0
           ? (() => {
               const zone = rollHitZone(s._combatRng!.fork(`flee-zone:${round}`));
+              fleeZone = zone;
               fleeWearSlot = slotForZone(zone) ?? 'body';
               const soak = limbArmorForZone(s.equipment, zone);
               const dmg = Math.max(1, fleeIncoming - soak);
@@ -7489,6 +7520,16 @@ export const useGame = create<State>((set, get) => {
         ...notes.map((text) => ({ round, tone: 'bad' as const, text })),
       ];
       const dead = checkDeath(meters, bodyParts) !== null;
+      // Only a parting blow counts as their attack; a clean getaway adds nothing.
+      const tally =
+        fleeIncoming > 0
+          ? tallyEnemyAction(
+              s.combat.tally ?? emptyTally(),
+              { rollHit: true, zone: fleeZone },
+              s.bodyParts,
+              bodyParts,
+            )
+          : s.combat.tally;
       const impactId = (s.combat.impact?.id ?? 0) + 1;
       const impact =
         dead
@@ -7509,6 +7550,7 @@ export const useGame = create<State>((set, get) => {
             outcome: 'flee',
             impact,
             firstHitTaken,
+            tally,
             firePrepared: false,
             reloadPrepared: false,
           },
@@ -7528,6 +7570,7 @@ export const useGame = create<State>((set, get) => {
             outcome: 'dead',
             impact,
             firstHitTaken,
+            tally,
             firePrepared: false,
             reloadPrepared: false,
           },
@@ -7546,6 +7589,7 @@ export const useGame = create<State>((set, get) => {
             selectedStance: 'guarded',
             impact,
             firstHitTaken,
+            tally,
             firePrepared: false,
             reloadPrepared: false,
           },
