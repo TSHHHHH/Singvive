@@ -45,6 +45,7 @@ import { EdgeVignette } from './EdgeVignette';
 import { Beacons3d } from './Beacons3d';
 import { beaconKindOf } from '../map/beacons';
 import { useLayerEvent, useMapEvent, useMapGL } from '../map/hooks';
+import { cssEaseOut, mixPadding, padPivot, paddedMiddle, PAD_EASE_MS, samePadding, toPadding, type Padding } from '../map/padEase';
 import { MapMarker } from '../map/markers';
 import { createMarker } from '../map/markerDom';
 import { installOverlay, setData } from '../map/layers';
@@ -945,22 +946,27 @@ interface Props {
  * Swap the camera's HUD padding without moving what is on screen. Padding
  * moves the point the camera centres on, so a bare padding change (a dock
  * panel opening or closing, the here / target cards appearing) would slide
- * the whole map sideways. Re-aim the centre at whatever already sits under
- * the new padded middle, so the view holds still and only later focus
- * commands frame inside the new inset.
+ * the whole map sideways. Re-aim so the ground under `pivot` (default: the new
+ * padded middle) stays under it, and only later focus commands frame inside
+ * the new inset.
+ *
+ * In 3D only the pivot's row holds exactly: padding is a lens shift, so rows
+ * nearer and farther shear apart. CameraChrome eases the padding with the
+ * panel slide so that shear is gradual, not a one-frame jerk (padEase.ts).
  */
-function padInPlace(map: MlMap, padding: { top: number; left: number; right: number; bottom: number }) {
-  const was = map.getPadding();
+function padInPlace(map: MlMap, padding: Padding, pivot?: { point: { x: number; y: number }; at: LngLat }) {
+  if (samePadding(toPadding(map.getPadding()), padding)) return;
   const box = containerSize(map);
-  const mid = (a = 0, b = 0, size: number) => a + (size - a - b) / 2;
-  const dx = mid(padding.left, padding.right, box.x) - mid(was.left, was.right, box.x);
-  const dy = mid(padding.top, padding.bottom, box.y) - mid(was.top, was.bottom, box.y);
-  if (!dx && !dy) {
-    map.setPadding(padding);
-    return;
-  }
-  const c = map.project(map.getCenter());
-  map.jumpTo({ center: map.unproject([c.x + dx, c.y + dy]), padding });
+  const point = pivot?.point ?? paddedMiddle(padding, box.x, box.y);
+  const at = pivot?.at ?? map.unproject([point.x, point.y]);
+  const tr = map.transform.clone();
+  tr.setPadding(padding);
+  // setLocationAtPoint wants a Point instance; project() hands one out.
+  const target = map.project(at);
+  target.x = point.x;
+  target.y = point.y;
+  tr.setLocationAtPoint(at, target);
+  map.jumpTo({ center: tr.center, padding });
 }
 
 /**
@@ -974,6 +980,7 @@ function CameraChrome({ target, inset, top, left, right, bottom }: {
 }) {
   const map = useMapGL();
   const focus = useRef(new CameraFocusRequest());
+  const reduced = useReducedMotion();
   useEffect(() => {
     const request = focus.current;
     request.update(target);
@@ -981,6 +988,33 @@ function CameraChrome({ target, inset, top, left, right, bottom }: {
     const padding = { top, left, right, bottom };
     let frame = 0;
     let issuing = false;
+    let easing = 0;
+    // Follow the slide-out's transition, holding the player (or the new
+    // padded middle) still, instead of re-aiming in a single frame.
+    const padTo = () => {
+      cancelAnimationFrame(easing);
+      easing = 0;
+      const from = toPadding(map.getPadding());
+      if (samePadding(from, padding)) return;
+      const box = containerSize(map);
+      const pos = useGame.getState().currentPos;
+      const seen = pos ? map.project([pos.lng, pos.lat]) : null;
+      const point = padPivot(seen, from, padding, box.x, box.y);
+      const pivot = { point, at: map.unproject([point.x, point.y]) };
+      const apply = (p: Padding) => {
+        issuing = true;
+        padInPlace(map, p, pivot);
+        issuing = false;
+      };
+      if (reduced) { apply(padding); return; }
+      const t0 = performance.now();
+      const step = (now: number) => {
+        const k = cssEaseOut((now - t0) / PAD_EASE_MS);
+        apply(k >= 1 ? padding : mixPadding(from, padding, k));
+        easing = k >= 1 ? 0 : requestAnimationFrame(step);
+      };
+      easing = requestAnimationFrame(step);
+    };
     const move = () => {
       frame = 0;
       const pending = request.pending;
@@ -990,32 +1024,38 @@ function CameraChrome({ target, inset, top, left, right, bottom }: {
         // An explicit map focus also releases the travel chase and block orbit.
         // A frame delay lets those controllers attach their listeners on mount.
         if (!inset) map.setCenterElevation(0);
+        cancelAnimationFrame(easing);
+        easing = 0;
         map.easeTo({ center: [pending.lng, pending.lat], zoom: Math.max(map.getZoom(), 16), padding, duration: 750 }, { cameraFocus: true });
+        issuing = false;
       } else {
-        padInPlace(map, padding);
+        issuing = false;
+        padTo();
       }
-      issuing = false;
     };
     const schedule = () => {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(move);
     };
     const settle = () => {
-      if (issuing) return;
+      if (issuing || easing) return;
       request.settle(map.getCenter(), map.getZoom());
       if (request.pending) { schedule(); return; }
       if (!inset) return;
-      const p = map.getPadding();
-      if (p.top !== top || p.left !== left || p.right !== right || p.bottom !== bottom) {
-        issuing = true;
-        padInPlace(map, padding);
-        issuing = false;
-      }
+      if (!samePadding(toPadding(map.getPadding()), padding)) padTo();
     };
     const userMove = (event: { originalEvent?: unknown }) => {
       if (!event.originalEvent) return;
       request.cancel();
       cancelAnimationFrame(frame);
+      // A drag takes over: finish the padding now rather than fight it.
+      if (easing) {
+        cancelAnimationFrame(easing);
+        easing = 0;
+        issuing = true;
+        padInPlace(map, padding);
+        issuing = false;
+      }
     };
     const resized = () => { if (request.pending) schedule(); };
     map.on('moveend', settle);
@@ -1025,13 +1065,14 @@ function CameraChrome({ target, inset, top, left, right, bottom }: {
     else move();
     return () => {
       cancelAnimationFrame(frame);
+      cancelAnimationFrame(easing);
       map.off('moveend', settle);
       map.off('movestart', userMove);
       map.off('resize', resized);
     };
     // Token is the request identity; layout changes restart only pending focus.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, target?.token, target?.lat, target?.lng, inset, top, left, right, bottom]);
+  }, [map, target?.token, target?.lat, target?.lng, inset, top, left, right, bottom, reduced]);
   return null;
 }
 
