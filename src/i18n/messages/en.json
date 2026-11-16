@@ -2394,7 +2394,7 @@
     },
     "weatherFx": {
       "label": "Weather effects",
-      "description": "Rain, glare and haze drawn over the map. Purely visual — costs GPU fill rate, so it is off unless you ask for it.",
+      "description": "Rain, glare and haze drawn over the map. Purely visual — costs GPU fill rate, so it starts on Full on desktop and off on phones and tablets.",
       "options": {
         "off": "Off",
         "subtle": "Subtle",
