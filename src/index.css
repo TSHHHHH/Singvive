@@ -2027,3 +2027,28 @@ body:has([data-dock-resizing='true']) * {
   opacity: 0.14;
   filter: saturate(0.55) brightness(1.1);
 }
+
+/* Rail HUD strip: when the rail is dragged narrow, drop the Rest word so the
+   clock / weather / shelter / Rest row stays on one line. (The strip may still
+   wrap as a last resort: 12-hour "12:00 PM" on the narrowest rail.) */
+.hud-strip {
+  container-type: inline-size;
+}
+@container (max-width: 330px) {
+  .hud-strip-rest-label {
+    display: none;
+  }
+  .hud-strip-clock {
+    gap: 0.25rem;
+  }
+  .hud-strip-tools {
+    gap: 0.125rem;
+  }
+  .hud-strip-rest {
+    padding-inline: 0.375rem;
+  }
+  .hud-strip .hud-chip,
+  .hud-strip [data-activity-band] {
+    width: 1.75rem;
+  }
+}

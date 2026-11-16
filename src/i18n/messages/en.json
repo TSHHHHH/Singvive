@@ -1104,6 +1104,12 @@
       "injured": "Injured · check body"
     },
     "hud": {
+      "badge": {
+        "craft": "New recipe ready",
+        "logbook": "New leads or intel",
+        "skills": "Skill levelled up",
+        "timeline": "New danger in the log"
+      },
       "timeline": "Timeline",
       "dayLogs": "Day logs",
       "settings": "Settings",
@@ -1136,7 +1142,8 @@
       "thunderstorm": "Thunderstorm",
       "haze": "Haze",
       "heat": "Heat Wave",
-      "effects": "{kind} — effects"
+      "effects": "{kind} — effects",
+      "aria": "Weather: {kind}"
     },
     "poi": {
       "supermarket": "Supermarket",
