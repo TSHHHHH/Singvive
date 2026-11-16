@@ -1943,9 +1943,13 @@ body:has([data-dock-resizing='true']) * {
   }
 }
 
-@keyframes item-pin-progress {
-  from { transform: scaleX(0); }
-  to { transform: scaleX(1); }
+/* Hover-to-pin corner ring: fills over the 2 s dwell (ItemHoverCard PinRing). */
+.item-pin-ring {
+  animation: item-pin-ring 1880ms linear forwards;
+}
+@keyframes item-pin-ring {
+  from { stroke-dashoffset: var(--ring-c); }
+  to { stroke-dashoffset: 0; }
 }
 
 /* Body care stays quiet between actions; only the brief confirmation moves. */

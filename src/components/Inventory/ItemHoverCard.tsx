@@ -7,6 +7,7 @@ import { ItemInspectBody } from './ItemInspectBody';
 import type { ContextMenuAction } from './ItemContextMenu';
 import { clampBox, placeNear } from '../tips/clamp';
 import { tip } from '../tips';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 
 const OFFSET = 14;
 const CARD_W = 'w-64';
@@ -25,6 +26,49 @@ function HoverPanel({
     >
       {children}
     </div>
+  );
+}
+
+const RING_R = 10;
+const RING_C = 2 * Math.PI * RING_R;
+
+/**
+ * Corner dwell cue: the ring fills while the cursor rests on a tile, then the
+ * dim pin in its centre lights once the card sticks.
+ */
+function PinRing({ state, label }: { state: 'pending' | 'pinned'; label: string }) {
+  const reduced = useReducedMotion();
+  const pinned = state === 'pinned';
+  return (
+    <span
+      role="img"
+      aria-label={label}
+      title={label}
+      className={`relative flex h-6 w-6 shrink-0 items-center justify-center ${pinned ? 'text-signal' : 'text-white/30'}`}
+    >
+      <svg viewBox="0 0 24 24" className="absolute inset-0 h-full w-full -rotate-90" aria-hidden>
+        <circle cx="12" cy="12" r={RING_R} fill="none" stroke="rgba(255,255,255,0.14)" strokeWidth="2" />
+        <circle
+          cx="12"
+          cy="12"
+          r={RING_R}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeDasharray={RING_C}
+          strokeDashoffset={pinned ? 0 : RING_C}
+          className={pinned ? 'text-signal' : reduced ? 'hidden' : 'item-pin-ring text-signal/70'}
+          style={{ ['--ring-c' as string]: RING_C }}
+        />
+      </svg>
+      <svg viewBox="0 0 24 24" className={`h-3.5 w-3.5 transition-colors duration-150 ${pinned ? 'drop-shadow-[0_0_3px_rgba(232,229,221,0.85)]' : ''}`} aria-hidden>
+        <path
+          fill="currentColor"
+          d="M15 3l6 6-2.2.6-3.6 3.6.6 4.6-1.4 1.4-4-4L5 20.6 3.4 19l5.4-5.4-4-4 1.4-1.4 4.6.6 3.6-3.6z"
+        />
+      </svg>
+    </span>
   );
 }
 
@@ -143,17 +187,14 @@ export function ItemHoverCard({
     >
       <HoverPanel className={dual ? 'border-signal/35' : undefined}>
         {interactive ? (
-          <div className="mb-1 flex items-center justify-between gap-2 text-label text-white/50">
-            <span>{t('ui.inventory.detailsPinned')}</span>
+          <div className="float-right -mr-1.5 -mt-1.5 ml-2 flex items-center">
+            <PinRing state="pinned" label={t('ui.inventory.detailsPinned')} />
             <button type="button" onClick={onClose} aria-label={t('ui.common.close')}
-              className="flex min-h-8 min-w-8 items-center justify-center rounded hover:bg-white/10 hover:text-white">✕</button>
+              className="flex min-h-8 min-w-8 items-center justify-center rounded text-white/50 hover:bg-white/10 hover:text-white">✕</button>
           </div>
         ) : pinPending ? (
-          <div className="mb-2 space-y-1" key={inst.uid}>
-            <span className="text-label text-white/40">{t('ui.inventory.hoverToPin')}</span>
-            <div className="h-0.5 overflow-hidden rounded bg-white/10" aria-hidden>
-              <div className="h-full origin-left bg-signal/60 animate-[item-pin-progress_1880ms_linear_forwards]" />
-            </div>
+          <div className="float-right -mr-1 -mt-1 ml-2" key={inst.uid}>
+            <PinRing state="pending" label={t('ui.inventory.hoverToPin')} />
           </div>
         ) : null}
         <ItemInspectBody
