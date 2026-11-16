@@ -2020,3 +2020,10 @@ body:has([data-dock-resizing='true']) * {
   0% { opacity: 0; transform: translateY(3px); filter: brightness(1.8); }
   100% { opacity: 1; transform: none; filter: none; }
 }
+
+/* Bag art behind the backpack grid: present enough to read as "inside the
+   bag", faint enough that cell lines and item tiles stay the loudest thing. */
+.inv-bag-backdrop {
+  opacity: 0.14;
+  filter: saturate(0.55) brightness(1.1);
+}

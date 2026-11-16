@@ -31,7 +31,7 @@ import {
   REPAIR_TOOL,
 } from '../../game/crafting';
 import { InventoryGrid } from './InventoryGrid';
-import { itemIcon } from './itemIcon';
+import { bagBackdropIcon, itemIcon } from './itemIcon';
 import { Icon } from '../../icons/Icon';
 import { EQUIP_SLOTS } from './equipSlots';
 import { isConsumableUsable } from './itemStatLines';
@@ -505,6 +505,7 @@ export function InventoryPanel({
             draggingUid={dragUid}
             preview={gridPreview(BACKPACK)}
             gridRef={(el) => registerGrid(BACKPACK, el)}
+            backdropIcon={bagBackdropIcon(equipment.bag ? itemDef(equipment.bag.defId) : null)}
             {...gridHandlers}
           />
 
