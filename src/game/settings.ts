@@ -149,7 +149,20 @@ export const SETTINGS_SCHEMA: SettingDef[] = [
     key: 'sound',
     label: 'Sound',
     description:
-      'Ambient sound — wind, rain, the night chorus, and the things out there. Synthesised live; starts after your first click.',
+      'All sound: the ambience synthesised live — wind, rain, the night chorus, and the things out there — plus sound effects. Starts after your first click.',
+    tab: 'display',
+    options: [
+      { value: 'off', label: 'Off' },
+      { value: 'quiet', label: 'Quiet' },
+      { value: 'full', label: 'Full' },
+    ],
+    default: 'full',
+  },
+  {
+    key: 'sfx',
+    label: 'Sound effects',
+    description:
+      'Effects for clicks, searching, fighting, wounds and the like, on top of the ambience. Follows the Sound setting above.',
     tab: 'display',
     options: [
       { value: 'off', label: 'Off' },

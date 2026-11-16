@@ -72,6 +72,7 @@ import {
   totalMaxHp,
 } from '../game/survival';
 import { useAmbience } from '../audio/useAmbience';
+import { sfx } from '../audio/sfx';
 import {
   equipTravelSpeedFactor,
   loadEffectsFor,
@@ -376,6 +377,19 @@ export function GameScreen() {
   const [guideTopic, setGuideTopic] = useState<GuideTopic | null>(null);
   const [howToPlayOpen, setHowToPlayOpen] = useState(false);
   const showGuideOnStart = useSetting('showGuideOnStart');
+
+  // Panel and tab cues, on changes only (not on mount).
+  const panelOpenNow = sidePanel !== null || settingsOpen;
+  const panelWasOpen = useRef(panelOpenNow);
+  useEffect(() => {
+    if (panelOpenNow !== panelWasOpen.current) sfx.play(panelOpenNow ? 'hud.panel.open' : 'hud.panel.close');
+    panelWasOpen.current = panelOpenNow;
+  }, [panelOpenNow]);
+  const lastMobileView = useRef(mobileView);
+  useEffect(() => {
+    if (mobileView !== lastMobileView.current) sfx.play('hud.tab');
+    lastMobileView.current = mobileView;
+  }, [mobileView]);
 
   useEffect(() => {
     if (showGuideOnStart !== 'on') return;

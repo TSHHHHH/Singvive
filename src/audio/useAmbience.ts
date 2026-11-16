@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useSetting } from '../game/settings';
 import { ambience, soundVolume, type AmbienceParams } from './ambience';
+import { sfx } from './sfx';
 
 /**
  * Drive the ambience engine from the game screen. Pass scalars only — this is
@@ -42,9 +43,21 @@ export function useAmbience(p: AmbienceParams): void {
 
   const prevBand = useRef(band);
   useEffect(() => {
-    if (band === 'night' && prevBand.current !== 'night' && !underground) {
+    const was = prevBand.current;
+    if (band === 'night' && was !== 'night' && !underground) {
       ambience.stinger('nightfall');
+    }
+    if (!underground && band !== was) {
+      if (band === 'day' && was === 'night') sfx.play('world.dawn');
+      if (band === 'dusk' && was === 'day') sfx.play('world.dusk');
     }
     prevBand.current = band;
   }, [band, underground]);
+
+  const prevWeather = useRef(weather);
+  useEffect(() => {
+    const wet = (w: string) => w === 'rain' || w === 'thunderstorm';
+    if (wet(weather) && !wet(prevWeather.current) && !underground) sfx.play('world.rain');
+    prevWeather.current = weather;
+  }, [weather, underground]);
 }

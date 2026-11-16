@@ -8,6 +8,7 @@ import type { ContextMenuAction } from './ItemContextMenu';
 import { clampBox, placeNear } from '../tips/clamp';
 import { tip } from '../tips';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
+import { sfx } from '../../audio/sfx';
 
 const OFFSET = 14;
 const CARD_W = 'w-64';
@@ -39,6 +40,9 @@ const RING_C = 2 * Math.PI * RING_R;
 function PinRing({ state, label }: { state: 'pending' | 'pinned'; label: string }) {
   const reduced = useReducedMotion();
   const pinned = state === 'pinned';
+  useEffect(() => {
+    if (pinned) sfx.play('hud.pin');
+  }, [pinned]);
   return (
     <span
       role="img"
