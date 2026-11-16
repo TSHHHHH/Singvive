@@ -12,10 +12,10 @@ import type { TimeOfDay } from '../game/types';
  * - **Sun.** Where the sun is for an hour, roughly as it really runs over
  *   Singapore: up about 07:00 in the east-south-east, high (≈70°) a little
  *   after 13:00, down about 19:10 in the west-south-west.
- * - **Ground grade.** A per-phase colour grade for the basemap's own fills
- *   and lines (`c × gain + lift`): daylight lifts the dark map to lit
- *   concrete, night sinks it to blue-black. Applied by repainting the basemap
- *   layers once per phase change.
+ * - **Ground grade.** A per-phase palette for the basemap's own fills and
+ *   lines: daylight turns the dark map into a light one, dawn and dusk sit
+ *   halfway with a warm cast, night sinks it to blue-black. Applied by
+ *   repainting the basemap layers once per phase change.
  * - **Shadows.** The ground shadow a standing building throws, as one convex
  *   polygon per building, and the short drop shadow the flat 2D map uses.
  */
@@ -93,23 +93,59 @@ export function shadowStrength(alt: number, diffuse = 0): number {
 // --- Ground grade -------------------------------------------------------------
 
 export interface Grade {
-  /** Multiplies each channel. */
+  /** Dark half: multiplies each channel… */
   gain: number;
-  /** Then added, per channel, 0..255. */
+  /** …then adds this, per channel, 0..255. */
   lift: [number, number, number];
+  /**
+   * How far toward the daylight palette, 0 (the dark map, graded) … 1 (a
+   * light map). See `dayColor`.
+   */
+  light: number;
+  /** Colour cast over the result, per channel multiplier. */
+  tint: [number, number, number];
 }
 
 /**
- * The basemap is CARTO Dark Matter: ground #0e0e0e, roads a few steps up.
- * Daylight roughly doubles it into dim concrete (still a dark, dead city);
- * night takes some away and pushes it blue.
+ * The basemap is CARTO Dark Matter: ground #0e0e0e, road fills a shade
+ * darker, road casings and buildings a few steps lighter, water slate.
+ * Lifting those colours only ever gets a dark-grey map, which still reads as
+ * night, so daylight swaps to a light palette instead (`dayColor`): the dark
+ * map's brightness is inverted around the ground, which is what turns Dark
+ * Matter into a Positron-like light map: road fills come out lighter than
+ * the ground, casings, buildings and water darker. Dawn and dusk sit halfway
+ * with a warm cast; night is the dark map, a little bluer.
  */
 export const GRADES: Record<LightPhase, Grade> = {
-  dawn: { gain: 1.45, lift: [14, 9, 14] },
-  day: { gain: 1.9, lift: [15, 15, 12] },
-  dusk: { gain: 1.3, lift: [20, 9, 0] },
-  night: { gain: 0.8, lift: [0, 2, 8] },
+  dawn: { gain: 1.3, lift: [10, 6, 10], light: 0.55, tint: [1, 0.9, 0.92] },
+  day: { gain: 1, lift: [0, 0, 0], light: 1, tint: [1, 0.995, 0.965] },
+  dusk: { gain: 1.2, lift: [14, 6, 0], light: 0.45, tint: [1.04, 0.86, 0.7] },
+  night: { gain: 0.8, lift: [0, 2, 8], light: 0, tint: [1, 1, 1] },
 };
+
+/** Dark Matter's ground brightness, and where it lands by day. */
+const DARK_GROUND_L = 14;
+const DAY_GROUND_L = 172;
+/** How strongly brightness differences invert by day. */
+const DAY_CONTRAST = 1.5;
+/** How much of a colour's own hue (water's slate, parks' green) survives into day. */
+const DAY_CHROMA = 1.6;
+
+const luma = (r: number, g: number, b: number) => 0.299 * r + 0.587 * g + 0.114 * b;
+
+/** A dark-map colour's daylight counterpart (brightness inverted around the ground). */
+export function dayColor(r: number, g: number, b: number): [number, number, number] {
+  const l = luma(r, g, b);
+  const day = DAY_GROUND_L - (l - DARK_GROUND_L) * DAY_CONTRAST;
+  return [r, g, b].map((c) => day + (c - l) * DAY_CHROMA) as [number, number, number];
+}
+
+/** One colour through a grade, as 0..255 channels (unclamped). */
+export function gradeRgb(r: number, g: number, b: number, gr: Grade): [number, number, number] {
+  const dark = [r, g, b].map((c, i) => c * gr.gain + gr.lift[i]);
+  const day = gr.light > 0 ? dayColor(r, g, b) : dark;
+  return dark.map((d, i) => (d + (day[i] - d) * gr.light) * gr.tint[i]) as [number, number, number];
+}
 
 /** Parse a CSS colour MapLibre accepts in a style: #rgb, #rrggbb(aa), rgb(a), hsl(a). */
 export function parseColor(s: string): [number, number, number, number] | null {
@@ -154,7 +190,7 @@ const clamp255 = (v: number) => Math.max(0, Math.min(255, Math.round(v)));
 export function gradeColor(s: string, g: Grade): string {
   const c = parseColor(s);
   if (!c) return s;
-  const [r, gg, b] = [0, 1, 2].map((i) => clamp255(c[i] * g.gain + g.lift[i]));
+  const [r, gg, b] = gradeRgb(c[0], c[1], c[2], g).map(clamp255);
   return c[3] >= 1 ? `rgb(${r},${gg},${b})` : `rgba(${r},${gg},${b},${+c[3].toFixed(3)})`;
 }
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { timeOfDay } from '../game/weather';
 import {
   GRADES,
+  dayColor,
   MAX_SHADOW_RATIO,
   gradeColor,
   gradePaint,
@@ -102,6 +103,17 @@ describe('ground grade', () => {
     expect(lum(gradeColor(ground, GRADES.day))).toBeGreaterThan(lum(gradeColor(ground, GRADES.dusk)));
     expect(lum(gradeColor(ground, GRADES.dusk))).toBeGreaterThan(lum(ground));
     expect(lum(gradeColor('#303030', GRADES.night))).toBeLessThan(lum('#303030'));
+  });
+
+  it('turns Dark Matter into a light map by day: road fills lighter than ground, buildings darker', () => {
+    const l = (c: number[]) => c[0] + c[1] + c[2];
+    const ground = dayColor(14, 14, 14);
+    expect(l(ground)).toBeGreaterThan(3 * 150);
+    expect(l(dayColor(11, 11, 11))).toBeGreaterThan(l(ground));
+    expect(l(dayColor(57, 57, 57))).toBeLessThan(l(ground));
+    // Water keeps its slate-blue cast.
+    const water = dayColor(44, 53, 60);
+    expect(water[2]).toBeGreaterThan(water[0]);
   });
 
   it('grades colours inside expressions and leaves everything else alone', () => {

@@ -3,7 +3,7 @@ import { useSetting } from '../game/settings';
 import type { WeatherKind } from '../game/types';
 import { WEATHER_DIFFUSE } from '../map/atmosphere';
 import type { BuildingEngine } from '../map/buildings';
-import { DaylightDriver, shadowColor } from '../map/daylight';
+import { DaylightDriver, buildingTone, shadowColor } from '../map/daylight';
 import { useMapGL } from '../map/hooks';
 import { lightPhase, shadowRatio, shadowStrength, sunAt } from '../map/lighting';
 
@@ -45,6 +45,12 @@ export function Daylight({
   useEffect(() => {
     driver?.setPhase(on ? phase : null);
   }, [driver, on, phase]);
+
+  useEffect(() => {
+    if (!engine) return;
+    const t = buildingTone(on ? phase : null);
+    engine.setTone(t.base, t.flat);
+  }, [engine, on, phase]);
 
   useEffect(() => {
     if (!driver) return;
