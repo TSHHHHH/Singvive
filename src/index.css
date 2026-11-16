@@ -2002,3 +2002,21 @@ body:has([data-dock-resizing='true']) * {
     rgba(60, 70, 110, 0.12)
   );
 }
+
+/* HDB corridor read: a small d100 tumbling inside its own ledger field. */
+.scout-tumble {
+  animation: scout-tumble 750ms cubic-bezier(0.2, 0.7, 0.25, 1) both;
+}
+@keyframes scout-tumble {
+  0% { transform: translate(-18px, 6px) rotate(-300deg) scale(0.55); opacity: 0; }
+  20% { opacity: 1; }
+  55% { transform: translate(3px, -4px) rotate(-60deg) scale(1.08); }
+  100% { transform: translate(0, 0) rotate(0deg) scale(1); }
+}
+.scout-reveal {
+  animation: scout-reveal 360ms ease-out both;
+}
+@keyframes scout-reveal {
+  0% { opacity: 0; transform: translateY(3px); filter: brightness(1.8); }
+  100% { opacity: 1; transform: none; filter: none; }
+}

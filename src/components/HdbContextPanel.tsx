@@ -1,3 +1,4 @@
+import { HdbScoutDie, SCOUT_STAGGER_MS } from './HdbScoutDice';
 import { isCarried } from '../game/inventory';
 import { Icon } from '../icons/Icon';
 import type { IconName } from '../icons/keys';
@@ -76,6 +77,7 @@ export function HdbContextPanel({
   const items = useGame((s) => s.items);
   const pendingSearch = useGame((s) => s.pendingSearch);
   const selUnit = useGame((s) => s.hdbSelUnit);
+  const scout = useGame((s) => s.hdbScout);
   const hdbBreach = useGame((s) => s.hdbBreach);
   const hdbPick = useGame((s) => s.hdbPick);
   const hdbUseService = useGame((s) => s.hdbUseService);
@@ -197,6 +199,16 @@ export function HdbContextPanel({
     ? msgOr(`ui.hdb.container.${containerCat}`, containerCat, undefined, locale)
     : null;
 
+  const containerValue =
+    containerCat && containerLabel ? (
+      <span className="inline-flex items-center gap-1.5 text-astral">
+        <Icon name={CONTAINER_ICON[containerCat] ?? 'action.inventory'} />
+        {containerLabel}
+      </span>
+    ) : (
+      <span className="text-concrete-400">?</span>
+    );
+
   const roomsLeft = floor.units.filter((u) => u.available && u.state !== 'cleared').length;
 
   const head = (
@@ -214,6 +226,12 @@ export function HdbContextPanel({
     />
   );
 
+  // The room picked this turn plays its corridor read in its own fields.
+  const roll =
+    sel && scout && scout.unitId === sel.id && scout.locationId === hdb.locationId && scout.level === hdb.currentLevel
+      ? scout
+      : null;
+  const dexDelay = encounter ? SCOUT_STAGGER_MS : 0;
   const scoutLedger = sel ? (
     <Ledger>
       {selVerb === 'fight' && (
@@ -235,9 +253,17 @@ export function HdbContextPanel({
               : t('ui.hdb.scoutEncounterEstimate')
           }
         >
-          <span className={encounter.pct >= 50 ? 'text-hiss' : 'text-signal'}>
-            {encounter.label}
-          </span>
+          {roll ? (
+            <HdbScoutDie key={`p:${sel.id}:${roll.startedAt}`} attr="perception" check={roll.roll.perception} startedAt={roll.startedAt}>
+              <span className={encounter.pct >= 50 ? 'text-hiss' : 'text-signal'}>
+                {encounter.label}
+              </span>
+            </HdbScoutDie>
+          ) : (
+            <span className={encounter.pct >= 50 ? 'text-hiss' : 'text-signal'}>
+              {encounter.label}
+            </span>
+          )}
         </LedgerRow>
       )}
       <LedgerRow
@@ -249,13 +275,18 @@ export function HdbContextPanel({
             : t('ui.hdb.scoutContainersUnread')
         }
       >
-        {containerCat && containerLabel ? (
-          <span className="inline-flex items-center gap-1.5 text-astral">
-            <Icon name={CONTAINER_ICON[containerCat] ?? 'action.inventory'} />
-            {containerLabel}
-          </span>
+        {roll ? (
+          <HdbScoutDie
+            key={`d:${sel.id}:${roll.startedAt}`}
+            attr="dexterity"
+            check={roll.roll.dexterity}
+            startedAt={roll.startedAt}
+            delay={dexDelay}
+          >
+            {containerValue}
+          </HdbScoutDie>
         ) : (
-          <span className="text-concrete-400">?</span>
+          containerValue
         )}
       </LedgerRow>
     </Ledger>

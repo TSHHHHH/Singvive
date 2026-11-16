@@ -18,6 +18,7 @@ import {
   peakHeat,
   realStoreysOf,
   scoutFloor,
+  scoutUnit,
   ROOF_FOB,
   sealedStoreys,
   SPILL,
@@ -104,6 +105,39 @@ describe('corridor scouting playback', () => {
     const result = scoutFloor(new Rng('worked'), attrs, d, floor.level);
     expect(result.rolls).toEqual([]);
     expect(result.dungeon).toEqual(d);
+  });
+});
+
+describe('scouting one room at a time', () => {
+  const attrs = { strength: 5, dexterity: 6, endurance: 5, perception: 5, wits: 5 };
+
+  it('reads each picked room exactly as the old whole-floor sweep did, in any order', () => {
+    for (const seed of SEEDS) {
+      const d = block(seed, 18);
+      const floor = d.floors.find((f) => !f.sealed && f.units.some((u) => u.available))!;
+      const sweep = scoutFloor(new Rng(seed).fork('sweep'), attrs, d, floor.level, 0.1);
+      let one = d;
+      const picked = [...floor.units].reverse();
+      for (const u of picked) {
+        const res = scoutUnit(new Rng(seed).fork('sweep'), attrs, one, floor.level, u.id, 0.1);
+        one = res.dungeon;
+        expect(res.roll).toEqual(sweep.rolls.find((r) => r.unitId === u.id) ?? null);
+      }
+      expect(one).toEqual(sweep.dungeon);
+    }
+  });
+
+  it('leaves the rest of the floor unread and never rerolls a room', () => {
+    const d = block('SCOUT-REGRESSION', 18);
+    const floor = d.floors[2];
+    const target = floor.units.find((u) => u.available)!;
+    const first = scoutUnit(new Rng('a'), attrs, d, floor.level, target.id);
+    expect(first.roll?.unitId).toBe(target.id);
+    const after = first.dungeon.floors[2].units;
+    expect(after.filter((u) => u.state === 'scouted').map((u) => u.id)).toEqual([target.id]);
+    const again = scoutUnit(new Rng('b'), attrs, first.dungeon, floor.level, target.id);
+    expect(again.roll).toBeNull();
+    expect(again.dungeon).toBe(first.dungeon);
   });
 });
 
