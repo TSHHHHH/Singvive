@@ -2394,7 +2394,7 @@
     },
     "weatherFx": {
       "label": "天气特效",
-      "description": "地图上的雨、眩光与霾。纯视觉——吃 GPU，默认关，想开再开。",
+      "description": "地图上的雨、眩光与霾。纯视觉——吃 GPU。电脑上默认「完整」，手机和平板默认关。",
       "options": {
         "off": "关",
         "subtle": "轻微",

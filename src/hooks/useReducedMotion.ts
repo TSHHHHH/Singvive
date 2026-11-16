@@ -20,10 +20,9 @@ function usePrefersReducedMotion(): boolean {
  * Whether to hold animation still, resolving the `reduceMotion` setting against
  * the OS hint.
  *
- * `auto` follows the system, which is the right default — but it is only a
- * default. Someone who wants the rain moving on a machine set to reduce motion
- * system-wide can say so, and someone whose OS has no such switch can ask for
- * stillness anyway.
+ * Defaults to `off` so the map moves out of the box. `auto` follows the OS
+ * hint for anyone who wants that, and `on` asks for stillness on an OS with no
+ * such switch.
  */
 export function useReducedMotion(): boolean {
   const choice = useSetting('reduceMotion');
