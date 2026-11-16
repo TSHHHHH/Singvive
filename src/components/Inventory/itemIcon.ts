@@ -43,3 +43,14 @@ export function itemIcon(def: ItemDef): IconName {
   }
   return EFFECT_ICON[def.effect.kind];
 }
+
+/**
+ * Art drawn faintly behind the backpack grid: the equipped bag's own picture
+ * when it has one, otherwise the generic bag glyph (pockets, or a bag still
+ * waiting for its art) so the grid never borrows a misleading category icon.
+ */
+export function bagBackdropIcon(def: ItemDef | null): IconName {
+  if (!def) return 'slot.bag';
+  const own = itemIcon(def);
+  return ICON_ASSETS[own] ? own : 'slot.bag';
+}

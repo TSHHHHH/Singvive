@@ -1986,3 +1986,10 @@ body:has([data-dock-resizing='true']) * {
     animation: none;
   }
 }
+
+/* Bag art behind the backpack grid: present enough to read as "inside the
+   bag", faint enough that cell lines and item tiles stay the loudest thing. */
+.inv-bag-backdrop {
+  opacity: 0.14;
+  filter: saturate(0.55) brightness(1.1);
+}

@@ -160,6 +160,94 @@ export function canPlace(
   return true;
 }
 
+/**
+ * Uids of the items in `container` that `candidate` would sit on, or `null`
+ * when the spot itself is illegal (out of bounds, or on a hole in the bag).
+ * An empty array means the spot is free.
+ */
+export function overlapsAt(
+  container: Container,
+  items: ItemInstance[],
+  candidate: { x: number; y: number; w: number; h: number },
+  ignoreUid?: string,
+): string[] | null {
+  if (container === LOOSE) return [];
+  const dims = dimsFor(container);
+  if (candidate.x < 0 || candidate.y < 0) return null;
+  if (candidate.x + candidate.w > dims.w || candidate.y + candidate.h > dims.h) return null;
+  const blocked = blockedCellsFor(container);
+  for (let dy = 0; dy < candidate.h; dy++) {
+    for (let dx = 0; dx < candidate.w; dx++) {
+      if (blocked.has(packCellKey(candidate.x + dx, candidate.y + dy))) return null;
+    }
+  }
+  const hit: string[] = [];
+  for (const inst of items) {
+    if (inst.container !== container || inst.uid === ignoreUid) continue;
+    const covered = cellsOf(inst).some(
+      (c) =>
+        c.x >= candidate.x &&
+        c.x < candidate.x + candidate.w &&
+        c.y >= candidate.y &&
+        c.y < candidate.y + candidate.h,
+    );
+    if (covered) hit.push(inst.uid);
+  }
+  return hit;
+}
+
+/**
+ * Put `uid` at (x, y) in a grid container, bumping whatever it lands on out
+ * to the loose pile. Nothing is ever deleted: displaced items stay carried.
+ * Returns `null` when the spot is out of bounds or on a hole in the bag.
+ */
+export function placeReplacing(
+  items: ItemInstance[],
+  uid: string,
+  container: Container,
+  x: number,
+  y: number,
+  rotated: boolean,
+): { items: ItemInstance[]; displaced: string[] } | null {
+  if (container === LOOSE) return null;
+  const inst = items.find((i) => i.uid === uid);
+  if (!inst) return null;
+  const { w, h } = footprint(itemDef(inst.defId), rotated);
+  const displaced = overlapsAt(container, items, { x, y, w, h }, uid);
+  if (!displaced) return null;
+  const bumped = new Set(displaced);
+  let next = items.map((i) => {
+    if (i.uid === uid) return { ...i, container, x, y, rotated };
+    if (bumped.has(i.uid)) return { ...i, container: LOOSE, x: 0, y: 0, rotated: false };
+    return i;
+  });
+  // Bumped stackables rejoin a matching loose stack rather than adding a row.
+  for (const bumpedUid of displaced) {
+    next = mergeIntoLooseStacks(next, bumpedUid);
+  }
+  return { items: next, displaced };
+}
+
+/** Top up matching loose stacks from `uid`; drops it if nothing is left over. */
+function mergeIntoLooseStacks(items: ItemInstance[], uid: string): ItemInstance[] {
+  const src = items.find((i) => i.uid === uid);
+  if (!src || src.container !== LOOSE) return items;
+  const def = itemDef(src.defId);
+  if (!def.stackable) return items;
+  let remaining = src.stack;
+  const next = items.map((i) => {
+    if (remaining <= 0 || i.uid === uid || i.container !== LOOSE || i.defId !== src.defId) return i;
+    if (!!i.coldPrepared !== !!src.coldPrepared || (i.contaminationRisk ?? 0) !== (src.contaminationRisk ?? 0)) return i;
+    const room = def.maxStack - i.stack;
+    if (room <= 0) return i;
+    const add = Math.min(room, remaining);
+    remaining -= add;
+    return { ...i, stack: i.stack + add };
+  });
+  if (remaining <= 0) return next.filter((i) => i.uid !== uid);
+  return next.map((i) => (i.uid === uid ? { ...i, stack: remaining } : i));
+}
+
 /** First free slot for a def in a container, trying both orientations. Row-major. */
 export function findSlot(
   container: Container,

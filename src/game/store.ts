@@ -146,6 +146,8 @@ import {
   carrySlot,
   isCarried,
   LOOSE,
+  BACKPACK,
+  placeReplacing,
   LOAD_SPRAIN_CHANCE_PER_KM,
   isBroken,
   isTwoHandedEquipped,
@@ -817,6 +819,8 @@ interface State {
   /** Eat / drink / bandage / load ammo / etc. Named applyItem so oxlint doesn't treat it as a Hook. */
   applyItem: (uid: string, partId?: BodyPartId) => void;
   moveItem: (uid: string, container: string, x: number, y: number, rotated: boolean) => boolean;
+  /** Drop a loose item into the bag at (x, y); anything it lands on is bumped out to loose. */
+  packReplacing: (uid: string, x: number, y: number, rotated: boolean) => boolean;
   rotateItem: (uid: string) => void;
   transferItem: (uid: string, toContainer: string) => void;
   equipItem: (uid: string, slot: keyof Equipment) => void;
@@ -5988,6 +5992,17 @@ export const useGame = create<State>((set, get) => {
       const { w, h } = footprint(def, rotated);
       if (!canPlace(container, s.items, { x, y, w, h }, uid)) return false;
       set({ items: s.items.map((i) => (i.uid === uid ? { ...i, container, x, y, rotated } : i)) });
+      persist();
+      return true;
+    },
+
+    packReplacing: (uid, x, y, rotated) => {
+      const s = get();
+      const inst = s.items.find((i) => i.uid === uid);
+      if (!inst || inst.container !== LOOSE) return false;
+      const out = placeReplacing(s.items, uid, BACKPACK, x, y, rotated);
+      if (!out) return false;
+      set({ items: out.items });
       persist();
       return true;
     },

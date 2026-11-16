@@ -11,6 +11,7 @@ import {
 import { conditionBarColor, tileColor } from '../../game/itemTileColor';
 import { packCellKey } from '../../game/packGrid';
 import { Icon } from '../../icons/Icon';
+import type { IconName } from '../../icons/keys';
 import { itemName, useT } from '../../i18n';
 import { itemIcon } from './itemIcon';
 import { useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
@@ -34,6 +35,8 @@ export interface DragPreview {
   w: number;
   h: number;
   valid: boolean;
+  /** Items the drop would bump out to the loose pile (loose → bag swap). */
+  displaced?: string[];
 }
 
 interface Props {
@@ -61,6 +64,8 @@ interface Props {
   onItemPointerMove?: (e: React.PointerEvent, inst: ItemInstance) => void;
   /** Skip the plain hover tip when the richer ItemHoverCard is doing the job. */
   suppressTip?: boolean;
+  /** Faint art behind the cells — the backpack shows the bag you're wearing. */
+  backdropIcon?: IconName;
 }
 
 /** Presentational Tetris grid. Drag state is owned by the parent panel so
@@ -86,6 +91,7 @@ export function InventoryGrid({
   onItemPointerLeave,
   onItemPointerMove,
   suppressTip = false,
+  backdropIcon,
 }: Props) {
   const { locale, t } = useT();
   const contentId = useId();
@@ -104,6 +110,9 @@ export function InventoryGrid({
   const cell = largeCells ? Math.max(48, Math.min(56, Math.floor((availableWidth - 2) / dims.w))) : CELL;
   const cells = items.filter((i) => i.container === grid);
   const showPreview = preview && preview.grid === grid;
+  const bumped = new Set(showPreview ? (preview.displaced ?? []) : []);
+  const swapping = bumped.size > 0;
+  const backdropSize = Math.round(Math.min(dims.w, dims.h * 1.15) * cell);
   const blocked = blockedCellsFor(grid);
   const holes: { x: number; y: number }[] = [];
   if (blocked.size > 0) {
@@ -143,6 +152,15 @@ export function InventoryGrid({
             backgroundSize: `${cell}px ${cell}px`,
           }}
         >
+          {backdropIcon && (
+            <div
+              aria-hidden
+              className="inv-bag-backdrop pointer-events-none absolute inset-0 z-0 flex items-center justify-center overflow-hidden"
+            >
+              <Icon name={backdropIcon} size={backdropSize} />
+            </div>
+          )}
+
           {holes.map((hole) => (
             <div
               key={packCellKey(hole.x, hole.y)}
@@ -166,8 +184,8 @@ export function InventoryGrid({
                 top: preview!.cellY * cell,
                 width: preview!.w * cell - 2,
                 height: preview!.h * cell - 2,
-                background: preview!.valid ? '#6b8e2355' : '#c0392b55',
-                border: `2px dashed ${preview!.valid ? '#8fbf4b' : '#e0342b'}`,
+                background: !preview!.valid ? '#c0392b55' : swapping ? '#d9a44155' : '#6b8e2355',
+                border: `2px dashed ${!preview!.valid ? '#e0342b' : swapping ? '#f0c060' : '#8fbf4b'}`,
               }}
             />
           )}
@@ -176,6 +194,7 @@ export function InventoryGrid({
             const def = itemDef(inst.defId);
             const { w, h } = footprint(def, inst.rotated);
             const isDragging = draggingUid === inst.uid || !!draggingUids?.includes(inst.uid);
+            const isBumped = bumped.has(inst.uid);
             const selected = selectedUid === inst.uid || !!multiSelected?.has(inst.uid);
             const wears = hasCondition(inst);
             const cond = conditionPct(inst);
@@ -206,7 +225,9 @@ export function InventoryGrid({
                   height: h * cell - 2,
                   background: `${tileColor(def)}66`,
                   boxShadow: `inset 0 0 0 1px ${tileColor(def)}`,
-                  opacity: isDragging ? 0.25 : 1,
+                  opacity: isDragging ? 0.25 : isBumped ? 0.45 : 1,
+                  outline: isBumped ? '2px dashed #f0c060' : undefined,
+                  outlineOffset: isBumped ? -2 : undefined,
                   zIndex: selected ? 10 : 5,
                 }}
                 {...tip(
