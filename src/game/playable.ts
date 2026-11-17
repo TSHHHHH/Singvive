@@ -174,8 +174,8 @@ export function installZones(data: ZonesData): ZonesData {
 
 /**
  * Real places the hazard field can anchor on (building footprints and
- * block-sized areas). Optional: without the files the field falls back to
- * procedural pockets everywhere.
+ * block-sized areas). Optional: without the files there are no daytime
+ * pockets at all (night swarm and water wildlife still spawn).
  */
 async function loadHazardSites(): Promise<void> {
   try {
