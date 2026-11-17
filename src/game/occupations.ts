@@ -33,7 +33,7 @@ export const OCCUPATIONS: Occupation[] = [
     name: 'Soldier',
     tagline: 'NS, then the real thing. The first blow never lands clean.',
     blurb:
-      'You were on duty when the order stopped coming. The training holds. The sleep does not — every hour of it is one ear open, and it shows by day three. The Council is who kept showing up.',
+      'You were on duty when the order stopped coming. The training holds. The sleep does not — every hour of it is one ear open, and it shows by day three. The Cordon is who kept showing up.',
     traitIds: ['combat_veteran', 'hypervigilant'],
     goodAt: ['Fighting', 'Soaking the first hit'],
     strugglesWith: ['Sleep', 'Night travel'],
@@ -93,10 +93,10 @@ export const OCCUPATIONS: Occupation[] = [
     name: 'Fixer',
     tagline: 'They know your face. The void decks are open. The checkpoints are not.',
     blurb:
-      'Collections, mostly. Nothing you would put on a resume. The 88 Tong still counts you as one of theirs. The Council has a file, and it is not flattering.',
+      'Collections, mostly. Nothing you would put on a resume. The 88 Tong still counts you as one of theirs. The Cordon has a file, and it is not flattering.',
     traitIds: ['made_man', 'warrant'],
     goodAt: ['88 Tong territory', 'Void-deck access'],
-    strugglesWith: ['The Council', 'Checkpoints'],
+    strugglesWith: ['The Cordon', 'Checkpoints'],
   },
 ];
 

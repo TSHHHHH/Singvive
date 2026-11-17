@@ -725,7 +725,7 @@ interface State {
   /** Board line ids already taken (or finished) — a job is posted once. */
   bountiesTaken: string[];
   /**
-   * One-shot Council escort: the next travel to `toId` is walked with a patrol.
+   * One-shot Cordon escort: the next travel to `toId` is walked with a patrol.
    * Runtime + save — a reload mid-walk should not refund the tribute.
    */
   escort: { toId: string } | null;
@@ -803,7 +803,7 @@ interface State {
   factionIntel: () => void;
   /** Same Boat canteen — eat/drink on site. Once per day. Known+. */
   factionFeed: () => void;
-  /** Council escort to a discovered site within range. Known+. One-shot. */
+  /** Cordon escort to a discovered site within range. Known+. One-shot. */
   factionEscort: (destinationId: string) => void;
   /** 88 Kin: walk an occupied residential block (once per site). */
   searchKinDeck: () => void;
@@ -2513,7 +2513,7 @@ export const useGame = create<State>((set, get) => {
     if (!loc?.factionId) return;
     const id = loc.factionId;
     shiftStanding(id, -1);
-    // Cross-tension: going against the Council is a gift to the 88, and vice versa.
+    // Cross-tension: going against the Cordon is a gift to the 88, and vice versa.
     if (id === 'muster') shiftStanding('syndicate_88', 1);
     else if (id === 'syndicate_88') shiftStanding('muster', 1);
   };
@@ -4287,7 +4287,7 @@ export const useGame = create<State>((set, get) => {
       if (get().escort?.toId === loc.id) {
         set({ escort: null });
         pushLog(
-          `Two of the Council walk you as far as ${loc.name}. They peel off at the door.`,
+          `Two of the Cordon walk you as far as ${loc.name}. They peel off at the door.`,
           'good',
         );
       }
@@ -5215,7 +5215,7 @@ export const useGame = create<State>((set, get) => {
         escort: { toId: dest.id },
       });
       pushLog(
-        `The Council take ${itemDef(tributeId).name} and fall in. They will walk you to ${dest.name}.`,
+        `The Cordon take ${itemDef(tributeId).name} and fall in. They will walk you to ${dest.name}.`,
         'good',
       );
       persist();

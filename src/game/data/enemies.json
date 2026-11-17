@@ -163,7 +163,7 @@
       "drops": ["parang", "jewellery", "painkillers"]
     },
     "muster": {
-      "name": "Council Patrol",
+      "name": "Cordon Patrol",
       "armor": 4,
       "baseHp": 34,
       "hpPerDanger": 7,

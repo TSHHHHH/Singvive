@@ -1777,10 +1777,10 @@
     },
     "faction": {
       "muster": {
-        "name": "The Town Council",
-        "shortName": "The Council",
-        "role": "Town council and auxiliary police · registers and checkpoints",
-        "outpost": "Council Post"
+        "name": "The Cordon",
+        "shortName": "The Cordon",
+        "role": "Auxiliary police, guards and reservists · curfew, checkpoints, registers",
+        "outpost": "Checkpoint"
       },
       "gotong": {
         "name": "Same Boat Society",
@@ -3070,7 +3070,7 @@
     "rat": "Drain Rat",
     "human": {
       "syndicate_88": "88 Tong Runner",
-      "muster": "Council Patrol",
+      "muster": "Cordon Patrol",
       "gotong": "Same Boat Volunteer",
       "sta": "Circle Tunnel Marshal"
     },
@@ -3378,12 +3378,12 @@
   "trait": {
     "ns_combat": {
       "name": "Reservist",
-      "description": "Muscle memory from mandatory service drills that never quite left. The Council’s auxiliaries take a trained hand when they see one.",
+      "description": "Muscle memory from mandatory service drills that never quite left. The Cordon still counts you as one of theirs.",
       "effects": [
         "+1 Fighting",
         "+1 Shooting",
         "+1 Strength",
-        "Start Known with the Council"
+        "Start Known with the Cordon"
       ]
     },
     "medic": {
@@ -3459,7 +3459,7 @@
       "name": "Community Ties",
       "description": "Neighbour bonds transcend the apocalypse. Their counters are open from day one.",
       "effects": [
-        "Start Known with the Council",
+        "Start Known with the Cordon",
         "Start Known with Same Boat"
       ]
     },
@@ -3472,10 +3472,10 @@
     },
     "ah_long_debt": {
       "name": "Underworld Contact",
-      "description": "Somebody in the 88 Tong remembers you. They will not shoot on sight and their court is open — but the Council has read the same file.",
+      "description": "Somebody in the 88 Tong remembers you. They will not shoot on sight and their court is open — but the Cordon has read the same file.",
       "effects": [
         "88 Tong will not shoot on sight",
-        "The Council starts wary of you"
+        "The Cordon starts wary of you"
       ]
     },
     "water_baby": {
@@ -3731,13 +3731,13 @@
     },
     "combat_veteran": {
       "name": "Combat Veteran",
-      "description": "NS, then the real thing. The first blow never lands the way they want it to. The Council still has your name on a roster.",
+      "description": "NS, then the real thing. The first blow never lands the way they want it to. The Cordon still has your name on a roster.",
       "effects": [
         "+2 Fighting",
         "+1 Shooting",
         "+2 Strength",
         "First hit each fight is halved",
-        "Start Known with the Council"
+        "Start Known with the Cordon"
       ]
     },
     "trauma_medic": {
@@ -3825,7 +3825,7 @@
       "description": "They know your face. The void decks are open ground. The checkpoints are not.",
       "effects": [
         "88 Tong starts Trusted+",
-        "The Council starts wary"
+        "The Cordon starts wary"
       ]
     },
     "hypervigilant": {
@@ -3904,9 +3904,9 @@
     },
     "warrant": {
       "name": "Warrant",
-      "description": "The Council has a file. It is not flattering. 88 Tong love is not free.",
+      "description": "The Cordon has a file. It is not flattering. 88 Tong love is not free.",
       "effects": [
-        "The Council starts Hated"
+        "The Cordon starts Hated"
       ]
     },
     "shadow_habit": {
@@ -4571,12 +4571,12 @@
             "They've chalked a queue line on the ground in front of {name}."
           ],
           "text": [
-            "The Council keeps a book at {name}. \"Name in the right column. One {tribute}. Then we know you.\"",
+            "The Cordon keeps a book at {name}. \"Name in the right column. One {tribute}. Then we know you.\"",
             "An auxiliary officer with a clipboard and a sidearm looks you over. \"Managed order. One {tribute} for the register.\"",
             "\"Which block?\" The ledger is already open. \"One {tribute} either way.\""
           ],
           "night": [
-            "A lamp over the ledger at {name}. \"Town Council. One {tribute} and you're on the list.\""
+            "A lamp over the ledger at {name}. \"Cordon. One {tribute} and you're on the list.\""
           ],
           "wet": [
             "They've pulled the table under the school porch. \"{tribute} and you can come in out of this.\""
@@ -4688,7 +4688,7 @@
     "soldier": {
       "name": "Soldier",
       "tagline": "NS, then the real thing. The first blow never lands clean.",
-      "blurb": "You were on duty when the order stopped coming. The training holds. The sleep does not — every hour of it is one ear open, and it shows by day three. The Council is who kept showing up.",
+      "blurb": "You were on duty when the order stopped coming. The training holds. The sleep does not — every hour of it is one ear open, and it shows by day three. The Cordon is who kept showing up.",
       "goodAt": [
         "Fighting",
         "Soaking the first hit"
@@ -4772,13 +4772,13 @@
     "runner": {
       "name": "Fixer",
       "tagline": "They know your face. The void decks are open. The checkpoints are not.",
-      "blurb": "Collections, mostly. Nothing you would put on a resume. The 88 Tong still counts you as one of theirs. The Council has a file, and it is not flattering.",
+      "blurb": "Collections, mostly. Nothing you would put on a resume. The 88 Tong still counts you as one of theirs. The Cordon has a file, and it is not flattering.",
       "goodAt": [
         "88 Tong territory",
         "Void-deck access"
       ],
       "strugglesWith": [
-        "The Council",
+        "The Cordon",
         "Checkpoints"
       ]
     }

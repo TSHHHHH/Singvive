@@ -18,7 +18,7 @@ const RULES = [
   { re: /路障赢了/g, msg: 'calque — rewrite fail line (not sports personification)' },
   { re: /底层空地/g, msg: 'use 组屋底层 (glossary)' },
   { re: /底层公共空间/g, msg: 'use 组屋底层 (glossary)' },
-  { re: /召集队|集合军|民卫队/g, msg: 'use 理事会 for muster (glossary)' },
+  { re: /召集队|集合军|民卫队|理事会/g, msg: 'use 联防队 for muster (glossary)' },
   { re: /88\s*帮|双八帮|双八会/g, msg: 'use 双八堂 (glossary)' },
   { re: /甘榜厨房/g, msg: 'use 同舟会 for gotong (glossary)' },
   { re: /隧道看守/g, msg: 'use 环线同盟 for sta (glossary)' },

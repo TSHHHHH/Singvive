@@ -56,7 +56,7 @@ export interface FactionData {
   ordinaryServices?: FactionService[];
   /** Firearms (ranged weapons) on the board. Only the 88 fence sells them. */
   sellsFirearms: boolean;
-  /** Ammunition on the board. The Council hoards rounds; they do not sell them. */
+  /** Ammunition on the board. The Cordon hoards rounds; they do not sell them. */
   sellsAmmo: boolean;
 
   // ---- the door ----------------------------------------------------------
@@ -83,18 +83,18 @@ export interface FactionData {
 export const FACTION_CONFIG: Record<Exclude<FactionId, null>, FactionData> = {
   muster: {
     id: 'muster',
-    name: 'The Town Council',
-    shortName: 'The Council',
+    name: 'The Cordon',
+    shortName: 'The Cordon',
     icon: 'faction.muster',
     color: '#5b8fe0',
     hostileByDefault: false,
     blurb:
-      'Town council staff, grassroots leaders, and the auxiliary police who were already carrying. Nobody told them to stop, so they did not. Registers, ration cards, checkpoints, and the belief that if the paperwork holds, Singapore comes back.',
+      'Auxiliary police and security guards who were already carrying, plus the reservists who answered the last recall. Not an army — a neighbourhood defence that never stood down. Curfews, checkpoints, a register of who belongs, and the belief that if the line holds, Singapore comes back.',
     tribute: ['canned_food', 'batteries', 'bandage'],
     preferredPoiCategories: ['police', 'school'],
     claimChance: 0.45,
     claimChanceByCategory: { school: 0.15 },
-    outpostName: 'Council Post',
+    outpostName: 'Checkpoint',
     outpostCategories: ['school', 'police'],
     services: ['escort', 'aid', 'rest'],
     signature: 'escort',
@@ -273,7 +273,7 @@ export function factionFeeds(id: FactionId, standing: FactionStanding): boolean 
   return !!id && id === 'gotong' && standing[id] >= STANDING_KNOWN;
 }
 
-/** Escort — Known, and only the Council books the walk. */
+/** Escort — Known, and only the Cordon books the walk. */
 export function factionEscorts(id: FactionId, standing: FactionStanding): boolean {
   return !!id && id === 'muster' && standing[id] >= STANDING_KNOWN;
 }
@@ -333,7 +333,7 @@ export const OUTPOSTS_PER_FACTION = 2;
 /** Same-faction outposts stay a walk apart so twin pins aren't a cluster. */
 export const OUTPOST_MIN_SPACING_M = 1400;
 
-/** Council escort: one neighbourhood walk, not a cross-island taxi. */
+/** Cordon escort: one neighbourhood walk, not a cross-island taxi. */
 export const ESCORT_RANGE_M = 2000;
 /** Additive encounter-chance hit while an escort is walking you there. */
 export const ESCORT_ENCOUNTER_MOD = -0.4;

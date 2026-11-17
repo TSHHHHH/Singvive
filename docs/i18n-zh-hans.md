@@ -23,7 +23,7 @@ Overlay catalog: `src/i18n/messages/zh-Hans.json` (English source of truth: `en.
 | void deck | 组屋底层 | Short HUD: 底层 |
 | zombie (UI) | 丧尸 | Diary may stay indirect |
 | tribute | 贡品 | Checkpoint fee sense: 入场费 |
-| The Town Council / The Council (`muster`) | 市镇理事会 / 理事会 | Town council staff, grassroots, auxiliary police (辅警). Not military. |
+| The Cordon (`muster`) | 联防队 | Auxiliary police (辅警), guards, reservists. Armed, not an army. Outpost: 检查站 |
 | Same Boat Society / Same Boat (`gotong`) | 同舟会 | Ordinary neighbours surviving together |
 | The 88 Tong / 88 Tong (`syndicate_88`) | 双八堂 | Secret-society 堂口 |
 | The Circle (`sta`) | 环线同盟 / 环线 | League of MRT stations; lines/stations prefer 地铁 |
