@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useGame } from '../game/store';
+import { useShownLog } from '../ui/diceGate';
 import { Icon } from '../icons/Icon';
 import { LOG_VIEW_MODES, logViewMode, useClockFormat, useSetting, useSettings } from '../game/settings';
 import { tip } from './tips';
@@ -54,7 +55,7 @@ export function LogPanel({
   activityFocus?: { id: string | null; nonce: number };
 }) {
   const { locale, t } = useT();
-  const log = useGame((s) => s.log);
+  const log = useShownLog();
   const day = useGame((s) => s.day);
   const pending = useGame((s) => s.pendingEvent);
   const pendingSearch = useGame((s) => s.pendingSearch);

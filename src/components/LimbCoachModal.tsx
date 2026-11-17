@@ -4,6 +4,7 @@ import type { BodyPartId, BodyParts } from '../game/types';
 import { useSetting, useSettings } from '../game/settings';
 import { useT } from '../i18n';
 import type { GuideTopic } from '../content/guideContent';
+import { useDicePending } from '../ui/diceGate';
 
 function firstInjuredPart(parts: BodyParts): BodyPartId | null {
   for (const id of BODY_PART_IDS) {
@@ -28,6 +29,7 @@ export function LimbCoachModal({
   const seen = useSetting('limbCoachSeen');
   const setSetting = useSettings((s) => s.setSetting);
   const [partId, setPartId] = useState<BodyPartId | null>(null);
+  const dicePending = useDicePending();
 
   useEffect(() => {
     if (seen === 'on') return;
@@ -36,7 +38,8 @@ export function LimbCoachModal({
     if (hit) setPartId(hit);
   }, [bodyParts, seen, partId]);
 
-  if (seen === 'on' || !partId) return null;
+  // Wait for a check's die to land before explaining the wound it caused.
+  if (seen === 'on' || !partId || dicePending) return null;
 
   const dismiss = () => setSetting('limbCoachSeen', 'on');
 

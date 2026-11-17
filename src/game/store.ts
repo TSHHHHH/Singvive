@@ -1149,7 +1149,8 @@ export const useGame = create<State>((set, get) => {
     const bonus = sumTraitMod(s.character!.traitIds, 'checkBonusMod');
     const res = rollCheck(rng, attrValue, dc, bonus);
     rollSeq += 1;
-    set({ shownRoll: { ...res, id: rollSeq, attr, attrValue, bonus, label } });
+    const logMark = s.log[0]?.id ?? 0;
+    set({ shownRoll: { ...res, id: rollSeq, attr, attrValue, bonus, label, logMark } });
     return res;
   };
 
