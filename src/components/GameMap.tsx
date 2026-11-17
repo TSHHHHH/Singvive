@@ -26,6 +26,7 @@ import { MrtOverlay, MrtLineLegend, MRT_STATION_LAYER } from './MrtOverlay';
 import { useMrtNetwork } from './useMrtNetwork';
 import { VegetationOverlay } from './UnplayableOverlay';
 import { DistrictNames } from './DistrictNames';
+import { DistrictLines } from './DistrictLines';
 import { MapGrain } from './MapGrain';
 import { Icon } from '../icons/Icon';
 import { pathFromProgress, pathUntil, pointAlongPath } from '../game/route';
@@ -1310,7 +1311,7 @@ const HazardRings = memo(function HazardRings({ hazards, pathIds }: { hazards: H
       // The place itself — the school, the market — reads as the heart of the zone.
       if (blob.cores) {
         const outlines = bakedOutlineByOsmId();
-        const coreProps = { color: props.color, onPath: blob.onPath, core: true, fop: 0.32 + blob.severity * 0.06 };
+        const coreProps = { ...props, core: true, fop: 0.32 + blob.severity * 0.06 };
         for (const id of blob.cores) {
           const ring = outlines?.get(id) ?? hazardSiteById(id)?.hull;
           if (!ring || ring.length < 3) continue;
@@ -1847,6 +1848,7 @@ function GameMapInner({
         <GroundPicker onPick={onPickGround} engine={engine} onSite={selectSite} />
         {/* Water, forest wash and expressways — under fog so only explored ground shows. */}
         <VegetationOverlay />
+        <DistrictLines />
         <DistrictNames />
         <MapGrain />
         {/* Outside the island disc the world fades to black. */}

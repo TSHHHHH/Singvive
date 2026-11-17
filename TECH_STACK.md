@@ -682,6 +682,18 @@ the raw response in `tmp/hazard-areas/`. overpass-api.de answers a bare client w
 the script sends a User-Agent and `Accept: application/json`. Manual, committed, never part of
 `npm run build`.
 
+### Refreshing district lines
+
+```bash
+npm run bake:subzones
+npm run bake:subzones -- --from tmp/hazard-areas/subzones.geojson
+```
+
+Rewrites `public/subzones.json` — URA Master Plan 2019 subzone borders (332 subzones) as
+deduplicated, simplified polylines (each shared border once). `DistrictLines` draws them as thin
+pale lines over the run map from z11.7 up, above the fog, set once (no idle renders). Same rules:
+manual, committed, never part of `npm run build`.
+
 ### Refreshing planning areas
 
 ```bash

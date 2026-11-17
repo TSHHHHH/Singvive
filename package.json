@@ -25,6 +25,7 @@
     "bake:towns": "node --experimental-strip-types scripts/bake-towns.mjs",
     "bake:hazard-sites": "node scripts/bake-hazard-sites.mjs",
     "bake:hazard-areas": "node scripts/bake-hazard-areas.mjs",
+    "bake:subzones": "node scripts/bake-subzones.mjs",
     "gen:rain-tile": "node scripts/gen-rain-tile.mjs",
     "preview": "vite preview",
     "deploy": "npm run build && wrangler deploy",
