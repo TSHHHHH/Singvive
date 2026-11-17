@@ -28,6 +28,7 @@ import { useMrtNetwork } from './useMrtNetwork';
 import { VegetationOverlay } from './UnplayableOverlay';
 import { DistrictNames } from './DistrictNames';
 import { DistrictLines } from './DistrictLines';
+import { BorderLayers } from './BorderLayers';
 import { MapGrain } from './MapGrain';
 import { Icon } from '../icons/Icon';
 import { pathFromProgress, pathUntil, pointAlongPath } from '../game/route';
@@ -1875,6 +1876,8 @@ function GameMapInner({
         {/* Water, forest wash and expressways — under fog so only explored ground shows. */}
         <VegetationOverlay />
         <DistrictLines />
+        {/* The sealed Johor border: blown Causeway, barricaded Second Link, searchlights. */}
+        <BorderLayers view3d={view3d} time={time} />
         <DistrictNames />
         <MapGrain />
         {/* Outside the island disc the world fades to black. */}

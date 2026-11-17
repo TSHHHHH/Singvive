@@ -1225,6 +1225,16 @@
       "reload": "重新加载",
       "deleteRun": "仍然无法运行？删除此局并重新开始"
     },
+    "border": {
+      "causeway": "新柔长堤",
+      "causewayState": "爆发日被炸断",
+      "secondLink": "第二通道",
+      "secondLinkState": "已封锁",
+      "rts": "新柔地铁衔接线",
+      "rtsState": "从未通车 · 已封锁",
+      "johor": "新山",
+      "johorState": "隔离区"
+    },
     "terrain": {
       "title": "地形",
       "water": "水域——封闭",

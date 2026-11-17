@@ -1225,6 +1225,16 @@
       "reload": "Reload",
       "deleteRun": "Still broken? Delete this run and start over"
     },
+    "border": {
+      "causeway": "Johor–Singapore Causeway",
+      "causewayState": "Blown on outbreak day",
+      "secondLink": "Second Link",
+      "secondLinkState": "Sealed",
+      "rts": "RTS Link",
+      "rtsState": "Never opened · sealed",
+      "johor": "Johor Bahru",
+      "johorState": "Quarantine zone"
+    },
     "terrain": {
       "title": "Terrain",
       "water": "Water — sealed",
