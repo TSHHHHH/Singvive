@@ -2114,14 +2114,10 @@ body:has([data-dock-resizing='true']) * {
     opacity 220ms ease-out 90ms,
     transform 320ms cubic-bezier(0.34, 1.45, 0.64, 1) 90ms;
 }
-@media (prefers-reduced-motion: reduce) {
-  .blip-unknown,
-  .blip-unknown > span,
-  .maplibregl-marker .blip-unknown,
-  .maplibregl-marker .blip-unknown > span {
-    transition: none !important;
-  }
-}
+/* Only the in-app choice stills these (MotionSync sets the class from it, and
+   its "auto" follows the OS). A bare prefers-reduced-motion query would win
+   over an explicit "off": Windows with animation effects disabled reports
+   reduce, which made the blips snap even with the setting off. */
 .motion-reduce-forced .blip-unknown,
 .motion-reduce-forced .blip-unknown > span {
   transition: none !important;
