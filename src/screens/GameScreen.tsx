@@ -1755,7 +1755,7 @@ export function GameScreen() {
               )}
               {edgeInspector && (hereSlot || targetSlot) && (
                 <div
-                  className="pointer-events-none absolute z-[705] w-[22rem] max-w-[calc(100%-2rem)] transition-[left,max-width] duration-200 motion-reduce:transition-none"
+                  className="pointer-events-none absolute z-[705] w-[44rem] max-w-[calc(100%-2rem)] transition-[left,max-width] duration-200 motion-reduce:transition-none"
                   style={{
                     left: HUD_EDGE + panelInset,
                     bottom: HUD_BOTTOM,

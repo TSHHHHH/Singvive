@@ -406,10 +406,10 @@ hostility, trade, shelter, aid, and intel:
 
 | Id | Name | Flavour |
 |---|---|---|
-| `muster` | The Muster | Extra-legal NS militia — police / school (not hospitals) |
-| `gotong` | Gotong Royong | Civilian mutual aid — hawker / supermarket |
-| `syndicate_88` | The 88 Syndicate (双八会) | Hostile by default until known; void-deck muscle |
-| `sta` | Subterranean Transit Authority (STA) | Manned MRT platforms; tunnel tolls |
+| `muster` | The Citizen Watch | Extra-legal NS militia — police / school (not hospitals) |
+| `gotong` | Kampung Kitchen | Civilian mutual aid — hawker / supermarket |
+| `syndicate_88` | The 88 Gang (双八帮) | Hostile by default until known; void-deck muscle |
+| `sta` | Tunnel Wardens | Manned MRT platforms; tunnel tolls |
 
 - Each run creates up to **two outposts per faction** (`OUTPOSTS_PER_FACTION`, preferred categories,
   spaced apart). Players start with **no faction hub knowledge** by default; hubs are labelled only
@@ -417,13 +417,15 @@ hostility, trade, shelter, aid, and intel:
   other standing traits do not reveal hubs. Outposts offer that faction's **full kit** (canteen,
   fence, escort, tunnel camp — not a shared four-button shop); ordinary claimed territory gets a
   lesser subset, never the signature verb.
+- **Door rules** (`gatePolicy`, seeded per site): **open** (anyone not feuding with them walks in), **fee** (tribute at the gate, or a job), **members** (standing only — Known +1 by default). Outposts are fixed: Kampung Kitchen open, Citizen Watch and Wardens fee, 88 Gang members. Old saves get a rule stamped on load.
+- **Gate jobs** (`game/bounties.ts`): two seeded jobs per site per day, readable from outside the wire. Deliver (their wants), scout (set foot on a named site, pinned on your map) or cull (kills after taking it). Up to 3 jobs at once; hand in at any site of that faction for standing and an item from their stock. At a fee door the first job also counts as the fee (7-day pass). The logbook lists every faction's standing, known outposts and jobs in hand.
 - On arrival, a **pre-scavenge event** may fire (`game/events.ts`, pure): locked doors, desperate
-  survivors, faction shakedowns, STA tolls, etc. Checks are `d20 + attribute vs DC(current danger)`.
+  survivors, faction shakedowns, Warden tolls, etc. Checks are `d20 + attribute vs DC(current danger)`.
 - **Barter** (`game/trade.ts`): no currency — seeded daily chalk-board swaps at faction hubs. Standing
   grows board size and unlocks better lines; each offer is take-it-or-leave-it and one-shot for the day.
   Hubs may also offer rest, aid, or intel once standing is high enough.
 
-### 3.8 The tunnels (Subterranean Transit Authority)
+### 3.8 The tunnels (Tunnel Wardens)
 - The **real Singapore rail network** ships with the game (`public/mrt.json`, baked from OSM — see
   *Refreshing the rail network*): 186 stations, every line in its official livery, with station codes.
 - Station POIs are **bound to the network** at world build: each baked station claims its nearest POI
@@ -467,7 +469,7 @@ hostility, trade, shelter, aid, and intel:
   **Stalker** keeping pace. The crawl HUD is an in-train schematic strip of the planned route
   (`StationStrip`) — next stop, livery-coloured hops, and transfer stations — not a single
   `from → to` line name.
-- **Stations are exits.** STA **toll** still gates the *stairs down* at the origin only; marshals
+- **Stations are exits.** Wardens **toll** still gates the *stairs down* at the origin only; marshals
   may also hold a **checkpoint** in the bore. Roughly **45% of platforms stand empty**
   (`CLAIM_CHANCE.sta`).
 - A run **survives a reload** — same graph, same node (`SavedRun.tunnel`). Collapsed edges persist
@@ -815,8 +817,8 @@ the routes, supplies and landmarks that make Singapore specific.
    helping scavengers can reveal a useful destination. Make those choices legible and let the
    player judge whether responding, waiting or taking another route is worth the cost.
 2. **Local knowledge as the build.** Occupations already gesture at this (*Estate Memory*, *Made Man*,
-   STA). Make spawn + job change *what you remember*: MRT lines you can trust, which void decks are
-   88, where Gotong still cooks. A tourist run is fog; a resident run is a damaged mental map.
+   Wardens). Make spawn + job change *what you remember*: MRT lines you can trust, which void decks are
+   88, where Kampung Kitchen still cooks. A tourist run is fog; a resident run is a damaged mental map.
    The MRT overlay (visible above fog) is the proof this fantasy already works.
 
 ### Protect, don’t dilute

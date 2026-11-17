@@ -92,11 +92,11 @@ export const TRAITS: Trait[] = [
   {
     id: 'ns_combat',
     name: 'Reservist',
-    description: 'Muscle memory from mandatory service drills that never quite left. The Muster still counts you as one of theirs.',
+    description: 'Muscle memory from mandatory service drills that never quite left. The Citizen Watch still counts you as one of theirs.',
     category: 'positive',
     cost: 2,
     icon: 'trait.ns_combat',
-    effects: ['+1 Fighting', '+1 Shooting', '+1 Strength', 'Start Known with the Muster'],
+    effects: ['+1 Fighting', '+1 Shooting', '+1 Strength', 'Start Known with the Citizen Watch'],
     conflicts: ['clumsy'],
     skillStart: { fighting: 1, shooting: 1 },
     strengthMod: 1,
@@ -212,7 +212,7 @@ export const TRAITS: Trait[] = [
     category: 'positive',
     cost: 2,
     icon: 'trait.kampong_spirit',
-    effects: ['Start Known with the Muster', 'Start Known with Gotong'],
+    effects: ['Start Known with the Citizen Watch', 'Start Known with Kampung Kitchen'],
     conflicts: ['ah_long_debt'],
     factionStandingMod: { muster: 1, gotong: 1 },
   },
@@ -231,11 +231,11 @@ export const TRAITS: Trait[] = [
     id: 'ah_long_debt',
     name: 'Underworld Contact',
     description:
-      'Somebody in the 88 Syndicate remembers you. They will not shoot on sight and their court is open — but the Muster has read the same file.',
+      'Somebody in the 88 Gang remembers you. They will not shoot on sight and their court is open — but the Citizen Watch has read the same file.',
     category: 'positive',
     cost: 2,
     icon: 'trait.ah_long_debt',
-    effects: ['88 Syndicate will not shoot on sight', 'Muster starts wary of you'],
+    effects: ['88 Gang will not shoot on sight', 'Citizen Watch starts wary of you'],
     conflicts: ['kampong_spirit'],
     factionStandingMod: { syndicate_88: 1, muster: -1 },
   },
@@ -463,7 +463,7 @@ export const TRAITS: Trait[] = [
     category: 'positive',
     cost: 1,
     icon: 'trait.void_deck_chat',
-    effects: ['+1 on doorway and dialogue checks', 'Start Known with Gotong'],
+    effects: ['+1 on doorway and dialogue checks', 'Start Known with Kampung Kitchen'],
     conflicts: ['short_fuse', 'tone_deaf', 'silver_tongue', 'warrant'],
     checkBonusMod: 1,
     factionStandingMod: { gotong: 1 },
@@ -762,11 +762,11 @@ export const TRAITS: Trait[] = [
   {
     id: 'combat_veteran',
     name: 'Combat Veteran',
-    description: 'NS, then the real thing. The first blow never lands the way they want it to. The Muster still has your name on a roster.',
+    description: 'NS, then the real thing. The first blow never lands the way they want it to. The Citizen Watch still has your name on a roster.',
     category: 'positive',
     cost: 5,
     icon: 'trait.combat_veteran',
-    effects: ['+2 Fighting', '+1 Shooting', '+2 Strength', 'First hit each fight is halved', 'Start Known with the Muster'],
+    effects: ['+2 Fighting', '+1 Shooting', '+2 Strength', 'First hit each fight is halved', 'Start Known with the Citizen Watch'],
     conflicts: ['ns_combat', 'clumsy'],
     skillStart: { fighting: 2, shooting: 1 },
     skillXpMult: { fighting: 1.25 },
@@ -830,7 +830,7 @@ export const TRAITS: Trait[] = [
     category: 'positive',
     cost: 4,
     icon: 'trait.estate_kitchen',
-    effects: ['Food restores 50% more hunger', 'Gotong starts Known', 'Richer hawker-centre loot'],
+    effects: ['Food restores 50% more hunger', 'Kampung Kitchen starts Known', 'Richer hawker-centre loot'],
     conflicts: ['hawker_cook', 'picky_eater', 'weak_stomach'],
     foodEffectMod: 0.5,
     factionStandingMod: { gotong: 1 },
@@ -895,7 +895,7 @@ export const TRAITS: Trait[] = [
     category: 'positive',
     cost: 5,
     icon: 'trait.made_man',
-    effects: ['88 Syndicate starts Trusted+', 'Muster starts wary'],
+    effects: ['88 Gang starts Trusted+', 'Citizen Watch starts wary'],
     conflicts: ['kampong_spirit', 'ah_long_debt'],
     factionStandingMod: { syndicate_88: 3, muster: -1 },
   },
@@ -1007,11 +1007,11 @@ export const TRAITS: Trait[] = [
   {
     id: 'warrant',
     name: 'Warrant',
-    description: 'The Muster has a file. It is not flattering. Syndicate love is not free.',
+    description: 'The Citizen Watch has a file. It is not flattering. 88 Gang love is not free.',
     category: 'negative',
     cost: -5,
     icon: 'trait.warrant',
-    effects: ['Muster starts Hated'],
+    effects: ['Citizen Watch starts Hated'],
     conflicts: ['kampong_spirit', 'void_deck_chat'],
     factionStandingMod: { muster: -4 },
   },
@@ -1101,7 +1101,7 @@ export function sumTraitMod<K extends keyof Trait>(ids: string[], key: K): numbe
  * Almost always all zeroes — a survivor is nobody to everybody. The traits that
  * move it are the ones that buy a starting relationship, and because hostility
  * lifts at STANDING_KNOWN (+1 on the −5…+5 ladder), a single point here is the
- * difference between the 88 Syndicate shooting at you and selling to you.
+ * difference between the 88 Gang shooting at you and selling to you.
  */
 export function startingStanding(traitIds: string[]): FactionStanding {
   const out = emptyStanding();

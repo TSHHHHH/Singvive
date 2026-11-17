@@ -1,4 +1,4 @@
-import type { FactionId, FactionService, LocationState, PoiCategory } from './types';
+import type { FactionId, FactionService, GatePolicy, LocationState, PoiCategory } from './types';
 import { Rng } from './rng';
 import type { IconName } from '../icons/keys';
 import { haversine } from './overpass';
@@ -56,8 +56,14 @@ export interface FactionData {
   ordinaryServices?: FactionService[];
   /** Firearms (ranged weapons) on the board. Only the 88 fence sells them. */
   sellsFirearms: boolean;
-  /** Ammunition on the board. The Muster hoards rounds; they do not sell them. */
+  /** Ammunition on the board. The Citizen Watch hoards rounds; they do not sell them. */
   sellsAmmo: boolean;
+
+  // ---- the door ----------------------------------------------------------
+  /** Seeded odds of each door rule on ordinary territory. */
+  gateOdds: Record<GatePolicy, number>;
+  /** Door rule at the faction's outposts. */
+  outpostGate: GatePolicy;
 
   // ---- the counter -------------------------------------------------------
   /**
@@ -77,10 +83,10 @@ export interface FactionData {
 export const FACTION_CONFIG: Record<Exclude<FactionId, null>, FactionData> = {
   muster: {
     id: 'muster',
-    name: 'The Muster',
-    shortName: 'Muster',
+    name: 'The Citizen Watch',
+    shortName: 'Citizen Watch',
     icon: 'faction.muster',
-    color: '#c4b07a',
+    color: '#5b8fe0',
     hostileByDefault: false,
     blurb:
       'Ex-NS who kept showing up after the chain of command died. No mandate — just ledgers, checkpoints, and the belief that managed order is the only way Singapore comes back.',
@@ -88,22 +94,24 @@ export const FACTION_CONFIG: Record<Exclude<FactionId, null>, FactionData> = {
     preferredPoiCategories: ['police', 'school'],
     claimChance: 0.45,
     claimChanceByCategory: { school: 0.15 },
-    outpostName: 'Muster Point',
+    outpostName: 'Watch Post',
     outpostCategories: ['school', 'police'],
     services: ['escort', 'aid', 'rest'],
     signature: 'escort',
     sellsFirearms: false,
     sellsAmmo: false,
+    gateOdds: { fee: 0.5, members: 0.3, open: 0.2 },
+    outpostGate: 'fee',
     stock: ['bandage', 'medkit', 'antiseptic', 'antibiotics', 'n95_mask', 'splint', 'army_ration'],
     exclusiveStock: ['army_ration', 'antibiotics'],
     wants: ['canned_food', 'rice_pack', 'batteries', 'fuel_can', 'purification_tabs'],
   },
   gotong: {
     id: 'gotong',
-    name: 'Gotong Royong',
-    shortName: 'Gotong',
+    name: 'Kampung Kitchen',
+    shortName: 'Kampung Kitchen',
     icon: 'faction.gotong',
-    color: '#d4c4a8',
+    color: '#5fbf5a',
     hostileByDefault: false,
     blurb:
       'Gotong royong — neighbours pooling what they have so the estate eats. Stallholders and aunties who kept the hawker and the wet market running. Not a company. Not armed.',
@@ -116,6 +124,8 @@ export const FACTION_CONFIG: Record<Exclude<FactionId, null>, FactionData> = {
     signature: 'feed',
     sellsFirearms: false,
     sellsAmmo: false,
+    gateOdds: { open: 0.6, fee: 0.3, members: 0.1 },
+    outpostGate: 'open',
     stock: [
       'hawker_meal', 'canned_food', 'rice_pack', 'water_bottle',
       'newater', 'purification_tabs', 'milo_tin', 'kaya_toast',
@@ -125,10 +135,10 @@ export const FACTION_CONFIG: Record<Exclude<FactionId, null>, FactionData> = {
   },
   syndicate_88: {
     id: 'syndicate_88',
-    name: 'The 88 Syndicate (双八会)',
-    shortName: '88 Syndicate',
+    name: 'The 88 Gang (双八帮)',
+    shortName: '88 Gang',
     icon: 'faction.syndicate_88',
-    color: '#d92d2d',
+    color: '#e05aa8',
     hostileByDefault: true,
     blurb: 'Void-deck muscle turned estate warlords. They take what they want.',
     tribute: ['jewellery', 'tiger_beer', 'painkillers'],
@@ -141,6 +151,8 @@ export const FACTION_CONFIG: Record<Exclude<FactionId, null>, FactionData> = {
     ordinaryServices: ['intel'],
     sellsFirearms: true,
     sellsAmmo: true,
+    gateOdds: { members: 0.6, fee: 0.4, open: 0 },
+    outpostGate: 'members',
     stock: [
       'painkillers', 'tiger_beer', 'parang', 'meat_cleaver',
       'duct_tape', 'spare_parts', 'powerbank', 'energy_drink',
@@ -150,10 +162,10 @@ export const FACTION_CONFIG: Record<Exclude<FactionId, null>, FactionData> = {
   },
   sta: {
     id: 'sta',
-    name: 'Subterranean Transit Authority (STA)',
-    shortName: 'STA',
+    name: 'Tunnel Wardens',
+    shortName: 'Wardens',
     icon: 'faction.sta',
-    color: '#2bc4d9',
+    color: '#f0c419',
     hostileByDefault: false,
     blurb: 'They keep the tunnels running — for a toll.',
     tribute: ['batteries', 'torch', 'canned_food'],
@@ -167,6 +179,8 @@ export const FACTION_CONFIG: Record<Exclude<FactionId, null>, FactionData> = {
     ordinaryServices: [],
     sellsFirearms: false,
     sellsAmmo: false,
+    gateOdds: { fee: 0.7, open: 0.3, members: 0 },
+    outpostGate: 'fee',
     stock: ['torch', 'batteries', 'rain_tarp', 'powerbank', 'glass_bottle'],
     exclusiveStock: ['toolbox', 'hard_hat'],
     wants: ['batteries', 'canned_food', 'duct_tape', 'scrap_metal'],
@@ -219,7 +233,7 @@ export const clampStanding = (n: number) =>
  * Would this faction shoot rather than haggle?
  *
  * `hostileByDefault` is no longer a permanent sentence — it means "hostile
- * until you are KNOWN here". That single change is what makes the 88 Syndicate
+ * until you are KNOWN here". That single change is what makes the 88 Gang
  * approachable at all, and it's the same rule a starting trait exploits by
  * simply handing you the first point of standing up front.
  */
@@ -254,12 +268,12 @@ export function factionOffersAid(id: FactionId, standing: FactionStanding): bool
   return factionShelters(id, standing);
 }
 
-/** Canteen — Known, and only Gotong offers the button. */
+/** Canteen — Known, and only Kampung Kitchen offers the button. */
 export function factionFeeds(id: FactionId, standing: FactionStanding): boolean {
   return !!id && id === 'gotong' && standing[id] >= STANDING_KNOWN;
 }
 
-/** Escort — Known, and only the Muster books the walk. */
+/** Escort — Known, and only the Citizen Watch books the walk. */
 export function factionEscorts(id: FactionId, standing: FactionStanding): boolean {
   return !!id && id === 'muster' && standing[id] >= STANDING_KNOWN;
 }
@@ -319,7 +333,7 @@ export const OUTPOSTS_PER_FACTION = 2;
 /** Same-faction outposts stay a walk apart so twin pins aren't a cluster. */
 export const OUTPOST_MIN_SPACING_M = 1400;
 
-/** Muster escort: one neighbourhood walk, not a cross-island taxi. */
+/** Citizen Watch escort: one neighbourhood walk, not a cross-island taxi. */
 export const ESCORT_RANGE_M = 2000;
 /** Additive encounter-chance hit while an escort is walking you there. */
 export const ESCORT_ENCOUNTER_MOD = -0.4;
@@ -367,10 +381,32 @@ export function hasFactionClearance(
 ): boolean {
   const id = loc.factionId;
   if (!id) return true;
+  if (factionIsHostile(id, standing)) return false;
+  const policy = loc.gatePolicy ?? 'fee';
+  if (policy === 'members') return standing[id] >= gateRequirement(loc);
+  if (policy === 'open') return standing[id] > STANDING_BAD;
   if (factionWavesYouThrough(id, standing)) return true;
   if ((loc.tollPaidThroughDay ?? -1) >= day) return true;
-  if (!factionIsHostile(id, standing) && standing[id] >= STANDING_KNOWN) return true;
+  if (standing[id] >= STANDING_KNOWN) return true;
   return false;
+}
+
+/** Standing a members-only door asks for. */
+export function gateRequirement(loc: LocationState): number {
+  return loc.gateMinStanding ?? STANDING_KNOWN;
+}
+
+/** Seeded door rule for one site. Outposts use the faction's fixed rule. */
+export function rollGatePolicy(rng: Rng, id: Exclude<FactionId, null>, isOp: boolean): GatePolicy {
+  const cfg = FACTION_CONFIG[id];
+  if (isOp) return cfg.outpostGate;
+  const r = rng.next();
+  let acc = 0;
+  for (const p of ['open', 'fee', 'members'] as GatePolicy[]) {
+    acc += cfg.gateOdds[p];
+    if (r < acc) return p;
+  }
+  return 'fee';
 }
 
 /**
@@ -400,7 +436,7 @@ function sampleServices(rng: Rng, pool: FactionService[], n: number): FactionSer
  * Stamp outpost flags and seed ordinary-territory service subsets without
  * granting knowledge of the site or its faction.
  * Outposts always get that faction's full kit; ordinary ground samples 1–2
- * from the lesser pool (never the signature). STA ordinary platforms stay
+ * from the lesser pool (never the signature). Wardens ordinary platforms stay
  * a toll with no hub buttons.
  *
  * Untouched sites keep their previous object identity. Pass `onlyIds` when
@@ -440,12 +476,18 @@ function stampFactionServices(
     if (!loc.factionServices && !loc.isFactionOutpost) return loc;
     return { ...loc, factionServices: undefined, isFactionOutpost: false };
   }
+  const gatePolicy = rollGatePolicy(siteRng.fork('gate'), loc.factionId, isOp);
   // Already stamped this run — do not re-roll ordinary kits (or clone the site).
-  if (loc.factionServices !== undefined && loc.isFactionOutpost === isOp) return loc;
+  if (loc.factionServices !== undefined && loc.isFactionOutpost === isOp) {
+    // Saves from before door rules get one stamped; nothing else moves.
+    return loc.gatePolicy ? loc : { ...loc, gatePolicy, gateMinStanding: STANDING_KNOWN };
+  }
 
   const lesser = ordinaryKit(loc.factionId);
   return {
     ...loc,
+    gatePolicy,
+    gateMinStanding: STANDING_KNOWN,
     isFactionOutpost: isOp,
     factionServices: isOp
       ? outpostKit(loc.factionId)

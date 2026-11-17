@@ -138,7 +138,7 @@ export interface Trait {
    * nothing.
    *
    * Hostility lifts at STANDING_KNOWN (+1): handing a build one point of standing with the 88
-   * Syndicate is exactly what "you know someone" means, with no special case
+   * 88 Gang is exactly what "you know someone" means, with no special case
    * anywhere in the faction code. Standing runs −5…+5.
    */
   factionStandingMod?: Partial<Record<Exclude<FactionId, null>, number>>;
@@ -505,6 +505,12 @@ export type DestructionTier = 0 | 1 | 2 | 3;
 
 /** NPC services available on faction-held ground (never scavenging). */
 export type FactionService = 'trade' | 'rest' | 'aid' | 'intel' | 'feed' | 'escort';
+/**
+ * How a faction site treats a stranger at the door: `open` waves in anyone
+ * they aren't feuding with, `fee` wants tribute (or a job), `members` wants
+ * standing and nothing else will do.
+ */
+export type GatePolicy = 'open' | 'fee' | 'members';
 
 /** Last-known snapshot of a discovered location (fog-of-war memory). */
 export interface LocationMemory {
@@ -552,7 +558,11 @@ export interface LocationState {
    * ordinary territory seeds a lesser subset. Absent / empty on unclaimed ground.
    */
   factionServices?: FactionService[];
-  /** Day the Gotong canteen was used here (once per day). */
+  /** Door rule for strangers (absent on old saves and unclaimed ground = fee). */
+  gatePolicy?: GatePolicy;
+  /** Standing a `members` door asks for. */
+  gateMinStanding?: number;
+  /** Day the Kampung Kitchen canteen was used here (once per day). */
   feedUsedDay?: number;
   /**
    * 88 Kin already walked this occupied residential. The grant is the block,
