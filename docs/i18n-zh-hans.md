@@ -24,7 +24,7 @@ Overlay catalog: `src/i18n/messages/zh-Hans.json` (English source of truth: `en.
 | zombie (UI) | 丧尸 | Diary may stay indirect |
 | tribute | 贡品 | Checkpoint fee sense: 入场费 |
 | The Cordon (`muster`) | 联防队 | Auxiliary police (辅警), guards, reservists. Armed, not an army. Outpost: 检查站 |
-| Same Boat Society / Same Boat (`gotong`) | 同舟会 | Ordinary neighbours surviving together |
+| Common Folk (`gotong`) | 普通幸存者 | Mostly ordinary survivors trying to get through |
 | The 88 Tong / 88 Tong (`syndicate_88`) | 双八堂 | Secret-society 堂口 |
 | The Circle (`sta`) | 环线同盟 / 环线 | League of MRT stations; lines/stations prefer 地铁 |
 | auntie | 阿姨 | Never raw English |

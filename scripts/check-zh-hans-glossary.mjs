@@ -20,7 +20,7 @@ const RULES = [
   { re: /底层公共空间/g, msg: 'use 组屋底层 (glossary)' },
   { re: /召集队|集合军|民卫队|理事会/g, msg: 'use 联防队 for muster (glossary)' },
   { re: /88\s*帮|双八帮|双八会/g, msg: 'use 双八堂 (glossary)' },
-  { re: /甘榜厨房/g, msg: 'use 同舟会 for gotong (glossary)' },
+  { re: /甘榜厨房|同舟会/g, msg: 'use 普通幸存者 for gotong (glossary)' },
   { re: /隧道看守/g, msg: 'use 环线同盟 for sta (glossary)' },
   { re: /饥饿度|口渴度/g, msg: 'positive meters are 饱食度 / 水分, not hunger / thirst severity' },
   { re: /囤点|囤入/g, msg: 'use 储藏点 for the place and 存放 for the action' },

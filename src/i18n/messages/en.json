@@ -502,7 +502,7 @@
         "fuel": "Fuel & roadside snacks.",
         "police": "Firearms & ammo. Extremely dangerous.",
         "residential": "Void deck & flats — common household loot. The 88 Tong works these estates.",
-        "foodcourt": "Food stalls. Same Boat still cooks here when the estate holds.",
+        "foodcourt": "Food stalls. The Common Folk still cook here when the estate holds.",
         "mrt": "Nothing runs. The platform is a way into the tunnels, and the Circle works the turnstiles.",
         "industrial": "Warehouse floor & loading bay. Tools, fuel and materials — and a lot of dark corners.",
         "school": "Canteen, sick bay, workshop. They were used as shelters, which is exactly the problem.",
@@ -1783,9 +1783,9 @@
         "outpost": "Checkpoint"
       },
       "gotong": {
-        "name": "Same Boat Society",
-        "shortName": "Same Boat",
-        "role": "Ordinary neighbours banded together · just trying to live",
+        "name": "Common Folk",
+        "shortName": "Common Folk",
+        "role": "Mostly ordinary survivors · just trying to get through",
         "outpost": "Common Kitchen"
       },
       "syndicate_88": {
@@ -3071,7 +3071,7 @@
     "human": {
       "syndicate_88": "88 Tong Runner",
       "muster": "Cordon Patrol",
-      "gotong": "Same Boat Volunteer",
+      "gotong": "Common Folk Volunteer",
       "sta": "Circle Tunnel Marshal"
     },
     "loner": {
@@ -3460,7 +3460,7 @@
       "description": "Neighbour bonds transcend the apocalypse. Their counters are open from day one.",
       "effects": [
         "Start Known with the Cordon",
-        "Start Known with Same Boat"
+        "Start Known with the Common Folk"
       ]
     },
     "local_contacts": {
@@ -3778,7 +3778,7 @@
       "description": "Thirty years of service, extra rice, and a stall the whole block still names.",
       "effects": [
         "Food restores 50% more hunger",
-        "Same Boat starts Known",
+        "Common Folk start Known",
         "Richer hawker-centre loot"
       ]
     },
@@ -3940,7 +3940,7 @@
       "description": "You know how to open a conversation under fluorescent tubes.",
       "effects": [
         "+1 on doorway and dialogue checks",
-        "Start Known with Same Boat"
+        "Start Known with the Common Folk"
       ]
     },
     "train_memory": {
@@ -4591,12 +4591,12 @@
             "They've strung a rope across the wet-market entrance. People are waiting anyway."
           ],
           "text": [
-            "Same Boat holds {name}. \"Eat first, then we talk. One {tribute} for the pot.\"",
+            "The Common Folk hold {name}. \"Eat first, then we talk. One {tribute} for the pot.\"",
             "A stallholder wipes her hands. \"We pool what we have. One {tribute} and you can come in.\"",
             "\"This is neighbours' food. One {tribute}. Don't bring trouble to the table.\""
           ],
           "night": [
-            "A pot still going at {name}. \"Same Boat. One {tribute} and you're fed after.\""
+            "A pot still going at {name}. \"We look after each other here. One {tribute} and you're fed after.\""
           ],
           "wet": [
             "They've pulled the queue under the tarpaulin. \"{tribute} and you can come in out of this.\""
@@ -4715,10 +4715,10 @@
     "hawker": {
       "name": "Food Vendor",
       "tagline": "Thirty years of service. Extra rice. A voice the whole block knows.",
-      "blurb": "You fed half the estate and knew all of it by name. Food goes further in your hands, and Same Boat still counts you as one of theirs. So does everything that hunts by sound.",
+      "blurb": "You fed half the estate and knew all of it by name. Food goes further in your hands, and the Common Folk still count you as one of theirs. So does everything that hunts by sound.",
       "goodAt": [
         "Food",
-        "Same Boat",
+        "Common Folk",
         "Hawker-centre loot"
       ],
       "strugglesWith": [

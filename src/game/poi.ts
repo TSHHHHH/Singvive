@@ -29,7 +29,7 @@ export const POI_CONFIG: Record<PoiCategory, PoiCategoryConfig> = {
   eatery: { label: 'Eatery / Food Shop', richness: 1, baseDanger: 2, color: '#b6b99c', icon: 'poi.foodcourt', blurb: 'Restaurant counters, cafe cupboards and small food shops. Check for food, bottles and kitchen supplies.' },
   community: { label: 'Community Site', richness: 2, baseDanger: 2, color: '#a4afbf', icon: 'poi.school', blurb: 'Community clubs, libraries, places of worship and cultural buildings. Shared cupboards and supplies left behind.' },
   park: { label: 'Park / Garden', richness: 1, baseDanger: 1, color: '#8caa86', icon: 'poi.landmark', blurb: 'Open-air grounds, benches and visitor belongings. No guaranteed roof or enclosed shelter.' },
-  foodcourt: { label: 'Hawker Centre', richness: 1, baseDanger: 2, color: '#cfccc4', icon: 'poi.foodcourt', blurb: 'Food stalls. Same Boat still cooks here when the estate holds.' },
+  foodcourt: { label: 'Hawker Centre', richness: 1, baseDanger: 2, color: '#cfccc4', icon: 'poi.foodcourt', blurb: 'Food stalls. The Common Folk still cook here when the estate holds.' },
   mrt: { label: 'MRT Station', richness: 1, baseDanger: 3, color: '#2bc4d9', icon: 'poi.mrt', blurb: 'Nothing runs. The platform is a way into the tunnels, and the Circle works the turnstiles.' },
   industrial: { label: 'Industrial Unit', richness: 3, baseDanger: 3, color: '#a8863f', icon: 'poi.industrial', blurb: 'Warehouse floor & loading bay. Tools, fuel and materials — and a lot of dark corners.' },
   school: { label: 'School', richness: 2, baseDanger: 3, color: '#7fa8b2', icon: 'poi.school', blurb: 'Canteen, sick bay, workshop. They were used as shelters, which is exactly the problem.' },

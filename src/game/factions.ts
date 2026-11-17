@@ -108,13 +108,13 @@ export const FACTION_CONFIG: Record<Exclude<FactionId, null>, FactionData> = {
   },
   gotong: {
     id: 'gotong',
-    name: 'Same Boat Society',
-    shortName: 'Same Boat',
+    name: 'Common Folk',
+    shortName: 'Common Folk',
     icon: 'faction.gotong',
     color: '#5fbf5a',
     hostileByDefault: false,
     blurb:
-      'Ordinary people — neighbours, stallholders, delivery riders, retirees — who decided they had a better chance together. Shared pots, night watch by rota, nobody in charge for long. Not armed. Just trying to live.',
+      'Mostly ordinary survivors — neighbours, stallholders, delivery riders, retirees — who only want to make it through the end of the world. Shared pots, night watch by rota, nobody in charge for long. Not armed.',
     tribute: ['canned_food', 'hawker_meal', 'water_bottle'],
     preferredPoiCategories: ['foodcourt', 'supermarket'],
     claimChance: 0.4,
@@ -268,7 +268,7 @@ export function factionOffersAid(id: FactionId, standing: FactionStanding): bool
   return factionShelters(id, standing);
 }
 
-/** Canteen — Known, and only Same Boat offers the button. */
+/** Canteen — Known, and only Common Folk offers the button. */
 export function factionFeeds(id: FactionId, standing: FactionStanding): boolean {
   return !!id && id === 'gotong' && standing[id] >= STANDING_KNOWN;
 }

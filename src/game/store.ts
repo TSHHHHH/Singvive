@@ -708,7 +708,7 @@ interface State {
   /**
    * Which site is each faction's outpost — the one place of theirs that is a
    * destination rather than a door. Fixed at world-build and saved with the
-   * run, because "walk two kilometres to the Same Boat kitchen" is only a plan if
+   * run, because "walk two kilometres to the Common Folk kitchen" is only a plan if
    * the market is still there after a reload.
    */
   outposts: OutpostIds;
@@ -801,7 +801,7 @@ interface State {
   factionAid: () => void;
   /** Intel / rumor at a site that offers it (Known+). Once per day. */
   factionIntel: () => void;
-  /** Same Boat canteen — eat/drink on site. Once per day. Known+. */
+  /** Common Folk canteen — eat/drink on site. Once per day. Known+. */
   factionFeed: () => void;
   /** Cordon escort to a discovered site within range. Known+. One-shot. */
   factionEscort: (destinationId: string) => void;
@@ -5160,7 +5160,7 @@ export const useGame = create<State>((set, get) => {
         },
       });
       pushLog(
-        'Same Boat sits you down. Hot rice, a mug of something boiled, and a few minutes that are not the street.',
+        'The Common Folk sit you down. Hot rice, a mug of something boiled, and a few minutes that are not the street.',
         'good',
       );
       persist();

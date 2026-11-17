@@ -53,9 +53,9 @@ export const OCCUPATIONS: Occupation[] = [
     name: 'Food Vendor',
     tagline: 'Thirty years of service. Extra rice. A voice the whole block knows.',
     blurb:
-      'You fed half the estate and knew all of it by name. Food goes further in your hands, and Same Boat still counts you as one of theirs. So does everything that hunts by sound.',
+      'You fed half the estate and knew all of it by name. Food goes further in your hands, and the Common Folk still count you as one of theirs. So does everything that hunts by sound.',
     traitIds: ['estate_kitchen', 'stall_voice'],
-    goodAt: ['Food', 'Same Boat', 'Hawker-centre loot'],
+    goodAt: ['Food', 'Common Folk', 'Hawker-centre loot'],
     strugglesWith: ['Stealth', 'Ambushes'],
   },
   {

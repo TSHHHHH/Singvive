@@ -562,7 +562,7 @@ export interface LocationState {
   gatePolicy?: GatePolicy;
   /** Standing a `members` door asks for. */
   gateMinStanding?: number;
-  /** Day the Same Boat canteen was used here (once per day). */
+  /** Day the Common Folk canteen was used here (once per day). */
   feedUsedDay?: number;
   /**
    * 88 Kin already walked this occupied residential. The grant is the block,

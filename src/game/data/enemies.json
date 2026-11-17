@@ -174,7 +174,7 @@
       "drops": ["bandage", "army_ration", "batteries"]
     },
     "gotong": {
-      "name": "Same Boat Volunteer",
+      "name": "Common Folk Volunteer",
       "armor": 2,
       "baseHp": 36,
       "hpPerDanger": 6,

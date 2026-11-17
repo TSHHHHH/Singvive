@@ -237,7 +237,7 @@ export function loadRun(): SavedRun | null {
         delete legacy.bleeding;
       }
     }
-    // Migration: factions were renamed (SAF→IDTF→Citizen Watch→Cordon, hawker→PP Co-op→Same Boat).
+    // Migration: factions were renamed (SAF→IDTF→Citizen Watch→Cordon, hawker→PP Co-op→Common Folk).
     for (const loc of Object.values(parsed.locations ?? {})) {
       loc.factionId = migrateFactionId(loc.factionId);
     }
