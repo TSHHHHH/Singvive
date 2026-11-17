@@ -1,5 +1,6 @@
 import { inPolygon, inSingapore, SG_BOUNDS } from './singapore';
 import { onLandCrossing } from './crossings';
+import { installHazardSites, type HazardSitesFile } from './hazardSites';
 
 /**
  * Walkability against the baked land / water / restricted mask
@@ -166,7 +167,23 @@ export function installZones(data: ZonesData): ZonesData {
   return data;
 }
 
+/**
+ * Real places the hazard field can anchor on. Optional: without the file the
+ * field falls back to procedural pockets everywhere.
+ */
+async function loadHazardSites(): Promise<void> {
+  try {
+    const res = await fetch(`${import.meta.env.BASE_URL}hazard-sites.json`);
+    if (!res.ok) throw new Error(`hazard-sites.json ${res.status}`);
+    installHazardSites((await res.json()) as HazardSitesFile);
+  } catch {
+    installHazardSites([]);
+  }
+}
+
 async function loadZones(): Promise<ZonesData> {
+  // Sites must be in before `zones` is set: `isZonesLoaded()` gates both.
+  const sites = loadHazardSites();
   const res = await fetch(`${import.meta.env.BASE_URL}zones.json`);
   if (!res.ok) throw new Error(`zones.json ${res.status}`);
   const data = (await res.json()) as ZonesData;
@@ -176,6 +193,7 @@ async function loadZones(): Promise<ZonesData> {
   if (!Array.isArray(data.water)) data.water = [];
   if (!Array.isArray(data.restricted)) data.restricted = [];
   if (!Array.isArray(data.vegetation)) data.vegetation = [];
+  await sites;
   return installZones(data);
 }
 

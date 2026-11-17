@@ -98,7 +98,7 @@ The existing `ConditionPanel` hosts compact care rows and the medical silhouette
 |---|---|
 | Framework | React 19 + TypeScript 6 + Vite 8 |
 | Map | **MapLibre GL JS** v5 (WebGL, plain — no React wrapper; `src/map/`), **CARTO "Dark Matter" vector style** (keyless; OpenFreeMap Dark as fallback), GeoJSON overlays in ordered slots, polygon fog (`polygon-clipping`), 3D building extrusions |
-| Real data | OpenStreetMap → `public/pois.json` (`bake:pois`), `public/mrt.json` (`bake:mrt`), `public/zones.json` (`bake:zones`); URA planning areas → `public/towns.json` (`bake:towns`); live Overpass as POI runtime fallback |
+| Real data | OpenStreetMap → `public/pois.json` (`bake:pois`), `public/mrt.json` (`bake:mrt`), `public/zones.json` (`bake:zones`), `public/hazard-sites.json` (`bake:hazard-sites`, derived from the POI bake); URA planning areas → `public/towns.json` (`bake:towns`); live Overpass as POI runtime fallback |
 | State | Zustand 5 (single store); `window.__game` in DEV |
 | Inventory DnD | Custom pointer-drag over a cell grid (backpack ↔ stash ↔ equipment) |
 | Determinism | `seedrandom`, wrapped in a forkable `Rng` (cosmetic flavour text may use `Math.random`) |
@@ -654,6 +654,19 @@ Regression tests use the committed `public/zones.json` for both directions and m
 The spawn terrain wash subtracts those same deck corridors from sea and inland-water tint through
 `src/map/crossingGeometry.ts`, so the map does not paint a traversable bridge as blocked water.
 Restricted-area tint stays intact; the cutout geometry is cached with the terrain, not rebuilt per frame.
+
+### Refreshing hazard sites
+
+```bash
+npm run bake:hazard-sites
+```
+
+Rewrites `public/hazard-sites.json` — the footprints the wilds field can turn into themed hazard
+zones (school campuses, hawker centres, MRT stations, police posts, stores, industrial units, HDB
+blocks), as delta-encoded convex hulls. Derived offline from the committed POI bake (`pois.json` +
+`poi-data/`), so no network; re-run after `bake:pois` / `pack:pois` changes the POI revision.
+`ensureZonesLoaded()` fetches it with `zones.json`; if it is missing the field falls back to disc
+pockets everywhere. Manual, committed, never part of `npm run build`.
 
 ### Refreshing planning areas
 

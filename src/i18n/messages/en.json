@@ -1956,6 +1956,42 @@
       },
       "noSleep": "Do not sleep here."
     },
+    "hazardThemes": {
+      "quarantine": {
+        "label": "Quarantined {place}",
+        "blurb": "Taped off in the first week. Whatever they sealed in is still in there."
+      },
+      "overrun": {
+        "label": "Overrun {place}",
+        "blurb": "The dead packed in here and never left."
+      },
+      "barricaded": {
+        "label": "Barricaded {place}",
+        "blurb": "Someone holds this place and does not take visitors."
+      },
+      "flooded": {
+        "label": "Flooded {place}",
+        "blurb": "The drains backed up and the water never went down. Slow, cold, and it hides things."
+      },
+      "collapsed": {
+        "label": "Collapsed {place}",
+        "blurb": "Slabs came down. Every step through the rubble is a gamble."
+      },
+      "infested": {
+        "label": "Infested {place}",
+        "blurb": "Rats and strays have the run of it now. They do not share."
+      }
+    },
+    "hazardPlaces": {
+      "school": "school",
+      "hospital": "hospital",
+      "foodcourt": "market",
+      "supermarket": "store",
+      "mrt": "station",
+      "industrial": "works",
+      "police": "police post",
+      "residential": "blocks"
+    },
     "clock": {
       "day": "Day {day}",
       "dayShort": "D{day}",

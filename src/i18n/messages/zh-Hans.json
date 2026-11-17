@@ -1956,6 +1956,42 @@
       },
       "noSleep": "不要在此睡觉。"
     },
+    "hazardThemes": {
+      "quarantine": {
+        "label": "被封锁的{place}",
+        "blurb": "第一周就拉了警戒线。封在里面的东西，现在还在里面。"
+      },
+      "overrun": {
+        "label": "失守的{place}",
+        "blurb": "死人挤满了这里，再没离开。"
+      },
+      "barricaded": {
+        "label": "设障据守的{place}",
+        "blurb": "有人守着这里，不欢迎外人。"
+      },
+      "flooded": {
+        "label": "被淹的{place}",
+        "blurb": "排水道倒灌，水再没退下去。又冷又难走，水下还藏着东西。"
+      },
+      "collapsed": {
+        "label": "坍塌的{place}",
+        "blurb": "楼板塌了下来。在瓦砾里每走一步都在碰运气。"
+      },
+      "infested": {
+        "label": "兽群盘踞的{place}",
+        "blurb": "老鼠和流浪动物占了这里，不肯让路。"
+      }
+    },
+    "hazardPlaces": {
+      "school": "学校",
+      "hospital": "医院",
+      "foodcourt": "市场",
+      "supermarket": "商店",
+      "mrt": "地铁站",
+      "industrial": "厂区",
+      "police": "警岗",
+      "residential": "组屋"
+    },
     "clock": {
       "day": "第 {day} 天",
       "dayShort": "第{day}天",

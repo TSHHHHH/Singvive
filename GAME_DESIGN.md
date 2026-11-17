@@ -291,7 +291,14 @@ ground for rest; landmarks are not selected as guaranteed indoor spawn shelters.
   **10 minutes per 500 m** on clear, non-vegetated ground. The map glide remains brief.
 - **Open-ground treks** (`game/wilds.ts`): between pins the path crosses seeded ~350 m hazard
   pockets (overlapping discs: horde, patrol, collapse, flood, wildlife). POI travel cards preview
-  sensed pockets on the route. Collapse wounds; flood slows and can infect; horde/patrol/wildlife
+  sensed pockets on the route.
+- **Hazards on real places** (`game/hazardSites.ts`). When a hazard cell holds a real campus,
+  hawker centre, station, police post, store, works or HDB block (`public/hazard-sites.json`), the
+  pocket settles on that place instead: its footprint plus a 50–90 m perimeter by severity, named
+  for what went wrong (quarantined school, flooded market, barricaded police post, overrun blocks).
+  The theme picks the kind, so mechanics stay the five pocket kinds. These cells spawn 1.8× as
+  often, which keeps the share of dangerous town ground where the disc pockets had it (~15%).
+  Cells with no eligible place keep disc pockets. Collapse wounds; flood slows and can infect; horde/patrol/wildlife
   fight. Short hops under a minimum distance skip the trek card.
 - **Night swarm.** Dusk (17–19) they bloom; night (19–06) empty streets flood with a second seeded
   layer (I Am Legend). Crossing is a near-certain high-danger fight. Roofed sites shelter you; tunnels

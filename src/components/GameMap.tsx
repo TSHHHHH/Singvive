@@ -19,6 +19,8 @@ import { useReducedMotion } from '../hooks/useReducedMotion';
 import type { NoisePulse } from '../game/noise';
 import { HAZARD_CONFIG, type HazardZone } from '../game/wilds';
 import { hazardBlobDrawList } from '../game/hazardBlob';
+import { hazardSiteById } from '../game/hazardSites';
+import { bakedOutlineByOsmId } from '../game/bakedPois';
 import { NoiseWaves } from './NoiseWaves';
 import { MrtOverlay, MrtLineLegend, MRT_STATION_LAYER } from './MrtOverlay';
 import { useMrtNetwork } from './useMrtNetwork';
@@ -1267,7 +1269,7 @@ const HazardRings = memo(function HazardRings({ hazards, pathIds }: { hazards: H
           id: 'hazard-line-dash',
           type: 'line',
           source: 'hazard-src',
-          filter: ['!', ['get', 'onPath']],
+          filter: ['all', ['!', ['get', 'onPath']], ['!', ['get', 'core']]],
           layout: { 'line-join': 'round', 'line-cap': 'round' },
           paint: {
             'line-color': ['get', 'color'],
@@ -1280,7 +1282,7 @@ const HazardRings = memo(function HazardRings({ hazards, pathIds }: { hazards: H
           id: 'hazard-line',
           type: 'line',
           source: 'hazard-src',
-          filter: ['get', 'onPath'],
+          filter: ['all', ['get', 'onPath'], ['!', ['get', 'core']]],
           layout: { 'line-join': 'round', 'line-cap': 'round' },
           paint: { 'line-color': ['get', 'color'], 'line-width': ['get', 'w'], 'line-opacity': ['get', 'op'] },
         },
@@ -1302,6 +1304,16 @@ const HazardRings = memo(function HazardRings({ hazards, pathIds }: { hazards: H
       for (const ring of blob.rings) {
         if (ring.length < 3) continue;
         features.push({ type: 'Feature', properties: props, geometry: { type: 'Polygon', coordinates: [toLngLatRing(ring)] } });
+      }
+      // The place itself — the school, the market — reads as the heart of the zone.
+      if (blob.cores) {
+        const outlines = bakedOutlineByOsmId();
+        const coreProps = { color: props.color, onPath: blob.onPath, core: true, fop: 0.32 + blob.severity * 0.06 };
+        for (const id of blob.cores) {
+          const ring = outlines?.get(id) ?? hazardSiteById(id)?.hull;
+          if (!ring || ring.length < 3) continue;
+          features.push({ type: 'Feature', properties: coreProps, geometry: { type: 'Polygon', coordinates: [toLngLatRing(ring)] } });
+        }
       }
     }
     setData(map, 'hazard-src', fc(features));

@@ -11,6 +11,14 @@ import {
   isZonesLoaded,
 } from './playable';
 import { LOST_PRESSURE } from './townField';
+import {
+  bufferedHullDistance,
+  hazardSiteNeighbours,
+  hazardSitesInCell,
+  mergedHull,
+  type HazardSite,
+  type HazardSiteCategory,
+} from './hazardSites';
 import { darkTrekEncounterMod } from './nightSight';
 
 // ---------------------------------------------------------------------------
@@ -39,6 +47,32 @@ export interface HazardDisc {
   radiusM: number;
 }
 
+/**
+ * How a zone anchored on a real place reads: "Quarantined school", "Flooded
+ * market". Mechanics still come from `kind`; the theme is the story.
+ */
+export type HazardTheme =
+  | 'quarantine'
+  | 'overrun'
+  | 'barricaded'
+  | 'flooded'
+  | 'collapsed'
+  | 'infested';
+
+/** A zone grown from real footprints instead of procedural discs. */
+export interface HazardSiteShape {
+  /** Convex hull around the anchor footprint(s), [lat, lng]. */
+  hull: [number, number][];
+  /** The zone is the hull grown by this many metres. */
+  bufferM: number;
+  /** Anchor POI (OSM id) — the UI names the zone after it. */
+  siteId: string;
+  /** Every footprint inside the zone (anchor first), for drawing the buildings. */
+  memberIds: string[];
+  category: HazardSiteCategory;
+  theme: HazardTheme;
+}
+
 export interface HazardZone {
   id: string;
   lat: number;
@@ -48,7 +82,10 @@ export interface HazardZone {
   kind: HazardKind;
   /** 1 = uneasy, 3 = do not cross. */
   severity: number;
+  /** Procedural silhouette. Empty when `site` gives the shape. */
   discs: HazardDisc[];
+  /** Set when the zone sits on a real place; its hull replaces the discs. */
+  site?: HazardSiteShape;
 }
 
 export interface HazardKindDef {
@@ -277,6 +314,7 @@ function finishZone(
 }
 
 export function pointInZone(lat: number, lng: number, z: HazardZone): boolean {
+  if (z.site) return bufferedHullDistance(lat, lng, z.site.hull, z.site.bufferM) <= 0;
   return z.discs.some((d) => haversine(lat, lng, d.lat, d.lng) <= d.radiusM);
 }
 
@@ -286,7 +324,95 @@ export function zoneTouches(
   radiusM: number,
   z: HazardZone,
 ): boolean {
+  if (z.site) return bufferedHullDistance(lat, lng, z.site.hull, z.site.bufferM) <= radiusM;
   return z.discs.some((d) => haversine(lat, lng, d.lat, d.lng) <= radiusM + d.radiusM);
+}
+
+// --- zones on real places ---------------------------------------------------
+
+/** How likely each kind of place is to be the one a cell's trouble settles on. */
+const SITE_PICK_WEIGHT: Record<HazardSiteCategory, number> = {
+  school: 6,
+  hospital: 6,
+  mrt: 5,
+  foodcourt: 4,
+  supermarket: 3,
+  police: 3,
+  industrial: 2,
+  residential: 1,
+};
+
+/** What went wrong at each kind of place. */
+const SITE_THEMES: Record<HazardSiteCategory, [HazardTheme, number][]> = {
+  school: [['quarantine', 70], ['barricaded', 30]],
+  hospital: [['quarantine', 80], ['barricaded', 20]],
+  foodcourt: [['flooded', 50], ['infested', 50]],
+  supermarket: [['barricaded', 55], ['overrun', 45]],
+  mrt: [['flooded', 55], ['overrun', 45]],
+  industrial: [['collapsed', 60], ['barricaded', 20], ['flooded', 20]],
+  police: [['barricaded', 100]],
+  residential: [['overrun', 40], ['collapsed', 35], ['infested', 25]],
+};
+
+export const THEME_KIND: Record<HazardTheme, HazardKind> = {
+  quarantine: 'horde_pocket',
+  overrun: 'horde_pocket',
+  barricaded: 'gang_patrol',
+  flooded: 'floodwater',
+  collapsed: 'collapse',
+  infested: 'wildlife_urban',
+};
+
+/** Spawn-rate multiplier for cells that hold a real place (see zoneForCell). */
+const SITE_RATE_MULT = 1.8;
+
+/** Neighbouring blocks / units that fall into the same zone. */
+const SITE_CLUSTER_GAP_M = 90;
+
+function siteBufferM(severity: number, pressure: number): number {
+  return Math.round((30 + severity * 20) * (1 + pressure * 0.4));
+}
+
+function siteZone(
+  id: string,
+  rng: Rng,
+  candidates: readonly HazardSite[],
+  pressure: number,
+): HazardZone {
+  const anchor = rng.weighted(candidates.map((s) => [s, SITE_PICK_WEIGHT[s.category]] as [HazardSite, number]));
+  const theme = rng.weighted(SITE_THEMES[anchor.category]);
+  const kind = THEME_KIND[theme];
+  const severity = rollSeverity(rng, pressure);
+  const group: HazardSite[] = [anchor];
+  // Estates and industrial parks go bad a few buildings at a time.
+  if (anchor.category === 'residential' || anchor.category === 'industrial') {
+    const near = hazardSiteNeighbours(anchor, SITE_CLUSTER_GAP_M, CELL_M)
+      .map((s) => ({ s, d: haversine(anchor.lat, anchor.lng, s.lat, s.lng) }))
+      .sort((a, b) => a.d - b.d || (a.s.id < b.s.id ? -1 : 1));
+    for (const { s } of near.slice(0, severity + 1)) group.push(s);
+  }
+  const hull = mergedHull(group);
+  const bufferM = siteBufferM(severity, pressure);
+  let lat = 0;
+  let lng = 0;
+  for (const [a, b] of hull) {
+    lat += a;
+    lng += b;
+  }
+  lat /= hull.length;
+  lng /= hull.length;
+  let reach = 0;
+  for (const [a, b] of hull) reach = Math.max(reach, haversine(lat, lng, a, b));
+  return {
+    id,
+    kind,
+    severity,
+    discs: [],
+    lat,
+    lng,
+    radiusM: Math.round(reach + bufferM),
+    site: { hull, bufferM, siteId: anchor.id, memberIds: group.map((g) => g.id), category: anchor.category, theme },
+  };
 }
 
 function rollSeverity(rng: Rng, pressure: number): 1 | 2 | 3 {
@@ -316,7 +442,13 @@ function zoneForCell(
 
   if (isZonesLoaded() && inInlandWater(lat, lng)) return null;
 
-  if (!rng.chance(hazardSpawnRate(pressure))) return null;
+  // A real campus, market or estate in the cell takes the trouble and its shape.
+  // Footprint zones are tighter than disc pockets, so they turn up a little
+  // more often to keep the same share of town ground dangerous.
+  const sites = isZonesLoaded() ? hazardSitesInCell(cx, cy, CELL_M) : [];
+  const rate = hazardSpawnRate(pressure) * (sites.length > 0 ? SITE_RATE_MULT : 1);
+  if (!rng.chance(rate)) return null;
+  if (sites.length > 0) return siteZone(`hz:${cx}:${cy}`, rng.fork('site'), sites, pressure);
 
   const weights: [HazardKind, number][] = [
     ['horde_pocket', 30 + Math.round(pressure * 20)],
@@ -432,6 +564,7 @@ function suppressed(z: HazardZone, safe?: SafeAnchor): boolean {
   if (!safe) return false;
   if (z.kind === 'night_swarm') return false;
   const clear = safe.radiusM ?? SPAWN_SAFE_RADIUS;
+  if (z.site) return zoneTouches(safe.lat, safe.lng, clear, z);
   return z.discs.some(
     (d) => haversine(safe.lat, safe.lng, d.lat, d.lng) < d.radiusM + clear,
   );
