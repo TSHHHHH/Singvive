@@ -168,7 +168,7 @@ const SMOKE_PUFFS = 8;
  * (0..1) sizes it: a smoulder is one flame and a thin wisp, a full blaze three
  * flames and a thick column.
  */
-function smokeElement(seed: number, burn: number): { el: HTMLDivElement; puffs: HTMLDivElement } {
+export function smokeElement(seed: number, burn: number): { el: HTMLDivElement; puffs: HTMLDivElement } {
   const el = document.createElement('div');
   el.style.pointerEvents = 'none';
   const puffs = document.createElement('div');

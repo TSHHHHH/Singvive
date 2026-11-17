@@ -9,6 +9,7 @@ import { installOverlay, setData } from '../map/layers';
 import { EMPTY_FC, toLngLatRing } from '../map/geo';
 import { withoutCrossingDecks } from '../map/crossingGeometry';
 import { BASEMAP } from '../map/mapStyle';
+import { getBorder, loadBorder } from '../map/borderData';
 
 /**
  * Terrain washes from the zones bake: open sea, inland water, restricted
@@ -90,6 +91,28 @@ function terrainOf(zones: ZonesData): Terrain {
   return t;
 }
 
+function johorOf(scene: ReturnType<typeof getBorder>): Polygon | null {
+  const g = scene?.johor.features[0]?.geometry;
+  return g?.type === 'Polygon' ? (g.coordinates as Polygon) : null;
+}
+
+/** The run map's sea minus Johor's land; computed once per page. */
+let seaCut: { from: FeatureCollection; to: FeatureCollection } | null = null;
+function seaWithout(sea: FeatureCollection, land: Polygon): FeatureCollection {
+  if (seaCut?.from === sea) return seaCut.to;
+  const g = sea.features[0]?.geometry;
+  let to = sea;
+  if (g?.type === 'MultiPolygon') {
+    try {
+      to = asFc(polygonClipping.difference(g.coordinates as MultiPolygon, land));
+    } catch {
+      to = sea;
+    }
+  }
+  seaCut = { from: sea, to };
+  return to;
+}
+
 const fillLayer = (id: string, source: string, s: { color: string; opacity: number }) => ({
   id,
   type: 'fill' as const,
@@ -145,15 +168,31 @@ export function VegetationOverlay() {
       ]),
     [map],
   );
+  // Johor Bahru is land, not sea: the border set piece cuts it out of the
+  // run map's water so its shore and the Causeway embankment read as ground.
+  const [johor, setJohor] = useState<Polygon | null>(() => johorOf(getBorder()));
+  useEffect(() => {
+    if (johor) return;
+    let live = true;
+    void loadBorder()
+      .then((b) => {
+        if (live) setJohor(johorOf(b));
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [johor]);
+
   useEffect(() => {
     if (!zones) return;
     const t = terrainOf(zones);
     setData(map, 'veg-src', t.vegetation);
     setData(map, 'run-water-src', {
       type: 'FeatureCollection',
-      features: [...t.sea.features, ...t.water.features],
+      features: [...(johor ? seaWithout(t.sea, johor) : t.sea).features, ...t.water.features],
     });
-  }, [map, zones]);
+  }, [map, zones, johor]);
 
   return null;
 }
