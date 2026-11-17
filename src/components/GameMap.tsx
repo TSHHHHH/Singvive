@@ -47,7 +47,7 @@ import { EdgeVignette } from './EdgeVignette';
 import { Beacons3d } from './Beacons3d';
 import { beaconKindOf } from '../map/beacons';
 import { useLayerEvent, useMapEvent, useMapGL } from '../map/hooks';
-import { cssEaseOut, mixPadding, padPivot, paddedMiddle, PAD_EASE_MS, samePadding, toPadding, type Padding } from '../map/padEase';
+import { FLAT_PITCH, hudPadding, mixPadding, paddedMiddle, samePadding, setHudPadding, toPadding, type Padding } from '../map/padEase';
 import { MapMarker } from '../map/markers';
 import { createMarker } from '../map/markerDom';
 import { installOverlay, setData } from '../map/layers';
@@ -212,7 +212,7 @@ function Camera3d({ on }: { on: boolean }) {
       if (toggled) {
         // Below LOD_ZOOM the buildings lie flat, so step in far enough to see them.
         const zoom = Math.max(map.getZoom(), DEFAULT_ZOOM_3D);
-        map.easeTo({ pitch: PITCH_3D, zoom, duration, essential: true });
+        map.easeTo({ pitch: PITCH_3D, zoom, padding: hudPadding(map), duration, essential: true });
       }
       return;
     }
@@ -226,7 +226,7 @@ function Camera3d({ on }: { on: boolean }) {
       flatten();
       return;
     }
-    map.easeTo({ pitch: 0, bearing: 0, duration, essential: true });
+    map.easeTo({ pitch: 0, bearing: 0, padding: hudPadding(map), duration, essential: true });
     if (duration === 0) flatten();
     else map.once('moveend', flatten);
   }, [map, on, reduced]);
@@ -378,15 +378,15 @@ function BlockView({
     const backCenter: [number, number] =
       kind === 'site' ? [site.lng, site.lat] : [back.center.lng, back.center.lat];
     return () => {
-      // A frame late, so CameraChrome's padding ease on leaving can't cut it
-      // short (its settle pass finishes the padding).
+      // A frame late, so the map's HUD padding is back (CameraChrome) and
+      // eases in with the way back instead of turning the camera afterwards.
       restoreRef.current = requestAnimationFrame(() => {
         backRef.current = null;
         try {
           map.setCenterClampedToGround(back.clamped);
           map.setMaxZoom(back.maxZoom);
           map.setCenterElevation(back.elevation);
-          map.easeTo({ ...back, center: backCenter, duration: reduced ? 0 : 900 });
+          map.easeTo({ ...back, center: backCenter, padding: hudPadding(map), duration: reduced ? 0 : 900 });
         } catch {
           // The map went away with the run; nothing to ease back.
         }
@@ -752,7 +752,12 @@ function PlayerMarker({
       const center = map.getCenter();
       const tp = map.project([target.lng, target.lat]);
       const cp = map.project(center);
-      if (Math.hypot(tp.x - cp.x, tp.y - cp.y) <= CAMERA_SETTLE_PX) {
+      // HUD padding a panel left for the next move rides in with the chase,
+      // where the lens shift is lost in the camera's own motion (padEase.ts).
+      const pad = toPadding(map.getPadding());
+      const want = hudPadding(map);
+      const padSettled = samePadding(pad, want, 0.5);
+      if (Math.hypot(tp.x - cp.x, tp.y - cp.y) <= CAMERA_SETTLE_PX && padSettled) {
         // Settled. Mid-glide the target keeps moving and kicks the loop
         // again; after arrival the chase is done.
         c.last = 0;
@@ -762,6 +767,7 @@ function PlayerMarker({
       const k = chaseStep(dt);
       map.jumpTo({
         center: [center.lng + (target.lng - center.lng) * k, center.lat + (target.lat - center.lat) * k],
+        padding: padSettled ? want : mixPadding(pad, want, k),
       });
       c.raf = requestAnimationFrame(frame);
     };
@@ -1019,9 +1025,9 @@ interface Props {
  * padded middle) stays under it, and only later focus commands frame inside
  * the new inset.
  *
- * In 3D only the pivot's row holds exactly: padding is a lens shift, so rows
- * nearer and farther shear apart. CameraChrome eases the padding with the
- * panel slide so that shear is gradual, not a one-frame jerk (padEase.ts).
+ * Exact only on the flat map. In 3D padding is a lens shift and the rest of
+ * the view shears around the pivot, so CameraChrome never calls this on a
+ * tilted camera (padEase.ts).
  */
 function padInPlace(map: MlMap, padding: Padding, pivot?: { point: { x: number; y: number }; at: LngLat }) {
   if (samePadding(toPadding(map.getPadding()), padding)) return;
@@ -1049,7 +1055,6 @@ function CameraChrome({ target, inset, top, left, right, bottom }: {
 }) {
   const map = useMapGL();
   const focus = useRef(new CameraFocusRequest());
-  const reduced = useReducedMotion();
   useEffect(() => {
     const request = focus.current;
     request.update(target);
@@ -1057,32 +1062,14 @@ function CameraChrome({ target, inset, top, left, right, bottom }: {
     const padding = { top, left, right, bottom };
     let frame = 0;
     let issuing = false;
-    let easing = 0;
-    // Follow the slide-out's transition, holding the player (or the new
-    // padded middle) still, instead of re-aiming in a single frame.
+    // A panel never moves a tilted camera: record the padding for the next
+    // camera move to carry in. Flat, padding is a pure pan, so swap it now.
     const padTo = () => {
-      cancelAnimationFrame(easing);
-      easing = 0;
-      const from = toPadding(map.getPadding());
-      if (samePadding(from, padding)) return;
-      const box = containerSize(map);
-      const pos = useGame.getState().currentPos;
-      const seen = pos ? map.project([pos.lng, pos.lat]) : null;
-      const point = padPivot(seen, from, padding, box.x, box.y);
-      const pivot = { point, at: map.unproject([point.x, point.y]) };
-      const apply = (p: Padding) => {
-        issuing = true;
-        padInPlace(map, p, pivot);
-        issuing = false;
-      };
-      if (reduced) { apply(padding); return; }
-      const t0 = performance.now();
-      const step = (now: number) => {
-        const k = cssEaseOut((now - t0) / PAD_EASE_MS);
-        apply(k >= 1 ? padding : mixPadding(from, padding, k));
-        easing = k >= 1 ? 0 : requestAnimationFrame(step);
-      };
-      easing = requestAnimationFrame(step);
+      setHudPadding(map, padding);
+      if (map.getPitch() > FLAT_PITCH || map.isMoving()) return;
+      issuing = true;
+      padInPlace(map, padding);
+      issuing = false;
     };
     const move = () => {
       frame = 0;
@@ -1093,8 +1080,7 @@ function CameraChrome({ target, inset, top, left, right, bottom }: {
         // An explicit map focus also releases the travel chase and block orbit.
         // A frame delay lets those controllers attach their listeners on mount.
         if (!inset) map.setCenterElevation(0);
-        cancelAnimationFrame(easing);
-        easing = 0;
+        if (inset) setHudPadding(map, padding);
         map.easeTo({ center: [pending.lng, pending.lat], zoom: Math.max(map.getZoom(), 16), padding, duration: 750 }, { cameraFocus: true });
         issuing = false;
       } else {
@@ -1107,7 +1093,7 @@ function CameraChrome({ target, inset, top, left, right, bottom }: {
       frame = requestAnimationFrame(move);
     };
     const settle = () => {
-      if (issuing || easing) return;
+      if (issuing) return;
       request.settle(map.getCenter(), map.getZoom());
       if (request.pending) { schedule(); return; }
       if (!inset) return;
@@ -1117,14 +1103,6 @@ function CameraChrome({ target, inset, top, left, right, bottom }: {
       if (!event.originalEvent) return;
       request.cancel();
       cancelAnimationFrame(frame);
-      // A drag takes over: finish the padding now rather than fight it.
-      if (easing) {
-        cancelAnimationFrame(easing);
-        easing = 0;
-        issuing = true;
-        padInPlace(map, padding);
-        issuing = false;
-      }
     };
     const resized = () => { if (request.pending) schedule(); };
     map.on('moveend', settle);
@@ -1134,14 +1112,13 @@ function CameraChrome({ target, inset, top, left, right, bottom }: {
     else move();
     return () => {
       cancelAnimationFrame(frame);
-      cancelAnimationFrame(easing);
       map.off('moveend', settle);
       map.off('movestart', userMove);
       map.off('resize', resized);
     };
     // Token is the request identity; layout changes restart only pending focus.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, target?.token, target?.lat, target?.lng, inset, top, left, right, bottom, reduced]);
+  }, [map, target?.token, target?.lat, target?.lng, inset, top, left, right, bottom]);
   return null;
 }
 
