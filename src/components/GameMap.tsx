@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { LngLat, Map as MlMap, Marker } from 'maplibre-gl';
+import type { ExpressionSpecification, LngLat, Map as MlMap, Marker } from 'maplibre-gl';
 import type { Feature } from 'geojson';
 import type { DestructionTier, Poi, TimeOfDay, WeatherKind, MapAnnotation } from '../game/types';
 import { WeatherFx } from './WeatherFx';
@@ -23,9 +23,10 @@ import { NoiseWaves } from './NoiseWaves';
 import { MrtOverlay, MrtLineLegend, MRT_STATION_LAYER } from './MrtOverlay';
 import { useMrtNetwork } from './useMrtNetwork';
 import { VegetationOverlay } from './UnplayableOverlay';
+import { DistrictNames } from './DistrictNames';
+import { MapGrain } from './MapGrain';
 import { Icon } from '../icons/Icon';
 import { pathFromProgress, pathUntil, pointAlongPath } from '../game/route';
-import { useAnimatedNumber, useThrottledNumber } from '../hooks/useAnimatedNumber';
 import {
   CAMERA_CUT_SCREENS,
   CAMERA_EDGE,
@@ -42,12 +43,15 @@ import { EdgeVignette } from './EdgeVignette';
 import { Beacons3d } from './Beacons3d';
 import { beaconKindOf } from '../map/beacons';
 import { useLayerEvent, useMapEvent, useMapGL } from '../map/hooks';
+import { cssEaseOut, mixPadding, padPivot, paddedMiddle, PAD_EASE_MS, samePadding, toPadding, type Padding } from '../map/padEase';
 import { MapMarker } from '../map/markers';
 import { createMarker } from '../map/markerDom';
 import { installOverlay, setData } from '../map/layers';
 import { PoiSources } from '../map/poiSources';
 import { useMarkerPresence } from '../map/useMarkerPresence';
+import { useRecognitionHint } from '../map/useRecognitionHint';
 import { REVEAL_MS } from '../map/revealMotion';
+import { RangeMotion, sampleMotion } from '../map/rangeMotion';
 import { EMPTY_FC, boxContains, circleFeature, dimHex, fc, lineFeature, padBox, toLngLatRing, type LatLngBox } from '../map/geo';
 import { BuildingEngine, LOD_ZOOM, type Site3d } from '../map/buildings';
 import { hdbScar, STOREY_M, type HdbDungeon } from '../game/hdbDungeon';
@@ -78,6 +82,12 @@ const VIEWPORT_DEBOUNCE_MS = 100;
 const MAX_POIS_ON_SCREEN = 450;
 /** Full badges and footprints become useful at neighbourhood scale. */
 const POI_DETAIL_ZOOM = 14;
+/**
+ * Below this the island is a haze of sites: the dots fade out over half a
+ * zoom step and only the badges that steer you (here, target, beacons) stay.
+ */
+const POI_HIDE_ZOOM = 13;
+const POI_HIDE_FADE = 0.5;
 /** The full player capsule is useful close up; overview maps need less occlusion. */
 const PLAYER_CAPSULE_ZOOM = 17;
 
@@ -485,7 +495,7 @@ function Buildings3d({
 }: {
   home: { lat: number; lng: number };
   /** current travel range: buildings inside it stand */
-  radius: number;
+  radius: RangeMotion;
   onEngine: (engine: BuildingEngine | null) => void;
 }) {
   const map = useMapGL();
@@ -507,8 +517,13 @@ function Buildings3d({
     engine?.setInstant(reduced);
   }, [engine, reduced]);
 
+  // Each building eases its own rise, so a coarse sample of the radius
+  // looks the same as every frame and costs a fraction of the index walks.
   useEffect(() => {
-    engine?.setReveal({ lat: home.lat, lng: home.lng, radius });
+    if (!engine) return;
+    const reveal = (r: number) => engine.setReveal({ lat: home.lat, lng: home.lng, radius: r });
+    reveal(radius.value);
+    return sampleMotion(radius, BUILDING_SAMPLE_MS, reveal);
   }, [engine, home.lat, home.lng, radius]);
 
   // Pointer over a site's building, like over a 2D outline.
@@ -521,6 +536,10 @@ function Buildings3d({
   });
   return null;
 }
+
+/** How often the 3D buildings and the markers re-read a moving range (ms). */
+const BUILDING_SAMPLE_MS = 80;
+const MARKER_SAMPLE_MS = 120;
 
 /** How often the sight disc catches up with the walking pin (ms). */
 const SIGHT_STEP_MS = 100;
@@ -561,43 +580,55 @@ function useSightCenter(home: { lat: number; lng: number }, travelAnim: TravelAn
 
 /**
  * The fog, 3D buildings and planning ring share the current travel range,
- * centred on the walking pin. Fog and building updates are throttled while
- * the ring animates smoothly.
+ * centred on the walking pin. The range eases outside React (RangeMotion):
+ * the ring and the fog edge redraw every frame, the buildings and markers
+ * sample it, and none of it re-renders this tree while it moves.
  */
 function SightLayers({
   home,
   travelAnim,
   exploredArea,
   reach,
-  ringReach,
+  sensed,
   view3d,
   onEngine,
   poiLayer,
+  planning,
 }: {
   home: { lat: number; lng: number };
   travelAnim: TravelAnim | null;
   exploredArea: ExploredCircle[];
-  /** throttled, for the fog and the buildings */
-  reach: number;
-  /** per-frame tween, for the ring line */
-  ringReach: number;
+  /** the travel range, easing */
+  reach: RangeMotion;
+  /** the sensing range for blips, easing */
+  sensed: RangeMotion;
   view3d: boolean;
   onEngine: (engine: BuildingEngine | null) => void;
-  poiLayer: Omit<PoiLayerProps, 'home'>;
+  poiLayer: Omit<PoiLayerProps, 'home' | 'blipRange'>;
+  /** A trip is being planned (route preview up, not walking): the ring steps forward. */
+  planning: boolean;
 }) {
   const sight = useSightCenter(home, travelAnim);
-  const sensedRange = useAnimatedNumber(poiLayer.blipRange, REVEAL_MS);
-  const sensedRadius = useThrottledNumber(sensedRange, 80);
   return (
     <>
-      <FogOverlay exploredArea={exploredArea} currentRevealCenter={sight} currentRevealRadius={reach} />
+      <FogOverlay exploredArea={exploredArea} currentRevealCenter={sight} revealRadius={reach} />
       {view3d && <Buildings3d home={sight} radius={reach} onEngine={onEngine} />}
       {/* Never hit-tested: the fills cover everywhere you can walk, so a
           clickable ring would swallow every ground pick inside your range. */}
-      <RangeRing home={sight} travelRange={ringReach} />
-      <PoiLayer {...poiLayer} home={sight} blipRange={sensedRadius} />
+      <RangeRing home={sight} range={reach} planning={planning} />
+      <SensedPoiLayer {...poiLayer} home={sight} sensed={sensed} />
     </>
   );
+}
+
+/** PoiLayer fed a sample of the easing sensing range; only it re-renders. */
+function SensedPoiLayer({ sensed, ...rest }: Omit<PoiLayerProps, 'blipRange'> & { sensed: RangeMotion }) {
+  const [blipRange, setBlipRange] = useState(sensed.value);
+  useEffect(() => {
+    setBlipRange(sensed.value);
+    return sampleMotion(sensed, MARKER_SAMPLE_MS, setBlipRange);
+  }, [sensed]);
+  return <PoiLayer {...rest} blipRange={blipRange} />;
 }
 
 const containerSize = (map: MlMap) => {
@@ -934,22 +965,27 @@ interface Props {
  * Swap the camera's HUD padding without moving what is on screen. Padding
  * moves the point the camera centres on, so a bare padding change (a dock
  * panel opening or closing, the here / target cards appearing) would slide
- * the whole map sideways. Re-aim the centre at whatever already sits under
- * the new padded middle, so the view holds still and only later focus
- * commands frame inside the new inset.
+ * the whole map sideways. Re-aim so the ground under `pivot` (default: the new
+ * padded middle) stays under it, and only later focus commands frame inside
+ * the new inset.
+ *
+ * In 3D only the pivot's row holds exactly: padding is a lens shift, so rows
+ * nearer and farther shear apart. CameraChrome eases the padding with the
+ * panel slide so that shear is gradual, not a one-frame jerk (padEase.ts).
  */
-function padInPlace(map: MlMap, padding: { top: number; left: number; right: number; bottom: number }) {
-  const was = map.getPadding();
+function padInPlace(map: MlMap, padding: Padding, pivot?: { point: { x: number; y: number }; at: LngLat }) {
+  if (samePadding(toPadding(map.getPadding()), padding)) return;
   const box = containerSize(map);
-  const mid = (a = 0, b = 0, size: number) => a + (size - a - b) / 2;
-  const dx = mid(padding.left, padding.right, box.x) - mid(was.left, was.right, box.x);
-  const dy = mid(padding.top, padding.bottom, box.y) - mid(was.top, was.bottom, box.y);
-  if (!dx && !dy) {
-    map.setPadding(padding);
-    return;
-  }
-  const c = map.project(map.getCenter());
-  map.jumpTo({ center: map.unproject([c.x + dx, c.y + dy]), padding });
+  const point = pivot?.point ?? paddedMiddle(padding, box.x, box.y);
+  const at = pivot?.at ?? map.unproject([point.x, point.y]);
+  const tr = map.transform.clone();
+  tr.setPadding(padding);
+  // setLocationAtPoint wants a Point instance; project() hands one out.
+  const target = map.project(at);
+  target.x = point.x;
+  target.y = point.y;
+  tr.setLocationAtPoint(at, target);
+  map.jumpTo({ center: tr.center, padding });
 }
 
 /**
@@ -963,6 +999,7 @@ function CameraChrome({ target, inset, top, left, right, bottom }: {
 }) {
   const map = useMapGL();
   const focus = useRef(new CameraFocusRequest());
+  const reduced = useReducedMotion();
   useEffect(() => {
     const request = focus.current;
     request.update(target);
@@ -970,6 +1007,33 @@ function CameraChrome({ target, inset, top, left, right, bottom }: {
     const padding = { top, left, right, bottom };
     let frame = 0;
     let issuing = false;
+    let easing = 0;
+    // Follow the slide-out's transition, holding the player (or the new
+    // padded middle) still, instead of re-aiming in a single frame.
+    const padTo = () => {
+      cancelAnimationFrame(easing);
+      easing = 0;
+      const from = toPadding(map.getPadding());
+      if (samePadding(from, padding)) return;
+      const box = containerSize(map);
+      const pos = useGame.getState().currentPos;
+      const seen = pos ? map.project([pos.lng, pos.lat]) : null;
+      const point = padPivot(seen, from, padding, box.x, box.y);
+      const pivot = { point, at: map.unproject([point.x, point.y]) };
+      const apply = (p: Padding) => {
+        issuing = true;
+        padInPlace(map, p, pivot);
+        issuing = false;
+      };
+      if (reduced) { apply(padding); return; }
+      const t0 = performance.now();
+      const step = (now: number) => {
+        const k = cssEaseOut((now - t0) / PAD_EASE_MS);
+        apply(k >= 1 ? padding : mixPadding(from, padding, k));
+        easing = k >= 1 ? 0 : requestAnimationFrame(step);
+      };
+      easing = requestAnimationFrame(step);
+    };
     const move = () => {
       frame = 0;
       const pending = request.pending;
@@ -979,32 +1043,38 @@ function CameraChrome({ target, inset, top, left, right, bottom }: {
         // An explicit map focus also releases the travel chase and block orbit.
         // A frame delay lets those controllers attach their listeners on mount.
         if (!inset) map.setCenterElevation(0);
+        cancelAnimationFrame(easing);
+        easing = 0;
         map.easeTo({ center: [pending.lng, pending.lat], zoom: Math.max(map.getZoom(), 16), padding, duration: 750 }, { cameraFocus: true });
+        issuing = false;
       } else {
-        padInPlace(map, padding);
+        issuing = false;
+        padTo();
       }
-      issuing = false;
     };
     const schedule = () => {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(move);
     };
     const settle = () => {
-      if (issuing) return;
+      if (issuing || easing) return;
       request.settle(map.getCenter(), map.getZoom());
       if (request.pending) { schedule(); return; }
       if (!inset) return;
-      const p = map.getPadding();
-      if (p.top !== top || p.left !== left || p.right !== right || p.bottom !== bottom) {
-        issuing = true;
-        padInPlace(map, padding);
-        issuing = false;
-      }
+      if (!samePadding(toPadding(map.getPadding()), padding)) padTo();
     };
     const userMove = (event: { originalEvent?: unknown }) => {
       if (!event.originalEvent) return;
       request.cancel();
       cancelAnimationFrame(frame);
+      // A drag takes over: finish the padding now rather than fight it.
+      if (easing) {
+        cancelAnimationFrame(easing);
+        easing = 0;
+        issuing = true;
+        padInPlace(map, padding);
+        issuing = false;
+      }
     };
     const resized = () => { if (request.pending) schedule(); };
     map.on('moveend', settle);
@@ -1014,13 +1084,14 @@ function CameraChrome({ target, inset, top, left, right, bottom }: {
     else move();
     return () => {
       cancelAnimationFrame(frame);
+      cancelAnimationFrame(easing);
       map.off('moveend', settle);
       map.off('movestart', userMove);
       map.off('resize', resized);
     };
     // Token is the request identity; layout changes restart only pending focus.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, target?.token, target?.lat, target?.lng, inset, top, left, right, bottom]);
+  }, [map, target?.token, target?.lat, target?.lng, inset, top, left, right, bottom, reduced]);
   return null;
 }
 
@@ -1125,12 +1196,21 @@ function TravelPath({
  * boundary of fog reveal and building rise.
  * Non-interactive: taps inside are ground picks.
  */
+/** Ring vertices: smooth at any zoom you can see the whole ring from. */
+const RING_STEPS = 96;
+
+/** Ring line at rest (a quiet edge) and while planning a trip (the read you need). */
+const RING_QUIET = { width: 1, opacity: 0.4 };
+const RING_PLANNING = { width: 1.5, opacity: 0.95 };
+
 const RangeRing = memo(function RangeRing({
   home,
-  travelRange,
+  range,
+  planning,
 }: {
   home: { lat: number; lng: number };
-  travelRange: number;
+  range: RangeMotion;
+  planning: boolean;
 }) {
   const map = useMapGL();
   useEffect(
@@ -1141,15 +1221,33 @@ const RangeRing = memo(function RangeRing({
           id: 'range-line',
           type: 'line',
           source: 'range-src',
-          paint: { 'line-color': '#e8e5dd', 'line-width': 1.5, 'line-opacity': 1, 'line-dasharray': [2.7, 4] },
+          paint: {
+            'line-color': '#e8e5dd',
+            'line-width': RING_QUIET.width,
+            'line-opacity': RING_QUIET.opacity,
+            'line-dasharray': [2.7, 4],
+            'line-width-transition': { duration: 200, delay: 0 },
+            'line-opacity-transition': { duration: 200, delay: 0 },
+          },
         },
       ]),
     [map],
   );
+  // Only on a planning change: a short paint transition, then still.
   useEffect(() => {
-    const on = travelRange > 0;
-    setData(map, 'range-src', on ? fc([circleFeature(home.lat, home.lng, travelRange, {}, 96)]) : EMPTY_FC);
-  }, [map, home.lat, home.lng, travelRange]);
+    if (!map.getLayer('range-line')) return;
+    const look = planning ? RING_PLANNING : RING_QUIET;
+    map.setPaintProperty('range-line', 'line-width', look.width);
+    map.setPaintProperty('range-line', 'line-opacity', look.opacity);
+  }, [map, planning]);
+  // One small polygon per animation frame while the range eases; nothing
+  // once it lands.
+  useEffect(() => {
+    const draw = (r: number) =>
+      setData(map, 'range-src', r > 0 ? fc([circleFeature(home.lat, home.lng, r, {}, RING_STEPS)]) : EMPTY_FC);
+    draw(range.value);
+    return range.subscribe(draw);
+  }, [map, home.lat, home.lng, range]);
   return null;
 });
 
@@ -1361,21 +1459,31 @@ function workedKeyOf(blocks: Record<string, HdbDungeon>): string {
 const NO_WORKED: ReadonlyMap<string, number> = new Map();
 
 const POI_LAYERS = [POI_FILL_LAYER, 'poi-line', 'poi-line-dash'];
+/** A dot's own opacity, hidden under its badge, faded in from POI_HIDE_ZOOM. */
+const dotFade: ExpressionSpecification = [
+  'interpolate', ['linear'], ['zoom'],
+  POI_HIDE_ZOOM, 0,
+  POI_HIDE_ZOOM + POI_HIDE_FADE, ['case', ['boolean', ['feature-state', 'badge'], false], 0, ['coalesce', ['feature-state', 'opacity'], 0]],
+];
 const NO_ROOFS: ReadonlyMap<string, number> = new Map();
 
 const PoiLayer = memo(
   function PoiLayer({ pois, home, blipRange, selectedId, hereId, playerAtSite, onSelect, engine, worked, evacZoneId }: PoiLayerProps) {
     const map = useMapGL();
     const recognition = useGame(s => s.nearbyRecognition);
+    const hinted = useRecognitionHint();
     const reduced = useReducedMotion();
     const box = usePaddedBounds();
     const [detail, setDetail] = useState(() => map.getZoom() >= POI_DETAIL_ZOOM);
     const [fullCapsule, setFullCapsule] = useState(() => map.getZoom() >= PLAYER_CAPSULE_ZOOM);
+    const [far, setFar] = useState(() => map.getZoom() < POI_HIDE_ZOOM);
     // Only crossing a detail boundary re-renders React during a zoom. The
-    // circle layer's maxzoom follows the camera directly between those crossings.
+    // circle layer's zoom range follows the camera directly between those crossings.
     useMapEvent('zoom', () => {
       const next = map.getZoom() >= POI_DETAIL_ZOOM;
       if (next !== detail) setDetail(next);
+      const out = map.getZoom() < POI_HIDE_ZOOM;
+      if (out !== far) setFar(out);
       const full = map.getZoom() >= PLAYER_CAPSULE_ZOOM;
       if (full !== fullCapsule) setFullCapsule(full);
     });
@@ -1409,13 +1517,19 @@ const PoiLayer = memo(
     }, [pois, box, home.lat, home.lng, blipRange, selectedId, hereId, worked, evacZoneId]);
 
     const badges = useMemo(() => looks
-      .filter((l) => detail || l.poi.id === selectedId || l.poi.id === hereId || recognition.includes(l.poi.id) || beaconKindOf(l.poi, evacZoneId) !== null)
-      .map((look) => ({ id: look.poi.id, look })), [looks, detail, selectedId, hereId, evacZoneId, recognition]);
+      .filter((l) => detail || l.poi.id === selectedId || l.poi.id === hereId || (!far && recognition.includes(l.poi.id)) || beaconKindOf(l.poi, evacZoneId) !== null)
+      .map((look) => ({ id: look.poi.id, look })), [looks, detail, far, selectedId, hereId, evacZoneId, recognition]);
     const fadingBadges = useMarkerPresence(badges, reduced ? 0 : REVEAL_MS, MAX_POIS_ON_SCREEN);
 
     useEffect(
       () =>
-        installOverlay(map, 'poi', { 'poi-src': 'geojson', 'poi-dots-src': 'geojson' }, [
+        // Site ids are OSM strings ("way/123"); MapLibre only keys feature-state
+        // by numeric feature ids, so promote the `id` property instead. Without
+        // it every feature gets no state and its colours fall back to black.
+        installOverlay(map, 'poi', {
+          'poi-src': { type: 'geojson', data: EMPTY_FC, promoteId: 'id' },
+          'poi-dots-src': { type: 'geojson', data: EMPTY_FC, promoteId: 'id' },
+        }, [
           {
             id: POI_FILL_LAYER,
             type: 'fill',
@@ -1445,15 +1559,16 @@ const PoiLayer = memo(
             id: POI_DOT_LAYER,
             type: 'circle',
             source: 'poi-dots-src',
+            minzoom: POI_HIDE_ZOOM,
             maxzoom: POI_DETAIL_ZOOM,
 
             paint: {
-              'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 3, POI_DETAIL_ZOOM, 6],
+              'circle-radius': ['interpolate', ['linear'], ['zoom'], POI_HIDE_ZOOM, 3, POI_DETAIL_ZOOM, 6],
               'circle-color': ['feature-state', 'fill'],
-              'circle-opacity': ['case', ['boolean', ['feature-state', 'badge'], false], 0, ['feature-state', 'opacity']],
+              'circle-opacity': dotFade,
               'circle-stroke-color': ['feature-state', 'line'],
               'circle-stroke-width': 1.5,
-              'circle-stroke-opacity': ['case', ['boolean', ['feature-state', 'badge'], false], 0, ['feature-state', 'opacity']],
+              'circle-stroke-opacity': dotFade,
             },
           },
         ]),
@@ -1558,6 +1673,7 @@ const PoiLayer = memo(
               roof={!playerHere && engine ? roofs.get(l.poi.id) ?? 0 : 0}
               ring={l.poi.id === selectedId}
               recognized={recognition.includes(l.poi.id)}
+              hinted={hinted.has(l.poi.id)}
               // Nearby sites stay visible and tappable even inside the capsule's footprint.
               zIndex={playerHere ? 0 : l.poi.id === selectedId ? 10 : 1}
               beacon={!playerHere && engine ? beaconKindOf(l.poi, evacZoneId) : null}
@@ -1600,6 +1716,9 @@ const RumourLayer = memo(function RumourLayer({ annotations }: { annotations: Ma
  * crossing. SightLayers samples the moving centre and sensing-radius tween
  * for marker visibility, keeping those updates out of GameScreen.
  */
+/** How long the travel range takes to ease to a new value. */
+const RANGE_EASE_MS = 600;
+
 function GameMapInner({
   home,
   pois,
@@ -1634,9 +1753,19 @@ function GameMapInner({
 }: Props) {
   const { t } = useT();
   const evacPoi = evacZoneId ? pois.find((p) => p.id === evacZoneId) : null;
-  // Tween lives here so GameScreen does not re-render at 60 fps after travel.
-  const ringRange = useAnimatedNumber(travelRange, 600);
-  const reachRadius = useThrottledNumber(ringRange, 80);
+  // The ranges ease outside React: nothing here re-renders while they move.
+  const reducedRange = useReducedMotion();
+  const [reach] = useState(() => new RangeMotion(travelRange, RANGE_EASE_MS));
+  const [sensed] = useState(() => new RangeMotion(blipRange, REVEAL_MS));
+  useEffect(() => reach.set(travelRange, reducedRange), [reach, travelRange, reducedRange]);
+  useEffect(() => sensed.set(blipRange, reducedRange), [sensed, blipRange, reducedRange]);
+  useEffect(
+    () => () => {
+      reach.destroy();
+      sensed.destroy();
+    },
+    [reach, sensed],
+  );
   const pathIdSet = useMemo(() => new Set(pathHazardIds), [pathHazardIds]);
   const view3d = useSetting('mapView3d') === 'on';
   const playerAtSite = !!hereId && !travelAnim;
@@ -1702,8 +1831,10 @@ function GameMapInner({
         {!(view3d && inBlock) && <KeyboardCamera home={home} />}
         {view3d && <Atmosphere3d kind={weather} time={time} dom={weatherDom} />}
         <GroundPicker onPick={onPickGround} engine={engine} onSite={selectSite} />
-        {/* Soft-cost forest wash — under fog so only explored ground shows green. */}
+        {/* Water, forest wash and expressways — under fog so only explored ground shows. */}
         <VegetationOverlay />
+        <DistrictNames />
+        <MapGrain />
         {/* Outside the island disc the world fades to black. */}
         <EdgeVignette />
         {/* Fog + 3D buildings. Overlays draw by slot, not mount order. */}
@@ -1711,11 +1842,12 @@ function GameMapInner({
           home={home}
           travelAnim={travelAnim}
           exploredArea={exploredArea}
-          reach={reachRadius}
-          ringReach={ringRange}
+          reach={reach}
+          sensed={sensed}
           view3d={view3d}
           onEngine={setEngine}
-          poiLayer={{ pois, blipRange, selectedId, hereId, playerAtSite, onSelect, engine, worked, evacZoneId }}
+          poiLayer={{ pois, selectedId, hereId, playerAtSite, onSelect, engine, worked, evacZoneId }}
+          planning={!!travelPath && travelPath.length > 1 && !travelAnim}
         />
 
         {/* Drawn under the pins — ground, not a destination. */}

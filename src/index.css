@@ -1943,9 +1943,13 @@ body:has([data-dock-resizing='true']) * {
   }
 }
 
-@keyframes item-pin-progress {
-  from { transform: scaleX(0); }
-  to { transform: scaleX(1); }
+/* Hover-to-pin corner ring: fills over the 2 s dwell (ItemHoverCard PinRing). */
+.item-pin-ring {
+  animation: item-pin-ring 1880ms linear forwards;
+}
+@keyframes item-pin-ring {
+  from { stroke-dashoffset: var(--ring-c); }
+  to { stroke-dashoffset: 0; }
 }
 
 /* Body care stays quiet between actions; only the brief confirmation moves. */
@@ -1985,4 +1989,120 @@ body:has([data-dock-resizing='true']) * {
   .care-overview .pulse-danger {
     animation: none;
   }
+}
+
+/* HDB corridor read: a small d100 tumbling inside its own ledger field. */
+.scout-tumble {
+  animation: scout-tumble 750ms cubic-bezier(0.2, 0.7, 0.25, 1) both;
+}
+@keyframes scout-tumble {
+  0% { transform: translate(-18px, 6px) rotate(-300deg) scale(0.55); opacity: 0; }
+  20% { opacity: 1; }
+  55% { transform: translate(3px, -4px) rotate(-60deg) scale(1.08); }
+  100% { transform: translate(0, 0) rotate(0deg) scale(1); }
+}
+.scout-reveal {
+  animation: scout-reveal 360ms ease-out both;
+}
+@keyframes scout-reveal {
+  0% { opacity: 0; transform: translateY(3px); filter: brightness(1.8); }
+  100% { opacity: 1; transform: none; filter: none; }
+}
+
+/* Bag art behind the backpack grid: present enough to read as "inside the
+   bag", faint enough that cell lines and item tiles stay the loudest thing. */
+.inv-bag-backdrop {
+  opacity: 0.14;
+  filter: saturate(0.55) brightness(1.1);
+}
+
+/* Rail HUD strip: when the rail is dragged narrow, drop the Rest word so the
+   clock / weather / shelter / Rest row stays on one line. (The strip may still
+   wrap as a last resort: 12-hour "12:00 PM" on the narrowest rail.) */
+.hud-strip {
+  container-type: inline-size;
+}
+@container (max-width: 330px) {
+  .hud-strip-rest-label {
+    display: none;
+  }
+  .hud-strip-clock {
+    gap: 0.25rem;
+  }
+  .hud-strip-tools {
+    gap: 0.125rem;
+  }
+  .hud-strip-rest {
+    padding-inline: 0.375rem;
+  }
+  .hud-strip .hud-chip,
+  .hud-strip [data-activity-band] {
+    width: 1.75rem;
+  }
+}
+
+/* Unknown "?" blips rest as small soft dots and grow into the badge on hover,
+   when picked, as the here capsule, or when travelling to the cursor would
+   identify them (`is-hinted`, map/useRecognitionHint.ts). Transform and
+   colour only: compositor work, never a map repaint. */
+.blip-unknown {
+  color: transparent;
+  transform: scale(0.38);
+  box-shadow: 0 0 10px 3px #e8e5dd66;
+  transition: transform 160ms cubic-bezier(0, 0, 0.25, 1), color 120ms linear, box-shadow 160ms linear;
+}
+.maplibregl-marker:hover > .blip-unknown,
+.maplibregl-marker.is-hinted > .blip-unknown,
+.maplibregl-marker.is-picked > .blip-unknown,
+.player-location .blip-unknown {
+  color: #1a1204;
+  transform: none;
+  box-shadow: none;
+}
+/* A hinted blip carries a faint ring: "go there and you'll know what this is". */
+.maplibregl-marker.is-hinted > .blip-unknown {
+  box-shadow: 0 0 0 3px #08080a, 0 0 0 4.5px #e8e5dd99;
+}
+@media (prefers-reduced-motion: reduce) {
+  .blip-unknown { transition: none; }
+}
+
+/* Film grain over the map ground (MapGrain.tsx): static, under the markers. */
+.map-grain {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-repeat: repeat;
+  background-size: 128px 128px;
+  opacity: 0.045;
+  mix-blend-mode: screen;
+}
+
+/* Post-fight summary: rows settle in one after another, then sit still. */
+.combat-summary-row {
+  animation: combat-summary-row 280ms ease-out both;
+}
+@keyframes combat-summary-row {
+  0% { opacity: 0; transform: translateY(4px); }
+  100% { opacity: 1; transform: none; }
+}
+
+/* Timeline ticker: each new line slides in from the map edge, one after
+   another (LogTicker schedules the order). No fill mode, so once it ends the
+   row's own opacity transition takes over for the fade-out. */
+@keyframes ticker-line-in {
+  from {
+    opacity: 0;
+    transform: translateX(1.5rem);
+  }
+  60% {
+    opacity: 1;
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+.ticker-line-in {
+  animation: ticker-line-in 360ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }

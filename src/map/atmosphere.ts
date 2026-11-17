@@ -141,7 +141,7 @@ const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 /**
  * Lowest a light channel may go, 0..1. MapLibre lights an extrusion as
  * `max(colour * shade * light, 0.3 * (1 - light))`. Our blocks are near-black
- * (#2a2e2a), so once the light drops much below white the second term wins on
+ * (#1a1c18 to #4a4f4b, buildings.ts), so once the light drops much below white the second term wins on
  * every face: the city goes one flat brown with no lit or shaded sides. That
  * is what rain, storms and night used to look like. Keeping each channel at
  * or above this keeps the shading; gloom comes from sky, haze and the

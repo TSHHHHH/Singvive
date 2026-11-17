@@ -146,6 +146,8 @@ import {
   carrySlot,
   isCarried,
   LOOSE,
+  BACKPACK,
+  placeReplacing,
   LOAD_SPRAIN_CHANCE_PER_KM,
   isBroken,
   isTwoHandedEquipped,
@@ -264,6 +266,7 @@ import {
   TERRAIN,
   STANCES,
 } from './combat';
+import { emptyTally, tallyEnemyAction, tallyPlayerAction } from './combatTally';
 import {
   canCombatReload,
   clearFirearmSlotConflict,
@@ -389,7 +392,8 @@ import type { AnimalHabitat } from './enemies';
 import {
   addHeat,
   dropHeat,
-  scoutFloor,
+  scoutUnit,
+  needsScout,
   breachOutcome,
   currentFloor,
   generateDungeon,
@@ -637,8 +641,8 @@ interface State {
   hdbHoverLevel: number | null;
   /** Room picked on a level strip (UI only); the action card targets it. */
   hdbSelUnit: string | null;
-  /** First-visit scouting playback. Runtime-only; the resolved intel lives in hdb. */
-  hdbScout: { locationId: string; level: number; startedAt: number; rolls: RoomScoutRoll[] } | null;
+  /** Playback of the room just read on first pick. Runtime-only; the intel lives in hdb. */
+  hdbScout: { locationId: string; level: number; unitId: string; startedAt: number; roll: RoomScoutRoll } | null;
 
   /**
    * The tunnel segment you're currently walking, if any. Deliberately NOT
@@ -806,6 +810,11 @@ interface State {
   rest: (length?: RestLength) => void;
   /** Exactly what `rest(length)` will do — the Rest dialog's preview. */
   peekRestPlan: (length: RestLength) => { preview: RestPreview; outcome: RestOutcome };
+  /**
+   * Unknown sites that arriving at `pos` would identify, by the same rule as
+   * arrival recognition. Read-only: a map hover preview, never a state change.
+   */
+  peekRecognition: (pos: { lat: number; lng: number }) => string[];
   /** Preview sleep quality for the Rest button (same evaluator as rest()). */
   peekSleepConditions: () => SleepConditions;
   /** Recovery + night-priced ambush chance (same math rest() rolls). */
@@ -817,6 +826,8 @@ interface State {
   /** Eat / drink / bandage / load ammo / etc. Named applyItem so oxlint doesn't treat it as a Hook. */
   applyItem: (uid: string, partId?: BodyPartId) => void;
   moveItem: (uid: string, container: string, x: number, y: number, rotated: boolean) => boolean;
+  /** Drop a loose item into the bag at (x, y); anything it lands on is bumped out to loose. */
+  packReplacing: (uid: string, x: number, y: number, rotated: boolean) => boolean;
   rotateItem: (uid: string) => void;
   transferItem: (uid: string, toContainer: string) => void;
   equipItem: (uid: string, slot: keyof Equipment) => void;
@@ -1744,15 +1755,22 @@ export const useGame = create<State>((set, get) => {
     return false;
   };
 
-  /** Recognition is an arrival action, never a passive tick or a map-camera effect. */
-  const recognizeSurroundings = () => {
-    const s = get();
-    if (s.phase !== 'game' || !s.character || s.hdb || s.tunnel) return;
+  /** Today's recognition radius in metres, or 0 when recognition can't happen. */
+  const recognitionRadiusNow = (s: State): number => {
+    if (s.phase !== 'game' || !s.character || s.hdb || s.tunnel) return 0;
     const weather = weatherKindFor(s.seed, s.day);
     const sight = darkOpts(s, timeOfDay(s.hour), weather).sight;
     const awarenessValue = s.character.attributes.perception + equipAwarenessMod(s.equipment)
       + traitAwarenessMod(s.character.traitIds) - headAwarenessPenalty(s.bodyParts);
-    const locations = recognizeNearby(s.locations, s.currentPos, recognitionRadius(awarenessValue, sight, weather));
+    return recognitionRadius(awarenessValue, sight, weather);
+  };
+
+  /** Recognition is an arrival action, never a passive tick or a map-camera effect. */
+  const recognizeSurroundings = () => {
+    const s = get();
+    const radius = recognitionRadiusNow(s);
+    if (!(radius > 0)) return;
+    const locations = recognizeNearby(s.locations, s.currentPos, radius);
     if (locations !== s.locations) {
       const ids = Object.keys(locations).filter(id => locations[id].identified && !s.locations[id]?.identified);
       set({ locations, nearbyRecognition: [...new Set([...s.nearbyRecognition, ...ids])] });
@@ -2691,26 +2709,12 @@ export const useGame = create<State>((set, get) => {
   };
 
   /**
-   * Reading the corridor is what stepping onto a floor *is* — never an action
-   * the player has to spend a click on. Sharper senses simply see more doors.
+   * Stepping onto a floor for the first time: the theme shows itself, but no
+   * door is read yet. Each room is sized up when the player picks it.
    */
   const sweepFloor = (level: number) => {
     const s = get();
     if (!s.hdb) return;
-    const rng = new Rng(s.seed).fork(`sweep:${s.hdb.locationId}:${level}:${s.day}`);
-    const res = scoutFloor(
-      rng,
-      s.character!.attributes,
-      s.hdb,
-      level,
-      sumTraitMod(s.character!.traitIds, 'hdbScoutBonus'),
-    );
-    set({
-      hdb: res.dungeon,
-      hdbScout: res.rolls.length
-        ? { locationId: s.hdb.locationId, level, startedAt: Date.now(), rolls: res.rolls }
-        : null,
-    });
     const label = storeyLabel(s.hdb, level);
     const theme = s.hdb.floors[level - 1]?.theme;
     if (theme && theme !== 'ordinary') {
@@ -2722,10 +2726,44 @@ export const useGame = create<State>((set, get) => {
         hdbFloorScope(s.hdb.locationId, level, storeyLabel(s.hdb, level)),
       );
     }
+  };
+
+  /**
+   * Read one room from the corridor the first time it is picked. Perception and
+   * Dexterity roll against the floor's sweep stream forked by room, so a room
+   * reads the same whichever order the doors are picked in. `show` plays the
+   * dice in the action card; a door opened without a pick reads silently.
+   */
+  const scoutHdbRoom = (unitId: string, show: boolean) => {
+    const s = get();
+    if (!s.hdb || !s.character) return;
+    const level = s.hdb.currentLevel;
+    const unit = currentFloor(s.hdb).units.find((u) => u.id === unitId);
+    if (!needsScout(unit)) return;
+    const rng = new Rng(s.seed).fork(`sweep:${s.hdb.locationId}:${level}:${s.day}`);
+    const res = scoutUnit(
+      rng,
+      s.character.attributes,
+      s.hdb,
+      level,
+      unitId,
+      sumTraitMod(s.character.traitIds, 'hdbScoutBonus'),
+    );
+    if (!res.roll) return;
+    set({
+      hdb: res.dungeon,
+      hdbScout: show
+        ? { locationId: s.hdb.locationId, level, unitId, startedAt: Date.now(), roll: res.roll }
+        : get().hdbScout,
+    });
+    const { perception, dexterity } = res.roll;
+    const read = [perception.success && 'who is behind it', dexterity.success && 'what is inside']
+      .filter(Boolean)
+      .join(' and ');
     pushLog(
-      res.read === 0
-        ? `Level ${label}: the corridor tells you nothing.`
-        : `Level ${label}: you read ${res.read} of ${res.total} units from the corridor.`,
+      read
+        ? `${unit!.label}: from the corridor you read ${read}.`
+        : `${unit!.label}: the doorway tells you nothing.`,
       'info',
       undefined,
       undefined,
@@ -5669,6 +5707,15 @@ export const useGame = create<State>((set, get) => {
       persist();
     },
 
+    peekRecognition: (pos) => {
+      const s = get();
+      const radius = recognitionRadiusNow(s);
+      if (!(radius > 0)) return [];
+      const next = recognizeNearby(s.locations, pos, radius);
+      if (next === s.locations) return [];
+      return Object.keys(next).filter(id => next[id].identified && !s.locations[id]?.identified);
+    },
+
     peekRestPlan: (length) => {
       const { preview, outcome } = planRestFromState(length);
       return { preview, outcome };
@@ -5988,6 +6035,17 @@ export const useGame = create<State>((set, get) => {
       const { w, h } = footprint(def, rotated);
       if (!canPlace(container, s.items, { x, y, w, h }, uid)) return false;
       set({ items: s.items.map((i) => (i.uid === uid ? { ...i, container, x, y, rotated } : i)) });
+      persist();
+      return true;
+    },
+
+    packReplacing: (uid, x, y, rotated) => {
+      const s = get();
+      const inst = s.items.find((i) => i.uid === uid);
+      if (!inst || inst.container !== LOOSE) return false;
+      const out = placeReplacing(s.items, uid, BACKPACK, x, y, rotated);
+      if (!out) return false;
+      set({ items: out.items });
       persist();
       return true;
     },
@@ -6498,7 +6556,9 @@ export const useGame = create<State>((set, get) => {
     },
 
     setHdbSelUnit: (id) => {
-      if (get().hdbSelUnit !== id) set({ hdbSelUnit: id });
+      if (get().hdbSelUnit === id) return;
+      set({ hdbSelUnit: id });
+      if (id && !hdbBusy()) scoutHdbRoom(id, true);
     },
     setHdbHoverLevel: (level) => {
       if (get().hdbHoverLevel !== level) set({ hdbHoverLevel: level });
@@ -6577,7 +6637,9 @@ export const useGame = create<State>((set, get) => {
         pushLog('That door is already hanging. Use what is inside.', 'info');
         return;
       }
-      resolveHdbDoor(unitId, breachOutcome(s.hdb, unit, level), unit.entry);
+      scoutHdbRoom(unitId, false);
+      const read = currentFloor(get().hdb!).units.find((u) => u.id === unitId) ?? unit;
+      resolveHdbDoor(unitId, breachOutcome(get().hdb!, read, level), unit.entry);
     },
 
     hdbPick: (unitId) => {
@@ -6617,8 +6679,10 @@ export const useGame = create<State>((set, get) => {
       }
       applyPracticeXp('trades', PRACTICE_XP.hdbPick);
       pushLog('The lock turns without a sound.', 'good');
-      const quiet = { ...unit, entry: 'ajar' as const };
-      resolveHdbDoor(unitId, breachOutcome(g.hdb, quiet, level), 'ajar', { skipTime: true });
+      scoutHdbRoom(unitId, false);
+      const known = currentFloor(get().hdb!).units.find((u) => u.id === unitId) ?? unit;
+      const quiet = { ...known, entry: 'ajar' as const };
+      resolveHdbDoor(unitId, breachOutcome(get().hdb!, quiet, level), 'ajar', { skipTime: true });
     },
 
     hdbTravel: (level) => {
@@ -7193,6 +7257,14 @@ export const useGame = create<State>((set, get) => {
             zombie,
             round,
             log,
+            tally: tallyPlayerAction(c.tally ?? emptyTally(), {
+              hit: res.hit,
+              critical: res.critical,
+              damageDealt: res.damageDealt,
+              hitChance: res.hitChance,
+              minutes: res.timeCostHours * 60,
+              shot: true,
+            }),
             firePrepared: false,
             reloadPrepared: false,
             acting: 'player' as const,
@@ -7268,6 +7340,13 @@ export const useGame = create<State>((set, get) => {
           zombie,
           round,
           log,
+          tally: tallyPlayerAction(c.tally ?? emptyTally(), {
+            hit: res.hit,
+            critical: res.critical,
+            damageDealt: res.damageDealt,
+            hitChance: res.hitChance,
+            minutes: res.timeCostHours * 60,
+          }),
           acting: 'player' as const,
           playerGauge: playerGauge - GAUGE_FULL,
           enemyGauge: Math.min(enemyGauge, GAUGE_FULL),
@@ -7366,6 +7445,19 @@ export const useGame = create<State>((set, get) => {
         playerGauge: Math.min(playerGauge, GAUGE_FULL),
         impact,
         firstHitTaken,
+        tally: tallyEnemyAction(
+          c.tally ?? emptyTally(),
+          {
+            hitChance: res.hitChance,
+            rollHit: res.dodged || res.blocked || !!res.hitZone,
+            dodged: res.dodged,
+            blocked: res.blocked,
+            infection: res.infectionGain,
+            zone: res.hitZone,
+          },
+          s.bodyParts,
+          bodyParts,
+        ),
       };
       set({
         meters,
@@ -7405,6 +7497,7 @@ export const useGame = create<State>((set, get) => {
         load.fleeDcMod,
       );
       let fleeWearSlot: EquipSlot | null = null;
+      let fleeZone: BodyPartId | null = null;
       let firstHitTaken = s.combat.firstHitTaken === true;
       let fleeIncoming = res.playerDamage;
       if (fleeIncoming > 0 && !firstHitTaken) {
@@ -7416,6 +7509,7 @@ export const useGame = create<State>((set, get) => {
         fleeIncoming > 0
           ? (() => {
               const zone = rollHitZone(s._combatRng!.fork(`flee-zone:${round}`));
+              fleeZone = zone;
               fleeWearSlot = slotForZone(zone) ?? 'body';
               const soak = limbArmorForZone(s.equipment, zone);
               const dmg = Math.max(1, fleeIncoming - soak);
@@ -7447,6 +7541,16 @@ export const useGame = create<State>((set, get) => {
         ...notes.map((text) => ({ round, tone: 'bad' as const, text })),
       ];
       const dead = checkDeath(meters, bodyParts) !== null;
+      // Only a parting blow counts as their attack; a clean getaway adds nothing.
+      const tally =
+        fleeIncoming > 0
+          ? tallyEnemyAction(
+              s.combat.tally ?? emptyTally(),
+              { rollHit: true, zone: fleeZone },
+              s.bodyParts,
+              bodyParts,
+            )
+          : s.combat.tally;
       const impactId = (s.combat.impact?.id ?? 0) + 1;
       const impact =
         dead
@@ -7467,6 +7571,7 @@ export const useGame = create<State>((set, get) => {
             outcome: 'flee',
             impact,
             firstHitTaken,
+            tally,
             firePrepared: false,
             reloadPrepared: false,
           },
@@ -7486,6 +7591,7 @@ export const useGame = create<State>((set, get) => {
             outcome: 'dead',
             impact,
             firstHitTaken,
+            tally,
             firePrepared: false,
             reloadPrepared: false,
           },
@@ -7504,6 +7610,7 @@ export const useGame = create<State>((set, get) => {
             selectedStance: 'guarded',
             impact,
             firstHitTaken,
+            tally,
             firePrepared: false,
             reloadPrepared: false,
           },

@@ -26,13 +26,14 @@ import {
   UNIT_META,
   type HdbDungeon,
   type HdbUnitNode,
-  type RoomScoutRoll,
 } from '../game/hdbDungeon';
 import type { Attributes } from '../game/types';
 import { msgOr, useT, type LocaleId, type TVars } from '../i18n';
 import { PlayerPin } from './PlayerPin';
-import { HdbScoutDice } from './HdbScoutDice';
 import { tip } from './tips';
+import { SCOUT_REVEAL_MS } from './HdbScoutDice';
+import { useSetting } from '../game/settings';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 import { BAND_FILL, bandText, SEAL_ICON, unitFaceClass } from './hdbStripStyle';
 
 type T = (key: string, vars?: TVars) => string;
@@ -113,20 +114,33 @@ export function HeatMeter({
   );
 }
 
+/** The "something was read" dot; waits for the action card's dice before it shows. */
+function ReadDot({ revealIn }: { revealIn: number }) {
+  // Fixed at mount: a delay that shrank on every re-render would cut the wait short.
+  const [delay] = useState(revealIn);
+  return (
+    <span
+      className={`absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-astral ${delay > 0 ? 'scout-reveal' : ''}`}
+      style={delay > 0 ? { animationDelay: `${delay}ms` } : undefined}
+    />
+  );
+}
+
 function RoomTile({
   unit,
   selected,
   selectable,
   phone,
   onPick,
-  scout,
+  revealIn = 0,
 }: {
   unit: HdbUnitNode;
   selected: boolean;
   selectable: boolean;
   phone: boolean;
   onPick: () => void;
-  scout?: { roll: RoomScoutRoll; startedAt: number; order: number };
+  /** ms until the action card's dice finish reading this room; holds the read dot back. */
+  revealIn?: number;
 }) {
   const { locale, t } = useT();
   const meta = UNIT_META[unit.type];
@@ -160,21 +174,12 @@ function RoomTile({
     <Icon name={meta.icon} size={phone ? 22 : 28} className={unitFaceClass(unit.type)} />
   );
   const scouted = unit.available && unit.state !== 'cleared' && !!unit.scoutedInfo;
-  const scoutTip = scout ? (['perception', 'dexterity'] as const).map((attr) => {
-    const check = scout.roll[attr];
-    return t('ui.hdb.scoutResult', {
-      attr: t(`ui.attributes.${attr}`), roll: check.roll,
-      chance: Math.round(check.chance * 100),
-      result: t(check.success ? 'ui.hdb.scoutRead' : 'ui.hdb.scoutUnread'),
-    });
-  }).join('\n') : '';
-  const roomTip = `${unit.label} · ${state}${read}${scoutTip ? `\n${scoutTip}` : ''}`;
+  const roomTip = `${unit.label} · ${state}${read}`;
   const body = (
     <>
       {face}
-      {scout && <HdbScoutDice {...scout} />}
       {scouted && (
-        <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-astral" />
+        <ReadDot revealIn={revealIn} />
       )}
       <span className={`w-full truncate px-0.5 text-center tabular-nums ${phone ? 'text-micro' : 'text-body'} ${unit.available ? 'text-concrete-200' : 'text-concrete-600'}`}>
         {unit.label.replace(/^#/, '')}
@@ -225,6 +230,8 @@ export function HdbLevelStrips({ phone }: { phone: boolean }) {
   const setSelUnit = useGame((s) => s.setHdbSelUnit);
   const hdbTravel = useGame((s) => s.hdbTravel);
   const scout = useGame((s) => s.hdbScout);
+  const reducedMotion = useReducedMotion();
+  const diceOn = useSetting('diceFx') !== 'off' && !reducedMotion;
   const busy = useGame((s) => !!s.pendingSearch || !!s.combat || !!s.pendingEvent);
   const setHdbHoverLevel = useGame((s) => s.setHdbHoverLevel);
   const [hoverRow, setHoverRow] = useState<number | null>(null);
@@ -334,6 +341,7 @@ export function HdbLevelStrips({ phone }: { phone: boolean }) {
         const units = f.units;
         const left = units.filter((u) => u.available && u.state !== 'cleared').length;
         const floorScout = here && scout?.locationId === hdb.locationId && scout.level === level ? scout : null;
+        const revealIn = floorScout ? Math.max(0, floorScout.startedAt + SCOUT_REVEAL_MS - Date.now()) : 0;
 
         const title = here
           ? t('ui.hdb.youAreHere')
@@ -452,9 +460,7 @@ export function HdbLevelStrips({ phone }: { phone: boolean }) {
               </div>
               {revealed && units.length > 0 && (
                 <div className={phone ? 'flex min-w-0 flex-wrap items-center gap-1.5' : 'grid min-w-0 grid-cols-[repeat(auto-fill,minmax(4rem,1fr))] gap-2 border-b border-concrete-600/60 pb-2'}>
-                  {units.map((u) => {
-                    const order = floorScout?.rolls.findIndex((r) => r.unitId === u.id) ?? -1;
-                    return (
+                  {units.map((u) => (
                       <RoomTile
                         key={u.id}
                         unit={u}
@@ -462,12 +468,9 @@ export function HdbLevelStrips({ phone }: { phone: boolean }) {
                         selected={here && selUnit === u.id}
                         selectable={here && !busy}
                         onPick={() => setSelUnit(selUnit === u.id ? null : u.id)}
-                        scout={floorScout && order >= 0
-                          ? { roll: floorScout.rolls[order], startedAt: floorScout.startedAt, order }
-                          : undefined}
+                        revealIn={floorScout?.unitId === u.id && diceOn ? revealIn : 0}
                       />
-                    );
-                  })}
+                  ))}
                 </div>
               )}
             </div>

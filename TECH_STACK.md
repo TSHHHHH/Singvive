@@ -122,7 +122,7 @@ src/
                and `t` / `useT`; player primer is `guide.*` keys; zh voice/glossary in
                docs/i18n-zh-hans.md
   content/     guide topic routing (`guideContent.ts`) — copy lives in i18n
-  hooks/       shared React hooks (e.g. useAnimatedNumber)
+  hooks/       shared React hooks (e.g. useReducedMotion)
   icons/       icon registry + keys (emoji fallbacks → drop-in PNGs)
   dev/         DEV-only editors + Dev menu (loot / enemies / icons / locale) — never imported from game/
   components/  GameMap, FogOverlay, Inventory/*, CraftingPanel, CombatPanel,
@@ -356,7 +356,7 @@ In-game editors that must **persist to the repo** (not just mutate a live run) f
 catalog tool. Use the same shape when adding trait, recipe, faction, or loot-table browsers.
 
 **Launcher:** floating **Dev** control (bottom-left) in `npm run dev` only — opens a panel for
-**Loot**, **Enemies**, **Icons**, and **Locale**. Overlays are mutually exclusive. `Ctrl+Shift+D`
+**Loot**, **Enemies**, **Icons**, **Locale**, and **Sound**. Overlays are mutually exclusive. `Ctrl+Shift+D`
 hides the launcher for clean playtest screenshots (remembered for the tab via `sessionStorage`).
 Deep-links still work via `src/dev/devBridge.ts` (`openLootItem`, `openEnemyEditor`,
 `openIconBrowser`, `openLocaleEditor`).
@@ -443,6 +443,30 @@ running client.
 4. Extend or add a Vite `apply: 'serve'` plugin with `GET/PUT /__dev/<name>`.
 5. Mount `{import.meta.env.DEV && <Dev… />}` from `App.tsx` and add a row to `DevToolsMenu`.
 6. Confirm `npm run build` — no `/__dev` strings and no editor chrome in `dist/`.
+
+### Sound: cues, engine, console
+
+Two layers share one `AudioContext` (`src/audio/context.ts`):
+
+- **Ambience** (`src/audio/ambience.ts`) — procedural Web Audio beds and one-shots, no files.
+- **Cue engine** (`src/audio/sfx.ts`) — plays a file per *cue*. Cues are moments, listed with their
+  trigger in `src/audio/cues.ts`; which file plays is `public/audio/manifest.json`. A cue with no
+  file is a no-op (two map lookups, nothing allocated). Files load lazily after the first gesture.
+  Volume = `sound` setting × `sfx` setting × per-cue volume. Cues marked `synth` (contact,
+  nightfall, thunder) keep the ambience synth until a file is assigned, then the file replaces it;
+  cues marked `duck` dip the ambience.
+
+`src/game/` stays pure: the store never calls audio. `src/audio/director.ts` watches the store
+(state diffs) and wraps a few actions from outside (craft vs refused, stash vs bag) to fire cues.
+UI clicks/hovers go through one delegated listener in `useSfx` (`data-sfx="<cue>"` picks a cue,
+`data-sfx="none"` mutes a button). Dice, pin and panel cues fire from their components.
+To add a cue: add it to `CUES`, fire it with `sfx.play(id)` (or `sfx.loop(id, on)`) from a
+component or the director — never from `src/game/`.
+
+**Dev → Sound** (`src/dev/SoundConsole.tsx`, `vite.sound-dev-api.ts`) lists every cue with play,
+upload (drop on a row, or drop files named `<cue id>.<ext>` anywhere), volume / pitch spread /
+loop, and a live dot when the game fires the cue. Files are written to `public/audio/`.
+`npm run audio:manifest` rebuilds the manifest from the folder without the dev server.
 
 ---
 

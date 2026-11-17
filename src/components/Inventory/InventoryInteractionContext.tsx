@@ -19,6 +19,7 @@ import {
   canEquip,
   canPlace,
   dimsFor,
+  overlapsAt,
   footprint,
   isTwoHandedEquipped,
   TEMP_STASH,
@@ -48,6 +49,8 @@ interface GridDrop {
   w: number;
   h: number;
   valid: boolean;
+  /** Bag items a loose drop would bump out to the loose pile. */
+  displaced?: string[];
 }
 interface SlotDrop {
   type: 'slot';
@@ -161,6 +164,7 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
   const applyItem = useGame((s) => s.applyItem);
   const transferItem = useGame((s) => s.transferItem);
   const moveItem = useGame((s) => s.moveItem);
+  const packReplacing = useGame((s) => s.packReplacing);
   const equipItem = useGame((s) => s.equipItem);
   const unequipItem = useGame((s) => s.unequipItem);
   const dropItem = useGame((s) => s.dropItem);
@@ -230,6 +234,7 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
     hasTempStash,
     tunnel,
     moveItem,
+    packReplacing,
     equipItem,
     applyItem,
     unequipItem,
@@ -251,6 +256,7 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
     hasTempStash,
     tunnel,
     moveItem,
+    packReplacing,
     equipItem,
     applyItem,
     unequipItem,
@@ -414,6 +420,21 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
       const cellX = dropCell(clientX, r.left + el.clientLeft, grabDX, sourceCell, targetCell, dims.w, w);
       const cellY = dropCell(clientY, r.top + el.clientTop, grabDY, sourceCell, targetCell, dims.h, h);
       const group = dragRef.current?.uids ?? [inst.uid];
+      // A loose item dropped into the bag takes the spot, bumping whatever it
+      // lands on out to the loose pile. Only out-of-bounds / holes refuse.
+      if (container === BACKPACK && group.length === 1 && inst.container === LOOSE) {
+        const displaced = overlapsAt(container, liveItems, { x: cellX, y: cellY, w, h }, inst.uid);
+        return {
+          type: 'grid',
+          container,
+          cellX,
+          cellY,
+          w,
+          h,
+          valid: displaced !== null,
+          ...(displaced?.length ? { displaced } : {}),
+        };
+      }
       // A group drop auto-places each item, so the exact cell doesn't matter.
       const valid =
         group.length > 1
@@ -463,8 +484,13 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
     }
     const current = dragRef.current;
     if (!current || current.pointerId !== pointerId) return;
-    const { items: liveItems, moveItem: move, equipItem: equip, transferItem: transfer } =
-      liveRef.current;
+    const {
+      items: liveItems,
+      moveItem: move,
+      packReplacing,
+      equipItem: equip,
+      transferItem: transfer,
+    } = liveRef.current;
     const inst = liveItems.find((i) => i.uid === current.uid);
     const t = current.target;
     if (inst && t) {
@@ -475,6 +501,8 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
           const it = liveRef.current.items.find((i) => i.uid === u);
           if (it && it.container !== t.container) transfer(u, t.container);
         }
+      } else if (t.type === 'grid' && t.valid && t.container === BACKPACK && inst.container === LOOSE) {
+        packReplacing(current.uid, t.cellX, t.cellY, current.rotated);
       } else if (t.type === 'grid' && t.valid) {
         move(current.uid, t.container, t.cellX, t.cellY, current.rotated);
       } else if (t.type === 'slot' && t.valid) {
@@ -749,7 +777,15 @@ export function InventoryInteractionProvider({ children }: { children: ReactNode
     (container: Container): DragPreview | null => {
       if (!drag || drag.target?.type !== 'grid' || drag.target.container !== container) return null;
       const t = drag.target;
-      return { grid: container, cellX: t.cellX, cellY: t.cellY, w: t.w, h: t.h, valid: t.valid };
+      return {
+        grid: container,
+        cellX: t.cellX,
+        cellY: t.cellY,
+        w: t.w,
+        h: t.h,
+        valid: t.valid,
+        ...(t.displaced ? { displaced: t.displaced } : {}),
+      };
     },
     [drag],
   );

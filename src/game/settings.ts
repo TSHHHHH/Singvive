@@ -41,7 +41,26 @@ export interface SettingDef {
   /** defaults to 'pills' */
   control?: SettingControl;
   options: SettingOption[];
+  /** used where `deviceDefault` is absent, and wherever there is no `window` */
   default: string;
+  /** a default that depends on the device, resolved once at load */
+  deviceDefault?: () => string;
+}
+
+/** Phones and most tablets: no hover, or a coarse pointer. Same query as
+ *  `useCoarsePointer`. False outside a browser. */
+export function isTouchFirstDevice(): boolean {
+  try {
+    return window.matchMedia('(hover: none), (pointer: coarse)').matches;
+  } catch {
+    return false;
+  }
+}
+
+/** A setting's default on this device. */
+export function defaultFor(def: SettingDef): string {
+  if (!def.deviceDefault || typeof window === 'undefined') return def.default;
+  return def.deviceDefault();
 }
 
 export const SETTINGS_TABS: { id: SettingTabId; label: string }[] = [
@@ -115,7 +134,7 @@ export const SETTINGS_SCHEMA: SettingDef[] = [
     key: 'weatherFx',
     label: 'Weather effects',
     description:
-      'Rain, glare and haze drawn over the map; in 3D, weather also lights the buildings and storms bring lightning. Purely visual — costs GPU fill rate, so it is off unless you ask for it.',
+      'Rain, glare and haze drawn over the map; in 3D, weather also lights the buildings and storms bring lightning. Purely visual — costs GPU fill rate, so it starts on Full on desktop and off on phones and tablets.',
     tab: 'display',
     options: [
       { value: 'off', label: 'Off' },
@@ -123,12 +142,27 @@ export const SETTINGS_SCHEMA: SettingDef[] = [
       { value: 'full', label: 'Full' },
     ],
     default: 'off',
+    // Desktop GPUs handle the fill rate; phones and tablets keep it off.
+    deviceDefault: () => (isTouchFirstDevice() ? 'off' : 'full'),
   },
   {
     key: 'sound',
     label: 'Sound',
     description:
-      'Ambient sound — wind, rain, the night chorus, and the things out there. Synthesised live; starts after your first click.',
+      'All sound: the ambience synthesised live — wind, rain, the night chorus, and the things out there — plus sound effects. Starts after your first click.',
+    tab: 'display',
+    options: [
+      { value: 'off', label: 'Off' },
+      { value: 'quiet', label: 'Quiet' },
+      { value: 'full', label: 'Full' },
+    ],
+    default: 'full',
+  },
+  {
+    key: 'sfx',
+    label: 'Sound effects',
+    description:
+      'Effects for clicks, searching, fighting, wounds and the like, on top of the ambience. Follows the Sound setting above.',
     tab: 'display',
     options: [
       { value: 'off', label: 'Off' },
@@ -225,7 +259,7 @@ export const SETTINGS_SCHEMA: SettingDef[] = [
       { value: 'on', label: 'On' },
       { value: 'off', label: 'Off' },
     ],
-    default: 'auto',
+    default: 'off',
   },
   {
     key: 'combatFx',
@@ -314,7 +348,30 @@ export const FONT_SIZE_PX: Record<string, string> = {
 const STORAGE_KEY = 'singvive.settings.v1';
 
 function defaults(): Record<string, string> {
-  return Object.fromEntries(SETTINGS_SCHEMA.map((s) => [s.key, s.default]));
+  return Object.fromEntries(SETTINGS_SCHEMA.map((s) => [s.key, defaultFor(s)]));
+}
+
+/**
+ * Bumped when a default changes in a way returning players should pick up.
+ * `persist` writes every value, defaults included, so a stored value can't
+ * tell "chose this" from "never touched it". Revision 1 moved reduceMotion's
+ * default from `auto` to `off`. A stored `auto` is almost always the old
+ * default written back on some other change, so it is treated as untouched
+ * and migrated once. weatherFx is left alone: a stored `off` may be
+ * a deliberate GPU choice, and switching it back on uninvited is worse than
+ * a returning player flipping it themselves.
+ */
+const DEFAULTS_REV = 1;
+const DEFAULTS_REV_KEY = 'singvive.settings.rev';
+
+export function migrateStored(
+  stored: Record<string, string>,
+  rev: number,
+): Record<string, string> {
+  if (rev >= 1) return stored;
+  const out = { ...stored };
+  if (out.reduceMotion === 'auto') out.reduceMotion = 'off';
+  return out;
 }
 
 /** The rail overlay predates this store and had its own key. Left in place for
@@ -328,7 +385,17 @@ function loadSettings(): Record<string, string> {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
-      const parsed = JSON.parse(raw) as Record<string, string>;
+      let rev = 0;
+      try {
+        rev = Number(localStorage.getItem(DEFAULTS_REV_KEY)) || 0;
+      } catch {
+        /* ignore */
+      }
+      const parsed = migrateStored(JSON.parse(raw) as Record<string, string>, rev);
+      if (rev < DEFAULTS_REV) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+        localStorage.setItem(DEFAULTS_REV_KEY, String(DEFAULTS_REV));
+      }
       hadRailOverlay = 'railOverlay' in parsed;
       Object.assign(merged, parsed);
       // New key: returning installs keep the primer off until they opt in.
@@ -371,6 +438,7 @@ function loadExplicit(): Record<string, true> {
 function persist(values: Record<string, string>): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(values));
+    localStorage.setItem(DEFAULTS_REV_KEY, String(DEFAULTS_REV));
   } catch {
     /* storage unavailable — non-fatal */
   }
@@ -409,7 +477,7 @@ export const useSettings = create<SettingsState>((set, get) => ({
  * for every `useSetting` call site in the tree.
  */
 const SETTING_DEFAULT: ReadonlyMap<string, string> = new Map(
-  SETTINGS_SCHEMA.map((d) => [d.key, d.default]),
+  SETTINGS_SCHEMA.map((d) => [d.key, defaultFor(d)]),
 );
 
 /** The full descriptor by key, for anything needing more than the value. */

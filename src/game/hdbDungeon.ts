@@ -1168,8 +1168,86 @@ export interface FloorScout {
 }
 
 /**
- * The sweep you make stepping onto a floor: Perception pins encounter odds,
- * Dexterity peeks at containers. Room type is always visible on the door face.
+ * Read one room from the corridor: Perception pins encounter odds, Dexterity
+ * peeks at containers. Room type is always visible on the door face. `uRng` is
+ * the room's own stream, so the order rooms are read in never changes a result.
+ */
+function readRoom(
+  uRng: Rng,
+  attrs: Attributes,
+  dungeon: HdbDungeon,
+  level: number,
+  unit: HdbUnitNode,
+  senseBonus: number,
+): { unit: HdbUnitNode; roll: RoomScoutRoll } {
+  const info: HdbScoutInfo = { threatCount: -1, lootQuality: 'unreadable' };
+  // Read the same draw that chance() used, preserving the seeded sequence.
+  const check = (value: number) => {
+    const chance = Math.min(0.95, senseChance(value) + senseBonus);
+    const draw = uRng.next();
+    return { roll: Math.floor(draw * 100) + 1, chance, success: draw < chance };
+  };
+  const perception = check(attrs.perception);
+  if (perception.success) {
+    const threat = floorThreat(dungeon, level);
+    info.threatCount = Math.max(0, Math.round(threat / 2) + uRng.int(-1, 1));
+  }
+  const dexterity = check(attrs.dexterity);
+  if (dexterity.success) {
+    if (unit.holdsKey) {
+      info.containerCategory = 'Fob';
+    } else {
+      info.containerCategory = uRng.pick(CONTAINER_CATEGORIES);
+    }
+    info.lootQuality =
+      unit.type === 'stocked'
+        ? LOOT_QUALITY[Math.min(3, 2 + uRng.int(0, 1))]
+        : uRng.pick(LOOT_QUALITY);
+  }
+  const readAnything = info.threatCount >= 0 || !!info.containerCategory;
+  return {
+    unit: { ...unit, state: 'scouted', scoutedInfo: readAnything ? info : undefined },
+    roll: { unitId: unit.id, perception, dexterity },
+  };
+}
+
+/** True while a room has never been read — the only state scouting touches. */
+export function needsScout(unit: HdbUnitNode | null | undefined): boolean {
+  return !!unit && unit.available && unit.state === 'unexplored';
+}
+
+export interface UnitScout {
+  dungeon: HdbDungeon;
+  /** The percentile checks for playback; null when the room was already read. */
+  roll: RoomScoutRoll | null;
+}
+
+/**
+ * Size up the one room the player picked. `rng` is the floor's sweep stream;
+ * each room forks its own, so reading rooms one at a time gives exactly what a
+ * whole-floor sweep with the same stream would.
+ */
+export function scoutUnit(
+  rng: Rng,
+  attrs: Attributes,
+  dungeon: HdbDungeon,
+  level: number,
+  unitId: string,
+  senseBonus = 0,
+): UnitScout {
+  const floor = dungeon.floors.find((f) => f.level === level);
+  const unit = floor?.units.find((u) => u.id === unitId);
+  if (!floor || floor.sealed || !needsScout(unit)) return { dungeon, roll: null };
+  const res = readRoom(rng.fork(unit!.id), attrs, dungeon, level, unit!, senseBonus);
+  const floors = dungeon.floors.map((f) =>
+    f !== floor ? f : { ...f, units: f.units.map((u) => (u.id === unitId ? res.unit : u)) },
+  );
+  return { dungeon: { ...dungeon, floors }, roll: res.roll };
+}
+
+/**
+ * Every unread room on a floor at once. Play scouts room by room through
+ * {@link scoutUnit}; this stays as the reference the per-room read must match.
  */
 export function scoutFloor(
   rng: Rng,
@@ -1189,46 +1267,15 @@ export function scoutFloor(
       units: floor.units.map((unit) => {
         if (!unit.available) return unit;
         total += 1;
-        // Already swept this floor — a second visit doesn't re-roll it.
+        // Already read — a second visit doesn't re-roll it.
         if (unit.state !== 'unexplored') {
           if (unit.scoutedInfo) read += 1;
           return unit;
         }
-        const uRng = rng.fork(unit.id);
-        const info: HdbScoutInfo = { threatCount: -1, lootQuality: 'unreadable' };
-
-        // Read the same draw that chance() used, preserving the seeded sequence.
-        const check = (value: number) => {
-          const chance = Math.min(0.95, senseChance(value) + senseBonus);
-          const draw = uRng.next();
-          return { roll: Math.floor(draw * 100) + 1, chance, success: draw < chance };
-        };
-        const perception = check(attrs.perception);
-        if (perception.success) {
-          const threat = floorThreat(dungeon, floor.level);
-          info.threatCount = Math.max(0, Math.round(threat / 2) + uRng.int(-1, 1));
-        }
-        const dexterity = check(attrs.dexterity);
-        if (dexterity.success) {
-          if (unit.holdsKey) {
-            info.containerCategory = 'Fob';
-          } else {
-            info.containerCategory = uRng.pick(CONTAINER_CATEGORIES);
-          }
-          info.lootQuality =
-            unit.type === 'stocked'
-              ? LOOT_QUALITY[Math.min(3, 2 + uRng.int(0, 1))]
-              : uRng.pick(LOOT_QUALITY);
-        }
-
-        rolls.push({ unitId: unit.id, perception, dexterity });
-        const readAnything = info.threatCount >= 0 || !!info.containerCategory;
-        if (readAnything) read += 1;
-        return {
-          ...unit,
-          state: 'scouted' as HdbUnitState,
-          scoutedInfo: readAnything ? info : undefined,
-        };
+        const res = readRoom(rng.fork(unit.id), attrs, dungeon, floor.level, unit, senseBonus);
+        rolls.push(res.roll);
+        if (res.unit.scoutedInfo) read += 1;
+        return res.unit;
       }),
     };
   });
