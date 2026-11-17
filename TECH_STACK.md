@@ -668,6 +668,20 @@ blocks), as delta-encoded convex hulls. Derived offline from the committed POI b
 `ensureZonesLoaded()` fetches it with `zones.json`; if it is missing the field falls back to disc
 pockets everywhere. Manual, committed, never part of `npm run build`.
 
+### Refreshing hazard areas
+
+```bash
+npm run bake:hazard-areas
+npm run bake:hazard-areas -- --from tmp/hazard-areas/osm-areas.json   # reuse a download
+```
+
+Rewrites `public/hazard-areas.json` — block-sized OpenStreetMap outlines (residential estates,
+parks, school grounds, campuses, hospitals, commercial/retail and industrial blocks, filtered to
+roughly 120–500 m across) that the wilds field seals off whole. Fetches from Overpass and caches
+the raw response in `tmp/hazard-areas/`. overpass-api.de answers a bare client with HTTP 406, so
+the script sends a User-Agent and `Accept: application/json`. Manual, committed, never part of
+`npm run build`.
+
 ### Refreshing planning areas
 
 ```bash

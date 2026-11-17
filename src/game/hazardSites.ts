@@ -178,8 +178,8 @@ export function mergedHull(group: readonly HazardSite[]): [number, number][] {
 
 /**
  * Metres from a point to the edge of `hull` grown by `bufferM`. Zero or less
- * means inside. Exact for a convex hull: inside the polygon, or within
- * `bufferM` of one of its edges.
+ * means inside: inside the polygon, or within `bufferM` of one of its edges.
+ * Works for any simple ring (convex footprint hulls and concave area outlines).
  */
 export function bufferedHullDistance(
   lat: number,
@@ -189,7 +189,7 @@ export function bufferedHullDistance(
 ): number {
   const px = lng * M_PER_DEG_LNG;
   const py = lat * M_PER_DEG_LAT;
-  let inside = hull.length >= 3;
+  let inside = false;
   let best = Infinity;
   for (let i = 0; i < hull.length; i++) {
     const a = hull[i];
@@ -200,8 +200,8 @@ export function bufferedHullDistance(
     const by = b[0] * M_PER_DEG_LAT;
     const ex = bx - ax;
     const ey = by - ay;
-    // Counter-clockwise ring: a point on the right of any edge is outside.
-    if (ex * (py - ay) - ey * (px - ax) < 0) inside = false;
+    // Even-odd ray cast, so concave area outlines work as well as hulls.
+    if (ay > py !== by > py && px < ax + ((py - ay) * ex) / ey) inside = !inside;
     const len2 = ex * ex + ey * ey;
     const t = len2 > 0 ? Math.max(0, Math.min(1, ((px - ax) * ex + (py - ay) * ey) / len2)) : 0;
     const dx = px - (ax + ex * t);
@@ -213,14 +213,16 @@ export function bufferedHullDistance(
 }
 
 /**
- * Outline of the hull grown by `bufferM`: each corner swept by a circle, then
- * hulled. Same shape `bufferedHullDistance` tests against.
+ * Outline of the convex hull grown by `bufferM`: each corner swept by a
+ * circle, then hulled. Same shape `bufferedHullDistance` tests against.
  */
 export function bufferedHullRing(
   hull: readonly [number, number][],
   bufferM: number,
   steps = 10,
 ): [number, number][] {
+  // Area outlines are drawn exactly as they are (no growth, concave kept).
+  if (bufferM <= 0) return hull.slice();
   const oLat = hull[0][0];
   const oLng = hull[0][1];
   const pts: [number, number][] = [];
@@ -234,4 +236,104 @@ export function bufferedHullRing(
     }
   }
   return hullXY(pts).map(([x, y]) => [oLat + y / M_PER_DEG_LAT, oLng + x / M_PER_DEG_LNG]);
+}
+
+// --- block-sized areas (estates, parks, school grounds) --------------------
+
+export type HazardAreaCategory =
+  | 'estate'
+  | 'park'
+  | 'school'
+  | 'campus'
+  | 'hospital'
+  | 'commercial'
+  | 'industrial';
+
+export interface HazardArea {
+  /** OSM way/relation id. */
+  id: string;
+  category: HazardAreaCategory;
+  name?: string;
+  /** Outline, [lat, lng]; may be concave. */
+  ring: [number, number][];
+  lat: number;
+  lng: number;
+}
+
+export interface HazardAreasFile {
+  generated: string;
+  categories: string[];
+  names: string[];
+  /** [osmId, categoryIndex, nameIndex (-1 none), lat5, lng5, dLat5, dLng5, ...] */
+  areas: (string | number)[][];
+}
+
+const AREA_KINDS: ReadonlySet<string> = new Set<HazardAreaCategory>([
+  'estate',
+  'park',
+  'school',
+  'campus',
+  'hospital',
+  'commercial',
+  'industrial',
+]);
+
+let areas: HazardArea[] = [];
+const areaCells = new Map<number, Map<string, HazardArea[]>>();
+
+export function decodeHazardAreas(data: HazardAreasFile): HazardArea[] {
+  const out: HazardArea[] = [];
+  for (const row of data.areas) {
+    const [id, catIdx, nameIdx, ...nums] = row;
+    const category = data.categories[catIdx as number];
+    if (typeof id !== 'string' || !AREA_KINDS.has(category) || nums.length < 6) continue;
+    const ring: [number, number][] = [];
+    let lat = 0;
+    let lng = 0;
+    let cLat = 0;
+    let cLng = 0;
+    for (let i = 0; i + 1 < nums.length; i += 2) {
+      lat += nums[i] as number;
+      lng += nums[i + 1] as number;
+      ring.push([lat / 1e5, lng / 1e5]);
+      cLat += lat / 1e5;
+      cLng += lng / 1e5;
+    }
+    const name = (nameIdx as number) >= 0 ? data.names[nameIdx as number] : undefined;
+    out.push({
+      id,
+      category: category as HazardAreaCategory,
+      ...(name ? { name } : {}),
+      ring,
+      lat: cLat / ring.length,
+      lng: cLng / ring.length,
+    });
+  }
+  return out;
+}
+
+export function installHazardAreas(data: HazardAreasFile | HazardArea[]): void {
+  areas = Array.isArray(data) ? data : decodeHazardAreas(data);
+  areaCells.clear();
+}
+
+export function hazardAreaCount(): number {
+  return areas.length;
+}
+
+/** Areas whose vertex centroid falls in cell (cx, cy), sorted by id. */
+export function hazardAreasInCell(cx: number, cy: number, cellM: number): readonly HazardArea[] {
+  let grid = areaCells.get(cellM);
+  if (!grid) {
+    grid = new Map();
+    for (const a of areas) {
+      const key = `${Math.floor((a.lng * M_PER_DEG_LNG) / cellM)}:${Math.floor((a.lat * M_PER_DEG_LAT) / cellM)}`;
+      const list = grid.get(key);
+      if (list) list.push(a);
+      else grid.set(key, [a]);
+    }
+    for (const list of grid.values()) list.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    areaCells.set(cellM, grid);
+  }
+  return grid.get(`${cx}:${cy}`) ?? [];
 }

@@ -1269,7 +1269,7 @@ const HazardRings = memo(function HazardRings({ hazards, pathIds }: { hazards: H
           id: 'hazard-line-dash',
           type: 'line',
           source: 'hazard-src',
-          filter: ['all', ['!', ['get', 'onPath']], ['!', ['get', 'core']]],
+          filter: ['all', ['!', ['get', 'onPath']], ['!=', ['get', 'core'], true], ['!=', ['get', 'wall'], true]],
           layout: { 'line-join': 'round', 'line-cap': 'round' },
           paint: {
             'line-color': ['get', 'color'],
@@ -1282,7 +1282,7 @@ const HazardRings = memo(function HazardRings({ hazards, pathIds }: { hazards: H
           id: 'hazard-line',
           type: 'line',
           source: 'hazard-src',
-          filter: ['all', ['get', 'onPath'], ['!', ['get', 'core']]],
+          filter: ['all', ['any', ['get', 'onPath'], ['==', ['get', 'wall'], true]], ['!=', ['get', 'core'], true]],
           layout: { 'line-join': 'round', 'line-cap': 'round' },
           paint: { 'line-color': ['get', 'color'], 'line-width': ['get', 'w'], 'line-opacity': ['get', 'op'] },
         },
@@ -1300,6 +1300,8 @@ const HazardRings = memo(function HazardRings({ hazards, pathIds }: { hazards: H
         fop: night ? 0.16 + blob.severity * 0.05 : blob.onPath ? 0.14 + blob.severity * 0.05 : 0.1 + blob.severity * 0.04,
         w: blob.onPath ? 2 : night ? 1.5 : 1.25,
         op: blob.onPath ? 0.9 : 0.5 + blob.severity * 0.12,
+        // Sealed-off areas read as a cordon: hard solid edge, a little more fill.
+        ...(blob.area ? { wall: true, w: blob.onPath ? 2.5 : 1.75, fop: 0.16 + blob.severity * 0.05 } : {}),
       };
       for (const ring of blob.rings) {
         if (ring.length < 3) continue;

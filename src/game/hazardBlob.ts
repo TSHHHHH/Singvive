@@ -35,6 +35,8 @@ export interface HazardBlobDraw {
   theme?: HazardTheme;
   /** OSM ids of the buildings the zone sits on, drawn as a stronger core. */
   cores?: string[];
+  /** A sealed-off block-sized area: drawn with a hard, solid edge. */
+  area?: boolean;
 }
 
 function toXY(lat: number, lng: number, oLat: number, oLng: number): Pt {
@@ -200,6 +202,7 @@ export function hazardBlobDrawList(
       rings: [bufferedHullRing(z.site.hull, z.site.bufferM)],
       theme: z.site.theme,
       cores: z.site.memberIds,
+      area: z.site.area === true,
     });
   }
   return sited.concat(clusterZones(loose).map((group) => {

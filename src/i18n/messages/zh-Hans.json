@@ -1992,6 +1992,15 @@
       "police": "警岗",
       "residential": "组屋"
     },
+    "hazardAreaPlaces": {
+      "estate": "住宅区",
+      "park": "公园",
+      "school": "学校",
+      "campus": "校园",
+      "hospital": "医院",
+      "commercial": "商业区",
+      "industrial": "工业区"
+    },
     "clock": {
       "day": "第 {day} 天",
       "dayShort": "第{day}天",

@@ -3,8 +3,11 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   bufferedHullDistance,
   bufferedHullRing,
+  decodeHazardAreas,
   decodeHazardSites,
+  installHazardAreas,
   installHazardSites,
+  type HazardAreasFile,
   type HazardSitesFile,
 } from './hazardSites';
 import { installZones, type ZonesData } from './playable';
@@ -33,6 +36,22 @@ describe('buffered hull geometry', () => {
     expect(bufferedHullDistance(1.35 - d / M_LAT, 103.8 - d / M_LNG, square, 40)).toBeGreaterThan(0);
   });
 
+  it('handles concave area outlines', () => {
+    // L shape: the notch (north-east quarter) is outside.
+    const L: [number, number][] = [
+      [1.35, 103.8],
+      [1.35, 103.8 + 100 / M_LNG],
+      [1.35 + 50 / M_LAT, 103.8 + 100 / M_LNG],
+      [1.35 + 50 / M_LAT, 103.8 + 50 / M_LNG],
+      [1.35 + 100 / M_LAT, 103.8 + 50 / M_LNG],
+      [1.35 + 100 / M_LAT, 103.8],
+    ];
+    expect(bufferedHullDistance(1.35 + 25 / M_LAT, 103.8 + 75 / M_LNG, L, 0)).toBeLessThan(0);
+    expect(bufferedHullDistance(1.35 + 75 / M_LAT, 103.8 + 25 / M_LNG, L, 0)).toBeLessThan(0);
+    expect(bufferedHullDistance(1.35 + 75 / M_LAT, 103.8 + 75 / M_LNG, L, 0)).toBeCloseTo(25, 0);
+    expect(bufferedHullRing(L, 0)).toEqual(L);
+  });
+
   it('draws the same shape it hit-tests', () => {
     const ring = bufferedHullRing(square, 55);
     expect(ring.length).toBeGreaterThan(12);
@@ -45,12 +64,37 @@ describe('buffered hull geometry', () => {
 describe('zones on real places', () => {
   const file = JSON.parse(readFileSync('public/hazard-sites.json', 'utf8')) as HazardSitesFile;
   const zones = JSON.parse(readFileSync('public/zones.json', 'utf8')) as ZonesData;
+  const areaFile = JSON.parse(readFileSync('public/hazard-areas.json', 'utf8')) as HazardAreasFile;
 
   beforeAll(() => {
     installZones(zones);
     installHazardSites(file);
+    installHazardAreas(areaFile);
   });
-  afterAll(() => installHazardSites([]));
+  afterAll(() => {
+    installHazardSites([]);
+    installHazardAreas([]);
+  });
+
+  it('decodes every baked area into a block-sized outline', () => {
+    const areas = decodeHazardAreas(areaFile);
+    expect(areas.length).toBe(areaFile.areas.length);
+    expect(areas.some((a) => a.name)).toBe(true);
+    for (const a of areas.slice(0, 500)) expect(a.ring.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('seals whole areas off with their real outline', () => {
+    const sealed = near('town-a').concat(near('town-b')).filter((z) => z.site?.area);
+    expect(sealed.length).toBeGreaterThan(0);
+    for (const z of sealed) {
+      expect(z.site!.bufferM).toBe(0);
+      expect(z.site!.memberIds).toEqual([]);
+      // Its own outline is the edge: a vertex sits on it, and nothing leaks far past it.
+      const [lat, lng] = z.site!.hull[0];
+      expect(pointInZone(lat, lng, z)).toBe(true);
+      expect(pointInZone(lat + (z.radiusM * 3) / M_LAT, lng, z)).toBe(false);
+    }
+  });
 
   it('decodes every baked site into a closed hull', () => {
     const sites = decodeHazardSites(file);
@@ -75,7 +119,8 @@ describe('zones on real places', () => {
     for (const z of sited) {
       expect(z.kind).toBe(THEME_KIND[z.site!.theme]);
       expect(z.discs).toEqual([]);
-      // The place itself is always inside its own zone.
+      if (z.site!.area) continue;
+      // A footprint zone always covers the building itself.
       const [lat, lng] = z.site!.hull[0];
       expect(pointInZone(lat, lng, z)).toBe(true);
     }
@@ -88,7 +133,7 @@ describe('zones on real places', () => {
   });
 
   it('keeps the spawn bubble clear of site zones', () => {
-    for (const z of near('town-a').filter((q) => q.site)) {
+    for (const z of near('town-a').filter((q) => q.site && !q.site.area)) {
       const [lat, lng] = z.site!.hull[0];
       const clear = hazardZonesNear('town-a', lat, lng, 0, { lat, lng });
       expect(clear.some((q) => q.id === z.id)).toBe(false);

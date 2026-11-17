@@ -13,9 +13,12 @@ import {
 import { LOST_PRESSURE } from './townField';
 import {
   bufferedHullDistance,
+  hazardAreasInCell,
   hazardSiteNeighbours,
   hazardSitesInCell,
   mergedHull,
+  type HazardArea,
+  type HazardAreaCategory,
   type HazardSite,
   type HazardSiteCategory,
 } from './hazardSites';
@@ -59,18 +62,26 @@ export type HazardTheme =
   | 'collapsed'
   | 'infested';
 
-/** A zone grown from real footprints instead of procedural discs. */
+/**
+ * A zone on a real place instead of procedural discs: either a block-sized
+ * area sealed off whole (`area`: an estate, park, school grounds), or a
+ * building footprint grown by a perimeter.
+ */
 export interface HazardSiteShape {
-  /** Convex hull around the anchor footprint(s), [lat, lng]. */
+  /** Area outline (may be concave), or convex hull around the footprint(s). [lat, lng] */
   hull: [number, number][];
-  /** The zone is the hull grown by this many metres. */
+  /** The zone is the outline grown by this many metres (0 for areas). */
   bufferM: number;
-  /** Anchor POI (OSM id) — the UI names the zone after it. */
+  /** Anchor OSM id — the UI names the zone after it. */
   siteId: string;
-  /** Every footprint inside the zone (anchor first), for drawing the buildings. */
+  /** Building footprints inside the zone (anchor first), drawn as a core. Empty for areas. */
   memberIds: string[];
-  category: HazardSiteCategory;
+  category: HazardSiteCategory | HazardAreaCategory;
   theme: HazardTheme;
+  /** True when the whole zone is a real block-sized area (hard edge, no core). */
+  area?: boolean;
+  /** OSM name of the area, when it has one. */
+  name?: string;
 }
 
 export interface HazardZone {
@@ -363,8 +374,59 @@ export const THEME_KIND: Record<HazardTheme, HazardKind> = {
   infested: 'wildlife_urban',
 };
 
+/** What went wrong across a whole block-sized area. */
+const AREA_THEMES: Record<HazardAreaCategory, [HazardTheme, number][]> = {
+  estate: [['overrun', 45], ['collapsed', 30], ['infested', 25]],
+  park: [['infested', 55], ['overrun', 30], ['flooded', 15]],
+  school: [['quarantine', 75], ['barricaded', 25]],
+  campus: [['quarantine', 60], ['barricaded', 40]],
+  hospital: [['quarantine', 85], ['barricaded', 15]],
+  commercial: [['barricaded', 45], ['overrun', 35], ['flooded', 20]],
+  industrial: [['collapsed', 55], ['barricaded', 25], ['flooded', 20]],
+};
+
+/** Named, distinctive areas are more likely to be the one that went bad. */
+const AREA_PICK_WEIGHT: Record<HazardAreaCategory, number> = {
+  school: 5,
+  hospital: 5,
+  campus: 4,
+  park: 3,
+  commercial: 3,
+  industrial: 2,
+  estate: 2,
+};
+
+function areaZone(id: string, rng: Rng, candidates: readonly HazardArea[], pressure: number): HazardZone {
+  const area = rng.weighted(candidates.map((a) => [a, AREA_PICK_WEIGHT[a.category]] as [HazardArea, number]));
+  const theme = rng.weighted(AREA_THEMES[area.category]);
+  const severity = rollSeverity(rng, pressure);
+  let reach = 0;
+  for (const [a, b] of area.ring) reach = Math.max(reach, haversine(area.lat, area.lng, a, b));
+  return {
+    id,
+    kind: THEME_KIND[theme],
+    severity,
+    discs: [],
+    lat: area.lat,
+    lng: area.lng,
+    radiusM: Math.round(reach),
+    site: {
+      hull: area.ring,
+      bufferM: 0,
+      siteId: area.id,
+      memberIds: [],
+      category: area.category,
+      theme,
+      area: true,
+      ...(area.name ? { name: area.name } : {}),
+    },
+  };
+}
+
 /** Spawn-rate multiplier for cells that hold a real place (see zoneForCell). */
 const SITE_RATE_MULT = 1.8;
+/** Same idea for whole areas; they vary in size, so this is tuned by coverage. */
+const AREA_RATE_MULT = 1.9;
 
 /** Neighbouring blocks / units that fall into the same zone. */
 const SITE_CLUSTER_GAP_M = 90;
@@ -445,9 +507,13 @@ function zoneForCell(
   // A real campus, market or estate in the cell takes the trouble and its shape.
   // Footprint zones are tighter than disc pockets, so they turn up a little
   // more often to keep the same share of town ground dangerous.
-  const sites = isZonesLoaded() ? hazardSitesInCell(cx, cy, CELL_M) : [];
-  const rate = hazardSpawnRate(pressure) * (sites.length > 0 ? SITE_RATE_MULT : 1);
-  if (!rng.chance(rate)) return null;
+  // A whole block-sized area (estate, park, school grounds) is sealed off
+  // first, Dark-Zone style; failing that a single building takes it.
+  const areas = isZonesLoaded() ? hazardAreasInCell(cx, cy, CELL_M) : [];
+  const sites = isZonesLoaded() && areas.length === 0 ? hazardSitesInCell(cx, cy, CELL_M) : [];
+  const mult = areas.length > 0 ? AREA_RATE_MULT : sites.length > 0 ? SITE_RATE_MULT : 1;
+  if (!rng.chance(hazardSpawnRate(pressure) * mult)) return null;
+  if (areas.length > 0) return areaZone(`hz:${cx}:${cy}`, rng.fork('area'), areas, pressure);
   if (sites.length > 0) return siteZone(`hz:${cx}:${cy}`, rng.fork('site'), sites, pressure);
 
   const weights: [HazardKind, number][] = [

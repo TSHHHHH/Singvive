@@ -1,6 +1,11 @@
 import { inPolygon, inSingapore, SG_BOUNDS } from './singapore';
 import { onLandCrossing } from './crossings';
-import { installHazardSites, type HazardSitesFile } from './hazardSites';
+import {
+  installHazardAreas,
+  installHazardSites,
+  type HazardAreasFile,
+  type HazardSitesFile,
+} from './hazardSites';
 
 /**
  * Walkability against the baked land / water / restricted mask
@@ -168,8 +173,9 @@ export function installZones(data: ZonesData): ZonesData {
 }
 
 /**
- * Real places the hazard field can anchor on. Optional: without the file the
- * field falls back to procedural pockets everywhere.
+ * Real places the hazard field can anchor on (building footprints and
+ * block-sized areas). Optional: without the files the field falls back to
+ * procedural pockets everywhere.
  */
 async function loadHazardSites(): Promise<void> {
   try {
@@ -178,6 +184,13 @@ async function loadHazardSites(): Promise<void> {
     installHazardSites((await res.json()) as HazardSitesFile);
   } catch {
     installHazardSites([]);
+  }
+  try {
+    const res = await fetch(`${import.meta.env.BASE_URL}hazard-areas.json`);
+    if (!res.ok) throw new Error(`hazard-areas.json ${res.status}`);
+    installHazardAreas((await res.json()) as HazardAreasFile);
+  } catch {
+    installHazardAreas([]);
   }
 }
 

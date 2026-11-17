@@ -292,7 +292,12 @@ ground for rest; landmarks are not selected as guaranteed indoor spawn shelters.
 - **Open-ground treks** (`game/wilds.ts`): between pins the path crosses seeded ~350 m hazard
   pockets (overlapping discs: horde, patrol, collapse, flood, wildlife). POI travel cards preview
   sensed pockets on the route.
-- **Hazards on real places** (`game/hazardSites.ts`). When a hazard cell holds a real campus,
+- **Sealed-off areas** (`game/hazardSites.ts`, `public/hazard-areas.json`). When a hazard cell holds
+  a block-sized OpenStreetMap area (an estate, park, school grounds, campus, hospital, commercial or
+  industrial block, roughly 120–500 m across), the whole area is sealed off along its real outline,
+  Dark-Zone style, with a hard edge: quarantined school, overrun estate, infested park. These cells
+  spawn 1.9× as often, which keeps the share of dangerous town ground at ~15%.
+- **Hazards on real places** (`game/hazardSites.ts`). Otherwise, when a hazard cell holds a real campus,
   hawker centre, station, police post, store, works or HDB block (`public/hazard-sites.json`), the
   pocket settles on that place instead: its footprint plus a 50–90 m perimeter by severity, named
   for what went wrong (quarantined school, flooded market, barricaded police post, overrun blocks).

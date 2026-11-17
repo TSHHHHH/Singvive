@@ -1992,6 +1992,15 @@
       "police": "police post",
       "residential": "blocks"
     },
+    "hazardAreaPlaces": {
+      "estate": "estate",
+      "park": "park",
+      "school": "school",
+      "campus": "campus",
+      "hospital": "hospital",
+      "commercial": "shopping block",
+      "industrial": "industrial estate"
+    },
     "clock": {
       "day": "Day {day}",
       "dayShort": "D{day}",

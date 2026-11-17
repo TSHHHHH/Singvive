@@ -10,7 +10,8 @@ const GENERIC = /^(industrial unit|warehouse|factory|building)$/i;
 /** "Quarantined school" for a zone on a real place, else the kind label. */
 export function hazardLabel(z: HazardZone, t: T): string {
   if (!z.site) return t(`ui.hazards.${z.kind}.label`);
-  return t(`ui.hazardThemes.${z.site.theme}.label`, { place: t(`ui.hazardPlaces.${z.site.category}`) });
+  const family = z.site.area ? 'hazardAreaPlaces' : 'hazardPlaces';
+  return t(`ui.hazardThemes.${z.site.theme}.label`, { place: t(`ui.${family}.${z.site.category}`) });
 }
 
 export function hazardBlurb(z: HazardZone, t: T): string {
@@ -20,6 +21,7 @@ export function hazardBlurb(z: HazardZone, t: T): string {
 /** The real place a zone sits on ("Fuchun Primary School", "Blk 43"), if it has a useful name. */
 export function hazardPlaceName(z: HazardZone): string | null {
   if (!z.site) return null;
+  if (z.site.area) return z.site.name ?? null;
   const raw = bakedPoiName(z.site.siteId)?.replace(/\s+void deck$/i, '').trim();
   if (!raw || GENERIC.test(raw)) return null;
   return raw;
