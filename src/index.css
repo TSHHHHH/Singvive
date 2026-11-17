@@ -2043,28 +2043,88 @@ body:has([data-dock-resizing='true']) * {
 
 /* Unknown "?" blips rest as small soft dots and grow into the badge on hover,
    when picked, as the here capsule, or when travelling to the cursor would
-   identify them (`is-hinted`, map/useRecognitionHint.ts). Transform and
-   colour only: compositor work, never a map repaint. */
+   identify them (`is-hinted`, map/useRecognitionHint.ts).
+   The grow eases out with a small overshoot; the shrink waits BLIP_HOLD first,
+   so a cursor brushing the edge of the hint radius (or skimming over a dot)
+   doesn't make blips flicker: coming back inside the hold cancels the shrink.
+   The glow, hint ring and "?" are their own layers (mapIcons.ts) so every
+   change is transform or opacity: compositor work, never a map repaint. */
 .blip-unknown {
-  color: transparent;
+  --blip-hold: 120ms;
   transform: scale(0.38);
+  transition: transform 260ms cubic-bezier(0.4, 0, 0.2, 1) var(--blip-hold);
+}
+.blip-unknown > span {
+  position: absolute;
+  pointer-events: none;
+}
+.blip-glow,
+.blip-ring {
+  border-radius: 50%;
+}
+.blip-glow {
+  inset: 0;
   box-shadow: 0 0 10px 3px #e8e5dd66;
-  transition: transform 160ms cubic-bezier(0, 0, 0.25, 1), color 120ms linear, box-shadow 160ms linear;
+  transition: opacity 220ms linear var(--blip-hold);
+}
+/* A hinted blip carries a faint ring: "go there and you'll know what this is". */
+.blip-ring {
+  inset: -2px;
+  box-shadow: 0 0 0 3px #08080a, 0 0 0 4.5px #e8e5dd99;
+  opacity: 0;
+  transform: scale(0.8);
+  transition:
+    opacity 180ms linear var(--blip-hold),
+    transform 260ms cubic-bezier(0.4, 0, 0.2, 1) var(--blip-hold);
+}
+.blip-q {
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #1a1204;
+  opacity: 0;
+  transition: opacity 140ms linear var(--blip-hold);
 }
 .maplibregl-marker:hover > .blip-unknown,
 .maplibregl-marker.is-hinted > .blip-unknown,
 .maplibregl-marker.is-picked > .blip-unknown,
 .player-location .blip-unknown {
-  color: #1a1204;
   transform: none;
-  box-shadow: none;
+  transition: transform 320ms cubic-bezier(0.34, 1.45, 0.64, 1);
 }
-/* A hinted blip carries a faint ring: "go there and you'll know what this is". */
-.maplibregl-marker.is-hinted > .blip-unknown {
-  box-shadow: 0 0 0 3px #08080a, 0 0 0 4.5px #e8e5dd99;
+.maplibregl-marker:hover > .blip-unknown > .blip-glow,
+.maplibregl-marker.is-hinted > .blip-unknown > .blip-glow,
+.maplibregl-marker.is-picked > .blip-unknown > .blip-glow,
+.player-location .blip-unknown > .blip-glow {
+  opacity: 0;
+  transition: opacity 160ms linear;
+}
+.maplibregl-marker:hover > .blip-unknown > .blip-q,
+.maplibregl-marker.is-hinted > .blip-unknown > .blip-q,
+.maplibregl-marker.is-picked > .blip-unknown > .blip-q,
+.player-location .blip-unknown > .blip-q {
+  opacity: 1;
+  transition: opacity 200ms ease-out 70ms;
+}
+.maplibregl-marker.is-hinted > .blip-unknown > .blip-ring {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 220ms ease-out 90ms,
+    transform 320ms cubic-bezier(0.34, 1.45, 0.64, 1) 90ms;
 }
 @media (prefers-reduced-motion: reduce) {
-  .blip-unknown { transition: none; }
+  .blip-unknown,
+  .blip-unknown > span,
+  .maplibregl-marker .blip-unknown,
+  .maplibregl-marker .blip-unknown > span {
+    transition: none !important;
+  }
+}
+.motion-reduce-forced .blip-unknown,
+.motion-reduce-forced .blip-unknown > span {
+  transition: none !important;
 }
 
 /* Film grain over the map ground (MapGrain.tsx): static, under the markers. */

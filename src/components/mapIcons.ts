@@ -112,14 +112,15 @@ export const rumourIcon = (): MapIcon => RUMOUR_ICON;
  *  Rests as a small soft dot so a district full of unknowns stays calm; the
  *  "?" badge grows back on hover, when picked, or as the here capsule
  *  (`.blip-unknown` in index.css). The marker box keeps the full 24px, so
- *  the dot's tap and hover target never shrinks. */
+ *  the dot's tap and hover target never shrinks. The glow, hint ring and "?"
+ *  are separate layers so the grow/shrink animates opacity and transform only. */
 const UNKNOWN_ICON: MapIcon = {
   html: `<div class="blip-unknown" style="
     width:24px;height:24px;border-radius:50%;
     display:flex;align-items:center;justify-content:center;
     font-size:14px;font-weight:700;cursor:pointer;
-    background:#e8e5dd;border:2px solid #ffffff;box-sizing:border-box;
-  ">?</div>`,
+    background:#e8e5dd;border:2px solid #ffffff;box-sizing:border-box;position:relative;
+  "><span class="blip-glow"></span><span class="blip-ring"></span><span class="blip-q">?</span></div>`,
   size: [24, 24],
   anchor: [12, 12],
 };
