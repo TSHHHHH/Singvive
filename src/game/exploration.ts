@@ -8,6 +8,9 @@ export interface ExplorationLead {
   facility?: 'water' | 'shelter' | 'stove';
 }
 
+/** Places a board or map just named, for the guided reveal tour. UI only. */
+export interface RevealTourCue { id: number; sourceId: string; ids: string[] }
+
 type Position = { lat: number; lng: number };
 type Facility = NonNullable<ExplorationLead['facility']>;
 const EXTERIOR_CATEGORIES = new Set<PoiCategory>([
@@ -133,6 +136,85 @@ export function findExplorationLeads(
       ...(facility ? { facility } : {}),
     };
   });
+}
+
+/** How many places one residents' noticeboard names (inclusive). */
+export const NOTICEBOARD_MIN = 5;
+export const NOTICEBOARD_MAX = 12;
+/** Radii tried in turn until the board can name at least NOTICEBOARD_MIN places. */
+const NOTICEBOARD_RADII_M = [800, 1200, 1600] as const;
+/** Of the places named, this many (the most useful) also become logbook leads. */
+const NOTICEBOARD_LEADS = 1;
+
+export interface NoticeboardReading {
+  /** Every place the board names, in the order a tour should visit them. */
+  revealIds: string[];
+  /** The subset that also becomes a lead (bounded by the six-active cap). */
+  leads: ExplorationLead[];
+}
+
+/**
+ * A residents' board names 5–12 nearby places at once: identity only, never
+ * danger, stock or ownership. The count and picks are fixed per seed and
+ * board, so a reload or another day cannot reroll them. Useful places
+ * (reported facilities, survival shops) and nearer ones are named first;
+ * the most useful also become logbook leads while there is room.
+ */
+export function readNoticeboard(
+  seed: string, locations: Record<string, LocationState>, sourceId: string,
+  day: number, existing: ExplorationLead[], excludeId?: string,
+): NoticeboardReading {
+  const none: NoticeboardReading = { revealIds: [], leads: [] };
+  const origin = locations[sourceId];
+  if (!origin || !validDay(day) || origin.localMapRead) return none;
+  if (origin.category !== 'community' && origin.category !== 'residential') return none;
+  if (existing.some(lead => lead.sourceId === sourceId && lead.source === 'noticeboard')) return none;
+  const rng = new Rng(seed).fork(`exploration:${sourceId}:noticeboard`);
+  const want = rng.int(NOTICEBOARD_MIN, NOTICEBOARD_MAX);
+  const used = new Set(existing.map(lead => lead.targetId));
+  const all = Object.values(locations)
+    .filter(loc => loc.id !== sourceId && loc.id !== excludeId && !loc.visited && !loc.discovered
+      && !loc.identified && !used.has(loc.id) && loc.category !== 'waypoint')
+    .map(loc => ({ loc, d: haversine(origin.lat, origin.lng, loc.lat, loc.lng) }))
+    .sort((a, b) => a.loc.id < b.loc.id ? -1 : a.loc.id > b.loc.id ? 1 : 0);
+  let pool: typeof all = [];
+  for (const radius of NOTICEBOARD_RADII_M) {
+    pool = all.filter(c => c.d <= radius);
+    if (pool.length >= want) break;
+  }
+  const ranked = rng.shuffle(pool).map(c => ({ ...c, facility: localFacilityFor(seed, c.loc) }));
+  const tier = (c: typeof ranked[number]) => (c.facility ? 2 : 0) + (SURVIVAL_CATEGORIES.has(c.loc.category) ? 1 : 0);
+  // Stable sort keeps the seeded shuffle within each tier and distance band.
+  ranked.sort((a, b) => tier(b) - tier(a) || Math.floor(a.d / 400) - Math.floor(b.d / 400));
+  const picked = ranked.slice(0, want);
+  if (!picked.length) return none;
+  const slots = Math.max(0, 6 - existing.filter(lead => lead.completedDay === undefined).length);
+  const leads = picked
+    .filter(c => c.facility || SURVIVAL_CATEGORIES.has(c.loc.category))
+    .slice(0, Math.min(slots, NOTICEBOARD_LEADS))
+    .map(({ loc, facility }): ExplorationLead => ({
+      id: `explore:noticeboard:${sourceId}:${loc.id}`, sourceId, targetId: loc.id, source: 'noticeboard', createdDay: day,
+      ...(facility ? { facility } : {}),
+    }));
+  return { revealIds: tourOrder(origin, picked.map(c => c.loc)), leads };
+}
+
+/** Nearest-neighbour walk from the origin, so a camera tour never zigzags. */
+export function tourOrder(origin: Position, sites: LocationState[]): string[] {
+  const left = [...sites];
+  const order: string[] = [];
+  let at: Position = origin;
+  while (left.length) {
+    let best = 0, bestD = Infinity;
+    for (let i = 0; i < left.length; i++) {
+      const d = haversine(at.lat, at.lng, left[i].lat, left[i].lng);
+      if (d < bestD) { bestD = d; best = i; }
+    }
+    const [next] = left.splice(best, 1);
+    order.push(next.id);
+    at = next;
+  }
+  return order;
 }
 
 export function completeExplorationLeads(leads: ExplorationLead[], targetId: string, day: number): ExplorationLead[] {

@@ -972,6 +972,33 @@ shelter and stove benefits. These optional fields and `SavedRun.explorationLeads
 `singvive.run.v7`; old saves normalize to an empty lead list. Save debounce and outline stripping
 are unchanged. At most six active and 24 total leads are kept.
 
+### Guidance system (`src/guide/`)
+
+A reusable, data-driven camera guide; the noticeboard reveal tour is its first user and a
+tutorial can reuse it unchanged.
+
+- `types.ts`: a `GuideSequence` is `steps` + `lock` (`all` shields the screen and swallows
+  hotkeys, `map` shields only `[data-guide-map]`, `none` blocks nothing) + `restoreCamera` +
+  `skippable` + `onEnd`. A `GuideStep` has an optional `shot` (centre / `'player'` / `fit`
+  points, zoom, pitch, bearing, duration), `highlight` point, `callout` (`reveal` pops, `note`
+  fades; anchored over the map or docked in the caption) and an `advance` rule: `timer`, `tap`,
+  or `signal` (game code calls `guide.signal(name)`, e.g. "player opened the bag").
+- `runner.ts`: framework-free state machine (`play` queues behind a running sequence, `arrived`,
+  `next`, `signal`, `skip`, `cancel`). Injected clock, unit-tested. If no camera reports arrival
+  it moves on after the shot duration + 1.5 s, so a hidden map never hangs a sequence.
+- `guide.ts`: the page singleton + `useGuideState()`; `window.__guide` in DEV.
+- `GuideMapAdapter.tsx` (inside `MapView`): one `flyTo` / `jumpTo` per step tagged
+  `cameraFocus`, so the travel chase and `CameraChrome` hand over exactly as for a log focus;
+  current HUD padding is respected (`cameraForBounds` adds to it). Snapshots and restores the
+  view. Anchored call-outs live in a fixed layer above the HUD and follow the point on map
+  `move` only. A holding step makes no camera calls: the ring and pop are CSS transform /
+  opacity on DOM, so the map goes back to zero renders once the post-move POI refresh settles.
+- `GuideOverlay.tsx` (in `GameScreen`): shield, caption with progress, Next / Skip, keyboard
+  capture, joins `modalStack` so rail and camera hotkeys stand down.
+- `revealTour.ts` builds the tour from the store's UI-only `revealTour` cue (never persisted);
+  `useRevealTour` plays it (phone switches to the Map tab) and `useGuideInterrupts` cancels any
+  guide on combat, an event, a trek or leaving the run.
+
 `StashLogbook` now lists active/visited leads and remembered facility types alongside caches.
 Its existing camera callback closes the panel and switches phones to Map; `CameraChrome` combines
 padding and focus in one command, zooming to at least level 16 without a closing panel cancelling

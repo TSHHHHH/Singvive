@@ -171,4 +171,24 @@ describe('local exploration store integration', () => {
     expect(arrived.locations.neighbour.visited).not.toBe(true);
     expect(arrived.nearbyRecognition).toEqual(['neighbour']);
   });
+
+  it('a noticeboard names 5–12 places, cues the tour once and never persists the cue', () => {
+    const many = Object.fromEntries(Array.from({ length: 16 }, (_, i) =>
+      [`n${i}`, site(`n${i}`, 0.0004 * (i + 1), i % 2 ? 'clinic' : 'housing')]));
+    useGame.setState({ locations: { source: { ...site('source', 0, 'residential'), discovered: true, visited: true }, ...many } });
+    useGame.getState().readLocalMap();
+    const s = useGame.getState();
+    const named = Object.values(s.locations).filter((loc) => loc.identified && loc.id !== 'source');
+    expect(named.length).toBeGreaterThanOrEqual(5);
+    expect(named.length).toBeLessThanOrEqual(12);
+    expect(named.every((loc) => !loc.discovered && loc.lastSeen === null)).toBe(true);
+    expect(s.revealTour?.ids.slice().sort()).toEqual(named.map((loc) => loc.id).sort());
+    expect(s.explorationLeads.length).toBeLessThanOrEqual(1);
+    flushPersist();
+    expect(JSON.parse(localStorage.getItem('singvive.run.v7')!)).not.toHaveProperty('revealTour');
+    useGame.getState().dismissRevealTour(s.revealTour!.id + 1);
+    expect(useGame.getState().revealTour).toBe(s.revealTour);
+    useGame.getState().dismissRevealTour(s.revealTour!.id);
+    expect(useGame.getState().revealTour).toBeNull();
+  });
 });

@@ -10,6 +10,7 @@ import { poiIcon, identifiedIcon, playerIcon, playerLocationIcon, unknownIcon, e
 import { POI_CONFIG } from '../game/poi';
 import { haversine } from '../game/overpass';
 import { visibilityOf } from '../game/fog';
+import { GuideMapAdapter } from '../guide/GuideMapAdapter';
 import { FogOverlay } from './FogOverlay';
 import type { ExploredCircle } from '../game/fog';
 import type { TravelAnim } from '../game/store';
@@ -1812,7 +1813,7 @@ function GameMapInner({
   const toggle3d = () => setSetting('mapView3d', view3d ? 'off' : 'on');
 
   return (
-    <div className="relative h-full w-full">
+    <div className="relative h-full w-full" data-guide-map="">
       <MapView
         center={home}
         zoom={initial.zoom}
@@ -1885,6 +1886,7 @@ function GameMapInner({
           veilAlpha={veilAlpha}
         />
         {showMrt && net && <MrtOverlay net={net} />}
+        <GuideMapAdapter />
       </MapView>
 
       {/* ---- 3D + rail network toggles (phone; desktop keeps them on the rail), rail legend ---- */}

@@ -48,6 +48,8 @@ import { canCraft, RECIPES } from '../game/crafting';
 import { DayLogsModal } from '../components/DayLogsModal';
 import { GuideModal } from '../components/GuideModal';
 import { DiceRoll } from '../components/DiceRoll';
+import { GuideOverlay } from '../guide/GuideOverlay';
+import { useGuideInterrupts, useRevealTour } from '../guide/useRevealTour';
 import { HowToPlayModal } from '../components/HowToPlayModal';
 import { LimbCoachModal } from '../components/LimbCoachModal';
 import { HdbDungeonModal } from '../components/HdbDungeonModal';
@@ -430,6 +432,10 @@ export function GameScreen() {
     setSidePanel(null);
     setMobileView(tab);
   }, []);
+
+  // A board or map that names places tours them; on the phone, from the Map tab.
+  useRevealTour(useCallback(() => goToPhoneTab('map'), [goToPhoneTab]));
+  useGuideInterrupts();
 
   const focusStashOnMap = useCallback((lat: number, lng: number) => {
     setMapFocus((prev) => ({ lat, lng, token: (prev?.token ?? 0) + 1 }));
@@ -2052,6 +2058,7 @@ export function GameScreen() {
       {dayLogsOpen && <DayLogsModal onClose={() => setDayLogsOpen(false)} />}
       {guideTopic && <GuideModal topic={guideTopic} onClose={() => setGuideTopic(null)} />}
       <DiceRoll />
+      <GuideOverlay />
       {howToPlayOpen && <HowToPlayModal onClose={() => setHowToPlayOpen(false)} />}
       {restOpen && <RestDialog onClose={closeRest} />}
       <LimbCoachModal bodyParts={bodyParts} onOpenGuide={setGuideTopic} />
