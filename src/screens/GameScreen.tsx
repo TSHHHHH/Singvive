@@ -61,6 +61,7 @@ import { MrtRoutePlanner } from '../components/MrtRoutePlanner';
 import { TunnelRunView } from '../components/TunnelRunView';
 import type { GuideTopic } from '../content/guideContent';
 import { useSetting, useSettings } from '../game/settings';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 import { LogTicker } from '../components/LogTicker';
 import { isModalOpen } from '../components/modalStack';
 import { itemDef } from '../game/loot';
@@ -221,6 +222,8 @@ const HUD_GAP = 12;
 const HUD_EDGE = 16;
 const SLIDE_OUT_W = 360;
 const INSPECTOR_W = 352;
+/** The open-map here / target inspector's widest size (44rem), px. */
+const INSPECTOR_MAX_W = 704;
 /** Bottom-anchored desktop HUD clears MapLibre's ~24px attribution bar, px. */
 const HUD_BOTTOM = 32;
 /** Extra breathing room between the expanded timeline and map attribution. */
@@ -953,6 +956,7 @@ export function GameScreen() {
   const vw = useViewportWidth();
   const setSetting = useSettings((s) => s.setSetting);
   const timelinePinned = useSetting('timelinePinned') === 'on';
+  const reducedMotion = useReducedMotion();
   const [activityFocus, setActivityFocus] = useState<{ id: string | null; nonce: number }>();
   const openActivityTimeline = () => {
     const state = useGame.getState();
@@ -968,15 +972,39 @@ export function GameScreen() {
   const mapW = vw - railW;
   // Preserve the pin preference, but let idle history compact while a tool
   // needs the space. Live decisions still take priority over browsing panels.
-  const timelineFits = isPhone || !sidePanel || mapW >= SLIDE_OUT_W + INSPECTOR_W + tlW + HUD_EDGE * 2 + HUD_GAP;
+  // The here / target inspector sits bottom-right with one width whichever dock
+  // panel is open: it is sized up front to leave a standard panel its room, so
+  // opening or closing a panel neither slides nor rewraps it (it used to ride
+  // the panel's edge and squeeze, a 300-750 px jump). Only where even its
+  // narrowest size can't clear the panel does it slide aside (inspectorShift).
+  const timelineWanted =
+    !isPhone && (timelinePinned || inCombat || awaitingStance || !!pendingEvent || searchNonce !== null);
+  const inspectorReserve = timelineWanted ? tlW + HUD_GAP : 0;
+  const inspectorRoomed = mapW - SLIDE_OUT_W - HUD_EDGE * 2 - inspectorReserve;
+  // Too narrow to leave a panel its room (a pinned timeline on a laptop): the
+  // card will slide aside anyway, so keep it as wide as both spots allow.
+  const inspectorW =
+    inspectorRoomed >= INSPECTOR_W
+      ? Math.min(INSPECTOR_MAX_W, inspectorRoomed)
+      : Math.max(
+          INSPECTOR_W,
+          Math.min(INSPECTOR_MAX_W, mapW - HUD_EDGE * 2 - inspectorReserve, mapW - SLIDE_OUT_W - HUD_EDGE * 2),
+        );
+  const timelineFits = isPhone || !sidePanel || mapW >= SLIDE_OUT_W + inspectorW + tlW + HUD_EDGE * 2 + HUD_GAP;
   const timelineFull =
     (timelinePinned && timelineFits) || inCombat || awaitingStance || !!pendingEvent || searchNonce !== null;
   const timelineBeside = timelineFull && timelineFits;
   const timelineStacked = timelineFull && !timelineFits;
   const slideOutW = wideSlideOut
-    ? Math.max(SLIDE_OUT_W, Math.min(640, mapW - INSPECTOR_W - HUD_EDGE * 2 - (timelineBeside ? tlW + HUD_GAP : 0)))
+    ? Math.max(SLIDE_OUT_W, Math.min(640, mapW - inspectorW - HUD_EDGE * 2 - inspectorReserve))
     : SLIDE_OUT_W;
   const panelInset = !isPhone && sidePanel ? slideOutW : 0;
+  const inspectorRight = HUD_EDGE + inspectorReserve;
+  /** Narrow screens only: how far right the inspector eases to clear an open panel. */
+  const inspectorShift = Math.max(
+    0,
+    Math.min(panelInset + HUD_EDGE - (mapW - inspectorRight - inspectorW), inspectorRight - HUD_EDGE),
+  );
 
   const activateRail = useCallback(
     (id: RailKey) => {
@@ -1874,11 +1902,15 @@ export function GameScreen() {
               )}
               {edgeInspector && (hereSlot || targetSlot) && (
                 <div
-                  className="pointer-events-none absolute z-[705] w-[44rem] max-w-[calc(100%-2rem)] transition-[left,max-width] duration-200 motion-reduce:transition-none"
+                  className="pointer-events-none absolute z-[705]"
                   style={{
-                    left: HUD_EDGE + panelInset,
+                    right: inspectorRight,
                     bottom: HUD_BOTTOM,
-                    maxWidth: mapW - panelInset - HUD_EDGE * 2 - (timelineBeside ? tlW + HUD_GAP : 0),
+                    width: inspectorW,
+                    maxWidth: mapW - HUD_EDGE * 2,
+                    // Same curve and length as the slide-out, so it reads as one move.
+                    transform: inspectorShift ? `translateX(${inspectorShift}px)` : undefined,
+                    transition: reducedMotion ? undefined : 'transform 200ms ease-out',
                   }}
                   data-location-inspector
                 >
