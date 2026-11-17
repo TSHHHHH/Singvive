@@ -329,6 +329,13 @@ import {
   pruneMapAnnotations,
 } from './intel';
 import { applyStartingFactionIntel } from './startingIntel';
+import {
+  MAX_ACTIVE_BOUNTIES,
+  bountyBoard,
+  bountyProgress,
+  migrateBounties,
+  type ActiveBounty,
+} from './bounties';
 import { resolveStartingKit, type KitLine } from './startingKit';
 import { tickLocationClock } from './locationClock';
 import { POI_CONFIG } from './poi';
@@ -344,6 +351,8 @@ import {
   factionShelters,
   factionTrades,
   hasFactionClearance,
+  STANDING_BAD,
+  STANDING_HATED,
   isOutpostSite,
   locationServices,
   migrateOutposts,
@@ -699,7 +708,7 @@ interface State {
   /**
    * Which site is each faction's outpost — the one place of theirs that is a
    * destination rather than a door. Fixed at world-build and saved with the
-   * run, because "walk two kilometres to the Gotong kitchen" is only a plan if
+   * run, because "walk two kilometres to the Kampung Kitchen kitchen" is only a plan if
    * the market is still there after a reload.
    */
   outposts: OutpostIds;
@@ -711,8 +720,12 @@ interface State {
    * chalked lines are the day's stock, not a shop's shelves.
    */
   traderTaken: Record<string, string[]>;
+  /** Faction jobs in hand. */
+  bounties: ActiveBounty[];
+  /** Board line ids already taken (or finished) — a job is posted once. */
+  bountiesTaken: string[];
   /**
-   * One-shot Muster escort: the next travel to `toId` is walked with a patrol.
+   * One-shot Citizen Watch escort: the next travel to `toId` is walked with a patrol.
    * Runtime + save — a reload mid-walk should not refund the tribute.
    */
   escort: { toId: string } | null;
@@ -773,7 +786,7 @@ interface State {
   tunnelDeclineOffer: () => void;
   /** Stalled consist: drop under or smash through the cars. */
   tunnelCarriage: (choice: CarriageChoice) => void;
-  /** STA in the bore: pay tribute or sneak past. */
+  /** Wardens in the bore: pay tribute or sneak past. */
   tunnelCheckpoint: (choice: CheckpointChoice) => void;
   /** Abandon leftover temp-crawl stash and resume. */
   confirmTempStash: () => void;
@@ -788,12 +801,18 @@ interface State {
   factionAid: () => void;
   /** Intel / rumor at a site that offers it (Known+). Once per day. */
   factionIntel: () => void;
-  /** Gotong canteen — eat/drink on site. Once per day. Known+. */
+  /** Kampung Kitchen canteen — eat/drink on site. Once per day. Known+. */
   factionFeed: () => void;
-  /** Muster escort to a discovered site within range. Known+. One-shot. */
+  /** Citizen Watch escort to a discovered site within range. Known+. One-shot. */
   factionEscort: (destinationId: string) => void;
   /** 88 Kin: walk an occupied residential block (once per site). */
   searchKinDeck: () => void;
+  /** Take a job off the board at the faction site you're standing at. */
+  acceptBounty: (offerId: string) => void;
+  /** Hand in a finished job at any site of that faction. */
+  turnInBounty: (bountyId: string) => void;
+  /** Drop a job you no longer want. */
+  abandonBounty: (bountyId: string) => void;
   resolveEvent: (choiceId: string) => void;
   /** Advance the active sequential search (RAF from the timeline UI). */
   tickSearch: () => void;
@@ -1157,7 +1176,8 @@ export const useGame = create<State>((set, get) => {
     const bonus = sumTraitMod(s.character!.traitIds, 'checkBonusMod');
     const res = rollCheck(rng, attrValue, dc, bonus);
     rollSeq += 1;
-    set({ shownRoll: { ...res, id: rollSeq, attr, attrValue, bonus, label } });
+    const logMark = s.log[0]?.id ?? 0;
+    set({ shownRoll: { ...res, id: rollSeq, attr, attrValue, bonus, label, logMark } });
     return res;
   };
 
@@ -1369,6 +1389,8 @@ export const useGame = create<State>((set, get) => {
         factionStanding: s.factionStanding,
         outposts: s.outposts,
         traderTaken: s.traderTaken,
+        bounties: s.bounties,
+        bountiesTaken: s.bountiesTaken,
         escort: s.escort,
         mapAnnotations: s.mapAnnotations,
         explorationLeads: s.explorationLeads,
@@ -2491,7 +2513,7 @@ export const useGame = create<State>((set, get) => {
     if (!loc?.factionId) return;
     const id = loc.factionId;
     shiftStanding(id, -1);
-    // Cross-tension: going against the Muster is a gift to the 88, and vice versa.
+    // Cross-tension: going against the Citizen Watch is a gift to the 88, and vice versa.
     if (id === 'muster') shiftStanding('syndicate_88', 1);
     else if (id === 'syndicate_88') shiftStanding('muster', 1);
   };
@@ -2572,6 +2594,17 @@ export const useGame = create<State>((set, get) => {
       if (hasFactionClearance(loc, s.factionStanding, s.day)) {
         pushLog(
           `${FACTION_CONFIG[loc.factionId].shortName} let you on the grounds. No scavenging here — talk to them.`,
+          'info',
+          undefined,
+          undefined,
+          scope,
+        );
+        return;
+      }
+      // Members-only doors don't sell entry. Standing, or work for it.
+      if (loc.gatePolicy === 'members' && s.factionStanding[loc.factionId] > STANDING_BAD) {
+        pushLog(
+          `${FACTION_CONFIG[loc.factionId].shortName} don't open this door to strangers. Ask about work at the gate.`,
           'info',
           undefined,
           undefined,
@@ -2997,7 +3030,7 @@ export const useGame = create<State>((set, get) => {
 
   /**
    * Move a faction's opinion of you. Lifted out of the event interpreter so
-   * anything can spend or earn goodwill — the tunnel camps are STA people, and
+   * anything can spend or earn goodwill — the tunnel camps are Wardens people, and
    * how you treat them counts the same as how you treat their turnstiles.
    */
   const shiftStanding = (id: Exclude<FactionId, null>, delta: number) => {
@@ -3414,13 +3447,13 @@ export const useGame = create<State>((set, get) => {
       return;
     }
 
-    // ---- STA in the bore ------------------------------------------------
+    // ---- Wardens in the bore ------------------------------------------------
     if (node.kind === 'checkpoint') {
       const after = tunnelTick(meta.minutes / 60);
       if (!after) return;
       if ((get().factionStanding.sta ?? 0) >= STANDING_TRUSTED) {
         set({ tunnel: markDone(after, nodeId) });
-        pushLog(`${node.name}: they know the face. STA wave you through.`, 'good', undefined, undefined, nodeScope);
+        pushLog(`${node.name}: they know the face. Wardens wave you through.`, 'good', undefined, undefined, nodeScope);
         persist();
         return;
       }
@@ -3861,6 +3894,8 @@ export const useGame = create<State>((set, get) => {
     outposts: {},
     trader: null,
     traderTaken: {},
+    bounties: [],
+    bountiesTaken: [],
     escort: null,
     mapAnnotations: [],
     explorationLeads: [],
@@ -4093,6 +4128,8 @@ export const useGame = create<State>((set, get) => {
         factionStanding: startingStanding(get().character!.traitIds),
         escort: null,
         traderTaken: {},
+        bounties: [],
+        bountiesTaken: [],
       });
       for (const loc of startingIntel.revealed) {
         if (!loc.factionId) continue;
@@ -4250,7 +4287,7 @@ export const useGame = create<State>((set, get) => {
       if (get().escort?.toId === loc.id) {
         set({ escort: null });
         pushLog(
-          `Two of the Muster walk you as far as ${loc.name}. They peel off at the door.`,
+          `Two of the Citizen Watch walk you as far as ${loc.name}. They peel off at the door.`,
           'good',
         );
       }
@@ -4806,7 +4843,7 @@ export const useGame = create<State>((set, get) => {
         danger: nodeThreat(node),
         tunnel: { nodeId: node.id, lootMod: 0 },
         key: tunnelKey(run, `sta:${node.id}`),
-        intro: `An STA marshal draws on you in ${node.name}.`,
+        intro: `A Warden marshal draws on you in ${node.name}.`,
       });
     },
 
@@ -5123,7 +5160,7 @@ export const useGame = create<State>((set, get) => {
         },
       });
       pushLog(
-        'Gotong sits you down. Hot rice, a mug of something boiled, and a few minutes that are not the street.',
+        'Kampung Kitchen sits you down. Hot rice, a mug of something boiled, and a few minutes that are not the street.',
         'good',
       );
       persist();
@@ -5178,9 +5215,71 @@ export const useGame = create<State>((set, get) => {
         escort: { toId: dest.id },
       });
       pushLog(
-        `The Muster take ${itemDef(tributeId).name} and fall in. They will walk you to ${dest.name}.`,
+        `The Citizen Watch take ${itemDef(tributeId).name} and fall in. They will walk you to ${dest.name}.`,
         'good',
       );
+      persist();
+    },
+
+    acceptBounty: (offerId) => {
+      const s = get();
+      const loc = s.currentPositionId ? s.locations[s.currentPositionId] : null;
+      if (!loc?.factionId || s.factionStanding[loc.factionId] <= STANDING_HATED) return;
+      if (s.bounties.length >= MAX_ACTIVE_BOUNTIES) {
+        pushLog(`You already carry ${MAX_ACTIVE_BOUNTIES} jobs. Finish or drop one first.`, 'bad');
+        return;
+      }
+      if (s.bountiesTaken.includes(offerId)) return;
+      const offer = bountyBoard(s.seed, loc, s.day, s.locations).find((o) => o.id === offerId);
+      if (!offer) return;
+      const bounty: ActiveBounty = { ...offer, acceptedDay: s.day, killsAtAccept: s.kills };
+      let locations = s.locations;
+      if (offer.kind === 'scout' && offer.targetId && locations[offer.targetId]) {
+        // A job you can't find is no job: they point it out on your map.
+        locations = { ...locations, [offer.targetId]: { ...locations[offer.targetId], discovered: true } };
+      }
+      set({ bounties: [...s.bounties, bounty], bountiesTaken: [...s.bountiesTaken, offerId], locations });
+      pushLog(`${FACTION_CONFIG[loc.factionId].shortName} put you on a job.`, 'info', undefined, undefined, siteLogScope(loc.id));
+      persist();
+    },
+
+    turnInBounty: (bountyId) => {
+      const s = get();
+      const b = s.bounties.find((x) => x.id === bountyId);
+      const loc = s.currentPositionId ? s.locations[s.currentPositionId] : null;
+      if (!b || !loc || loc.factionId !== b.factionId) return;
+      const carried = (defId: string) =>
+        s.items.filter((i) => isCarried(i.container) && i.defId === defId).reduce((n, i) => n + i.stack, 0);
+      if (!bountyProgress(b, { kills: s.kills, locations: s.locations, carried }).done) return;
+      let items = s.items;
+      if (b.kind === 'deliver' && b.defId) {
+        for (let i = 0; i < b.count; i++) items = consumeOneOf(items, b.defId);
+      }
+      items = addToCarry(items, b.rewardDefId, b.rewardCount).items;
+      let locations = s.locations;
+      if (b.passDays) {
+        const pass = s.day + b.passDays;
+        for (const id of new Set([b.siteId, loc.id])) {
+          const l = locations[id];
+          if (l) locations = { ...locations, [id]: { ...l, tollPaidThroughDay: Math.max(l.tollPaidThroughDay ?? -1, pass) } };
+        }
+      }
+      set({ items, locations, bounties: s.bounties.filter((x) => x.id !== bountyId) });
+      shiftStanding(b.factionId, b.rewardStanding);
+      pushLog(
+        `${FACTION_CONFIG[b.factionId].shortName} pay out: ${b.rewardCount}× ${itemDef(b.rewardDefId).name}.`,
+        'good',
+        undefined,
+        undefined,
+        siteLogScope(loc.id),
+      );
+      persist();
+    },
+
+    abandonBounty: (bountyId) => {
+      const s = get();
+      if (!s.bounties.some((b) => b.id === bountyId)) return;
+      set({ bounties: s.bounties.filter((b) => b.id !== bountyId) });
       persist();
     },
 
@@ -7967,6 +8066,8 @@ export const useGame = create<State>((set, get) => {
         })(),
         trader: null,
         traderTaken: migrateTraderTaken(run.traderTaken),
+        bounties: migrateBounties(run.bounties),
+        bountiesTaken: Array.isArray(run.bountiesTaken) ? run.bountiesTaken.filter((x): x is string => typeof x === 'string') : [],
         escort: run.escort?.toId ? { toId: run.escort.toId } : null,
         // The timeline is the run's memory — a resumed run keeps every day of it.
         log: run.log ?? [],

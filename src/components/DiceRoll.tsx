@@ -7,6 +7,7 @@ import { useReducedMotion } from '../hooks/useReducedMotion';
 import { Icon } from '../icons/Icon';
 import { useT } from '../i18n';
 import { sfx } from '../audio/sfx';
+import { markRollRevealed } from '../ui/diceGate';
 
 // ---------------------------------------------------------------------------
 // The d20, on screen.
@@ -15,6 +16,10 @@ import { sfx } from '../audio/sfx';
 // a result that is already decided (store.shownRoll). The die tumbles through
 // a few faces, lands on the real roll, then the sum and the verdict stamp in.
 // Any tap or key skips ahead: first to the landed result, then away.
+//
+// Until the verdict, the rest of the screen keeps showing the world from
+// before the roll (diceGate): the backdrop hides panels that changed behind
+// it, and logs, vitals, clock and sounds hold what the roll caused.
 // ---------------------------------------------------------------------------
 
 /** Gaps between face flips while tumbling — decelerating, ~0.8 s in all. */
@@ -82,6 +87,12 @@ function DiceOverlay({ roll }: { roll: ShownRoll }) {
     [roll, dismissRoll, still],
   );
 
+  // The verdict is the moment the outcome may show. (Closing the overlay
+  // clears shownRoll, which releases it too.)
+  useEffect(() => {
+    if (phase === 'verdict') markRollRevealed(roll.id);
+  }, [phase, roll.id]);
+
   // Sound follows the animation: tumble, land, then the verdict.
   useEffect(() => {
     if (phase === 'tumble') sfx.play('dice.tumble');
@@ -142,7 +153,9 @@ function DiceOverlay({ roll }: { roll: ShownRoll }) {
         roll.success ? t('ui.dice.success') : t('ui.dice.failure')
       }`}
       onClick={skip}
-      className="dice-backdrop fixed inset-0 z-[1100] flex cursor-pointer items-center justify-center bg-black/55 p-4"
+      className={`dice-backdrop fixed inset-0 z-[1100] flex cursor-pointer items-center justify-center p-4 transition-[background-color,backdrop-filter] duration-300 ${
+        showVerdict ? 'bg-black/55' : 'bg-black/85 backdrop-blur-sm'
+      }`}
     >
       <div className="flex w-full max-w-[18rem] flex-col items-center gap-3 border border-white/15 bg-concrete-900/95 px-5 py-5 text-center shadow-signage">
         <div className="text-label uppercase tracking-wide text-white/55">{roll.label}</div>

@@ -1346,6 +1346,11 @@ export interface ShownRoll extends CheckResult {
   bonus: number;
   /** What the roll was for, in the player's words ("Pry it open"). */
   label: string;
+  /**
+   * Newest log id when the roll was made. Lines after it are the roll's
+   * outcome, which the UI holds back until the die has landed.
+   */
+  logMark: number;
 }
 
 /** Resolve an attribute check: d20 + attribute vs DC (natural 20 always passes). */

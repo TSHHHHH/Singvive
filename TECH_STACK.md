@@ -98,7 +98,7 @@ The existing `ConditionPanel` hosts compact care rows and the medical silhouette
 |---|---|
 | Framework | React 19 + TypeScript 6 + Vite 8 |
 | Map | **MapLibre GL JS** v5 (WebGL, plain — no React wrapper; `src/map/`), **CARTO "Dark Matter" vector style** (keyless; OpenFreeMap Dark as fallback), GeoJSON overlays in ordered slots, polygon fog (`polygon-clipping`), 3D building extrusions |
-| Real data | OpenStreetMap → `public/pois.json` (`bake:pois`), `public/mrt.json` (`bake:mrt`), `public/zones.json` (`bake:zones`); URA planning areas → `public/towns.json` (`bake:towns`); live Overpass as POI runtime fallback |
+| Real data | OpenStreetMap → `public/pois.json` (`bake:pois`), `public/mrt.json` (`bake:mrt`), `public/zones.json` (`bake:zones`), `public/hazard-sites.json` (`bake:hazard-sites`, derived from the POI bake); URA planning areas → `public/towns.json` (`bake:towns`); live Overpass as POI runtime fallback |
 | State | Zustand 5 (single store); `window.__game` in DEV |
 | Inventory DnD | Custom pointer-drag over a cell grid (backpack ↔ stash ↔ equipment) |
 | Determinism | `seedrandom`, wrapped in a forkable `Rng` (cosmetic flavour text may use `Math.random`) |
@@ -654,6 +654,45 @@ Regression tests use the committed `public/zones.json` for both directions and m
 The spawn terrain wash subtracts those same deck corridors from sea and inland-water tint through
 `src/map/crossingGeometry.ts`, so the map does not paint a traversable bridge as blocked water.
 Restricted-area tint stays intact; the cutout geometry is cached with the terrain, not rebuilt per frame.
+
+### Refreshing hazard sites
+
+```bash
+npm run bake:hazard-sites
+```
+
+Rewrites `public/hazard-sites.json` — the footprints the wilds field can turn into themed hazard
+zones (school campuses, hawker centres, MRT stations, police posts, stores, industrial units, HDB
+blocks), as delta-encoded convex hulls. Derived offline from the committed POI bake (`pois.json` +
+`poi-data/`), so no network; re-run after `bake:pois` / `pack:pois` changes the POI revision.
+`ensureZonesLoaded()` fetches it with `zones.json`; if it is missing the field falls back to disc
+pockets everywhere. Manual, committed, never part of `npm run build`.
+
+### Refreshing hazard areas
+
+```bash
+npm run bake:hazard-areas
+npm run bake:hazard-areas -- --from tmp/hazard-areas/osm-areas.json   # reuse a download
+```
+
+Rewrites `public/hazard-areas.json` — block-sized OpenStreetMap outlines (residential estates,
+parks, school grounds, campuses, hospitals, commercial/retail and industrial blocks, filtered to
+roughly 120–500 m across) that the wilds field seals off whole. Fetches from Overpass and caches
+the raw response in `tmp/hazard-areas/`. overpass-api.de answers a bare client with HTTP 406, so
+the script sends a User-Agent and `Accept: application/json`. Manual, committed, never part of
+`npm run build`.
+
+### Refreshing district lines
+
+```bash
+npm run bake:subzones
+npm run bake:subzones -- --from tmp/hazard-areas/subzones.geojson
+```
+
+Rewrites `public/subzones.json` — URA Master Plan 2019 subzone borders (332 subzones) as
+deduplicated, simplified polylines (each shared border once). `DistrictLines` draws them as thin
+pale lines over the run map from z11.7 up, above the fog, set once (no idle renders). Same rules:
+manual, committed, never part of `npm run build`.
 
 ### Refreshing planning areas
 

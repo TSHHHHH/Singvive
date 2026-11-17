@@ -2,6 +2,7 @@ import { HAZARD_CONFIG, type HazardZone } from '../game/wilds';
 import { Dots } from './placeCard';
 import { tip } from './tips';
 import { useT } from '../i18n';
+import { hazardBlurb, hazardLabel, hazardPlaceName } from './hazardName';
 
 /**
  * Named pockets on a quoted route — used by TrekCard and LocationCard. Sits in
@@ -14,18 +15,23 @@ export function HazardOnRoute({ hazards, concise = false }: { hazards: HazardZon
     <div className="flex flex-col gap-1">
       {hazards.map((z) => {
         const cfg = HAZARD_CONFIG[z.kind];
+        const blurb = hazardBlurb(z, t);
+        const place = hazardPlaceName(z);
         return (
           <div
             key={z.id}
             className="rounded border bg-black/30 px-2 py-1.5 text-body"
             style={{ borderColor: `${cfg.color}66` }}
-            {...tip(concise ? t(`ui.hazards.${z.kind}.blurb`) : undefined)}
+            {...tip(concise ? blurb : undefined)}
           >
             <div className="flex items-center justify-between gap-3 font-semibold" style={{ color: cfg.color }}>
-              <span className="min-w-0">{t(`ui.hazards.${z.kind}.label`)}</span>
+              <span className="min-w-0">
+                {hazardLabel(z, t)}
+                {place && <span className="font-normal text-concrete-400"> · {place}</span>}
+              </span>
               <Dots filled={z.severity} of={3} />
             </div>
-            {!concise && <div className="text-concrete-400">{t(`ui.hazards.${z.kind}.blurb`)}</div>}
+            {!concise && <div className="text-concrete-400">{blurb}</div>}
           </div>
         );
       })}

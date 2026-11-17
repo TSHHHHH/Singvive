@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useGame } from '../game/store';
+import { useShownLog } from '../ui/diceGate';
 import { useClockFormat } from '../game/settings';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useT } from '../i18n';
@@ -35,7 +36,7 @@ export function LogTicker({
   onFocusMap?: (lat: number, lng: number) => void;
 }) {
   const { locale, t } = useT();
-  const log = useGame((s) => s.log);
+  const log = useShownLog();
   const day = useGame((s) => s.day);
   const clock = useClockFormat();
   const reduced = useReducedMotion();

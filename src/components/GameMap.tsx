@@ -20,11 +20,14 @@ import { useReducedMotion } from '../hooks/useReducedMotion';
 import type { NoisePulse } from '../game/noise';
 import { HAZARD_CONFIG, type HazardZone } from '../game/wilds';
 import { hazardBlobDrawList } from '../game/hazardBlob';
+import { hazardSiteById } from '../game/hazardSites';
+import { bakedOutlineByOsmId } from '../game/bakedPois';
 import { NoiseWaves } from './NoiseWaves';
 import { MrtOverlay, MrtLineLegend, MRT_STATION_LAYER } from './MrtOverlay';
 import { useMrtNetwork } from './useMrtNetwork';
 import { VegetationOverlay } from './UnplayableOverlay';
 import { DistrictNames } from './DistrictNames';
+import { DistrictLines } from './DistrictLines';
 import { MapGrain } from './MapGrain';
 import { Icon } from '../icons/Icon';
 import { pathFromProgress, pathUntil, pointAlongPath } from '../game/route';
@@ -1268,7 +1271,7 @@ const HazardRings = memo(function HazardRings({ hazards, pathIds }: { hazards: H
           id: 'hazard-line-dash',
           type: 'line',
           source: 'hazard-src',
-          filter: ['!', ['get', 'onPath']],
+          filter: ['all', ['!', ['get', 'onPath']], ['!=', ['get', 'core'], true], ['!=', ['get', 'wall'], true]],
           layout: { 'line-join': 'round', 'line-cap': 'round' },
           paint: {
             'line-color': ['get', 'color'],
@@ -1281,7 +1284,7 @@ const HazardRings = memo(function HazardRings({ hazards, pathIds }: { hazards: H
           id: 'hazard-line',
           type: 'line',
           source: 'hazard-src',
-          filter: ['get', 'onPath'],
+          filter: ['all', ['any', ['get', 'onPath'], ['==', ['get', 'wall'], true]], ['!=', ['get', 'core'], true]],
           layout: { 'line-join': 'round', 'line-cap': 'round' },
           paint: { 'line-color': ['get', 'color'], 'line-width': ['get', 'w'], 'line-opacity': ['get', 'op'] },
         },
@@ -1299,10 +1302,22 @@ const HazardRings = memo(function HazardRings({ hazards, pathIds }: { hazards: H
         fop: night ? 0.16 + blob.severity * 0.05 : blob.onPath ? 0.14 + blob.severity * 0.05 : 0.1 + blob.severity * 0.04,
         w: blob.onPath ? 2 : night ? 1.5 : 1.25,
         op: blob.onPath ? 0.9 : 0.5 + blob.severity * 0.12,
+        // Sealed-off areas read as a cordon: hard solid edge, a little more fill.
+        ...(blob.area ? { wall: true, w: blob.onPath ? 2.5 : 1.75, fop: 0.16 + blob.severity * 0.05 } : {}),
       };
       for (const ring of blob.rings) {
         if (ring.length < 3) continue;
         features.push({ type: 'Feature', properties: props, geometry: { type: 'Polygon', coordinates: [toLngLatRing(ring)] } });
+      }
+      // The place itself — the school, the market — reads as the heart of the zone.
+      if (blob.cores) {
+        const outlines = bakedOutlineByOsmId();
+        const coreProps = { ...props, core: true, fop: 0.32 + blob.severity * 0.06 };
+        for (const id of blob.cores) {
+          const ring = outlines?.get(id) ?? hazardSiteById(id)?.hull;
+          if (!ring || ring.length < 3) continue;
+          features.push({ type: 'Feature', properties: coreProps, geometry: { type: 'Polygon', coordinates: [toLngLatRing(ring)] } });
+        }
       }
     }
     setData(map, 'hazard-src', fc(features));
@@ -1834,6 +1849,7 @@ function GameMapInner({
         <GroundPicker onPick={onPickGround} engine={engine} onSite={selectSite} />
         {/* Water, forest wash and expressways — under fog so only explored ground shows. */}
         <VegetationOverlay />
+        <DistrictLines />
         <DistrictNames />
         <MapGrain />
         {/* Outside the island disc the world fades to black. */}

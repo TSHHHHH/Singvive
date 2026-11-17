@@ -3,6 +3,7 @@ import { useGame } from '../game/store';
 import { useT } from '../i18n';
 import { Icon } from '../icons/Icon';
 import { BtnSub } from './placeCard';
+import { tip } from './tips';
 import { BTN } from './placeCardStyle';
 
 /** Local boards cost one short action; no combat gauge subscription here. */
@@ -17,9 +18,9 @@ export function LocalMapAction({ location }: { location: LocationState }) {
   if (!locality && location.category !== 'residential' && location.category !== 'community') return null;
 
   return (
-    <button type="button" onClick={readLocalMap} disabled={busy || location.localMapRead || atCap} className={BTN.secondary}>
+    <button type="button" onClick={readLocalMap} disabled={busy || location.localMapRead || atCap} className={BTN.secondary} {...tip(t('ui.exploration.readCost'))}>
       <Icon name="action.logbook" /> {t(locality ? 'ui.exploration.readLocality' : 'ui.exploration.readNoticeboard')}
-      <BtnSub>{t(location.localMapRead ? 'ui.exploration.alreadyRead' : atCap ? 'ui.exploration.tooManyLeads' : 'ui.exploration.readCost')}</BtnSub>
+      <BtnSub hint={!location.localMapRead && !atCap}>{t(location.localMapRead ? 'ui.exploration.alreadyRead' : atCap ? 'ui.exploration.tooManyLeads' : 'ui.exploration.readCost')}</BtnSub>
     </button>
   );
 }

@@ -12,17 +12,7 @@ import {
   STANDING_KIN,
   STANDING_KNOWN,
   STANDING_TRUSTED,
-  canKinSearch88Deck,
-  escortCandidates,
-  factionEscorts,
-  factionFeeds,
-  factionOffersAid,
-  factionSharesIntel,
-  factionShelters,
-  factionTrades,
-  hasFactionClearance,
   isOutpostSite,
-  locationServices,
 } from '../game/factions';
 import { isStreetLootPoi } from '../game/loot';
 import { hdbScar, storeysFromRoof } from '../game/hdbDungeon';
@@ -31,16 +21,15 @@ import { useGame } from '../game/store';
 import { dangerColor } from './mapIcons';
 import { formatDuration, type estimateExpedition } from '../game/travel';
 import { remainingSearchMinutes } from '../game/searchSession';
-import { haversine } from '../game/overpass';
 import { displayLine, getMrtNetwork, linesAt, type MrtSegment } from '../game/mrt';
-import type { FactionService, LocationState } from '../game/types';
-import type { IconName } from '../icons/keys';
+import type { LocationState } from '../game/types';
 import { riskLabel, type TrekRisk } from '../game/wilds';
 import { HazardOnRoute } from './HazardOnRoute';
 import { BtnSub, Dots, Ledger, LedgerRow, LedgerRule, Note, PlaceStack } from './placeCard';
 import { LocationIdentity } from './LocationIdentity';
 import { SiteFacilitiesPanel } from './SiteFacilitiesPanel';
 import { LocalMapAction } from './LocalMapAction';
+import { FactionDesk, FactionStrip } from './FactionDesk';
 import { BTN, tint } from './placeCardStyle';
 import { SEARCH_RISK_COLOR, searchRiskLevel, type SearchRiskLevel } from '../game/encounterOdds';
 
@@ -125,11 +114,24 @@ function CardSplit({
   actions,
   info,
   compact,
+  wide,
 }: {
   actions: ReactNode;
   info: ReactNode;
   compact?: boolean;
+  /** Desktop edge inspector: read on the left, act on the right. */
+  wide?: boolean;
 }) {
+  if (wide) {
+    return (
+      <div className="grid grid-cols-2 items-start gap-4">
+        <div className="min-w-0">{info}</div>
+        <div className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(8.5rem,1fr))] gap-2 [&>:not(button)]:col-span-full">
+          {actions}
+        </div>
+      </div>
+    );
+  }
   // Phone: actions first, stacked. Desktop (the current-location card): the
   // place reads first and the buttons sit in a row under it; anything that is
   // not a button (faction services) takes a full row.
@@ -289,9 +291,9 @@ function StationCodes({ sel }: { sel: LocationState }) {
 function PlanTunnelsButton({ onPlan }: { onPlan: () => void }) {
   const { t } = useT();
   return (
-    <button type="button" onClick={onPlan} className={BTN.tinted} style={tint('#2bc4d9')}>
+    <button type="button" onClick={onPlan} className={BTN.tinted} style={tint('#2bc4d9')} {...tip(t('ui.location.pickStation'))}>
       <Icon name="action.mrt" /> {t('ui.location.route')}
-      <BtnSub>{t('ui.location.pickStation')}</BtnSub>
+      <BtnSub hint>{t('ui.location.pickStation')}</BtnSub>
     </button>
   );
 }
@@ -402,7 +404,7 @@ function FactionClaim({
         <span className="flex min-w-0 items-center gap-1.5">
           <Icon name={faction.icon} className="shrink-0" />
           <span className="min-w-0">
-            {faction.shortName} {place}
+            {isOutpost ? place : `${faction.shortName} ${place}`}
           </span>
         </span>
         <span className="shrink-0 tabular-nums opacity-80">
@@ -429,243 +431,6 @@ function FactionClaim({
         {standLabel} {score}
       </div>
     </div>
-  );
-}
-
-const SERVICE_META: Record<
-  FactionService,
-  { icon: IconName; labelKey: string; hintKey: string; lockedKey: string }
-> = {
-  trade: {
-    icon: 'action.search',
-    labelKey: 'ui.location.trade',
-    hintKey: 'ui.location.tradeHint',
-    lockedKey: 'ui.location.noDealStrangers',
-  },
-  rest: {
-    icon: 'action.sleep',
-    labelKey: 'ui.location.sleepInside',
-    hintKey: 'ui.location.restHint',
-    lockedKey: 'ui.location.bedsTrusted',
-  },
-  aid: {
-    icon: 'action.search',
-    labelKey: 'ui.location.fieldAid',
-    hintKey: 'ui.location.aidHint',
-    lockedKey: 'ui.location.medicsTrusted',
-  },
-  intel: {
-    icon: 'action.map',
-    labelKey: 'ui.location.askIntel',
-    hintKey: 'ui.location.intelHint',
-    lockedKey: 'ui.location.noBriefStrangers',
-  },
-  feed: {
-    icon: 'poi.foodcourt',
-    labelKey: 'ui.location.canteen',
-    hintKey: 'ui.location.canteenHint',
-    lockedKey: 'ui.location.canteenLocked',
-  },
-  escort: {
-    icon: 'poi.waypoint',
-    labelKey: 'ui.location.escort',
-    hintKey: 'ui.location.escortHint',
-    lockedKey: 'ui.location.escortLocked',
-  },
-};
-
-/** NPC services on occupied ground — never scavenging. Hidden while raiding. */
-function FactionHubActions({ sel }: { sel: LocationState }) {
-  const { t } = useT();
-  const standing = useGame((s) => s.factionStanding);
-  const outposts = useGame((s) => s.outposts);
-  const day = useGame((s) => s.day);
-  const raidMode = useGame((s) => s.raidMode);
-  const openTrader = useGame((s) => s.openTrader);
-  const outpostRest = useGame((s) => s.outpostRest);
-  const factionAid = useGame((s) => s.factionAid);
-  const factionIntel = useGame((s) => s.factionIntel);
-  const factionFeed = useGame((s) => s.factionFeed);
-  const factionEscort = useGame((s) => s.factionEscort);
-  const searchKinDeck = useGame((s) => s.searchKinDeck);
-  const escort = useGame((s) => s.escort);
-  const locations = useGame((s) => s.locations);
-  if (!sel.factionId) return null;
-  if (raidMode?.locationId === sel.id) return null;
-
-  const cfg = FACTION_CONFIG[sel.factionId];
-  const services = locationServices(sel, outposts);
-  const cleared = hasFactionClearance(sel, standing, day);
-  if (!services.length && !(canKinSearch88Deck(sel, standing) && cleared)) return null;
-
-  const canTrade = factionTrades(sel.factionId, standing);
-  const canRest = factionShelters(sel.factionId, standing);
-  const canAid = factionOffersAid(sel.factionId, standing);
-  const canIntel = factionSharesIntel(sel.factionId, standing);
-  const canFeed = factionFeeds(sel.factionId, standing);
-  const canEscort = factionEscorts(sel.factionId, standing);
-  const kinDeck = canKinSearch88Deck(sel, standing);
-  const escortDests = services.includes('escort') ? escortCandidates(sel, locations).slice(0, 5) : [];
-  const escortDest = escort?.toId ? locations[escort.toId] : null;
-
-  return (
-    <>
-      <div className="mt-1 border-t border-white/10 pt-2">
-        <div className="mb-1.5 text-label uppercase text-concrete-400">
-          {t('ui.location.services')}
-        </div>
-        <div className="flex flex-col gap-2">
-          {!cleared && (
-            <Note>{t('ui.location.approachGateFirst')}</Note>
-          )}
-          {services.includes('trade') && (
-            <button
-              disabled={!cleared || !canTrade}
-              onClick={() => openTrader(sel.id)}
-              className={BTN.tinted}
-              style={tint(cfg.color)}
-            >
-              <Icon name={cfg.icon} />{' '}
-              {sel.factionId === 'syndicate_88'
-                ? t('ui.location.fence')
-                : t(SERVICE_META.trade.labelKey)}
-              <BtnSub>
-                {!cleared
-                  ? t('ui.location.gateFirst')
-                  : canTrade
-                    ? sel.factionId === 'syndicate_88'
-                      ? t('ui.location.fenceHint')
-                      : t(SERVICE_META.trade.hintKey)
-                    : t(SERVICE_META.trade.lockedKey)}
-              </BtnSub>
-            </button>
-          )}
-          {services.includes('rest') && (
-            <button
-              disabled={!cleared || !canRest}
-              onClick={outpostRest}
-              className={BTN.secondary}
-            >
-              <Icon name={SERVICE_META.rest.icon} /> {t(SERVICE_META.rest.labelKey)}
-              <BtnSub>
-                {!cleared
-                  ? t('ui.location.gateFirst')
-                  : canRest
-                    ? t(SERVICE_META.rest.hintKey)
-                    : t(SERVICE_META.rest.lockedKey)}
-              </BtnSub>
-            </button>
-          )}
-          {services.includes('aid') && (
-            <button
-              disabled={!cleared || !canAid || (sel.aidUsedDay ?? -1) >= day}
-              onClick={factionAid}
-              className={BTN.secondary}
-            >
-              <Icon name={SERVICE_META.aid.icon} /> {t(SERVICE_META.aid.labelKey)}
-              <BtnSub>
-                {!cleared
-                  ? t('ui.location.gateFirst')
-                  : (sel.aidUsedDay ?? -1) >= day
-                    ? t('ui.location.alreadyUsedToday')
-                    : canAid
-                      ? t(SERVICE_META.aid.hintKey)
-                      : t(SERVICE_META.aid.lockedKey)}
-              </BtnSub>
-            </button>
-          )}
-          {services.includes('intel') && (
-            <button
-              disabled={!cleared || !canIntel || (sel.intelUsedDay ?? -1) >= day}
-              onClick={factionIntel}
-              className={BTN.secondary}
-            >
-              <Icon name={SERVICE_META.intel.icon} /> {t(SERVICE_META.intel.labelKey)}
-              <BtnSub>
-                {!cleared
-                  ? t('ui.location.gateFirst')
-                  : (sel.intelUsedDay ?? -1) >= day
-                    ? t('ui.location.alreadyUsedToday')
-                    : canIntel
-                      ? t(SERVICE_META.intel.hintKey)
-                      : t(SERVICE_META.intel.lockedKey)}
-              </BtnSub>
-            </button>
-          )}
-          {services.includes('feed') && (
-            <button
-              disabled={!cleared || !canFeed || (sel.feedUsedDay ?? -1) >= day}
-              onClick={factionFeed}
-              className={BTN.tinted}
-              style={tint(cfg.color)}
-            >
-              <Icon name={SERVICE_META.feed.icon} /> {t(SERVICE_META.feed.labelKey)}
-              <BtnSub>
-                {!cleared
-                  ? t('ui.location.gateFirst')
-                  : (sel.feedUsedDay ?? -1) >= day
-                    ? t('ui.location.alreadyUsedToday')
-                    : canFeed
-                      ? t(SERVICE_META.feed.hintKey)
-                      : t(SERVICE_META.feed.lockedKey)}
-              </BtnSub>
-            </button>
-          )}
-          {services.includes('escort') && (
-            <div className="rounded border border-white/15 px-3 py-1.5 text-body">
-              <div className="text-concrete-50">
-                <Icon name={SERVICE_META.escort.icon} /> {t(SERVICE_META.escort.labelKey)}
-              </div>
-              <p className="mt-0.5 text-concrete-400">
-                {!cleared
-                  ? t('ui.location.gateFirst')
-                  : !canEscort
-                    ? t(SERVICE_META.escort.lockedKey)
-                    : escortDest
-                      ? t('ui.location.escortBooked', { name: escortDest.name })
-                      : t(SERVICE_META.escort.hintKey)}
-              </p>
-              {cleared && canEscort && !escortDest && (
-                <div className="mt-1.5 flex flex-col gap-1">
-                  {escortDests.length === 0 ? (
-                    <Note>{t('ui.location.escortNoDest')}</Note>
-                  ) : (
-                    escortDests.map((d) => (
-                      <button
-                        key={d.id}
-                        onClick={() => factionEscort(d.id)}
-                        className="w-full rounded border border-white/10 px-2 py-1 text-left text-body hover:bg-white/5"
-                      >
-                        {d.name}
-                        <span className="ml-1 tabular-nums text-concrete-400">
-                          {Math.round(haversine(sel.lat, sel.lng, d.lat, d.lng))} m
-                        </span>
-                      </button>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-          {kinDeck && (
-            <button
-              disabled={!cleared}
-              onClick={searchKinDeck}
-              className={BTN.secondary}
-            >
-              <Icon name="hdb.enterBlock" /> {t('ui.location.walkTheDecks')}
-              <BtnSub>
-                {!cleared
-                  ? t('ui.location.gateFirst')
-                  : sel.kinDeckUsed
-                    ? t('ui.location.walkTheDecksAgain')
-                    : t('ui.location.walkTheDecksHint')}
-              </BtnSub>
-            </button>
-          )}
-        </div>
-      </div>
-    </>
   );
 }
 
@@ -715,7 +480,6 @@ function KnownCard({
   const dngr = Math.max(1, Math.round(danger));
   const occupied = !!sel.factionId;
 
-  const standing = useGame((s) => s.factionStanding);
   const day = useGame((s) => s.day);
   const items = useGame((s) => s.items);
   const character = useGame((s) => s.character);
@@ -723,14 +487,11 @@ function KnownCard({
   const raidMode = useGame((s) => s.raidMode);
   const pendingSearch = useGame((s) => s.pendingSearch);
   const abortSearch = useGame((s) => s.abortSearch);
-  const sneakEnter = useGame((s) => s.sneakEnter);
-  const forceEnter = useGame((s) => s.forceEnter);
   const raidSearch = useGame((s) => s.raidSearch);
   const ensureSiteRuin = useGame((s) => s.ensureSiteRuin);
   const seesSearches = useGame((s) =>
     hasTraitFlag(s.character?.traitIds ?? [], 'showSearchesRemaining'),
   );
-  const gateCleared = occupied && hasFactionClearance(sel, standing, day);
   const loadFx = character
     ? loadEffectsFor(
         items,
@@ -888,20 +649,8 @@ function KnownCard({
               </BtnSub>
             )}
           </button>
-        ) : gateCleared ? null : (
-          <>
-            <button onClick={onEnter} className={BTN.primary}>
-              <Icon name="action.search" /> {t('ui.location.approachGate')}
-            </button>
-            <button onClick={sneakEnter} className={BTN.secondary}>
-              <Icon name="action.search" /> {t('ui.location.sneakIn')}
-              <BtnSub>{t('ui.location.sneakHint')}</BtnSub>
-            </button>
-            <button onClick={forceEnter} className={BTN.danger}>
-              <Icon name="combat.hostiles" /> {t('ui.location.forceEnter')}
-              <BtnSub>{t('ui.location.forceHint')}</BtnSub>
-            </button>
-          </>
+        ) : (
+          <FactionDesk sel={sel} onEnter={onEnter} onOpenStash={onOpenStash} />
         )
       ) : isBlock ? (
         <button onClick={onEnterBlock ?? onEnter} className={BTN.primary}>
@@ -916,10 +665,11 @@ function KnownCard({
               : t('ui.location.goInsideSearch')}
         </button>
       )}
-      <button onClick={onOpenStash} className={BTN.secondary}>
-        <Icon name="action.stash" /> {t('ui.location.openStashHere')}
-      </button>
-      {here && occupied && <FactionHubActions sel={sel} />}
+      {(!occupied || raidingHere) && (
+        <button onClick={onOpenStash} className={BTN.secondary}>
+          <Icon name="action.stash" /> {t('ui.location.openStashHere')}
+        </button>
+      )}
     </>
   );
 
@@ -940,8 +690,8 @@ function KnownCard({
         ? t('ui.location.factionOutpost')
         : t('ui.location.factionTerritory')
       : siteStatus;
-    return (
-      <PlaceStack>
+    const readCol = (
+      <>
         <LocationIdentity
           category={sel.category}
           title={sel.name}
@@ -1000,6 +750,10 @@ function KnownCard({
           <RouteRow routeRisk={routeRisk} />
         </Ledger>
 
+      </>
+    );
+    const actCol = (
+      <>
         <RouteNotes
           routeRisk={routeRisk}
           routeBlind={routeBlind}
@@ -1032,6 +786,17 @@ function KnownCard({
           {canTunnel && <TunnelButton seg={tunnelSeg ?? null} onTunnel={onTunnel} />}
           {tunnelHint && <Note>{tunnelHint}</Note>}
         </div>
+      </>
+    );
+    return inspector ? (
+      <div className="grid grid-cols-2 items-start gap-4">
+        <PlaceStack>{readCol}</PlaceStack>
+        <PlaceStack>{actCol}</PlaceStack>
+      </div>
+    ) : (
+      <PlaceStack>
+        {readCol}
+        {actCol}
       </PlaceStack>
     );
   }
@@ -1040,6 +805,7 @@ function KnownCard({
     <PlaceStack>
       <CardSplit
         compact={compact}
+        wide={inspector && !compact}
         actions={actions}
         info={
           <PlaceStack>
@@ -1056,7 +822,12 @@ function KnownCard({
             {(sel.isMrtStation || faction) && (
               <div className="flex flex-col gap-2">
                 <StationCodes sel={sel} />
-                {faction && <FactionClaim sel={sel} faction={faction} compact={compact || inspector} />}
+                {faction &&
+                  (raidingHere ? (
+                    <FactionClaim sel={sel} faction={faction} compact={compact || inspector} />
+                  ) : (
+                    <FactionStrip sel={sel} fid={faction.id} />
+                  ))}
               </div>
             )}
             <Ledger>

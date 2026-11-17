@@ -119,6 +119,8 @@ export function isBakeLoaded(): boolean { return cached !== null; }
 export function prefetchBake(): void { void ensurePending().catch(() => {}); }
 export function ensureBakeLoaded(): Promise<RawPoi[]> { return ensurePending(); }
 export function bakedOsmIds(): Set<string> | null { return osmIdSet; }
+/** Display name of a baked POI, once the bake is in. */
+export function bakedPoiName(osmId: string): string | undefined { return poiById.get(osmId)?.name; }
 export function bakedOutlineByOsmId(): Map<string, [number, number][]> | null { return outlineById; }
 
 export async function bakedPoisNear(lat: number, lng: number, radius: number): Promise<RawPoi[]> {

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type CSSProperties } from 'react';
+import { hazardBlurb } from '../components/hazardName';
 import { useShallow } from 'zustand/react/shallow';
 import { useGame } from '../game/store';
 import { GameMap } from '../components/GameMap';
@@ -50,6 +51,7 @@ import { GuideModal } from '../components/GuideModal';
 import { DiceRoll } from '../components/DiceRoll';
 import { GuideOverlay } from '../guide/GuideOverlay';
 import { useGuideInterrupts, useRevealTour } from '../guide/useRevealTour';
+import { useShownLog } from '../ui/diceGate';
 import { HowToPlayModal } from '../components/HowToPlayModal';
 import { LimbCoachModal } from '../components/LimbCoachModal';
 import { HdbDungeonModal } from '../components/HdbDungeonModal';
@@ -157,7 +159,7 @@ function HereHazardLine({
   const cfg = HAZARD_CONFIG[worst.kind];
   return (
     <div className="mt-2 text-body" style={{ color: cfg.color }}>
-      {t(`ui.hazards.${worst.kind}.blurb`)} {t('ui.hazards.noSleep')}
+      {hazardBlurb(worst, t)} {t('ui.hazards.noSleep')}
     </div>
   );
 }
@@ -960,7 +962,7 @@ export function GameScreen() {
   );
 
   // ---- red-dot notices on the rail menu ------------------------------------
-  const gameLog = useGame((s) => s.log);
+  const gameLog = useShownLog();
   const leads = useGame((s) => s.explorationLeads);
   const craftReadyIds = useMemo(
     () => RECIPES.filter((r) => canCraft(r, items, true).ok).map((r) => r.id),
@@ -1760,7 +1762,7 @@ export function GameScreen() {
               )}
               {edgeInspector && (hereSlot || targetSlot) && (
                 <div
-                  className="pointer-events-none absolute z-[705] w-[22rem] max-w-[calc(100%-2rem)] transition-[left,max-width] duration-200 motion-reduce:transition-none"
+                  className="pointer-events-none absolute z-[705] w-[44rem] max-w-[calc(100%-2rem)] transition-[left,max-width] duration-200 motion-reduce:transition-none"
                   style={{
                     left: HUD_EDGE + panelInset,
                     bottom: HUD_BOTTOM,

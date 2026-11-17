@@ -10,6 +10,7 @@ import { ConditionPanel } from './ConditionPanel';
 import { InventoryPanel } from './Inventory/InventoryPanel';
 import { loadTierLabel, loadTierShown } from './loadTier';
 import { VitalMeter } from './VitalMeter';
+import { useHeldWhileRolling } from '../ui/diceGate';
 
 /** Desktop dock. Body and pack stay together; the phone retains its tabs. */
 export function SurvivorDock({
@@ -22,9 +23,11 @@ export function SurvivorDock({
   menu: ReactNode;
 }) {
   const { locale, t } = useT();
-  const { meters, bodyParts } = useGame(
+  const live = useGame(
     useShallow((s) => ({ meters: s.meters, bodyParts: s.bodyParts })),
   );
+  // A check's wounds and costs show once its die has landed.
+  const { meters, bodyParts } = useHeldWhileRolling(live);
   const [bodyOpen, setBodyOpen] = useState(true);
   const [packOpen, setPackOpen] = useState(true);
   const bodyRef = useRef<HTMLDivElement>(null);
