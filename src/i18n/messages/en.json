@@ -1883,6 +1883,17 @@
         "hint": "Gear from traits and job outfits. Random finds roll from the run seed."
       }
     },
+    "tour": {
+      "next": "Next",
+      "skip": "Skip",
+      "skipHint": "Esc to skip",
+      "progress": "{n} / {total}",
+      "noticeboard": "Residents' noticeboard",
+      "locality": "MRT locality map",
+      "overviewTitle": "{count} places marked",
+      "overviewBody": "Each one is now on your map. Conditions are still unknown until you go.",
+      "tapNext": "Tap to continue"
+    },
     "exploration": {
       "conditionsUnknown": "Unvisited · conditions unknown",
       "activeLeads": "Places to explore · {n}/6",
@@ -1906,6 +1917,7 @@
       "recognitionNotice": "Nearby places recognized · {count}",
       "leadCompleted": "Lead visited: {name}.",
       "mapRead": "You mark {count} nearby places in your logbook.",
+      "boardRead": "The residents' board names {count} places nearby. Marked on your map.",
       "mapEmpty": "The map has no new nearby places to mark.",
       "facilityFound": "At {name}, you find {facility}.",
       "sources": {

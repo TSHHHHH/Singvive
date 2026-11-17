@@ -1883,6 +1883,17 @@
         "hint": "来自特质与职业服装的装备。随机物品由本局种子决定。"
       }
     },
+    "tour": {
+      "next": "下一步",
+      "skip": "跳过",
+      "skipHint": "按 Esc 跳过",
+      "progress": "{n} / {total}",
+      "noticeboard": "居民公告栏",
+      "locality": "地铁站周边地图",
+      "overviewTitle": "已标记{count}处地点",
+      "overviewBody": "它们已标在你的地图上。实地情况要亲自去了才知道。",
+      "tapNext": "点击继续"
+    },
     "exploration": {
       "conditionsUnknown": "尚未到访 · 内部情况未知",
       "activeLeads": "待探索地点 · {n}/6",
@@ -1906,6 +1917,7 @@
       "recognitionNotice": "辨认出附近地点 · {count}",
       "leadCompleted": "线索地点已到访：{name}。",
       "mapRead": "你在记录本上标记了{count}处附近地点。",
+      "boardRead": "居民公告栏列出了附近{count}处地点，已标在你的地图上。",
       "mapEmpty": "地图上没有可新增的附近地点。",
       "facilityFound": "你在{name}发现了{facility}。",
       "sources": {

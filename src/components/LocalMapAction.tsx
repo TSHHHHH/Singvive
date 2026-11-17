@@ -12,8 +12,9 @@ export function LocalMapAction({ location }: { location: LocationState }) {
   const readLocalMap = useGame(s => s.readLocalMap);
   const busy = useGame(s => s.phase !== 'game' || !s.character || s.currentPositionId !== location.id ||
     !!(s.combat || s.pendingEvent || s.pendingSearch || s.travelAnim || s.hdb || s.tunnel));
-  const atCap = useGame(s => s.explorationLeads.filter(lead => lead.completedDay === undefined).length >= 6);
   const locality = location.category === 'mrt' || location.isMrtStation;
+  // A full logbook stops a locality map; a noticeboard still names places, just no new lead.
+  const atCap = useGame(s => locality && s.explorationLeads.filter(lead => lead.completedDay === undefined).length >= 6);
   if (!locality && location.category !== 'residential' && location.category !== 'community') return null;
 
   return (

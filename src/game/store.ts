@@ -29,7 +29,7 @@ import type {
 import { freshEventClock } from './types';
 import { buildFacility, collectedRain, gameHour, surfaceSite } from './facilities';
 import {
-  completeExplorationLeads, discoverLocalFacility, findExplorationLeads,
+  completeExplorationLeads, discoverLocalFacility, findExplorationLeads, readNoticeboard, type RevealTourCue,
   localFacilityFor, normalizeExplorationLeads, recognitionRadius, recognizeNearby,
   type ExplorationLead,
 } from './exploration';
@@ -672,6 +672,13 @@ interface State {
   pendingEvent: PendingEvent | null;
   /** The last attribute check, for the dice overlay to play back. UI only — never persisted. */
   shownRoll: ShownRoll | null;
+  /**
+   * Places a local map or noticeboard just named, for the guided camera tour
+   * to show. UI only — never persisted.
+   */
+  revealTour: RevealTourCue | null;
+  /** The tour for this cue finished or was skipped. */
+  dismissRevealTour: (id: number) => void;
   /** The dice overlay finished or was skipped. */
   dismissRoll: () => void;
   _eventRng: Rng | null;
@@ -1157,6 +1164,7 @@ export const useGame = create<State>((set, get) => {
    * plays back what already happened, so logic stays headless and replayable.
    */
   let rollSeq = 0;
+  let revealTourSeq = 0;
   const shownCheck = (
     rng: Rng,
     attr: AttributeKey,
@@ -3877,6 +3885,7 @@ export const useGame = create<State>((set, get) => {
     ghostOffer: null,
     pendingEvent: null,
     shownRoll: null,
+    revealTour: null,
     pendingSearch: null,
     _eventRng: null,
     _eventClock: freshEventClock(),
@@ -6299,6 +6308,27 @@ export const useGame = create<State>((set, get) => {
       const source = loc.category === 'mrt' || loc.isMrtStation ? 'locality'
         : loc.category === 'residential' || loc.category === 'community' ? 'noticeboard' : null;
       if (!source) return;
+      if (source === 'noticeboard') {
+        // A board names 5–12 places; a full logbook only stops it adding a lead.
+        const reading = readNoticeboard(s.seed, s.locations, loc.id, s.day, s.explorationLeads, s.evacZoneId ?? undefined);
+        set({ locations: { ...s.locations, [loc.id]: { ...loc, localMapRead: true } } });
+        if (advanceTime(5 / 60)) return;
+        const now = get();
+        const locations = { ...now.locations };
+        const named: string[] = [];
+        for (const id of reading.revealIds) {
+          const target = locations[id];
+          if (!target || target.identified || target.discovered) continue;
+          locations[id] = { ...target, identified: true };
+          named.push(id);
+        }
+        if (named.length) set({ locations });
+        recordExplorationLeads(reading.leads);
+        pushLog(t(named.length ? 'ui.exploration.boardRead' : 'ui.exploration.mapEmpty', { count: named.length }, activeLocale()), named.length ? 'good' : 'info');
+        if (named.length) set({ revealTour: { id: ++revealTourSeq, sourceId: loc.id, ids: named } });
+        persist();
+        return;
+      }
       if (s.explorationLeads.filter((lead) => lead.completedDay === undefined).length >= 6) {
         pushLog(t('ui.exploration.tooManyLeads', undefined, activeLocale()), 'info');
         return;
@@ -6308,7 +6338,11 @@ export const useGame = create<State>((set, get) => {
       if (advanceTime(5 / 60)) return;
       recordExplorationLeads(leads);
       pushLog(t(leads.length ? 'ui.exploration.mapRead' : 'ui.exploration.mapEmpty', { count: leads.length }, activeLocale()), 'info');
+      if (leads.length) set({ revealTour: { id: ++revealTourSeq, sourceId: loc.id, ids: leads.map((lead) => lead.targetId) } });
       persist();
+    },
+    dismissRevealTour: (id) => {
+      if (get().revealTour?.id === id) set({ revealTour: null });
     },
 
     collectSiteWater: (source) => {
@@ -7889,6 +7923,7 @@ export const useGame = create<State>((set, get) => {
         ghostOffer: null,
         pendingEvent: null,
         shownRoll: null,
+        revealTour: null,
         pendingSearch: null,
         _eventRng: null,
         _eventClock: freshEventClock(),
@@ -8012,6 +8047,7 @@ export const useGame = create<State>((set, get) => {
         ghostOffer: null,
         pendingEvent: null,
         shownRoll: null,
+        revealTour: null,
         pendingSearch: null,
         _eventRng: null,
         _eventClock: run.eventClock ?? { ...freshEventClock(), day: run.day },

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { LocationState } from './types';
-import { completeExplorationLeads, discoverLocalFacility, findExplorationLeads, localFacilityFor, normalizeExplorationLeads, recognitionRadius, recognizeNearby, type ExplorationLead } from './exploration';
+import { completeExplorationLeads, discoverLocalFacility, findExplorationLeads, localFacilityFor, NOTICEBOARD_MAX, NOTICEBOARD_MIN, normalizeExplorationLeads, readNoticeboard, recognitionRadius, recognizeNearby, tourOrder, type ExplorationLead } from './exploration';
 
 const origin = { lat: 1.3, lng: 103.8 };
 function site(id: string, northM = 0, extra: Partial<LocationState> = {}): LocationState {
@@ -221,5 +221,59 @@ describe('one-time useful local facilities', () => {
     for (let n = 0; n < 50; n++) {
       expect(discoverLocalFacility(`s${n}`, site('site', 0, { facilities })).facilities).toEqual(facilities);
     }
+  });
+});
+
+describe('residents\' noticeboard', () => {
+  const board = site('source', 0, { category: 'residential' });
+  const town = (n: number, spacing = 40) => record(board,
+    ...Array.from({ length: n }, (_, i) => site(`s${String(i).padStart(2, '0')}`, 30 + i * spacing,
+      { category: i % 3 === 0 ? 'clinic' : i % 3 === 1 ? 'housing' : 'eatery' })));
+
+  it('names between five and twelve places, fixed per seed and board', () => {
+    const locations = town(30, 20);
+    const counts = new Set<number>();
+    for (let n = 0; n < 120; n++) {
+      const a = readNoticeboard(`seed${n}`, locations, 'source', 1, []);
+      const b = readNoticeboard(`seed${n}`, locations, 'source', 9, []);
+      expect(a.revealIds.length).toBeGreaterThanOrEqual(NOTICEBOARD_MIN);
+      expect(a.revealIds.length).toBeLessThanOrEqual(NOTICEBOARD_MAX);
+      expect(new Set(a.revealIds).size).toBe(a.revealIds.length);
+      expect(b.revealIds).toEqual(a.revealIds);
+      counts.add(a.revealIds.length);
+    }
+    expect(counts.has(NOTICEBOARD_MIN)).toBe(true);
+    expect(counts.has(NOTICEBOARD_MAX)).toBe(true);
+  });
+
+  it('skips known, visited, waypoint and evac sites and widens its radius when the street is thin', () => {
+    const locations = record(board,
+      site('known', 50, { identified: true }), site('seen', 60, { discovered: true }),
+      site('been', 70, { visited: true }), site('waypoint', 80, { category: 'waypoint' }), site('evac', 90),
+      ...Array.from({ length: 6 }, (_, i) => site(`far${i}`, 1000 + i * 50)), site('beyond', 1700));
+    const reading = readNoticeboard('seed', locations, 'source', 1, [], 'evac');
+    expect(reading.revealIds.length).toBeGreaterThanOrEqual(NOTICEBOARD_MIN);
+    for (const id of ['known', 'seen', 'been', 'waypoint', 'evac', 'beyond', 'source']) {
+      expect(reading.revealIds).not.toContain(id);
+    }
+  });
+
+  it('adds at most one lead, only while the logbook has room, and never twice per board', () => {
+    const locations = town(20);
+    const reading = readNoticeboard('seed', locations, 'source', 1, []);
+    expect(reading.leads).toHaveLength(1);
+    expect(reading.revealIds).toContain(reading.leads[0].targetId);
+    expect(readNoticeboard('seed', locations, 'source', 1, reading.leads).revealIds).toEqual([]);
+    const full = Array.from({ length: 6 }, (_, i) => lead(`x${i}`, { sourceId: `old${i}` }));
+    const capped = readNoticeboard('seed', locations, 'source', 1, full);
+    expect(capped.leads).toEqual([]);
+    expect(capped.revealIds.length).toBeGreaterThanOrEqual(NOTICEBOARD_MIN);
+    expect(readNoticeboard('seed', { ...locations, source: { ...board, localMapRead: true } }, 'source', 1, []).revealIds).toEqual([]);
+    expect(readNoticeboard('seed', { ...locations, source: { ...board, category: 'mrt' } }, 'source', 1, []).revealIds).toEqual([]);
+  });
+
+  it('orders the tour as a nearest-neighbour walk from the board', () => {
+    const a = site('a', 100), b = site('b', 300), c = site('c', -50), d = site('d', 320);
+    expect(tourOrder(board, [a, b, c, d])).toEqual(['c', 'a', 'b', 'd']);
   });
 });
