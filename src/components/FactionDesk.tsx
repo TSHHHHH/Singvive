@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Icon } from '../icons/Icon';
 import type { IconName } from '../icons/keys';
 import { tip } from './tips';
@@ -33,21 +33,12 @@ import {
 } from '../game/bounties';
 import type { FactionId, FactionService, LocationState } from '../game/types';
 import { BtnSub, Dots } from './placeCard';
+import { SERVICE_RUNG, serviceLabel } from './factionServices';
 import { BTN, tint } from './placeCardStyle';
 import { bountyText, rewardText } from './bountyCopy';
 import { itemName, standingDisplayLabel, useT } from '../i18n';
 
 type Fid = Exclude<FactionId, null>;
-
-/** The rung each service opens at — mirrors the gates in factions.ts. */
-const SERVICE_RUNG: Record<FactionService, number> = {
-  trade: STANDING_KNOWN,
-  intel: STANDING_KNOWN,
-  feed: STANDING_KNOWN,
-  escort: STANDING_KNOWN,
-  rest: STANDING_TRUSTED,
-  aid: STANDING_TRUSTED,
-};
 
 const SERVICE_ICON: Record<FactionService, IconName> = {
   trade: 'action.search',
@@ -61,10 +52,6 @@ const SERVICE_ICON: Record<FactionService, IconName> = {
 /** Which verbs earn the big buttons, after the faction's signature. */
 const PRIORITY: FactionService[] = ['trade', 'feed', 'escort', 'aid', 'rest', 'intel'];
 
-function serviceLabel(t: (k: string) => string, s: FactionService, fid: Fid): string {
-  if (s === 'trade' && fid === 'syndicate_88') return t('ui.location.desk.fence');
-  return t(`ui.location.desk.${s}`);
-}
 
 /** Ladder rungs, low to high, for the strip's dot meter. */
 const RUNGS = [-4, -2, -1, 0, STANDING_KNOWN, STANDING_TRUSTED, STANDING_KIN];
@@ -158,10 +145,13 @@ export function FactionDesk({
   sel,
   onEnter,
   onOpenStash,
+  jobs = true,
 }: {
   sel: LocationState;
   onEnter: () => void;
   onOpenStash: () => void;
+  /** The job board in line. The faction window gives it a column of its own. */
+  jobs?: boolean;
 }) {
   const { locale, t } = useT();
   const [escortOpen, setEscortOpen] = useState(false);
@@ -230,7 +220,7 @@ export function FactionDesk({
             <BtnSub hint>{t('ui.location.desk.forceSub')}</BtnSub>
           </button>
         </div>
-        {standing[fid] > STANDING_HATED && <BountyBoard sel={sel} />}
+        {jobs && standing[fid] > STANDING_HATED && <BountyBoard sel={sel} />}
         <div className="flex flex-wrap items-center justify-between gap-2">
           {services.length > 0 ? (
             <span className="text-micro text-concrete-400">
@@ -345,7 +335,7 @@ export function FactionDesk({
         </span>
       )}
 
-      <BountyBoard sel={sel} />
+      {jobs && <BountyBoard sel={sel} />}
 
       <div className="flex flex-wrap gap-1.5">
         {chips.map((s) => (
@@ -384,7 +374,17 @@ export function FactionDesk({
  * Work posted at this door. Readable from the curb: taking a job never needs
  * the gate. Your jobs for this faction can be handed in at any of its sites.
  */
-function BountyBoard({ sel }: { sel: LocationState }) {
+export function BountyBoard({
+  sel,
+  bare = false,
+  empty = null,
+}: {
+  sel: LocationState;
+  /** No frame or heading: the caller supplies them. */
+  bare?: boolean;
+  /** Shown when nothing is posted and you carry nothing for them. */
+  empty?: ReactNode;
+}) {
   const { locale, t } = useT();
   const seed = useGame((s) => s.seed);
   const day = useGame((s) => s.day);
@@ -404,12 +404,12 @@ function BountyBoard({ sel }: { sel: LocationState }) {
     items.filter((i) => isCarried(i.container) && i.defId === defId).reduce((n, i) => n + i.stack, 0);
   const mine = bounties.filter((b) => b.factionId === fid);
   const offers = board.filter((o) => !taken.includes(o.id));
-  if (!mine.length && !offers.length) return null;
+  if (!mine.length && !offers.length) return <>{empty}</>;
   const full = bounties.length >= MAX_ACTIVE_BOUNTIES;
 
   return (
-    <div className="flex flex-col gap-1.5 rounded border border-white/10 p-2">
-      <div className="text-label uppercase text-concrete-400">{t('ui.location.desk.jobs')}</div>
+    <div className={`flex flex-col gap-1.5 ${bare ? '' : 'rounded border border-white/10 p-2'}`}>
+      {!bare && <div className="text-label uppercase text-concrete-400">{t('ui.location.desk.jobs')}</div>}
       {mine.map((b) => {
         const p = bountyProgress(b, { kills, locations, carried });
         return (

@@ -2513,6 +2513,27 @@
       "title": "Factions",
       "outposts": "Outposts known: {n}",
       "handIn": "hand in at any {name} site"
+    },
+    "place": {
+      "map": "Map",
+      "mapHint": "Look at the map to plan your next move (M)",
+      "backHint": "Back to {name} (M)",
+      "lookingFrom": "Looking from {name}",
+      "blockTab": "Block",
+      "siteTab": "Site",
+      "leaveBlockFirst": "Head down to the void deck and leave the block first.",
+      "gate": "The gate",
+      "gateOpen": "Open door — anyone not feuding walks in.",
+      "gateFee": "Fee door — one item of tribute buys a day inside.",
+      "gateMembers": "Members only — {rung} ({n}) or better.",
+      "passThrough": "Paid through day {d}.",
+      "inside": "You are inside the wire.",
+      "outside": "You are at the curb.",
+      "standing": "Standing",
+      "ladder": "What standing buys here",
+      "site": "This site",
+      "noJobs": "No work posted today. Come back after dawn.",
+      "frameSite": "Frame site"
     }
   },
   "settings": {

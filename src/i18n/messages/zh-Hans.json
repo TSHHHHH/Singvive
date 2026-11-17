@@ -2513,6 +2513,27 @@
       "title": "势力",
       "outposts": "已知据点：{n}",
       "handIn": "可在任意{name}据点交付"
+    },
+    "place": {
+      "map": "地图",
+      "mapHint": "查看地图，规划下一步（M）",
+      "backHint": "返回 {name}（M）",
+      "lookingFrom": "正在从 {name} 查看",
+      "blockTab": "楼栋",
+      "siteTab": "据点",
+      "leaveBlockFirst": "先下到底层架空层，离开这栋楼。",
+      "gate": "门口",
+      "gateOpen": "开放之门——只要没结仇，谁都能进。",
+      "gateFee": "收费之门——交一件贡品可在里面待一天。",
+      "gateMembers": "仅限成员——需要 {rung}（{n}）或以上。",
+      "passThrough": "已付至第 {d} 天。",
+      "inside": "你在铁丝网内。",
+      "outside": "你在门外。",
+      "standing": "声望",
+      "ladder": "声望在这里能换到什么",
+      "site": "此地",
+      "noJobs": "今天没有贴出活儿。天亮后再来。",
+      "frameSite": "对准据点"
     }
   },
   "settings": {
