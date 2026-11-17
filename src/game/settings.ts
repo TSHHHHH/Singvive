@@ -490,6 +490,11 @@ export function settingsForTab(tab: SettingTabId): SettingDef[] {
   return SETTINGS_SCHEMA.filter((d) => d.tab === tab);
 }
 
+/** A setting's current value outside React (falling back to its schema default). */
+export function readSetting(key: string): string {
+  return useSettings.getState().values[key] ?? SETTING_DEFAULT.get(key) ?? '';
+}
+
 /** Read a single setting's current value (falling back to its schema default). */
 export function useSetting(key: string): string {
   return useSettings((s) => s.values[key] ?? SETTING_DEFAULT.get(key) ?? '');

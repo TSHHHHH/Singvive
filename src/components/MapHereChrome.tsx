@@ -1,5 +1,6 @@
 import { POI_CONFIG } from '../game/poi';
 import { useGame } from '../game/store';
+import { useShownLog } from '../ui/diceGate';
 import { formatClock } from '../game/survival';
 import { useClockFormat } from '../game/settings';
 import { Icon } from '../icons/Icon';
@@ -40,7 +41,7 @@ export function MapHereChrome({
   onEvac?: () => void;
 }) {
   const { t } = useT();
-  const log = useGame((s) => s.log);
+  const log = useShownLog();
   const day = useGame((s) => s.day);
   const clock = useClockFormat();
   const entries = log.filter((e) => e.day === day).slice(0, 2);

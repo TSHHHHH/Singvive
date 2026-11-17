@@ -10,6 +10,7 @@ import { RollingDigits } from './clockDigits';
 import { useTickingClock } from './useTickingClock';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { tip } from './tips';
+import { useHeldWhileRolling } from '../ui/diceGate';
 
 const BAND_COLOR: Record<TimeOfDay, string> = {
   day: '#e8e5dd',
@@ -22,9 +23,9 @@ const BAND_COLOR: Record<TimeOfDay, string> = {
  * gets pride of place at the top of the hub.
  */
 export function DigitalClock({
-  day,
-  hour,
-  band,
+  day: liveDay,
+  hour: liveHour,
+  band: liveBand,
   variant = 'panel',
 }: {
   day: number;
@@ -40,6 +41,8 @@ export function DigitalClock({
   variant?: 'panel' | 'lock' | 'strip';
 }) {
   const { t } = useT();
+  // Time a check spends shows once its die has landed.
+  const { day, hour, band } = useHeldWhileRolling({ day: liveDay, hour: liveHour, band: liveBand });
   const clock = useClockFormat();
   const fx = useClockAdvance(day, hour);
   const still = useReducedMotion();

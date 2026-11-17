@@ -49,6 +49,7 @@ import { canCraft, RECIPES } from '../game/crafting';
 import { DayLogsModal } from '../components/DayLogsModal';
 import { GuideModal } from '../components/GuideModal';
 import { DiceRoll } from '../components/DiceRoll';
+import { useShownLog } from '../ui/diceGate';
 import { HowToPlayModal } from '../components/HowToPlayModal';
 import { LimbCoachModal } from '../components/LimbCoachModal';
 import { HdbDungeonModal } from '../components/HdbDungeonModal';
@@ -955,7 +956,7 @@ export function GameScreen() {
   );
 
   // ---- red-dot notices on the rail menu ------------------------------------
-  const gameLog = useGame((s) => s.log);
+  const gameLog = useShownLog();
   const leads = useGame((s) => s.explorationLeads);
   const craftReadyIds = useMemo(
     () => RECIPES.filter((r) => canCraft(r, items, true).ok).map((r) => r.id),

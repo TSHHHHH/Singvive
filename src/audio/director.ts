@@ -6,6 +6,7 @@ import { careForItem } from '../game/woundCare';
 import type { BodyPartId, CombatImpact } from '../game/types';
 import type { CueId } from './cues';
 import { sfx } from './sfx';
+import { isDicePending, onDiceRelease } from '../ui/diceGate';
 
 // ---------------------------------------------------------------------------
 // Sound director: turns game state changes into cues.
@@ -33,9 +34,26 @@ const NOTIFY_QUIET_MS = 350;
 
 let lastSpecificAt = 0;
 
+/**
+ * Cues caused by a check wait for its die to land, so a wound or a fight
+ * sting never plays over the tumble. Released just after the verdict sound.
+ */
+const RELEASE_AFTER_MS = 220;
+let heldCues: Array<[CueId, number | undefined]> = [];
+
 function cue(id: CueId, delayMs?: number): void {
+  if (isDicePending()) {
+    heldCues.push([id, delayMs]);
+    return;
+  }
   lastSpecificAt = performance.now();
   sfx.play(id, delayMs ? { delayMs } : undefined);
+}
+
+function releaseHeldCues(): void {
+  const q = heldCues;
+  heldCues = [];
+  for (const [id, delayMs] of q) cue(id, (delayMs ?? 0) + RELEASE_AFTER_MS);
 }
 
 function absHour(s: State): number {
@@ -190,7 +208,9 @@ function onChange(s: State, p: State): void {
     const last = s.log[s.log.length - 1]!;
     const prevLast = p.log.length ? p.log[p.log.length - 1]!.id : -1;
     if (last.id !== prevLast && last.tone !== 'info' && performance.now() - lastSpecificAt > NOTIFY_QUIET_MS) {
-      sfx.play(last.tone === 'good' ? 'hud.notify.good' : 'hud.notify.bad');
+      const blip = last.tone === 'good' ? 'hud.notify.good' : 'hud.notify.bad';
+      if (isDicePending()) heldCues.push([blip, undefined]);
+      else sfx.play(blip);
     }
   }
 }
@@ -430,8 +450,11 @@ export function installSoundDirector(): void {
       if (import.meta.env.DEV) console.warn('[sfx] director', err);
     }
   });
+  const unrelease = onDiceRelease(releaseHeldCues);
   uninstall = () => {
     unsub();
+    unrelease();
+    heldCues = [];
     useGame.setState(originals as Partial<State>);
     sfx.stopLoops();
   };
