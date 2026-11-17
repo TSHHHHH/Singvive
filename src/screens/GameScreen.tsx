@@ -119,7 +119,7 @@ import { FactionSiteWindow } from '../components/FactionSiteWindow';
 import { PlaceMapToggle } from '../components/PlaceMapToggle';
 import type { PlaceFocus } from '../components/GameMap';
 import { FACTION_CONFIG } from '../game/factions';
-import { placeKeyFor, useShowingMap } from '../ui/placeView';
+import { placeKeyFor, showMap, useShowingMap } from '../ui/placeView';
 
 type MobileView = 'map' | 'hub' | 'log';
 type PhoneTab = MobileView | 'inventory' | 'craft';
@@ -447,6 +447,9 @@ export function GameScreen() {
   useGuideInterrupts();
 
   const focusStashOnMap = useCallback((lat: number, lng: number) => {
+    // Inside a block or faction site the place view owns the camera, so a
+    // focus elsewhere would strand it there. Look from the map view instead.
+    showMap();
     setMapFocus((prev) => ({ lat, lng, token: (prev?.token ?? 0) + 1 }));
     goToPhoneTab('map');
   }, [goToPhoneTab]);
