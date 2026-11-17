@@ -56,7 +56,7 @@ export function poiIcon(poi: Poi): MapIcon {
   const ring = dangerColor(danger);
   const outpost = !!poi.isFactionOutpost && !!poi.factionId;
   const held = !outpost && !!poi.factionId && poi.isFactionRevealed;
-  // Lift faction hues against the dark glyph, including the 88 Gang's red.
+  // Lift faction hues against the dark glyph, including the 88 Tong's red.
   const markerColor = factionColor ? mixHex(factionColor, '#ffffff', 0.2) : cfg.color;
   // Depletion mutes the fill, never the glyph or the danger ring.
   const fillColor = dim ? mixHex(markerColor, '#40433e', 0.7) : markerColor;

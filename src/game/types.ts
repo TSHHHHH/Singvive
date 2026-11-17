@@ -138,7 +138,7 @@ export interface Trait {
    * nothing.
    *
    * Hostility lifts at STANDING_KNOWN (+1): handing a build one point of standing with the 88
-   * 88 Gang is exactly what "you know someone" means, with no special case
+   * 88 Tong is exactly what "you know someone" means, with no special case
    * anywhere in the faction code. Standing runs −5…+5.
    */
   factionStandingMod?: Partial<Record<Exclude<FactionId, null>, number>>;
@@ -562,7 +562,7 @@ export interface LocationState {
   gatePolicy?: GatePolicy;
   /** Standing a `members` door asks for. */
   gateMinStanding?: number;
-  /** Day the Kampung Kitchen canteen was used here (once per day). */
+  /** Day the Common Folk canteen was used here (once per day). */
   feedUsedDay?: number;
   /**
    * 88 Kin already walked this occupied residential. The grant is the block,
