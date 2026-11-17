@@ -1846,8 +1846,6 @@
       "locality": "地铁站周边地图",
       "overviewTitle": "已标记{count}处地点",
       "overviewBody": "它们已标在你的地图上。实地情况要亲自去了才知道。",
-      "newPlace": "地图新标记",
-      "distance": "距你{distance}米",
       "tapNext": "点击继续"
     },
     "exploration": {

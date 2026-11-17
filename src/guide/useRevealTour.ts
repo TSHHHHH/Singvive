@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useGame } from '../game/store';
-import { poiCategoryLabel, useT } from '../i18n';
+import { useT } from '../i18n';
 import { guide } from './guide';
 import { buildRevealTour } from './revealTour';
 
@@ -11,7 +11,7 @@ import { buildRevealTour } from './revealTour';
  */
 export function useRevealTour(prepare: () => void) {
   const cue = useGame((s) => s.revealTour);
-  const { t, locale } = useT();
+  const { t } = useT();
 
   useEffect(() => {
     if (!cue) return;
@@ -27,9 +27,6 @@ export function useRevealTour(prepare: () => void) {
       title: t(board ? 'ui.tour.noticeboard' : 'ui.tour.locality'),
       overviewTitle: (count) => t('ui.tour.overviewTitle', { count }),
       overviewBody: t('ui.tour.overviewBody'),
-      newPlace: t('ui.tour.newPlace'),
-      category: (loc) => poiCategoryLabel(loc.category, locale),
-      distance: (distance) => t('ui.tour.distance', { distance }),
     });
     if (!sequence) {
       done();

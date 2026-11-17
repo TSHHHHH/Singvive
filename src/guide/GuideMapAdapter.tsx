@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { LngLatBounds, type Map as MlMap } from 'maplibre-gl';
 import { useMapGL } from '../map/hooks';
@@ -7,7 +7,9 @@ import { useReducedMotion } from '../hooks/useReducedMotion';
 import { guide, useGuideState } from './guide';
 import type { GuideState } from './runner';
 import type { GuidePoint, GuideShot } from './types';
+import { stepPins } from './pins';
 import { GuideCalloutCard } from './GuideCalloutCard';
+import { Icon } from '../icons/Icon';
 
 /** Extra room around a framed set of points, on top of the HUD padding. */
 const FIT_PAD = 70;
@@ -27,12 +29,37 @@ interface CameraSnapshot {
  */
 const GUIDE_EVENT = { cameraFocus: true, guide: true };
 
+/**
+ * A framing shot eases a steep 3D tilt so the far points do not crowd into a
+ * strip at the horizon. The flat view (pitch 0) is left flat.
+ */
+const FIT_MAX_PITCH = 30;
+
 function shotCamera(map: MlMap, shot: GuideShot) {
   const keep = { pitch: shot.pitch ?? map.getPitch(), bearing: shot.bearing ?? map.getBearing() };
   if (shot.fit && shot.fit.length > 1) {
+    const { clientWidth: w, clientHeight: h } = map.getContainer();
+    // A tall phone map is width-bound; a flatter tilt gives the names more rows.
+    if (shot.pitch === undefined) keep.pitch = Math.min(keep.pitch, h > w ? FIT_MAX_PITCH / 2 : FIT_MAX_PITCH);
+    const side = w < 640 ? 36 : FIT_PAD;
     const bounds = new LngLatBounds();
     for (const p of shot.fit) bounds.extend([p.lng, p.lat]);
-    const cam = map.cameraForBounds(bounds, { padding: FIT_PAD, bearing: keep.bearing, maxZoom: shot.maxZoom ?? 16 });
+    // Keep the framed points clear of the guide caption over the top of the map.
+    const box = map.getContainer().getBoundingClientRect();
+    const caption = document.querySelector('[data-guide-caption]')?.getBoundingClientRect();
+    const pad = map.getPadding();
+    const top = caption ? Math.max(0, caption.bottom - box.top - (pad.top ?? 0)) : 0;
+    // HUD docked over the map's foot (the phone's here row) that padding does not cover.
+    let foot = 0;
+    for (const el of document.querySelectorAll('[data-guide-avoid="bottom"]')) {
+      const r = el.getBoundingClientRect();
+      if (r.height > 0) foot = Math.max(foot, box.bottom - r.top - (pad.bottom ?? 0));
+    }
+    const cam = map.cameraForBounds(bounds, {
+      padding: { top: FIT_PAD + top, bottom: FIT_PAD + Math.max(0, foot), left: side, right: side },
+      bearing: keep.bearing,
+      maxZoom: shot.maxZoom ?? 16,
+    });
     if (cam) return { ...keep, center: cam.center, zoom: cam.zoom };
   }
   let center: GuidePoint | null = null;
@@ -122,26 +149,84 @@ export function GuideMapAdapter() {
   return state ? <AnchoredCallout map={map} state={state} reduced={reduced} /> : null;
 }
 
+/** Gap between a pin and its card, clearing the 34 px site badge. */
+const CARD_GAP = 24;
+
+interface Rect { l: number; t: number; r: number; b: number }
+type Side = 'above' | 'below' | 'right' | 'left';
+const SIDES: Side[] = ['above', 'below', 'right', 'left'];
+
+function sideRect(p: { x: number; y: number }, s: { w: number; h: number }, side: Side): Rect {
+  if (side === 'above') return { l: p.x - s.w / 2, r: p.x + s.w / 2, t: p.y - CARD_GAP - s.h, b: p.y - CARD_GAP };
+  if (side === 'below') return { l: p.x - s.w / 2, r: p.x + s.w / 2, t: p.y + CARD_GAP, b: p.y + CARD_GAP + s.h };
+  if (side === 'right') return { l: p.x + CARD_GAP, r: p.x + CARD_GAP + s.w, t: p.y - s.h / 2, b: p.y + s.h / 2 };
+  return { l: p.x - CARD_GAP - s.w, r: p.x - CARD_GAP, t: p.y - s.h / 2, b: p.y + s.h / 2 };
+}
+
+const overlap = (a: Rect, b: Rect) =>
+  Math.max(0, Math.min(a.r, b.r) - Math.max(a.l, b.l)) * Math.max(0, Math.min(a.b, b.b) - Math.max(a.t, b.t));
+
+/** Half a site badge, plus a little air: cards must not sit on another pin. */
+const PIN_HALF = 20;
+
 /**
- * The emphasised call-out over a map point. It lives in a fixed layer above
+ * The first side that clears every card placed so far, every pin and the
+ * screen edge, else the least crowded one (spilling off screen costs most).
+ */
+function pickSide(
+  p: { x: number; y: number }, size: { w: number; h: number }, taken: Rect[], screen: Rect,
+): { side: Side; rect: Rect } {
+  let best = { side: SIDES[0], rect: sideRect(p, size, SIDES[0]), cost: Infinity };
+  for (const side of SIDES) {
+    const rect = sideRect(p, size, side);
+    const area = (rect.r - rect.l) * (rect.b - rect.t);
+    const cost = taken.reduce((sum, o) => sum + overlap(rect, o), 0) + 2 * (area - overlap(rect, screen));
+    if (cost === 0) return { side, rect };
+    if (cost < best.cost) best = { side, rect, cost };
+  }
+  return best;
+}
+
+/**
+ * The emphasised call-outs over map points. They live in a fixed layer above
  * the HUD (not in MapLibre's marker pane, which sits under the weather and
- * vignettes) and follows the point on map `move` only — never on a timer.
+ * vignettes) and follow their points on map `move` only — never on a timer.
+ * Each card takes the first side of its pin (above, below, right, left) that
+ * clears the cards already placed, else the least crowded one.
  */
 function AnchoredCallout({ map, state, reduced }: { map: MlMap; state: GuideState; reduced: boolean }) {
   const { step, phase, token } = state;
-  const anchor = step.callout?.anchor ?? null;
-  const ring = step.highlight ?? null;
-  const at = anchor ?? ring;
-  const box = useRef<HTMLDivElement>(null);
+  const pins = useMemo(() => stepPins(step), [step]);
+  const boxes = useRef<(HTMLDivElement | null)[]>([]);
+  const cards = useRef<(HTMLDivElement | null)[]>([]);
 
   useLayoutEffect(() => {
-    if (!at || phase !== 'showing') return;
+    if (!pins.length || phase !== 'showing') return;
+    // Card sizes are fixed once laid out; read them once, not per move.
+    const sizes = cards.current.map((el) => (el ? { w: el.offsetWidth, h: el.offsetHeight } : null));
     const place = () => {
-      const el = box.current;
-      if (!el) return;
       const rect = map.getContainer().getBoundingClientRect();
-      const p = map.project([at.lng, at.lat]);
-      el.style.transform = `translate3d(${Math.round(rect.left + p.x)}px, ${Math.round(rect.top + p.y)}px, 0)`;
+      const pts = pins.map((p, i) => ({ i, p: map.project([p.at.lng, p.at.lat]) }));
+      // Every pin's badge is off limits to every card.
+      const taken: Rect[] = pts.map(({ p }) => ({ l: p.x - PIN_HALF, r: p.x + PIN_HALF, t: p.y - PIN_HALF, b: p.y + PIN_HALF }));
+      const caption = document.querySelector('[data-guide-caption]')?.getBoundingClientRect();
+      let foot = rect.height;
+      for (const el of document.querySelectorAll('[data-guide-avoid="bottom"]')) {
+        const r = el.getBoundingClientRect();
+        if (r.height > 0) foot = Math.min(foot, r.top - rect.top);
+      }
+      const screen: Rect = { l: 0, t: caption ? Math.max(0, caption.bottom - rect.top) : 0, r: rect.width, b: foot };
+      // Top of the screen first, so the upper card keeps its usual spot.
+      for (const { i, p } of [...pts].sort((a, b) => a.p.y - b.p.y)) {
+        const box = boxes.current[i];
+        if (!box) continue;
+        box.style.transform = `translate3d(${Math.round(rect.left + p.x)}px, ${Math.round(rect.top + p.y)}px, 0)`;
+        const size = sizes[i];
+        if (!size) continue;
+        const side = pickSide(p, size, taken, screen);
+        box.dataset.side = side.side;
+        taken.push(side.rect);
+      }
     };
     place();
     map.on('move', place);
@@ -152,22 +237,41 @@ function AnchoredCallout({ map, state, reduced }: { map: MlMap; state: GuideStat
       map.off('resize', place);
       window.removeEventListener('resize', place);
     };
-  }, [map, at, phase]);
+  }, [map, pins, phase]);
 
-  if (!at || phase !== 'showing') return null;
+  if (!pins.length || phase !== 'showing') return null;
   return createPortal(
-    <div
-      ref={box}
-      key={token}
-      className={`guide-anchor pointer-events-none fixed left-0 top-0 z-[1085]${reduced ? ' guide-still' : ''}`}
-      aria-live="polite"
-    >
-      {ring && <div className="guide-ring" style={step.callout?.accent ? { color: step.callout.accent } : undefined} aria-hidden />}
-      {anchor && step.callout && (
-        <div className="guide-anchor-card">
-          <GuideCalloutCard callout={step.callout} />
+    <div key={token} className={reduced ? 'guide-still' : undefined} aria-live="polite">
+      {pins.map((pin, i) => (
+        <div
+          key={i}
+          ref={(el) => {
+            boxes.current[i] = el;
+          }}
+          className="guide-anchor pointer-events-none fixed left-0 top-0 z-[1085]"
+        >
+          {pin.ring && (
+            <div className="guide-ring" style={pin.callout?.accent ? { color: pin.callout.accent } : undefined} aria-hidden>
+              {/* Its own badge: site markers hide when zoomed far out. */}
+              {pin.callout?.icon && (
+                <span className="guide-ring-icon">
+                  <Icon name={pin.callout.icon} size={16} />
+                </span>
+              )}
+            </div>
+          )}
+          {pin.callout && (
+            <div
+              className="guide-anchor-card"
+              ref={(el) => {
+                cards.current[i] = el;
+              }}
+            >
+              <GuideCalloutCard callout={pin.callout} />
+            </div>
+          )}
         </div>
-      )}
+      ))}
     </div>,
     document.body,
   );

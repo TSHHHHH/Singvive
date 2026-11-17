@@ -107,13 +107,16 @@ export function GuideOverlay() {
         role="dialog"
         aria-label={sequence.title}
       >
-        <div className="guide-caption-box pointer-events-auto w-full max-w-[26rem] overflow-hidden rounded border border-white/15 bg-concrete-900/95 shadow-signage">
+        <div data-guide-caption="" className="guide-caption-box pointer-events-auto w-full max-w-[26rem] overflow-hidden rounded border border-white/15 bg-concrete-900/95 shadow-signage">
           <div className="flex items-center gap-2 px-3 pt-2">
             {sequence.title && <div className="min-w-0 flex-1 truncate text-label uppercase text-astral">{sequence.title}</div>}
-            <div className="text-micro tabular-nums text-concrete-400">
-              {t('ui.tour.progress', { n: index + 1, total: sequence.steps.length })}
-            </div>
+            {sequence.steps.length > 1 && (
+              <div className="text-micro tabular-nums text-concrete-400">
+                {t('ui.tour.progress', { n: index + 1, total: sequence.steps.length })}
+              </div>
+            )}
           </div>
+          {sequence.steps.length > 1 && (
           <div className="flex gap-1 px-3 pt-1.5" aria-hidden>
             {sequence.steps.map((s, i) => (
               <span
@@ -122,6 +125,7 @@ export function GuideOverlay() {
               />
             ))}
           </div>
+          )}
           {docked && (
             <div key={token} className="px-3 pt-2">
               <GuideCalloutCard callout={docked} docked />

@@ -60,6 +60,7 @@ export function MapHereChrome({
 
   return (
     <div
+      data-guide-avoid="bottom"
       className="pointer-events-auto absolute left-3 right-3 z-[640] flex flex-col overflow-hidden rounded-lg border border-white/15 bg-concrete-900/95 shadow-signage lg:hidden"
       style={{
         bottom:

@@ -251,9 +251,10 @@ ground for rest; landmarks are not selected as guaranteed indoor spawn shelters.
   logbook has room. Reading does not grant live conditions, clear fog or bypass travel. A full
   logbook leaves an MRT map unread; a noticeboard still names places, just adds no lead.
 - **Reveal tour.** After a board or map names places, the guide takes the camera: it frames all
-  of them, then visits each with a "New on your map" call-out, then returns to where you were.
-  Skip any time (Skip, Esc); Next, a tap, Enter, Space or → moves on. Reduced motion cuts instead
-  of flying. A fight, event or new trek cancels the tour.
+  of them in one shot and every place's ring and name card pops at the same moment (cards pick a
+  free side of their pin), holds for 2.5 s + 0.25 s per place, then returns to where you were.
+  Skip any time (Skip, Esc); Next, a tap, Enter, Space or → ends it early. Reduced motion cuts
+  instead of flying. A fight, event or new trek cancels the tour.
 - **Logbook mini objectives.** Keep up to six active leads and 24 total active/completed entries.
   Each records its source, destination and day, with reported facilities labelled as unverified.
   Physical arrival marks a lead visited, with no score or loot bonus. **Show on map** closes the

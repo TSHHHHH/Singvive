@@ -45,9 +45,18 @@ export interface GuideCallout {
   /** CSS colour for the icon and the call-out's edge. */
   accent?: string;
   eyebrow?: string;
+  /** Icon and title on one tight card, for several call-outs at once. */
+  compact?: boolean;
   title: string;
   body?: string;
   meta?: string;
+}
+
+/** One marked point on the map: a ring, an anchored call-out, or both. */
+export interface GuidePin {
+  at: GuidePoint;
+  ring?: boolean;
+  callout?: GuideCallout;
 }
 
 export interface GuideStep {
@@ -55,7 +64,10 @@ export interface GuideStep {
   shot?: GuideShot;
   /** A pulsing ring on the map. */
   highlight?: GuidePoint;
+  /** A docked call-out, or one anchored via its own `anchor`. */
   callout?: GuideCallout;
+  /** Several points marked together; their call-outs pop at the same time. */
+  pins?: GuidePin[];
   advance: GuideAdvance;
 }
 

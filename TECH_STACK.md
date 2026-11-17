@@ -981,7 +981,9 @@ tutorial can reuse it unchanged.
   hotkeys, `map` shields only `[data-guide-map]`, `none` blocks nothing) + `restoreCamera` +
   `skippable` + `onEnd`. A `GuideStep` has an optional `shot` (centre / `'player'` / `fit`
   points, zoom, pitch, bearing, duration), `highlight` point, `callout` (`reveal` pops, `note`
-  fades; anchored over the map or docked in the caption) and an `advance` rule: `timer`, `tap`,
+  fades; anchored over the map or docked in the caption), `pins` (many points marked at once,
+  each with a ring and a call-out; cards take the first free side of their pin, avoiding other
+  pins, the caption and `[data-guide-avoid="bottom"]` HUD) and an `advance` rule: `timer`, `tap`,
   or `signal` (game code calls `guide.signal(name)`, e.g. "player opened the bag").
 - `runner.ts`: framework-free state machine (`play` queues behind a running sequence, `arrived`,
   `next`, `signal`, `skip`, `cancel`). Injected clock, unit-tested. If no camera reports arrival
