@@ -286,7 +286,7 @@ export function makeStationLocation(
     exhausted: false,
     cleared: false,
     looted: false,
-    // STA claims platforms probabilistically — some stations stay abandoned.
+    // Wardens claims platforms probabilistically — some stations stay abandoned.
     factionId: assignFaction(r.fork('faction'), 'mrt'),
     isFactionRevealed: false,
     isMrtStation: true,

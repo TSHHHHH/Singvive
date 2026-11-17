@@ -7,6 +7,7 @@ import { Icon } from '../icons/Icon';
 import type { ItemInstance, LocationState } from '../game/types';
 import type { ExplorationLead } from '../game/exploration';
 import { knownFacilityKinds } from './explorationPresentation';
+import { FactionLedger } from './FactionLedger';
 
 interface Props {
   /** Focus the map camera on a place without auto-traveling. */
@@ -44,6 +45,7 @@ export function StashLogbook({ onFocusLocation }: Props) {
 
   return (
     <>
+      <FactionLedger onFocusLocation={onFocusLocation} />
       <section className="mb-6 space-y-3">
         <h3 className="text-label uppercase text-signal">{t('ui.exploration.activeLeads', { n: activeLeads.length })}</h3>
         <p className="text-body text-white/50">{t('ui.exploration.leadHint')}</p>

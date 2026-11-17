@@ -17,8 +17,15 @@ import { tip } from './tips';
  */
 
 /** The quieter second line inside a button. */
-export function BtnSub({ children }: { children: ReactNode }) {
-  return <span className="block font-normal opacity-70">{children}</span>;
+/**
+ * Second line on a button. `hint` marks an explanation rather than a status:
+ * it shows on phones (no hover) and moves to the button's tooltip on desktop,
+ * so pass the same text to `tip()` on the button.
+ */
+export function BtnSub({ children, hint }: { children: ReactNode; hint?: boolean }) {
+  return (
+    <span className={`block font-normal opacity-70 ${hint ? 'lg:hidden' : ''}`}>{children}</span>
+  );
 }
 
 /** Identity row: what this place (or door) is. */
