@@ -115,6 +115,11 @@ import { sightFactor, sightLimitedRange, swarmSenseRange, veilAlpha } from '../g
 import type { LocationState } from '../game/types';
 import type { IconName } from '../icons/keys';
 import { BTN } from '../components/placeCardStyle';
+import { FactionSiteWindow } from '../components/FactionSiteWindow';
+import { PlaceMapToggle } from '../components/PlaceMapToggle';
+import type { PlaceFocus } from '../components/GameMap';
+import { FACTION_CONFIG } from '../game/factions';
+import { placeKeyFor, useShowingMap } from '../ui/placeView';
 
 type MobileView = 'map' | 'hub' | 'log';
 type PhoneTab = MobileView | 'inventory' | 'craft';
@@ -230,6 +235,8 @@ const HDB_MIN_W = 440;
 const BLOCK_STRIP_MIN_W = 180;
 /** Desktop 3D: widest the landing strips get beside the block. */
 const HDB_STRIPS_W = 720;
+/** Desktop: widest the faction window gets beside its site. */
+const SITE_WINDOW_W = 760;
 
 function timelineWidth(vw: number): number {
   return Math.round(Math.max(320, Math.min(520, vw * 0.34)));
@@ -922,6 +929,23 @@ export function GameScreen() {
   // itself reads the same cached copy through mrtRouteBetween.
   const mrtNet = useMrtNetwork();
 
+  // ---- place view: an HDB block or a faction site owns the screen until the
+  // player flips to the map (src/ui/placeView.ts) -------------------------
+  const placeSite = currentPositionId ? locations[currentPositionId] ?? null : null;
+  const placeKey = placeKeyFor({ hdb, travelAnim, here: placeSite });
+  const placeOnMap = useShowingMap(placeKey);
+  /** The landing strips are up (otherwise the run map shows from inside the block). */
+  const blockShown = !!hdb && !placeOnMap;
+  /** The faction window is up, camera on the site. */
+  const siteShown = !hdb && !!placeKey && !placeOnMap && !!placeSite;
+  const [siteSheetH, setSiteSheetH] = useState(0);
+  const focusKind = blockShown ? 'block' : siteShown ? 'site' : null;
+  const focusId = blockShown ? hdb!.locationId : siteShown ? placeSite!.id : null;
+  const placeFocus = useMemo<PlaceFocus | null>(
+    () => (focusKind && focusId ? { kind: focusKind, id: focusId } : null),
+    [focusKind, focusId],
+  );
+
   // ---- desktop HUD: rail shortcuts, timeline / ticker ---------------------
   const vw = useViewportWidth();
   const setSetting = useSettings((s) => s.setSetting);
@@ -935,7 +959,7 @@ export function GameScreen() {
     else setSetting('timelinePinned', 'on');
     setActivityFocus((previous) => ({ id, nonce: (previous?.nonce ?? 0) + 1 }));
   };
-  const tlW = hdb ? Math.round(Math.max(320, Math.min(520, vw * 0.27))) : timelineWidth(vw);
+  const tlW = blockShown || siteShown ? Math.round(Math.max(320, Math.min(520, vw * 0.27))) : timelineWidth(vw);
   const dockSizing = useDockWidth(vw);
   const railW = dockSizing.width;
   const mapW = vw - railW;
@@ -1111,7 +1135,7 @@ export function GameScreen() {
     canTunnel: !!tunnelSeg,
     tunnelSeg,
     tunnelHint,
-    onTravel: () => travel(sel.id),
+    onTravel: () => leaveBlockThen(() => travel(sel.id))(),
     onEnter: enter,
     onTunnel: () => sel.mrtStationId && openPlanner(sel.mrtStationId),
     onOpenStash: openStash,
@@ -1191,10 +1215,12 @@ export function GameScreen() {
               arrivalAtNight={trekEst.arrivalAtNight}
               vegetationSlowed={trekEst.vegetationSlowed}
               vegetationEnergy={trekEst.vegetationEnergy}
-              onTrek={() => {
-                trek(trekTarget.lat, trekTarget.lng);
-                setTrekTarget(null);
-              }}
+              onTrek={() =>
+                leaveBlockThen(() => {
+                  trek(trekTarget.lat, trekTarget.lng);
+                  setTrekTarget(null);
+                })()
+              }
             />
           ),
           onClose: () => setTrekTarget(null),
@@ -1250,7 +1276,7 @@ export function GameScreen() {
   ) : null;
 
   /** Desktop: the target card only pairs with "here" while the open map shows. */
-  const desktopTarget = !tunnel && !hdb && !mrtPlanner;
+  const desktopTarget = !tunnel && !blockShown && !siteShown && !mrtPlanner;
   /**
    * Desktop: the HDB landing strips are drawn in the space the HUD leaves inside the
    * map column (the rail sits left of it): left of the timeline (or ticker),
@@ -1284,10 +1310,52 @@ export function GameScreen() {
     const w = avail - strips - HUD_GAP;
     return w >= BLOCK_STRIP_MIN_W ? w : 0;
   })();
-  const hdbOverMap = !!hdb && blockStripW > 0;
+  const hdbOverMap = blockShown && blockStripW > 0;
   const hdbPanelInset = hdbOverMap
     ? { ...hdbInset, left: hdbInset.left + blockStripW + HUD_GAP }
     : hdbInset;
+
+  /**
+   * Desktop faction site: the faction window on the left beside the rail, the
+   * site itself in the map strip to its right (the ticker floats over that
+   * strip, never over the window). Works on the flat map too.
+   */
+  const siteLeft = HUD_EDGE + panelInset;
+  const siteRight = HUD_EDGE + (timelineBeside ? tlW + HUD_GAP : 0);
+  const siteAvail = mapW - siteLeft - siteRight;
+  const siteWinW = (() => {
+    const win = Math.min(SITE_WINDOW_W, Math.max(HDB_MIN_W - 40, Math.round(siteAvail * 0.58)));
+    return siteAvail - win - HUD_GAP >= BLOCK_STRIP_MIN_W ? win : siteAvail;
+  })();
+  const siteInset = { top: HUD_EDGE, left: siteLeft, right: mapW - siteLeft - siteWinW, bottom: HUD_BOTTOM };
+  /** Camera box clear of whatever the place view puts over the map. */
+  const placePad = hdbOverMap
+    ? { top: hdbInset.top + 56, left: hdbInset.left, right: Math.max(0, mapW - hdbInset.left - blockStripW), bottom: HUD_BOTTOM }
+    : siteShown
+      ? isPhone
+        ? { top: 104, left: 0, right: 0, bottom: siteSheetH }
+        : {
+            top: HUD_EDGE + (timelineBeside ? 0 : TICKER_HEAD_H + HUD_GAP) + 56,
+            left: siteWinW < siteAvail ? siteLeft + siteWinW + HUD_GAP : siteLeft,
+            right: siteRight,
+            bottom: HUD_BOTTOM,
+          }
+      : null;
+
+  /**
+   * Inside a block the map is look-only: the store refuses travel there. From
+   * the void deck a trip just walks out first; higher up it says so.
+   */
+  const leaveBlockThen = (go: () => void) => () => {
+    const s = useGame.getState();
+    if (!s.hdb) return go();
+    if (s.hdb.currentLevel !== 1 || s.pendingSearch) {
+      notify(t('ui.place.leaveBlockFirst'), 'bad');
+      return;
+    }
+    s.hdbLeave();
+    go();
+  };
 
   const hereTitle: ReactNode = hdb ? (
     <span className="inline-flex items-center gap-1.5 normal-case tracking-normal">
@@ -1696,7 +1764,7 @@ export function GameScreen() {
           <NearbyRecognitionNotice leftInset={isPhone ? 0 : panelInset} rightInset={isPhone || !timelineBeside ? 0 : tlW + HUD_EDGE} />
           {tunnel ? (
             <TunnelRunView />
-          ) : hdb && !hdbOverMap ? (
+          ) : blockShown && !hdbOverMap ? (
             <HdbDungeonModal onOpenGuide={setGuideTopic} inset={hdbInset} />
           ) : mrtPlanner && !hdb ? (
             <MrtRoutePlanner
@@ -1736,15 +1804,16 @@ export function GameScreen() {
                 focusTarget={mapFocus}
                 mapAnnotations={mapAnnotations}
                 padRight={
-                  hdbOverMap
-                    ? Math.max(0, mapW - hdbInset.left - blockStripW)
+                  placePad
+                    ? placePad.right
                     : isPhone || !timelineBeside
                       ? 0
                       : tlW + HUD_EDGE
                 }
-                padLeft={hdbOverMap ? hdbInset.left : panelInset}
-                padBottom={hdbOverMap ? HUD_BOTTOM : isPhone ? 0 : pairH > 0 ? pairH + HUD_BOTTOM : HUD_BOTTOM}
-                padTop={hdbOverMap ? hdbInset.top + 56 : 0}
+                padLeft={placePad ? placePad.left : panelInset}
+                padBottom={placePad ? placePad.bottom : isPhone ? 0 : pairH > 0 ? pairH + HUD_BOTTOM : HUD_BOTTOM}
+                padTop={placePad ? placePad.top : 0}
+                placeFocus={placeFocus}
                 chromeRight={
                   isPhone ? 0 : HUD_EDGE + (timelineBeside ? tlW : Math.min(TICKER_W, mapW - panelInset - HUD_EDGE * 2)) + HUD_GAP / 2
                 }
@@ -1758,6 +1827,38 @@ export function GameScreen() {
               {hdbOverMap && (
                 <div className="absolute inset-0 z-[550]">
                   <HdbDungeonModal onOpenGuide={setGuideTopic} inset={hdbPanelInset} overMap />
+                </div>
+              )}
+              {/* A faction site: their window over the map, camera on the site. */}
+              {siteShown && placeKey && (
+                <div className="absolute inset-0 z-[550]">
+                  <FactionSiteWindow
+                    site={placeSite!}
+                    placeKey={placeKey}
+                    onEnter={enter}
+                    onOpenStash={openStash}
+                    inset={siteInset}
+                    phone={isPhone}
+                    onSheetHeight={setSiteSheetH}
+                  />
+                </div>
+              )}
+              {/* Looking at the map from inside a place: the way back. */}
+              {placeKey && placeOnMap && (hdb || placeSite) && (
+                <div
+                  className="pointer-events-none absolute z-[715] flex justify-center max-lg:left-2 max-lg:top-14 max-lg:justify-start"
+                  style={isPhone ? undefined : { top: HUD_EDGE, left: HUD_EDGE + panelInset, right: HUD_EDGE + (timelineBeside ? tlW + HUD_GAP : TICKER_W + HUD_GAP) }}
+                >
+                  <div className="pointer-events-auto">
+                    <PlaceMapToggle
+                      floating
+                      placeKey={placeKey}
+                      placeLabel={t(hdb ? 'ui.place.blockTab' : 'ui.place.siteTab')}
+                      placeName={hdb ? hdb.name : placeSite!.name}
+                      placeIcon={hdb ? 'hdb.enterBlock' : placeSite?.factionId ? FACTION_CONFIG[placeSite.factionId].icon : 'action.here'}
+                      hotkey={!isPhone}
+                    />
+                  </div>
                 </div>
               )}
               {edgeInspector && (hereSlot || targetSlot) && (
@@ -1820,7 +1921,7 @@ export function GameScreen() {
               at bottom centre. The open map uses the edge inspector above.
               The tunnel crawl has its own node panel there, so it gets none —
               the card used to float over the crawl's walk button. */}
-          {!isPhone && !edgeInspector && !tunnel && (hereSlot || (desktopTarget && targetSlot)) && (
+          {!isPhone && !edgeInspector && !tunnel && !siteShown && (hereSlot || (desktopTarget && targetSlot)) && (
             <div
               className="pointer-events-none absolute z-[705] flex items-end justify-center gap-2 transition-[left,right] duration-200 motion-reduce:transition-none"
               style={{
@@ -1944,6 +2045,7 @@ export function GameScreen() {
         !phoneFight &&
         !phoneInterruptKind &&
         !hdb &&
+        !siteShown &&
         !tunnel && (
           <MapHereChrome
             sel={hereProps?.sel}

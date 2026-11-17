@@ -22,6 +22,7 @@ import {
 import type { AttributeKey } from '../game/types';
 import { msgOr, useT } from '../i18n';
 import { tip } from './tips';
+import { PlaceMapToggle } from './PlaceMapToggle';
 
 /**
  * Inside an HDB block: the landing strips (one per storey row, each with its
@@ -101,6 +102,7 @@ export function HdbDungeonModal({
             revealed={revealedLandings(hdb)}
             height={landingCount(hdb)}
             storeys={realStoreysOf(hdb)}
+            placeKey={`block:${hdb.locationId}`}
             canLeave={canLeave}
             leaveTitle={leaveTitle}
             onLeave={hdbLeave}
@@ -145,6 +147,7 @@ function HdbStatusDock({
   revealed,
   height,
   storeys,
+  placeKey,
   canLeave,
   leaveTitle,
   onLeave,
@@ -156,6 +159,7 @@ function HdbStatusDock({
   revealed: number;
   height: number;
   storeys: number;
+  placeKey: string;
   canLeave: boolean;
   leaveTitle?: string;
   onLeave: () => void;
@@ -183,6 +187,12 @@ function HdbStatusDock({
           )}
         </div>
         <div className="ml-auto flex shrink-0 items-center gap-2">
+          <PlaceMapToggle
+            placeKey={placeKey}
+            placeLabel={t('ui.place.blockTab')}
+            placeName={name}
+            placeIcon="hdb.enterBlock"
+          />
           <button
             type="button"
             aria-expanded={detailsOpen}

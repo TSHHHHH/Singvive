@@ -277,31 +277,47 @@ const ORBIT_MIN_PITCH = 25;
 const ORBIT_ZOOM_STEP = 0.25;
 /** Close inspection is useful inside a block; restore the world-map limit on exit. */
 const BLOCK_MAX_ZOOM = 20.5;
+/** A faction site is seen from a lower angle than a tower: the yard, not the roofline. */
+const SITE_PITCH_3D = 52;
+/** Most sites are low; frame a token height so a yard with no building still fits. */
+const SITE_ROOF_M = 10;
+/** Close enough to read the site against its street, not a single roof. */
+const SITE_MAX_ZOOM = 18;
+
+/** What the place view's camera holds: a block's tower or a faction site. */
+export type PlaceFocus = { kind: 'block' | 'site'; id: string };
 
 /**
- * Inside an HDB block, in 3D: ease onto the block on entry and back to where
- * you were on exit, and light the storey band for the landing you are on
- * (or pointing at). Selects scalars only; the band is redrawn when its row moves.
+ * The place view's camera: inside an HDB block (3D) or at a faction site (2D
+ * or 3D). Ease onto the place on entry and back to where you were on exit
+ * (or when the player flips to the map), and, in a block, light the storey
+ * band for the landing you are on (or pointing at). Selects scalars only; the
+ * band is redrawn when its row moves.
  */
 function BlockView({
   engine,
   pois,
   pad,
+  focus,
 }: {
   engine: BuildingEngine | null;
   pois: Poi[];
   /** "top:left:right:bottom" of the building viewport, clear of the floor panel. */
   pad: string;
+  /** The place the camera holds, or null while the run map shows. */
+  focus: PlaceFocus | null;
 }) {
   const map = useMapGL();
   const { t } = useT();
   const reduced = useReducedMotion();
-  const siteId = useGame((s) => s.hdb?.locationId ?? null);
+  const view3d = useSetting('mapView3d') === 'on';
+  const kind = focus?.kind ?? null;
+  const siteId = focus?.id ?? null;
   const roof = useGame((s) => (siteId ? s.siteRoofs[siteId] : undefined));
   // "lo:hi:real" storeys of the band row, as one string so equal rows don't re-run.
   const band = useGame((s) => {
     const h = s.hdb;
-    if (!h) return null;
+    if (!h || kind !== 'block') return null;
     const level = s.hdbHoverLevel ?? h.pos.level;
     const f = h.floors[level - 1];
     if (!f) return null;
@@ -311,8 +327,10 @@ function BlockView({
   });
   const poisRef = useRef(pois);
   poisRef.current = pois;
-  const realStoreys = useGame((s) => s.hdb?.realStoreys ?? 0);
-  const on = !!engine;
+  const realStoreys = useGame((s) => (kind === 'block' ? s.hdb?.realStoreys ?? 0 : 0));
+  // A block needs the 3D towers; a site reads on the flat map too.
+  const on = kind === 'site' || !!engine;
+  const pitch = kind === 'block' ? MAX_PITCH_3D : view3d ? SITE_PITCH_3D : 0;
 
   // Entry: remember the camera to ease back to, and pick the bearing once.
   const backRef = useRef<{
@@ -348,12 +366,17 @@ function BlockView({
     map.setCenterClampedToGround(false);
     map.setMaxZoom(BLOCK_MAX_ZOOM);
     if (!backRef.current) {
-      bearingRef.current =
+      // The flat map stays north-up.
+      bearingRef.current = !view3d ? back.bearing :
         squareBearing(site.outline, back.bearing, (lat, lng, b) =>
           engine ? engine.occlusion(lat, lng, b) : 0,
         ) ?? back.bearing;
     }
     backRef.current = back;
+    // A site view opens on arrival, so the snapshot can catch the camera
+    // mid-chase: come back centred on where you stand.
+    const backCenter: [number, number] =
+      kind === 'site' ? [site.lng, site.lat] : [back.center.lng, back.center.lat];
     return () => {
       // A frame late, so CameraChrome's padding ease on leaving can't cut it
       // short (its settle pass finishes the padding).
@@ -363,17 +386,20 @@ function BlockView({
           map.setCenterClampedToGround(back.clamped);
           map.setMaxZoom(back.maxZoom);
           map.setCenterElevation(back.elevation);
-          map.easeTo({ ...back, duration: reduced ? 0 : 900 });
+          map.easeTo({ ...back, center: backCenter, duration: reduced ? 0 : 900 });
         } catch {
           // The map went away with the run; nothing to ease back.
         }
       });
     };
-  }, [map, on, engine, siteId, reduced]);
+  }, [map, on, engine, siteId, reduced, view3d, kind]);
 
   // Orbit the middle of the building, not its ground-level POI marker. Only
   // this controller owns padding inside a block; the general HUD inset is off.
-  const roofM = roof ?? (realStoreys > 0 ? realStoreys * STOREY_M : STOREY_M * 12);
+  const roofM =
+    kind === 'site'
+      ? view3d ? Math.min(roof ?? SITE_ROOF_M, 40) : 0
+      : roof ?? (realStoreys > 0 ? realStoreys * STOREY_M : STOREY_M * 12);
   const frameBuilding = useCallback(() => {
     if (!on || !siteId || !backRef.current || externalFocus.current) return;
     const site = poisRef.current.find((p) => p.id === siteId);
@@ -381,17 +407,18 @@ function BlockView({
     const [top, left, right, bottom] = pad.split(':').map(Number);
     const box = map.getContainer();
     const framing = blockFraming(site, roofM, box.clientWidth - left - right,
-      box.clientHeight - top - bottom, bearingRef.current, MAX_PITCH_3D);
+      box.clientHeight - top - bottom, bearingRef.current, pitch);
     // MapLibre's easeTo does not interpolate elevation; set the orbit target first.
-    map.setCenterElevation(framing.elevation);
+    map.setCenterElevation(view3d ? framing.elevation : 0);
     map.easeTo({
       ...framing,
-      pitch: MAX_PITCH_3D,
+      zoom: kind === 'site' ? Math.min(framing.zoom, SITE_MAX_ZOOM) : framing.zoom,
+      pitch,
       bearing: bearingRef.current,
       padding: { top, left, right, bottom },
       duration: reduced ? 0 : 650,
     });
-  }, [map, on, siteId, pad, roofM, reduced]);
+  }, [map, on, siteId, pad, roofM, reduced, pitch, kind, view3d]);
   useEffect(() => {
     frameBuilding();
     map.on('resize', frameBuilding);
@@ -415,6 +442,7 @@ function BlockView({
     let drag: { id: number; x: number; y: number; bearing: number; pitch: number } | null = null;
     const isSurface = (t: EventTarget | null) => t instanceof Element && t.hasAttribute('data-block-orbit');
     const down = (e: PointerEvent) => {
+      if (!view3d) return;
       if (drag || (e.pointerType === 'mouse' && e.button !== 0) || !isSurface(e.target)) return;
       map.stop();
       drag = { id: e.pointerId, x: e.clientX, y: e.clientY, bearing: map.getBearing(), pitch: map.getPitch() };
@@ -423,10 +451,11 @@ function BlockView({
     };
     const move = (e: PointerEvent) => {
       if (!drag || e.pointerId !== drag.id) return;
-      const pitch = drag.pitch - (e.clientY - drag.y) * ORBIT_PITCH_PER_PX;
+      const tilt = drag.pitch - (e.clientY - drag.y) * ORBIT_PITCH_PER_PX;
       map.jumpTo({
         bearing: drag.bearing + (e.clientX - drag.x) * ORBIT_DEG_PER_PX,
-        pitch: Math.min(MAX_PITCH_3D, Math.max(ORBIT_MIN_PITCH, pitch)),
+        // The flat map only turns.
+        pitch: view3d ? Math.min(MAX_PITCH_3D, Math.max(ORBIT_MIN_PITCH, tilt)) : drag.pitch,
       });
       bearingRef.current = map.getBearing();
     };
@@ -452,7 +481,7 @@ function BlockView({
       document.removeEventListener('pointercancel', up);
       document.removeEventListener('wheel', wheel);
     };
-  }, [map, on, siteId, zoomBy]);
+  }, [map, on, siteId, zoomBy, view3d]);
 
   useEffect(() => {
     if (!engine) return;
@@ -482,10 +511,12 @@ function BlockView({
       <div className="absolute z-[560] flex flex-wrap items-center gap-2" style={{ top: Math.max(16, top - 48), left: left + 12, right: right + 12 }}>
         <div className="flex items-center rounded-sm border border-concrete-600 bg-concrete-950/95 p-1 shadow-signage">
           <button type="button" onClick={() => zoomBy(-0.5)} aria-label={t('ui.hdb.cameraZoomOut')} className="h-9 w-9 text-title text-concrete-50 hover:bg-white/10">−</button>
-          <button type="button" onClick={frameBuilding} className="min-h-9 px-2 text-body text-signal hover:bg-white/10">{t('ui.hdb.cameraFrame')}</button>
+          <button type="button" onClick={frameBuilding} className="min-h-9 px-2 text-body text-signal hover:bg-white/10">{t(kind === 'site' ? 'ui.place.frameSite' : 'ui.hdb.cameraFrame')}</button>
           <button type="button" onClick={() => zoomBy(0.5)} aria-label={t('ui.hdb.cameraZoomIn')} className="h-9 w-9 text-title text-concrete-50 hover:bg-white/10">+</button>
         </div>
-        <span className="pointer-events-none text-body text-concrete-200 [text-shadow:0_1px_4px_#000]">{t('ui.hdb.cameraHint')}</span>
+        {view3d && (
+          <span className="pointer-events-none text-body text-concrete-200 [text-shadow:0_1px_4px_#000]">{t('ui.hdb.cameraHint')}</span>
+        )}
       </div>
     </>
   );
@@ -652,14 +683,19 @@ function PlayerMarker({
   travelAnim,
   veilRadiusM,
   veilAlpha,
+  yieldCamera = false,
 }: {
   home: { lat: number; lng: number };
   atSite: boolean;
   travelAnim: TravelAnim | null;
   veilRadiusM: number;
   veilAlpha: number;
+  /** A place view holds the camera: move the pin, never chase it. */
+  yieldCamera?: boolean;
 }) {
   const map = useMapGL();
+  const yieldRef = useRef(yieldCamera);
+  yieldRef.current = yieldCamera;
   const rafRef = useRef<number | undefined>(undefined);
   const markerRef = useRef<Marker | null>(null);
   const posRef = useRef(home);
@@ -710,7 +746,7 @@ function PlayerMarker({
     const frame = (now: number) => {
       c.raf = 0;
       const target = c.target;
-      if (!target || c.held) return;
+      if (!target || c.held || yieldRef.current) return;
       const dt = c.last ? Math.min(0.1, (now - c.last) / 1000) : 1 / 60;
       c.last = now;
       const center = map.getCenter();
@@ -751,6 +787,10 @@ function PlayerMarker({
     const c = chase.current;
     if (!travelAnim) {
       place(home.lat, home.lng);
+      if (yieldRef.current) {
+        c.target = null;
+        return;
+      }
       if (c.held) {
         // The player moved the map during the glide; leave it where they put it.
         c.held = false;
@@ -957,6 +997,12 @@ interface Props {
   padBottom?: number;
   /** Desktop HUD: px of the top covered by chrome over the map. */
   padTop?: number;
+  /**
+   * A place view holds the camera (HDB block in 3D, faction site): it eases
+   * onto the place inside the pad box and back out when this goes null. Keep
+   * the object's identity stable; the map is memoised.
+   */
+  placeFocus?: PlaceFocus | null;
   /** Desktop HUD: px the map's own top-right buttons shift left (timeline / ticker). */
   chromeRight?: number;
   /** The 3D / rail toggles on the map itself. Desktop moves them to the rail. */
@@ -1762,6 +1808,7 @@ function GameMapInner({
   padLeft = 0,
   padBottom = 0,
   padTop = 0,
+  placeFocus = null,
   chromeRight = 0,
   showModeToggles = true,
   onSelect,
@@ -1785,7 +1832,8 @@ function GameMapInner({
   const pathIdSet = useMemo(() => new Set(pathHazardIds), [pathHazardIds]);
   const view3d = useSetting('mapView3d') === 'on';
   const playerAtSite = !!hereId && !travelAnim;
-  const inBlock = useGame((s) => !!s.hdb);
+  // The place view owns padding and the keyboard camera while it holds the map.
+  const placeCam = !!placeFocus && (placeFocus.kind === 'site' || view3d);
   const [initial] = useState(() => ({
     zoom: loadZoom(view3d ? DEFAULT_ZOOM_3D : DEFAULT_ZOOM),
     pitch: view3d ? PITCH_3D : 0,
@@ -1842,9 +1890,9 @@ function GameMapInner({
         style={{ background: '#08080a' }}
       >
         <ZoomMemory />
-        <CameraChrome target={focusTarget} inset={!(view3d && inBlock)} top={padTop} left={padLeft} right={padRight} bottom={padBottom} />
+        <CameraChrome target={focusTarget} inset={!placeCam} top={padTop} left={padLeft} right={padRight} bottom={padBottom} />
         <Camera3d on={view3d} />
-        {!(view3d && inBlock) && <KeyboardCamera home={home} />}
+        {!placeCam && <KeyboardCamera home={home} />}
         {view3d && <Atmosphere3d kind={weather} time={time} dom={weatherDom} />}
         <GroundPicker onPick={onPickGround} engine={engine} onSite={selectSite} />
         {/* Water, forest wash and expressways — under fog so only explored ground shows. */}
@@ -1874,7 +1922,7 @@ function GameMapInner({
 
         {trekTarget && <MapMarker lat={trekTarget.lat} lng={trekTarget.lng} icon={trekTargetIcon()} zIndex={800} />}
 
-        <BlockView engine={engine} pois={pois} pad={`${padTop}:${padLeft}:${padRight}:${padBottom}`} />
+        <BlockView engine={engine} pois={pois} pad={`${padTop}:${padLeft}:${padRight}:${padBottom}`} focus={placeCam ? placeFocus : null} />
 
         {mapAnnotations.length > 0 && <RumourLayer annotations={mapAnnotations} />}
 
@@ -1900,6 +1948,7 @@ function GameMapInner({
           travelAnim={travelAnim}
           veilRadiusM={veilRadiusM}
           veilAlpha={veilAlpha}
+          yieldCamera={placeCam}
         />
         {showMrt && net && <MrtOverlay net={net} />}
         <GuideMapAdapter />
