@@ -209,7 +209,7 @@ export const TUNNEL_NODE_META: Record<TunnelNodeKind, TunnelNodeMeta> = {
   },
   checkpoint: {
     label: 'Checkpoint',
-    blurb: 'The Wardens still claim this stretch, and they saw you first.',
+    blurb: 'The Circle still claims this stretch, and they saw you first.',
     icon: 'tunnel.checkpoint',
     verb: 'Approach',
     minutes: 5,
@@ -869,7 +869,7 @@ export function reachable(run: TunnelRun): TunnelNode[] {
 }
 
 /**
- * Carriage and untrusted Wardens gates block the bore until you pick an approach.
+ * Carriage and untrusted Circle gates block the bore until you pick an approach.
  * Camps are optional — you can walk on without taking a favour.
  */
 export function nodeNeedsChoice(node: TunnelNode): boolean {

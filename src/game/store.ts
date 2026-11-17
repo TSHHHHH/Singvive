@@ -708,7 +708,7 @@ interface State {
   /**
    * Which site is each faction's outpost — the one place of theirs that is a
    * destination rather than a door. Fixed at world-build and saved with the
-   * run, because "walk two kilometres to the Kampung Kitchen kitchen" is only a plan if
+   * run, because "walk two kilometres to the Common Folk kitchen" is only a plan if
    * the market is still there after a reload.
    */
   outposts: OutpostIds;
@@ -725,7 +725,7 @@ interface State {
   /** Board line ids already taken (or finished) — a job is posted once. */
   bountiesTaken: string[];
   /**
-   * One-shot Citizen Watch escort: the next travel to `toId` is walked with a patrol.
+   * One-shot Cordon escort: the next travel to `toId` is walked with a patrol.
    * Runtime + save — a reload mid-walk should not refund the tribute.
    */
   escort: { toId: string } | null;
@@ -786,7 +786,7 @@ interface State {
   tunnelDeclineOffer: () => void;
   /** Stalled consist: drop under or smash through the cars. */
   tunnelCarriage: (choice: CarriageChoice) => void;
-  /** Wardens in the bore: pay tribute or sneak past. */
+  /** Circle in the bore: pay tribute or sneak past. */
   tunnelCheckpoint: (choice: CheckpointChoice) => void;
   /** Abandon leftover temp-crawl stash and resume. */
   confirmTempStash: () => void;
@@ -801,9 +801,9 @@ interface State {
   factionAid: () => void;
   /** Intel / rumor at a site that offers it (Known+). Once per day. */
   factionIntel: () => void;
-  /** Kampung Kitchen canteen — eat/drink on site. Once per day. Known+. */
+  /** Common Folk canteen — eat/drink on site. Once per day. Known+. */
   factionFeed: () => void;
-  /** Citizen Watch escort to a discovered site within range. Known+. One-shot. */
+  /** Cordon escort to a discovered site within range. Known+. One-shot. */
   factionEscort: (destinationId: string) => void;
   /** 88 Kin: walk an occupied residential block (once per site). */
   searchKinDeck: () => void;
@@ -2513,7 +2513,7 @@ export const useGame = create<State>((set, get) => {
     if (!loc?.factionId) return;
     const id = loc.factionId;
     shiftStanding(id, -1);
-    // Cross-tension: going against the Citizen Watch is a gift to the 88, and vice versa.
+    // Cross-tension: going against the Cordon is a gift to the 88, and vice versa.
     if (id === 'muster') shiftStanding('syndicate_88', 1);
     else if (id === 'syndicate_88') shiftStanding('muster', 1);
   };
@@ -3030,7 +3030,7 @@ export const useGame = create<State>((set, get) => {
 
   /**
    * Move a faction's opinion of you. Lifted out of the event interpreter so
-   * anything can spend or earn goodwill — the tunnel camps are Wardens people, and
+   * anything can spend or earn goodwill — the tunnel camps are Circle people, and
    * how you treat them counts the same as how you treat their turnstiles.
    */
   const shiftStanding = (id: Exclude<FactionId, null>, delta: number) => {
@@ -3447,13 +3447,13 @@ export const useGame = create<State>((set, get) => {
       return;
     }
 
-    // ---- Wardens in the bore ------------------------------------------------
+    // ---- Circle in the bore ------------------------------------------------
     if (node.kind === 'checkpoint') {
       const after = tunnelTick(meta.minutes / 60);
       if (!after) return;
       if ((get().factionStanding.sta ?? 0) >= STANDING_TRUSTED) {
         set({ tunnel: markDone(after, nodeId) });
-        pushLog(`${node.name}: they know the face. Wardens wave you through.`, 'good', undefined, undefined, nodeScope);
+        pushLog(`${node.name}: they know the face. The Circle waves you through.`, 'good', undefined, undefined, nodeScope);
         persist();
         return;
       }
@@ -4287,7 +4287,7 @@ export const useGame = create<State>((set, get) => {
       if (get().escort?.toId === loc.id) {
         set({ escort: null });
         pushLog(
-          `Two of the Citizen Watch walk you as far as ${loc.name}. They peel off at the door.`,
+          `Two of the Cordon walk you as far as ${loc.name}. They peel off at the door.`,
           'good',
         );
       }
@@ -5160,7 +5160,7 @@ export const useGame = create<State>((set, get) => {
         },
       });
       pushLog(
-        'Kampung Kitchen sits you down. Hot rice, a mug of something boiled, and a few minutes that are not the street.',
+        'The Common Folk sit you down. Hot rice, a mug of something boiled, and a few minutes that are not the street.',
         'good',
       );
       persist();
@@ -5215,7 +5215,7 @@ export const useGame = create<State>((set, get) => {
         escort: { toId: dest.id },
       });
       pushLog(
-        `The Citizen Watch take ${itemDef(tributeId).name} and fall in. They will walk you to ${dest.name}.`,
+        `The Cordon take ${itemDef(tributeId).name} and fall in. They will walk you to ${dest.name}.`,
         'good',
       );
       persist();

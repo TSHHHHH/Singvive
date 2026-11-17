@@ -77,7 +77,7 @@ export function FactionSiteWindow({
   const isOutpost = site.isFactionOutpost || isOutpostSite(outposts, fid, site.id);
   const title = isOutpost
     ? t(`ui.faction.${fid}.outpost`)
-    : `${factionShortName(fid, locale)} ${t('ui.location.territory')}`;
+    : `${factionShortName(fid, locale)}${locale === 'zh-Hans' ? '' : ' '}${t('ui.location.territory')}`;
   const cleared = hasFactionClearance(site, standing, day);
   const policy = site.gatePolicy ?? 'fee';
   const raiding = raidMode?.locationId === site.id;
