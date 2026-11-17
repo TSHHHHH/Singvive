@@ -1,4 +1,5 @@
-import type { HazardDisc, HazardKind, HazardZone } from './wilds';
+import type { HazardDisc, HazardKind, HazardTheme, HazardZone } from './wilds';
+import { bufferedHullRing } from './hazardSites';
 
 /**
  * Visual union of discs. Nearby circles of the same kind become one silhouette
@@ -30,6 +31,12 @@ export interface HazardBlobDraw {
   onPath: boolean;
   severity: number;
   rings: [number, number][][];
+  /** Set for zones on a real place (drawn from its footprint, never fused). */
+  theme?: HazardTheme;
+  /** OSM ids of the buildings the zone sits on, drawn as a stronger core. */
+  cores?: string[];
+  /** A sealed-off block-sized area: drawn with a hard, solid edge. */
+  area?: boolean;
 }
 
 function toXY(lat: number, lng: number, oLat: number, oLng: number): Pt {
@@ -180,7 +187,25 @@ export function hazardBlobDrawList(
   zones: HazardZone[],
   pathIds: ReadonlySet<string>,
 ): HazardBlobDraw[] {
-  return clusterZones(zones).map((group) => {
+  const sited: HazardBlobDraw[] = [];
+  const loose: HazardZone[] = [];
+  for (const z of zones) {
+    if (!z.site) {
+      loose.push(z);
+      continue;
+    }
+    sited.push({
+      key: z.id,
+      kind: z.kind,
+      onPath: pathIds.has(z.id),
+      severity: z.severity,
+      rings: [bufferedHullRing(z.site.hull, z.site.bufferM)],
+      theme: z.site.theme,
+      cores: z.site.memberIds,
+      area: z.site.area === true,
+    });
+  }
+  return sited.concat(clusterZones(loose).map((group) => {
     const discs = group.flatMap(discsOf);
     let severity = 1;
     let onPath = false;
@@ -195,5 +220,5 @@ export function hazardBlobDrawList(
       severity,
       rings: hazardBlobRings(discs),
     };
-  });
+  }));
 }
