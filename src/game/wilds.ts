@@ -5,9 +5,7 @@ import { flavorHazard } from './flavor';
 import type { AnimalHabitat } from './enemies';
 import {
   inInlandWater,
-  inVegetation,
   inlandWaterFeaturesNear,
-  isWalkable,
   isZonesLoaded,
 } from './playable';
 import { LOST_PRESSURE } from './townField';
@@ -30,8 +28,10 @@ import { darkTrekEncounterMod } from './nightSight';
 // Hazard zones are a deterministic field derived from the run seed, not a
 // stored list: quantise the world into ~350 m cells and let a per-cell RNG
 // decide whether that cell is trouble. Same seed, same island, forever.
-// Each pocket is a cluster of overlapping discs (kind-specific silhouettes).
-// Night swarm is a second layer that blooms at dusk and floods after dark.
+// Day pockets sit on real places (block-sized areas or building footprints);
+// cells without one stay clear. Night swarm is a second layer of disc
+// clusters that blooms at dusk and floods after dark, and wildlife rings
+// gather on inland water.
 // ---------------------------------------------------------------------------
 
 export type HazardKind =
@@ -504,36 +504,17 @@ function zoneForCell(
 
   if (isZonesLoaded() && inInlandWater(lat, lng)) return null;
 
-  // A real campus, market or estate in the cell takes the trouble and its shape.
-  // Footprint zones are tighter than disc pockets, so they turn up a little
-  // more often to keep the same share of town ground dangerous.
-  // A whole block-sized area (estate, park, school grounds) is sealed off
-  // first, Dark-Zone style; failing that a single building takes it.
+  // Daytime trouble only settles on real places: a whole block-sized area
+  // (estate, park, school grounds) is sealed off first, Dark-Zone style;
+  // failing that a single building and its perimeter takes it. A cell with
+  // neither (forest, open land, the shore) stays clear by day.
   const areas = isZonesLoaded() ? hazardAreasInCell(cx, cy, CELL_M) : [];
   const sites = isZonesLoaded() && areas.length === 0 ? hazardSitesInCell(cx, cy, CELL_M) : [];
-  const mult = areas.length > 0 ? AREA_RATE_MULT : sites.length > 0 ? SITE_RATE_MULT : 1;
+  if (areas.length === 0 && sites.length === 0) return null;
+  const mult = areas.length > 0 ? AREA_RATE_MULT : SITE_RATE_MULT;
   if (!rng.chance(hazardSpawnRate(pressure) * mult)) return null;
   if (areas.length > 0) return areaZone(`hz:${cx}:${cy}`, rng.fork('area'), areas, pressure);
-  if (sites.length > 0) return siteZone(`hz:${cx}:${cy}`, rng.fork('site'), sites, pressure);
-
-  const weights: [HazardKind, number][] = [
-    ['horde_pocket', 30 + Math.round(pressure * 20)],
-    ['gang_patrol', 24],
-    ['collapse', 20],
-    ['floodwater', 16],
-  ];
-  if (isZonesLoaded()) {
-    if (inVegetation(lat, lng)) {
-      weights.push(['wildlife_forest', 28]);
-    } else if (isWalkable(lat, lng)) {
-      weights.push(['wildlife_urban', 12]);
-    }
-  }
-  const kind = rng.weighted(weights);
-  const severity = rollSeverity(rng, pressure);
-  const envelope = envelopeM(severity, pressure, false);
-  const discs = layoutDiscs(rng, kind, severity, lat, lng, envelope);
-  return finishZone(`hz:${cx}:${cy}`, kind, severity, discs);
+  return siteZone(`hz:${cx}:${cy}`, rng.fork('site'), sites, pressure);
 }
 
 function nightSwarmForCell(

@@ -115,7 +115,7 @@ describe('zones on real places', () => {
     expect(a.map((z) => z.id)).toEqual(b.map((z) => z.id));
     expect(a.map((z) => z.radiusM)).toEqual(b.map((z) => z.radiusM));
     const sited = a.filter((z) => z.site);
-    expect(sited.length).toBeGreaterThan(a.filter((z) => !z.site && z.kind !== 'wildlife_water').length);
+    expect(sited.length).toBeGreaterThan(0);
     for (const z of sited) {
       expect(z.kind).toBe(THEME_KIND[z.site!.theme]);
       expect(z.discs).toEqual([]);
@@ -123,6 +123,18 @@ describe('zones on real places', () => {
       // A footprint zone always covers the building itself.
       const [lat, lng] = z.site!.hull[0];
       expect(pointInZone(lat, lng, z)).toBe(true);
+    }
+  });
+
+  it('never spawns a procedural daytime pocket, even where no real place is', () => {
+    const isDay = (z: HazardZone) => z.kind !== 'night_swarm' && z.kind !== 'wildlife_water';
+    // Toa Payoh (town) and the Central Catchment forest, which has no outlines.
+    const forest = (seed: string) => hazardZonesNear(seed, 1.37, 103.81, 1500);
+    for (let i = 0; i < 8; i++) {
+      for (const z of near(`town-${i}`).concat(forest(`town-${i}`)).filter(isDay)) {
+        expect(z.site).toBeDefined();
+        expect(z.discs).toEqual([]);
+      }
     }
   });
 
