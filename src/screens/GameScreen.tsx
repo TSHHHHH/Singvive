@@ -1319,9 +1319,10 @@ export function GameScreen() {
     : hdbInset;
 
   /**
-   * Desktop faction site: the faction window on the left beside the rail, the
-   * site itself in the map strip to its right (the ticker floats over that
-   * strip, never over the window). Works on the flat map too.
+   * Desktop faction site, laid out like a block: the site in the map strip on
+   * the left, the faction window on the right. The ticker moves to the top
+   * right of the site strip so it floats over map, never over the window.
+   * Works on the flat map too.
    */
   const siteLeft = HUD_EDGE + panelInset;
   const siteRight = HUD_EDGE + (timelineBeside ? tlW + HUD_GAP : 0);
@@ -1330,7 +1331,10 @@ export function GameScreen() {
     const win = Math.min(SITE_WINDOW_W, Math.max(HDB_MIN_W - 40, Math.round(siteAvail * 0.58)));
     return siteAvail - win - HUD_GAP >= BLOCK_STRIP_MIN_W ? win : siteAvail;
   })();
-  const siteInset = { top: HUD_EDGE, left: siteLeft, right: mapW - siteLeft - siteWinW, bottom: HUD_BOTTOM };
+  const siteStrip = siteWinW < siteAvail ? siteAvail - siteWinW - HUD_GAP : 0;
+  const siteInset = { top: HUD_EDGE, left: mapW - siteRight - siteWinW, right: siteRight, bottom: HUD_BOTTOM };
+  /** The ticker sits over the site strip while the window is up. */
+  const siteTicker = siteShown && !isPhone && !timelineBeside && siteStrip > 0;
   /** Camera box clear of whatever the place view puts over the map. */
   const placePad = hdbOverMap
     ? { top: hdbInset.top + 56, left: hdbInset.left, right: Math.max(0, mapW - hdbInset.left - blockStripW), bottom: HUD_BOTTOM }
@@ -1338,9 +1342,9 @@ export function GameScreen() {
       ? isPhone
         ? { top: 104, left: 0, right: 0, bottom: siteSheetH }
         : {
-            top: HUD_EDGE + (timelineBeside ? 0 : TICKER_HEAD_H + HUD_GAP) + 56,
-            left: siteWinW < siteAvail ? siteLeft + siteWinW + HUD_GAP : siteLeft,
-            right: siteRight,
+            top: HUD_EDGE + (siteTicker ? TICKER_HEAD_H + HUD_GAP : 0) + 56,
+            left: siteLeft,
+            right: siteStrip > 0 ? siteRight + siteWinW + HUD_GAP : siteRight,
             bottom: HUD_BOTTOM,
           }
       : null;
@@ -1465,7 +1469,11 @@ export function GameScreen() {
       ) : (
         <div
           className="pointer-events-none absolute z-[740]"
-          style={{ right: HUD_EDGE, top: HUD_EDGE, width: Math.min(TICKER_W, mapW - panelInset - HUD_EDGE * 2) }}
+          style={
+            siteTicker
+              ? { right: siteRight + siteWinW + HUD_GAP, top: HUD_EDGE, width: Math.min(TICKER_W, siteStrip) }
+              : { right: HUD_EDGE, top: HUD_EDGE, width: Math.min(TICKER_W, mapW - panelInset - HUD_EDGE * 2) }
+          }
         >
           <LogTicker
             onExpand={() => {

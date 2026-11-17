@@ -47,10 +47,11 @@ function FontSizeSync() {
 }
 
 /**
- * Hangs the in-app reduce-motion choice on the root element. The CSS rules that
- * still animation live in a `prefers-reduced-motion` media query, which can only
- * hear the OS; `.motion-reduce-forced` re-states the same selectors so a player
- * whose system has no such switch can still ask for stillness.
+ * Hangs the in-app reduce-motion choice on the root element. Every CSS rule
+ * that stills animation keys off `.motion-reduce-forced`, never a bare
+ * `prefers-reduced-motion` query: that would override an explicit "off"
+ * (Windows with animation effects disabled reports reduce). "Auto" still
+ * follows the OS through useReducedMotion.
  */
 function MotionSync() {
   const reduce = useReducedMotion();

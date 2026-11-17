@@ -751,114 +751,9 @@ body:has([data-dock-resizing='true']) * {
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .pulse-danger {
-    animation: none;
-    opacity: 0.9;
-  }
-  .search-find-pulse {
-    animation: none;
-    filter: brightness(1.35);
-  }
-  .search-find-burst-shard {
-    animation: none;
-    opacity: 0.85;
-    transform: translateY(-10px) scale(0.75);
-  }
-  .combat-shake,
-  .combat-shake-hard {
-    animation: none;
-  }
-  .combat-hp-punch {
-    animation: none;
-    filter: brightness(1.45);
-  }
-  .combat-portrait-hit,
-  .combat-portrait-hit-bad,
-  .combat-portrait-dodge {
-    animation: none;
-    filter: brightness(1.35);
-  }
-  .combat-outcome-win {
-    animation: none;
-    box-shadow: inset 0 0 0 1px rgba(163, 230, 53, 0.55);
-  }
-  .combat-outcome-dead {
-    animation: none;
-    box-shadow: inset 0 0 0 1px rgba(217, 45, 45, 0.55);
-  }
-  .clock-pulse-tick {
-    animation: clock-pulse-tick-still 1.2s ease-out 1 forwards;
-    transform: none;
-  }
-  .clock-pulse-band {
-    animation: clock-pulse-band-still 1.6s ease-out 1 forwards;
-    transform: none;
-  }
-  .clock-pulse-phone.clock-pulse-tick,
-  .clock-pulse-phone.clock-pulse-band {
-    animation: clock-pulse-phone-still 1.2s ease-out 1 forwards;
-    transform: none;
-  }
-  .clock-delta-chip {
-    animation: clock-delta-still 1.6s ease-out 1 forwards;
-  }
-  .clock-label-flash {
-    animation: none;
-    color: var(--clock-accent, #e8e5dd);
-  }
-  .tod-flash {
-    animation: none;
-    opacity: 0.28;
-  }
-  /*
-   * Gameplay reveal FX opts in via .search-find-fx--force-motion (live search +
-   * loot editor). Ambient HUD motion still respects reduced-motion above.
-   */
-  .search-find-fx--force-motion .search-find-pulse {
-    animation: search-find-pulse 1.1s ease-out 1;
-    filter: none;
-  }
-  .search-find-fx--force-motion .search-find-burst-shard {
-    animation: search-find-burst-fly 0.85s ease-out 1 both;
-    opacity: 1;
-    transform: none;
-  }
-  /* Combat impact cues stay on under reduced motion — they are gameplay feedback. */
-  .combat-fx--force-motion .combat-shake {
-    animation: combat-shake 0.22s ease-out 1;
-  }
-  .combat-fx--force-motion .combat-shake-hard {
-    animation: combat-shake-hard 0.32s ease-out 1;
-  }
-  .combat-fx--force-motion .combat-hp-punch {
-    animation: combat-hp-punch 0.28s ease-out 1;
-    filter: none;
-  }
-  .combat-fx--force-motion .combat-portrait-hit {
-    animation: combat-portrait-hit 0.28s ease-out 1;
-    filter: none;
-  }
-  .combat-fx--force-motion .combat-portrait-hit-bad {
-    animation: combat-portrait-hit-bad 0.28s ease-out 1;
-    filter: none;
-  }
-  .combat-fx--force-motion .combat-portrait-dodge {
-    animation: combat-portrait-dodge 0.3s ease-out 1;
-    filter: none;
-  }
-  .combat-fx--force-motion .combat-outcome-win {
-    animation: combat-outcome-win 0.55s ease-out 1;
-    box-shadow: none;
-  }
-  .combat-fx--force-motion .combat-outcome-dead {
-    animation: combat-outcome-dead 0.55s ease-out 1;
-    box-shadow: none;
-  }
-}
-
-/* The same rules, reachable from the in-app Reduce motion setting: a media
-   query can only hear the OS. Mirrors the block above — keep them in step. */
+/* Reduced motion is driven only by the in-app setting (MotionSync puts
+   .motion-reduce-forced on <html>; its "auto" follows the OS). No bare
+   prefers-reduced-motion queries: they override an explicit "off". */
 .motion-reduce-forced .pulse-danger {
   animation: none;
   opacity: 0.9;
@@ -981,16 +876,9 @@ body:has([data-dock-resizing='true']) * {
   animation: evacPulse 1.8s ease-in-out infinite;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .evac-beacon {
-    animation: none;
-    opacity: 1;
-    transform: none;
-  }
-}
-
-/* The same rules, reachable from the in-app Reduce motion setting: a media
-   query can only hear the OS. Mirrors the block above — keep them in step. */
+/* Reduced motion is driven only by the in-app setting (MotionSync puts
+   .motion-reduce-forced on <html>; its "auto" follows the OS). No bare
+   prefers-reduced-motion queries: they override an explicit "off". */
 .motion-reduce-forced .evac-beacon {
   animation: none;
   opacity: 1;
@@ -1601,10 +1489,8 @@ body:has([data-dock-resizing='true']) * {
   from { opacity: 0; transform: translateY(-4px); }
   to { opacity: 1; transform: translateY(0); }
 }
-@media (prefers-reduced-motion: reduce) {
-  .maplibregl-marker.is-recognized > *::before { animation: none; opacity: 0.8; }
-  .recognition-notice { animation: none; }
-}
+.motion-reduce-forced .maplibregl-marker.is-recognized > *::before { animation: none; opacity: 0.8; }
+.motion-reduce-forced .recognition-notice { animation: none; }
 
 /* Landmark beacons in the 3D run map (map/beacons.ts, components/Beacons3d.tsx):
    a column of light over the evac zone and each faction outpost. The marker
@@ -1699,14 +1585,12 @@ body:has([data-dock-resizing='true']) * {
     opacity: 0;
   }
 }
-@media (prefers-reduced-motion: reduce) {
-  .beacon__halo {
-    animation: none;
-    opacity: 0.85;
-  }
-  .beacon__pulse {
-    display: none;
-  }
+.motion-reduce-forced .beacon__halo {
+  animation: none;
+  opacity: 0.85;
+}
+.motion-reduce-forced .beacon__pulse {
+  display: none;
 }
 
 /* A landmark's badge rides the top of its beacon instead of its roof. Same
@@ -1820,10 +1704,8 @@ body:has([data-dock-resizing='true']) * {
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .fx-puff {
-    animation-duration: 9s;
-  }
+.motion-reduce-forced .fx-puff {
+  animation-duration: 9s;
 }
 
 /* ---- Dice roll overlay (DiceRoll.tsx) ---------------------------------- */
@@ -1977,18 +1859,16 @@ body:has([data-dock-resizing='true']) * {
   from { opacity: 0; }
   to { opacity: 1; }
 }
-@media (prefers-reduced-motion: reduce) {
-  .care-action,
-  .care-doll path,
-  .care-overview * {
-    transition: none;
-  }
-  .care-body-feedback,
-  .care-result,
-  .care-doll .pulse-danger,
-  .care-overview .pulse-danger {
-    animation: none;
-  }
+.motion-reduce-forced .care-action,
+.motion-reduce-forced .care-doll path,
+.motion-reduce-forced .care-overview * {
+  transition: none;
+}
+.motion-reduce-forced .care-body-feedback,
+.motion-reduce-forced .care-result,
+.motion-reduce-forced .care-doll .pulse-danger,
+.motion-reduce-forced .care-overview .pulse-danger {
+  animation: none;
 }
 
 /* HDB corridor read: a small d100 tumbling inside its own ledger field. */
@@ -2114,14 +1994,10 @@ body:has([data-dock-resizing='true']) * {
     opacity 220ms ease-out 90ms,
     transform 320ms cubic-bezier(0.34, 1.45, 0.64, 1) 90ms;
 }
-@media (prefers-reduced-motion: reduce) {
-  .blip-unknown,
-  .blip-unknown > span,
-  .maplibregl-marker .blip-unknown,
-  .maplibregl-marker .blip-unknown > span {
-    transition: none !important;
-  }
-}
+/* Only the in-app choice stills these (MotionSync sets the class from it, and
+   its "auto" follows the OS). A bare prefers-reduced-motion query would win
+   over an explicit "off": Windows with animation effects disabled reports
+   reduce, which made the blips snap even with the setting off. */
 .motion-reduce-forced .blip-unknown,
 .motion-reduce-forced .blip-unknown > span {
   transition: none !important;
