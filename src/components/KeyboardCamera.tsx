@@ -3,6 +3,7 @@ import { useMapGL } from '../map/hooks';
 import { useSetting } from '../game/settings';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { isModalOpen } from './modalStack';
+import { hudPadding } from '../map/padEase';
 import {
   ARROW_CODES,
   PAN_KEYS,
@@ -153,7 +154,7 @@ export function KeyboardCamera({ home, onRecenter }: { home: { lat: number; lng:
           return;
         }
         const { home: h, reduced: still } = live.current;
-        map.easeTo({ center: [h.lng, h.lat], duration: still ? 0 : 500 });
+        map.easeTo({ center: [h.lng, h.lat], padding: hudPadding(map), duration: still ? 0 : 500 });
       }
     };
 
