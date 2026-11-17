@@ -56,7 +56,7 @@ export interface FactionData {
   ordinaryServices?: FactionService[];
   /** Firearms (ranged weapons) on the board. Only the 88 fence sells them. */
   sellsFirearms: boolean;
-  /** Ammunition on the board. The Citizen Watch hoards rounds; they do not sell them. */
+  /** Ammunition on the board. The Council hoards rounds; they do not sell them. */
   sellsAmmo: boolean;
 
   // ---- the door ----------------------------------------------------------
@@ -83,18 +83,18 @@ export interface FactionData {
 export const FACTION_CONFIG: Record<Exclude<FactionId, null>, FactionData> = {
   muster: {
     id: 'muster',
-    name: 'The Citizen Watch',
-    shortName: 'Citizen Watch',
+    name: 'The Town Council',
+    shortName: 'The Council',
     icon: 'faction.muster',
     color: '#5b8fe0',
     hostileByDefault: false,
     blurb:
-      'Ex-NS who kept showing up after the chain of command died. No mandate — just ledgers, checkpoints, and the belief that managed order is the only way Singapore comes back.',
+      'Town council staff, grassroots leaders, and the auxiliary police who were already carrying. Nobody told them to stop, so they did not. Registers, ration cards, checkpoints, and the belief that if the paperwork holds, Singapore comes back.',
     tribute: ['canned_food', 'batteries', 'bandage'],
     preferredPoiCategories: ['police', 'school'],
     claimChance: 0.45,
     claimChanceByCategory: { school: 0.15 },
-    outpostName: 'Watch Post',
+    outpostName: 'Council Post',
     outpostCategories: ['school', 'police'],
     services: ['escort', 'aid', 'rest'],
     signature: 'escort',
@@ -108,13 +108,13 @@ export const FACTION_CONFIG: Record<Exclude<FactionId, null>, FactionData> = {
   },
   gotong: {
     id: 'gotong',
-    name: 'Kampung Kitchen',
-    shortName: 'Kampung Kitchen',
+    name: 'Same Boat Society',
+    shortName: 'Same Boat',
     icon: 'faction.gotong',
     color: '#5fbf5a',
     hostileByDefault: false,
     blurb:
-      'Gotong royong — neighbours pooling what they have so the estate eats. Stallholders and aunties who kept the hawker and the wet market running. Not a company. Not armed.',
+      'Ordinary people — neighbours, stallholders, delivery riders, retirees — who decided they had a better chance together. Shared pots, night watch by rota, nobody in charge for long. Not armed. Just trying to live.',
     tribute: ['canned_food', 'hawker_meal', 'water_bottle'],
     preferredPoiCategories: ['foodcourt', 'supermarket'],
     claimChance: 0.4,
@@ -135,12 +135,12 @@ export const FACTION_CONFIG: Record<Exclude<FactionId, null>, FactionData> = {
   },
   syndicate_88: {
     id: 'syndicate_88',
-    name: 'The 88 Gang (双八帮)',
-    shortName: '88 Gang',
+    name: 'The 88 Tong (双八堂)',
+    shortName: '88 Tong',
     icon: 'faction.syndicate_88',
     color: '#e05aa8',
     hostileByDefault: true,
-    blurb: 'Void-deck muscle turned estate warlords. They take what they want.',
+    blurb: 'An old-style secret society that grew out of the void decks and now runs the estates. They take what they want.',
     tribute: ['jewellery', 'tiger_beer', 'painkillers'],
     preferredPoiCategories: ['residential', 'industrial'],
     claimChance: 0.12,
@@ -162,12 +162,12 @@ export const FACTION_CONFIG: Record<Exclude<FactionId, null>, FactionData> = {
   },
   sta: {
     id: 'sta',
-    name: 'Tunnel Wardens',
-    shortName: 'Wardens',
+    name: 'The Circle',
+    shortName: 'The Circle',
     icon: 'faction.sta',
     color: '#f0c419',
     hostileByDefault: false,
-    blurb: 'They keep the tunnels running — for a toll.',
+    blurb: 'A league of stations that started on the Circle Line and spread down the network. They keep the tunnels running — for a toll.',
     tribute: ['batteries', 'torch', 'canned_food'],
     preferredPoiCategories: ['mrt'],
     claimChance: 0.35,
@@ -233,7 +233,7 @@ export const clampStanding = (n: number) =>
  * Would this faction shoot rather than haggle?
  *
  * `hostileByDefault` is no longer a permanent sentence — it means "hostile
- * until you are KNOWN here". That single change is what makes the 88 Gang
+ * until you are KNOWN here". That single change is what makes the 88 Tong
  * approachable at all, and it's the same rule a starting trait exploits by
  * simply handing you the first point of standing up front.
  */
@@ -268,12 +268,12 @@ export function factionOffersAid(id: FactionId, standing: FactionStanding): bool
   return factionShelters(id, standing);
 }
 
-/** Canteen — Known, and only Kampung Kitchen offers the button. */
+/** Canteen — Known, and only Same Boat offers the button. */
 export function factionFeeds(id: FactionId, standing: FactionStanding): boolean {
   return !!id && id === 'gotong' && standing[id] >= STANDING_KNOWN;
 }
 
-/** Escort — Known, and only the Citizen Watch books the walk. */
+/** Escort — Known, and only the Council books the walk. */
 export function factionEscorts(id: FactionId, standing: FactionStanding): boolean {
   return !!id && id === 'muster' && standing[id] >= STANDING_KNOWN;
 }
@@ -333,7 +333,7 @@ export const OUTPOSTS_PER_FACTION = 2;
 /** Same-faction outposts stay a walk apart so twin pins aren't a cluster. */
 export const OUTPOST_MIN_SPACING_M = 1400;
 
-/** Citizen Watch escort: one neighbourhood walk, not a cross-island taxi. */
+/** Council escort: one neighbourhood walk, not a cross-island taxi. */
 export const ESCORT_RANGE_M = 2000;
 /** Additive encounter-chance hit while an escort is walking you there. */
 export const ESCORT_ENCOUNTER_MOD = -0.4;
@@ -436,7 +436,7 @@ function sampleServices(rng: Rng, pool: FactionService[], n: number): FactionSer
  * Stamp outpost flags and seed ordinary-territory service subsets without
  * granting knowledge of the site or its faction.
  * Outposts always get that faction's full kit; ordinary ground samples 1–2
- * from the lesser pool (never the signature). Wardens ordinary platforms stay
+ * from the lesser pool (never the signature). Circle ordinary platforms stay
  * a toll with no hub buttons.
  *
  * Untouched sites keep their previous object identity. Pass `onlyIds` when

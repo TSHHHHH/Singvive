@@ -113,7 +113,7 @@ export interface SavedRun {
   /** Faction jobs in hand and board lines already taken. */
   bounties?: unknown;
   bountiesTaken?: unknown;
-  /** One-shot Citizen Watch escort destination. */
+  /** One-shot Council escort destination. */
   escort?: { toId: string } | null;
   /** Display-only run counters. Absent on saves written before they existed. */
   stats?: RunStats;
@@ -237,7 +237,7 @@ export function loadRun(): SavedRun | null {
         delete legacy.bleeding;
       }
     }
-    // Migration: factions were renamed (SAF→IDTF→Citizen Watch, hawker→PP Co-op→Kampung Kitchen).
+    // Migration: factions were renamed (SAF→IDTF→Council, hawker→PP Co-op→Same Boat).
     for (const loc of Object.values(parsed.locations ?? {})) {
       loc.factionId = migrateFactionId(loc.factionId);
     }

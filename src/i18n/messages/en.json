@@ -501,9 +501,9 @@
         "hardware": "Tools, melee weapons, crafting parts.",
         "fuel": "Fuel & roadside snacks.",
         "police": "Firearms & ammo. Extremely dangerous.",
-        "residential": "Void deck & flats — common household loot. The 88 Gang works these estates.",
-        "foodcourt": "Food stalls. Kampung Kitchen still cooks here when the estate holds.",
-        "mrt": "Nothing runs. The platform is a way into the tunnels, and the Wardens work the turnstiles.",
+        "residential": "Void deck & flats — common household loot. The 88 Tong works these estates.",
+        "foodcourt": "Food stalls. Same Boat still cooks here when the estate holds.",
+        "mrt": "Nothing runs. The platform is a way into the tunnels, and the Circle works the turnstiles.",
         "industrial": "Warehouse floor & loading bay. Tools, fuel and materials — and a lot of dark corners.",
         "school": "Canteen, sick bay, workshop. They were used as shelters, which is exactly the problem.",
         "waypoint": "Not a destination — a place to stop between them. Whatever the road left behind.",
@@ -1585,7 +1585,7 @@
         "checkpoint": {
           "label": "Checkpoint",
           "verb": "Approach",
-          "blurb": "Wardens still claims this stretch, and they saw you first."
+          "blurb": "The Circle still claims this stretch, and they saw you first."
         }
       },
       "hazard": {
@@ -1613,7 +1613,7 @@
       "campWelcome": "{name} · they let you in",
       "campUsed": "Camp services already used — one favour is all they'll spare.",
       "carriageBlocked": "{name} · the consist is in the way",
-      "checkpointHeld": "{name} · Wardens hold the bore",
+      "checkpointHeld": "{name} · the Circle holds the bore",
       "unrevealedBlurb": "Too far ahead to make out. You will find out by walking into it.",
       "eliteBlurb": "Something has been keeping pace with you down the bore.",
       "exitHint": "Stairs up at every station — or keep walking toward the far end.",
@@ -1777,27 +1777,27 @@
     },
     "faction": {
       "muster": {
-        "name": "The Citizen Watch",
-        "shortName": "Citizen Watch",
-        "role": "Ex-NS militia · checkpoints and order",
-        "outpost": "Watch Post"
+        "name": "The Town Council",
+        "shortName": "The Council",
+        "role": "Town council and auxiliary police · registers and checkpoints",
+        "outpost": "Council Post"
       },
       "gotong": {
-        "name": "Kampung Kitchen",
-        "shortName": "Kampung Kitchen",
-        "role": "Neighbours' food co-op · feeds the estate",
+        "name": "Same Boat Society",
+        "shortName": "Same Boat",
+        "role": "Ordinary neighbours banded together · just trying to live",
         "outpost": "Common Kitchen"
       },
       "syndicate_88": {
-        "name": "The 88 Gang (双八帮)",
-        "shortName": "88 Gang",
-        "role": "Void-deck gang · black market",
+        "name": "The 88 Tong (双八堂)",
+        "shortName": "88 Tong",
+        "role": "Void-deck secret society · black market",
         "outpost": "Void Deck Court"
       },
       "sta": {
-        "name": "Tunnel Wardens",
-        "shortName": "Wardens",
-        "role": "Tunnel toll-keepers · hold the MRT",
+        "name": "The Circle",
+        "shortName": "The Circle",
+        "role": "League of MRT stations · tolls and trade",
         "outpost": "Barricade Camp"
       }
     },
@@ -2788,7 +2788,7 @@
         "From an MRT platform, Plan tunnel travel opens the rail map. Pick a destination and choose among the fewest-stop routes. Down in the bore, service lines peel off the running line and rejoin it a few stops on — each is a real choice of what you walk through.",
         "Confirming a route starts one crawl for the whole path. A station strip tracks the planned line, next stop, and transfers. You can exit at intermediate stations or keep walking to the far end. No surface range or weather underground. A heavy pack still wears you out; the walk itself is taxed less than the streets.",
         "Between stations the running tunnel can split. Stay on the through line or peel into a side passage — it may run a few hops before it rejoins. Pick the node you can afford; the other way is gone once you step.",
-        "Camps offer a mat, a patch-up, or a swap — the only bunk underground. Obstructions vary: floodwater can hide a turned otter, falling debris wounds hard, a blackout eats the clock. Rare Contact is a Stalker that has been keeping pace. Wardens may toll the stairs down, and sometimes the bore itself."
+        "Camps offer a mat, a patch-up, or a swap — the only bunk underground. Obstructions vary: floodwater can hide a turned otter, falling debris wounds hard, a blackout eats the clock. Rare Contact is a Stalker that has been keeping pace. The Circle may toll the stairs down, and sometimes the bore itself."
       ]
     },
     "evac": {
@@ -3069,10 +3069,10 @@
     "cat": "Turned Cat",
     "rat": "Drain Rat",
     "human": {
-      "syndicate_88": "88 Gang Runner",
-      "muster": "Citizen Watch Patrol",
-      "gotong": "Kampung Kitchen Volunteer",
-      "sta": "Wardens Tunnel Marshal"
+      "syndicate_88": "88 Tong Runner",
+      "muster": "Council Patrol",
+      "gotong": "Same Boat Volunteer",
+      "sta": "Circle Tunnel Marshal"
     },
     "loner": {
       "scavenger": "Rival Scavenger",
@@ -3168,7 +3168,7 @@
     },
     "ez_link_knife": {
       "name": "Laminate an EZ-Link Knife",
-      "blurb": "Four spent cards and a scrap edge. Wardens will not take them as tribute anymore."
+      "blurb": "Four spent cards and a scrap edge. The Circle will not take them as tribute anymore."
     },
     "kopi_c": {
       "name": "Prepare Kopi-C",
@@ -3378,12 +3378,12 @@
   "trait": {
     "ns_combat": {
       "name": "Reservist",
-      "description": "Muscle memory from mandatory service drills that never quite left. The Citizen Watch still counts you as one of theirs.",
+      "description": "Muscle memory from mandatory service drills that never quite left. The Council’s auxiliaries take a trained hand when they see one.",
       "effects": [
         "+1 Fighting",
         "+1 Shooting",
         "+1 Strength",
-        "Start Known with the Citizen Watch"
+        "Start Known with the Council"
       ]
     },
     "medic": {
@@ -3459,8 +3459,8 @@
       "name": "Community Ties",
       "description": "Neighbour bonds transcend the apocalypse. Their counters are open from day one.",
       "effects": [
-        "Start Known with the Citizen Watch",
-        "Start Known with Kampung Kitchen"
+        "Start Known with the Council",
+        "Start Known with Same Boat"
       ]
     },
     "local_contacts": {
@@ -3472,10 +3472,10 @@
     },
     "ah_long_debt": {
       "name": "Underworld Contact",
-      "description": "Somebody in the 88 Gang remembers you. They will not shoot on sight and their court is open — but the Citizen Watch has read the same file.",
+      "description": "Somebody in the 88 Tong remembers you. They will not shoot on sight and their court is open — but the Council has read the same file.",
       "effects": [
-        "88 Gang will not shoot on sight",
-        "Citizen Watch starts wary of you"
+        "88 Tong will not shoot on sight",
+        "The Council starts wary of you"
       ]
     },
     "water_baby": {
@@ -3731,13 +3731,13 @@
     },
     "combat_veteran": {
       "name": "Combat Veteran",
-      "description": "NS, then the real thing. The first blow never lands the way they want it to. The Citizen Watch still has your name on a roster.",
+      "description": "NS, then the real thing. The first blow never lands the way they want it to. The Council still has your name on a roster.",
       "effects": [
         "+2 Fighting",
         "+1 Shooting",
         "+2 Strength",
         "First hit each fight is halved",
-        "Start Known with the Citizen Watch"
+        "Start Known with the Council"
       ]
     },
     "trauma_medic": {
@@ -3778,7 +3778,7 @@
       "description": "Thirty years of service, extra rice, and a stall the whole block still names.",
       "effects": [
         "Food restores 50% more hunger",
-        "Kampung Kitchen starts Known",
+        "Same Boat starts Known",
         "Richer hawker-centre loot"
       ]
     },
@@ -3824,8 +3824,8 @@
       "name": "Made Man",
       "description": "They know your face. The void decks are open ground. The checkpoints are not.",
       "effects": [
-        "88 Gang starts Trusted+",
-        "Citizen Watch starts wary"
+        "88 Tong starts Trusted+",
+        "The Council starts wary"
       ]
     },
     "hypervigilant": {
@@ -3904,9 +3904,9 @@
     },
     "warrant": {
       "name": "Warrant",
-      "description": "The Citizen Watch has a file. It is not flattering. 88 Gang love is not free.",
+      "description": "The Council has a file. It is not flattering. 88 Tong love is not free.",
       "effects": [
-        "Citizen Watch starts Hated"
+        "The Council starts Hated"
       ]
     },
     "shadow_habit": {
@@ -3940,7 +3940,7 @@
       "description": "You know how to open a conversation under fluorescent tubes.",
       "effects": [
         "+1 on doorway and dialogue checks",
-        "Start Known with Kampung Kitchen"
+        "Start Known with Same Boat"
       ]
     },
     "train_memory": {
@@ -4531,7 +4531,7 @@
       ]
     },
     "mrt_toll": {
-      "title": "Wardens Turnstile Toll",
+      "title": "Circle Turnstile Toll",
       "tell": "The turnstiles are manned.",
       "text": "A Warden marshal has the gate chained at waist height. \"Tunnel's not free. Cells, a torch, a tin — I'm not fussy. One of them and you're through.\"",
       "choices": {
@@ -4571,12 +4571,12 @@
             "They've chalked a queue line on the ground in front of {name}."
           ],
           "text": [
-            "The Citizen Watch keeps a book at {name}. \"Name in the right column. One {tribute}. Then we know you.\"",
-            "An NSman in mixed kit looks you over. \"Managed order. One {tribute} for the register.\"",
-            "\"Have you served?\" The ledger is already open. \"One {tribute} either way.\""
+            "The Council keeps a book at {name}. \"Name in the right column. One {tribute}. Then we know you.\"",
+            "An auxiliary officer with a clipboard and a sidearm looks you over. \"Managed order. One {tribute} for the register.\"",
+            "\"Which block?\" The ledger is already open. \"One {tribute} either way.\""
           ],
           "night": [
-            "A lamp over the ledger at {name}. \"Citizen Watch. One {tribute} and you're on the list.\""
+            "A lamp over the ledger at {name}. \"Town Council. One {tribute} and you're on the list.\""
           ],
           "wet": [
             "They've pulled the table under the school porch. \"{tribute} and you can come in out of this.\""
@@ -4591,12 +4591,12 @@
             "They've strung a rope across the wet-market entrance. People are waiting anyway."
           ],
           "text": [
-            "Kampung Kitchen holds {name}. \"Eat first, then we talk. One {tribute} for the pot.\"",
+            "Same Boat holds {name}. \"Eat first, then we talk. One {tribute} for the pot.\"",
             "A stallholder wipes her hands. \"We pool what we have. One {tribute} and you can come in.\"",
             "\"This is neighbours' food. One {tribute}. Don't bring trouble to the table.\""
           ],
           "night": [
-            "A pot still going at {name}. \"Kampung Kitchen. One {tribute} and you're fed after.\""
+            "A pot still going at {name}. \"Same Boat. One {tribute} and you're fed after.\""
           ],
           "wet": [
             "They've pulled the queue under the tarpaulin. \"{tribute} and you can come in out of this.\""
@@ -4611,12 +4611,12 @@
             "The barrier at {name} is down. A marshal is the only thing moving."
           ],
           "text": [
-            "The Wardens have the gate at {name} chained. \"Tunnel's not free. One {tribute}.\"",
+            "The Circle has the gate at {name} chained. \"Tunnel's not free. One {tribute}.\"",
             "A marshal taps the turnstile. \"Fare. One {tribute}. Then you can go down.\"",
             "\"Platform's manned. One {tribute} and you're through.\""
           ],
           "night": [
-            "A torch beam off the tiles at {name}. \"Wardens. One {tribute} and you can go down.\""
+            "A torch beam off the tiles at {name}. \"Circle. One {tribute} and you can go down.\""
           ],
           "wet": [
             "Rain drums the concourse. \"{tribute} and you can come in out of this — the stairs stay dry.\""
@@ -4642,7 +4642,7 @@
           ],
           "text": [
             "88 blockers fill the doorway of {name}. \"Tribute. One {tribute}. Then maybe we talk.\"",
-            "Two of the 88 Gang are already inside {name}. \"One {tribute} — for the damage.\"",
+            "Two of the 88 Tong are already inside {name}. \"One {tribute} — for the damage.\"",
             "A lookout drops down off the ledge, hand out. \"You owe the decks. One {tribute}.\""
           ],
           "night": [
@@ -4688,7 +4688,7 @@
     "soldier": {
       "name": "Soldier",
       "tagline": "NS, then the real thing. The first blow never lands clean.",
-      "blurb": "You were on duty when the order stopped coming. The training holds. The sleep does not — every hour of it is one ear open, and it shows by day three. The Citizen Watch is who kept showing up.",
+      "blurb": "You were on duty when the order stopped coming. The training holds. The sleep does not — every hour of it is one ear open, and it shows by day three. The Council is who kept showing up.",
       "goodAt": [
         "Fighting",
         "Soaking the first hit"
@@ -4715,10 +4715,10 @@
     "hawker": {
       "name": "Food Vendor",
       "tagline": "Thirty years of service. Extra rice. A voice the whole block knows.",
-      "blurb": "You fed half the estate and knew all of it by name. Food goes further in your hands, and Kampung Kitchen still counts you as one of theirs. So does everything that hunts by sound.",
+      "blurb": "You fed half the estate and knew all of it by name. Food goes further in your hands, and Same Boat still counts you as one of theirs. So does everything that hunts by sound.",
       "goodAt": [
         "Food",
-        "Kampung Kitchen",
+        "Same Boat",
         "Hawker-centre loot"
       ],
       "strugglesWith": [
@@ -4772,13 +4772,13 @@
     "runner": {
       "name": "Fixer",
       "tagline": "They know your face. The void decks are open. The checkpoints are not.",
-      "blurb": "Collections, mostly. Nothing you would put on a resume. The 88 Gang still counts you as one of theirs. The Citizen Watch has a file, and it is not flattering.",
+      "blurb": "Collections, mostly. Nothing you would put on a resume. The 88 Tong still counts you as one of theirs. The Council has a file, and it is not flattering.",
       "goodAt": [
-        "88 Gang territory",
+        "88 Tong territory",
         "Void-deck access"
       ],
       "strugglesWith": [
-        "The Citizen Watch",
+        "The Council",
         "Checkpoints"
       ]
     }
