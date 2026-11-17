@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Icon } from '../icons/Icon';
 import type { IconName } from '../icons/keys';
 import { tip } from './tips';
@@ -15,6 +15,9 @@ import {
   factionSharesIntel,
   factionShelters,
   factionTrades,
+  STANDING_BAD,
+  STANDING_HATED,
+  gateRequirement,
   hasFactionClearance,
   isOutpostSite,
   locationServices,
@@ -22,9 +25,16 @@ import {
 import { isCarried } from '../game/inventory';
 import { useGame } from '../game/store';
 import { haversine } from '../game/overpass';
+import { factionShortName } from '../game/eventCopy';
+import {
+  MAX_ACTIVE_BOUNTIES,
+  bountyBoard,
+  bountyProgress,
+} from '../game/bounties';
 import type { FactionId, FactionService, LocationState } from '../game/types';
 import { BtnSub, Dots } from './placeCard';
 import { BTN, tint } from './placeCardStyle';
+import { bountyText, rewardText } from './bountyCopy';
 import { itemName, standingDisplayLabel, useT } from '../i18n';
 
 type Fid = Exclude<FactionId, null>;
@@ -71,7 +81,9 @@ export function FactionStrip({ sel, fid }: { sel: LocationState; fid: Fid }) {
   const items = useGame((s) => s.items);
   const isOutpost = sel.isFactionOutpost || isOutpostSite(outposts, fid, sel.id);
   const services = locationServices(sel, outposts);
-  const place = isOutpost ? cfg.outpostName : `${cfg.shortName} ${t('ui.location.territory')}`;
+  const place = isOutpost
+    ? t(`ui.faction.${fid}.outpost`)
+    : `${factionShortName(fid, locale)} ${t('ui.location.territory')}`;
   const score = standing > 0 ? `+${standing}` : `${standing}`;
   const filled = RUNGS.filter((r) => standing >= r).length;
 
@@ -113,6 +125,7 @@ export function FactionStrip({ sel, fid }: { sel: LocationState; fid: Fid }) {
           </span>
         </span>
       </div>
+      <div className="text-micro text-concrete-400">{t(`ui.faction.${fid}.role`)}</div>
       <div className="text-micro text-concrete-200">{nextLine}</div>
       <div className="flex flex-wrap items-baseline gap-x-1.5 text-micro text-concrete-400">
         <span>{t('ui.location.desk.shortOf')}</span>
@@ -183,18 +196,30 @@ export function FactionDesk({
   if (!cleared) {
     const has = (id: string) => items.some((i) => isCarried(i.container) && i.defId === id);
     const fee = cfg.tribute.find(has);
+    const policy = sel.gatePolicy ?? 'fee';
+    // A members door sells nothing; a feud (Bad or worse) turns any door into tribute.
+    const membersOnly = policy === 'members' && standing[fid] > STANDING_BAD;
     return (
       <div className="flex flex-col gap-2">
-        <button onClick={onEnter} className={BTN.primary}>
-          <Icon name={cfg.icon} /> {t('ui.location.approachGate')}
-          <BtnSub>
-            {fee
-              ? t('ui.location.desk.feeHave', { item: itemName(fee, locale) })
-              : t('ui.location.desk.feeNone', {
-                  items: cfg.tribute.map((id) => itemName(id, locale)).join(' / '),
-                })}
-          </BtnSub>
-        </button>
+        {membersOnly ? (
+          <div className="rounded border px-2.5 py-1.5 text-body" style={tint(cfg.color)}>
+            {t('ui.location.desk.membersOnly', {
+              rung: standingDisplayLabel(gateRequirement(sel), locale),
+              n: `+${gateRequirement(sel)}`,
+            })}
+          </div>
+        ) : (
+          <button onClick={onEnter} className={BTN.primary}>
+            <Icon name={cfg.icon} /> {t('ui.location.approachGate')}
+            <BtnSub>
+              {fee
+                ? t('ui.location.desk.feeHave', { item: itemName(fee, locale) })
+                : t('ui.location.desk.feeNone', {
+                    items: cfg.tribute.map((id) => itemName(id, locale)).join(' / '),
+                  })}
+            </BtnSub>
+          </button>
+        )}
         <div className="grid grid-cols-2 gap-2">
           <button onClick={sneakEnter} className={BTN.secondary} {...tip(t('ui.location.sneakHint'))}>
             {t('ui.location.sneakIn')}
@@ -205,6 +230,7 @@ export function FactionDesk({
             <BtnSub hint>{t('ui.location.desk.forceSub')}</BtnSub>
           </button>
         </div>
+        {standing[fid] > STANDING_HATED && <BountyBoard sel={sel} />}
         <div className="flex flex-wrap items-center justify-between gap-2">
           {services.length > 0 ? (
             <span className="text-micro text-concrete-400">
@@ -319,6 +345,8 @@ export function FactionDesk({
         </span>
       )}
 
+      <BountyBoard sel={sel} />
+
       <div className="flex flex-wrap gap-1.5">
         {chips.map((s) => (
           <button
@@ -351,3 +379,75 @@ export function FactionDesk({
     </div>
   );
 }
+
+/**
+ * Work posted at this door. Readable from the curb: taking a job never needs
+ * the gate. Your jobs for this faction can be handed in at any of its sites.
+ */
+function BountyBoard({ sel }: { sel: LocationState }) {
+  const { locale, t } = useT();
+  const seed = useGame((s) => s.seed);
+  const day = useGame((s) => s.day);
+  const kills = useGame((s) => s.kills);
+  const items = useGame((s) => s.items);
+  const locations = useGame((s) => s.locations);
+  const bounties = useGame((s) => s.bounties);
+  const taken = useGame((s) => s.bountiesTaken);
+  const acceptBounty = useGame((s) => s.acceptBounty);
+  const turnInBounty = useGame((s) => s.turnInBounty);
+  const fid = sel.factionId!;
+  // The board only depends on the site and the day; scouting targets are read
+  // once per dawn, not on every map tick.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const board = useMemo(() => bountyBoard(seed, sel, day, locations), [seed, sel.id, sel.gatePolicy, day]);
+  const carried = (defId: string) =>
+    items.filter((i) => isCarried(i.container) && i.defId === defId).reduce((n, i) => n + i.stack, 0);
+  const mine = bounties.filter((b) => b.factionId === fid);
+  const offers = board.filter((o) => !taken.includes(o.id));
+  if (!mine.length && !offers.length) return null;
+  const full = bounties.length >= MAX_ACTIVE_BOUNTIES;
+
+  return (
+    <div className="flex flex-col gap-1.5 rounded border border-white/10 p-2">
+      <div className="text-label uppercase text-concrete-400">{t('ui.location.desk.jobs')}</div>
+      {mine.map((b) => {
+        const p = bountyProgress(b, { kills, locations, carried });
+        return (
+          <div key={b.id} className="flex items-center justify-between gap-2 text-body">
+            <span className="min-w-0">
+              <span className="text-concrete-50">{bountyText(t, locale, b, locations)}</span>{' '}
+              <span className="tabular-nums text-concrete-400">
+                {p.have}/{p.need}
+              </span>
+            </span>
+            <button
+              disabled={!p.done}
+              onClick={() => turnInBounty(b.id)}
+              className={`${CHIP} shrink-0`}
+              {...tip(rewardText(t, locale, b))}
+            >
+              {t('ui.location.desk.turnIn')}
+            </button>
+          </div>
+        );
+      })}
+      {offers.map((o) => (
+        <div key={o.id} className="flex items-center justify-between gap-2 text-body">
+          <span className="min-w-0">
+            <span className="text-concrete-50">{bountyText(t, locale, o, locations)}</span>
+            <span className="block text-micro text-concrete-400">{rewardText(t, locale, o)}</span>
+          </span>
+          <button
+            disabled={full}
+            onClick={() => acceptBounty(o.id)}
+            className={`${CHIP} shrink-0`}
+            {...tip(full ? t('ui.location.desk.jobsFull', { n: MAX_ACTIVE_BOUNTIES }) : null)}
+          >
+            {t('ui.location.desk.take')}
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+

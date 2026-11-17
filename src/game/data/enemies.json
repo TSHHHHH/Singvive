@@ -153,7 +153,7 @@
   },
   "humans": {
     "syndicate_88": {
-      "name": "88 Syndicate Runner",
+      "name": "88 Gang Runner",
       "armor": 1,
       "baseHp": 24,
       "hpPerDanger": 5,
@@ -163,7 +163,7 @@
       "drops": ["parang", "jewellery", "painkillers"]
     },
     "muster": {
-      "name": "Muster Patrol",
+      "name": "Citizen Watch Patrol",
       "armor": 4,
       "baseHp": 34,
       "hpPerDanger": 7,
@@ -174,7 +174,7 @@
       "drops": ["bandage", "army_ration", "batteries"]
     },
     "gotong": {
-      "name": "Gotong Volunteer",
+      "name": "Kampung Kitchen Volunteer",
       "armor": 2,
       "baseHp": 36,
       "hpPerDanger": 6,
@@ -184,7 +184,7 @@
       "drops": ["hawker_meal", "kitchen_knife", "canned_food"]
     },
     "sta": {
-      "name": "STA Tunnel Marshal",
+      "name": "Wardens Tunnel Marshal",
       "armor": 2,
       "baseHp": 28,
       "hpPerDanger": 6,

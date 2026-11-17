@@ -56,7 +56,7 @@ export function poiIcon(poi: Poi): MapIcon {
   const ring = dangerColor(danger);
   const outpost = !!poi.isFactionOutpost && !!poi.factionId;
   const held = !outpost && !!poi.factionId && poi.isFactionRevealed;
-  // Lift faction hues against the dark glyph, including the Syndicate's red.
+  // Lift faction hues against the dark glyph, including the 88 Gang's red.
   const markerColor = factionColor ? mixHex(factionColor, '#ffffff', 0.2) : cfg.color;
   // Depletion mutes the fill, never the glyph or the danger ring.
   const fillColor = dim ? mixHex(markerColor, '#40433e', 0.7) : markerColor;
@@ -71,7 +71,7 @@ export function poiIcon(poi: Poi): MapIcon {
       ? iconMarkup(FACTION_CONFIG[poi.factionId].icon, { size: 19, color: glyphColor })
       : iconMarkup(cfg.icon, { size: 19, color: glyphColor });
   const badge =
-    held && poi.factionId ? iconMarkup(FACTION_CONFIG[poi.factionId].icon, { size: 9, color: markerColor }) : '';
+    held && poi.factionId ? iconMarkup(FACTION_CONFIG[poi.factionId].icon, { size: 12, color: '#08080a' }) : '';
   const borderColor = outpost ? '#f0ead8' : ring;
   const px = outpost ? 38 : 34;
   const icon: MapIcon = {
@@ -86,7 +86,7 @@ export function poiIcon(poi: Poi): MapIcon {
         box-shadow:0 0 0 ${outpost ? 5 : 2}px #08080a,0 3px 6px #0009;
         box-sizing:border-box;
       ">${glyph}</div>
-      ${badge ? `<div style="position:absolute;right:-1px;bottom:-1px;width:14px;height:14px;border-radius:50%;background:#08080a;border:1.5px solid ${markerColor};display:flex;align-items:center;justify-content:center;line-height:1;">${badge}</div>` : ''}
+      ${badge ? `<div style="position:absolute;right:-5px;top:-5px;width:19px;height:19px;border-radius:50%;background:${markerColor};border:2px solid #08080a;display:flex;align-items:center;justify-content:center;line-height:1;">${badge}</div>` : ''}
     </div>`,
     size: [px, px],
     anchor: [px / 2, px / 2],
