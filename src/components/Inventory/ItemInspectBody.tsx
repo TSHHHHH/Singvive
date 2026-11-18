@@ -127,9 +127,13 @@ export function ItemInspectBody({
         </div>
       </div>
 
-      {uses.length > 0 && <details className="mt-2 text-body text-white/65">
-        <summary className="min-h-9 cursor-pointer text-white/75">{t('ui.inventory.craftUses')} ({uses.length})</summary>
-        <ul className="max-h-36 space-y-1 overflow-y-auto py-1">
+      {uses.length > 0 && <details className="group mt-2 text-body text-white/65">
+        {/* Flex + centred so the 36px tap target doesn't leave the label pinned to the top with a dead band under it. */}
+        <summary className="flex min-h-9 cursor-pointer list-none items-center gap-1.5 text-white/75 [&::-webkit-details-marker]:hidden">
+          <span aria-hidden="true" className="inline-block text-micro transition-transform group-open:rotate-90">▶</span>
+          {t('ui.inventory.craftUses')} ({uses.length})
+        </summary>
+        <ul className="-mt-1.5 max-h-36 space-y-1 overflow-y-auto pb-1">
           {uses.map(r => <li key={r.id}>{recipeName(r.id, locale)}{r.tool === inst.defId || (inst.defId === 'cooking_pot' && r.preparation) ? ` · ${t('ui.inventory.keptTool')}` : ''}</li>)}
         </ul>
       </details>}
