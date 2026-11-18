@@ -69,6 +69,7 @@ export function VitalMeter({
   hint,
   preview,
   goodWhenUp = true,
+  locked = 0,
 }: {
   label: string;
   icon: IconName;
@@ -78,6 +79,8 @@ export function VitalMeter({
   /** Planned value: show the change instead of the live meter. */
   preview?: number;
   goodWhenUp?: boolean;
+  /** Part of `max` held back (open wounds): drawn hatched at the bar's end, left out of the shown max. */
+  locked?: number;
 }) {
   const still = useReducedMotion();
   const shown = useTweened(value, still || preview != null);
@@ -158,7 +161,7 @@ export function VitalMeter({
             </span>
           )}
           <span className={health(shownPct) < 35 ? 'tabular-nums text-hiss' : 'tabular-nums text-concrete-50'}>
-            {Math.round(shown)}<span className="text-micro text-white/40">/{Math.round(max)}</span>
+            {Math.round(shown)}<span className="text-micro text-white/40">/{Math.round(max - locked)}</span>
           </span>
         </span>
       </div>
@@ -171,6 +174,17 @@ export function VitalMeter({
           className="absolute inset-y-0 left-0"
           style={{ width: `${pct}%`, backgroundColor: dynamicMeterColor(health(pct)), transition: mainTransition }}
         />
+        {locked > 0 && (
+          <div
+            data-vital-locked=""
+            className="absolute inset-y-0 right-0"
+            style={{
+              width: `${clampPct(locked, max)}%`,
+              backgroundImage: `repeating-linear-gradient(135deg, ${LOSS} 0 2px, transparent 2px 4px)`,
+              opacity: 0.75,
+            }}
+          />
+        )}
       </div>
     </div>
   );

@@ -668,6 +668,19 @@ export interface BodyPart {
   /** Supported-equivalent hours of fracture recovery, toward a 72-hour recovery. */
   fractureRecoveryHours?: number;
   /**
+   * Recovery-equivalent hours toward closing an open cut / deep wound. While a
+   * wound is open it holds part of the part's max HP back (see `openWoundCap`).
+   */
+  woundCloseHours?: number;
+  /** Game hours the current cut / deep wound has stayed open. */
+  woundAgeHours?: number;
+  /** Seed in [0, 1) rolled when the wound opened; drives its daily infection checks. */
+  infectRoll?: number;
+  /** The wound went bad: recovery and closing slow until antibiotics clear it. */
+  woundInfected?: boolean;
+  /** Remaining game hours of antibiotic cover against wound infection. */
+  antibioticHours?: number;
+  /**
    * Torso was already Critical (0 HP) and took another solid hit / head spill.
    * That follow-up ends the run — emptying the body once alone does not.
    */

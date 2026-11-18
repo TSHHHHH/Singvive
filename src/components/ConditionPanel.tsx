@@ -12,6 +12,7 @@ import { AttributeRow } from './AttributeRow';
 import { SurvivorStatsGrid } from './SurvivorStatsGrid';
 import { GuideInfoButton } from './GuideInfoButton';
 import { countBleeding, meterModifiers, totalHp, totalMaxHp } from '../game/survival';
+import { effectiveMaxHp } from '../game/injuryEffects';
 import type { GuideTopic } from '../content/guideContent';
 import type { BodyPartId, BodyParts } from '../game/types';
 import { useT } from '../i18n';
@@ -89,6 +90,11 @@ export function ConditionPanel({
                 max={hpMax}
                 color="#d92d2d"
               />
+              {hpMax > effectiveMaxHp(bodyParts) && (
+                <p className="-mt-1 text-micro text-hiss/80">
+                  {t('ui.condition.woundsHoldMax', { n: hpMax - effectiveMaxHp(bodyParts) })}
+                </p>
+              )}
               <MeterBar
                 label={t('ui.condition.hunger')}
                 icon="meter.hunger"

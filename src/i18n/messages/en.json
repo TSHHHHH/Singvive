@@ -989,7 +989,8 @@
         "hit": "To hit {n}",
         "dodge": "Dodge chance {n}",
         "flee": "Flee DC {n}"
-      }
+      },
+      "woundsHoldMax": "Open wounds hold back {n} max HP until they close."
     },
     "survivor": {
       "statsTitle": "Survivor stats",
@@ -2185,8 +2186,8 @@
         "support": "Support"
       },
       "effect": {
-        "bandage": "Stops bleeding; protects recovery.",
-        "clean": "Removes dirt for faster recovery.",
+        "bandage": "Stops bleeding; helps the wound close. Lowers infection risk a little.",
+        "clean": "Removes dirt: faster recovery, and far less chance the wound turns infected.",
         "pain": "Eases injury penalties for 4 hours.",
         "splint": "Supports a fracture as it heals.",
         "firstAid": "Cleans, dresses, supports and eases pain.",
@@ -2223,7 +2224,16 @@
       "supportActive": "Recovery +25% · about {n}h left",
       "noSupplyFor": "No suitable supply within reach.",
       "tapAgain": "Tap again to apply.",
-      "statusLabel": "Condition"
+      "statusLabel": "Condition",
+      "woundInfected": "{part}: the wound has turned infected. Recovery slows to a crawl — antibiotics clear it.",
+      "woundClosed": "{part}: the wound has closed. Max health is back.",
+      "antibioticsCleared": "The antibiotics bite. Infected wounds clear, and new ones are covered for {n} hours.",
+      "antibioticsCover": "Antibiotics on board: wounds are covered against infection for {n} hours.",
+      "infectedHint": "Infected wound · recovery −65%\nAntibiotics clear it.",
+      "openHint": "Open wound · holds back {n} max HP until it closes ({left}h at this rate)\nA clean dressing closes it fastest.",
+      "riskHint": "Infection check in {h}h · {pct}% chance\nCleaning or antibiotics cut it hard; a dressing helps a little.",
+      "coverActive": "Antibiotic cover · {n}h",
+      "effectsLabel": "Effects"
     },
     "coop": {
       "menu": "Co-op expedition",
@@ -2568,6 +2578,25 @@
       "site": "This site",
       "noJobs": "No work posted today. Come back after dawn.",
       "frameSite": "Frame site"
+    },
+    "injury": {
+      "preFight": "Going in hurt",
+      "preFightTip": "What your injuries cost in this fight and after it.",
+      "effect": {
+        "accuracy": "hit −{n}",
+        "block": "block −{n}%",
+        "dodge": "dodge −{n}%",
+        "travel": "travel −{n}%",
+        "search": "search +{n}%",
+        "awareness": "awareness −{n}",
+        "energy": "energy drain +{n}%",
+        "carry": "carry −{n}%",
+        "maxHp": "max HP −{n}",
+        "recovery": "recovery −{n}%"
+      },
+      "bleeding": "bleeding",
+      "fractured": "fractured",
+      "infected": "infected"
     }
   },
   "settings": {
@@ -2768,6 +2797,7 @@
       "bullets": [
         "Six parts add up to your total health. Wounds, dressings and splints are visible in Body. Care stabilizes injuries; it never instantly restores limb HP or cures a fracture.",
         "Bandage, clean, relieve pain and splint independently, in any order, or leave an injury alone. Dirty wounds still recover more slowly. Cleaning is never required before bandaging.",
+        "Cuts and deep wounds hold back part of that part's max HP until they close (about half a day for a dressed cut, a day and a half for a deep wound). A wound left open for a day may turn infected and recover far slower: cleaning or antibiotics cut that risk hard, a dressing only somewhat. Antibiotics clear an infected wound.",
         "Clean dressings support recovery and soil after about 12 hours; replace them when useful. Improvised bandages stop bleeding but leave a dirty dressing that slows recovery. Pain relief lasts 4 hours.",
         "Fractures heal over days: 72 supported-equivalent hours, at 45% speed without support. Food, water, undisturbed sleep and less strain help recovery. A first-aid kit gives 3 comprehensive single-part treatments.",
         "Bad legs slow map travel. The right arm affects weapon accuracy; the left affects guard and off-hand tempo. Head wounds affect aim, search and awareness. Torso wounds raise energy drain and reduce carry capacity."

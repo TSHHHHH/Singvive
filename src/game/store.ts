@@ -202,6 +202,7 @@ import {
 import {
   applyPartDamage,
   applyStrainInjury,
+  BODY_PART_IDS,
   applyWound,
   armCombatPenalty,
   checkDeath,
@@ -460,7 +461,7 @@ import {
   freshActivity, normalizeActivity, pruneActivity, respondActivity, type ActivityState,
 } from './activity';
 import { t } from '../i18n/t';
-import { applyCare, canCareWithItem, careForItem, chooseCareTarget, CARE_MINUTES, recoverySupportMultiplier, type CareAction } from './woundCare';
+import { ANTIBIOTIC_COVER_HOURS, applyAntibiotics, applyCare, isOpenWound, canCareWithItem, careForItem, chooseCareTarget, CARE_MINUTES, recoverySupportMultiplier, type CareAction } from './woundCare';
 import { activeLocale } from './eventCopy';
 import {
   GHOST_RADIUS,
@@ -1685,6 +1686,18 @@ export const useGame = create<State>((set, get) => {
       items,
       ...(hdb !== s.hdb ? { hdb } : {}),
     });
+
+    // A wound that turns, or finally closes, is news — say which one.
+    for (const id of BODY_PART_IDS) {
+      const was = s.bodyParts[id];
+      const now = partsAfterSystemic[id];
+      const part = t(`ui.body.parts.${id}`, undefined, activeLocale());
+      if (!was.woundInfected && now.woundInfected) {
+        pushLog(t('ui.care.woundInfected', { part }, activeLocale()), 'bad');
+      } else if (isOpenWound(was) && !isOpenWound(now)) {
+        pushLog(t('ui.care.woundClosed', { part }, activeLocale()), 'good');
+      }
+    }
 
     // warn once, on the way down, so the HP bleed isn't a silent surprise
     if (s.meters.thirst >= STARVING_THRESHOLD && meters.thirst < STARVING_THRESHOLD) {
@@ -5882,7 +5895,7 @@ export const useGame = create<State>((set, get) => {
       const faded = hasCondition(inst) && consumableScale(inst) < 1;
       const foodEffectMod = sumTraitMod(s.character!.traitIds, 'foodEffectMod');
       const m = { ...s.meters };
-      const newBodyParts = s.bodyParts;
+      let newBodyParts = s.bodyParts;
       let consumed = false;
       // Spoiled food still feeds you — it just asks for something back.
       let spoiledInfection = 0;
@@ -5931,6 +5944,11 @@ export const useGame = create<State>((set, get) => {
         case 'cure':
           m.infection = clampMeter(m.infection - fresh(effect.infection));
           consumed = true;
+          if (def.id === 'antibiotics') {
+            const hadInfectedWound = BODY_PART_IDS.some((id) => newBodyParts[id].woundInfected);
+            newBodyParts = applyAntibiotics(newBodyParts);
+            pushLog(t(hadInfectedWound ? 'ui.care.antibioticsCleared' : 'ui.care.antibioticsCover', { n: ANTIBIOTIC_COVER_HOURS }, activeLocale()), 'good');
+          }
           pushLog(
             faded
               ? `Took ${def.name}. Past its date — infection pushed back, but not as hard.`

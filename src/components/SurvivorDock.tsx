@@ -2,6 +2,7 @@ import { useRef, useState, type ReactNode } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useGame } from '../game/store';
 import { meterModifiers, totalHp, totalMaxHp } from '../game/survival';
+import { effectiveMaxHp } from '../game/injuryEffects';
 import { AttributeRow } from './AttributeRow';
 import type { LoadEffects } from '../game/inventory';
 import type { GuideTopic } from '../content/guideContent';
@@ -44,7 +45,9 @@ export function SurvivorDock({
     <div className="space-y-2" data-survivor-dock>
       <section aria-label={t('ui.dock.vitals')} className="sticky top-0 z-20 rounded-lg border border-white/15 bg-concrete-900 p-2.5 shadow-sm">
         <div className="grid grid-cols-2 gap-x-3 gap-y-2">
-          <VitalMeter label={t('ui.condition.health')} icon="meter.health" value={totalHp(bodyParts)} max={totalMaxHp(bodyParts)} />
+          <VitalMeter label={t('ui.condition.health')} icon="meter.health" value={totalHp(bodyParts)} max={totalMaxHp(bodyParts)}
+            locked={totalMaxHp(bodyParts) - effectiveMaxHp(bodyParts)}
+            hint={totalMaxHp(bodyParts) > effectiveMaxHp(bodyParts) ? t('ui.condition.woundsHoldMax', { n: totalMaxHp(bodyParts) - effectiveMaxHp(bodyParts) }) : undefined} />
           <VitalMeter label={t('ui.condition.energy')} icon="meter.energy" value={meters.energy} hint={meterModifiers('energy', meters, locale).map((m) => m.text).join('\n')} />
           <VitalMeter label={t('ui.dock.food')} icon="meter.hunger" value={meters.hunger} hint={meterModifiers('hunger', meters, locale).map((m) => m.text).join('\n')} />
           <VitalMeter label={t('ui.dock.water')} icon="meter.thirst" value={meters.thirst} hint={meterModifiers('thirst', meters, locale).map((m) => m.text).join('\n')} />

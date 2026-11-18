@@ -2,7 +2,11 @@ import { t } from '../i18n/t';
 import type { LocaleId } from '../i18n/types';
 import type { BleedLevel, BodyPart, BodyPartId, BodyParts, ItemModifiers, Meters } from './types';
 import type { Rng } from './rng';
-import { applyCare, chooseCareTarget, DRESSING_SOIL_HOURS, FRACTURE_RECOVERY_HOURS } from './woundCare';
+import {
+  applyCare, chooseCareTarget, DRESSING_SOIL_HOURS, FRACTURE_RECOVERY_HOURS, INFECTED_RECOVERY_MULT,
+  isOpenWound, openWoundCap, WOUND_CLOSE_HOURS, WOUND_INFECT_CHECK_HOURS, woundCheckRoll,
+  woundCloseRate, woundInfectChance,
+} from './woundCare';
 export { recoverySupportMultiplier } from './woundCare';
 
 export const HOURS_PER_DAY = 24;
@@ -515,15 +519,23 @@ function applyDamageToSinglePart(
   const wound = damage >= MAJOR_BLEED_MIN_DAMAGE || bleed === 'major' || current.wound === 'deep'
     ? 'deep'
     : bleed === 'minor' || damage >= 4 || current.wound === 'cut' ? 'cut' : 'bruise';
-  return {
-    ...parts,
-    [zone]: {
-      ...current, hp, bleed, bleedHours, fractured, crippled, mortalWound, wound,
-      dirty: wound !== 'bruise' || !!current.dirty,
-      dressing: current.dressing && current.dressing !== 'none' ? 'soiled' : 'none',
-      fractureRecoveryHours: fractured && !current.fractured ? 0 : current.fractureRecoveryHours,
-    },
+  const next: BodyPart = {
+    ...current, hp, bleed, bleedHours, fractured, crippled, mortalWound, wound,
+    dirty: wound !== 'bruise' || !!current.dirty,
+    dressing: current.dressing && current.dressing !== 'none' ? 'soiled' : 'none',
+    fractureRecoveryHours: fractured && !current.fractured ? 0 : current.fractureRecoveryHours,
   };
+  if (isOpenWound(next)) {
+    // New trauma on an open wound sets its closing back; a fresh wound starts its clock.
+    const wasOpen = isOpenWound(current);
+    next.woundCloseHours = 0;
+    next.woundAgeHours = wasOpen ? current.woundAgeHours ?? 0 : 0;
+    next.infectRoll = wasOpen && current.infectRoll != null ? current.infectRoll : rng.fork('infectRoll').next();
+    // An open wound holds part of the part's max HP back.
+    next.hp = Math.min(next.hp, openWoundCap(next));
+    if (next.hp <= 0) next.crippled = true;
+  }
+  return { ...parts, [zone]: next };
 }
 
 /**
@@ -708,6 +720,24 @@ export function tickInjuries(
       if (p.fractured && (p.fractureRecoveryHours ?? 0) >= FRACTURE_RECOVERY_HOURS - 1e-9) {
         p = { ...p, fractured: false, splinted: false, fractureRecoveryHours: FRACTURE_RECOVERY_HOURS };
       }
+      if (isOpenWound(p) && (p.woundCloseHours ?? 0) >= WOUND_CLOSE_HOURS[p.wound] - 1e-9) {
+        // Closed: what is left is a bruise that recovers to full like any other.
+        p = {
+          ...p, wound: 'bruise', dirty: false, dressing: 'none', dressingHours: 0, woundInfected: false,
+          woundCloseHours: undefined, woundAgeHours: undefined, infectRoll: undefined,
+        };
+      }
+      if (isOpenWound(p) && !p.woundInfected) {
+        const age = p.woundAgeHours ?? 0;
+        const k = Math.round(age / WOUND_INFECT_CHECK_HOURS);
+        // Steps land exactly on each daily mark; the roll for mark k is fixed, so a repeat check agrees.
+        if (k >= 1 && Math.abs(age - k * WOUND_INFECT_CHECK_HOURS) < 1e-6
+          && woundCheckRoll(p.infectRoll ?? 0.5, k) < woundInfectChance(p)) {
+          p = { ...p, woundInfected: true };
+        }
+      }
+      const open = isOpenWound(p);
+      const infectedMult = p.woundInfected ? INFECTED_RECOVERY_MULT : 1;
       const supplementMult = (p.recoveryBoostHours ?? 0) > 1e-9 ? 1.25 : 1;
       const fractureRate = p.fractured && !blocksRegen
         ? (p.splinted ? 1 : 0.45) * regenMult * partRegenMult * supplementMult : 0;
@@ -716,18 +746,31 @@ export function tickInjuries(
       if (p.bleed === 'minor' && clotRate > 0) step = Math.min(step, p.bleedHours / clotRate);
       if (p.dressing === 'clean') step = Math.min(step, DRESSING_SOIL_HOURS - (p.dressingHours ?? 0));
       if (fractureRate > 0) step = Math.min(step, (FRACTURE_RECOVERY_HOURS - (p.fractureRecoveryHours ?? 0)) / fractureRate);
+      const closeRate = open && !blocksRegen ? woundCloseRate(p) * regenMult * supplementMult : 0;
+      if (closeRate > 0) step = Math.min(step, (WOUND_CLOSE_HOURS[p.wound as 'cut' | 'deep'] - (p.woundCloseHours ?? 0)) / closeRate);
+      if (open && !p.woundInfected) {
+        const age = p.woundAgeHours ?? 0;
+        const nextCheck = (Math.floor(age / WOUND_INFECT_CHECK_HOURS + 1e-6) + 1) * WOUND_INFECT_CHECK_HOURS;
+        step = Math.min(step, nextCheck - age);
+      }
+      if ((p.antibioticHours ?? 0) > 1e-9) step = Math.min(step, p.antibioticHours!);
+      step = Math.max(step, 1e-6);
       const tissueMult = p.wound === 'deep' ? 0.35 : p.wound === 'cut' ? 0.6 : 1;
       const dirtMult = p.dirty ? 0.65 : 1;
       const dressingMult = p.dressing === 'clean' ? 1.15 : p.dressing === 'soiled' ? 0.65 : 1;
       const regenRate = blocksRegen ? 0
-        : PART_REGEN_PER_HOUR * regenMult * partRegenMult * tissueMult * dirtMult * dressingMult * supplementMult * (p.bleed === 'minor' ? 0.5 : 1);
+        : PART_REGEN_PER_HOUR * regenMult * partRegenMult * tissueMult * dirtMult * dressingMult * supplementMult * infectedMult * (p.bleed === 'minor' ? 0.5 : 1);
+      const hpCap = openWoundCap(p);
       const bleed = p.bleed === 'minor' && clotRate > 0 && p.bleedHours - step * clotRate <= 1e-9 ? 'none' : p.bleed;
       const dressingHours = p.dressing && p.dressing !== 'none' ? (p.dressingHours ?? 0) + step : 0;
       const fractureRecoveryHours = (p.fractureRecoveryHours ?? 0) + step * fractureRate;
       const healed = !!p.fractured && fractureRecoveryHours >= FRACTURE_RECOVERY_HOURS - 1e-9;
       p = {
         ...p,
-        hp: Math.max(0, Math.min(p.maxHp, p.hp + step * (regenRate - BLEED_DRAIN[p.bleed]))),
+        hp: Math.max(0, Math.min(Math.max(hpCap, Math.min(p.hp, p.maxHp)), p.hp + step * (regenRate - BLEED_DRAIN[p.bleed]))),
+        woundCloseHours: open ? (p.woundCloseHours ?? 0) + step * closeRate : p.woundCloseHours,
+        woundAgeHours: open ? (p.woundAgeHours ?? 0) + step : p.woundAgeHours,
+        antibioticHours: Math.max(0, (p.antibioticHours ?? 0) - step),
         bleed, bleedHours: bleed === 'none' ? 0 : Math.max(0, p.bleedHours - step * clotRate),
         dressingHours,
         dressing: p.dressing === 'clean' && dressingHours >= DRESSING_SOIL_HOURS - 1e-9 ? 'soiled' : p.dressing,
