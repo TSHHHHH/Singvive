@@ -221,6 +221,9 @@ const railHotkey = (id: RailKey): string => RAIL_HOTKEYS[RAIL_KEYS.indexOf(id)];
 const HUD_GAP = 12;
 const HUD_EDGE = 16;
 const SLIDE_OUT_W = 360;
+/** Crafting gets a wider drawer (+20%) so its strips have room for name, chips and time. */
+const CRAFT_SLIDE_OUT_W = Math.round(SLIDE_OUT_W * 1.2);
+const CRAFT_SLIDE_OUT_MAX_W = 768;
 const INSPECTOR_W = 352;
 /** The open-map here / target inspector's widest size (44rem), px. */
 const INSPECTOR_MAX_W = 704;
@@ -996,7 +999,7 @@ export function GameScreen() {
   const timelineBeside = timelineFull && timelineFits;
   const timelineStacked = timelineFull && !timelineFits;
   const slideOutW = wideSlideOut
-    ? Math.max(SLIDE_OUT_W, Math.min(640, mapW - inspectorW - HUD_EDGE * 2 - inspectorReserve))
+    ? Math.max(CRAFT_SLIDE_OUT_W, Math.min(CRAFT_SLIDE_OUT_MAX_W, mapW - inspectorW - HUD_EDGE * 2 - inspectorReserve))
     : SLIDE_OUT_W;
   const panelInset = !isPhone && sidePanel ? slideOutW : 0;
   const inspectorRight = HUD_EDGE + inspectorReserve;
@@ -1802,7 +1805,10 @@ export function GameScreen() {
         >
           <NearbyRecognitionNotice leftInset={isPhone ? 0 : panelInset} rightInset={isPhone || !timelineBeside ? 0 : tlW + HUD_EDGE} />
           {tunnel ? (
-            <TunnelRunView />
+            <TunnelRunView
+              reserveRight={!isPhone && timelineBeside ? tlW + HUD_EDGE + HUD_GAP : 0}
+              headerReserveRight={!isPhone && !timelineFull ? Math.min(TICKER_W, mapW - panelInset - HUD_EDGE * 2) + HUD_EDGE : 0}
+            />
           ) : blockShown && !hdbOverMap ? (
             <HdbDungeonModal onOpenGuide={setGuideTopic} inset={hdbInset} />
           ) : mrtPlanner && !hdb ? (

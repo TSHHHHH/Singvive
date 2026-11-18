@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Recipe } from '../game/crafting';
+import { RECIPE_FAMILIES } from '../game/recipeFamilies';
 import {
   canCraft,
   FIELD_REPAIRS,
@@ -1363,7 +1364,7 @@ export function RecipesEditor({
                 <label>Drink family
                   <select className="w-full bg-concrete-950 p-2" value={selected.family ?? ''}
                     onChange={e => patch({ family: e.target.value ? e.target.value as RecipeRecord['family'] : undefined })}>
-                    <option value="">None</option><option value="kopi">Kopi</option><option value="teh">Teh</option>
+                    <option value="">None</option>{RECIPE_FAMILIES.map(f => <option key={f} value={f}>{f}</option>)}
                   </select>
                 </label>
                 <label><input type="checkbox" checked={!!selected.fixedInputs} onChange={e => patch({ fixedInputs: e.target.checked })} /> Fixed ingredient quantities</label>

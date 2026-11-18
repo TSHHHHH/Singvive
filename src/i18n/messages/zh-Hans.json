@@ -755,35 +755,28 @@
       "details": "详情",
       "inspect": "查看{name}",
       "ingredients": "材料",
-      "shelterRequirement": "需要落脚处 · 储藏点或组屋",
       "toolKept": "{name} · 不消耗",
       "craftAction": "制作",
       "unavailable": "暂不可做",
       "made": "已制作 {n}× {name}",
       "unsafeWater": "使用浑水。饮用后感染增加 {n}。",
       "tearRemaining": "剩余 {n} 次",
-      "tearAction": "撕出 {n}× 碎布",
       "categories": {
         "all": "全部类别",
-        "provisions": "食物与饮品",
         "medical": "医疗",
         "weapons": "武器与弹药",
         "equipment": "装备",
         "tools": "工具与零件",
-        "facilities": "地点设施"
+        "facilities": "营地设施（不可携带）",
+        "food": "食物",
+        "drinks": "饮品",
+        "materials": "材料"
       },
       "needHave": "{name} — 需要 {need}，现有 {have}",
       "toolTip": "{name} — 留在背包（现有 {have}）",
-      "workbench": "工作台",
-      "shelterOk": "有落脚处",
-      "shelterNo": "无落脚处",
-      "toolboxOk": "有工具箱",
-      "toolboxNo": "无工具箱",
       "hint": "材料取自背包。需落脚处的配方要有储藏点或组屋。工具留在背包里。",
       "filterAll": "全部",
       "filterReady": "可做",
-      "groupField": "野外",
-      "groupShelter": "落脚处",
       "groupDesperate": "走投无路",
       "noneReady": "眼下什么都做不了。多搬些材料回来，或者找个能干活的地方。",
       "anyWater": "任意水源",
@@ -793,10 +786,6 @@
       "blockInput": "需要 {need}× {name} — 现有 {have}",
       "blockWater": "需要 {need}× 水 — 现有 {have}",
       "boilNote": "需要炊锅和热源，备好的水留在此处，两小时后冷却但仍洁净。收取后成为普通洁净水。",
-      "tearName": "撕开身上的衣服",
-      "tearCost": "不耗材料 — 还能撕 {n} 次",
-      "tearBlurb": "从身上穿的衣服上扯下布条。除了衣服，什么都不花。",
-      "tearNone": "你身上的衣服已经撕光了。去找布，或者就这样将就。",
       "siteFacilities": "此处设施",
       "heatLeft": "热源可用 · 剩余{h}小时",
       "noHeat": "没有可用热源",
@@ -815,13 +804,15 @@
       "waterSource": "配方用水",
       "carriedWater": "使用随身水",
       "siteWater": "使用此处备好的水",
-      "preparationHint": "常温饮品补水不变，饱食与精力恢复减半。烹饪必须用热源，烧水使用随身水。搜索可查看所有饮品口味。",
       "staysHere": "建于此处 · 不能装包或带走",
       "roomPenalty": "常温调制 · 饱食与精力恢复减半，补水不变",
       "busy": "请先完成当前行动。",
       "family": {
-        "kopi": "咖啡配方",
-        "teh": "茶饮配方"
+        "kopi": "咖啡",
+        "teh": "茶",
+        "milo": "美禄",
+        "mee": "泡面",
+        "porridge": "白粥"
       },
       "block": {
         "site": "请先到达一个地表地点。",
@@ -829,9 +820,42 @@
         "pot": "需要随身携带炊锅，使用后不会消耗。",
         "site_water": "此处备好的水不足。",
         "occupied": "设施已建或仍在使用。再次烧水前请先用完或收取已有的水。",
-        "stove": "请先在此处搭建固定炉灶。"
+        "stove": "请先在此处搭建固定炉灶。",
+        "tears": "你身上的衣服已经撕光了。"
       },
-      "options": "烹饪与饮品选项"
+      "variants": "{n} 种",
+      "variant": "种类",
+      "builtHere": "就地搭建",
+      "hoverHint": "悬停查看物品详情，点击展开配方。",
+      "status": {
+        "burning": "燃烧中 · {h}小时",
+        "built": "已建成",
+        "rain": "雨水 {n}/4",
+        "water": "备好 {n} 份"
+      },
+      "noHeatHere": "此处无热源",
+      "chips": {
+        "all": "全部",
+        "food": "食物",
+        "drinks": "饮品",
+        "medical": "医疗",
+        "weapons": "武器",
+        "equipment": "装备",
+        "materials": "材料",
+        "tools": "工具",
+        "facilities": "营地"
+      },
+      "camp": {
+        "title": "营地",
+        "away": "营地设施只能在地表地点搭建。",
+        "none": "此处尚未搭建设施",
+        "fire": "火堆 {h}小时",
+        "stove": "炉灶",
+        "stoveLit": "炉灶 {h}小时",
+        "shelter": "防雨棚",
+        "rain": "雨水 {n}/4",
+        "water": "备好的水 ×{n}"
+      }
     },
     "attributes": {
       "strength": "力量",
@@ -1198,7 +1222,7 @@
       "water": "水分",
       "more": "更多",
       "tools": "幸存者工具",
-      "injured": "受伤 · 查看身体"
+      "injured": "受伤"
     },
     "hud": {
       "badge": {
@@ -3413,6 +3437,10 @@
     "jewellery_pick": {
       "name": "将首饰金属丝弯成开锁器",
       "blurb": "将贵重首饰改成一次性开锁器。"
+    },
+    "tear_clothes": {
+      "name": "撕开身上的衣服",
+      "blurb": "从身上穿的衣服上扯下布条。除了衣服，什么都不花。"
     }
   },
   "trait": {

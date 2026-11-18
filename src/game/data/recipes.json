@@ -644,6 +644,7 @@
     "blurb": "Brew hot for full benefits, or mix at room temperature for half hunger and energy. Water still hydrates; unsafe cold water stays unsafe.",
     "waterInput": 1,
     "preparation": "drink",
+    "family": "milo",
     "fixedInputs": true
   },
   {
@@ -660,6 +661,7 @@
     "blurb": "Brew hot for full benefits, or mix at room temperature for half hunger and energy. Water still hydrates; unsafe cold water stays unsafe.",
     "waterInput": 1,
     "preparation": "drink",
+    "family": "milo",
     "fixedInputs": true
   },
   {
@@ -676,6 +678,7 @@
     "blurb": "Brew hot for full benefits, or mix at room temperature for half hunger and energy. Water still hydrates; unsafe cold water stays unsafe.",
     "waterInput": 1,
     "preparation": "drink",
+    "family": "milo",
     "fixedInputs": true
   },
   {
@@ -706,6 +709,7 @@
     "blurb": "Needs a cooking pot and heat for the whole preparation. Cook with carried water or a hot batch left here. Eat before it spoils.",
     "waterInput": 1,
     "preparation": "cook",
+    "family": "mee",
     "fixedInputs": true
   },
   {
@@ -722,6 +726,7 @@
     "blurb": "Needs a cooking pot and heat for the whole preparation. Cook with carried water or a hot batch left here. Eat before it spoils.",
     "waterInput": 1,
     "preparation": "cook",
+    "family": "mee",
     "fixedInputs": true
   },
   {
@@ -738,6 +743,7 @@
     "blurb": "Needs a cooking pot and heat for the whole preparation. Cook with carried water or a hot batch left here. Eat before it spoils.",
     "waterInput": 1,
     "preparation": "cook",
+    "family": "mee",
     "fixedInputs": true
   },
   {
@@ -753,6 +759,7 @@
     "blurb": "Needs a cooking pot and heat for the whole preparation. Cook with carried water or a hot batch left here. Eat before it spoils.",
     "waterInput": 1,
     "preparation": "cook",
+    "family": "porridge",
     "fixedInputs": true
   },
   {
@@ -769,6 +776,7 @@
     "blurb": "Needs a cooking pot and heat for the whole preparation. Cook with carried water or a hot batch left here. Eat before it spoils.",
     "waterInput": 1,
     "preparation": "cook",
+    "family": "porridge",
     "fixedInputs": true
   },
   {

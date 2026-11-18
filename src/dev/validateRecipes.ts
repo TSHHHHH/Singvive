@@ -1,9 +1,12 @@
 /** Shared recipe-catalog validation for the DEV API and browser UI. */
 
+/** Mirrors `RECIPE_FAMILIES` in src/game/recipeFamilies.ts (this file is also compiled for the Node dev API). */
+const RECIPE_FAMILIES = ['kopi', 'teh', 'milo', 'mee', 'porridge'];
+
 export type RecipeRecord = {
   preparation?: 'drink' | 'cook' | 'boil';
   facility?: 'fire' | 'stove' | 'stove_fuel' | 'rain_collector' | 'rain_shelter' | 'hot_water';
-  family?: 'kopi' | 'teh';
+  family?: 'kopi' | 'teh' | 'milo' | 'mee' | 'porridge';
   fixedInputs?: boolean;
   id: string;
   name: string;
@@ -82,7 +85,7 @@ export function validateRecipesCatalog(
     }
 
     const label = typeof id === 'string' && id ? id : prefix;
-    for (const [key, values] of Object.entries({ preparation: ['drink', 'cook', 'boil'], facility: ['fire', 'stove', 'stove_fuel', 'rain_collector', 'rain_shelter', 'hot_water'], family: ['kopi', 'teh'] })) {
+    for (const [key, values] of Object.entries({ preparation: ['drink', 'cook', 'boil'], facility: ['fire', 'stove', 'stove_fuel', 'rain_collector', 'rain_shelter', 'hot_water'], family: RECIPE_FAMILIES })) {
       if (row[key] !== undefined && !values.includes(row[key] as string)) errors.push(`${label}: invalid ${key}`);
     }
     if (row.fixedInputs !== undefined && typeof row.fixedInputs !== 'boolean') errors.push(`${label}: fixedInputs must be a boolean`);
