@@ -34,20 +34,15 @@ export function AttributeRow() {
             tipClassName="w-max min-w-[11rem] max-w-[min(15rem,calc(100vw-1rem))] break-words rounded-lg border border-white/15 bg-concrete-900 p-2 text-left shadow-signage"
             tip={<AttributeTip attr={k} traitIds={character.traitIds} value={value} />}
           >
-            <div className="cursor-help rounded bg-black/30 py-1 transition group-hover:bg-white/5">
-              <div className="mx-auto mb-0.5 flex justify-center text-white/50">
-                <Icon name={ATTRIBUTE_ICONS[k]} size={12} title={label} />
-              </div>
-              <div
+            <div className="flex cursor-help items-center justify-center gap-1.5 rounded bg-black/30 py-1 transition group-hover:bg-white/5">
+              <Icon name={ATTRIBUTE_ICONS[k]} size={12} title={label} className="text-white/50" />
+              <span
                 className={`text-read font-bold tabular-nums ${
                   delta > 0 ? 'text-signal' : delta < 0 ? 'text-hiss' : 'text-concrete-200'
                 }`}
               >
                 {value}
-              </div>
-              <div className="text-label uppercase text-white/40">
-                {t(`ui.attributes.short.${k}`)}
-              </div>
+              </span>
             </div>
           </TipHint>
         );
