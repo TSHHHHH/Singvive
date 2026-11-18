@@ -47,8 +47,8 @@ export const OPENFREEMAP_DARK: Basemap = {
 
 export const BASEMAP: Basemap = CARTO_DARK;
 
-/** Roughly the basemap's own ground colour (Dark Matter background). */
-export const GROUND_COLOR = '#0e0e0e';
+/** The basemap's ground colour, as re-toned by basemapTone.ts (TONE_GROUND). */
+export const GROUND_COLOR = '#0c0d0e';
 
 /**
  * Overlay slots, bottom to top. Each is an invisible marker layer added once

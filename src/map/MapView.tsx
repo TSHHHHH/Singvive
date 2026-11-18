@@ -4,6 +4,7 @@ import { Map as MlMap } from 'maplibre-gl';
 import { MapContext } from './hooks';
 import { BASEMAP, SLOTS, slotId } from './mapStyle';
 import { markRemoved } from './layers';
+import { toneBasemap } from './basemapTone';
 import type { LatLngBox } from './geo';
 
 /**
@@ -97,6 +98,7 @@ export function MapView({
     let cancelled = false;
     m.once('load', () => {
       if (cancelled) return;
+      toneBasemap(m);
       installSlots(m);
       // DEV console handle, like `window.__game` (the last map mounted wins).
       if (import.meta.env.DEV) (window as unknown as { __map?: MlMap }).__map = m;

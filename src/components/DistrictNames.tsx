@@ -39,7 +39,7 @@ export function DistrictNames() {
         },
         paint: {
           'text-color': '#d8d3c4',
-          'text-halo-color': '#060806',
+          'text-halo-color': '#060707',
           'text-halo-width': 1.2,
           'text-opacity': [
             'interpolate',

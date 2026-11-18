@@ -74,11 +74,13 @@ export const BUILDINGS_LAYER = 'buildings-3d';
  * small per-building nudge (by feature id) breaks up rows of equal blocks.
  * Data-driven paint, set once: no per-frame or per-tick cost.
  */
+// Cool blue-grey, kept below the secondary road grey (basemapTone.ts) so roofs
+// sit a step darker than the streets and the shaded walls read cool.
 const BUILDING_SHADES: ReadonlyArray<readonly [number, string]> = [
-  [0, '#1a1c18'],
-  [15, '#262922'],
-  [40, '#343832'],
-  [120, '#4a4f4b'],
+  [0, '#181a1f'],
+  [15, '#22252b'],
+  [40, '#2e3239'],
+  [120, '#434953'],
 ];
 /** Metres of "virtual height" the id nudge adds at most. */
 const SHADE_JITTER_M = 8;
