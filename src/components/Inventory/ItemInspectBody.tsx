@@ -130,7 +130,7 @@ export function ItemInspectBody({
       {uses.length > 0 && <details className="group mt-2 text-body text-white/65">
         {/* Flex + centred so the 36px tap target doesn't leave the label pinned to the top with a dead band under it. */}
         <summary className="flex min-h-9 cursor-pointer list-none items-center gap-1.5 text-white/75 [&::-webkit-details-marker]:hidden">
-          <span aria-hidden="true" className="inline-block text-[0.7em] transition-transform group-open:rotate-90">▶</span>
+          <span aria-hidden="true" className="inline-block text-micro transition-transform group-open:rotate-90">▶</span>
           {t('ui.inventory.craftUses')} ({uses.length})
         </summary>
         <ul className="-mt-1.5 max-h-36 space-y-1 overflow-y-auto pb-1">
