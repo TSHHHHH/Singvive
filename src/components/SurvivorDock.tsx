@@ -1,13 +1,9 @@
 import { useRef, useState, type ReactNode } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useGame } from '../game/store';
-<<<<<<< HEAD
-import { countBleeding, meterModifiers, totalHp, totalMaxHp } from '../game/survival';
-import { effectiveMaxHp } from '../game/injuryEffects';
-=======
 import { meterModifiers, totalHp, totalMaxHp } from '../game/survival';
+import { effectiveMaxHp } from '../game/injuryEffects';
 import { AttributeRow } from './AttributeRow';
->>>>>>> origin/main
 import type { LoadEffects } from '../game/inventory';
 import type { GuideTopic } from '../content/guideContent';
 import { useT } from '../i18n';
