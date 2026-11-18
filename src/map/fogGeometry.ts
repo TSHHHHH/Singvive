@@ -33,7 +33,7 @@ const WORLD: Polygon = [
 export const FOG_BANDS = 3;
 /** Fog tint and total opacity. Near-black: the unexplored island recedes.
  *  The 3D buildings match their unrevealed footprints to it (buildings.ts). */
-export const FOG_COLOUR = '#060806';
+export const FOG_COLOUR = '#060707';
 export const FOG_TOTAL = 0.92;
 export const SOFT_STEP_M = 45;
 

@@ -1,7 +1,8 @@
 import { useRef, useState, type ReactNode } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useGame } from '../game/store';
-import { countBleeding, meterModifiers, totalHp, totalMaxHp } from '../game/survival';
+import { meterModifiers, totalHp, totalMaxHp } from '../game/survival';
+import { AttributeRow } from './AttributeRow';
 import type { LoadEffects } from '../game/inventory';
 import type { GuideTopic } from '../content/guideContent';
 import { useT } from '../i18n';
@@ -37,15 +38,7 @@ export function SurvivorDock({
     setPreviousPanel(sidePanel);
     if (sidePanel === 'inventory') setPackOpen(true);
   }
-  const major = countBleeding(bodyParts, 'major');
-  const minor = countBleeding(bodyParts, 'minor');
-  const injured = Object.values(bodyParts).some((p) => p.hp < p.maxHp || p.fractured || p.crippled);
-  const needsCare = major > 0 || minor > 0 || injured || meters.infection > 0;
   const heavy = load != null && loadTierShown(load);
-  const careLabel = major ? t('ui.condition.bleedingOut') : minor
-    ? t('ui.condition.bleeding') : injured ? t('ui.dock.injured') : '';
-  const infectionLabel = meters.infection > 0
-    ? `${t('ui.condition.infection')} ${Math.round(meters.infection)}%` : '';
 
   return (
     <div className="space-y-2" data-survivor-dock>
@@ -56,15 +49,11 @@ export function SurvivorDock({
           <VitalMeter label={t('ui.dock.food')} icon="meter.hunger" value={meters.hunger} hint={meterModifiers('hunger', meters, locale).map((m) => m.text).join('\n')} />
           <VitalMeter label={t('ui.dock.water')} icon="meter.thirst" value={meters.thirst} hint={meterModifiers('thirst', meters, locale).map((m) => m.text).join('\n')} />
         </div>
-        {(needsCare || (heavy && !packOpen)) && (
+        <div className="mt-2 border-t border-white/10 pt-2">
+          <AttributeRow />
+        </div>
+        {heavy && !packOpen && (
           <div className="mt-2 flex flex-wrap gap-1.5 border-t border-white/10 pt-2" aria-live="polite">
-            {needsCare && <button type="button" onClick={() => {
-              setBodyOpen(true);
-              bodyRef.current?.scrollIntoView({ block: 'nearest' });
-            }} className="min-h-8 rounded border border-hiss/40 px-2 py-1 text-label text-hiss hover:bg-hiss/10">
-              <Icon name={major || minor ? 'status.bleeding' : 'action.status'} />{' '}
-              {[careLabel, infectionLabel].filter(Boolean).join(' · ')}
-            </button>}
             {heavy && !packOpen && <button type="button" onClick={() => {
               setPackOpen(true);
               packRef.current?.scrollIntoView({ block: 'nearest' });
@@ -76,7 +65,7 @@ export function SurvivorDock({
       </section>
       {menu}
       <div ref={bodyRef} id="survivor-dock-body" className="scroll-mt-36">
-        <ConditionPanel onOpenGuide={onOpenGuide} showSurvivorStats={false} showMeters={false}
+        <ConditionPanel onOpenGuide={onOpenGuide} showSurvivorStats={false} showMeters={false} showAttributes={false}
           compact collapsed={!bodyOpen}
           onToggle={() => setBodyOpen(!bodyOpen)} />
       </div>

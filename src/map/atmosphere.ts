@@ -43,13 +43,13 @@ export interface Atmosphere {
 
 /** The 3D look as it was before weather: dark, neutral, no depth haze. */
 export const BASE_ATMOSPHERE: Atmosphere = {
-  sky: '#0b0d0a',
-  horizon: '#1c221c',
-  fog: '#0b0d0a',
+  sky: '#0b0c0d',
+  horizon: '#1d1f22',
+  fog: '#0b0c0d',
   light: '#ffffff',
   intensity: 0.4,
   polar: 35,
-  haze: '#0b0d0a',
+  haze: '#0b0c0d',
   hazeAlpha: 0,
   hazeReach: 0.4,
 };
@@ -141,7 +141,7 @@ const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 /**
  * Lowest a light channel may go, 0..1. MapLibre lights an extrusion as
  * `max(colour * shade * light, 0.3 * (1 - light))`. Our blocks are near-black
- * (#1a1c18 to #4a4f4b, buildings.ts), so once the light drops much below white the second term wins on
+ * (#181a1f to #434953, buildings.ts), so once the light drops much below white the second term wins on
  * every face: the city goes one flat brown with no lit or shaded sides. That
  * is what rain, storms and night used to look like. Keeping each channel at
  * or above this keeps the shading; gloom comes from sky, haze and the
@@ -196,6 +196,11 @@ export function atmosphereFor(kind: WeatherKind, time: TimeOfDay, strength: numb
 const TWEEN_MS = 1800;
 /** Gap between strikes in a storm, seconds. */
 const STRIKE_GAP_S: [number, number] = [5, 14];
+/**
+ * Extra lit-versus-shaded contrast on every extrusion, on top of each
+ * weather's own intensity: crisper building edges against the ground.
+ */
+const FACE_CONTRAST = 0.1;
 /** What the light goes to at the peak of a flash. */
 const FLASH_LIGHT = '#e4ecff';
 
@@ -372,7 +377,7 @@ export class AtmosphereDriver {
     this.map.setLight({
       anchor: 'viewport',
       color: f ? mixHex(a.light, FLASH_LIGHT, f) : a.light,
-      intensity: a.intensity + 0.3 * f,
+      intensity: a.intensity + FACE_CONTRAST + 0.3 * f,
       position: [1.5, 210, f ? lerp(a.polar, 20, f) : a.polar],
     });
     const el = this.bolt?.();

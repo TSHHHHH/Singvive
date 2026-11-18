@@ -1,8 +1,10 @@
 import type { ReactNode } from 'react';
 
 /** Full-row disclosure target, with help kept as a separate sibling button. */
-export function DockSectionHeader({ title, open, onToggle, controls, accessory }: {
+export function DockSectionHeader({ title, open, onToggle, controls, accessory, badge }: {
   title: string; open: boolean; onToggle: () => void; controls: string; accessory?: ReactNode;
+  /** Status pill beside the title, inside the toggle so a click opens the section. */
+  badge?: ReactNode;
 }) {
   return (
     <div className={`-mx-2.5 -mt-2.5 flex items-center pr-2.5 ${open ? 'mb-2.5 border-b border-white/10' : '-mb-2.5'}`}>
@@ -11,7 +13,8 @@ export function DockSectionHeader({ title, open, onToggle, controls, accessory }
         <svg aria-hidden width="12" height="12" viewBox="0 0 12 12" fill="none" className="shrink-0 text-white/40">
           <path d={open ? 'M3 4.5 6 7.5 9 4.5' : 'M4.5 3 7.5 6 4.5 9'} stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
-        <span>{title}</span>
+        <span className="shrink-0">{title}</span>
+        {badge}
       </button>
       {accessory}
     </div>
