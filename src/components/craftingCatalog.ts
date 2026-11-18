@@ -7,7 +7,7 @@ import { itemDef } from '../game/loot';
 import type { ItemDef, ItemInstance } from '../game/types';
 import { itemName, recipeName, type LocaleId } from '../i18n';
 
-export const CRAFT_CATEGORIES = ['all', 'provisions', 'medical', 'weapons', 'equipment', 'tools', 'facilities'] as const;
+export const CRAFT_CATEGORIES = ['all', 'food', 'drinks', 'medical', 'weapons', 'equipment', 'materials', 'tools', 'facilities'] as const;
 export type CraftCategory = (typeof CRAFT_CATEGORIES)[number];
 export type CraftFilter = 'all' | 'ready' | 'almost';
 export type CraftSort = 'ready' | 'time' | 'name';
@@ -30,13 +30,20 @@ export interface CraftRecipeRow {
   missingUnits: number;
   waterId: string | null;
   context: CraftContext;
+  /** Only for limited-use actions (cutting up your clothes): how many uses remain. */
+  usesLeft?: number;
 }
 
+/** Things other recipes consume (portions, tinder, parts, rags) read as materials. */
+const RECIPE_INPUT_IDS = new Set(RECIPES.flatMap((recipe) => Object.keys(recipe.inputs)));
+
 function outputCategory(def: ItemDef): CraftCategory {
-  if (['food', 'water', 'energy'].includes(def.effect.kind)) return 'provisions';
+  if (def.effect.kind === 'food') return 'food';
+  if (['water', 'energy'].includes(def.effect.kind)) return 'drinks';
   if (['heal', 'cure'].includes(def.effect.kind)) return 'medical';
   if (['weapon', 'ammo', 'magazine'].includes(def.effect.kind)) return 'weapons';
   if (def.slot || def.sleepGear) return 'equipment';
+  if (RECIPE_INPUT_IDS.has(def.id)) return 'materials';
   return 'tools';
 }
 
@@ -64,11 +71,31 @@ export function craftingRows(items: ItemInstance[], atShelter: boolean, craftCos
       recipe, ingredients, waterId, toolHave, context,
       check: canCraft(recipe, items, atShelter, inputs, context),
       category: recipe.facility ? 'facilities' : outputCategory(itemDef(recipe.outputDefId)),
-      setupReady: craftSetup(recipe, items, context).ok && (!recipe.needsShelter || atShelter) && (!recipe.tool || toolHave > 0),
+      setupReady: craftSetup(recipe, items, context).ok && (!recipe.tool || toolHave > 0),
       missingKinds: missing.length,
       missingUnits: missing.reduce((sum, input) => sum + Math.max(1, input.need - input.have), 0),
     };
   });
+}
+
+/**
+ * Cutting up the clothes you wear isn't a catalog recipe (it spends clothing
+ * condition, not items, through `tearOwnClothes`), but it reads as one: a
+ * strip that groups with the towel recipe under Cloth Rags.
+ */
+export const TEAR_RECIPE_ID = 'tear_clothes';
+export function tearRow(usesLeft: number, hours: number, yieldCount: number, context: CraftContext = DEFAULT_CRAFT_CONTEXT): CraftRecipeRow {
+  const ok = usesLeft > 0;
+  return {
+    recipe: {
+      id: TEAR_RECIPE_ID, name: 'Cut Up Your Clothes', inputs: {}, outputDefId: 'cloth_rags', outputCount: yieldCount,
+      hours, needsShelter: false, blurb: 'Cut strips from what you are wearing. Costs nothing but the clothes.',
+    },
+    check: ok ? { ok: true, reason: '' } : { ok: false, reason: 'Nothing left to cut', block: { kind: 'tears' } },
+    category: outputCategory(itemDef('cloth_rags')),
+    ingredients: [], toolHave: 0, setupReady: ok, missingKinds: ok ? 0 : 1, missingUnits: ok ? 0 : 1,
+    waterId: null, context, usesLeft,
+  };
 }
 
 export function matchesCraftFilter(row: CraftRecipeRow, filter: CraftFilter): boolean {
@@ -94,7 +121,11 @@ export function browseCraftingRows(
     ].join(' ').toLocaleLowerCase(locale);
     return words.every((word) => names.includes(word));
   });
-  return visible.sort((a, b) => {
+  return visible.sort(craftRowComparator(sort, locale));
+}
+
+export function craftRowComparator(sort: CraftSort, locale: LocaleId) {
+  return (a: CraftRecipeRow, b: CraftRecipeRow): number => {
     const byName = itemName(a.recipe.outputDefId, locale).localeCompare(itemName(b.recipe.outputDefId, locale), locale);
     if (sort === 'name') return byName;
     if (sort === 'time') return a.recipe.hours - b.recipe.hours || byName;
@@ -104,5 +135,70 @@ export function browseCraftingRows(
       || a.missingUnits - b.missingUnits
       || a.recipe.hours - b.recipe.hours
       || byName;
-  });
+  };
+}
+
+// ---------- Variant groups ----------
+
+/**
+ * One list row per thing you make. Explicit families (kopi, teh, milo …) and
+ * recipes that share an output (four ways to make tinder) collapse into one
+ * entry whose variants are picked from a dropdown. Recipe ids are untouched:
+ * the pick is UI state only, so crafting, balance and saves don't change.
+ */
+export interface CraftEntry {
+  key: string;
+  family?: Recipe['family'];
+  variants: CraftRecipeRow[];
+}
+
+export function variantKey(recipe: Recipe): string {
+  return recipe.family ? `family:${recipe.family}` : `out:${recipe.outputDefId}`;
+}
+
+/** Groups rows in catalog order (first appearance wins). */
+export function groupCraftRows(rows: CraftRecipeRow[]): CraftEntry[] {
+  const byKey = new Map<string, CraftEntry>();
+  for (const row of rows) {
+    const key = variantKey(row.recipe);
+    const entry = byKey.get(key);
+    if (entry) entry.variants.push(row);
+    else byKey.set(key, { key, family: row.recipe.family, variants: [row] });
+  }
+  return [...byKey.values()];
+}
+
+/**
+ * The variant a row shows: the player's last pick if it still qualifies,
+ * otherwise the best one available (ready first, then closest to ready).
+ */
+export function pickVariant(variants: CraftRecipeRow[], chosenId?: string, locale: LocaleId = 'en'): CraftRecipeRow {
+  const chosen = chosenId ? variants.find((row) => row.recipe.id === chosenId) : undefined;
+  return chosen ?? [...variants].sort(craftRowComparator('ready', locale))[0];
+}
+
+export interface CraftEntryView {
+  entry: CraftEntry;
+  /** The variant shown on the strip and crafted by its button. */
+  row: CraftRecipeRow;
+  /** Variants that pass the current filter/search (all of them when unfiltered). */
+  matching: CraftRecipeRow[];
+}
+
+/** Same filters as `browseCraftingRows`, applied per entry: an entry shows when any variant matches. */
+export function browseCraftEntries(
+  entries: CraftEntry[],
+  options: { query: string; category: CraftCategory; filter: CraftFilter; sort: CraftSort; locale: LocaleId },
+  chosen: Record<string, string> = {},
+): CraftEntryView[] {
+  const views: CraftEntryView[] = [];
+  for (const entry of entries) {
+    const matching = browseCraftingRows(entry.variants, options);
+    if (matching.length === 0) continue;
+    const pick = chosen[entry.key];
+    // Keep the player's pick while it still matches; a "Ready" filter must never show an unready variant.
+    const row = matching.find((r) => r.recipe.id === pick) ?? pickVariant(matching, undefined, options.locale);
+    views.push({ entry, row, matching });
+  }
+  return views.sort((a, b) => craftRowComparator(options.sort, options.locale)(a.row, b.row));
 }
