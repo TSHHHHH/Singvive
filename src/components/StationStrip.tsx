@@ -130,17 +130,23 @@ export function CrawlPids({
   strip,
   place,
   meters,
+  reserveRight = 0,
 }: {
   strip: JourneyStrip;
   place: CrawlPlace;
   meters: number;
+  /** Desktop: px a floating HUD piece covers at the top right. */
+  reserveRight?: number;
 }) {
   const { t } = useT();
   const pids = pidsCopy(strip, place, t);
   const remaining = stopsLeft(place, strip.stops.length);
   return (
     <div className="sticky top-0 z-10 shrink-0 border-b border-concrete-600 bg-concrete-800">
-      <div className="flex items-start justify-between gap-3 px-3 pt-2.5 lg:px-4">
+      <div
+        className="flex items-start justify-between gap-3 px-3 pt-2.5 lg:px-4"
+        style={reserveRight ? { paddingRight: reserveRight } : undefined}
+      >
         <div className="min-w-0">
           <div className="text-label uppercase text-signal">{pids.kicker}</div>
           <div className="truncate text-read font-semibold text-concrete-50">
@@ -197,7 +203,7 @@ export function StationStrip({
   return (
     <div
       ref={scroller}
-      className="overflow-x-auto px-3 pb-2 pt-1 [scrollbar-width:thin]"
+      className="overflow-x-auto px-3 pb-2 pt-1 [scrollbar-width:thin] lg:px-6"
       aria-label={t('ui.stationStrip.plannedAria')}
     >
       <div className="flex min-w-min items-start">
@@ -225,10 +231,13 @@ export function StationStrip({
                 ref={i === focusIndex ? focusRef : undefined}
                 className="flex w-11 shrink-0 flex-col items-center lg:w-12"
               >
-                <div className="mb-0.5 h-7 w-full px-0.5">
+                {/* Names may spill over the hop bars either side (bars are at
+                    least wide enough that two named neighbours never meet), and
+                    wrap to two lines rather than clip to "Tampi…". */}
+                <div className="relative mb-0.5 flex h-7 w-full items-end justify-center">
                   {showName && (
                     <div
-                      className={`truncate text-center text-micro ${
+                      className={`line-clamp-2 w-16 shrink-0 break-words text-center text-micro leading-tight lg:w-24 ${
                         kind === 'here'
                           ? 'font-semibold text-concrete-50'
                           : kind === 'next'
@@ -277,7 +286,7 @@ function HopBar({
   const color = hop?.color ?? '#9c9890';
   return (
     <div
-      className={`min-w-[14px] flex-1 rounded-full lg:min-w-[22px] ${walking ? 'h-1.5' : 'h-1'}`}
+      className={`min-w-[20px] flex-1 rounded-full lg:min-w-[48px] ${walking ? 'h-1.5' : 'h-1'}`}
       style={{
         background: color,
         opacity: walking ? 1 : past ? 0.28 : 0.8,
