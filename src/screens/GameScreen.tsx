@@ -1805,7 +1805,10 @@ export function GameScreen() {
         >
           <NearbyRecognitionNotice leftInset={isPhone ? 0 : panelInset} rightInset={isPhone || !timelineBeside ? 0 : tlW + HUD_EDGE} />
           {tunnel ? (
-            <TunnelRunView />
+            <TunnelRunView
+              reserveRight={!isPhone && timelineBeside ? tlW + HUD_EDGE + HUD_GAP : 0}
+              headerReserveRight={!isPhone && !timelineFull ? Math.min(TICKER_W, mapW - panelInset - HUD_EDGE * 2) + HUD_EDGE : 0}
+            />
           ) : blockShown && !hdbOverMap ? (
             <HdbDungeonModal onOpenGuide={setGuideTopic} inset={hdbInset} />
           ) : mrtPlanner && !hdb ? (

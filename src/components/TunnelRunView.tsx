@@ -43,6 +43,15 @@ import { useMrtNetwork } from './useMrtNetwork';
 import { CrawlPids } from './StationStrip';
 import { itemName, msgOr, useT } from '../i18n';
 import { tip } from './tips';
+import {
+  ROUNDEL_R,
+  labelRect,
+  placeLabels,
+  sideAlign,
+  type LabelInput,
+  type LabelSide,
+  type Placement,
+} from './tunnelLabels';
 
 /**
  * One planned crawl. The header is an in-train station strip — next stop,
@@ -61,7 +70,18 @@ const STOP_FILL = '#f4f1ea';
 const ZOOM_MIN = 0.4;
 const ZOOM_MAX = 2.7;
 
-export function TunnelRunView() {
+export function TunnelRunView({
+  reserveRight = 0,
+  headerReserveRight = 0,
+}: {
+  /**
+   * Desktop: px on the right the open timeline covers. The whole view (map,
+   * camp panels, the walk button) stays left of it.
+   */
+  reserveRight?: number;
+  /** Desktop: px the collapsed ticker covers at the top right of the header. */
+  headerReserveRight?: number;
+} = {}) {
   const {
     run,
     offer,
@@ -111,11 +131,15 @@ export function TunnelRunView() {
   const place = crawlPlace(run);
 
   return (
-    <div className="flex h-full w-full min-h-0 min-w-0 flex-col overflow-hidden bg-concrete-950">
-      <CrawlPids strip={strip} place={place} meters={run.meters} />
+    <div
+      className="flex h-full w-full min-h-0 min-w-0 flex-col overflow-hidden bg-concrete-950"
+      style={reserveRight ? { paddingRight: reserveRight } : undefined}
+    >
+      <CrawlPids strip={strip} place={place} meters={run.meters} reserveRight={headerReserveRight} />
 
       {/* ---- the map ---- */}
       <TunnelMap
+        reserve={reserveRight}
         run={run}
         strip={strip}
         net={net}
@@ -169,6 +193,8 @@ interface FloorPt {
 interface Edge {
   key: string;
   d: string;
+  /** The octilinear polyline behind `d`, for label placement. */
+  pts: FloorPt[];
   color: string;
   main: boolean;
   kind: 'latent' | 'walked' | 'live';
@@ -183,12 +209,14 @@ interface LegendEntry {
   service: boolean;
 }
 
+/** A line roundel, hung off the platform box where the trip boards that line. */
 interface Roundel {
   key: string;
+  /** The platform node it belongs to; placement picks the side. */
+  boxId: string;
   code: string;
   color: string;
-  pt: FloorPt;
-  small: boolean;
+  first: boolean;
 }
 
 function fmtPt(p: FloorPt): string {
@@ -374,12 +402,15 @@ function runningCodes(
  * reads bottom to top.
  */
 function TunnelMap({
+  reserve,
   run,
   strip,
   net,
   selectedId,
   onSelect,
 }: {
+  /** Width the timeline took off the right; orientation ignores it so pinning never flips the map. */
+  reserve: number;
   run: TunnelRun;
   strip: JourneyStrip;
   net: MrtNetwork | null;
@@ -402,7 +433,10 @@ function TunnelMap({
     | null
   >(null);
   const panned = useRef(false);
-  const [view, setView] = useState({ w: 0, h: 0 });
+  /** Surface size, plus the timeline reserve it was measured under (they change a frame apart). */
+  const [view, setView] = useState({ w: 0, h: 0, reserve: 0 });
+  const reserveRef = useRef(reserve);
+  reserveRef.current = reserve;
   const [cam, setCam] = useState<{ x: number; y: number; z: number } | null>(null);
   const [dragging, setDragging] = useState(false);
   const here = currentNode(run);
@@ -410,12 +444,31 @@ function TunnelMap({
   const camRef = useRef({ x: 0, y: 0, z: 1 });
   const { locale, t } = useT();
   const ariaLabel = t('ui.tunnel.ariaSchematic');
-  const horizontal = view.w > 0 && view.w >= view.h * 1.15;
+  const horizontal = view.w > 0 && view.w + view.reserve >= view.h * 1.15;
+  /**
+   * The view resized under a home camera (the timeline opened or closed):
+   * glide to the new framing instead of snapping. Off again once it lands, so
+   * dragging and wheel zoom stay 1:1.
+   */
+  const [easing, setEasing] = useState(false);
+  const lastView = useRef({ w: 0, h: 0 });
+  useEffect(() => {
+    if (!easing) return;
+    const id = window.setTimeout(() => setEasing(false), 260);
+    return () => window.clearTimeout(id);
+  }, [easing, view.w, view.h]);
 
   useLayoutEffect(() => {
     const el = surfaceRef.current;
     if (!el || typeof ResizeObserver === 'undefined') return;
-    const read = () => setView({ w: el.clientWidth, h: el.clientHeight });
+    const read = () => {
+      const next = { w: el.clientWidth, h: el.clientHeight };
+      const prev = lastView.current;
+      if (prev.w === next.w && prev.h === next.h) return;
+      if (prev.w > 0) setEasing(true);
+      lastView.current = next;
+      setView({ ...next, reserve: reserveRef.current });
+    };
     read();
     const ro = new ResizeObserver(read);
     ro.observe(el);
@@ -479,9 +532,11 @@ function TunnelMap({
             : node.state === 'done' && (target.state === 'done' || target.id === here.id)
               ? 'walked'
               : 'latent';
+        const pts = octilinear(a, b, horizontal);
         edges.push({
           key: `${node.id}>${nextId}`,
-          d: roundedPath(octilinear(a, b, horizontal), cornerR),
+          d: roundedPath(pts, cornerR),
+          pts,
           color,
           main,
           kind,
@@ -503,8 +558,8 @@ function TunnelMap({
       }
     }
 
-    // Roundels: each real line where the trip boards it, each service line
-    // where it peels off. Offset outward so they never sit on a stop.
+    // Roundels: each real line where the trip boards it. Which side of the
+    // box is left to label placement, so they stay off the track.
     const roundels: Roundel[] = [];
     const legend: LegendEntry[] = [];
     let lastLine = '';
@@ -521,12 +576,8 @@ function TunnelMap({
       });
       const pc = platformCols[h];
       const anchor = pc !== undefined ? run.columns[pc]?.[0] : undefined;
-      const pt = anchor ? at.get(anchor) : undefined;
-      if (!pt) continue;
-      // Platform columns never carry side passages, so straight across from
-      // the box is always clear.
-      const off = horizontal ? { x: pt.x, y: pt.y - across * 0.85 } : { x: pt.x - across * 1.05, y: pt.y };
-      roundels.push({ key: `r-${h}`, code: hop.lineCode, color: hop.color, pt: off, small: false });
+      if (!anchor || !at.has(anchor)) continue;
+      roundels.push({ key: `r-${h}`, boxId: anchor, code: hop.lineCode, color: hop.color, first: h === 0 });
     }
     const listed = new Set<string>();
     for (const svc of run.services ?? []) {
@@ -571,16 +622,85 @@ function TunnelMap({
     const pt = layout.at.get(here.id);
     const vw = view.w || 720;
     const vh = view.h || 480;
-    const span = horizontal ? vw / (layout.along * 5.2) : vh / (layout.along * 5.6);
+    // Zoom from the full width, so opening the timeline only slides the view
+    // and never shrinks the type.
+    const span = horizontal ? (vw + view.reserve) / (layout.along * 5.2) : vh / (layout.along * 5.6);
     const z = clamp(span, 0.55, 1.15);
     const ax = horizontal ? vw * 0.3 : vw / 2;
     const ay = horizontal ? vh / 2 : vh * 0.72;
     if (!pt) return { z, x: ax, y: ay };
     return { z, x: ax - pt.x * z, y: ay - pt.y * z };
-  }, [layout, here.id, view.w, view.h, horizontal]);
+  }, [layout, here.id, view.w, view.h, view.reserve, horizontal]);
 
   const applied = cam ?? homeCam;
   camRef.current = applied;
+
+  // ---- labels: measure, then place them clear of track, stops and each other.
+  const labelEls = useRef(new Map<string, HTMLDivElement>());
+  const boxEls = useRef(new Map<string, HTMLElement>());
+  const [placement, setPlacement] = useState<Placement | null>(null);
+  const [fontsTick, setFontsTick] = useState(0);
+  useEffect(() => {
+    const fonts = typeof document !== 'undefined' ? document.fonts : undefined;
+    if (!fonts) return;
+    const bump = () => setFontsTick((n) => n + 1);
+    fonts.addEventListener?.('loadingdone', bump);
+    return () => fonts.removeEventListener?.('loadingdone', bump);
+  }, []);
+  useLayoutEffect(() => {
+    const labels: LabelInput[] = [];
+    const stops: FloorPt[] = [];
+    const hereCol = here.col;
+    for (const node of Object.values(run.nodes)) {
+      const pt = layout.at.get(node.id);
+      if (!pt || node.kind === 'platform') continue;
+      stops.push(pt);
+      const el = labelEls.current.get(node.id);
+      if (!el) continue;
+      const isHere = node.id === here.id;
+      const isNext = here.next.includes(node.id);
+      const tier = isHere ? 0 : isNext ? 1 : isRevealed(run, node) ? 2 : 3;
+      const up = node.lane <= 0;
+      const down = node.lane >= 2;
+      labels.push({
+        id: node.id,
+        at: pt,
+        w: el.offsetWidth,
+        h: el.offsetHeight,
+        priority: tier * 1000 + Math.abs(node.col - hereCol),
+        prefer: horizontal
+          ? up
+            ? ['above', 'ne', 'nw']
+            : down
+              ? ['below', 'se', 'sw']
+              : ['below', 'above']
+          : up
+            ? ['left', 'nw', 'sw']
+            : ['right', 'ne', 'se'],
+      });
+    }
+    const boxes = Object.values(run.nodes)
+      .filter((n) => n.kind === 'platform')
+      .flatMap((n) => {
+        const pt = layout.at.get(n.id);
+        const el = boxEls.current.get(n.id);
+        if (!pt || !el) return [];
+        const roundel = layout.roundels.find((r) => r.boxId === n.id);
+        const sides: LabelSide[] = !roundel
+          ? []
+          : horizontal
+            ? roundel.first
+              ? ['left', 'above', 'below']
+              : ['above', 'below', 'right']
+            : roundel.first
+              ? ['below', 'left', 'right']
+              : ['left', 'right', 'above'];
+        return [{ id: n.id, at: pt, w: el.offsetWidth, h: el.offsetHeight, roundel: sides }];
+      });
+    const next = placeLabels({ labels, boxes, stops, tracks: layout.edges.map((e) => e.pts) });
+    setPlacement((prev) => (prev && JSON.stringify(prev) === JSON.stringify(next) ? prev : next));
+    // `run` carries reveal / here state, which changes what each label says.
+  }, [layout, run, here.id, here.col, here.next, horizontal, locale, fontsTick]);
 
   useLayoutEffect(() => {
     setCam(null);
@@ -729,6 +849,7 @@ function TunnelMap({
             height: layout.worldH,
             transform: `translate(${applied.x}px, ${applied.y}px) scale(${applied.z})`,
             transformOrigin: '0 0',
+            transition: easing && !dragging ? 'transform 220ms ease-out' : undefined,
           }}
         >
           <svg
@@ -818,12 +939,15 @@ function TunnelMap({
                 />
               ),
             )}
-            {layout.roundels.map((r) => (
+            {layout.roundels.map((r) => {
+              const pt = placement?.roundels[r.boxId];
+              if (!pt) return null;
+              return (
               <g key={r.key}>
-                <circle cx={r.pt.x} cy={r.pt.y} r={20} fill={STOP_FILL} stroke={r.color} strokeWidth={6} />
+                <circle cx={pt.x} cy={pt.y} r={ROUNDEL_R - 3} fill={STOP_FILL} stroke={r.color} strokeWidth={6} />
                 <text
-                  x={r.pt.x}
-                  y={r.pt.y + 5}
+                  x={pt.x}
+                  y={pt.y + 5}
                   textAnchor="middle"
                   fontSize={14}
                   fontWeight={800}
@@ -833,7 +957,8 @@ function TunnelMap({
                   {r.code}
                 </text>
               </g>
-            ))}
+              );
+            })}
           </svg>
 
           {run.columns.flatMap((ids) =>
@@ -856,12 +981,20 @@ function TunnelMap({
                     fallbackColor={layout.hopColor(node.col)}
                     selected={node.id === selectedId}
                     onSelect={onSelect}
+                    boxRef={(el) => {
+                      if (el) boxEls.current.set(node.id, el);
+                      else boxEls.current.delete(node.id);
+                    }}
                   />
                 );
               }
               const svc = node.service ? layout.services.get(node.service) : undefined;
               const code = node.lane === 1 ? layout.codes.get(id) : node.code;
               const color = node.lane === 1 ? layout.hopColor(node.col) : (svc?.color ?? BRANCH_COLOR);
+              const side: LabelSide =
+                placement?.sides[id] ??
+                (horizontal ? (node.lane <= 0 ? 'above' : 'below') : node.lane <= 0 ? 'left' : 'right');
+              const rect = placement?.rects[id];
               return (
                 <NodePip
                   key={node.id}
@@ -871,7 +1004,12 @@ function TunnelMap({
                   y={pt.y}
                   code={code}
                   color={color}
-                  side={horizontal ? (node.lane <= 0 ? 'above' : 'below') : node.lane <= 0 ? 'left' : 'right'}
+                  side={side}
+                  labelAt={rect ? { x: rect.x - pt.x, y: rect.y - pt.y } : null}
+                  labelRef={(el) => {
+                    if (el) labelEls.current.set(node.id, el);
+                    else labelEls.current.delete(node.id);
+                  }}
                   selected={node.id === selectedId}
                   onSelect={onSelect}
                 />
@@ -936,6 +1074,7 @@ function PlatformBox({
   fallbackColor,
   selected,
   onSelect,
+  boxRef,
 }: {
   run: TunnelRun;
   node: TunnelNode;
@@ -947,6 +1086,7 @@ function PlatformBox({
   fallbackColor: string;
   selected: boolean;
   onSelect: (id: string) => void;
+  boxRef?: (el: HTMLElement | null) => void;
 }) {
   const { t } = useT();
   const here = currentNode(run);
@@ -960,6 +1100,7 @@ function PlatformBox({
       style={{ left: x, top: y, zIndex: 300, transform: 'translate(-50%, -50%)', opacity: past ? 0.55 : 1 }}
     >
       <button
+        ref={boxRef}
         type="button"
         onClick={() => onSelect(node.id)}
         disabled={!revealed && !isNext}
@@ -991,6 +1132,8 @@ function NodePip({
   code,
   color,
   side,
+  labelAt,
+  labelRef,
   selected,
   onSelect,
 }: {
@@ -1000,7 +1143,10 @@ function NodePip({
   y: number;
   code?: string;
   color: string;
-  side: 'above' | 'below' | 'left' | 'right';
+  side: LabelSide;
+  /** Label top-left relative to the stop, from placement; null before the first measure. */
+  labelAt: { x: number; y: number } | null;
+  labelRef: (el: HTMLDivElement | null) => void;
   selected: boolean;
   onSelect: (id: string) => void;
 }) {
@@ -1014,12 +1160,14 @@ function NodePip({
   const metaLabel = msgOr(`ui.tunnel.meta.${node.kind}.label`, meta.label, undefined, locale);
   const name = revealed ? node.name : t('ui.tunnel.unknown');
 
-  const labelPos: Record<typeof side, string> = {
-    above: 'bottom-full left-1/2 -translate-x-1/2 mb-1.5 items-center text-center',
-    below: 'top-full left-1/2 -translate-x-1/2 mt-1.5 items-center text-center',
-    left: 'right-full top-1/2 -translate-y-1/2 mr-1.5 items-end text-right',
-    right: 'left-full top-1/2 -translate-y-1/2 ml-1.5 items-start text-left',
-  };
+  const align = sideAlign(side);
+  const alignCls =
+    align === 'center' ? 'items-center text-center' : align === 'end' ? 'items-end text-right' : 'items-start text-left';
+  // The pip box is 36px; placement works from the stop's centre.
+  const half = 18;
+  const fallback = labelRect({ x: 0, y: 0 }, 0, 0, side);
+  const pos = labelAt ?? fallback;
+  const showName = revealed || isHere;
 
   return (
     <div
@@ -1046,7 +1194,9 @@ function NodePip({
         />
       </button>
       <div
-        className={`pointer-events-none absolute flex w-max max-w-[8.5rem] flex-col gap-0.5 rounded bg-[#0c0c0e]/80 px-1 py-0.5 ${labelPos[side]}`}
+        ref={labelRef}
+        className={`pointer-events-none absolute flex w-max max-w-[8.5rem] flex-col gap-0.5 rounded bg-[#0c0c0e]/80 px-1 py-0.5 ${alignCls}`}
+        style={{ left: half + pos.x, top: half + pos.y, visibility: labelAt ? 'visible' : 'hidden' }}
       >
         <span className="flex items-center gap-1">
           {code && <CodeBadge code={code} color={color} />}
@@ -1054,20 +1204,28 @@ function NodePip({
             <Icon name={revealed ? meta.icon : 'tunnel.unknown'} size={16} />
           </span>
         </span>
-        <span
-          className={`max-w-[8.5rem] truncate text-body font-semibold leading-tight ${
-            isHere ? 'text-astral' : revealed ? 'text-concrete-100' : 'text-concrete-400'
-          }`}
-        >
-          {isHere ? t('ui.tunnel.you') : name}
-          {revealed && isNext ? <span className="text-hiss"> ▲{nodeThreat(node)}</span> : null}
-        </span>
+        {/* An unrevealed stop already says so with its icon; a "???" line
+            under it only crowded the lanes. */}
+        {showName && (
+          <span
+            className={`max-w-[8.5rem] truncate text-body font-semibold leading-tight ${
+              isHere ? 'text-astral' : 'text-concrete-100'
+            }`}
+          >
+            {isHere ? t('ui.tunnel.you') : name}
+            {revealed && isNext ? <span className="text-hiss"> ▲{nodeThreat(node)}</span> : null}
+          </span>
+        )}
       </div>
     </div>
   );
 }
 
-/** Lines on this crawl, metro-legend style: real lines first, then service lines. */
+/**
+ * Lines on this crawl, metro-legend style: real lines first, then service
+ * lines. Bottom left, over the stretch already walked: the top right belongs
+ * to the timeline ticker on desktop.
+ */
 function CrawlLegend({ entries, compact }: { entries: LegendEntry[]; compact: boolean }) {
   const { t } = useT();
   const [open, setOpen] = useState<boolean | null>(null);
@@ -1079,7 +1237,7 @@ function CrawlLegend({ entries, compact }: { entries: LegendEntry[]; compact: bo
         type="button"
         onPointerDown={(e) => e.stopPropagation()}
         onClick={() => setOpen(true)}
-        className="absolute right-2 top-2 z-[500] flex items-center gap-1 rounded border border-white/15 bg-concrete-900/90 px-2 py-1 text-micro text-white/75 shadow-signage"
+        className="absolute bottom-2 left-2 z-[500] flex items-center gap-1 rounded border border-white/15 bg-concrete-900/90 px-2 py-1 text-micro text-white/75 shadow-signage"
       >
         {entries.map((e) => (
           <span key={e.key} className="inline-block h-2.5 w-1 rounded-sm" style={{ background: e.color }} />
@@ -1090,7 +1248,7 @@ function CrawlLegend({ entries, compact }: { entries: LegendEntry[]; compact: bo
   }
   return (
     <div
-      className={`absolute right-2 top-2 z-[500] max-w-[46%] rounded border border-white/15 bg-concrete-900/90 p-2 text-micro text-white/75 shadow-signage ${
+      className={`absolute bottom-2 left-2 z-[500] max-w-[46%] rounded border border-white/15 bg-concrete-900/90 p-2 text-micro text-white/75 shadow-signage ${
         compact ? 'max-w-[70%] cursor-pointer' : 'pointer-events-none'
       }`}
       onPointerDown={(e) => e.stopPropagation()}
