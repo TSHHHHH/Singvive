@@ -26,6 +26,7 @@ import { NoiseWaves } from './NoiseWaves';
 import { MrtOverlay, MrtLineLegend, MRT_STATION_LAYER } from './MrtOverlay';
 import { useMrtNetwork } from './useMrtNetwork';
 import { VegetationOverlay } from './UnplayableOverlay';
+import { BasemapTime } from './BasemapTime';
 import { DistrictNames } from './DistrictNames';
 import { DistrictLines } from './DistrictLines';
 import { BorderLayers } from './BorderLayers';
@@ -1872,8 +1873,10 @@ function GameMapInner({
         <Camera3d on={view3d} />
         {!placeCam && <KeyboardCamera home={home} />}
         {view3d && <Atmosphere3d kind={weather} time={time} dom={weatherDom} />}
+        {/* Night roads: cool white with a soft glow (one paint change per hour band). */}
+        <BasemapTime time={time} />
         <GroundPicker onPick={onPickGround} engine={engine} onSite={selectSite} />
-        {/* Water, forest wash and expressways — under fog so only explored ground shows. */}
+        {/* Water and forest wash — under fog so only explored ground shows. */}
         <VegetationOverlay />
         <DistrictLines />
         {/* The sealed Johor border: blown Causeway, barricaded Second Link, searchlights. */}

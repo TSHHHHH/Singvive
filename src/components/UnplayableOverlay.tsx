@@ -8,7 +8,6 @@ import { useMapGL } from '../map/hooks';
 import { installOverlay, setData } from '../map/layers';
 import { EMPTY_FC, toLngLatRing } from '../map/geo';
 import { withoutCrossingDecks } from '../map/crossingGeometry';
-import { BASEMAP } from '../map/mapStyle';
 import { getBorder, loadBorder } from '../map/borderData';
 
 /**
@@ -23,11 +22,11 @@ import { getBorder, loadBorder } from '../map/borderData';
 const WATER = { color: '#4d7a8c', opacity: 0.48 };
 const RESTRICTED = { color: '#6b4a32', opacity: 0.42 };
 const VEGETATION = { color: '#2f5a38', opacity: 0.38 };
-/** The run map's water: a deep blue-black, so the coast and reservoirs read as
- *  water without the spawn map's bright teal. */
-const RUN_WATER = { color: '#12303e', opacity: 0.6 };
-/** Expressways on the run map, a touch lifted from the basemap's own roads. */
-const EXPRESSWAY = { color: '#5a5a4e', opacity: 0.5 };
+/** The run map's water: a low-saturation dark blue-grey, so the coast and
+ *  reservoirs read as water without competing with faction / hazard colours. */
+const RUN_WATER = { color: '#1a242c', opacity: 0.7 };
+/** The run map's greenery: a dark green-grey, read as texture, not colour. */
+const RUN_VEGETATION = { color: '#26302a', opacity: 0.45 };
 
 const toPoly = (ring: ZoneRing): Polygon | null => (ring.length >= 3 ? [toLngLatRing(ring)] : null);
 const polys = (rings: ZoneRing[]) => rings.map(toPoly).filter((p): p is Polygon => !!p);
@@ -121,13 +120,10 @@ const fillLayer = (id: string, source: string, s: { color: string; opacity: numb
 });
 
 /**
- * The in-run world map's terrain read: water (sea and reservoirs), the
- * soft-cost forest wash, and lifted expressways. Loads zones if needed; fog
- * sits above so only explored ground reads. All static: data is set once.
- *
- * Expressways come from the basemap's own road tiles (Protomaps schema:
- * `roads`, `kind` = `highway`). If the basemap ever changes schema the layer
- * simply draws nothing.
+ * The in-run world map's terrain read: water (sea and reservoirs) and the
+ * soft-cost forest wash. Loads zones if needed; fog sits above so only
+ * explored ground reads. All static: data is set once. Roads come from the
+ * basemap itself, re-toned at load (map/basemapTone.ts).
  */
 export function VegetationOverlay() {
   const map = useMapGL();
@@ -150,21 +146,7 @@ export function VegetationOverlay() {
     () =>
       installOverlay(map, 'terrain', { 'run-water-src': 'geojson', 'veg-src': 'geojson' }, [
         fillLayer('run-water-fill', 'run-water-src', RUN_WATER),
-        fillLayer('veg-fill', 'veg-src', VEGETATION),
-        {
-          id: 'run-expressway',
-          type: 'line',
-          source: BASEMAP.source,
-          'source-layer': 'roads',
-          minzoom: 10,
-          filter: ['==', ['get', 'kind'], 'highway'],
-          layout: { 'line-cap': 'round', 'line-join': 'round' },
-          paint: {
-            'line-color': EXPRESSWAY.color,
-            'line-opacity': EXPRESSWAY.opacity,
-            'line-width': ['interpolate', ['exponential', 1.6], ['zoom'], 10, 0.6, 14, 2, 18, 9],
-          },
-        },
+        fillLayer('veg-fill', 'veg-src', RUN_VEGETATION),
       ]),
     [map],
   );
