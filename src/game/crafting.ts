@@ -39,7 +39,11 @@ export interface Recipe {
   outputCount: number;
   /** In-game hours it burns. Crafting is never free. */
   hours: number;
-  /** Needs a workbench — a stash or an HDB shelter, not a roadside. */
+  /**
+   * Legacy workbench flag (stash or HDB shelter). The workbench rule is
+   * switched off for now (SH, 2026-11-18): solo crafting ignores it. Kept in
+   * the data so it can come back, and co-op field crafting still filters on it.
+   */
   needsShelter: boolean;
   /** Must be in the backpack, but is not consumed. */
   tool?: string;
@@ -123,8 +127,7 @@ export function countOf(items: ItemInstance[], defId: string): number {
  * the DEV recipe sandbox, which both want plain English.
  */
 export type CraftBlock =
-  | { kind: 'site' | 'heat' | 'pot' | 'site_water' | 'occupied' | 'stove' }
-  | { kind: 'shelter' }
+  | { kind: 'site' | 'heat' | 'pot' | 'site_water' | 'occupied' | 'stove' | 'tears' }
   | { kind: 'tool'; defId: string }
   | { kind: 'input'; defId: string; need: number; have: number }
   | { kind: 'water'; need: number; have: number };
@@ -183,15 +186,13 @@ export function craftSetup(recipe: Recipe, items: ItemInstance[], ctx: CraftCont
 export function canCraft(
   recipe: Recipe,
   items: ItemInstance[],
-  atShelter: boolean,
+  /** Unused while the workbench rule is off; kept so callers don't churn if it returns. */
+  _atShelter: boolean,
   inputs?: Record<string, number>,
   ctx: CraftContext = DEFAULT_CRAFT_CONTEXT,
 ): RecipeAvailability {
   const setup = craftSetup(recipe, items, ctx);
   if (!setup.ok) return setup;
-  if (recipe.needsShelter && !atShelter) {
-    return { ok: false, reason: 'Needs somewhere to work', block: { kind: 'shelter' } };
-  }
   if (recipe.tool && countOf(items, recipe.tool) < 1) {
     return {
       ok: false,

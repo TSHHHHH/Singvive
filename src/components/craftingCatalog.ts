@@ -7,7 +7,7 @@ import { itemDef } from '../game/loot';
 import type { ItemDef, ItemInstance } from '../game/types';
 import { itemName, recipeName, type LocaleId } from '../i18n';
 
-export const CRAFT_CATEGORIES = ['all', 'provisions', 'medical', 'weapons', 'equipment', 'tools', 'facilities'] as const;
+export const CRAFT_CATEGORIES = ['all', 'food', 'drinks', 'medical', 'weapons', 'equipment', 'materials', 'tools', 'facilities'] as const;
 export type CraftCategory = (typeof CRAFT_CATEGORIES)[number];
 export type CraftFilter = 'all' | 'ready' | 'almost';
 export type CraftSort = 'ready' | 'time' | 'name';
@@ -30,13 +30,20 @@ export interface CraftRecipeRow {
   missingUnits: number;
   waterId: string | null;
   context: CraftContext;
+  /** Only for limited-use actions (cutting up your clothes): how many uses remain. */
+  usesLeft?: number;
 }
 
+/** Things other recipes consume (portions, tinder, parts, rags) read as materials. */
+const RECIPE_INPUT_IDS = new Set(RECIPES.flatMap((recipe) => Object.keys(recipe.inputs)));
+
 function outputCategory(def: ItemDef): CraftCategory {
-  if (['food', 'water', 'energy'].includes(def.effect.kind)) return 'provisions';
+  if (def.effect.kind === 'food') return 'food';
+  if (['water', 'energy'].includes(def.effect.kind)) return 'drinks';
   if (['heal', 'cure'].includes(def.effect.kind)) return 'medical';
   if (['weapon', 'ammo', 'magazine'].includes(def.effect.kind)) return 'weapons';
   if (def.slot || def.sleepGear) return 'equipment';
+  if (RECIPE_INPUT_IDS.has(def.id)) return 'materials';
   return 'tools';
 }
 
@@ -64,11 +71,31 @@ export function craftingRows(items: ItemInstance[], atShelter: boolean, craftCos
       recipe, ingredients, waterId, toolHave, context,
       check: canCraft(recipe, items, atShelter, inputs, context),
       category: recipe.facility ? 'facilities' : outputCategory(itemDef(recipe.outputDefId)),
-      setupReady: craftSetup(recipe, items, context).ok && (!recipe.needsShelter || atShelter) && (!recipe.tool || toolHave > 0),
+      setupReady: craftSetup(recipe, items, context).ok && (!recipe.tool || toolHave > 0),
       missingKinds: missing.length,
       missingUnits: missing.reduce((sum, input) => sum + Math.max(1, input.need - input.have), 0),
     };
   });
+}
+
+/**
+ * Cutting up the clothes you wear isn't a catalog recipe (it spends clothing
+ * condition, not items, through `tearOwnClothes`), but it reads as one: a
+ * strip that groups with the towel recipe under Cloth Rags.
+ */
+export const TEAR_RECIPE_ID = 'tear_clothes';
+export function tearRow(usesLeft: number, hours: number, yieldCount: number, context: CraftContext = DEFAULT_CRAFT_CONTEXT): CraftRecipeRow {
+  const ok = usesLeft > 0;
+  return {
+    recipe: {
+      id: TEAR_RECIPE_ID, name: 'Cut Up Your Clothes', inputs: {}, outputDefId: 'cloth_rags', outputCount: yieldCount,
+      hours, needsShelter: false, blurb: 'Cut strips from what you are wearing. Costs nothing but the clothes.',
+    },
+    check: ok ? { ok: true, reason: '' } : { ok: false, reason: 'Nothing left to cut', block: { kind: 'tears' } },
+    category: outputCategory(itemDef('cloth_rags')),
+    ingredients: [], toolHave: 0, setupReady: ok, missingKinds: ok ? 0 : 1, missingUnits: ok ? 0 : 1,
+    waterId: null, context, usesLeft,
+  };
 }
 
 export function matchesCraftFilter(row: CraftRecipeRow, filter: CraftFilter): boolean {

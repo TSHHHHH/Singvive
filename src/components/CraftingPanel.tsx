@@ -4,7 +4,7 @@ import { useGame } from '../game/store';
 import { itemDef, ITEMS } from '../game/loot';
 import { TEAR_HOURS, TEAR_RAGS_YIELD } from '../game/inventory';
 import { countOf, DIRTY_WATER_DRINK_INFECTION, type CraftBlock } from '../game/crafting';
-import { collectedRain, gameHour, heatRemaining, surfaceSite } from '../game/facilities';
+import { collectedRain, gameHour, heatRemaining, surfaceSite, type SiteFacilities } from '../game/facilities';
 import { ItemHoverCard } from './Inventory/ItemHoverCard';
 import { useCoarsePointer } from './tips/useCoarsePointer';
 import { sumTraitMod } from '../game/character';
@@ -16,7 +16,7 @@ import { Icon } from '../icons/Icon';
 import { itemName, recipeBlurb, recipeName, useT } from '../i18n';
 import { tip } from './tips';
 import {
-  browseCraftEntries, CRAFT_CATEGORIES, craftingRows, groupCraftRows,
+  browseCraftEntries, CRAFT_CATEGORIES, craftingRows, groupCraftRows, tearRow, TEAR_RECIPE_ID,
   type CraftCategory, type CraftEntryView, type CraftFilter, type CraftRecipeRow, type CraftSort,
 } from './craftingCatalog';
 
@@ -39,10 +39,9 @@ const QUICKEST_DRINK_HOURS = 0.25;
 /** Browse without spending anything; one thin strip per thing you can make, click to open it. */
 export function CraftingPanel() {
   const { t, locale } = useT();
-  const { items, clothingTears, currentPositionId, hdb, craftItem, tearOwnClothes, character, skills, site, atSite, day, hour, busy, equipment } =
+  const { items, clothingTears, craftItem, tearOwnClothes, character, skills, site, atSite, day, hour, busy, equipment, seed } =
     useGame(useShallow((s) => ({
-      items: s.items, clothingTears: s.clothingTears,
-      currentPositionId: s.currentPositionId, hdb: s.hdb,
+      items: s.items, clothingTears: s.clothingTears, seed: s.seed,
       craftItem: s.craftItem, tearOwnClothes: s.tearOwnClothes,
       character: s.character, skills: s.skills,
       site: surfaceSite(s)?.facilities, atSite: !!surfaceSite(s), day: s.day, hour: s.hour,
@@ -68,14 +67,17 @@ export function CraftingPanel() {
   const siteWater = atSite ? (site?.water?.amount ?? 0) : 0;
   const waterSource: 'carried' | 'site' = siteWater > 0 ? waterPick : 'carried';
   const context = useMemo(() => ({ site, atSite, now, mode, waterSource }), [site, atSite, now, mode, waterSource]);
-  const atShelter = currentPositionId !== null || hdb !== null;
-  const hasToolbox = countOf(items, 'toolbox') > 0;
   const craftCost = sumTraitMod(character?.traitIds ?? [], 'craftCostMod') + skillMods(skills).craftCostMod;
-  const rows = useMemo(() => craftingRows(items, atShelter, craftCost, context), [items, atShelter, craftCost, context]);
+  // The workbench rule is off for now, so every recipe is checked as if at a workbench.
+  const rows = useMemo(() => [
+    ...craftingRows(items, true, craftCost, context),
+    tearRow(clothingTears, TEAR_HOURS, TEAR_RAGS_YIELD, context),
+  ], [items, craftCost, context, clothingTears]);
   const entries = useMemo(() => groupCraftRows(rows), [rows]);
   const browse = { query, category, sort, locale };
   const views = browseCraftEntries(entries, { ...browse, filter }, picks);
   const counts = Object.fromEntries((['all', 'ready', 'almost'] as const).map((id) => [id, browseCraftEntries(entries, { ...browse, filter: id }, picks).length]));
+  const categoryCounts = Object.fromEntries(CRAFT_CATEGORIES.map((id) => [id, browseCraftEntries(entries, { ...browse, category: id, filter }, picks).length]));
   const filtered = query !== '' || category !== 'all' || filter !== 'all';
   const reset = () => { setQuery(''); setCategory('all'); setFilter('all'); };
   const pickVariantFor = (key: string, recipeId: string) => {
@@ -87,7 +89,8 @@ export function CraftingPanel() {
     // The store can interrupt crafting when time advancement ends a run.
     const before = useGame.getState().items;
     const beforeLocs = useGame.getState().locations;
-    craftItem(row.recipe.id, mode, waterSource);
+    if (row.recipe.id === TEAR_RECIPE_ID) tearOwnClothes();
+    else craftItem(row.recipe.id, mode, waterSource);
     const after = useGame.getState();
     if (after.phase === 'game' && (after.items !== before || after.locations !== beforeLocs)) {
       setCrafted({ defId: row.recipe.outputDefId, count: row.recipe.outputCount });
@@ -97,47 +100,49 @@ export function CraftingPanel() {
 
   return (
     <div className="flex min-w-0 flex-col gap-3">
-      <section className="flex flex-wrap items-center gap-x-4 gap-y-1 text-body" aria-label={t('ui.craft.workbench')}>
-        <h4 className="text-plate uppercase text-white/55">{t('ui.craft.workbench')}</h4>
-        <StatusChip ready={atShelter} label={t(atShelter ? 'ui.craft.shelterOk' : 'ui.craft.shelterNo')} />
-        <StatusChip ready={hasToolbox} label={t(hasToolbox ? 'ui.craft.toolboxOk' : 'ui.craft.toolboxNo')} />
-        {atSite && <StatusChip ready={heat > 0} label={heat > 0 ? t('ui.craft.heatHere', { h: fmtHours(heat) }) : t('ui.craft.noHeatHere')} />}
-      </section>
+      <CampBar atSite={atSite} site={site} now={now} seed={seed} onOpen={() => { setCategory('facilities'); setFilter('all'); }} />
 
       <div className="flex flex-col gap-2">
-        <div className="relative flex">
-          <input
-            type="search" value={query} onChange={(event) => setQuery(event.target.value)}
-            aria-label={t('ui.craft.search')} placeholder={t('ui.craft.search')}
-            className={`${controlClass} w-full pr-16 [&::-webkit-search-cancel-button]:appearance-none`}
-          />
-          {query && <button type="button" onClick={() => setQuery('')} className={`absolute inset-y-0 right-0 px-3 text-body text-white/65 ${focusClass}`}>{t('ui.craft.clear')}</button>}
+        <div className="flex gap-1.5">
+          <div className="relative flex min-w-0 flex-1">
+            <input
+              type="search" value={query} onChange={(event) => setQuery(event.target.value)}
+              aria-label={t('ui.craft.search')} placeholder={t('ui.craft.search')}
+              className={`${selectClass} w-full pr-14 [&::-webkit-search-cancel-button]:appearance-none`}
+            />
+            {query && <button type="button" onClick={() => setQuery('')} className={`absolute inset-y-0 right-0 px-3 text-body text-white/65 ${focusClass}`}>{t('ui.craft.clear')}</button>}
+          </div>
+          <select aria-label={t('ui.craft.sortLabel')} value={sort} onChange={(event) => setSort(event.target.value as CraftSort)} className={`${selectClass} w-[8.5rem] shrink-0`}>
+            <option value="ready">{t('ui.craft.sortReady')}</option>
+            <option value="time">{t('ui.craft.sortTime')}</option>
+            <option value="name">{t('ui.craft.sortName')}</option>
+          </select>
         </div>
-        <div className="grid grid-cols-2 gap-1.5">
-            <select aria-label={t('ui.craft.categoryLabel')} value={category} onChange={(event) => setCategory(event.target.value as CraftCategory)} className={selectClass}>
-              {CRAFT_CATEGORIES.map((id) => <option key={id} value={id}>{t(`ui.craft.categories.${id}`)}</option>)}
-            </select>
-            <select aria-label={t('ui.craft.sortLabel')} value={sort} onChange={(event) => setSort(event.target.value as CraftSort)} className={selectClass}>
-              <option value="ready">{t('ui.craft.sortReady')}</option>
-              <option value="time">{t('ui.craft.sortTime')}</option>
-              <option value="name">{t('ui.craft.sortName')}</option>
-            </select>
+        <div className="flex flex-wrap gap-1" role="group" aria-label={t('ui.craft.categoryLabel')}>
+          {CRAFT_CATEGORIES.map((id) => (
+            <button key={id} type="button" aria-pressed={category === id} onClick={() => setCategory(id)}
+              disabled={id !== 'all' && categoryCounts[id] === 0 && category !== id}
+              className={`${chipClass} disabled:opacity-35 ${category === id ? 'border-signal/60 bg-signal/10 text-signal' : 'border-white/15 text-white/70 hover:bg-white/5'}`}>
+              {t(`ui.craft.chips.${id}`)}
+              <span className="tabular-nums text-white/40">{categoryCounts[id]}</span>
+            </button>
+          ))}
         </div>
-          <div className="flex flex-wrap gap-1" role="group" aria-label={t('ui.craft.availability')}>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-label text-white/50">
+          <div className="flex gap-1" role="group" aria-label={t('ui.craft.availability')}>
             {(['all', 'ready', 'almost'] as const).map((id) => (
               <button key={id} type="button" aria-pressed={filter === id} onClick={() => setFilter(id)}
-                className={`${chipClass} ${filter === id ? 'border-signal/60 bg-signal/10 text-signal' : 'border-white/15 text-white/65 hover:bg-white/5'}`}>
+                className={`flex min-h-7 items-center gap-1 rounded-full border px-2 text-label [@media(pointer:coarse)]:min-h-9 ${focusClass} ${filter === id ? 'border-astral/50 bg-astral/10 text-astral' : 'border-white/10 text-white/55 hover:bg-white/5'}`}>
                 {t(id === 'all' ? 'ui.craft.filterAll' : id === 'ready' ? 'ui.craft.filterReady' : 'ui.craft.filterAlmost')}
-                <span className="tabular-nums text-white/45">{counts[id]}</span>
+                <span className="tabular-nums opacity-60">{counts[id]}</span>
               </button>
             ))}
           </div>
+          <span className="ml-auto" role="status">{t('ui.craft.showing', { n: views.length, total: entries.length })}</span>
+          {filtered && <button type="button" onClick={reset} className={`min-h-7 underline underline-offset-4 hover:text-white ${focusClass}`}>{t('ui.craft.reset')}</button>}
+        </div>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-2 text-label text-white/50">
-        <span role="status">{t('ui.craft.showing', { n: views.length, total: entries.length })}</span>
-        {filtered ? <button type="button" onClick={reset} className={`min-h-7 underline underline-offset-4 hover:text-white ${focusClass}`}>{t('ui.craft.reset')}</button> : <span>{t('ui.craft.countLegend')}</span>}
-      </div>
       <div role="status" aria-live="polite" className={crafted ? 'border-l-2 border-astral bg-astral/5 px-3 py-2 text-body text-astral' : 'sr-only'}>
         {crafted && t('ui.craft.made', { n: crafted.count, name: itemName(crafted.defId, locale) })}
       </div>
@@ -150,7 +155,7 @@ export function CraftingPanel() {
         </div>
       ) : (
         <ul className="flex flex-col divide-y divide-white/[0.07] rounded border border-white/10" onPointerLeave={() => setHover(null)}>
-          {views.map((view) => <RecipeStrip key={view.entry.key} view={view} atShelter={atShelter} busy={busy}
+          {views.map((view) => <RecipeStrip key={view.entry.key} view={view} busy={busy}
             expanded={selected === view.entry.key}
             onToggle={() => { setHover(null); setSelected(selected === view.entry.key ? null : view.entry.key); }}
             onHover={coarse ? undefined : (e) => setHover(e ? { row: view.row, x: e.clientX, y: e.clientY } : null)}
@@ -163,22 +168,31 @@ export function CraftingPanel() {
 
       {hover && hoverInst && <ItemHoverCard inst={hoverInst} equipment={equipment} equipSlot={null} clientX={hover.x} clientY={hover.y} />}
 
-      <details className="rounded border border-white/10 bg-black/15">
-        <summary className={`flex min-h-10 cursor-pointer list-none flex-wrap items-center gap-2 px-2.5 py-1.5 text-body text-white/70 ${focusClass}`}>
-          <Icon name={itemIcon(itemDef('cloth_rags'))} size={20} />
-          <span className="flex-1">{t('ui.craft.tearName')}</span>
-          <span className="text-white/45">{t('ui.craft.tearRemaining', { n: clothingTears })}</span>
-          <span aria-hidden="true">＋</span>
-        </summary>
-        <div className="space-y-3 border-t border-white/10 p-3 text-body">
-          <p className="text-white/60">{t(clothingTears > 0 ? 'ui.craft.tearBlurb' : 'ui.craft.tearNone')}</p>
-          {clothingTears > 0 && <button type="button" onClick={tearOwnClothes} className={`${controlClass} hover:bg-white/10`}>
-            {t('ui.craft.tearAction', { n: TEAR_RAGS_YIELD })} · {t('ui.craft.hoursShort', { h: TEAR_HOURS })}
-          </button>}
-        </div>
-      </details>
     </div>
   );
+}
+
+/** Quick read of what's built here, above the list; tapping it shows the camp setup recipes. */
+function CampBar({ atSite, site, now, seed, onOpen }: { atSite: boolean; site: SiteFacilities | undefined; now: number; seed: string; onOpen: () => void }) {
+  const { t } = useT();
+  if (!atSite) return <p className="flex min-h-9 items-center rounded border border-white/10 bg-black/20 px-2.5 text-label text-white/45">{t('ui.craft.camp.away')}</p>;
+  const chips: { icon: string; label: string; live: boolean }[] = [];
+  const heat = heatRemaining(site, now);
+  if ((site?.fireUntil ?? 0) > now) chips.push({ icon: 'cooking_fire', label: t('ui.craft.camp.fire', { h: fmtHours(site!.fireUntil! - now) }), live: true });
+  if (site?.stove) chips.push({ icon: 'fixed_stove', label: (site.stoveUntil ?? 0) > now ? t('ui.craft.camp.stoveLit', { h: fmtHours(site.stoveUntil! - now) }) : t('ui.craft.camp.stove'), live: (site.stoveUntil ?? 0) > now });
+  if (site?.rainShelter) chips.push({ icon: 'rain_shelter', label: t('ui.craft.camp.shelter'), live: false });
+  if (site?.collector) chips.push({ icon: 'rain_collector', label: t('ui.craft.camp.rain', { n: collectedRain(site, now, seed).toFixed(1) }), live: false });
+  if ((site?.water?.amount ?? 0) > 0) chips.push({ icon: 'hot_water', label: t('ui.craft.camp.water', { n: site!.water!.amount }), live: (site!.water!.hotUntil ?? 0) > now });
+  return <button type="button" onClick={onOpen} aria-label={t('ui.craft.camp.title')}
+    className={`flex min-h-9 w-full flex-wrap items-center gap-1.5 rounded border border-white/10 bg-black/20 px-2.5 py-1 text-left text-label hover:bg-white/[0.04] ${focusClass}`}>
+    <span className="mr-1 uppercase tracking-wide text-white/45">{t('ui.craft.camp.title')}</span>
+    {chips.length === 0
+      ? <span className="text-white/45">{t('ui.craft.camp.none')}</span>
+      : chips.map((chip) => <span key={chip.icon} className={`inline-flex items-center gap-1 rounded-sm border px-1.5 py-0.5 ${chip.live ? 'border-astral/30 text-astral' : 'border-white/10 text-white/70'}`}>
+        <Icon name={itemIcon(itemDef(chip.icon))} size={14} />{chip.label}
+      </span>)}
+    {chips.length > 0 && heat <= 0 && <span className="text-white/40">· {t('ui.craft.noHeatHere')}</span>}
+  </button>;
 }
 
 function StatusChip({ ready, label }: { ready: boolean; label: string }) {
@@ -200,6 +214,7 @@ function previewInstance(row: CraftRecipeRow): ItemInstance {
 /** What's already standing here for a setup recipe — shown on its strip so the site status lives with the recipe. */
 function facilityStatus(row: CraftRecipeRow, t: (key: string, vars?: Record<string, string | number>) => string, seed: string): string | null {
   const { recipe, context } = row;
+  if (row.usesLeft !== undefined) return t('ui.craft.tearRemaining', { n: row.usesLeft });
   const site = context.site;
   if (!recipe.facility || !context.atSite || !site) return null;
   const now = context.now;
@@ -213,8 +228,8 @@ function facilityStatus(row: CraftRecipeRow, t: (key: string, vars?: Record<stri
   }
 }
 
-function RecipeStrip({ view, atShelter, expanded, onToggle, onHover, onCraft, onPickVariant, busy, mode, onMode, siteWater, waterSource, onWaterSource }: {
-  view: CraftEntryView; atShelter: boolean; expanded: boolean; onToggle: () => void;
+function RecipeStrip({ view, expanded, onToggle, onHover, onCraft, onPickVariant, busy, mode, onMode, siteWater, waterSource, onWaterSource }: {
+  view: CraftEntryView; expanded: boolean; onToggle: () => void;
   onHover?: (e: { clientX: number; clientY: number } | null) => void;
   onCraft: () => void; onPickVariant: (recipeId: string) => void; busy: boolean;
   mode: 'hot' | 'room'; onMode: (mode: 'hot' | 'room') => void;
@@ -251,7 +266,7 @@ function RecipeStrip({ view, atShelter, expanded, onToggle, onHover, onCraft, on
         </span>
         {(multi || recipe.facility) && <span className="flex min-w-0 items-center gap-1 overflow-hidden text-label">
           {recipe.facility && !status && <span className="shrink-0 rounded-sm border border-signal/30 px-1 text-micro text-signal/80">{t('ui.craft.builtHere')}</span>}
-          {status && <span className="truncate text-astral/80" title={t('ui.craft.builtHere')}>{status}</span>}
+          {status && <span className="truncate text-astral/80">{row.usesLeft !== undefined && variantName ? `${variantName} · ${status}` : status}</span>}
           {!status && variantName && <span className="truncate text-white/45">{variantName}</span>}
           {multi && <span className="shrink-0 text-white/35">· {t('ui.craft.variants', { n: entry.variants.length })}</span>}
         </span>}
@@ -285,7 +300,7 @@ function RecipeStrip({ view, atShelter, expanded, onToggle, onHover, onCraft, on
             </select>
           </label>}
         </div>}
-        <RecipeDetails row={row} atShelter={atShelter} onCraft={onCraft} busy={busy} />
+        <RecipeDetails row={row} onCraft={onCraft} busy={busy} />
       </>}
     </div>
   </li>;
@@ -306,7 +321,7 @@ function MiniInput({ defId, need, have, tool = false, label }: { defId: string; 
   </span>;
 }
 
-function RecipeDetails({ row, atShelter, onCraft, busy }: { row: CraftRecipeRow; atShelter: boolean; onCraft: () => void; busy: boolean }) {
+function RecipeDetails({ row, onCraft, busy }: { row: CraftRecipeRow; onCraft: () => void; busy: boolean }) {
   const { t, locale } = useT();
   const equipment = useGame((s) => s.equipment);
   const { recipe, ingredients } = row;
@@ -323,7 +338,7 @@ function RecipeDetails({ row, atShelter, onCraft, busy }: { row: CraftRecipeRow;
         <dt className="text-white/55">{line.label}</dt><dd className="text-white/85">{line.value}</dd>
       </div>)}
     </dl>}
-    <div>
+    {ingredients.length > 0 && <div>
       <div className="mb-2 flex justify-between gap-2 text-label uppercase text-white/50"><h5>{t('ui.craft.ingredients')}</h5><span>{t('ui.craft.countLegend')}</span></div>
       <ul className="space-y-2">
         {ingredients.map((input) => <li key={input.defId} className="flex items-center gap-2">
@@ -332,9 +347,8 @@ function RecipeDetails({ row, atShelter, onCraft, busy }: { row: CraftRecipeRow;
           <span className={`shrink-0 tabular-nums ${input.have < input.need ? 'text-hiss' : 'text-white/85'}`}>{input.have}/{input.need}</span>
         </li>)}
       </ul>
-    </div>
-    {(recipe.needsShelter || recipe.tool) && <div className="space-y-1 border-t border-white/10 pt-2">
-      {recipe.needsShelter && <StatusChip ready={atShelter} label={t('ui.craft.shelterRequirement')} />}
+    </div>}
+    {recipe.tool && <div className="space-y-1 border-t border-white/10 pt-2">
       {recipe.tool && <StatusChip ready={row.toolHave > 0} label={t('ui.craft.toolKept', { name: itemName(recipe.tool, locale) })} />}
     </div>}
     {recipe.id === 'boil' && <p className="text-white/65">{t('ui.craft.boilNote')}</p>}
@@ -381,7 +395,6 @@ function craftBlockText(block: CraftBlock, t: (key: string, vars?: Record<string
   if (block.kind === 'input') return t('ui.craft.needHave', { name: itemName(block.defId, locale), need: block.need, have: block.have });
   if (block.kind === 'tool') return t('ui.craft.toolKept', { name: itemName(block.defId, locale) });
   if (block.kind === 'water') return t('ui.craft.needHave', { name: t('ui.craft.anyWater'), need: block.need, have: block.have });
-  if (block.kind === 'shelter') return t('ui.craft.shelterRequirement');
   return t(`ui.craft.block.${block.kind}`);
 }
 

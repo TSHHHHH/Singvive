@@ -755,35 +755,28 @@
       "details": "Details",
       "inspect": "Inspect {name}",
       "ingredients": "Ingredients",
-      "shelterRequirement": "Shelter required · stash or HDB",
       "toolKept": "{name} · not consumed",
       "craftAction": "Craft",
       "unavailable": "Unavailable",
       "made": "Made {n}× {name}",
       "unsafeWater": "Uses murky water. Drinking this adds {n} infection.",
       "tearRemaining": "{n} uses left",
-      "tearAction": "Cut for {n}× Cloth Rags",
       "categories": {
         "all": "All categories",
-        "provisions": "Food & drink",
         "medical": "Medical",
         "weapons": "Weapons & ammo",
         "equipment": "Equipment",
         "tools": "Tools & parts",
-        "facilities": "Camp setups (stay here)"
+        "facilities": "Camp setups (stay here)",
+        "food": "Food",
+        "drinks": "Drinks",
+        "materials": "Materials"
       },
       "needHave": "{name} — need {need}, have {have}",
       "toolTip": "{name} — stays in the pack (have {have})",
-      "workbench": "Workbench",
-      "shelterOk": "Shelter",
-      "shelterNo": "No shelter",
-      "toolboxOk": "Toolbox",
-      "toolboxNo": "No toolbox",
       "hint": "Inputs from the pack. Shelter recipes need a stash or HDB. Tools stay in the pack.",
       "filterAll": "All",
       "filterReady": "Ready",
-      "groupField": "Field",
-      "groupShelter": "Shelter",
       "groupDesperate": "Desperate",
       "noneReady": "Nothing you can make right now. Haul more materials back, or find somewhere to work.",
       "anyWater": "Any Water",
@@ -793,10 +786,6 @@
       "blockInput": "Needs {need}× {name} — have {have}",
       "blockWater": "Needs {need}× water — have {have}",
       "boilNote": "Requires a pot and heat. Prepared water stays here, hot for two hours, then remains clean. Collecting it makes ordinary clean water.",
-      "tearName": "Cut Up Your Clothes",
-      "tearCost": "Nothing — {n} left in them",
-      "tearBlurb": "Cut strips from what you are wearing. Costs nothing but the clothes.",
-      "tearNone": "The clothes on your back are already stripped. Find cloth, or go without.",
       "siteFacilities": "Facilities at this location",
       "heatLeft": "Heat available · {h}h remaining",
       "noHeat": "No active heat source",
@@ -831,7 +820,8 @@
         "pot": "Needs a carried cooking pot; it is not consumed.",
         "site_water": "Not enough prepared water at this location.",
         "occupied": "Already built or still in use. Empty stored water before boiling another batch.",
-        "stove": "Build a fixed stove here first."
+        "stove": "Build a fixed stove here first.",
+        "tears": "The clothes on your back are already stripped."
       },
       "variants": "{n} versions",
       "variant": "Version",
@@ -843,8 +833,29 @@
         "rain": "Rain {n}/4",
         "water": "{n} servings ready"
       },
-      "heatHere": "Heat here · {h}h",
-      "noHeatHere": "No heat here"
+      "noHeatHere": "No heat here",
+      "chips": {
+        "all": "All",
+        "food": "Food",
+        "drinks": "Drinks",
+        "medical": "Medical",
+        "weapons": "Weapons",
+        "equipment": "Gear",
+        "materials": "Materials",
+        "tools": "Tools",
+        "facilities": "Camp"
+      },
+      "camp": {
+        "title": "Camp",
+        "away": "Camp setups can only be built at a surface location.",
+        "none": "Nothing built here yet",
+        "fire": "Fire {h}h",
+        "stove": "Stove",
+        "stoveLit": "Stove {h}h",
+        "shelter": "Rain shelter",
+        "rain": "Rain {n}/4",
+        "water": "Water ×{n}"
+      }
     },
     "attributes": {
       "strength": "Strength",
@@ -3396,6 +3407,10 @@
     "jewellery_pick": {
       "name": "Bend Jewellery Wire into a Pick",
       "blurb": "Sacrifice valuable jewellery for a one-use lockpick."
+    },
+    "tear_clothes": {
+      "name": "Cut Up Your Clothes",
+      "blurb": "Cut strips from what you are wearing. Costs nothing but the clothes."
     }
   },
   "trait": {

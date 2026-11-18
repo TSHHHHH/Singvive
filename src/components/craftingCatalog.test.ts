@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ItemInstance } from '../game/types';
 import { itemName } from '../i18n';
-import { browseCraftEntries, browseCraftingRows, craftingRows, groupCraftRows, matchesCraftFilter, pickVariant } from './craftingCatalog';
+import { browseCraftEntries, browseCraftingRows, craftingRows, groupCraftRows, matchesCraftFilter, pickVariant, tearRow } from './craftingCatalog';
 
 function pack(defId: string, stack = 1, container = 'backpack'): ItemInstance {
   return { uid: defId, defId, stack, container, x: 0, y: 0, rotated: false };
@@ -17,7 +17,7 @@ describe('crafting browser', () => {
     expect(browseCraftingRows(rows, { ...defaults, filter: 'ready' }).every((row) => row.check.ok)).toBe(true);
   });
 
-  it('excludes missing shelter or tools from the one-ingredient-away filter', () => {
+  it('excludes missing tools from the one-ingredient-away filter (no workbench rule)', () => {
     const away = craftingRows([], false, 0);
     expect(matchesCraftFilter(away.find((row) => row.recipe.id === 'bandages')!, 'almost')).toBe(true);
     expect(matchesCraftFilter(away.find((row) => row.recipe.id === 'parts')!, 'almost')).toBe(false);
@@ -100,5 +100,33 @@ describe('crafting variant groups', () => {
     const entries = groupCraftRows(craftingRows([], false, 0));
     const hits = browseCraftEntries(entries, { ...defaults, query: itemName('kopi_o_kosong_di_lo', 'en') });
     expect(hits.map((v) => v.entry.key)).toEqual(['family:kopi']);
+  });
+});
+
+describe('workbench removal, categories and the clothes strip', () => {
+  it('no longer needs a stash or HDB for former shelter recipes', () => {
+    const parts = craftingRows([pack('scrap_metal', 3), pack('toolbox')], false, 0).find((row) => row.recipe.id === 'parts')!;
+    expect(parts.recipe.needsShelter).toBe(true);
+    expect(parts.check.ok).toBe(true);
+  });
+
+  it('splits food, drinks and materials', () => {
+    const rows = craftingRows([], true, 0);
+    const cat = (id: string) => rows.find((row) => row.recipe.id === id)!.category;
+    expect(cat('cooked_mee')).toBe('food');
+    expect(cat('kopi')).toBe('drinks');
+    expect(cat('paper_tinder')).toBe('materials');
+    expect(cat('lockpick')).toBe('tools');
+    expect(cat('cooking_fire')).toBe('facilities');
+  });
+
+  it('cutting up clothes groups with the towel under cloth rags and runs out', () => {
+    const rows = [...craftingRows([], true, 0), tearRow(2, 0.25, 2)];
+    const rags = groupCraftRows(rows).find((e) => e.key === 'out:cloth_rags')!;
+    expect(rags.variants.map((v) => v.recipe.id)).toEqual(['towel_rags', 'tear_clothes']);
+    expect(pickVariant(rags.variants).recipe.id).toBe('tear_clothes');
+    const spent = tearRow(0, 0.25, 2);
+    expect(spent.check.ok).toBe(false);
+    expect(matchesCraftFilter(spent, 'almost')).toBe(false);
   });
 });
