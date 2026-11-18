@@ -90,3 +90,66 @@ export function applyCare(parts: BodyParts, id: BodyPartId, action: CareAction):
   }
   return { ...parts, [id]: next };
 }
+
+// ---------- Open wounds: closing, the max-HP they hold back, infection ----------
+
+/** Recovery-equivalent hours a wound needs to close at the dressed, clean rate. */
+export const WOUND_CLOSE_HOURS = { cut: 12, deep: 36 } as const;
+/** Share of the part's max HP an open wound holds back until it closes. */
+export const WOUND_MAX_HP_LOSS = { cut: 0.12, deep: 0.25 } as const;
+/** An open wound is checked for infection each time it has gone this long without closing. */
+export const WOUND_INFECT_CHECK_HOURS = 24;
+/** Infected wounds recover and close at this share of their normal rate. */
+export const INFECTED_RECOVERY_MULT = 0.35;
+/** One course of antibiotics clears infected wounds and covers new checks for this long. */
+export const ANTIBIOTIC_COVER_HOURS = 24;
+
+export function isOpenWound(part: BodyPart): part is BodyPart & { wound: 'cut' | 'deep' } {
+  return part.wound === 'cut' || part.wound === 'deep';
+}
+
+/** Highest HP the part can hold while its wound is open (its own max once closed). */
+export function openWoundCap(part: BodyPart): number {
+  if (!isOpenWound(part) || part.maxHp < 2) return part.maxHp;
+  return Math.min(part.maxHp - 1, Math.floor(part.maxHp * (1 - WOUND_MAX_HP_LOSS[part.wound])));
+}
+
+/** Max HP an open wound is holding back right now (0 when none). */
+export function openWoundHpLoss(part: BodyPart): number {
+  return part.maxHp - openWoundCap(part);
+}
+
+/** How fast the wound closes: a clean dressing helps most; dirt and infection hold it open. */
+export function woundCloseRate(part: BodyPart): number {
+  const dressing = part.dressing === 'clean' ? 1 : part.dressing === 'soiled' ? 0.8 : 0.55;
+  return dressing * (part.dirty ? 0.8 : 1) * (part.woundInfected ? INFECTED_RECOVERY_MULT : 1);
+}
+
+/**
+ * Chance an open wound turns at a daily check. Cleaning (antiseptic, first-aid
+ * kit) or antibiotic cover cuts it hard; a dressing on a dirty wound only
+ * helps somewhat.
+ */
+export function woundInfectChance(part: BodyPart): number {
+  if (!isOpenWound(part) || part.woundInfected) return 0;
+  const base = !part.dirty ? 0.08
+    : part.dressing && part.dressing !== 'none' ? 0.3
+      : 0.5;
+  const cover = (part.antibioticHours ?? 0) > 1e-9 ? 0.2 : 1;
+  return base * (part.wound === 'deep' ? 1.2 : 1) * cover;
+}
+
+/** Deterministic roll for check `k` (1, 2, …) of a wound seeded with `seed`. */
+export function woundCheckRoll(seed: number, k: number): number {
+  const x = Math.sin((seed * 9973 + k * 7919.13) * 12.9898) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+/** A course of antibiotics: clears wound infection and covers every part for a day. */
+export function applyAntibiotics(parts: BodyParts): BodyParts {
+  const next = { ...parts };
+  for (const id of PART_IDS) {
+    next[id] = { ...parts[id], woundInfected: false, antibioticHours: ANTIBIOTIC_COVER_HOURS };
+  }
+  return next;
+}

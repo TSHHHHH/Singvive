@@ -4,7 +4,12 @@ import { useGame } from '../game/store';
 import { BODY_PART_IDS } from '../game/survival';
 import { isCarried, TEMP_STASH } from '../game/inventory';
 import { itemDefOrNull } from '../game/loot';
-import { CARE_MINUTES, canCareForPart, canCareWithItem, careForItem, type CareAction } from '../game/woundCare';
+import {
+  CARE_MINUTES, canCareForPart, canCareWithItem, careForItem, isOpenWound, openWoundHpLoss,
+  WOUND_CLOSE_HOURS, WOUND_INFECT_CHECK_HOURS, woundCloseRate, woundInfectChance, type CareAction,
+} from '../game/woundCare';
+import { injuredPartIds, partInjuryEffects } from '../game/injuryEffects';
+import { injuryEffectText } from './injuryCopy';
 import type { BodyPart, BodyPartId, BodyParts, ItemInstance } from '../game/types';
 import { Icon } from '../icons/Icon';
 import type { IconName } from '../icons/keys';
@@ -88,6 +93,24 @@ function partStatuses(part: BodyPart, recoveryPaused: boolean, t: T): Status[] {
       ? { key: 'fracture', icon: 'item.splint', tone: 'good', text: t('ui.care.fractureSupported') }
       : { key: 'fracture', icon: 'status.fractured', tone: 'warn', text: t('ui.care.fractureUnsupported') });
   }
+  if (part.woundInfected) {
+    out.push({ key: 'infected', icon: 'meter.infection', tone: 'danger', pulse: true, text: t('ui.care.infectedHint') });
+  } else if (isOpenWound(part)) {
+    const age = part.woundAgeHours ?? 0;
+    const h = Math.max(1, Math.ceil(WOUND_INFECT_CHECK_HOURS - (age % WOUND_INFECT_CHECK_HOURS)));
+    const pct = Math.round(woundInfectChance(part) * 100);
+    out.push({ key: 'risk', icon: 'meter.infection', tone: pct >= 25 ? 'warn' : 'muted', tag: `${pct}%`,
+      text: t('ui.care.riskHint', { h, pct }) });
+  }
+  if (isOpenWound(part)) {
+    const left = Math.max(1, Math.ceil((WOUND_CLOSE_HOURS[part.wound] - (part.woundCloseHours ?? 0)) / Math.max(0.05, woundCloseRate(part))));
+    out.push({ key: 'open', icon: 'meter.health', tone: 'warn', tag: `−${openWoundHpLoss(part)}`,
+      text: t('ui.care.openHint', { n: openWoundHpLoss(part), left }) });
+  }
+  const cover = Math.ceil(part.antibioticHours ?? 0);
+  if (cover > 0 && (isOpenWound(part) || part.woundInfected)) {
+    out.push({ key: 'cover', icon: 'item.cure', tone: 'good', tag: `${cover}h`, text: t('ui.care.coverActive', { n: cover }) });
+  }
   const pain = Math.ceil(part.painReliefHours ?? 0);
   if (pain > 0) out.push({ key: 'pain', icon: 'item.painkillers', tone: 'good', tag: `${pain}h`, text: t('ui.care.painActive', { n: pain }) });
   const boost = Math.ceil(part.recoveryBoostHours ?? 0);
@@ -130,10 +153,7 @@ export function WoundCarePanel({ bodyParts, feedback, onHighlight }: {
 
   const available = supplies.filter(item => careForItem(item.defId) &&
     (isCarried(item.container) || item.container === TEMP_STASH || (!inTunnel && item.container === currentPositionId)));
-  const affected = BODY_PART_IDS.filter(id => {
-    const part = bodyParts[id];
-    return part.hp < part.maxHp || part.bleed !== 'none' || part.fractured || part.crippled;
-  });
+  const affected = injuredPartIds(bodyParts);
   const recoveryPaused = BODY_PART_IDS.some(id => bodyParts[id].bleed === 'major');
   const aboutText = `${t('ui.care.optional')}\n${t('ui.care.recoveryHint')}`;
 
@@ -175,6 +195,8 @@ export function WoundCarePanel({ bodyParts, feedback, onHighlight }: {
               });
               const missing = eligible.filter(action => !offers.some(offer => offer.action === action));
               const statuses = partStatuses(part, recoveryPaused, t);
+              // The open-wound chip already carries the max-HP cost.
+              const effects = partInjuryEffects(bodyParts, id).filter(effect => effect.key !== 'maxHp').map(effect => injuryEffectText(effect, t));
               const woundText = part.wound ? t(`ui.care.wound.${part.wound}`) : null;
               const rowPick = picked?.partId === id ? picked : null;
               return (
@@ -206,6 +228,11 @@ export function WoundCarePanel({ bodyParts, feedback, onHighlight }: {
                           </li>
                         ))}
                       </ul>
+                      {effects.length > 0 && (
+                        <p className="mt-0.5 flex flex-wrap gap-x-1.5 text-micro leading-snug text-white/55" aria-label={`${partName} · ${t('ui.care.effectsLabel')}`}>
+                          {effects.map(effect => <span key={effect} className="whitespace-nowrap">{effect}</span>)}
+                        </p>
+                      )}
                     </div>
                     <div className="ml-auto flex flex-wrap justify-end gap-1">
                       {offers.map(offer => {

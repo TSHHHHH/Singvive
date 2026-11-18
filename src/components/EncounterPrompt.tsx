@@ -16,6 +16,7 @@ import { enemyName, useT } from '../i18n';
 import { tip } from './tips';
 import { combatWeaponLabel } from './combatLabels';
 import { LIVE_NODE_BAND } from './logTimeline';
+import { InjuryBrief } from './InjuryBrief';
 
 type Variant = 'timeline' | 'card';
 
@@ -167,6 +168,7 @@ export function EncounterPrompt({
           {cardProse}
         </p>
         <div className="text-micro text-white/40">{footnote}</div>
+        <InjuryBrief parts={bodyParts} />
         <div className="flex flex-col gap-1">{choices}</div>
       </div>
     );
@@ -189,6 +191,8 @@ export function EncounterPrompt({
         <div className="mt-1 text-micro text-white/40" style={{ paddingLeft: timeW }}>
           {footnote}
         </div>
+
+        <InjuryBrief parts={bodyParts} className="mt-1" style={{ paddingLeft: timeW }} />
 
         <div className="mt-1.5 flex flex-col gap-1" style={{ paddingLeft: timeW }}>
           {choices}
