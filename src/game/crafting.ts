@@ -2,6 +2,7 @@ import { isCarried } from './inventory';
 import type { ItemInstance } from './types';
 import { ITEMS, itemDef } from './loot';
 import recipesCatalog from './data/recipes.json' with { type: 'json' };
+import type { RecipeFamily } from './recipeFamilies';
 import { heatRemaining, type FacilityCraft, type SiteFacilities } from './facilities';
 
 /**
@@ -25,7 +26,7 @@ import { heatRemaining, type FacilityCraft, type SiteFacilities } from './facili
 export interface Recipe {
   preparation?: 'drink' | 'cook' | 'boil';
   facility?: FacilityCraft;
-  family?: 'kopi' | 'teh';
+  family?: RecipeFamily;
   /** Portioning/salvage conserves materials; trait discounts do not apply. */
   fixedInputs?: boolean;
   id: string;

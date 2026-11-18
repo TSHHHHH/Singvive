@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ItemInstance } from '../game/types';
 import { itemName } from '../i18n';
-import { browseCraftingRows, craftingRows, matchesCraftFilter } from './craftingCatalog';
+import { browseCraftEntries, browseCraftingRows, craftingRows, groupCraftRows, matchesCraftFilter, pickVariant } from './craftingCatalog';
 
 function pack(defId: string, stack = 1, container = 'backpack'): ItemInstance {
   return { uid: defId, defId, stack, container, x: 0, y: 0, rotated: false };
@@ -70,5 +70,35 @@ describe('crafting browser', () => {
     const names = byName.map((row) => itemName(row.recipe.outputDefId, 'en'));
     expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b, 'en')));
     expect(rows.map((row) => row.recipe.id)).toEqual(ids);
+  });
+});
+
+describe('crafting variant groups', () => {
+  it('collapses drink families and shared outputs into one entry each, keeping every recipe', () => {
+    const rows = craftingRows([], false, 0);
+    const entries = groupCraftRows(rows);
+    expect(entries.flatMap((e) => e.variants).length).toBe(rows.length);
+    const kopi = entries.find((e) => e.key === 'family:kopi')!;
+    expect(kopi.variants.map((v) => v.recipe.id)).toContain('kopi_o_kosong_di_lo');
+    expect(entries.find((e) => e.key === 'out:tinder')!.variants).toHaveLength(4);
+    expect(entries.find((e) => e.key === 'out:improvised_bandage')!.variants).toHaveLength(1);
+    expect(entries.length).toBeLessThan(rows.length);
+  });
+
+  it('shows the remembered variant, or the best ready one, and never an unready one under Ready', () => {
+    const items = [pack('coffee_portion', 2), pack('water_bottle')];
+    const entries = groupCraftRows(craftingRows(items, false, 0));
+    const view = (filter: 'all' | 'ready', chosen: Record<string, string> = {}) =>
+      browseCraftEntries(entries, { ...defaults, filter }, chosen).find((v) => v.entry.key === 'family:kopi');
+    expect(view('all')!.row.recipe.id).toBe('kopi_o_kosong');
+    expect(view('all', { 'family:kopi': 'kopi_gau' })!.row.recipe.id).toBe('kopi_gau');
+    expect(view('ready', { 'family:kopi': 'kopi_gau' })!.row.recipe.id).toBe('kopi_o_kosong');
+    expect(pickVariant(entries.find((e) => e.key === 'family:kopi')!.variants, 'kopi_po').recipe.id).toBe('kopi_po');
+  });
+
+  it('finds a family entry by any variant name', () => {
+    const entries = groupCraftRows(craftingRows([], false, 0));
+    const hits = browseCraftEntries(entries, { ...defaults, query: itemName('kopi_o_kosong_di_lo', 'en') });
+    expect(hits.map((v) => v.entry.key)).toEqual(['family:kopi']);
   });
 });

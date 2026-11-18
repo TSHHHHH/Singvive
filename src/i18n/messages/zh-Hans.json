@@ -770,7 +770,7 @@
         "weapons": "武器与弹药",
         "equipment": "装备",
         "tools": "工具与零件",
-        "facilities": "地点设施"
+        "facilities": "营地设施（不可携带）"
       },
       "needHave": "{name} — 需要 {need}，现有 {have}",
       "toolTip": "{name} — 留在背包（现有 {have}）",
@@ -815,13 +815,15 @@
       "waterSource": "配方用水",
       "carriedWater": "使用随身水",
       "siteWater": "使用此处备好的水",
-      "preparationHint": "常温饮品补水不变，饱食与精力恢复减半。烹饪必须用热源，烧水使用随身水。搜索可查看所有饮品口味。",
       "staysHere": "建于此处 · 不能装包或带走",
       "roomPenalty": "常温调制 · 饱食与精力恢复减半，补水不变",
       "busy": "请先完成当前行动。",
       "family": {
-        "kopi": "咖啡配方",
-        "teh": "茶饮配方"
+        "kopi": "咖啡",
+        "teh": "茶",
+        "milo": "美禄",
+        "mee": "泡面",
+        "porridge": "白粥"
       },
       "block": {
         "site": "请先到达一个地表地点。",
@@ -831,7 +833,18 @@
         "occupied": "设施已建或仍在使用。再次烧水前请先用完或收取已有的水。",
         "stove": "请先在此处搭建固定炉灶。"
       },
-      "options": "烹饪与饮品选项"
+      "variants": "{n} 种",
+      "variant": "种类",
+      "builtHere": "就地搭建",
+      "hoverHint": "悬停查看物品详情，点击展开配方。",
+      "status": {
+        "burning": "燃烧中 · {h}小时",
+        "built": "已建成",
+        "rain": "雨水 {n}/4",
+        "water": "备好 {n} 份"
+      },
+      "heatHere": "此处有热源 · {h}小时",
+      "noHeatHere": "此处无热源"
     },
     "attributes": {
       "strength": "力量",

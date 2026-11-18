@@ -94,7 +94,11 @@ export function browseCraftingRows(
     ].join(' ').toLocaleLowerCase(locale);
     return words.every((word) => names.includes(word));
   });
-  return visible.sort((a, b) => {
+  return visible.sort(craftRowComparator(sort, locale));
+}
+
+export function craftRowComparator(sort: CraftSort, locale: LocaleId) {
+  return (a: CraftRecipeRow, b: CraftRecipeRow): number => {
     const byName = itemName(a.recipe.outputDefId, locale).localeCompare(itemName(b.recipe.outputDefId, locale), locale);
     if (sort === 'name') return byName;
     if (sort === 'time') return a.recipe.hours - b.recipe.hours || byName;
@@ -104,5 +108,70 @@ export function browseCraftingRows(
       || a.missingUnits - b.missingUnits
       || a.recipe.hours - b.recipe.hours
       || byName;
-  });
+  };
+}
+
+// ---------- Variant groups ----------
+
+/**
+ * One list row per thing you make. Explicit families (kopi, teh, milo …) and
+ * recipes that share an output (four ways to make tinder) collapse into one
+ * entry whose variants are picked from a dropdown. Recipe ids are untouched:
+ * the pick is UI state only, so crafting, balance and saves don't change.
+ */
+export interface CraftEntry {
+  key: string;
+  family?: Recipe['family'];
+  variants: CraftRecipeRow[];
+}
+
+export function variantKey(recipe: Recipe): string {
+  return recipe.family ? `family:${recipe.family}` : `out:${recipe.outputDefId}`;
+}
+
+/** Groups rows in catalog order (first appearance wins). */
+export function groupCraftRows(rows: CraftRecipeRow[]): CraftEntry[] {
+  const byKey = new Map<string, CraftEntry>();
+  for (const row of rows) {
+    const key = variantKey(row.recipe);
+    const entry = byKey.get(key);
+    if (entry) entry.variants.push(row);
+    else byKey.set(key, { key, family: row.recipe.family, variants: [row] });
+  }
+  return [...byKey.values()];
+}
+
+/**
+ * The variant a row shows: the player's last pick if it still qualifies,
+ * otherwise the best one available (ready first, then closest to ready).
+ */
+export function pickVariant(variants: CraftRecipeRow[], chosenId?: string, locale: LocaleId = 'en'): CraftRecipeRow {
+  const chosen = chosenId ? variants.find((row) => row.recipe.id === chosenId) : undefined;
+  return chosen ?? [...variants].sort(craftRowComparator('ready', locale))[0];
+}
+
+export interface CraftEntryView {
+  entry: CraftEntry;
+  /** The variant shown on the strip and crafted by its button. */
+  row: CraftRecipeRow;
+  /** Variants that pass the current filter/search (all of them when unfiltered). */
+  matching: CraftRecipeRow[];
+}
+
+/** Same filters as `browseCraftingRows`, applied per entry: an entry shows when any variant matches. */
+export function browseCraftEntries(
+  entries: CraftEntry[],
+  options: { query: string; category: CraftCategory; filter: CraftFilter; sort: CraftSort; locale: LocaleId },
+  chosen: Record<string, string> = {},
+): CraftEntryView[] {
+  const views: CraftEntryView[] = [];
+  for (const entry of entries) {
+    const matching = browseCraftingRows(entry.variants, options);
+    if (matching.length === 0) continue;
+    const pick = chosen[entry.key];
+    // Keep the player's pick while it still matches; a "Ready" filter must never show an unready variant.
+    const row = matching.find((r) => r.recipe.id === pick) ?? pickVariant(matching, undefined, options.locale);
+    views.push({ entry, row, matching });
+  }
+  return views.sort((a, b) => craftRowComparator(options.sort, options.locale)(a.row, b.row));
 }

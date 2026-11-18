@@ -770,7 +770,7 @@
         "weapons": "Weapons & ammo",
         "equipment": "Equipment",
         "tools": "Tools & parts",
-        "facilities": "Site facilities"
+        "facilities": "Camp setups (stay here)"
       },
       "needHave": "{name} — need {need}, have {have}",
       "toolTip": "{name} — stays in the pack (have {have})",
@@ -815,13 +815,15 @@
       "waterSource": "Recipe water",
       "carriedWater": "Use carried water",
       "siteWater": "Use prepared water here",
-      "preparationHint": "Room-temperature drinks keep full hydration but half hunger/energy. Cooking always needs heat. Boiling uses carried water. Search to see all drink variants.",
       "staysHere": "Built here · cannot be packed or carried",
       "roomPenalty": "Mixed cold · half hunger and energy, full hydration",
       "busy": "Finish the current action before crafting.",
       "family": {
-        "kopi": "Kopi recipe",
-        "teh": "Teh recipe"
+        "kopi": "Kopi",
+        "teh": "Teh",
+        "milo": "Milo",
+        "mee": "Instant noodles",
+        "porridge": "Rice porridge"
       },
       "block": {
         "site": "Reach a surface location first.",
@@ -831,7 +833,18 @@
         "occupied": "Already built or still in use. Empty stored water before boiling another batch.",
         "stove": "Build a fixed stove here first."
       },
-      "options": "Cooking & drink options"
+      "variants": "{n} versions",
+      "variant": "Version",
+      "builtHere": "Built here",
+      "hoverHint": "Hover a recipe for item details. Click to open it.",
+      "status": {
+        "burning": "Burning · {h}h left",
+        "built": "Built",
+        "rain": "Rain {n}/4",
+        "water": "{n} servings ready"
+      },
+      "heatHere": "Heat here · {h}h",
+      "noHeatHere": "No heat here"
     },
     "attributes": {
       "strength": "Strength",
