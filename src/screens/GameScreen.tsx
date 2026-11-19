@@ -1791,6 +1791,7 @@ export function GameScreen() {
           ) : (
             <>
               <GameMap
+                inCombat={inCombat}
                 home={currentPos}
                 pois={locationList}
                 selectedId={sel?.id ?? null}

@@ -973,6 +973,7 @@ function NightVeil({
 }
 
 interface Props {
+  inCombat: boolean;
   home: { lat: number; lng: number };
   pois: Poi[];
   selectedId: string | null;
@@ -1781,6 +1782,7 @@ const RumourLayer = memo(function RumourLayer({ annotations }: { annotations: Ma
 const RANGE_EASE_MS = 600;
 
 function GameMapInner({
+  inCombat,
   home,
   pois,
   selectedId,
@@ -1816,11 +1818,14 @@ function GameMapInner({
   const { t } = useT();
   const evacPoi = evacZoneId ? pois.find((p) => p.id === evacZoneId) : null;
   // The ranges ease outside React: nothing here re-renders while they move.
-  const reducedRange = useReducedMotion();
+  const reducedMotion = useReducedMotion();
   const [reach] = useState(() => new RangeMotion(travelRange, RANGE_EASE_MS));
   const [sensed] = useState(() => new RangeMotion(blipRange, REVEAL_MS));
-  useEffect(() => reach.set(travelRange, reducedRange), [reach, travelRange, reducedRange]);
-  useEffect(() => sensed.set(blipRange, reducedRange), [sensed, blipRange, reducedRange]);
+  // A swing spends game time. Apply the resulting range once during combat
+  // so fog geometry and buildings don't compete with the hit animation.
+  const instantRange = reducedMotion || inCombat;
+  useEffect(() => reach.set(travelRange, instantRange), [reach, travelRange, instantRange]);
+  useEffect(() => sensed.set(blipRange, instantRange), [sensed, blipRange, instantRange]);
   useEffect(
     () => () => {
       reach.destroy();

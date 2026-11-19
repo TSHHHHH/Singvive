@@ -91,7 +91,7 @@ select optgroup {
 }
 
 /* thin scrollbars */
-body:has([data-dock-resizing='true']) * {
+body.dock-resizing * {
   cursor: col-resize !important;
   user-select: none !important;
 }
@@ -423,9 +423,16 @@ body:has([data-dock-resizing='true']) * {
 }
 
 .combat-fx-spot {
+  /* Share the struck portrait's grid cell even while the panel moves. */
   position: absolute;
-  width: 0;
-  height: 0;
+  grid-row: 1 / 2;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+.combat-fx-spot > * {
+  left: 50%;
+  top: 50%;
 }
 
 @keyframes combat-fx-flash {
@@ -434,6 +441,8 @@ body:has([data-dock-resizing='true']) * {
 }
 .combat-fx-flash {
   position: absolute;
+  width: 100%;
+  height: 100%;
   transform: translate(-50%, -50%);
   border-radius: 2px;
   background: rgba(255, 255, 255, 0.75);
@@ -502,7 +511,7 @@ body:has([data-dock-resizing='true']) * {
 }
 .combat-fx-label {
   position: absolute;
-  left: 0;
+  top: -14px;
   display: flex;
   align-items: baseline;
   gap: 4px;
@@ -1447,9 +1456,15 @@ body:has([data-dock-resizing='true']) * {
   initial-value: 0;
 }
 .maplibregl-marker.marker-reveal {
+  opacity: var(--marker-opacity, 1);
   transition:
     opacity var(--marker-reveal-ms, 0ms) var(--marker-reveal-easing, linear),
     --roof var(--marker-reveal-ms, 0ms) var(--marker-reveal-easing, linear);
+}
+@starting-style {
+  .maplibregl-marker.marker-reveal {
+    opacity: 0;
+  }
 }
 .maplibregl-marker.marker-reveal > *,
 .maplibregl-marker.has-roof > * {

@@ -6,6 +6,11 @@ export function DockResizeHandle({ width, min, max, resize, commit, cancel }: Re
   const { t } = useT();
   const drag = useRef<{ pointer: number; x: number; width: number } | null>(null);
   const [resizing, setResizing] = useState(false);
+  useEffect(() => {
+    if (!resizing) return;
+    document.body.classList.add('dock-resizing');
+    return () => document.body.classList.remove('dock-resizing');
+  }, [resizing]);
   const abort = useCallback(() => {
     drag.current = null;
     setResizing(false);

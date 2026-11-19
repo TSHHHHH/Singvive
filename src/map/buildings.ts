@@ -74,25 +74,22 @@ export const BUILDINGS_LAYER = 'buildings-3d';
  * small per-building nudge (by feature id) breaks up rows of equal blocks.
  * Data-driven paint, set once: no per-frame or per-tick cost.
  */
-// Cool blue-grey, kept below the secondary road grey (basemapTone.ts) so roofs
-// sit a step darker than the streets and the shaded walls read cool.
-const BUILDING_SHADES: ReadonlyArray<readonly [number, string]> = [
-  [0, '#181a1f'],
-  [15, '#22252b'],
-  [40, '#2e3239'],
-  [120, '#434953'],
-];
 /** Metres of "virtual height" the id nudge adds at most. */
 const SHADE_JITTER_M = 8;
+const SHADE_HEIGHT = [
+  '+', ['coalesce', ['get', 'render_height'], ['get', 'height'], 8],
+  ['*', ['%', ['to-number', ['id'], 0], 5], SHADE_JITTER_M / 4],
+];
+function concreteRamp(low: string, mid: string, high: string, tower: string) {
+  return ['interpolate', ['linear'], SHADE_HEIGHT, 0, low, 15, mid, 40, high, 120, tower];
+}
+// Multipart complexes can contain overlapping shells and slabs with different
+// IDs. Give those parts one finish to avoid mottling where their faces meet.
 const BASE_BUILDING_COLOR = [
-  'interpolate',
-  ['linear'],
-  [
-    '+',
-    ['coalesce', ['get', 'render_height'], ['get', 'height'], 8],
-    ['*', ['%', ['to-number', ['id'], 0], 5], SHADE_JITTER_M / 4],
-  ],
-  ...BUILDING_SHADES.flat(),
+  'match', ['case', ['==', ['get', 'kind'], 'building_part'], 0, ['%', ['abs', ['to-number', ['id'], 0]], 3]],
+  1, concreteRamp('#202120', '#2b2d2b', '#393c39', '#50524e'), // chalk
+  2, concreteRamp('#221f1b', '#2d2924', '#393530', '#4c4740'), // aged beige
+  concreteRamp('#181a1f', '#22252b', '#2e3239', '#434953'), // cool cement
 ];
 /**
  * An unrevealed footprint draws over the ground fog, so it takes the colour

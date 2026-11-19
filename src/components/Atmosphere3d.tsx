@@ -9,7 +9,7 @@ import { useAtmosphere, type WeatherDom } from './useAtmosphere';
 /** Mounts the atmosphere driver on the 3D run map. */
 export function Atmosphere3d({ kind, time, dom }: { kind: WeatherKind; time: TimeOfDay; dom: WeatherDom }) {
   const map = useMapGL();
-  const { atmos, lightning, still } = useAtmosphere(kind, time, true);
+  const { atmos, lightning, still, strength } = useAtmosphere(kind, time, true);
   const mapAnchored = !!atmos.sun;
   const [driver, setDriver] = useState<AtmosphereDriver | null>(null);
   const first = useRef(true);
@@ -29,7 +29,9 @@ export function Atmosphere3d({ kind, time, dom }: { kind: WeatherKind; time: Tim
   }, [map, dom, mapAnchored]);
 
   const daylight = (atmos.sun?.daylight ?? 0) * (0.55 + atmos.intensity * 0.75);
-  useEffect(() => setGroundDaylight(map, daylight), [map, daylight]);
+  const wetness = mapAnchored && (kind === 'rain' || kind === 'thunderstorm') ? strength : 0;
+  const heat = mapAnchored && kind === 'heat' ? strength : 0;
+  useEffect(() => setGroundDaylight(map, daylight, wetness, heat), [map, daylight, wetness, heat]);
 
   useEffect(() => {
     if (!driver) return;

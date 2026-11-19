@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { CombatImpact } from '../game/types';
 
@@ -8,9 +8,8 @@ import type { CombatImpact } from '../game/types';
  *
  * Presentation only — it reads `combat.impact` and the two HP totals, and never
  * writes to the store. Everything moves on transform / opacity so it stays on
- * the compositor, and nothing runs once a burst is over: each burst is one
- * keyed subtree whose longest animation ends it, and the shake is a single
- * Web Animation on the game shell with no fill.
+ * the compositor. The portrait effects share the fighter's grid cell and
+ * the full-screen splatters live in a portal. One timer ends both.
  */
 
 /** The game shell carries this attribute; it is what shakes. */
@@ -27,9 +26,6 @@ function lifeMs(impact: CombatImpact): number {
   }
   return 1000;
 }
-
-type Rect = { x: number; y: number; w: number; h: number };
-
 /** Tiny deterministic PRNG so a burst lays out the same on every render. */
 function rng(seed: number) {
   let s = (seed * 2654435761) >>> 0 || 1;
@@ -119,16 +115,12 @@ export function CombatFx({
   impact,
   playerHp,
   enemyHp,
-  playerRef,
-  enemyRef,
   reduced,
   labels,
 }: {
   impact: CombatImpact | null;
   playerHp: number;
   enemyHp: number;
-  playerRef: RefObject<HTMLElement | null>;
-  enemyRef: RefObject<HTMLElement | null>;
   /** Hold everything still: no shake, no flying spray — fades only. */
   reduced: boolean;
   labels: { miss: string; dodge: string; block: string; crit: string };
@@ -148,23 +140,7 @@ export function CombatFx({
 
   // Whatever impact is on screen when the panel mounts already played.
   const [doneId, setDoneId] = useState(id);
-  const [spots, setSpots] = useState<{ id: number; player: Rect | null; enemy: Rect | null }>({
-    id: 0,
-    player: null,
-    enemy: null,
-  });
   const firstId = useRef(id);
-
-  // One measurement per impact: where the two portraits sit right now.
-  useLayoutEffect(() => {
-    if (!impact || impact.id === firstId.current) return;
-    const read = (el: HTMLElement | null): Rect | null => {
-      if (!el) return null;
-      const b = el.getBoundingClientRect();
-      return { x: b.left, y: b.top, w: b.width, h: b.height };
-    };
-    setSpots({ id: impact.id, player: read(playerRef.current), enemy: read(enemyRef.current) });
-  }, [impact, playerRef, enemyRef]);
 
   useEffect(() => {
     if (!impact || reduced || impact.id === firstId.current || !SHAKE_KINDS.has(impact.kind)) return;
@@ -185,9 +161,8 @@ export function CombatFx({
     return { hurt, big, splats, droplets, slashAngle: -35 + r() * 30 };
   }, [impact]);
 
-  if (!impact || !burst || impact.id === doneId || spots.id !== impact.id) return null;
+  if (!impact || !burst || impact.id === doneId) return null;
 
-  const target = impact.side === 'player' ? spots.player : spots.enemy;
   const taken = impact.side === 'player';
   const dmg = Math.round(taken ? hp.dPlayer : hp.dEnemy);
   const label = WHIFF_KINDS.has(impact.kind)
@@ -209,82 +184,85 @@ export function CombatFx({
         ? 'combat-fx-label--crit'
         : 'combat-fx-label--dealt';
 
-  return createPortal(
-    <div
-      key={impact.id}
-      className={`combat-fx-layer ${reduced ? 'combat-fx-layer--still' : ''}`}
-      aria-hidden
-    >
-      {/* Ends the burst: when this runs out, the whole subtree unmounts. */}
-      <div
-        className="combat-fx-life"
-        style={{ animationDuration: `${lifeMs(impact)}ms` }}
-        onAnimationEnd={() => setDoneId(impact.id)}
-      />
-
-      {taken && burst.hurt && (
-        <div className={`combat-fx-vignette ${burst.big ? 'combat-fx-vignette--big' : ''}`} />
-      )}
-
-      {burst.splats.map((s, i) => (
-        <svg
-          key={i}
-          className="combat-fx-splat"
-          viewBox="0 0 100 100"
-          style={{
-            left: s.left,
-            top: s.top,
-            width: s.size,
-            height: s.size,
-            animationDelay: `${s.delay}ms`,
-            ['--rot' as string]: `${s.rot}deg`,
-          }}
-        >
-          {s.streaks.map((k, j) => (
-            <ellipse key={`s${j}`} cx={k.cx} cy={k.cy} rx={k.rx} ry={k.ry} transform={`rotate(${k.a} ${k.cx} ${k.cy})`} />
-          ))}
-          {s.dots.map((d, j) => (
-            <circle key={j} cx={d.cx} cy={d.cy} r={d.r} />
-          ))}
-        </svg>
-      ))}
-
-      {target && (
+  return (
+    <>
+      {createPortal(
         <div
-          className="combat-fx-spot"
-          style={{ left: target.x + target.w / 2, top: target.y + target.h / 2 }}
+          key={impact.id}
+          className={`combat-fx-layer ${reduced ? 'combat-fx-layer--still' : ''}`}
+          aria-hidden
         >
-          {burst.hurt && <div className={`combat-fx-flash ${taken ? 'combat-fx-flash--taken' : ''}`} style={{ width: target.w, height: target.h }} />}
-          {burst.hurt && !reduced && (
-            <div className="combat-fx-slash" style={{ ['--a' as string]: `${burst.slashAngle}deg` }} />
+          {/* Ends the burst: when this runs out, the whole subtree unmounts. */}
+          <div
+            className="combat-fx-life"
+            style={{ animationDuration: `${lifeMs(impact)}ms` }}
+            onAnimationEnd={() => setDoneId(impact.id)}
+          />
+
+          {taken && burst.hurt && (
+            <div className={`combat-fx-vignette ${burst.big ? 'combat-fx-vignette--big' : ''}`} />
           )}
-          {burst.hurt &&
-            !reduced &&
-            burst.droplets.map((d, i) => (
-              <span
-                key={i}
-                className="combat-fx-drop"
-                style={{
-                  width: d.s,
-                  height: d.s,
-                  animationDelay: `${d.delay}ms`,
-                  ['--dx' as string]: `${d.dx.toFixed(1)}px`,
-                  ['--dy' as string]: `${d.dy.toFixed(1)}px`,
-                }}
-              />
-            ))}
-          {WHIFF_KINDS.has(impact.kind) && !reduced && (
-            <div className={`combat-fx-whiff ${impact.kind === 'block' ? 'combat-fx-whiff--block' : ''}`} />
-          )}
-          {label && (
-            <div className={`combat-fx-label ${labelTone}`} style={{ top: -target.h / 2 - 14 }}>
-              {impact.kind === 'crit' && <span className="combat-fx-label-tag">{labels.crit}</span>}
-              {label}
-            </div>
-          )}
-        </div>
+
+          {burst.splats.map((s, i) => (
+            <svg
+              key={i}
+              className="combat-fx-splat"
+              viewBox="0 0 100 100"
+              style={{
+                left: s.left,
+                top: s.top,
+                width: s.size,
+                height: s.size,
+                animationDelay: `${s.delay}ms`,
+                ['--rot' as string]: `${s.rot}deg`,
+              }}
+            >
+              {s.streaks.map((k, j) => (
+                <ellipse key={`s${j}`} cx={k.cx} cy={k.cy} rx={k.rx} ry={k.ry} transform={`rotate(${k.a} ${k.cx} ${k.cy})`} />
+              ))}
+              {s.dots.map((d, j) => (
+                <circle key={j} cx={d.cx} cy={d.cy} r={d.r} />
+              ))}
+            </svg>
+          ))}
+        </div>,
+        document.body,
       )}
-    </div>,
-    document.body,
+      <div
+        key={impact.id}
+        aria-hidden
+        className={`combat-fx-spot ${reduced ? 'combat-fx-layer--still' : ''}`}
+        style={{ gridColumn: taken ? '2 / 3' : '3 / 4' }}
+      >
+        {burst.hurt && <div className={`combat-fx-flash ${taken ? 'combat-fx-flash--taken' : ''}`} />}
+        {burst.hurt && !reduced && (
+          <div className="combat-fx-slash" style={{ ['--a' as string]: `${burst.slashAngle}deg` }} />
+        )}
+        {burst.hurt &&
+          !reduced &&
+          burst.droplets.map((d, i) => (
+            <span
+              key={i}
+              className="combat-fx-drop"
+              style={{
+                width: d.s,
+                height: d.s,
+                animationDelay: `${d.delay}ms`,
+                ['--dx' as string]: `${d.dx.toFixed(1)}px`,
+                ['--dy' as string]: `${d.dy.toFixed(1)}px`,
+              }}
+            />
+          ))}
+        {WHIFF_KINDS.has(impact.kind) && !reduced && (
+          <div className={`combat-fx-whiff ${impact.kind === 'block' ? 'combat-fx-whiff--block' : ''}`} />
+        )}
+        {label && (
+          <div className={`combat-fx-label ${labelTone}`}>
+            {impact.kind === 'crit' && <span className="combat-fx-label-tag">{labels.crit}</span>}
+            {label}
+          </div>
+        )}
+      </div>
+    </>
   );
 }

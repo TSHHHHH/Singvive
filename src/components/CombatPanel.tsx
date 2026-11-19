@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type Ref } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useGame } from '../game/store';
 import { tip } from './tips';
 import { Icon } from '../icons/Icon';
@@ -81,8 +81,6 @@ export function CombatPanel({
   const combatSetStance = useGame((s) => s.combatSetStance);
 
   const logRef = useRef<HTMLDivElement>(null);
-  const playerPortraitRef = useRef<HTMLDivElement>(null);
-  const enemyPortraitRef = useRef<HTMLDivElement>(null);
   const isPhone = useIsPhoneLayout();
   const reducedMotion = useReducedMotion();
   const screenFx = useSetting('combatFx') !== 'off' && !isPhone;
@@ -237,7 +235,7 @@ export function CombatPanel({
            Info columns share leftover width; names sit atop the portraits
            inside the portrait frame; bars / stats / weapon stay on the sides. */}
       <div
-        className={`grid shrink-0 grid-cols-[minmax(0,1fr)_auto_auto_minmax(0,1fr)] items-stretch gap-1.5 ${
+        className={`relative grid shrink-0 grid-cols-[minmax(0,1fr)_auto_auto_minmax(0,1fr)] items-stretch gap-1.5 ${
           bottom ? 'border-t border-white/10 pt-1.5' : ''
         }`}
       >
@@ -261,7 +259,6 @@ export function CombatPanel({
           key={`p-${impact?.side === 'player' ? impact.id : 'idle'}`}
           name={character.name}
           icon="combat.player"
-          elRef={playerPortraitRef}
           flash={combat.acting === 'player'}
           impact={impact?.side === 'player' ? impact : null}
         />
@@ -269,7 +266,6 @@ export function CombatPanel({
           key={`e-${impact?.side === 'enemy' ? impact.id : 'idle'}`}
           name={enemyName(z.templateId, z.name, locale)}
           icon={combatantIcon(z)}
-          elRef={enemyPortraitRef}
           flash={combat.acting === 'enemy'}
           impact={impact?.side === 'enemy' ? impact : null}
         />
@@ -289,25 +285,21 @@ export function CombatPanel({
           mirrored
           punchToken={enemyPunch}
         />
+        {screenFx && (
+          <CombatFx
+            impact={impact}
+            playerHp={currentHp}
+            enemyHp={z.hp}
+            reduced={reducedMotion}
+            labels={{
+              miss: t('ui.combat.fxMiss'),
+              dodge: t('ui.combat.fxDodge'),
+              block: t('ui.combat.fxBlock'),
+              crit: t('ui.combat.fxCrit'),
+            }}
+          />
+        )}
       </div>
-
-      {/* After the portraits: their refs must be attached before CombatFx measures them. */}
-      {screenFx && (
-        <CombatFx
-          impact={impact}
-          playerHp={currentHp}
-          enemyHp={z.hp}
-          playerRef={playerPortraitRef}
-          enemyRef={enemyPortraitRef}
-          reduced={reducedMotion}
-          labels={{
-            miss: t('ui.combat.fxMiss'),
-            dodge: t('ui.combat.fxDodge'),
-            block: t('ui.combat.fxBlock'),
-            crit: t('ui.combat.fxCrit'),
-          }}
-        />
-      )}
       {terrainRow(bottom)}
     </>
   );
@@ -608,18 +600,15 @@ function Portrait({
   icon,
   flash,
   impact,
-  elRef,
 }: {
   name: string;
   icon: IconName;
   flash?: boolean;
   impact?: CombatImpact | null;
-  elRef?: Ref<HTMLDivElement>;
 }) {
   const hitClass = portraitHitClass(impact);
   return (
     <div
-      ref={elRef}
       className={`flex w-14 min-h-14 flex-col items-stretch self-stretch rounded-sm bg-black/40 text-white/70 ring-1 transition ${
         flash ? 'ring-white/50' : 'ring-white/10'
       } ${hitClass}`}

@@ -15,12 +15,12 @@ const clampPct = (v: number, max: number) => Math.max(0, Math.min(100, (v / Math
 
 /** Count a number toward its new value instead of snapping. */
 function useTweened(value: number, still: boolean): number {
-  const [shown, setShown] = useState(value);
+  const [shown, setShown] = useState(Math.round(value));
   const from = useRef(value);
   useEffect(() => {
     if (still) {
       from.current = value;
-      setShown(value);
+      setShown(Math.round(value));
       return;
     }
     const start = from.current;
@@ -32,7 +32,7 @@ function useTweened(value: number, still: boolean): number {
       const eased = 1 - Math.pow(1 - k, 3);
       const v = start + (value - start) * eased;
       from.current = v;
-      setShown(v);
+      setShown(Math.round(v));
       if (k < 1) raf = requestAnimationFrame(step);
     };
     raf = requestAnimationFrame(step);

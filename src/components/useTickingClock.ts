@@ -12,7 +12,7 @@ import { HOURS_PER_DAY } from '../game/survival';
  */
 export function useTickingClock(day: number, hour: number) {
   const target = (day - 1) * HOURS_PER_DAY + hour;
-  const [shown, setShown] = useState(target);
+  const [totalMin, setTotalMin] = useState(() => Math.floor(target * 60 + 1e-6));
   const shownRef = useRef(target);
   const first = useRef(true);
 
@@ -20,7 +20,7 @@ export function useTickingClock(day: number, hour: number) {
     const from = shownRef.current;
     const set = (v: number) => {
       shownRef.current = v;
-      setShown(v);
+      setTotalMin(Math.floor(v * 60 + 1e-6));
     };
     if (first.current || target <= from) {
       first.current = false;
@@ -43,7 +43,6 @@ export function useTickingClock(day: number, hour: number) {
   }, [target]);
 
   // Whole minutes only, so the face never shows a minute the store has not reached.
-  const totalMin = Math.floor(shown * 60 + 1e-6);
   const shownDay = Math.floor(totalMin / (HOURS_PER_DAY * 60)) + 1;
   const minOfDay = totalMin - (shownDay - 1) * HOURS_PER_DAY * 60;
   return { day: shownDay, h24: Math.floor(minOfDay / 60), m: minOfDay % 60 };

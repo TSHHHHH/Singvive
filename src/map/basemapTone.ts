@@ -65,8 +65,17 @@ export const NIGHT_ROADS: RoadTone = {
 const GLOW_COLOR = '#8fb0ff';
 export const ROAD_GLOW_LAYER = 'tone-road-glow';
 
-export function roadsFor(time: TimeOfDay): RoadTone {
-  return time === 'night' ? NIGHT_ROADS : DAY_ROADS;
+export function roadsFor(time: TimeOfDay, wetness = 0): RoadTone {
+  const dry = time === 'night' ? NIGHT_ROADS : DAY_ROADS;
+  if (!wetness) return dry;
+  // Wet asphalt is darker and cooler. Keep enough separation between tiers
+  // for the player to follow a street through a storm.
+  return {
+    main: mixHex(dry.main, '#35424b', wetness * 0.56),
+    secondary: mixHex(dry.secondary, '#2d3940', wetness * 0.55),
+    minor: mixHex(dry.minor, '#202a31', wetness * 0.50),
+    path: mixHex(dry.path, '#172024', wetness * 0.35),
+  };
 }
 
 const KIND = ['coalesce', ['get', 'kind'], ''] as ExpressionSpecification;
@@ -99,7 +108,9 @@ const GREEN_KINDS = [
   'park',
   'forest',
   'wood',
+  'woodland',
   'grass',
+  'grassland',
   'garden',
   'golf_course',
   'nature_reserve',
@@ -118,7 +129,16 @@ const GREEN_KINDS = [
   'orchard',
   'pitch',
 ];
-const GREEN = ['any', isIn(KIND, GREEN_KINDS), isIn(['coalesce', ['get', 'class'], ''] as ExpressionSpecification, GREEN_KINDS), isIn(['coalesce', ['get', 'subclass'], ''] as ExpressionSpecification, GREEN_KINDS)] as unknown as ExpressionSpecification;
+// CARTO and OpenMapTiles can tag the same polygon at two levels (e.g. park / wood).
+function landMatches(values: string[]): ExpressionSpecification {
+  return ['any', ...['kind', 'kind_detail', 'class', 'subclass'].map(key =>
+    isIn(['get', key], values),
+  )] as ExpressionSpecification;
+}
+const GREEN = landMatches(GREEN_KINDS);
+const WOODED = landMatches(['forest', 'wood', 'woodland']);
+const OPEN_GREEN = landMatches(['park', 'grass', 'grassland', 'meadow', 'garden', 'pitch',
+  'golf_course', 'recreation_ground', 'village_green']);
 
 const ROAD_LAYERS = new Set(['roads', 'transportation']);
 const LAND_LAYERS = new Set(['landuse', 'landcover', 'natural', 'park']);
@@ -156,6 +176,8 @@ export function toneRole(layer: LayerSpecification): ToneRole | null {
 interface ToneState {
   surfaces: { id: string; role: 'background' | 'ground' | 'land' }[];
   daylight: number;
+  wetness: number;
+  heat: number;
   roads: string[];
   tunnels: string[];
   glow: boolean;
@@ -169,7 +191,7 @@ const states = new WeakMap<MlMap, ToneState>();
  * overlay is added (it only looks at the style's own layers).
  */
 export function toneBasemap(map: MlMap) {
-  const st: ToneState = { surfaces: [], daylight: 0, roads: [], tunnels: [], glow: false, time: null };
+  const st: ToneState = { surfaces: [], daylight: 0, wetness: 0, heat: 0, roads: [], tunnels: [], glow: false, time: null };
   let roadSrc: { source: string; sourceLayer: string; before: string | undefined } | null = null;
   const layers = map.getStyle().layers;
   for (let i = 0; i < layers.length; i++) {
@@ -237,18 +259,33 @@ export function toneBasemap(map: MlMap) {
 }
 
 /** Give cast shadows a readable sunlit surface. These layers sit below the fog and gameplay overlays. */
-export function setGroundDaylight(map: MlMap, daylight: number) {
+export function setGroundDaylight(map: MlMap, daylight: number, wetness = 0, heat = 0) {
   const st = states.get(map);
-  if (!st || st.daylight === daylight || !alive(map)) return;
+  if (!st || !alive(map) || (st.daylight === daylight && st.wetness === wetness && st.heat === heat)) return;
+  if (st.wetness !== wetness) {
+    st.wetness = wetness;
+    paintRoads(map, st);
+  }
   st.daylight = daylight;
-  const ground = mixHex(TONE_GROUND, '#68624e', daylight);
-  const land = mixHex(TONE_LANDUSE, '#756c50', daylight);
+  st.heat = heat;
+  const ground = mixHex(TONE_GROUND, mixHex('#68624e', '#545451', wetness), daylight);
+  const land = mixHex(TONE_LANDUSE, mixHex('#756c50', '#676459', wetness), daylight);
   const green = mixHex(TONE_GREEN, '#515b46', daylight);
+  const landColor: ExpressionSpecification = heat > 0
+    ? ['case', WOODED, mixHex(TONE_GREEN, '#444e37', daylight),
+      OPEN_GREEN, mixHex(green, '#a39560', heat * daylight), GREEN, green, land]
+    : ['case', GREEN, green, land];
   for (const { id, role } of st.surfaces) {
     if (!map.getLayer(id)) continue;
     if (role === 'background') map.setPaintProperty(id, 'background-color', ground);
-    else map.setPaintProperty(id, 'fill-color', role === 'land' ? ['case', GREEN, green, land] : ground);
+    else map.setPaintProperty(id, 'fill-color', role === 'land' ? landColor : ground);
   }
+}
+
+function paintRoads(map: MlMap, st: ToneState) {
+  const color = roadColor(roadsFor(st.time ?? 'day', st.wetness));
+  for (const id of st.roads) if (map.getLayer(id)) map.setPaintProperty(id, 'line-color', color);
+  for (const id of st.tunnels) if (map.getLayer(id)) map.setPaintProperty(id, 'line-color', color);
 }
 
 /** Day / dusk roads are warm grey; night turns them cool and lights the glow. */
@@ -256,9 +293,7 @@ export function setBasemapTime(map: MlMap, time: TimeOfDay) {
   const st = states.get(map);
   if (!st || st.time === time || !alive(map)) return;
   st.time = time;
-  const color = roadColor(roadsFor(time));
-  for (const id of st.roads) if (map.getLayer(id)) map.setPaintProperty(id, 'line-color', color);
-  for (const id of st.tunnels) if (map.getLayer(id)) map.setPaintProperty(id, 'line-color', color);
+  paintRoads(map, st);
   if (st.glow && map.getLayer(ROAD_GLOW_LAYER)) {
     map.setLayoutProperty(ROAD_GLOW_LAYER, 'visibility', time === 'night' ? 'visible' : 'none');
   }

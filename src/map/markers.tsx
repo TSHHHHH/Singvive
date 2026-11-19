@@ -1,9 +1,9 @@
-import { useEffect, useRef } from 'react';
-import type { Marker } from 'maplibre-gl';
+import { useEffect, useLayoutEffect, useMemo, useRef, type CSSProperties } from 'react';
+import { createPortal } from 'react-dom';
+import { LngLat, type Map as MlMap } from 'maplibre-gl';
 import type { MapIcon } from '../components/mapIcons';
 import type { BeaconKind } from './beacons';
 import { useMapGL } from './hooks';
-import { createMarker, setMarkerIcon } from './markerDom';
 import { REVEAL_EASING } from './revealMotion';
 
 interface MapMarkerProps {
@@ -37,10 +37,32 @@ interface MapMarkerProps {
   beacon?: BeaconKind | null;
 }
 
-/**
- * A DOM marker. The element is rebuilt only when the icon *identity* changes
- * (icons are cached per look), never on a re-render.
- */
+// The run map uses local Mercator coordinates and flat terrain. Its badges
+// only need one projection each, with no world wrapping or depth readback.
+const badgeLayers = new WeakMap<MlMap, { positions: Set<() => void>; move: () => void }>();
+
+function trackBadge(map: MlMap, position: () => void) {
+  let layer = badgeLayers.get(map);
+  if (!layer) {
+    const positions = new Set<() => void>();
+    const move = () => {
+      for (const update of positions) update();
+    };
+    layer = { positions, move };
+    badgeLayers.set(map, layer);
+    map.on('move', layer.move);
+  }
+  position();
+  layer.positions.add(position);
+  return () => {
+    layer.positions.delete(position);
+    if (!layer.positions.size) {
+      map.off('move', layer.move);
+      badgeLayers.delete(map);
+    }
+  };
+}
+
 export function MapMarker({
   lat,
   lng,
@@ -58,98 +80,55 @@ export function MapMarker({
   beacon = null,
 }: MapMarkerProps) {
   const map = useMapGL();
-  const ref = useRef<Marker | null>(null);
+  const ref = useRef<HTMLDivElement>(null);
   const click = useRef(onClick);
   click.current = visible ? onClick : undefined;
-  const entered = useRef(false);
+  const [anchorX, anchorY] = icon.anchor;
+  useLayoutEffect(() => {
+    const el = ref.current!;
+    const point = new LngLat(lng, lat);
+    return trackBadge(map, () => {
+      const { x, y } = map.project(point);
+      el.style.transform = `translate(${x - anchorX}px, ${y - anchorY}px)`;
+    });
+  }, [map, lng, lat, anchorX, anchorY]);
 
   useEffect(() => {
-    const m = createMarker(icon, lat, lng);
-    const el = m.getElement();
-    entered.current = false;
-    if (fadeMs > 0) {
-      // Before addTo(), setOpacity only records MapLibre's target. Its first
-      // render is deferred while the camera moves, so also seed the DOM now:
-      // otherwise the badge paints at 1 and fades down to its normal opacity.
-      m.setOpacity(0);
-      el.style.opacity = '0';
-      el.style.transition = 'none';
-    }
-    el.addEventListener('click', (ev) => {
+    const el = ref.current!;
+    // Stop the native event before it reaches the map's ground picker.
+    const select = (ev: MouseEvent) => {
       if (!click.current) return;
-      // Keep the map's own click (ground pick) from firing underneath.
       ev.stopPropagation();
       click.current();
-    });
-    m.addTo(map);
-    ref.current = m;
-    return () => {
-      m.remove();
-      ref.current = null;
     };
-    // Position and look are synced below; only the map recreates it.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    el.addEventListener('click', select);
+    return () => el.removeEventListener('click', select);
   }, [map]);
 
-  const lastIcon = useRef(icon);
-  useEffect(() => {
-    const m = ref.current;
-    if (!m) return;
-    if (lastIcon.current !== icon) {
-      setMarkerIcon(m, icon);
-      lastIcon.current = icon;
-    }
-  }, [icon]);
-
-  useEffect(() => {
-    const el = ref.current?.getElement();
-    if (!el) return;
-    el.classList.toggle('has-roof', roof > 0);
-    if (roof > 0) el.style.setProperty('--roof', roof.toFixed(1));
-    else el.style.removeProperty('--roof');
-    el.classList.toggle('is-picked', ring);
-    el.classList.toggle('is-recognized', recognized);
-    el.classList.toggle('is-hinted', hinted);
-    el.classList.toggle('on-beacon', !!beacon);
-    el.classList.toggle('on-beacon--evac', beacon === 'evac');
-  }, [roof, ring, beacon, recognized, hinted]);
-
-  useEffect(() => {
-    ref.current?.setLngLat([lng, lat]);
-  }, [lat, lng]);
-
-  useEffect(() => {
-    const m = ref.current;
-    if (!m) return;
-    const el = m.getElement();
-    el.style.zIndex = zIndex !== undefined ? String(zIndex) : '';
-    el.style.cursor = onClick ? 'pointer' : '';
-    if (title) el.title = title;
-    else el.removeAttribute('title');
-  }, [zIndex, onClick, title]);
-
-  useEffect(() => {
-    const m = ref.current;
-    if (!m) return;
-    const el = m.getElement();
-    el.classList.add('marker-reveal');
-    el.style.setProperty('--marker-reveal-ms', `${fadeMs}ms`);
-    el.style.setProperty('--marker-reveal-easing', REVEAL_EASING);
-    el.style.pointerEvents = visible ? '' : 'none';
-    const show = () => {
-      entered.current = true;
-      el.style.removeProperty('transition');
-      // MapLibre rewrites opacity during moves; keep its own target in sync.
-      m.setOpacity(visible ? opacity ?? 1 : 0);
-    };
-    if (entered.current || fadeMs <= 0 || !visible) {
-      show();
-      return;
-    }
-    // Commit the transparent first frame before transitioning a new marker.
-    let frame = requestAnimationFrame(() => { frame = requestAnimationFrame(show); });
-    return () => cancelAnimationFrame(frame);
-  }, [map, opacity, visible, fadeMs]);
-
-  return null;
+  const html = useMemo(() => ({ __html: icon.html }), [icon.html]);
+  const classes = [
+    'maplibregl-marker maplibregl-marker-anchor-top-left marker-reveal', icon.className,
+    roof > 0 && 'has-roof', ring && 'is-picked', recognized && 'is-recognized', hinted && 'is-hinted',
+    beacon && 'on-beacon', beacon === 'evac' && 'on-beacon--evac',
+  ].filter(Boolean).join(' ');
+  return createPortal(
+    <div
+      ref={ref}
+      className={classes}
+      role="button"
+      aria-label={title ?? 'Map marker'}
+      title={title}
+      onMouseDown={(e) => e.preventDefault()}
+      onDragStart={(e) => e.preventDefault()}
+      style={{
+        width: icon.size[0], height: icon.size[1], zIndex,
+        cursor: onClick ? 'pointer' : undefined, pointerEvents: visible ? undefined : 'none',
+        '--roof': roof > 0 ? roof.toFixed(1) : undefined,
+        '--marker-opacity': visible ? opacity ?? 1 : 0,
+        '--marker-reveal-ms': `${fadeMs}ms`, '--marker-reveal-easing': REVEAL_EASING,
+      } as CSSProperties}
+      dangerouslySetInnerHTML={html}
+    />,
+    map.getCanvasContainer(),
+  );
 }
