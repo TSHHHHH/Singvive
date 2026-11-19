@@ -353,6 +353,9 @@ currency, and the survivor is always moving — the map is explored, not surveye
 ## 3. Systems
 
 ### 3.1 World generation (real locations)
+- In the 3D street view, explorable buildings show their destruction tier. Ordinary buildings
+  also show the damage to the city. A tarp, stacked supplies or pale cooking smoke at a nearby
+  site can hint at faction occupation before the survivor learns who holds it.
 - Real locations come from **OpenStreetMap**, pre-baked into `public/pois.json` by a **manual**
   commit step (`npm run bake:pois` — not part of `npm run build`) rather than queried per run. On spawn
   the game loads that static file once and filters it to POIs within ~1.5 km. Shops/amenities carry full

@@ -1617,111 +1617,29 @@ body.dock-resizing * {
   translate: 0 calc(var(--beacon-h, 0px) * -1.35);
 }
 
-/* Burning buildings in the 3D run map (map/buildings.ts): flames and a smoke
-   column on a roof-anchored marker. Ported from the 3D demo. */
-.fx-smoke {
-  position: relative;
-  width: 0;
-  height: 0;
+.camp-steam {
   pointer-events: none;
+  width: 1px;
+  height: 1px;
 }
-/* The fire's light on the underside of the smoke: one glow per column. */
-.fx-smoke::before {
+.camp-steam::after {
   content: '';
   position: absolute;
-  left: -34px;
-  top: -52px;
-  width: 68px;
-  height: 68px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 110, 30, 0.5) 0%, rgba(255, 110, 30, 0.18) 45%, transparent 70%);
-  will-change: opacity;
-  animation: fx-glow 0.9s ease-in-out infinite alternate;
+  bottom: 2px;
+  width: 7px;
+  height: 13px;
+  background: radial-gradient(ellipse, rgb(237 239 229 / 48%), transparent 70%);
+  animation: camp-steam-rise 5s ease-out var(--camp-delay, 0s) infinite;
 }
-@keyframes fx-glow {
-  from {
-    opacity: 0.55;
-  }
-  to {
-    opacity: 1;
-  }
+@keyframes camp-steam-rise {
+  0% { opacity: 0; transform: translate(-3px, 0) scale(0.5); }
+  30% { opacity: 0.7; }
+  100% { opacity: 0; transform: translate(3px, -16px) scale(1.25); }
 }
-/* Thick black smoke: pure soot that climbs, swells and leans with the wind.
-   It reads against lit towers and the orange horizon; over black ground it
-   just darkens.
-
-   Compositor-only on purpose. Each puff animates `transform` and `opacity`
-   and nothing else, with no `filter`: the soft edge is the gradient's own.
-   Animating a colour or blurring per puff repaints every puff on the main
-   thread every frame, and there are over a hundred of them on screen. */
-.fx-puff {
-  position: absolute;
-  left: -30px;
-  top: -30px;
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  background: radial-gradient(
-    circle,
-    rgba(8, 6, 5, 0.9) 0%,
-    rgba(11, 9, 7, 0.72) 30%,
-    rgba(14, 11, 9, 0.34) 52%,
-    rgba(14, 11, 9, 0.1) 66%,
-    transparent 74%
-  );
-  opacity: 0;
-  will-change: transform, opacity;
-  animation: fx-rise 7s cubic-bezier(0.3, 0.6, 0.6, 1) infinite;
+@media (prefers-reduced-motion: reduce) {
+  .camp-steam::after { animation: none; }
 }
-@keyframes fx-rise {
-  0% {
-    transform: translate(0, 0) scale(0.4);
-    opacity: 0;
-  }
-  8% {
-    opacity: 1;
-  }
-  70% {
-    opacity: 0.85;
-  }
-  100% {
-    transform: translate(var(--fx-drift, 40px), -280px) scale(4.4);
-    opacity: 0;
-  }
-}
-
-/* Flames licking off the roof under the smoke. */
-.fx-flame {
-  position: absolute;
-  left: -9px;
-  top: -26px;
-  width: 18px;
-  height: 30px;
-  border-radius: 50% 50% 45% 45% / 60% 60% 40% 40%;
-  background: radial-gradient(ellipse at 50% 75%, #fff4c0 0%, #ffbe3a 30%, #ff5a14 62%, transparent 75%);
-  filter: blur(1.5px);
-  mix-blend-mode: screen;
-  transform-origin: 50% 100%;
-  animation: fx-flicker 0.45s ease-in-out infinite alternate;
-}
-@keyframes fx-flicker {
-  0% {
-    transform: translate(var(--fx-dx, 0), 0) scale(0.85, 0.8) skewX(-4deg);
-    opacity: 0.8;
-  }
-  50% {
-    transform: translate(var(--fx-dx, 0), -2px) scale(1.05, 1.15) skewX(3deg);
-    opacity: 1;
-  }
-  100% {
-    transform: translate(var(--fx-dx, 0), 1px) scale(0.95, 0.95) skewX(-2deg);
-    opacity: 0.85;
-  }
-}
-
-.motion-reduce-forced .fx-puff {
-  animation-duration: 9s;
-}
+.motion-reduce-forced .camp-steam::after { animation: none; }
 
 /* ---- Dice roll overlay (DiceRoll.tsx) ---------------------------------- */
 .dice-backdrop {

@@ -1462,6 +1462,7 @@ function lookOf(
         w: selected ? 2.5 : 1.5,
       },
       color3d: DETECTED_BUILDING,
+      ruin: poi.destruction,
     };
   }
   // Visited: live data only while standing here, otherwise last-known memory.
@@ -1690,6 +1691,7 @@ const PoiLayer = memo(
             category: l.poi.category,
             color: l.color3d,
             ruin: l.ruin,
+            occupied: !!l.poi.factionId,
           }),
         ),
       );

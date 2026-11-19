@@ -186,10 +186,16 @@ goes flat. MapLibre zoom is the old Leaflet zoom − 1 (the saved zoom key moved
   06:00, peaks at 48° elevation around 12:30 and fades in the west by 19:00. Sunlit ground is
   brighter so mid-rise shadows read against it. Night uses cool ambient lighting and skips the sun
   shadow pass. Weather modulates the lighting, and the clock drives it even with cast shadows off.
-  A visited street site's building wears its ruin tier: Damaged is scorched, Ravaged is cut to a
-  stump (feature-state `ruin`, a height factor), Gutted swaps for a procedural broken model
-  (`map/ruinModel.ts`, own `ruins-3d` layer) on the nearest 30 within 900 m and stays a low stump
-  beyond. Models build within an 8 ms budget per slice and are cached per site.
+  A matched site's condition drives its silhouette. Damaged buildings keep most of their height.
+  Ravaged models have localized upper-floor losses, while Gutted models have larger structural
+  breaches. The nearest 30 eligible sites within 900 m get procedural models in `ruins-3d`;
+  more distant sites use tier-specific height factors. Ruin bays follow the longest facade, with broken floor plates projecting from exposed
+  walls between the surviving wing and the collapsed end. Towers from 60 m retain upper
+  bays over a multi-storey breach, with exposed steel and surviving banks of curtain-wall glass.
+  Exposed outer walls carry broken
+  window bands, and seeded clusters of vines hang from floor plates and roofs. These small
+  details share the building's rise and are excluded from shadow geometry. Models build within an 8 ms budget
+  per slice and are cached per site.
   Inside an HDB block the engine draws one amber **storey band** (`setFloorBand` /
   `clearFloorBand`, its own `storey-band` fill-extrusion layer, a collar stood 1.2 m off the
   site's ring). `BlockView` in `GameMap.tsx` moves it only when the landing or hovered strip
@@ -207,13 +213,13 @@ goes flat. MapLibre zoom is the old Leaflet zoom − 1 (the saved zoom key moved
   `BlockView`, because the over-map layer swallows map input. The chosen bearing survives re-framing.
   `engine.onRoofs` also feeds `siteRoofs` in the store so `hdbEnter` sizes the block from its
   real roof. Worked blocks dim through `hdbScar`, keyed on quarter-steps cached per `hdbBlocks`.
-  The rest of the city is damaged by a stable hash of the feature id (same buildings every run,
-  not seeded): 7% scorched (`scorch`), 3% of 10 m+ buildings collapsed (`aruin` stump; the
-  nearest 24 within 900 m get broken models too, flattening the building parts inside them),
-  1% burning (`burn`). The nearest 14 fires within 1.6 km get a still ground glow (redrawn only when the set changes: a glow flickered by `setData` repaints the whole map)
-  (`fires-3d-glow` / `-core` circle layers under the extrusions) and a flames + smoke `Marker`
-  (`.fx-*` in `index.css`) lifted to the roof. A site's own `color` / `ruin` states override
-  all of it. Wrecks and fires re-pick only when the sight disc moves 25 m or tiles re-index.
+  A stable feature-id hash damages 72% of ordinary buildings. Tower parts share their containing
+  building's roll, and the tallest part counts toward its height. Ground-level parts with no
+  parent in the loaded tiles get their own roll. For buildings at least 10 m tall, about 47%
+  qualify as collapsed. Up to 36 qualifying ordinary buildings, ranked by distance and height,
+  within 900 m get detailed wrecks. At neighbourhood zoom the nearest four visible faction-held
+  sites in live sight can show neutral tarp shelters and supplies. The nearest two emit a faint
+  cooking plume. These visual hints do not disclose faction identity or change discovery state.
 - **Keyboard camera** (`components/KeyboardCamera.tsx`, bindings in `map/cameraKeys.ts`, settings
   `mapKeys` / `mapKeyPanSpeed`). MapLibre's own `keyboard` handler stays off; this is a held-key
   velocity loop on `KeyboardEvent.code` (WASD/arrows pan, Shift faster, Q/E rotate in 3D, +/−

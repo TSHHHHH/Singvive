@@ -249,7 +249,7 @@ export function installBuildingShadows(map: MlMap, engine: BuildingEngine, shado
           // height changes are a few buildings rising at the rim of the disc.
           if (!block.wreck && (ruinRevision !== engine.shadowRuinRevision || Number.isNaN(entry.ruin))) {
             const state = map.getFeatureState(block.target);
-            entry.ruin = Number(state.ruin ?? state.aruin ?? 1);
+            entry.ruin = Number(state.ruin ?? state.wreckHidden ?? state.aruin ?? 1);
           }
           const scale = zoomRise * (block.wreck
             ? Number(map.getFeatureState(block.target).rise ?? 0)

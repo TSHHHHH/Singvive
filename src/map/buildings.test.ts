@@ -1,12 +1,30 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Map as MlMap } from 'maplibre-gl';
 import { BUILDINGS_LAYER, BuildingEngine } from './buildings';
+import { nearbyCamps } from './factionCamps';
+
+it('only shows occupied camps with both the site and shelter inside live sight', () => {
+  const site = { lat: 1.3, lng: 103.8, color: '#aaa', category: 'park' as const };
+  const sites = [
+    { ...site, id: 'camp', occupied: true },
+    { ...site, id: 'empty', occupied: false },
+    { ...site, id: 'edge', occupied: true },
+    { ...site, id: 'far', lat: 1.31, occupied: true },
+  ];
+  const visible = nearbyCamps(sites, { ...site, r: 200 }, new Map([['edge', [103.81, 1.3]]]));
+  expect(visible.map(c => c.id)).toEqual(['camp']);
+});
 
 /** Loaded-tile fixture; leave WebGL installation to browser integration. */
 function loadedEngine() {
   vi.spyOn(BuildingEngine.prototype as unknown as { install(): void }, 'install').mockImplementation(() => {});
   const states = new Map<number, Record<string, unknown>>();
   const map = {
+    getZoom: () => 16,
+    getSource: vi.fn(),
+    addSource: vi.fn(),
+    addLayer: vi.fn(),
+    on: vi.fn(),
     getLayer: (id: string) => id === BUILDINGS_LAYER ? { id } : undefined,
     setFeatureState: ({ id }: { id: number }, state: Record<string, unknown>) => {
       states.set(id, { ...states.get(id), ...state });

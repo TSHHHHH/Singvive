@@ -6,7 +6,6 @@ import { useMapGL } from '../map/hooks';
 import { alive, installOverlay, setData, setVisible } from '../map/layers';
 import { getBorder, loadBorder } from '../map/borderData';
 import type { BorderScene } from '../map/borderGeometry';
-import { smokeElement } from '../map/buildings';
 import { pxPerMetre } from '../map/geo';
 import { typeCss } from '../ui/type';
 
@@ -21,18 +20,16 @@ import { typeCss } from '../ui/type';
  *    of the decks, barriers, debris and stalled cars.
  *  - buildings: the same pieces as extrusions in 3D (decks on piers, the
  *    Second Link climbing to its navigation span, the RTS viaduct).
- *  - DOM: names, a smoke column from the breach, and searchlights sweeping
+ *  - DOM: names, searchlights sweeping
  *    the strait from the Johor side after dark.
  *
  * All static: data is set once, so nothing redraws while the camera is still.
- * The smoke and the lights are CSS (transform/opacity) over the canvas.
+ * The searchlights use CSS transforms over the canvas.
  */
 
 const HISS = '#d92d2d';
 /** Names show from district scale in; the viaduct's only once it stands apart from the Causeway. */
 const LABEL_ZOOM: Record<BorderScene['labels'][number]['id'], number> = { johor: 10.8, causeway: 11.6, secondLink: 11.6, rts: 14 };
-/** Below this the breach's smoke would read as a beacon, not a fire. */
-const SMOKE_ZOOM = 13;
 /** How far a searchlight reaches across the water, in metres. */
 const LIGHT_REACH_M = 650;
 
@@ -214,26 +211,6 @@ export function BorderLayers({ view3d, time }: { view3d: boolean; time: TimeOfDa
       if (alive(map)) map.off('zoom', sync);
     };
   }, [map, scene, t]);
-
-  // The breach still smoulders.
-  useEffect(() => {
-    if (!scene) return;
-    const { el } = smokeElement(0.37, 0.55);
-    const m = new Marker({ element: el, anchor: 'center' }).setLngLat([scene.smoke.lng, scene.smoke.lat]).addTo(map);
-    let shown: boolean | null = null;
-    const sync = () => {
-      const on = map.getZoom() >= SMOKE_ZOOM;
-      if (on === shown) return;
-      shown = on;
-      el.style.visibility = on ? 'visible' : 'hidden';
-    };
-    sync();
-    map.on('zoom', sync);
-    return () => {
-      m.remove();
-      if (alive(map)) map.off('zoom', sync);
-    };
-  }, [map, scene]);
 
   // Searchlights from the Johor side, after dark only.
   const dark = time !== 'day';
