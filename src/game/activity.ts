@@ -187,10 +187,13 @@ export function exploreActivity(state: ActivityState, input: ActivityExploration
     if (kind === 'shutter') return input.category != null && SHOP_CATEGORIES.includes(input.category);
     if (kind === 'car_alarm') return input.category != null
       && input.category !== 'park' && input.category !== 'waypoint';
-    return true;
+    // A lone scavenger only risks contact beside plausible cover, away from
+    // an already noisy area; a storm makes this quiet exchange impossible.
+    return !storm && input.category != null && input.category !== 'park'
+      && input.category !== 'waypoint' && activityAt(live, lat, lng, now) < 0.12;
   });
   if (eligible.length === 0 || !rng.chance(storm ? 0.35 : 0.55)) return attempted;
-  const kind = rng.pick(eligible);
+  const kind = rng.weighted(eligible.map((kind) => [kind, kind === 'scavengers' ? 1 : 12] as const));
   const id = `activity-${sequence}`;
   // Distant shots reveal an audible point nearby, never a hidden location or POI.
   const eventLat = kind === 'gunfire' ? lat + (rng.next() - 0.5) * 0.001 : lat;

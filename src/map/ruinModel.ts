@@ -121,7 +121,9 @@ export function breakBuilding(footprint: MultiPolygon, h: number, seed: number):
       if (!part.length) continue;
       const cx = x + cell / 2;
       const cy = y + cell / 2;
-      const s = (cx * ux + cy * uy - pmin) / span;
+      // A clipped edge cell can have its centre outside the footprint bounds.
+      // Keep the break plane in range before taking the fractional power.
+      const s = Math.max(0, Math.min(1, (cx * ux + cy * uy - pmin) / span));
       let top: number;
       if (rnd() < 0.1) {
         top = 0.6 + rnd() * 1.6; // blown out to a mound

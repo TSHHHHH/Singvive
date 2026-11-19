@@ -70,7 +70,8 @@ export function estimateExpedition(
   const speed = walkSpeed(attrs, energy, legFactor);
   const wMult = weatherTravelMult(weather);
   const loadMult = Math.max(1, travelMult);
-  const travelMin = Math.round((distanceM / speed) * wMult * loadMult * URBAN_DECAY_DETOUR);
+  // Keep fractional minutes in simulation: tiny hops must still advance survival.
+  const travelMin = (distanceM / speed) * wMult * loadMult * URBAN_DECAY_DETOUR;
   const searchMin = searchMinutes(category);
   const totalMin = travelMin + searchMin;
   const arrivalHour = (currentHour + travelMin / 60) % HOURS_PER_DAY;
@@ -91,8 +92,7 @@ export function estimateExpedition(
 }
 
 /**
- * Fold soft vegetation cost into a base expedition quote (time only — energy
- * is shown separately on trek cards).
+ * Fold soft vegetation cost into a base expedition quote (time only).
  */
 export function withVegetationTravel(
   est: TravelEstimate,
@@ -100,7 +100,7 @@ export function withVegetationTravel(
   currentHour: number,
 ): TravelEstimate {
   if (!(travelMult > 1)) return est;
-  const travelMin = Math.max(1, Math.round(est.travelMin * travelMult));
+  const travelMin = est.travelMin * travelMult;
   const totalMin = travelMin + est.searchMin;
   const arrivalHour = (currentHour + travelMin / 60) % HOURS_PER_DAY;
   const doneHour = (currentHour + totalMin / 60) % HOURS_PER_DAY;
@@ -145,8 +145,10 @@ export function estimateTunnelWalk(
 }
 
 export function formatDuration(minutes: number): string {
-  const h = Math.floor(minutes / 60);
-  const m = Math.round(minutes % 60);
+  if (minutes > 0 && minutes < 1) return '<1m';
+  const rounded = Math.round(minutes);
+  const h = Math.floor(rounded / 60);
+  const m = rounded % 60;
   if (h <= 0) return `${m}m`;
   return m === 0 ? `${h}h` : `${h}h ${m}m`;
 }

@@ -77,8 +77,9 @@ firearms, book study, intelligence chains, world facilities, horde-driven timed 
 and solo scoring remain separate. Co-op extraction uses a seeded destination and five-second
 boarding; each survivor may board independently.
 
-You wake up in a fallen Singapore. Supplies run low, night makes the streets dangerous, and nearby
-**noise** can draw trouble. Knowing nothing of what's around you, you push out into the fog,
+Several months after the outbreak, you begin your journey in a fallen Singapore. Supplies run low,
+night makes the streets dangerous, and nearby **noise** can draw trouble. With little reliable
+knowledge of what's around you, you push out into the fog,
 chart real places by walking to them, scavenge what you can carry, and manage a failing body until it
 gives out or you call for a lift. Every run is procedurally generated from pre-baked map data and a seed,
 so no two survivors face the same city.
@@ -103,6 +104,232 @@ so no two survivors face the same city.
 **Current status:** feature-rich, fully playable. Systems below are implemented end to end
 (desktop + mobile), including crafting, faction trade, HDB cutaways, tunnel runs, extraction, and
 the in-game guide.
+
+### World setting and event tone
+
+The outbreak began **several months before the survivor's run**. Singapore's government has
+collapsed completely. The run's day counter measures this survivor's journey; Day 1 is not
+the first day of the outbreak.
+
+Survivors are scarce. Those still alive generally stay concealed in secured rooms, small
+enclaves, or a few defended faction strongholds. Leaving shelter to scavenge is a deliberate
+risk. Public queues, casual roadside stalls, frequent roaming crowds, and routine street
+patrols must not make the city feel populated or orderly. Existing factions represent local
+survivor groups with limited reach, not a functioning replacement government.
+
+Outside help has not disappeared entirely. A world peacekeeping organization and a health
+organization still conduct **occasional evacuation operations**. Their intermittent presence
+does not restore civil authority or make the island safe. A current evacuation transmission
+is consequential; an abandoned checkpoint or an old evacuation notice is not evidence that
+a pickup is still available. Organization names and insignia are not yet specified.
+
+These authoring constraints guide the implemented arrival-event and local-activity revisions:
+
+- **Most encounters with the human world are traces:** stripped shelves, weathered notices,
+  abandoned triage stations, old barricades, concealed supply caches, and signs of recent use.
+  A trace may offer information without producing a living NPC.
+- **Direct human contact is uncommon and contextual.** A voice behind the locked door of one
+  room within a site, or a lone scavenger withdrawing from view, fits better than an exposed
+  trader waiting for customers. Describe the room explicitly: its locked door does not mean
+  the site's entrance is locked or that the rest of the site is inaccessible.
+  Sustained trade, medical aid, and organized water distribution belong inside established
+  enclaves. Environmental and infected threats carry ordinary street danger.
+- **Time leaves material consequences.** Distinguish old remains from a recent death. A working
+  radio, powered alarm, active fire, or clean water source needs a plausible ongoing or recent
+  cause; do not imply unattended infrastructure has run normally for months.
+- **Scene facts govern choices and consequences.** Aid can cost time or supplies, and a cautious
+  survivor may refuse it. Failed aid does not itself create infected enemies. Violence needs
+  an established threat; noise, exposure, or a clearly signalled trap can connect an action to
+  an encounter. Cosmetic prose variants must not change the physical situation underneath the
+  same resolution rules.
+- **Evacuation information distinguishes current from obsolete.** Old routes, expired pickup
+  instructions, and abandoned relief supplies can tell the story of earlier operations.
+  Present-tense promises of extraction must agree with the active evacuation window.
+
+#### The city several months later
+
+Singapore remains recognisable. Block numbers, bus shelters, tiled walkways, shop shutters,
+station maps and the outlines of housing estates survive. Most buildings are still standing.
+Months of interrupted maintenance leave blocked drains, damp interiors, damaged fittings and
+patches of overgrowth; they do not turn the entire island into an ancient jungle or make every
+concrete tower collapse. A collapsed route needs a local cause such as a fire, impact or damaged
+structure. The city's scale makes the absence of people palpable.
+
+The collapse happened unevenly. Early emergency notices sit beneath later handwritten
+corrections. A school used as a temporary assembly point may have closed before the last
+evacuation; a clinic may have continued treating neighbours after its supplies stopped arriving.
+These are scene possibilities, not a fixed sequence of real institutions' failures. A uniform,
+an official stamp or a surviving sign does not establish present authority. Some former public
+workers still help in a personal capacity, without a functioning chain of command behind them.
+
+The player is a survivor of those intervening months, not necessarily someone who slept through
+the disaster. Starting without reliable nearby information can follow displacement or the loss
+of shelter. Do not impose a single personal history on every occupation. The rest of the world
+is only partly known: continuing outside operations establish that some organized capacity
+survives, but neither global recovery nor global collapse is confirmed.
+
+#### Everyday survival and infrastructure
+
+The following conditions are fictional extrapolations for the setting, grounded in the real
+dependencies listed below. They are not predictions about Singapore's actual emergency plans.
+Use local variation rather than a single exact date when every service supposedly failed.
+
+| System | Condition in the setting | What a scene can make the player notice |
+|---|---|---|
+| Food | Imports, distribution and refrigeration have been disrupted. Exposed shops were searched early. Surviving stocks are uneven: missed cupboards, sealed stores, household reserves and occasional relief supplies. | A hawker stall's menu remains, but its fridge is warm and its cooking fuel is gone. A freshly cooked meal requires someone with ingredients, water and a heat source. |
+| Water | Rain and reservoirs remain; reliable treatment, pumping and distribution do not follow automatically. Working local supplies require maintenance and a credible source. | A dry upstairs tap, an empty collection container, or a carefully maintained rain-catching arrangement. Floodwater is not a free drinking-water reward. |
+| Power and communications | Most public services are unavailable or unreliable. Small maintained generators, batteries or solar installations can support limited local use. | One powered radio behind a dark shopfront; a battery saved for the next listening period. A working alarm or broadcast needs a power source. |
+| Housing | Secure rooms can shelter people, while stairs, corridors and shared entrances remain exposed. Lifts cannot be assumed to work. | Carrying water upstairs, a landing blocked by furniture, a rope lowering a container from one occupied flat. One locked room never implies the entire site is locked. |
+| Transport | Roads retain their geography but access is uncertain. Trains do not run. Underground routes depend on local drainage, access and maintenance. | A route map still gives directions; a recent waterline warns that the route itself may no longer be usable. A dark third rail is not automatically live without an established power source. |
+| Health and sanitation | Clinical supplies and ordinary care are scarce. Waste, spoiled stores and loss of routine treatment compound the outbreak. | A clinician reusing a ledger to record supplies; a cleaned sleeping space that somebody has worked to preserve. An intact hospital facade does not imply a functioning hospital. |
+
+Heat, humidity and rain shape the day. Clothing and bedding are hard to keep dry; sealed rooms
+are uncomfortable; exposed equipment deteriorates. Downpours can conceal footsteps while
+obscuring other sounds and making some routes worse. Nights remain tropical, even though the
+infected make them more dangerous. Do not import winter survival imagery into this setting.
+The city is not acoustically dead: rain on shelter roofs, insects, birds, dripping water and
+loose metal continue in the spaces where traffic and crowds used to dominate.
+
+The infected and their established game behaviour are the speculative premise. Keep surrounding
+material details grounded. Do not casually add transmission routes, cures, immunity, or claims
+that ordinary medicine treats the fictional pathogen. The exact origin and biological explanation
+remain unspecified; any future clarification must agree with the existing infection rules.
+
+#### Singapore in the details
+
+Local identity should change how people move, remember and help each other. Landmarks alone
+are insufficient. A scene should still feel local when Marina Bay is nowhere in view.
+
+| Place or practice | Loss the player can read | A small sign of continuity |
+|---|---|---|
+| HDB landings and void decks | A communal table sits empty; water must be carried up dark stairs. Home is visible but difficult to reach or maintain. | A neighbour lowers a container, or leaves a dated note naming a usable stairwell. |
+| Hawker centres and wet markets | Familiar stall signs remain over stripped counters. Shared tables have no customers; recognizable food names describe things no longer available. | Within a defended enclave, someone still measures portions fairly and makes room at a shared table. |
+| Covered walkways and bus shelters | Shelter from sun and rain remains useful, but a once-routine covered route can funnel a traveller into a blocked passage. | Someone has moved an obstruction or marked a usable connection. |
+| MRT stations | Line colours and station codes preserve a shared map while the platforms are silent and exits uncertain. | A maintenance note records which passage was checked and when. It helps without promising the whole network is safe. |
+| Schools, community spaces and places of worship | Old distribution lists and abandoned assembly arrangements show where people once gathered. Each location has its own history. | A small group maintains one room, a noticeboard or a supply exchange; no whole institution needs to be functioning. |
+| Port, airport and coastal approaches | Cargo and passenger infrastructure remain visible while access, fuel, crews and safe routes are missing. Seeing the sea or a runway is not an escape plan. | A verified operation provides a specific, temporary way out. Boats and aircraft require actual crews and logistics. |
+
+People include residents and non-residents, different generations, languages and walks of life.
+Maintenance workers, cleaners, stallholders, nurses, drivers and neighbours have practical
+knowledge that matters alongside armed personnel. Names, languages and beliefs do not determine
+whether someone is trustworthy, helpless or dangerous. A migrant worker can be the person who
+knows how to keep a shelter running, with needs and relationships of their own.
+
+Use multilingual traces naturally: official printed notices, later handwritten additions, block
+and unit numbers, food containers and familiar ways of addressing neighbours. Dialogue should
+sound like a person with a purpose, not a display of local slang. Chinese copy follows
+`docs/i18n-zh-hans.md`: local nouns and roles carry the setting; do not sprinkle untranslated
+Singlish into every sentence. Religious and community spaces need specific local circumstances,
+not a blanket promise of safety or a default association with danger.
+
+#### People, factions and the reach of authority
+
+Living people are more likely to be heard behind a door, glimpsed at a distance or inferred from
+recent work than encountered standing openly in the street. Most people have reasons to avoid
+injury and exposure. Fear can produce silence, withdrawal, refusal or negotiation; it does not
+automatically produce an attack. Genuine predation exists, but is tied to a person's intent and
+an advantageous position rather than used as every conversation's failed outcome.
+
+Keep the existing faction identities and mechanics. Their narrative reach is limited:
+
+- **`muster` / 联防队:** surviving guards, reservists and former public-service personnel can
+  organize a watch or hold a small perimeter. Familiar procedures and equipment do not make
+  them a restored national command. Protection competes with dwindling supplies and fatigue.
+- **`gotong` / 普通幸存者:** small groups preserve meals, care and mutual obligations behind
+  defensible doors. Their dilemma is how much they can share while keeping those already inside
+  alive. They are not a populous public market.
+- **`sta` / 环线同盟:** people keep particular entrances and stretches of tunnel usable through
+  local knowledge and work. They cannot certify every station or operate an intact railway.
+- **`syndicate_88` / 双八堂:** coercion and control of a few useful approaches or stores sustain
+  their power. They do not need an endless supply of gunmen to be threatening. Their identity
+  does not explain every unaffiliated robber or hostile civilian.
+
+These limits guide event placement and prose. They do not silently remove existing outposts,
+services or faction rules; implementation changes are a separate, explicit step.
+
+#### What despair and hope mean here
+
+Despair comes from the gap between a visible need and the means to meet it: water below a home
+whose lift no longer works, a destination printed clearly on a notice whose date has passed,
+or supplies too heavy for the injured person who needs them. Let the player understand the
+cost and retain a meaningful choice. Repeated arbitrary punishment makes planning meaningless
+and weakens the setting's credibility.
+
+Use absence and interrupted routines more often than graphic tragedy. Not every missing person
+is confirmed dead; not every unattended belonging needs a death scene. Ordinary discomfort,
+unfinished messages and quiet stretches allow a later encounter to matter.
+
+Hope is specific and sometimes fulfilled. Someone leaves the promised water. A marked route
+really is passable. A voice answers the current call sign. Assistance can be refused without
+becoming a trap, and a good deed can have a modest, real effect without buying a reward.
+If every offer of help is secretly bait, the player learns only to distrust the writing.
+
+An event should make its stakes legible before the choice, then acknowledge the actual outcome.
+Show the remaining cost alongside any relief: a meal shared uses food; keeping a radio alive
+uses power; helping a stranger may consume time. Preserve moments in which the effort succeeds.
+Survival means keeping some ability to act for oneself and others, as well as avoiding death.
+
+#### Intermittent evacuation and the outside world
+
+The world peacekeeping organization provides security and access for limited operations; the
+health organization provides medical coordination and assessment. Transport depends on assigned
+crews and available aircraft or vessels. These are fictional roles for the setting, not claims
+about the mandates or actions of named real-world organizations. Names, insignia and the exact
+offshore or regional base remain unspecified.
+
+They cannot maintain a permanent island-wide presence. Weather, fuel, maintenance, crew capacity
+and conditions at the pickup point constrain operations. Fresh transmissions carry a time,
+location and identifying detail so players can distinguish a current contact from a recording.
+A missed window means that operation is over; it does not establish that every outside contact
+has vanished. A confirmed rescue must sometimes deliver on its promise.
+
+Departure offers a credible chance of shelter and care without promising a cure, a restored home
+or knowledge of everyone's fate. The player need not learn the entire geopolitical situation to
+believe that the responding crew is real.
+
+**Evacuation:** there is no cargo/readiness quota as an admission condition.
+Fuel, medical supplies and ammunition help the survivor make the journey; they are not a
+humanitarian organization's price for a human life. Keep the opening broadcast's known map
+destination. Randomly finding a notice, receiver or trustworthy NPC must not become the new
+admission gate. The implemented flow and scoring are specified in section 3.16.
+
+#### Event-writing examples (proposed, not implemented)
+
+These examples establish tone and causal boundaries; they are not promises of new simulated
+systems or guaranteed rewards.
+
+| Scene | Opening image | Choice and credible consequence |
+|---|---|---|
+| A container on a rope | At an HDB block, a container descends from one upstairs flat. The person holding the rope stays out of sight. | Leave water, speak quietly or move on. Refused contact ends the exchange; it does not spawn infected. Any danger must already be established nearby. |
+| The washed-out arrow | Under a covered walkway, rain has nearly erased a handwritten direction beside an old printed assembly notice. The printed date has passed. | Spend time checking the route or continue elsewhere. It may yield a local route clue, never an invented live evacuation window. |
+| One working receiver | Behind one locked room inside a clinic, someone asks whether the broadcast repeated today's date. | Share verified information, offer a suitable battery or decline. No knowledge or battery is consumed unless the player actually has it. |
+| A table kept clean | Most of a hawker centre is abandoned. Inside a secured enclave, one shared table has been wiped and a small meal is being divided. | Accept an offered share, contribute supplies or leave. The meal comes from the group's finite stores; kindness need not conceal a fight. |
+| A maintenance mark | A station passage has an old waterline and a newer note identifying the last checked exit. | Inspect the route, take a known alternative or withdraw. Present the hazard decision in the timeline before applying its consequences. |
+
+Example Chinese tone: “组屋里，其中一个锁着的房间传来声音。对方问的不是你是谁，是楼下还下不下雨。”
+Another: “收音机里的声音念错了街名，又重新念了一遍。你把它记下来。这次有人在说话。”
+Use the second only for a genuinely live contact, never as decoration on a prerecorded loop.
+
+#### Real-world grounding
+
+References checked **19 November 2026**. They establish the real setting; the collapse,
+survivor conditions and relief operations above are fictional extrapolations.
+
+- Singapore imports more than 90% of its food; [MSE's food policy overview](https://www.mse.gov.sg/policies/food/)
+  supports the supply-chain dependency, not an exact post-collapse starvation timetable.
+- [PUB's Singapore Water Story](https://www.pub.gov.sg/Public/WaterLoop/OurWaterStory) describes
+  local catchment, imported water, NEWater and desalinated water. Abundant rainfall should not
+  be confused with an automatically functioning supply of treated water.
+- [Meteorological Service Singapore's climate overview](https://www.weather.gov.sg/climate-climate-of-singapore/)
+  documents the year-round heat, humidity and rainfall underlying the environmental tone.
+- [NHB's account of void decks](https://www.nhb.gov.sg/~/media/nhb/files/resources/publications/ebooks/nhb_ebook_void_decks.pdf)
+  describes their shared social uses and shelter. Their fictional abandonment gains meaning
+  from those everyday functions.
+- [UNESCO's account of Singapore hawker culture](https://ich.unesco.org/en/RL/hawker-culture-in-singapore-community-dining-and-culinary-practices-in-a-multicultural-urban-context-01568)
+  supports the role of hawker centres as multicultural community dining spaces.
+- [MOT's statement on the 2017 tunnel flooding incident](https://www.mot.gov.sg/news-resources/newsroom/ministerial-statement-by-minister-khaw-boon-wan-on-7-october-tunnel-flooding-incident/)
+  documents the importance of pump-system maintenance. It supports locally grounded tunnel
+  hazards, not an assumption that every station floods after a fixed period.
 
 ---
 
@@ -147,9 +374,10 @@ currency, and the survivor is always moving — the map is explored, not surveye
   at exhausted open-ground stops; invalid HDB interiors are discarded.
 - **Walkability zones** (`public/zones.json`, `npm run bake:zones`): land mask, inland water,
   restricted (military) perimeters, and vegetation. Water and restricted hard-block spawn/trek;
-  vegetation stays walkable but adds a soft stamina/time cost. Routes prefer land paths around water.
+  vegetation stays walkable but adds time only. Routes prefer land paths around water.
   Known pedestrian crossings, starting with Sentosa Gateway, provide narrow walkable links over
-  water in both directions; their full path costs normal travel distance, time and stamina. Players
+  water in both directions; their full path determines travel time and recorded distance,
+  while walking energy uses the direct distance between endpoints. Players
   can stop on the crossing and continue later. Nearby sea and restricted ground remain blocked
   (`game/route.ts`, `game/playable.ts`, `game/crossings.ts`, `game/vegetation.ts`).
 
@@ -265,9 +493,18 @@ ground for rest; landmarks are not selected as guaranteed indoor spawn shelters.
   Revisits, reloads and ownership changes never replenish or reroll this opportunity. The
   logbook remembers facility types, not remote stock or heat. Faction sites grant no free public
   facilities through this system.
-- The single, dashed on-map ring is **not vision — it's current travelable range**: how
-  far you can comfortably push right now, derived from walking speed (END/DEX + leg injuries),
-  current **energy**, weather and load. It shrinks as you tire or get hurt and expands as you recover.
+- The single, dashed on-map ring is **current affordable walking range**: remaining energy
+  divided by the survivor's energy cost per metre. Energy uses **straight-line distance**;
+  actual routes, terrain and weather determine time. Average stats, healthy legs, neutral hydration
+  and no load penalty cost **0.1 energy/metre** (100 energy = 1 km). END/DEX, leg injuries,
+  equipment, traits, fitness, hydration, torso injuries and load modify that rate consistently
+  in the map, cards and travel actions. Pinned survivors have zero range. There is no flat
+  crossing fee or minimum 5-energy gate; fractional costs remain fractional, including short hops.
+  Travel time and fitness practice also retain fractions, so short hops cannot stop the clock
+  or farm a minimum XP payout per move (ground picks under 1 m are ignored).
+  The perimeter is affordable and may leave zero energy, with an **arrive exhausted** warning.
+  Cards show walking energy and the remaining budget; encounters may cost extra. A valid dry
+  route is still required. The ring shrinks as energy is spent and expands as it is recovered.
   This same range opens the live fog disc and raises 3D buildings; all buildings fall as
   the range retreats, including previously visited sites. Discovered location markers remain
   at ground level outside the range. During travel,
@@ -290,16 +527,24 @@ ground for rest; landmarks are not selected as guaranteed indoor spawn shelters.
 
 ### 3.4 Time, travel, wilds & the day/night cycle
 - A day is **24 in-game hours**, starting at **08:00**. Travel is **one-way relocation** (nomadic):
-  the survivor has a tracked position, and cost = land-route distance(current → target) ÷ walking speed,
+  the survivor has a tracked position, and time = land-route distance(current → target) ÷ walking speed,
   stretched by a **×2 surface detour allowance** for navigating city blocks, rubble and crossings,
   **weather** (rain ×1.5, thunderstorm ×1.75), a **graduated load tax** (quiet until capacity, brutal
-  past it — hover the carry bar), and vegetation soft-costs. The detour allowance affects elapsed
-  game time and its normal survival costs, not the geographic range per move, recorded distance,
-  or tunnel walking. A fresh END/DEX 5 survivor with healthy legs and no load penalty takes about
+  past it — hover the carry bar), and vegetation time costs. Surface walking energy is quoted
+  from direct distance and departure condition, then charged once. The travel clock (including
+  crossing delays) advances hunger, thirst, injuries and world events **without passive energy
+  drain**. Terrain and detours add no energy surcharge; combat and explicit encounter outcomes
+  may still spend energy. Recorded distance uses the walked route. Tunnel walking retains its
+  separate time-based costs. A fresh END/DEX 5 survivor with healthy legs and no load penalty takes about
   **10 minutes per 500 m** on clear, non-vegetated ground. The map glide remains brief.
 - **Open-ground treks** (`game/wilds.ts`): between pins the path crosses seeded ~350 m hazard
   pockets (overlapping discs: horde, patrol, collapse, flood, wildlife). POI travel cards preview
-  sensed pockets on the route.
+  sensed pockets on the route. Committing to a hazardous surface route opens a timeline decision
+  before walking energy, time, injuries or encounters are applied. Cross cautiously (6 + 3 ×
+  severity extra minutes per distinct zone, lower injury/exposure/interception risk), cross
+  directly, or withdraw for no cost. Withdrawal stays at departure; choosing another route is
+  manual. The choice covers the listed zones, is persisted in v7, and settles once. Even a severe
+  collapse allows a natural-20 success instead of an unconditional failure.
 - **Sealed-off areas** (`game/hazardSites.ts`, `public/hazard-areas.json`). When a hazard cell holds
   a block-sized OpenStreetMap area (an estate, park, school grounds, campus, hospital, commercial or
   industrial block, roughly 120–500 m across), the whole area is sealed off along its real outline,
@@ -430,8 +675,13 @@ hostility, trade, shelter, aid, and intel:
   lesser subset, never the signature verb.
 - **Door rules** (`gatePolicy`, seeded per site): **open** (anyone not feuding with them walks in), **fee** (tribute at the gate, or a job), **members** (standing only — Known +1 by default). Outposts are fixed: Kampung Kitchen open, Citizen Watch and Wardens fee, 88 Gang members. Old saves get a rule stamped on load.
 - **Gate jobs** (`game/bounties.ts`): two seeded jobs per site per day, readable from outside the wire. Deliver (their wants), scout (set foot on a named site, pinned on your map) or cull (kills after taking it). Up to 3 jobs at once; hand in at any site of that faction for standing and an item from their stock. At a fee door the first job also counts as the fee (7-day pass). The logbook lists every faction's standing, known outposts and jobs in hand.
-- On arrival, a **pre-scavenge event** may fire (`game/events.ts`, pure): locked doors, desperate
-  survivors, faction shakedowns, Warden tolls, etc. Checks are `d20 + attribute vs DC(current danger)`.
+- On arrival, a **pre-scavenge event** may fire (`game/events.ts`, pure). Abandoned notices,
+  caches, scattered belongings, damaged access and weather carry most unclaimed-site scenes.
+  Concealed survivors and traders have low selection weights and require effective danger <4,
+  doorway threat <0.65 and local pressure <0.75. Faction contact remains at occupied sites.
+  Checks are `d20 + attribute vs DC(current danger)`. Aid/refusal ends the exchange peacefully;
+  one locked interior storeroom does not block the rest of the site. A separate timeline line
+  announces subsequent searching, so a search encounter is not presented as punishment for aid.
 - **Barter** (`game/trade.ts`): no currency — seeded daily chalk-board swaps at faction hubs. Standing
   grows board size and unlocks better lines; each offer is take-it-or-leave-it and one-shot for the day.
   Hubs may also offer rest, aid, or intel once standing is high enough.
@@ -467,7 +717,7 @@ hostility, trade, shelter, aid, and intel:
   island* rather than a shuttle inside your starting district.
 - What the bore buys you is what it doesn't charge: **no travel-range cap, no weather**, and none of
   `URBAN_DECAY_DETOUR` — it's straight, and the streets above it aren't. Load still taxes the walk
-  (milder than overland) and drains energy the same as the surface, so the MRT is not a dump exploit.
+  (milder than overland) and retains time-based energy drain, so the MRT is not a dump exploit.
   Time is the real track distance at walking pace. There is no train discount any more.
 - **The run itself is a Slay-the-Spire map** (`game/tunnelRun.ts`, `components/TunnelRunView.tsx`):
   platforms at each station on the route, bore columns between them (capped so long rides stay
@@ -646,7 +896,8 @@ hostility, trade, shelter, aid, and intel:
   away or waiting changes exposure; the passage of days does not raise an island-wide doom meter.
 - The three bands are **Quiet / Stirred / Hunting**. A small icon beside the weather shows local activity, with a brief pulse only when its band rises (respecting reduced motion). Its tooltip explains the state and cause; clicking opens the latest nearby event in the timeline. HDB
   interiors and tunnels retain their existing danger and noise rules.
-- **Street incidents:** car alarms, rattling shutters, gunfire and scavengers. Seeded event memory
+- **Street incidents:** a recently powered alarm, loose shutters, distant gunfire and rare
+  concealed scavengers. Exposed/noisy locations suppress friendly contact. Seeded event memory
   requires **250 m of accumulated movement**, arrival **250 m from the previous attempt's anchor**,
   and **2 in-game hours** between attempts, with at most **3 incidents per day**. Failed rolls
   consume the cooldown too. An incident's decision window lasts **1.5 in-game hours**. Sources and scheduling memory
@@ -666,20 +917,45 @@ hostility, trade, shelter, aid, and intel:
   continues to fade even after its decision window closes.
 
 ### 3.16 Extraction goal & open-ended survival
-- Dual-path spine (`game/goal.ts`):
-  - **Linger** — score day multiplier rises (`1.0 + 0.1 × (days − 1)`).
-  - **Extract** — haul weighted readiness in the **backpack** (fuel > meds/ammo > water > food;
-    weapons/scrap barely count) to a timed map beacon (≥8 km from first spawn) and call for a lift.
-    Each staging window rolls a **seeded demand** (± band around a rising day curve) plus a soft cargo
-    bias. On the approach the radio vibe stays qualitative (jittered so you cannot binary-search the
-    quota). **Standing on the pad**, the first press **raises the channel** and the crew reads the
-    numeric manifest for the rest of the window — a short haul can be topped up on purpose. A pack
-    that already clears lifts on that same press (flare). Miss the window → cooldown → new site +
-    fresh demand; supplies, injuries and nearby threats still need managing during the wait.
-- **No automatic ending or gameplay day cap.** There is no advancing island front, ground-zero
-  modifier, neighbourhood status wash or automatic overrun death. Local noise shapes nearby
-  pressure; ordinary encounters, night danger, hunger, thirst and infection remain threats.
-- Successful extract adds `2000 × dayMult` on top of survival score.
+
+A run starts with a current operation's destination, remaining window and contact procedure
+already recorded in Objectives and the timeline. The survivor received the broadcast before
+setting out. A receiver, random clue or lucky NPC encounter is never an admission requirement.
+Knowing the destination does not reveal the intervening streets or their supplies.
+
+The loop is **receive the notice → prepare supplies and choose a route → reach the assembly
+point → report to the crew → board**.
+
+- **Published, free admission.** Report and board are two explicit, immediate actions at the
+  active site. Both must happen before the displayed window ends. Neither action spends time,
+  items or cargo value, and there is no hidden refusal roll. Combat, an unresolved event/search/
+  crossing, active travel or an interior run must finish before contact or boarding.
+- **Known map destination.** Objectives includes “Locate next known evacuation point”. It opens
+  the map, closes the sheet and focuses the active published site on desktop and phone. It does
+  not move the survivor, reveal surrounding sites or spend time. Between operations it is disabled.
+- **Supplies support the journey.** Food, water, medicine and equipment remain valuable because
+  travel and encounters consume them; the crew does not price a human life by backpack contents.
+  Route notes and shelter information improve planning but never gate the main objective.
+- **Reachable generation.** The first selection prefers named MRT, school or police sites at least
+  8 km away from the prefetched evacuation metadata. Check all candidates for straight land
+  access, then at most three detours using deterministic expansion limits. If needed, select a reachable
+  already-built site, even nearer; never advertise a known disconnected destination. Later
+  operations also validate routes from the current position without rescanning the island bake.
+- **Time allowance.** Base windows are 96 hours for the first operation and 48 for subsequent
+  operations, shrinking by 4 hours per day after Day 3. Route allowance always wins if larger:
+  3 hours per rounded-up routed kilometre plus 24 hours for rest and resupply. This is generation
+  fairness, not a guarantee that every detour or delay succeeds.
+- **Missed operations.** Expiry clears the operation and contact, and publishes a seeded 10–30 hour
+  countdown to the next update. The new point and window arrive automatically in Objectives and
+  the timeline. If the bounded search finds no reachable site, another update is scheduled 12 hours later.
+  Waiting for an update does not require random information drops or promise a waiting aircraft.
+- **Persistence.** The existing v7 slot saves current contact and the cooldown. Legacy cargo demand,
+  preference and manifest fields are ignored. Resume synchronizes expired windows and overdue
+  updates without advancing the survivor's clock.
+- **Dual-path scoring.** Staying alive raises the day multiplier (1.0 + 0.1 × (days − 1)). A
+  successful extraction adds 2000 × dayMult on top of survival score.
+- **No automatic ending or gameplay day cap.** There is no advancing island front or automatic
+  overrun death. Local noise, encounters, night danger, hunger, thirst and infection remain threats.
 
 ### 3.17 Ghost survivors
 - Death writes a **legacy corpse** (`singvive.legacy_run`). A later run that walks within ~120 m can
@@ -845,7 +1121,7 @@ the routes, supplies and landmarks that make Singapore specific.
 
 Generic survival add-ons. Fine later; they do not answer “why this game.”
 
-- **Vehicles** — fuel already counts hard toward evac; faster/farther surface travel is a maybe.
+- **Vehicles** — fuel supports practical survival uses; faster/farther surface travel is a maybe.
 - **Player-built street barricades** — HDB doors can already be barricaded as dungeon state; stash
   forts and street walls would fight the nomadic-cache identity.
 - **Meta-unlock trees / accounts / daily seeds** — daily seeds are also deferred because the same

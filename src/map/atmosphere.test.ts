@@ -1,5 +1,30 @@
 import { describe, expect, it } from 'vitest';
-import { BASE_ATMOSPHERE, LIGHT_FLOOR, atmosphereFor, mixAtmosphere, tiltShare } from './atmosphere';
+import { BASE_ATMOSPHERE, LIGHT_FLOOR, atmosphereFor, mixAtmosphere, sunlightFor, tiltShare } from './atmosphere';
+
+describe('desktop sunlight', () => {
+  it('updates on half-hours and wraps with the run clock', () => {
+    expect(sunlightFor(8.49)).toEqual(sunlightFor(8));
+    expect(sunlightFor(8.5)).not.toEqual(sunlightFor(8));
+    expect(sunlightFor(32.5)).toEqual(sunlightFor(8.5));
+    expect(sunlightFor(5.99).daylight).toBe(0);
+    expect(sunlightFor(6).daylight).toBeGreaterThan(0);
+    expect(sunlightFor(18.5).daylight).toBeGreaterThan(0);
+    expect(sunlightFor(19).daylight).toBe(0);
+    expect(sunlightFor(0)).toEqual(sunlightFor(24));
+  });
+
+  it('casts opposing morning and afternoon shadows and keeps mid-rise noon shadows visible', () => {
+    const morning = sunlightFor(9);
+    const noon = sunlightFor(12.5);
+    const afternoon = sunlightFor(16);
+    expect(morning.bearing).toBeLessThan(180);
+    expect(afternoon.bearing).toBeGreaterThan(180);
+    expect(morning.polar).toBeCloseTo(afternoon.polar);
+    const length = (polar: number) => 20 * Math.tan(polar * Math.PI / 180);
+    expect(length(noon.polar)).toBeGreaterThan(17);
+    expect(length(morning.polar)).toBeGreaterThan(length(noon.polar));
+  });
+});
 
 describe('atmosphereFor', () => {
   it('is the plain 3D look with weather off in daylight', () => {

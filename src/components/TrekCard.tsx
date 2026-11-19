@@ -4,6 +4,8 @@ import { HazardOnRoute } from './HazardOnRoute';
 import { Ledger, LedgerRow, LedgerRule, Note, PlaceHead, PlaceStack } from './placeCard';
 import { BTN } from './placeCardStyle';
 import { useT } from '../i18n';
+import type { TravelEnergyQuote } from '../game/travelEnergy';
+import { TravelEnergyRow } from './TravelEnergyRow';
 
 interface Props {
   distanceM: number;
@@ -22,8 +24,7 @@ interface Props {
   arrivalAtNight: boolean;
   /** Route cuts through baked forest / nature reserve. */
   vegetationSlowed?: boolean;
-  /** Extra stamina burned for vegetation (on top of open-ground exposure). */
-  vegetationEnergy?: number;
+  travelEnergy: TravelEnergyQuote;
   onTrek: () => void;
 }
 
@@ -47,13 +48,12 @@ export function TrekCard({
   noDryRoute = false,
   arrivalAtNight,
   vegetationSlowed = false,
-  vegetationEnergy = 0,
+  travelEnergy,
   onTrek,
 }: Props) {
   const { t } = useT();
   const label = riskLabel(risk.fightChance);
   const blocked = energyLow || outOfRange || tooClose || noDryRoute;
-  const energyHit = risk.energyCost + vegetationEnergy;
 
   return (
     <PlaceStack>
@@ -64,9 +64,7 @@ export function TrekCard({
           {distanceM} m · {formatDuration(travelMin)}
           {vegetationSlowed && <span className="text-concrete-400">{t('ui.trek.forest')}</span>}
         </LedgerRow>
-        <LedgerRow icon="meter.energy" label={t('ui.trek.exposure')}>
-          {t('ui.trek.energyHit', { n: energyHit })}
-        </LedgerRow>
+        <TravelEnergyRow quote={travelEnergy} />
         <LedgerRule />
         <LedgerRow icon="combat.encounter" label={t('ui.trek.route')}>
           <span style={{ color: label.color }}>{label.text}</span>

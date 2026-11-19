@@ -920,6 +920,8 @@ export type LogScope =
 
 /** One line of the run's timeline, stamped with the in-game moment it happened. */
 export interface GameLogEntry {
+  /** Language-neutral snapshot of a hazardous departure and its chosen outcome. */
+  crossing?: import('./crossingEvent').CrossingLog;
   /** Snapshot kept after the live opportunity expires or is replaced. */
   activityEvent?: import('./activity').ActivityEvent & {
     resolution?: 'responded' | 'dismissed';

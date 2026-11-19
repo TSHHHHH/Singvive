@@ -279,7 +279,7 @@ export function gainSkillXp(
   day: number,
   skill: SkillId,
   amount: number,
-  opts?: { ignoreDailyCap?: boolean; xpMult?: number },
+  opts?: { ignoreDailyCap?: boolean; xpMult?: number; fractional?: boolean },
 ): GainSkillXpResult {
   const nextSkills: SkillsState = {
     ...skills,
@@ -290,7 +290,8 @@ export function gainSkillXp(
 
   const ignoreCap = opts?.ignoreDailyCap === true;
   const mult = opts?.xpMult ?? 1;
-  let want = Math.max(0, Math.floor(amount * mult));
+  // Surface walking accumulates time-proportional practice across short hops.
+  let want = Math.max(0, opts?.fractional ? amount * mult : Math.floor(amount * mult));
   let capped = false;
 
   if (!ignoreCap && want > 0) {

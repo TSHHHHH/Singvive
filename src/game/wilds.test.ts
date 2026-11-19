@@ -13,7 +13,6 @@ import {
 const emptyRisk = (encounterChance = 1): TrekRisk => ({
   encounterChance,
   fightChance: encounterChance,
-  energyCost: 5,
   combatDanger: 2,
   hazards: [],
 });
@@ -37,7 +36,69 @@ describe('quietPathAmbush', () => {
   });
 });
 
+describe('chosen hazard crossing', () => {
+  const hazardRisk = (kind: HazardZone['kind'], severity = 3): TrekRisk => ({
+    encounterChance: 1, fightChance: 1, combatDanger: 4,
+    hazards: [{ id: 'crossed', kind, severity, lat: 1.3, lng: 103.8, radiusM: 60, discs: [] }],
+  });
+  const opts = { mode: 'road' as const, dexterity: 0, checkBonus: 0 };
+
+  it('allows a natural twenty to clear severe collapsed ground', () => {
+    const seed = Array.from({ length: 1000 }, (_, n) => `collapse-${n}`)
+      .find((value) => new Rng(value).d20() === 20)!;
+    expect(resolveCrossing(new Rng(seed), hazardRisk('collapse'), opts).woundHp).toBe(0);
+  });
+
+  it('prices checking the route after a cautious choice', () => {
+    const direct = resolveCrossing(new Rng('inspect'), hazardRisk('collapse'), opts);
+    const careful = resolveCrossing(new Rng('inspect'), hazardRisk('collapse'), { ...opts, approach: 'careful' });
+    expect(careful.extraHours).toBeGreaterThan(direct.extraHours);
+  });
+
+  it('cautious crossings reduce the established threat instead of inventing an enemy', () => {
+    for (const kind of ['gang_patrol', 'horde_pocket', 'night_swarm', 'wildlife_water', 'wildlife_forest', 'wildlife_urban'] as const) {
+      let directFights = 0;
+      let carefulFights = 0;
+      for (let n = 0; n < 200; n++) {
+        const direct = resolveCrossing(new Rng(`choice-${n}`), hazardRisk(kind), opts);
+        const careful = resolveCrossing(new Rng(`choice-${n}`), hazardRisk(kind), { ...opts, approach: 'careful' });
+        if (direct.ambush) directFights++;
+        if (careful.ambush) {
+          carefulFights++;
+          expect(careful.ambush.hazard).toBe(kind);
+        }
+      }
+      expect(carefulFights).toBeLessThan(directFights);
+    }
+  });
+
+  it('cautious flood crossings reduce exposure without adding infected encounters', () => {
+    let directExposure = 0;
+    let carefulExposure = 0;
+    for (let n = 0; n < 200; n++) {
+      const direct = resolveCrossing(new Rng(`water-${n}`), hazardRisk('floodwater'), opts);
+      const careful = resolveCrossing(new Rng(`water-${n}`), hazardRisk('floodwater'), { ...opts, approach: 'careful' });
+      directExposure += direct.infectionDelta;
+      carefulExposure += careful.infectionDelta;
+      expect(careful.ambush).toBeNull();
+    }
+    expect(carefulExposure).toBeLessThan(directExposure);
+  });
+});
+
 describe('resolveCrossing quiet path', () => {
+  it('does not charge a flat fee or terrain exposure on top of walking', () => {
+    const opts = { mode: 'trek' as const, dexterity: 5, checkBonus: 0, weather: 'clear' as const };
+    const quiet = trekRisk('budget', { lat: 1.3, lng: 103.8 }, { lat: 1.301, lng: 103.8 },
+      { band: 'day', hordeIntensity: 0, weatherEncounterMod: 0, traitEncounterMod: -1 }, []);
+    expect(resolveCrossing(new Rng('quiet'), quiet, opts).energyCost).toBe(0);
+    const flooded: TrekRisk = { ...quiet, hazards: [{ id: 'flood', kind: 'floodwater',
+      severity: 2, lat: 1.3, lng: 103.8, radiusM: 60 }] };
+    const outcome = resolveCrossing(new Rng('flood'), flooded, opts);
+    expect(outcome.extraHours).toBeGreaterThan(0);
+    expect(outcome.energyCost).toBe(0);
+  });
+
   it('produces varied non-hazard outcomes on open ground', () => {
     const tags = new Set<string>();
     for (let i = 0; i < 250; i++) {

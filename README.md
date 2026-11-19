@@ -2,8 +2,10 @@
 
 > A browser-based **zombie-apocalypse survival roguelike** played on the **real map of Singapore**.
 
-You wake up in a fallen Singapore. Supplies run low, night makes the streets dangerous, and nearby
-noise can draw trouble. Knowing nothing of what is around you, you push out into the fog,
+Several months after the outbreak, Singapore's government has collapsed. Survivors remain hidden
+in scattered enclaves, while outside relief organizations still arrange occasional evacuations.
+Supplies run low, night makes the streets dangerous, and nearby noise can draw trouble.
+With little reliable knowledge of what is around you, you push out into the fog,
 chart real places by walking to them, scavenge what you can carry, and manage a failing body until
 it gives out or you call for a lift. Every run is generated from pre-baked OpenStreetMap data and a
 seed, so no two survivors face the same city.
@@ -88,8 +90,8 @@ A few things that make it specific rather than generic:
 - **The body is a resource.** A Project-Zomboid-style injury model over six body parts sits on top
   of hunger / thirst / energy / infection. Wounds are lasting and location-specific.
 - **Tactile inventory.** A spatial, Tarkov-style grid where weight and space are both real limits.
-- **Dual-path scoring.** Linger for a rising day multiplier, or haul a fogged cargo kit to a timed
-  beacon and extract. The best runs do both: survive long, then lift out late.
+- **Dual-path scoring.** Linger for a rising day multiplier, or plan a journey to a published
+  evacuation point and board before its window closes. Supplies sustain the journey; admission is free.
 - **Local noise, lasting choices.** Alarms, shutters, gunfire and scavengers create nearby activity.
   Spend time and supplies to respond, or move on while the noise fades. Survival has no fixed day limit.
 

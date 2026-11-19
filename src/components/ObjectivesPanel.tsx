@@ -1,27 +1,22 @@
 import { Icon } from '../icons/Icon';
 import { GuideInfoButton } from './GuideInfoButton';
 import type { GuideTopic } from '../content/guideContent';
-import type { EvacDemandBias, EvacVibe } from '../game/goal';
 import { useT } from '../i18n';
 
 interface Props {
   evacZoneName: string | null;
   evacDist: number;
   atEvac: boolean;
-  vibe: EvacVibe;
-  vibeLine: string;
-  /** Manifest read at the pad — until then the haul stays a fogged vibe. */
-  manifestRevealed: boolean;
-  evacCurrent: number;
-  evacRequired: number;
-  evacRatio: number;
-  evacBias: EvacDemandBias;
+  evacContacted: boolean;
+  evacDisabled: boolean;
+  evacCooldownHours: number | null;
   dayMult: number;
   projectedScore: number;
   projectedEvacBonus: number;
   windowText: string | null;
   urgent: boolean;
   onEvac: () => void;
+  onLocateEvac: () => void;
   onOpenGuide?: (topic: GuideTopic) => void;
   /** Map notes in the backpack waiting to be deciphered. */
   intelNoteCount?: number;
@@ -29,47 +24,21 @@ interface Props {
   rumourCount?: number;
 }
 
-const VIBE_FILL: Record<EvacVibe, string> = {
-  thin: '#e8a54b',
-  maybe: '#e8c54b',
-  promising: '#7ec8a0',
-};
-
-const BIAS_KEY: Record<EvacDemandBias, string> = {
-  fuel: 'ui.objective.biasFuel',
-  meds: 'ui.objective.biasMeds',
-  ammo: 'ui.objective.biasAmmo',
-  balanced: 'ui.objective.biasBalanced',
-};
-
-/** Coarse bar only, pre-reveal — never a percent that reverse-engineers demand. */
-const VIBE_WIDTH: Record<EvacVibe, number> = {
-  thin: 28,
-  maybe: 55,
-  promising: 82,
-};
-
-/**
- * The run's objectives in full: dual-path score (survive mult + extract),
- * fogged radio vibe (no quota numbers).
- */
+/** Survival score and the published, two-step evacuation procedure. */
 export function ObjectivesPanel({
   evacZoneName,
   evacDist,
   atEvac,
-  vibe,
-  vibeLine,
-  manifestRevealed,
-  evacCurrent,
-  evacRequired,
-  evacRatio,
-  evacBias,
+  evacContacted,
+  evacDisabled,
+  evacCooldownHours,
   dayMult,
   projectedScore,
   projectedEvacBonus,
   windowText,
   urgent,
   onEvac,
+  onLocateEvac,
   onOpenGuide,
   intelNoteCount = 0,
   rumourCount = 0,
@@ -78,7 +47,7 @@ export function ObjectivesPanel({
 
   const reachBlurb = (() => {
     if (!evacZoneName) return null;
-    const full = t('ui.objective.reachHaul', { zone: evacZoneName });
+    const full = t('ui.objective.reach', { zone: evacZoneName });
     const idx = full.indexOf(evacZoneName);
     if (idx < 0) return full;
     return (
@@ -160,54 +129,34 @@ export function ObjectivesPanel({
           </div>
         )}
 
-        <div className="mt-3">
-          <div className="flex items-center justify-between text-label uppercase text-white/40">
-            <span>
-              {manifestRevealed ? t('ui.objective.manifest') : t('ui.objective.radioRead')}
-            </span>
-            <span className="normal-case tracking-normal text-white/55">
-              {manifestRevealed ? (
-                <span className="tabular-nums">
-                  {evacCurrent} / {evacRequired}
-                </span>
-              ) : (
-                vibeLine
-              )}
-            </span>
-          </div>
-          <div className="mt-1 h-1.5 overflow-hidden rounded bg-black/50">
-            <div
-              className="h-full transition-all"
-              style={{
-                width: `${manifestRevealed ? Math.round(evacRatio * 100) : VIBE_WIDTH[vibe]}%`,
-                background: manifestRevealed
-                  ? evacCurrent >= evacRequired
-                    ? VIBE_FILL.promising
-                    : VIBE_FILL.thin
-                  : VIBE_FILL[vibe],
-              }}
-            />
-          </div>
-          <p className="mt-1.5 text-micro text-white/35">
-            {manifestRevealed
-              ? `${t(BIAS_KEY[evacBias])} · ${
-                  evacCurrent >= evacRequired
-                    ? t('ui.objective.manifestReady')
-                    : t('ui.objective.manifestShort', { n: evacRequired - evacCurrent })
-                }`
-              : t('ui.objective.radioBlurb')}
+        {!evacZoneName && evacCooldownHours != null && (
+          <p className="mt-2 text-body tabular-nums text-concrete-200">
+            {t('ui.objective.nextWindowIn', { hours: evacCooldownHours })}
           </p>
-          {manifestRevealed && (
-            <p className="mt-1 text-micro text-white/25">{t('ui.objective.manifestBlurb')}</p>
-          )}
-        </div>
+        )}
+        <p className="mt-3 text-body text-white/65">{t('ui.objective.procedure')}</p>
+        {evacZoneName && (
+          <p className="mt-2 text-body text-signal">
+            {t(evacContacted ? 'ui.objective.readyToBoard' : 'ui.objective.reportAtPoint')}
+          </p>
+        )}
+        <button
+          type="button"
+          onClick={onLocateEvac}
+          disabled={!evacZoneName}
+          className="mt-3 w-full rounded-lg border border-signal/40 py-2 text-body text-signal transition hover:bg-signal/10 disabled:cursor-not-allowed disabled:opacity-30"
+        >
+          <Icon name="action.target" /> {t('ui.objective.locateEvac')}
+        </button>
 
         {atEvac && (
           <button
+            type="button"
             onClick={onEvac}
-            className="mt-3 w-full rounded-lg bg-signal/80 py-2 text-read font-bold text-black transition hover:bg-signal"
+            disabled={evacDisabled}
+            className="mt-3 w-full rounded-lg bg-signal/80 py-2 text-read font-bold text-black transition hover:bg-signal disabled:cursor-not-allowed disabled:opacity-30"
           >
-            {t(manifestRevealed ? 'ui.game.callEvac' : 'ui.game.raiseChannel')}
+            {t(evacContacted ? 'ui.game.callEvac' : 'ui.game.raiseChannel')}
           </button>
         )}
       </section>

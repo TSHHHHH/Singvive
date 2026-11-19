@@ -222,6 +222,17 @@ export const SETTINGS_SCHEMA: SettingDef[] = [
     default: 'on',
   },
   {
+    key: 'buildingShadows',
+    label: '3D building shadows',
+    description: 'Nearby buildings cast shadows onto streets, walls and roofs. Uses more graphics power.',
+    tab: 'gameplay',
+    section: 'Map',
+    control: 'toggle',
+    options: [{ value: 'on', label: 'On' }, { value: 'off', label: 'Off' }],
+    // The renderer and the control are already gated to desktop 3D layouts.
+    default: 'on',
+  },
+  {
     key: 'mapKeys',
     label: 'Keyboard camera',
     description:

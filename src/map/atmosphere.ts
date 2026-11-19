@@ -25,6 +25,8 @@ import { alive } from './layers';
  */
 
 export interface Atmosphere {
+  /** Desktop run clock, sampled every half game-hour. */
+  sun?: Sunlight;
   sky: string;
   horizon: string;
   fog: string;
@@ -149,6 +151,29 @@ const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
  */
 export const LIGHT_FLOOR = 0.8;
 
+interface Sunlight {
+  bearing: number;
+  polar: number;
+  daylight: number;
+}
+
+export function lightingHour(hour: number): number {
+  return Math.floor((((hour % 24) + 24) % 24) * 2) / 2;
+}
+
+/** An east-to-west arc over the game's 06:00–19:00 daylight window.
+ * Cap noon elevation at 48° so a mid-rise still casts nearly its own height. */
+export function sunlightFor(hour: number): Sunlight {
+  const h = lightingHour(hour);
+  if (h < 6 || h >= 19) return { bearing: 315, polar: 48, daylight: 0 };
+  const phase = (h - 6) / 13;
+  const arc = Math.sin(Math.PI * phase);
+  return { bearing: 85 + phase * 190, polar: 73 - arc * 31, daylight: 0.25 + 0.75 * Math.min(1, arc * 2.5) };
+}
+
+/** The values applied to native extrusions on the latest weather frame. */
+export const shadowSun = new WeakMap<MlMap, { bearing: number; polar: number; opacity: number }>();
+
 /** Mix a light colour toward white just enough that no channel is below LIGHT_FLOOR. */
 export function liftLight(hex: string): string {
   const n = parseInt(hex.slice(1), 16);
@@ -170,6 +195,7 @@ export function mixAtmosphere(a: Atmosphere, b: Atmosphere, t: number): Atmosphe
     haze: mixHex(a.haze, b.haze, t),
     hazeAlpha: lerp(a.hazeAlpha, b.hazeAlpha, t),
     hazeReach: lerp(a.hazeReach, b.hazeReach, t),
+    ...(b.sun && { sun: b.sun }),
   };
 }
 
@@ -178,17 +204,37 @@ export function mixAtmosphere(a: Atmosphere, b: Atmosphere, t: number): Atmosphe
  * setting (0 off, partial for subtle, 1 full); time of day applies at any
  * strength, because dusk and night are gameplay reads.
  */
-export function atmosphereFor(kind: WeatherKind, time: TimeOfDay, strength: number): Atmosphere {
+export function atmosphereFor(kind: WeatherKind, time: TimeOfDay, strength: number, hour?: number): Atmosphere {
   const w = mixAtmosphere(BASE_ATMOSPHERE, WEATHER[kind], strength);
-  if (time === 'day') return { ...w, light: liftLight(w.light) };
-  const t = TIME[time];
-  return {
-    ...w,
+  const t = time === 'day' ? null : TIME[time];
+  const air = t ? { ...w,
     sky: mixHex(w.sky, t.air, t.ak),
     horizon: mixHex(w.horizon, t.air, t.ak * 0.8),
     fog: mixHex(w.fog, t.air, t.ak),
     light: liftLight(dimHex(mixHex(w.light, t.light, t.k), t.dim)),
     haze: mixHex(w.haze, t.air, t.ak),
+  } : { ...w, light: liftLight(w.light) };
+  if (hour === undefined) return air;
+  const sun = sunlightFor(hour);
+  if (!sun.daylight) return { ...air, sun, intensity: air.intensity * 0.55 };
+  const warmth = (sun.polar - 42) / 31;
+  const sky = mixHex('#678193', '#bd7854', warmth);
+  const tint = sun.daylight * (0.24 + w.intensity * 0.46);
+  // On clear and hot days the far blocks lose contrast in humid maritime air.
+  // Keep the foreground transparent and let rain, smoke and storms carry their own colours.
+  const humidity = (kind === 'clear' ? 1 : kind === 'heat' ? 0.8 : 0) * strength * sun.daylight;
+  const distanceColor = mixHex('#b6c4b9', '#d1ad8b', warmth);
+  const horizon = mixHex(air.horizon, sky, tint + 0.13);
+  const haze = mixHex(air.haze, sky, tint * 0.45);
+  const sunlight = mixHex(air.light, '#ffcf9c', warmth * 0.65);
+  return {
+    ...air, sun,
+    sky: mixHex(air.sky, sky, tint),
+    horizon: mixHex(horizon, distanceColor, humidity * 0.6),
+    haze: mixHex(haze, distanceColor, humidity * 0.9),
+    hazeAlpha: lerp(air.hazeAlpha, 0.38, humidity),
+    hazeReach: lerp(air.hazeReach, 0.62, humidity),
+    light: liftLight(mixHex(sunlight, '#fff0cc', humidity * (1 - warmth))),
   };
 }
 
@@ -255,8 +301,11 @@ export class AtmosphereDriver {
    */
   private depthEl: (() => HTMLElement | null) | null = null;
 
-  constructor(map: MlMap) {
+  private readonly mapAnchored: boolean;
+
+  constructor(map: MlMap, mapAnchored = false) {
     this.map = map;
+    this.mapAnchored = mapAnchored;
     map.on('pitch', this.onPitch);
     this.apply();
   }
@@ -365,6 +414,12 @@ export class AtmosphereDriver {
     if (!alive(this.map)) return;
     const a = this.cur;
     const f = this.flash;
+    const polar = a.sun?.polar ?? (f ? lerp(a.polar, 20, f) : a.polar);
+    const bearing = a.sun?.bearing ?? 210;
+    if (this.mapAnchored) {
+      const opacity = a.sun ? a.sun.daylight * Math.min(0.84, 0.12 + a.intensity * 1.3) : a.intensity;
+      shadowSun.set(this.map, { bearing, polar, opacity: opacity * (1 - f) });
+    }
     this.map.setSky({
       'sky-color': f ? mixHex(a.sky, '#3a4458', f * 0.6) : a.sky,
       'horizon-color': f ? mixHex(a.horizon, '#8a96b0', f * 0.6) : a.horizon,
@@ -375,10 +430,11 @@ export class AtmosphereDriver {
       'atmosphere-blend': 0,
     });
     this.map.setLight({
-      anchor: 'viewport',
+      anchor: this.mapAnchored ? 'map' : 'viewport',
       color: f ? mixHex(a.light, FLASH_LIGHT, f) : a.light,
       intensity: a.intensity + FACE_CONTRAST + 0.3 * f,
-      position: [1.5, 210, f ? lerp(a.polar, 20, f) : a.polar],
+      position: [1.5, bearing, polar],
+      'position-transition': { duration: 0 },
     });
     const el = this.bolt?.();
     if (el) el.style.opacity = f ? f.toFixed(3) : '0';

@@ -172,7 +172,7 @@ function cellKey(i: number, j: number): number {
  * A* inside a padded AABB around from→to. Undefined means a transient timeout;
  * null means unreachable or over the deterministic size/expansion caps.
  */
-function astarLand(from: LatLng, to: LatLng): LandRoute | null | undefined {
+function astarLand(from: LatLng, to: LatLng, deterministic = false): LandRoute | null | undefined {
   const t0 = performance.now();
   const chord = haversine(from.lat, from.lng, to.lat, to.lng);
   const pad = corridorPadM(chord);
@@ -290,7 +290,7 @@ function astarLand(from: LatLng, to: LatLng): LandRoute | null | undefined {
 
   while (open.size > 0) {
     if (expansions >= MAX_EXPANSIONS) return null;
-    if (performance.now() - t0 >= MAX_MS) return undefined;
+    if (!deterministic && performance.now() - t0 >= MAX_MS) return undefined;
     const cur = open.pop()!;
     const curK = cellKey(cur.i, cur.j);
     const knownG = gScore.get(curK);
@@ -368,7 +368,7 @@ function simplifyCollinear(points: LatLng[]): LatLng[] {
  * - Detoured polyline when water/restricted blocks the chord.
  * - `null` when unreachable or the A* budget is exhausted (fail closed).
  */
-export function routeLandPath(from: LatLng, to: LatLng): LandRoute | null {
+export function routeLandPath(from: LatLng, to: LatLng, opts?: { deterministic?: boolean }): LandRoute | null {
   const key = memoKey(from, to);
   const cached = memoGet(key);
   if (cached !== undefined) return cached;
@@ -385,7 +385,9 @@ export function routeLandPath(from: LatLng, to: LatLng): LandRoute | null {
     return route;
   }
 
-  const routed = astarLand(from, to);
+  // Seeded objective generation uses the same expansion cap without depending
+  // on frame speed; interactive map previews retain their wall-clock budget.
+  const routed = astarLand(from, to, opts?.deterministic);
   // A busy frame is not proof that no route exists. Let the next request retry.
   if (routed === undefined) return null;
   memoSet(key, routed);

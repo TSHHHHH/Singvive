@@ -12,6 +12,7 @@ import { ModalShell, TabRail } from '../ModalShell';
 import { SettingControl, SettingRow } from './SettingControl';
 import { SettingsDataTab } from './SettingsDataTab';
 import { CameraKeysReference } from './CameraKeysReference';
+import { useShadowCapableLayout } from '../../hooks/useDesktopShadows';
 
 /**
  * Settings panel. The schema still drives everything — adding a `SettingDef`
@@ -29,6 +30,7 @@ export function SettingsModal({
   const setSetting = useSettings((s) => s.setSetting);
   const { locale, t } = useT();
   const [tab, setTab] = useState<SettingTabId>('display');
+  const desktop = useShadowCapableLayout();
 
   return (
     <ModalShell
@@ -48,7 +50,7 @@ export function SettingsModal({
           <SettingsDataTab />
         ) : (
           <div className="flex flex-col gap-5">
-            {sections(settingsForTab(tab)).map((sec) => (
+            {sections(settingsForTab(tab).filter((def) => desktop || def.key !== 'buildingShadows')).map((sec) => (
               <section key={sec.name ?? '_'}>
                 {sec.name && (
                   <h4 className="mb-2 text-label uppercase text-white/30">

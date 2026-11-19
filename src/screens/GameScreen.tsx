@@ -42,6 +42,7 @@ import { ObjectiveBar } from '../components/ObjectiveBar';
 import { ActivityBadge } from '../components/ActivityBadge';
 import { NearbyRecognitionNotice } from '../components/NearbyRecognitionNotice';
 import { ObjectivesPanel } from '../components/ObjectivesPanel';
+import { PendingCrossingCard } from '../components/PendingCrossingCard';
 import { tip } from '../components/tips';
 import { useUnseen } from '../components/railBadges';
 import { loadTierLabel, loadTierShown } from '../components/loadTier';
@@ -66,6 +67,7 @@ import { LogTicker } from '../components/LogTicker';
 import { isModalOpen } from '../components/modalStack';
 import { itemDef } from '../game/loot';
 import { estimateExpedition, withVegetationTravel } from '../game/travel';
+import { quoteTravelEnergy, surfaceTravelProfile } from '../game/travelEnergy';
 import { unplayableMessage, walkabilityOf } from '../game/playable';
 import { routeLandPath } from '../game/route';
 import { vegetationCost } from '../game/vegetation';
@@ -73,22 +75,18 @@ import {
   computeEvacBonus,
   computeScore,
   headAwarenessPenalty,
-  legTravelFactor,
   scoreDayMult,
-  torsoCarryMult,
   totalHp,
   totalMaxHp,
 } from '../game/survival';
 import { useAmbience } from '../audio/useAmbience';
 import { sfx } from '../audio/sfx';
 import {
-  equipTravelSpeedFactor,
-  loadEffectsFor,
   totalLootValue,
 } from '../game/inventory';
 import { haversine } from '../game/overpass';
 import { rollWeather, timeOfDay, weatherEncounterMod } from '../game/weather';
-import { awareness, blipMargin, travelableRange } from '../game/fog';
+import { awareness, blipMargin } from '../game/fog';
 import {
   equipAwarenessMod,
   equipLightPower,
@@ -96,10 +94,7 @@ import {
   traitAwarenessMod,
   traitDetectRadiusMult,
 } from '../game/character';
-import {
-  EVAC_SCORE_BONUS,
-  evacReadiness,
-} from '../game/goal';
+import { EVAC_SCORE_BONUS } from '../game/goal';
 import { Rng } from '../game/rng';
 import { activityPressure, BASE_ACTIVITY_PRESSURE } from '../game/activity';
 import {
@@ -312,6 +307,7 @@ export function GameScreen() {
     worldError,
     travelAnim,
     pendingEvent,
+    pendingCrossing,
     searchNonce,
     hdb,
     ghostOffer,
@@ -320,9 +316,8 @@ export function GameScreen() {
     evacZoneId,
     evacDeadline,
     evacCooldownUntil,
-    evacDemand,
-    evacDemandBias,
-    evacManifestRevealed,
+    evacContacted,
+    phase,
     tunnel,
     meters,
     character,
@@ -344,6 +339,7 @@ export function GameScreen() {
       worldError: s.worldError,
       travelAnim: s.travelAnim,
       pendingEvent: s.pendingEvent,
+      pendingCrossing: s.pendingCrossing,
       searchNonce: s.pendingSearch?.nonce ?? null,
       hdb: s.hdb,
       ghostOffer: s.ghostOffer,
@@ -352,9 +348,8 @@ export function GameScreen() {
       evacZoneId: s.evacZoneId,
       evacDeadline: s.evacDeadline,
       evacCooldownUntil: s.evacCooldownUntil,
-      evacDemand: s.evacDemand,
-      evacDemandBias: s.evacDemandBias,
-      evacManifestRevealed: s.evacManifestRevealed,
+      evacContacted: s.evacContacted,
+      phase: s.phase,
       tunnel: s.tunnel,
       meters: s.meters,
       character: s.character,
@@ -501,13 +496,15 @@ export function GameScreen() {
   const phoneInterruptId =
     !isPhone || hdb || tunnel
       ? null
-      : pendingEvent
-        ? `event:${pendingEvent.locationId}`
-        : searchNonce !== null
-          ? `search:${searchNonce}`
-          : inCombat
-            ? `combat:${awaitingStance ? 'contact' : 'fight'}`
-            : null;
+      : pendingCrossing
+        ? `crossing:${pendingCrossing.id}`
+        : pendingEvent
+          ? `event:${pendingEvent.locationId}`
+          : searchNonce !== null
+            ? `search:${searchNonce}`
+            : inCombat
+              ? `combat:${awaitingStance ? 'contact' : 'fight'}`
+              : null;
   const seenInterruptId = useRef<string | null>(null);
   useEffect(() => {
     if (phoneInterruptId === seenInterruptId.current) return;
@@ -618,39 +615,17 @@ export function GameScreen() {
 
   const weather = useMemo(() => rollWeather(new Rng(seed), day), [seed, day]);
   const time = timeOfDay(hour);
-  const load = useMemo(
+  const travelProfile = useMemo(
     () =>
       character
-        ? loadEffectsFor(
-            items,
-            character.attributes,
-            equipment,
-            sumTraitMod(character.traitIds, 'carryCapacityMod'),
-            torsoCarryMult(bodyParts),
-          )
+        ? surfaceTravelProfile({ character, items, equipment, bodyParts, skills, meters })
         : null,
-    [character, items, equipment, bodyParts],
+    [character, items, equipment, bodyParts, skills, meters],
   );
 
-  const legFactor =
-    legTravelFactor(bodyParts) *
-    equipTravelSpeedFactor(equipment) *
-    (1 + sumTraitMod(character?.traitIds ?? [], 'travelSpeedMod'));
-  const travelRange = useMemo(
-    () =>
-      character
-        ? load && !load.canTravel
-          ? 0
-          : travelableRange(
-              character.attributes,
-              meters.energy,
-              legFactor,
-              weather,
-              load?.travelMult ?? 1,
-            )
-        : 400,
-    [character, meters.energy, legFactor, weather, load],
-  );
+  const load = travelProfile?.load ?? null;
+  const legFactor = travelProfile?.legFactor ?? 1;
+  const travelRange = travelProfile?.range ?? 0;
   // Fog + planning ring: hold setout range for the whole glide, then ease to
   // the post-trip range on arrival (energy already spent at departure).
   const mapRangeTarget = travelAnim ? travelAnim.departRange : travelRange;
@@ -722,9 +697,10 @@ export function GameScreen() {
   });
 
   const trekDist = trekTarget
-    ? previewRoute && !previewRoute.blocked
-      ? previewRoute.lengthM
-      : Math.round(haversine(currentPos.lat, currentPos.lng, trekTarget.lat, trekTarget.lng))
+    ? Math.max(
+        previewRoute && !previewRoute.blocked ? previewRoute.lengthM : 0,
+        haversine(currentPos.lat, currentPos.lng, trekTarget.lat, trekTarget.lng),
+      )
     : 0;
 
   const est = useMemo(
@@ -734,10 +710,10 @@ export function GameScreen() {
         previewRoute && !previewRoute.blocked && sel.id !== currentPositionId
           ? previewRoute.points
           : undefined;
-      const dist =
-        via && via.length >= 2
-          ? previewRoute!.lengthM
-          : Math.round(haversine(currentPos.lat, currentPos.lng, sel.lat, sel.lng));
+      const dist = Math.max(
+        via && via.length >= 2 ? previewRoute!.lengthM : 0,
+        haversine(currentPos.lat, currentPos.lng, sel.lat, sel.lng),
+      );
       const base = estimateExpedition(
         dist,
         sel.category,
@@ -783,10 +759,7 @@ export function GameScreen() {
         legFactor,
       );
       const veg = vegetationCost(currentPos, trekTarget, via);
-      return {
-        ...withVegetationTravel(base, veg.travelMult, hour),
-        vegetationEnergy: veg.energyCost,
-      };
+      return withVegetationTravel(base, veg.travelMult, hour);
     },
     [
       trekTarget,
@@ -981,7 +954,7 @@ export function GameScreen() {
   // the panel's edge and squeeze, a 300-750 px jump). Only where even its
   // narrowest size can't clear the panel does it slide aside (inspectorShift).
   const timelineWanted =
-    !isPhone && (timelinePinned || inCombat || awaitingStance || !!pendingEvent || searchNonce !== null);
+    !isPhone && (timelinePinned || inCombat || awaitingStance || !!pendingEvent || !!pendingCrossing || searchNonce !== null);
   const inspectorReserve = timelineWanted ? tlW + HUD_GAP : 0;
   const inspectorRoomed = mapW - SLIDE_OUT_W - HUD_EDGE * 2 - inspectorReserve;
   // Too narrow to leave a panel its room (a pinned timeline on a laptop): the
@@ -995,7 +968,7 @@ export function GameScreen() {
         );
   const timelineFits = isPhone || !sidePanel || mapW >= SLIDE_OUT_W + inspectorW + tlW + HUD_EDGE * 2 + HUD_GAP;
   const timelineFull =
-    (timelinePinned && timelineFits) || inCombat || awaitingStance || !!pendingEvent || searchNonce !== null;
+    (timelinePinned && timelineFits) || inCombat || awaitingStance || !!pendingEvent || !!pendingCrossing || searchNonce !== null;
   const timelineBeside = timelineFull && timelineFits;
   const timelineStacked = timelineFull && !timelineFits;
   const slideOutW = wideSlideOut
@@ -1150,20 +1123,21 @@ export function GameScreen() {
     setMrtPlanner({ fromStationId: here.mrtStationId, toStationId: toStationId ?? null });
   };
 
-  const selDist =
-    sel && previewRoute && !previewRoute.blocked && sel.id !== currentPositionId
-      ? previewRoute.lengthM
-      : sel
-        ? Math.round(haversine(currentPos.lat, currentPos.lng, sel.lat, sel.lng))
-        : 0;
-  const selOutOfRange = !!sel && !selHere && selDist > travelRange;
+  const walkingQuote = (lat: number, lng: number) => quoteTravelEnergy(
+    haversine(currentPos.lat, currentPos.lng, lat, lng), meters.energy,
+    travelProfile?.energyPerMetre ?? 0.1, load?.canTravel ?? false,
+  );
+  const selEnergy = sel ? walkingQuote(sel.lat, sel.lng) : undefined;
+  const trekEnergy = trekTarget ? walkingQuote(trekTarget.lat, trekTarget.lng) : undefined;
+  const selOutOfRange = !!sel && !selHere && !selEnergy?.affordable;
   const selNoDryRoute = !!sel && !selHere && !!previewRoute?.blocked;
 
   const cardProps = sel && {
     sel,
     here: selHere,
     est,
-    energyLow: meters.energy < 5,
+    energyLow: meters.energy <= 0,
+    travelEnergy: selEnergy,
     outOfRange: selOutOfRange,
     noDryRoute: selNoDryRoute,
     canTunnel: !!tunnelSeg,
@@ -1183,7 +1157,7 @@ export function GameScreen() {
     sel: here,
     here: true,
     est: null,
-    energyLow: meters.energy < 5,
+    energyLow: meters.energy <= 0,
     canTunnel: false,
     onPlanTunnels: here.isMrtStation ? () => openPlanner() : undefined,
     onTravel: () => travel(here.id),
@@ -1194,15 +1168,13 @@ export function GameScreen() {
   };
 
   // Optional extraction goal + dual-path score.
-  const evacZone = evacZoneId ? locations[evacZoneId] : null;
-  const atEvac = !!evacZoneId && currentPositionId === evacZoneId;
-  const readiness = evacReadiness(
-    items,
-    day,
-    evacDemand,
-    evacDemandBias ?? 'balanced',
-    `${seed}::evac-vibe:${day}`,
-  );
+  const nowHours = (day - 1) * 24 + hour;
+  const evacWindowActive = evacDeadline != null && evacDeadline > nowHours;
+  const evacZone = evacZoneId && evacWindowActive ? locations[evacZoneId] : null;
+  const atEvac = !!evacZone && currentPositionId === evacZoneId;
+  const evacDisabled =
+    phase !== 'game' || inCombat || !!pendingEvent || !!pendingCrossing ||
+    searchNonce !== null || !!travelAnim || !!hdb || !!tunnel;
   const dayMult = scoreDayMult(day);
   const projectedScore = computeScore(day, kills, Math.round(totalLootValue(items)));
   const projectedEvacBonus = computeEvacBonus(day, EVAC_SCORE_BONUS);
@@ -1210,8 +1182,7 @@ export function GameScreen() {
     ? Math.round(haversine(currentPos.lat, currentPos.lng, evacZone.lat, evacZone.lng))
     : 0;
 
-  // evac window countdown (in-game hours remaining)
-  const nowHours = (day - 1) * 24 + hour;
+  // Evac window countdown (in-game hours remaining).
   const evacHoursLeft = evacDeadline != null ? Math.max(0, evacDeadline - nowHours) : null;
   const fmtWindow = (h: number) => {
     if (h <= 0) return t('ui.game.departing');
@@ -1220,7 +1191,7 @@ export function GameScreen() {
     return d > 0 ? t('ui.game.windowDh', { d, h: hr }) : t('ui.game.windowH', { h: hr });
   };
   const evacUrgent = evacHoursLeft != null && evacHoursLeft <= 8;
-  const windowText = evacHoursLeft != null ? fmtWindow(evacHoursLeft) : null;
+  const windowText = evacZone && evacHoursLeft != null ? fmtWindow(evacHoursLeft) : null;
   const evacCooldownHours =
     evacCooldownUntil != null ? Math.max(0, Math.ceil(evacCooldownUntil - nowHours)) : null;
 
@@ -1228,7 +1199,7 @@ export function GameScreen() {
   // mobile floating dock so the markup only exists once -------------------
   // A fight owns the moment — nothing to decide about crossing until it's over.
   const targetSlot: { title: ReactNode; body: ReactNode; onClose?: () => void } | null =
-    trekTarget && trekInfo && trekEst && !inCombat
+    trekTarget && trekInfo && trekEst && trekEnergy && !inCombat
       ? {
           title: travelAnim ? (
             <><Icon name="action.travel" /> {t('ui.game.enRoute')}</>
@@ -1237,18 +1208,18 @@ export function GameScreen() {
           ),
           body: (
             <TrekCard
-              distanceM={trekDist}
+              distanceM={Math.round(trekDist)}
               travelMin={trekEst.travelMin}
               risk={trekInfo.risk}
               blind={trekInfo.blind}
               dark={time !== 'day' && sight < 0.6}
-              energyLow={meters.energy < 5}
-              outOfRange={trekDist > travelRange}
-              tooClose={trekDist < TREK_MIN_DISTANCE_M}
+              energyLow={meters.energy <= 0}
+              outOfRange={!trekEnergy.affordable}
+              travelEnergy={trekEnergy}
+              tooClose={haversine(currentPos.lat, currentPos.lng, trekTarget.lat, trekTarget.lng) < TREK_MIN_DISTANCE_M}
               noDryRoute={!!previewRoute?.blocked}
               arrivalAtNight={trekEst.arrivalAtNight}
               vegetationSlowed={trekEst.vegetationSlowed}
-              vegetationEnergy={trekEst.vegetationEnergy}
               onTrek={() =>
                 leaveBlockThen(() => {
                   trek(trekTarget.lat, trekTarget.lng);
@@ -1286,10 +1257,11 @@ export function GameScreen() {
       {atEvac && (
         <button
           onClick={callEvac}
+          disabled={evacDisabled}
           className={`${BTN.primary} mt-2`}
         >
           <Icon name="action.evac" />{' '}
-          {t(evacManifestRevealed ? 'ui.game.callEvac' : 'ui.game.raiseChannel')}
+          {t(evacContacted ? 'ui.game.callEvac' : 'ui.game.raiseChannel')}
         </button>
       )}
     </>
@@ -1428,14 +1400,16 @@ export function GameScreen() {
   const contactGate = awaitingStance;
   const phoneFight = isPhone && inCombat && !contactGate;
   const phoneOwnsLive =
-    isPhone && (inCombat || !!pendingEvent || searchNonce !== null);
-  const phoneInterruptKind: 'contact' | 'event' | 'search' | null = contactGate
+    isPhone && (inCombat || !!pendingEvent || !!pendingCrossing || searchNonce !== null);
+  const phoneInterruptKind: 'contact' | 'crossing' | 'event' | 'search' | null = contactGate
     ? 'contact'
-    : pendingEvent
-      ? 'event'
-      : searchNonce !== null
-        ? 'search'
-        : null;
+    : pendingCrossing
+      ? 'crossing'
+      : pendingEvent
+        ? 'event'
+        : searchNonce !== null
+          ? 'search'
+          : null;
   /** Idle here/log chrome only while Map tab is showing the world surface. */
   const phoneOnMap = isPhone && mobileView === 'map' && !sidePanel;
   // Desktop contact gate dims the world until Fight/Flee. Phone tabs stay live;
@@ -1597,13 +1571,7 @@ export function GameScreen() {
               evacCooldownHours={evacCooldownHours}
               urgent={evacUrgent}
               dayMult={dayMult}
-              vibe={readiness.vibe}
-              vibeLine={readiness.vibeLine}
-              manifestRevealed={evacManifestRevealed}
-              evacRatio={readiness.ratio}
-              evacReady={readiness.ready}
-              evacCurrent={readiness.current}
-              evacRequired={readiness.required}
+              evacContacted={evacContacted}
               onOpen={() => setSidePanel((p) => (p === 'objective' ? null : 'objective'))}
               intelNoteCount={intelNoteCount}
               rumourCount={rumourCount}
@@ -1751,19 +1719,18 @@ export function GameScreen() {
                 evacZoneName={evacZone?.name ?? null}
                 evacDist={evacDist}
                 atEvac={atEvac}
-                vibe={readiness.vibe}
-                vibeLine={readiness.vibeLine}
-                manifestRevealed={evacManifestRevealed}
-                evacCurrent={readiness.current}
-                evacRequired={readiness.required}
-                evacRatio={readiness.ratio}
-                evacBias={evacDemandBias ?? 'balanced'}
+                evacContacted={evacContacted}
+                evacDisabled={evacDisabled}
+                evacCooldownHours={evacCooldownHours}
                 dayMult={dayMult}
                 projectedScore={projectedScore}
                 projectedEvacBonus={projectedEvacBonus}
                 windowText={windowText}
                 urgent={evacUrgent}
                 onEvac={callEvac}
+                onLocateEvac={() => {
+                  if (evacZone) focusStashOnMap(evacZone.lat, evacZone.lng);
+                }}
                 onOpenGuide={setGuideTopic}
                 intelNoteCount={intelNoteCount}
                 rumourCount={rumourCount}
@@ -2080,6 +2047,11 @@ export function GameScreen() {
           <EncounterPrompt variant="card" />
         </MapInterruptCard>
       )}
+      {isPhone && !phoneFight && phoneInterruptKind === 'crossing' && pendingCrossing && (
+        <MapInterruptCard className={phoneOnMap ? '' : 'hidden'}>
+          <PendingCrossingCard />
+        </MapInterruptCard>
+      )}
       {isPhone && !phoneFight && phoneInterruptKind === 'event' && pendingEvent && (
         <MapInterruptCard className={phoneOnMap ? '' : 'hidden'}>
           <PendingEventCardBody event={pendingEvent.event} />
@@ -2099,6 +2071,7 @@ export function GameScreen() {
           <MapHereChrome
             sel={hereProps?.sel}
             atEvac={atEvac}
+            evacDisabled={evacDisabled}
             onOpenLog={() => goToPhoneTab('log')}
             onOpenHere={() => setHereSheetOpen(true)}
             onSearch={enter}
@@ -2144,7 +2117,7 @@ export function GameScreen() {
           active={phoneOnMap}
           onClick={() => goToPhoneTab('map')}
           pulse={
-            !!(pendingEvent || searchNonce !== null || inCombat) &&
+            !!(pendingEvent || pendingCrossing || searchNonce !== null || inCombat) &&
             !phoneOnMap &&
             !hdb &&
             !tunnel

@@ -183,7 +183,7 @@ function onChange(s: State, p: State): void {
   }
 
   // Evac.
-  if (s.evacManifestRevealed && !p.evacManifestRevealed) cue('evac.manifest');
+  if (s.evacContacted && !p.evacContacted) cue('evac.manifest');
   if (s.evacDeadline !== null && (s.day !== p.day || s.hour !== p.hour)) {
     const left0 = (p.evacDeadline ?? s.evacDeadline) - absHour(p);
     const left1 = s.evacDeadline - absHour(s);
@@ -388,7 +388,7 @@ const WRAPS: { [K in ActionKey]?: After<K> } = {
     if (changed(b, a)) cue('faction.aid');
   },
   callEvac: (b, a) => {
-    if (changed(b, a)) cue('evac.call');
+    if (!b.escaped && a.escaped) cue('evac.call');
   },
   combatSetStance: (b, a) => {
     if (a.combat?.selectedStance !== b.combat?.selectedStance) cue('combat.stance');

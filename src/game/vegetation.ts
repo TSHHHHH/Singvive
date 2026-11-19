@@ -4,7 +4,7 @@ import { inVegetation } from './playable';
 /**
  * Vegetation cover — known forest / nature-reserve polygons from zones.json.
  *
- * Crossing dense greenery burns more stamina and stretches travel time.
+ * Crossing dense greenery stretches travel time without charging walking energy.
  * Parks stay walkable (unlike water / restricted); this is a soft cost only.
  */
 
@@ -19,15 +19,11 @@ export interface VegetationPatch {
 const PATH_STEP_M = 80;
 /** Extra time per 100 m inside vegetation. */
 const TRAVEL_PER_100M = 0.12;
-/** Extra energy per 100 m inside vegetation. */
-const ENERGY_PER_100M = 3.0;
 const TRAVEL_MULT_CAP = 1.85;
 
 export interface VegetationCost {
   /** Multiplier on travel minutes (>1 = slower). */
   travelMult: number;
-  /** Extra energy burned for the crossing. */
-  energyCost: number;
   patches: VegetationPatch[];
 }
 
@@ -70,13 +66,12 @@ export function vegetationCost(
   }
 
   if (vegMeters <= 0) {
-    return { travelMult: 1, energyCost: 0, patches: [] };
+    return { travelMult: 1, patches: [] };
   }
 
   const hundreds = vegMeters / 100;
   return {
     travelMult: Math.min(TRAVEL_MULT_CAP, 1 + hundreds * TRAVEL_PER_100M),
-    energyCost: Math.round(hundreds * ENERGY_PER_100M),
     patches: [
       {
         id: `veg:${hitLat.toFixed(4)}:${hitLng.toFixed(4)}`,

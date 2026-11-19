@@ -20,6 +20,8 @@ import { loadEffectsFor } from '../game/inventory';
 import { useGame } from '../game/store';
 import { dangerColor } from './mapIcons';
 import { formatDuration, type estimateExpedition } from '../game/travel';
+import type { TravelEnergyQuote } from '../game/travelEnergy';
+import { TravelEnergyRow } from './TravelEnergyRow';
 import { remainingSearchMinutes } from '../game/searchSession';
 import { displayLine, getMrtNetwork, linesAt, type MrtSegment } from '../game/mrt';
 import type { LocationState } from '../game/types';
@@ -64,7 +66,8 @@ interface Props {
   here: boolean;
   est: Estimate;
   energyLow: boolean;
-  /** target is beyond the survivor's current one-push travel range */
+  travelEnergy?: TravelEnergyQuote;
+  /** Walking costs more than the remaining energy, or the survivor is pinned. */
   outOfRange?: boolean;
   /** No land path around water/restricted under the routing budget. */
   noDryRoute?: boolean;
@@ -201,6 +204,7 @@ function UnknownCard({
   sel,
   est,
   energyLow,
+  travelEnergy,
   outOfRange,
   noDryRoute,
   onTravel,
@@ -227,6 +231,7 @@ function UnknownCard({
               )}
             </LedgerRow>
           )}
+          <TravelEnergyRow quote={travelEnergy} />
           <RouteRow routeRisk={routeRisk} />
         </Ledger>
       )}
@@ -439,6 +444,7 @@ function KnownCard({
   here,
   est,
   energyLow,
+  travelEnergy,
   outOfRange,
   noDryRoute,
   canTunnel,
@@ -747,6 +753,7 @@ function KnownCard({
               )}
             </>
           )}
+          <TravelEnergyRow quote={travelEnergy} />
           <RouteRow routeRisk={routeRisk} />
         </Ledger>
 

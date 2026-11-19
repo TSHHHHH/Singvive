@@ -78,7 +78,7 @@ export function HudCard({
 /** Phone: the target card docked bottom-right, above the tab chrome. */
 export function TargetDock(props: CardProps) {
   return (
-    <div className="pointer-events-none absolute inset-0 z-[600]">
+    <div className="pointer-events-none absolute inset-0 z-[1010]">
       <HudCard
         {...props}
         className="absolute bottom-[calc(var(--mobile-chrome-bottom)+0.5rem)] right-3 w-[min(20.5rem,calc(100%-1.5rem))]"

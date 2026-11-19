@@ -32,11 +32,12 @@ export function FogOverlay({ exploredArea, currentRevealCenter, revealRadius }: 
     return installOverlay(
       map,
       'fog',
-      Object.fromEntries(bandIds.map((id) => [id, 'geojson' as const])),
-      bandIds.map((id) => ({
+      { 'fog-src': 'geojson' },
+      bandIds.map((id, k) => ({
         id: `${id}-fill`,
         type: 'fill' as const,
-        source: id,
+        source: 'fog-src',
+        filter: ['==', ['get', 'band'], k],
         paint: { 'fill-color': FOG_COLOUR, 'fill-opacity': op, 'fill-antialias': false },
       })),
     );
@@ -55,7 +56,12 @@ export function FogOverlay({ exploredArea, currentRevealCenter, revealRadius }: 
         // polygon-clipping can throw on a degenerate union; keep last frame.
         return;
       }
-      bands.forEach((data, k) => setData(map, bandIds[k], data));
+      // One worker update per sight sample. Separate layers still blend each
+      // band over the previous one, even where their polygons overlap.
+      setData(map, 'fog-src', {
+        type: 'FeatureCollection',
+        features: bands.flatMap((data, band) => data.features.map(f => ({ ...f, properties: { band } }))),
+      });
     };
     draw(revealRadius.value);
     return revealRadius.subscribe(draw);

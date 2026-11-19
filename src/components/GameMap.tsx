@@ -4,6 +4,7 @@ import type { Feature } from 'geojson';
 import type { DestructionTier, Poi, TimeOfDay, WeatherKind, MapAnnotation } from '../game/types';
 import { WeatherFx } from './WeatherFx';
 import { Atmosphere3d } from './Atmosphere3d';
+import { useDesktopShadows, useShadowCapableLayout } from '../hooks/useDesktopShadows';
 import type { WeatherDom } from './useAtmosphere';
 import { TimeOfDayFx } from './TimeOfDayFx';
 import { poiIcon, identifiedIcon, playerIcon, playerLocationIcon, unknownIcon, evacIcon, dangerColor, rumourIcon, trekTargetIcon, knownFactionColor } from './mapIcons';
@@ -32,7 +33,7 @@ import { DistrictLines } from './DistrictLines';
 import { BorderLayers } from './BorderLayers';
 import { MapGrain } from './MapGrain';
 import { Icon } from '../icons/Icon';
-import { pathFromProgress, pathUntil, pointAlongPath } from '../game/route';
+import { pointAlongPath } from '../game/route';
 import {
   CAMERA_CUT_SCREENS,
   CAMERA_EDGE,
@@ -538,6 +539,20 @@ function Buildings3d({
   const map = useMapGL();
   const reduced = useReducedMotion();
   const [engine, setEngine] = useState<BuildingEngine | null>(null);
+  const shadows = useDesktopShadows();
+
+  useEffect(() => {
+    if (!engine || !shadows) return;
+    let active = true;
+    let remove: (() => void) | undefined;
+    void import('../map/buildingShadows').then(({ installBuildingShadows }) => {
+      if (active) remove = installBuildingShadows(map, engine);
+    }).catch((error: unknown) => console.warn('Building shadows unavailable', error));
+    return () => {
+      active = false;
+      remove?.();
+    };
+  }, [engine, map, shadows]);
 
   useEffect(() => {
     const e = new BuildingEngine(map);
@@ -1129,6 +1144,9 @@ const TRAIL_DONE = 'trail-done';
 const TRAIL_AHEAD = 'trail-ahead';
 const TRAIL_PREVIEW = 'trail-preview';
 
+const travelledStroke = (progress: number): ExpressionSpecification =>
+  ['step', ['line-progress'], '#9ad7eb', progress, 'transparent'];
+
 /**
  * The route line. Planning: one dashed preview (red when there is no dry
  * route). En route: traversed (solid) vs ahead (faint dash), driven by the
@@ -1145,11 +1163,13 @@ function TravelPath({
   blocked: boolean;
 }) {
   const map = useMapGL();
-  const rafRef = useRef<number | undefined>(undefined);
-
   useEffect(
     () =>
-      installOverlay(map, 'trail', { [TRAIL_DONE]: 'geojson', [TRAIL_AHEAD]: 'geojson', [TRAIL_PREVIEW]: 'geojson' }, [
+      installOverlay(map, 'trail', {
+        [TRAIL_DONE]: { type: 'geojson', data: EMPTY_FC, lineMetrics: true, tolerance: 0 },
+        [TRAIL_AHEAD]: 'geojson',
+        [TRAIL_PREVIEW]: 'geojson',
+      }, [
         {
           id: 'trail-preview-line',
           type: 'line',
@@ -1178,7 +1198,7 @@ function TravelPath({
           type: 'line',
           source: TRAIL_DONE,
           layout: { 'line-cap': 'round', 'line-join': 'round' },
-          paint: { 'line-color': '#9ad7eb', 'line-width': 3, 'line-opacity': 0.9 },
+          paint: { 'line-gradient': travelledStroke(0), 'line-width': 3, 'line-opacity': 0.9 },
         },
       ]),
     [map],
@@ -1200,21 +1220,20 @@ function TravelPath({
       return;
     }
     setData(map, TRAIL_PREVIEW, EMPTY_FC);
+    // Tile the path once. Reveal the solid stroke over the stationary dashes
+    // by distance along the line, without sending new geometry to workers.
+    const route = fc([lineFeature(path)]);
+    setData(map, TRAIL_DONE, route);
+    setData(map, TRAIL_AHEAD, route);
     const { startedAt, durationMs } = travelAnim;
+    let timer: ReturnType<typeof setTimeout>;
     const tick = () => {
       const t = Math.min(1, (Date.now() - startedAt) / durationMs);
-      const e = travelEase(t);
-      const done = pathUntil(path, e);
-      const rest = pathFromProgress(path, e);
-      setData(map, TRAIL_DONE, done.length >= 2 ? fc([lineFeature(done)]) : EMPTY_FC);
-      const ahead = rest.length >= 2 ? rest : [done[done.length - 1] ?? path[0], path[path.length - 1]];
-      setData(map, TRAIL_AHEAD, fc([lineFeature(ahead)]));
-      if (t < 1) rafRef.current = requestAnimationFrame(tick);
+      map.setPaintProperty('trail-done-line', 'line-gradient', travelledStroke(t >= 1 ? 1.001 : travelEase(t)));
+      if (t < 1) timer = setTimeout(tick, 32);
     };
-    rafRef.current = requestAnimationFrame(tick);
-    return () => {
-      if (rafRef.current !== undefined) cancelAnimationFrame(rafRef.current);
-    };
+    tick();
+    return () => clearTimeout(timer);
   }, [map, path, travelAnim, blocked]);
 
   return null;
@@ -1290,7 +1309,8 @@ const HazardRings = memo(function HazardRings({ hazards, pathIds }: { hazards: H
           id: 'hazard-fill',
           type: 'fill',
           source: 'hazard-src',
-          paint: { 'fill-color': ['get', 'color'], 'fill-opacity': ['get', 'fop'] },
+          filter: ['>', ['get', 'fop'], 0],
+          paint: { 'fill-color': ['get', 'color'], 'fill-opacity': ['get', 'fop'], 'fill-outline-color': 'transparent' },
         },
         {
           id: 'hazard-line-dash',
@@ -1320,15 +1340,15 @@ const HazardRings = memo(function HazardRings({ hazards, pathIds }: { hazards: H
   useEffect(() => {
     const features: Feature[] = [];
     for (const blob of hazardBlobDrawList(hazards, pathIds)) {
-      const night = blob.kind === 'night_swarm';
+      // Background pockets share the street surface. Reserve broad washes for
+      // route crossings so unrelated zones cannot stack into a solid colour.
       const props = {
         color: HAZARD_CONFIG[blob.kind].color,
         onPath: blob.onPath,
-        fop: night ? 0.16 + blob.severity * 0.05 : blob.onPath ? 0.14 + blob.severity * 0.05 : 0.1 + blob.severity * 0.04,
-        w: blob.onPath ? 2 : night ? 1.5 : 1.25,
-        op: blob.onPath ? 0.9 : 0.5 + blob.severity * 0.12,
-        // Sealed-off areas read as a cordon: hard solid edge, a little more fill.
-        ...(blob.area ? { wall: true, w: blob.onPath ? 2.5 : 1.75, fop: 0.16 + blob.severity * 0.05 } : {}),
+        fop: blob.onPath ? 0.08 + blob.severity * 0.025 : 0,
+        w: blob.onPath ? 2.25 : blob.area ? 1.5 : 1,
+        op: blob.onPath ? 0.9 : 0.34 + blob.severity * 0.09,
+        wall: !!blob.area,
       };
       for (const ring of blob.rings) {
         if (ring.length < 3) continue;
@@ -1337,7 +1357,7 @@ const HazardRings = memo(function HazardRings({ hazards, pathIds }: { hazards: H
       // The place itself — the school, the market — reads as the heart of the zone.
       if (blob.cores) {
         const outlines = bakedOutlineByOsmId();
-        const coreProps = { ...props, core: true, fop: 0.32 + blob.severity * 0.06 };
+        const coreProps = { ...props, core: true, fop: (blob.onPath ? 0.16 : 0.06) + blob.severity * 0.025 };
         for (const id of blob.cores) {
           const ring = outlines?.get(id) ?? hazardSiteById(id)?.hull;
           if (!ring || ring.length < 3) continue;
@@ -1810,6 +1830,7 @@ function GameMapInner({
   );
   const pathIdSet = useMemo(() => new Set(pathHazardIds), [pathHazardIds]);
   const view3d = useSetting('mapView3d') === 'on';
+  const desktop = useShadowCapableLayout();
   const playerAtSite = !!hereId && !travelAnim;
   // The place view owns padding and the keyboard camera while it holds the map.
   const placeCam = !!placeFocus && (placeFocus.kind === 'site' || view3d);
@@ -1882,7 +1903,7 @@ function GameMapInner({
         {/* The sealed Johor border: blown Causeway, barricaded Second Link, searchlights. */}
         <BorderLayers view3d={view3d} time={time} />
         <DistrictNames />
-        <MapGrain />
+        {!(view3d && desktop) && <MapGrain />}
         {/* Outside the island disc the world fades to black. */}
         <EdgeVignette />
         {/* Fog + 3D buildings. Overlays draw by slot, not mount order. */}

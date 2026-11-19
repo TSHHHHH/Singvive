@@ -1,5 +1,6 @@
 import { useState, type CSSProperties } from 'react';
 import { ActivityEventCard } from './ActivityEventCard';
+import { crossingLogText } from '../game/crossingEvent';
 import { itemDef } from '../game/loot';
 import {
   activeScopeKey,
@@ -84,6 +85,7 @@ export function LogEntryBody({
   compact?: boolean;
 }) {
   if (e.activityEvent) return <ActivityEventCard entry={e} clock={clock} timeW={timeW} hang={hang} compact={compact} />;
+  const text = e.crossing ? crossingLogText(e.crossing, tr) : e.text;
   return (
     <div className="min-w-0 flex-1">
       {compact ? (
@@ -91,7 +93,7 @@ export function LogEntryBody({
           <span className="mr-2 shrink-0 tabular-nums text-micro text-white/25">
             {formatClock(e.hour, clock)}
           </span>
-          {highlightLogText(e.text)}
+          {highlightLogText(text)}
         </div>
       ) : (
         <p
@@ -106,7 +108,7 @@ export function LogEntryBody({
           >
             {formatClock(e.hour, clock)}
           </span>
-          {highlightLogText(e.text)}
+          {highlightLogText(text)}
         </p>
       )}
       {e.focus && onFocusMap && (

@@ -13,6 +13,18 @@ import {
 } from './skills';
 
 describe('skills', () => {
+  it('accumulates fractional practice without rewarding extra action boundaries', () => {
+    let skills = emptySkills();
+    let dayXp = emptySkillDayXp(1);
+    for (let i = 0; i < 10; i++) {
+      const result = gainSkillXp(skills, dayXp, 1, 'fitness', 0.1, { fractional: true });
+      skills = result.skills;
+      dayXp = result.dayXp;
+    }
+    expect(skills.fitness.xp).toBeCloseTo(1);
+    expect(dayXp.gained.fitness).toBeCloseTo(1);
+  });
+
   it('empty skills contribute no mods', () => {
     const m = skillMods(emptySkills());
     expect(m.attackMod).toBe(0);

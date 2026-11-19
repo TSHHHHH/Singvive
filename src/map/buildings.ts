@@ -51,7 +51,7 @@ import { REVEAL_MS } from './revealMotion';
 /** Extrusions draw from here. CARTO's building ids are stable from z15 tiles. */
 export const LOD_ZOOM = 15;
 /** Heights grow from 0 to full across this much zoom above LOD_ZOOM. */
-const ZOOM_RISE_SPAN = 1;
+export const ZOOM_RISE_SPAN = 1;
 /** How long a building takes to rise out of the ground when revealed. */
 /** After tiles load, wait this long before indexing their buildings. */
 const INDEX_DEBOUNCE_MS = 300;
@@ -148,7 +148,7 @@ const BAND_STANDOFF_M = 1.2;
  */
 export const FOCUS_LAYER = 'focus-3d';
 const GHOST_OPACITY = 0.18;
-const SOLID_OPACITY = 0.9;
+const SOLID_OPACITY = 1;
 const FIRE_GLOW_LAYER = 'fires-3d-glow';
 const FIRE_CORE_LAYER = 'fires-3d-core';
 
@@ -224,6 +224,13 @@ const TENANT_MAX_M: Partial<Record<PoiCategory, number>> = {
 };
 
 type FeatureId = string | number;
+
+/** Geometry for one animated shadow caster. Ruin pieces move as one wreck. */
+export interface ShadowBlock {
+  target: { source: string; sourceLayer?: string; id: FeatureId };
+  parts: { polygons: Polygon[]; base: number; top: number }[];
+  wreck: boolean;
+}
 
 export interface Site3d {
   id: string;
@@ -412,6 +419,78 @@ export class BuildingEngine {
   /** Site drawn solid while the rest ghost; the ids it was last drawn with. */
   private focus: string | null = null;
   private focusDrawn = '';
+  shadowGeometryRevision = 0;
+  shadowHeightRevision = 0;
+  shadowRuinRevision = 0;
+  private shadowTiles?: ReturnType<MlMap['querySourceFeatures']>;
+  private shadowFootprints?: Map<FeatureId, ShadowBlock>;
+
+  releaseShadowFootprints() {
+    this.shadowTiles = undefined;
+    this.shadowFootprints = undefined;
+  }
+
+  get shadowDisc() {
+    return this.focus || this.destroyed ? null : this.live;
+  }
+
+  /** The same live rise written to the native extrusion by updateReveal / stepRise. */
+  buildingRise(id: FeatureId): number {
+    return this.rise.get(id)?.v ?? 0;
+  }
+
+  /** Read tile fragments only when the loaded neighbourhood or ruin set changes. */
+  shadowBlocks(lat: number, lng: number, radius: number): ShadowBlock[] {
+    this.shadowTiles ??= this.map.querySourceFeatures(this.src, { sourceLayer: this.sl });
+    this.shadowFootprints ??= this.groupShadowFootprints(this.shadowTiles);
+    const disc = { lat, lng, r: radius };
+    const cosLat = Math.cos(lat * Math.PI / 180);
+    const result: ShadowBlock[] = [];
+    const nearby = (id: FeatureId) => {
+      const c = this.index.get(id);
+      return c !== undefined && inDisc(c.lat, c.lng, disc, cosLat);
+    };
+    for (const [id, block] of this.shadowFootprints) {
+      if (nearby(id)) result.push(block);
+    }
+    for (const key of this.ruinShown) {
+      const model = this.ruinCache.get(key);
+      if (!model?.pieces.length || model.owner === undefined || !nearby(model.owner)) continue;
+      result.push({
+        target: { source: RUINS_SOURCE, id: model.pieces[0].id! },
+        wreck: true,
+        parts: model.pieces.flatMap(({ geometry, properties }) => {
+          if (geometry.type !== 'Polygon' || !properties) return [];
+          const base = Number(properties.base);
+          const top = Number(properties.top);
+          if (!Number.isFinite(base) || !Number.isFinite(top) || top <= base) return [];
+          return [{ polygons: [geometry.coordinates as Polygon], base, top }];
+        }),
+      });
+    }
+    return result;
+  }
+
+  private groupShadowFootprints(features: ReturnType<MlMap['querySourceFeatures']>) {
+    const blocks = new Map<FeatureId, ShadowBlock>();
+    for (const f of features) {
+      if (f.id === undefined) continue;
+      const g = f.geometry;
+      if (g.type !== 'Polygon' && g.type !== 'MultiPolygon') continue;
+      let block = blocks.get(f.id);
+      if (!block) {
+        const p = f.properties;
+        const top = Number(p.render_height ?? p.height ?? 8);
+        const base = landmarkBaseHeight(this.src, f.id, p) ?? Number(p.render_min_height ?? p.min_height ?? 0);
+        if (!Number.isFinite(top) || !Number.isFinite(base) || top <= base) continue;
+        block = { target: { source: this.src, sourceLayer: this.sl, id: f.id }, wreck: false, parts: [{ polygons: [], base, top }] };
+        blocks.set(f.id, block);
+      }
+      const polys = g.type === 'Polygon' ? [g.coordinates] : g.coordinates;
+      block.parts[0].polygons.push(...polys as Polygon[]);
+    }
+    return blocks;
+  }
 
   constructor(map: MlMap) {
     this.map = map;
@@ -504,7 +583,7 @@ export class BuildingEngine {
           ]),
           'fill-extrusion-height': heightExpr(false),
           'fill-extrusion-base': heightExpr(true),
-          'fill-extrusion-opacity': 0.9,
+          'fill-extrusion-opacity': SOLID_OPACITY,
           'fill-extrusion-vertical-gradient': true,
         },
       },
@@ -540,7 +619,7 @@ export class BuildingEngine {
           'fill-extrusion-color': standingColor(['coalesce', ['feature-state', 'color'], RUIN_COLORS.shell]),
           'fill-extrusion-height': pieceExpr('top'),
           'fill-extrusion-base': pieceExpr('base'),
-          'fill-extrusion-opacity': 0.9,
+          'fill-extrusion-opacity': SOLID_OPACITY,
           'fill-extrusion-vertical-gradient': true,
         },
       },
@@ -841,7 +920,12 @@ export class BuildingEngine {
     this.partIds.clear();
     this.collapsedIds.clear();
     this.fireIds.clear();
-    for (const f of map.querySourceFeatures(this.src, { sourceLayer: this.sl })) {
+    const loaded = map.querySourceFeatures(this.src, { sourceLayer: this.sl });
+    if (this.shadowTiles) {
+      this.shadowTiles = loaded;
+      this.shadowFootprints = undefined;
+    }
+    for (const f of loaded) {
       if (f.id === undefined || next.has(f.id)) continue;
       const at = anchorOf(f.geometry);
       if (!at) continue;
@@ -860,6 +944,7 @@ export class BuildingEngine {
     }
     const first = this.index.size === 0;
     this.index = next;
+    this.shadowGeometryRevision++;
     this.pickDamage(true);
     // The first reveal (entering 3D, loading a run) is instant; tiles that
     // load later rise in.
@@ -879,6 +964,7 @@ export class BuildingEngine {
       const want = inDisc(c.lat, c.lng, this.live, cosLat) ? 1 : 0;
       if (want === curTo) continue;
       if (snap) {
+        this.shadowHeightRevision++;
         this.rise.set(id, { from: want, to: want, start: now, v: want });
         this.rising.delete(id);
         map.setFeatureState({ source: this.src, sourceLayer: this.sl, id }, { rise: want });
@@ -897,6 +983,7 @@ export class BuildingEngine {
   private stepRise = (now: number) => {
     this.riseRaf = 0;
     if (this.destroyed || !alive(this.map) || !this.map.getLayer(BUILDINGS_LAYER)) return;
+    this.shadowHeightRevision++;
     for (const id of this.rising) {
       const r = this.rise.get(id);
       if (!r) {
@@ -1041,12 +1128,16 @@ export class BuildingEngine {
       const target = { source: this.src, sourceLayer: this.sl, id };
       map.removeFeatureState(target, 'color');
       map.removeFeatureState(target, 'ruin');
+      this.shadowHeightRevision++;
+      this.shadowRuinRevision++;
       this.applied.delete(id);
     }
     for (const [id, s] of want) {
       const key = `${s.color}|${s.ruin}`;
       if (this.applied.get(id) === key) continue;
+      this.shadowHeightRevision++;
       map.setFeatureState({ source: this.src, sourceLayer: this.sl, id }, s);
+      this.shadowRuinRevision++;
       this.applied.set(id, key);
     }
     this.applyPieceStates();
@@ -1217,6 +1308,7 @@ export class BuildingEngine {
 
   /** A model came or went: redraw the pieces, re-flatten boxes, move badges. */
   private afterRuinChange() {
+    this.shadowGeometryRevision++;
     const features: Feature[] = [];
     this.wreckOf.clear();
     for (const key of this.ruinShown) {

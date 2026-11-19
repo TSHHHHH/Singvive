@@ -14,6 +14,7 @@ import type {
   SkillsState,
 } from './types';
 import type { ExploredCircle } from './fog';
+import type { PendingCrossing } from './crossingEvent';
 import type { HdbDungeon } from './hdbDungeon';
 import { migrateHdbDungeon } from './hdbDungeon';
 import type { TunnelRun } from './tunnelRun';
@@ -49,6 +50,8 @@ export interface SavedRun {
   locations: Record<string, LocationState>;
   currentPositionId: string | null;
   currentPos: { lat: number; lng: number };
+  /** Departure is paused before spending anything. Older v7 runs have none. */
+  pendingCrossing?: PendingCrossing | null;
   equipment: Equipment;
   bodyParts: BodyParts;
   meters: Meters;
@@ -80,18 +83,14 @@ export interface SavedRun {
   evacDeadline: number | null;
   /** Set only while the channel is dark between windows. Absent on old saves. */
   evacCooldownUntil?: number | null;
-  /**
-   * Seeded weighted readiness this bird wants. Absent on older saves — resume
-   * rolls once from the current day so the quota stays opaque.
-   */
+  /** Legacy v7 cargo quota; ignored by the current evacuation procedure. */
   evacDemand?: number | null;
-  /** Soft cargo bias for the current window. Absent on older saves. */
+  /** Legacy v7 cargo preference; ignored. */
   evacDemandBias?: 'fuel' | 'meds' | 'ammo' | 'balanced' | null;
-  /**
-   * Whether the pad manifest has been read this window. Absent on older saves —
-   * they resume fogged and the player re-raises the channel for free.
-   */
+  /** Legacy v7 manifest flag; does not count as contact in the new procedure. */
   evacManifestRevealed?: boolean;
+  /** Contact for the current operation. Old cargo/manifest fields above are ignored. */
+  evacContacted?: boolean;
   /** Explored HDB blocks, so a cleared unit stays cleared between visits. */
   hdbBlocks?: Record<string, HdbDungeon>;
   /**

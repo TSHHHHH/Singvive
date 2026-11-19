@@ -1,6 +1,5 @@
-import type { Attributes, LocationState, LocationMemory, WeatherKind } from './types';
-import { walkSpeed } from './travel';
-import { weatherTravelMult } from './weather';
+import type { LocationState, LocationMemory } from './types';
+export { travelableRange } from './travelEnergy';
 
 // ---------------------------------------------------------------------------
 // Blind-exploration fog of war.
@@ -9,14 +8,10 @@ import { weatherTravelMult } from './weather';
 // names/categories; visits and specialist intel record fuller memories. The
 // evacuation beacon is a separate broadcast objective.
 // The ring on the map is not vision — it is the *travelable range*: how far
-// the survivor can comfortably push right now given their build, energy,
-// injuries, load and the weather. Unvisited locations inside that ring show
+// the survivor can afford with their remaining energy, build, injuries and load.
+// Terrain, weather and detours affect time, not walking energy. Locations in it show
 // as anonymous "?" blips until identified by exploration or visited.
 // ---------------------------------------------------------------------------
-
-// Minutes of walking the survivor will commit to per 10 energy — the
-// "comfortable expedition reach" used for the planning ring.
-const MINUTES_PER_10_ENERGY = 1;
 
 // Metres of blip-sensing range added per awareness point above baseline.
 export const AWARENESS_RANGE_PER_POINT = 60;
@@ -85,26 +80,6 @@ export function mergeExploredCircles(circles: ExploredCircle[]): ExploredCircle[
  */
 export function awareness(perception: number, equipMod: number, traitMod: number): number {
   return Math.max(0, perception + equipMod + traitMod);
-}
-
-/**
- * How far the survivor can comfortably travel right now, in metres.
- * Scales with walking speed (END/DEX + leg injuries), current energy, and is
- * slowed by load and bad weather — the same factors as real travel time.
- */
-export function travelableRange(
-  attrs: Attributes,
-  energy: number,
-  legFactor: number,
-  weather: WeatherKind,
-  travelMult = 1,
-): number {
-  const speed = walkSpeed(attrs, energy, legFactor); // m/min
-  const wMult = weatherTravelMult(weather);
-  const loadMult = Math.max(1, travelMult);
-  // full energy (100) commits ~10 minutes of walking; scales down as you tire
-  const commitMinutes = Math.max(0, energy) * MINUTES_PER_10_ENERGY / 10;
-  return Math.round((speed * commitMinutes) / (wMult * loadMult));
 }
 
 /** Extra blip-sensing margin beyond the travel ring, from awareness. */

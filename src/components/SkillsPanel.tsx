@@ -67,9 +67,9 @@ export function SkillsPanel() {
                 <span>
                   {prog.level >= SKILL_MAX_LEVEL
                     ? t('ui.skills.maxed')
-                    : t('ui.skills.xp', { xp: prog.xp, need: need ?? 0 })}
+                    : t('ui.skills.xp', { xp: Math.floor(prog.xp), need: need ?? 0 })}
                 </span>
-                <span>{t('ui.skills.practiceLeft', { left: capLeft })}</span>
+                <span>{t('ui.skills.practiceLeft', { left: Math.ceil(capLeft) })}</span>
               </div>
             </div>
           );

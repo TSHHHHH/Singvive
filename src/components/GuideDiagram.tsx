@@ -102,33 +102,18 @@ function LootDiagram() {
 
 function EvacDiagram() {
   const { t } = useT();
-  const weights: { label: string; w: string; mult: string }[] = [
-    { label: t('ui.guide.diagram.fuel'), w: 'w-full', mult: '×3' },
-    { label: t('ui.guide.diagram.medsAmmo'), w: 'w-[83%]', mult: '×2.5' },
-    { label: t('ui.guide.diagram.weapons'), w: 'w-1/2', mult: '×1–1.6' },
-    { label: t('ui.guide.diagram.foodWater'), w: 'w-1/3', mult: '×0.5' },
-  ];
-
   return (
     <div className="space-y-2" aria-hidden>
       <div className="flex flex-wrap items-center gap-1.5">
-        <Chip icon="action.evac" label={t('ui.guide.diagram.beacon')} accent />
+        <Chip icon="action.target" label={t('ui.guide.diagram.knownPoint')} />
         <Arrow />
-        <Chip icon="action.inventory" label={t('ui.guide.diagram.backpackOnly')} />
-        <Chip label={t('ui.guide.diagram.timedWindow')} />
+        <Chip icon="action.evac" label={t('ui.guide.diagram.report')} />
+        <Arrow />
+        <Chip icon="action.evac" label={t('ui.guide.diagram.board')} accent />
       </div>
-      <div className="space-y-1">
-        {weights.map((row) => (
-          <div key={row.label} className="flex items-center gap-2">
-            <span className="w-16 shrink-0 text-micro text-white/40">{row.label}</span>
-            <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded bg-black/50">
-              <div className={`h-full rounded bg-signal/60 ${row.w}`} />
-            </div>
-            <span className="w-10 shrink-0 text-right text-micro tabular-nums text-signal/80">
-              {row.mult}
-            </span>
-          </div>
-        ))}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Chip label={t('ui.guide.diagram.timedWindow')} />
+        <Chip label={t('ui.guide.diagram.freeEvac')} accent />
       </div>
     </div>
   );

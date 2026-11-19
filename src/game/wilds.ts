@@ -21,6 +21,7 @@ import {
   type HazardSiteCategory,
 } from './hazardSites';
 import { darkTrekEncounterMod } from './nightSight';
+import { carefulCrossingMinutes } from './crossingEvent';
 
 // ---------------------------------------------------------------------------
 // The wilds — the ground *between* the pins.
@@ -790,10 +791,7 @@ export function hazardsAtPoint(
 // --- what crossing costs ----------------------------------------------------
 
 /** Below this the move isn't a trek, it's a fidget — refuse it. */
-export const TREK_MIN_DISTANCE_M = 60;
-
-/** Flat stamina price for leaving the shelter of a known site. */
-export const TREK_BASE_ENERGY = 7;
+export const TREK_MIN_DISTANCE_M = 1;
 
 /**
  * Open ground is strictly worse than a road between two POIs: no doorway to
@@ -812,8 +810,6 @@ export interface TrekRisk {
    * risk was priced with. This is what the route label reads.
    */
   fightChance: number;
-  /** Energy burned on arrival, on top of the clock's own drain. */
-  energyCost: number;
   /** Danger tier (1..5) any fight out here is built at. */
   combatDanger: number;
   /** Hazards the route runs through. */
@@ -895,12 +891,10 @@ export function trekRisk(
   p += opts.weatherEncounterMod;
   p += darkTrekEncounterMod(opts.band, opts.sight ?? 1, opts.lightPower ?? 0);
 
-  let energyCost = TREK_BASE_ENERGY + dist / 250;
   let worst = 0;
   for (const z of hazards) {
     const cfg = HAZARD_CONFIG[z.kind];
     p *= 1 + (cfg.encounterMult - 1) * (z.severity / 3);
-    energyCost += cfg.energyCost * z.severity * 0.6;
     worst = Math.max(worst, z.severity);
   }
 
@@ -908,7 +902,6 @@ export function trekRisk(
   return {
     encounterChance,
     fightChance: crossingFightChance(encounterChance, hazards, opts.wet ?? false),
-    energyCost: Math.round(energyCost),
     combatDanger: Math.max(1, Math.min(5, 2 + worst)),
     hazards,
   };
@@ -1103,6 +1096,8 @@ export function resolveCrossing(
     pressure?: number;
     forest?: boolean;
     weather?: WeatherKind;
+    /** Only supplied after the player chooses how to cross a hazardous route. */
+    approach?: 'careful' | 'direct';
   },
 ): CrossingOutcome {
   const logs: { text: string; tone: 'info' | 'bad' }[] = [];
@@ -1121,15 +1116,16 @@ export function resolveCrossing(
   const byId = new Map<string, HazardZone>();
   for (const z of risk.hazards) byId.set(z.id, z);
   const unique = [...byId.values()];
+  const careful = opts.approach === 'careful';
+  if (careful) extraHours += carefulCrossingMinutes(unique) / 60;
 
   let combatBest: HazardZone | null = null;
   let combatChance = 0;
   for (const z of unique) {
     if (z.kind === 'collapse') {
       const dc = 10 + z.severity * 2;
-      const autoFail = z.severity >= 3;
       const roll = rng.d20();
-      const ok = !autoFail && (roll === 20 || roll + opts.dexterity + opts.checkBonus >= dc);
+      const ok = roll === 20 || (roll !== 1 && roll + opts.dexterity + opts.checkBonus + (careful ? 4 : 0) >= dc);
       if (!ok) {
         woundHp += 6 + z.severity * 3;
         woundPreferLeg = true;
@@ -1140,18 +1136,18 @@ export function resolveCrossing(
     } else if (z.kind === 'floodwater') {
       extraHours += 0.12 * z.severity;
       logs.push({ text: flavorHazard('floodwater', 'cross', flavorRng), tone: 'bad' });
-      if (rng.chance(0.1 * z.severity)) {
+      if (rng.chance(0.1 * z.severity * (careful ? 0.4 : 1))) {
         infectionDelta += 4 * z.severity;
         logs.push({ text: flavorHazard('floodwater', 'infect', flavorRng), tone: 'bad' });
       }
     } else if (COMBAT_KINDS.has(z.kind)) {
       logs.push({ text: flavorHazard(z.kind, 'cross', flavorRng), tone: 'bad' });
-      const p = ambushChanceFor(z.kind, z.severity);
+      const p = ambushChanceFor(z.kind, z.severity) * (careful ? 0.4 : 1);
       if (p >= combatChance) {
         combatChance = p;
         combatBest = z;
       }
-      if (z.kind === 'horde_pocket' && z.severity >= 3) {
+      if (z.kind === 'horde_pocket' && z.severity >= 3 && !careful) {
         infectionDelta += 3;
         logs.push({ text: flavorHazard('horde_pocket', 'infect', flavorRng), tone: 'bad' });
       }
@@ -1189,7 +1185,8 @@ export function resolveCrossing(
   }
 
   return {
-    energyCost: risk.energyCost + weatherDrain,
+    // Walking is priced separately. Only an actual encounter adds energy here.
+    energyCost: weatherDrain,
     extraHours,
     woundHp: Math.min(WOUND_CAP, woundHp),
     woundPreferLeg,

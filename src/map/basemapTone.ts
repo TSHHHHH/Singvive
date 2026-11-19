@@ -2,6 +2,7 @@ import type { Map as MlMap, LayerSpecification, ExpressionSpecification } from '
 import type { TimeOfDay } from '../game/types';
 import { BASEMAP, GROUND_COLOR } from './mapStyle';
 import { alive } from './layers';
+import { mixHex } from './geo';
 
 /**
  * The basemap's own colours, re-tuned for contrast.
@@ -12,14 +13,14 @@ import { alive } from './layers';
  * and the features' `kind` / `class`), never by CARTO's layer ids, so it keeps
  * working if CARTO renames or splits layers:
  *
- * - **Roads** get a clear hierarchy: main roads near white, secondary light
+ * - **Roads** get a clear hierarchy: main roads warm grey, secondary muted
  *   grey, minor streets dark grey, paths darkest. Casings go to the ground
  *   colour so each road has a crisp edge.
  * - **Ground** is a neutral, slightly deeper grey (no green or blue cast), so
  *   faction colours, hazard zones and beacons own the colour on the map.
  * - **Water and green space** are low-saturation blue-grey and green-grey.
  *
- * At night the roads switch to a cool white and a soft glow layer comes on
+ * At night the roads switch to a cool grey and a soft glow layer comes on
  * under them (`setBasemapTime`). That is a paint change on the hour band
  * flipping: an event, never a timer, so the map still idles at 0 renders.
  */
@@ -46,16 +47,16 @@ export const TONE_WATERWAY = '#25313a';
 export const TONE_CASING = '#070808';
 
 export const DAY_ROADS: RoadTone = {
-  main: '#ffffff',
-  secondary: '#a4a7ab',
+  main: '#b4b0a4',
+  secondary: '#858781',
   minor: '#4b4f54',
   path: '#2c2f33',
 };
 
-/** Night: a cool white on the big roads, everything else a cooler grey. */
+/** Night: cool greys with a soft glow on the big roads. */
 export const NIGHT_ROADS: RoadTone = {
-  main: '#d4e2ff',
-  secondary: '#8590a2',
+  main: '#99a7ba',
+  secondary: '#737f90',
   minor: '#3e4550',
   path: '#272c33',
 };
@@ -153,6 +154,8 @@ export function toneRole(layer: LayerSpecification): ToneRole | null {
 }
 
 interface ToneState {
+  surfaces: { id: string; role: 'background' | 'ground' | 'land' }[];
+  daylight: number;
   roads: string[];
   tunnels: string[];
   glow: boolean;
@@ -166,7 +169,7 @@ const states = new WeakMap<MlMap, ToneState>();
  * overlay is added (it only looks at the style's own layers).
  */
 export function toneBasemap(map: MlMap) {
-  const st: ToneState = { roads: [], tunnels: [], glow: false, time: null };
+  const st: ToneState = { surfaces: [], daylight: 0, roads: [], tunnels: [], glow: false, time: null };
   let roadSrc: { source: string; sourceLayer: string; before: string | undefined } | null = null;
   const layers = map.getStyle().layers;
   for (let i = 0; i < layers.length; i++) {
@@ -174,6 +177,7 @@ export function toneBasemap(map: MlMap) {
     const role = toneRole(layer);
     if (!role) continue;
     const id = layer.id;
+    if (role === 'background' || role === 'ground' || role === 'land') st.surfaces.push({ id, role });
     switch (role) {
       case 'background':
         map.setPaintProperty(id, 'background-color', TONE_GROUND);
@@ -232,7 +236,22 @@ export function toneBasemap(map: MlMap) {
   setBasemapTime(map, 'day');
 }
 
-/** Day / dusk roads are pure white on top; night turns them cool and lights the glow. */
+/** Give cast shadows a readable sunlit surface. These layers sit below the fog and gameplay overlays. */
+export function setGroundDaylight(map: MlMap, daylight: number) {
+  const st = states.get(map);
+  if (!st || st.daylight === daylight || !alive(map)) return;
+  st.daylight = daylight;
+  const ground = mixHex(TONE_GROUND, '#68624e', daylight);
+  const land = mixHex(TONE_LANDUSE, '#756c50', daylight);
+  const green = mixHex(TONE_GREEN, '#515b46', daylight);
+  for (const { id, role } of st.surfaces) {
+    if (!map.getLayer(id)) continue;
+    if (role === 'background') map.setPaintProperty(id, 'background-color', ground);
+    else map.setPaintProperty(id, 'fill-color', role === 'land' ? ['case', GREEN, green, land] : ground);
+  }
+}
+
+/** Day / dusk roads are warm grey; night turns them cool and lights the glow. */
 export function setBasemapTime(map: MlMap, time: TimeOfDay) {
   const st = states.get(map);
   if (!st || st.time === time || !alive(map)) return;

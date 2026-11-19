@@ -123,4 +123,10 @@ describe('bounded land routing', () => {
     vi.mocked(performance.now).mockReturnValue(0);
     expect(routeLandPath(sentosa, mainland)).not.toBeNull();
   });
+
+  it('validates seeded objectives independently of machine timing', async () => {
+    const { routeLandPath } = await loadZones();
+    vi.mocked(performance.now).mockReturnValueOnce(0).mockReturnValue(900);
+    expect(routeLandPath(sentosa, mainland, { deterministic: true })).not.toBeNull();
+  });
 });

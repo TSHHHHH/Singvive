@@ -32,13 +32,23 @@ export function toLngLatRing(ring: ReadonlyArray<readonly [number, number]>): Ln
 
 /** Metre-accurate disc as one closed `[lng, lat]` ring. MapLibre has no metre circle. */
 export function circleRing(lat: number, lng: number, metres: number, steps = 48): LngLatPair[] {
-  const r = Math.max(1, metres);
-  const dLat = r / M_PER_DEG_LAT;
-  const dLng = r / (M_PER_DEG_LAT * Math.cos((lat * Math.PI) / 180));
+  // Spherical destinations use the same Earth radius as game/overpass.haversine.
+  // A degree approximation (or a minimum 1 m radius) misstates the energy boundary.
+  const angular = Math.max(0, metres) / 6_371_000;
+  const originLat = lat * Math.PI / 180;
+  const originLng = lng * Math.PI / 180;
+  const sinLat = Math.sin(originLat);
+  const cosLat = Math.cos(originLat);
+  const sinRadius = Math.sin(angular);
+  const cosRadius = Math.cos(angular);
   const ring: LngLatPair[] = [];
   for (let i = 0; i < steps; i++) {
     const a = (i / steps) * Math.PI * 2;
-    ring.push([lng + Math.cos(a) * dLng, lat + Math.sin(a) * dLat]);
+    const pointLat = Math.asin(sinLat * cosRadius + cosLat * sinRadius * Math.sin(a));
+    const pointLng = originLng + Math.atan2(
+      Math.cos(a) * sinRadius * cosLat, cosRadius - sinLat * Math.sin(pointLat),
+    );
+    ring.push([pointLng * 180 / Math.PI, pointLat * 180 / Math.PI]);
   }
   ring.push([ring[0][0], ring[0][1]]);
   return ring;

@@ -1,8 +1,10 @@
 import { useMemo, type RefObject } from 'react';
 import { useSetting } from '../game/settings';
+import { useGame } from '../game/store';
 import type { TimeOfDay, WeatherKind } from '../game/types';
 import { useReducedMotion } from '../hooks/useReducedMotion';
-import { atmosphereFor, type Atmosphere } from '../map/atmosphere';
+import { useShadowCapableLayout } from '../hooks/useDesktopShadows';
+import { atmosphereFor, lightingHour, type Atmosphere } from '../map/atmosphere';
 
 /** The DOM halves of the 3D weather, owned by WeatherFx and driven from the map. */
 export interface WeatherDom {
@@ -19,11 +21,13 @@ const STRENGTH = { off: 0, subtle: 0.6, full: 1 } as const;
  * and reduced motion. Shared by the map driver and WeatherFx's depth haze so
  * both read the same numbers.
  */
-export function useAtmosphere(kind: WeatherKind, time: TimeOfDay) {
+export function useAtmosphere(kind: WeatherKind, time: TimeOfDay, view3d: boolean) {
+  const desktop = useShadowCapableLayout();
+  const hour = useGame((s) => view3d && desktop ? lightingHour(s.hour) : undefined);
   const mode = useSetting('weatherFx');
   const still = useReducedMotion();
   const strength = STRENGTH[mode as keyof typeof STRENGTH] ?? 0;
-  const atmos = useMemo<Atmosphere>(() => atmosphereFor(kind, time, strength), [kind, time, strength]);
+  const atmos = useMemo<Atmosphere>(() => atmosphereFor(kind, time, strength, hour), [kind, time, strength, hour]);
   const lightning = strength > 0 && !still && kind === 'thunderstorm';
   return { atmos, lightning, still, strength };
 }

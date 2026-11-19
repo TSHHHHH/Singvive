@@ -1,5 +1,54 @@
 {
   "ui": {
+    "crossing": {
+      "log": {
+        "noticed": "The route crosses {hazards}. You stop at the departure point to decide how to proceed.",
+        "withdraw": "You withdraw before setting out. No walking energy or time is spent, and no crossing consequence is applied.",
+        "changed": "Conditions have changed. Check the route again before setting out.",
+        "careful": "You check the footing and watch the movement before crossing. Allow {minutes} extra minutes.",
+        "direct": "You commit to the direct crossing, accepting the ground and threats ahead.",
+        "resolved": "Crossing resolved: {injury}; {infection}. Extra crossing time: {minutes} min. {contact}",
+        "injury": "{n} injury damage",
+        "noInjury": "no crossing injury",
+        "infection": "infection +{n}",
+        "noInfection": "no infection gained from the crossing",
+        "intercepted": "A threat intercepts the final approach.",
+        "clear": "You pass without interception."
+      },
+      "title": "Hazard crossing",
+      "beforeDeparture": "You are still at your departure point. Decide how to cross before spending walking energy or time. One choice covers every hazardous stretch listed below.",
+      "severity": "severity {n}/3",
+      "kind": {
+        "horde_pocket": "Horde pocket",
+        "gang_patrol": "Claimed approach",
+        "collapse": "Collapsed passage",
+        "floodwater": "Flooded passage",
+        "wildlife_water": "Claimed canal bank",
+        "wildlife_forest": "Animal territory",
+        "wildlife_urban": "Stray territory",
+        "night_swarm": "Night swarm"
+      },
+      "scene": {
+        "horde_pocket": "Infected movement fills the route. Crossing risks interception; the densest pockets also risk exposure on a direct crossing.",
+        "gang_patrol": "A watched choke point lies ahead. Crossing openly risks a confrontation with the people holding it.",
+        "collapse": "A locally damaged structure has shed slabs and exposed rebar across the passage. Bad footing can injure a leg. A careful crossing improves the footing check.",
+        "floodwater": "Blocked drainage has left dirty water hiding the path. Crossing takes extra time and risks infection; an animal may be concealed near the water.",
+        "wildlife_water": "Movement and territorial signs mark the bank. An animal may intercept anyone using this stretch.",
+        "wildlife_forest": "Fresh tracks and movement in the undergrowth mark animal territory. Crossing may bring you too close.",
+        "wildlife_urban": "Strays shelter among the shuttered units. Their movements cross the same passage you would use.",
+        "night_swarm": "Infected are moving through the dark along this route. Waiting for a gap reduces the chance of interception."
+      },
+      "choice": {
+        "careful": "Check the route and cross cautiously",
+        "direct": "Take the direct crossing",
+        "withdraw": "Withdraw before setting out"
+      },
+      "detail": {
+        "careful": "+{minutes} minutes, plus normal travel and terrain delays. Better footing and lower exposure and interception risk; danger remains.",
+        "direct": "Normal walking cost and terrain delays. Accept the full injury, exposure and interception risks described above.",
+        "withdraw": "Stay here. No walking energy, time, injury or encounter is applied. Pick a different route yourself."
+      }
+    },
     "dice": {
       "success": "Success",
       "failure": "Failed",
@@ -93,12 +142,6 @@
         "pack": "pack",
         "stash": "stash",
         "limitedSearches": "limited searches",
-        "fuel": "Fuel",
-        "medsAmmo": "Meds/Ammo",
-        "weapons": "Weapons",
-        "foodWater": "Food/Water",
-        "beacon": "beacon",
-        "backpackOnly": "backpack only",
         "timedWindow": "timed window",
         "loot": "loot",
         "daysTimes50": "days ×50",
@@ -123,7 +166,11 @@
         "rightArmHit": "R arm → hit",
         "leftArmBlock": "L arm → block",
         "headSearch": "head → search",
-        "torsoEnergy": "torso → energy"
+        "torsoEnergy": "torso → energy",
+        "knownPoint": "known point",
+        "report": "report",
+        "board": "board",
+        "freeEvac": "free · no items"
       },
       "limbCoach": {
         "title": "You're hurt",
@@ -490,7 +537,7 @@
       "commitBlind": "Commit blind — no danger intel until you arrive",
       "arriveDark": "You would arrive after dark, when the streets are far more dangerous",
       "outAfterDark": "You would be out after dark, when the streets are far more dangerous",
-      "beyondRange": "Beyond your range — hop closer, rest or walk the tunnels",
+      "beyondRange": "Not enough walking energy, or your load prevents travel. Recover energy, lighten your pack or use the tunnels.",
       "searchRemaining": "~{time} left",
       "blurb": {
         "supermarket": "Food & water in bulk.",
@@ -903,8 +950,8 @@
       "enRoute": "En route",
       "openGround": "Open ground",
       "target": "Target",
-      "callEvac": "Call for evac — pop the flare",
-      "raiseChannel": "Raise the channel — read their manifest",
+      "callEvac": "Board evacuation",
+      "raiseChannel": "Report to the evacuation crew",
       "youAreHere": "You are here",
       "inTheOpen": "In the open",
       "insideBlock": "Inside the block",
@@ -919,11 +966,8 @@
       "title": "Objective",
       "atEvac": "at evac",
       "reach": "Reach {zone}",
-      "channelDark": "Channel dark. Command is staging another lift — sit tight or stock up.",
-      "noWindowSurvive": "No active evac window — survive for score, or wait for a bird.",
-      "vibeThin": "thin",
-      "vibeMaybe": "maybe",
-      "vibeOk": "ok?",
+      "channelDark": "The crew is arranging the next evacuation. Explore or restock while you wait.",
+      "noWindowSurvive": "No known evacuation point is active. You can still survive for score.",
       "scoreLadder": "Score ladder",
       "evacAndScore": "Evac and score",
       "dayMult": "×{mult} day",
@@ -933,26 +977,20 @@
       "escapeSingapore": "Escape Singapore",
       "youAreHere": "you are here",
       "metersAway": "{m} m away",
-      "reachHaul": "Reach {zone} with a haul the bird might accept, then signal for a lift. The radio never names a quota — only raising the channel on the pad does.",
       "noActiveWindow": "No active evac window.",
       "windowCloses": "Window closes in {window}",
-      "radioRead": "Radio read",
-      "manifest": "Manifest",
-      "manifestShort": "{n} short",
-      "manifestReady": "Cleared for lift",
-      "manifestBlurb": "Read off the pad. Holds for the rest of this window.",
-      "biasFuel": "This bird wants fuel",
-      "biasMeds": "This bird wants meds",
-      "biasAmmo": "This bird wants ammo",
-      "biasBalanced": "This bird takes it balanced",
-      "radioBlurb": "Fuel, meds, and ammo count most; sealed water a little; food and scrap barely. Burning fuel to boil water hurts the haul. Raise the channel once you are standing on the pad and the crew names real numbers.",
       "horde": "Horde · {label}",
       "hordeBlurb": "Noise draws attention nearby. Local disturbances fade with game time; quiet ground is not guaranteed safe. Survival has no island-wide deadline.",
       "leadsNotes": "Map notes to decipher: {count}",
       "leadsRumours": "Rumoured sites marked: {count}",
       "leadsBoth": "{notes} note(s) to read · {rumours} rumour(s) on map",
       "leadsTitle": "Leads",
-      "leadsBlurb": "Decipher map notes from your pack (Use). Known faction territory colours buildings and markers; outposts use the faction emblem. A pale ring around a marker means it is selected."
+      "leadsBlurb": "Decipher map notes from your pack (Use). Intel helps exploration and is optional for evacuation. Known faction territory colours buildings and markers; outposts use the faction emblem. A pale ring around a marker means it is selected.",
+      "locateEvac": "Locate next known evacuation point",
+      "nextWindowIn": "Next evacuation announcement in {hours}h",
+      "procedure": "Reach the point before the published countdown ends. Report to the crew first, then board. Both steps are immediate and free, with no item requirement; an empty backpack is welcome.",
+      "reportAtPoint": "Next: report to the crew at the point",
+      "readyToBoard": "Reported: board before the countdown ends"
     },
     "town": {
       "here": "{name} · {tier}",
@@ -1050,7 +1088,6 @@
       "healHp": "+{n} HP",
       "cure": "Cure",
       "fuel": "Fuel",
-      "fuelEvac": "Evac weight",
       "curiosity": "Curiosity",
       "curiosityScrap": "scrap / trade",
       "intelReveal": "Marks hidden sites on your map",
@@ -1802,13 +1839,17 @@
       "blind": "You can't see far enough to read that ground. Anything could be sitting on it.",
       "dark": "Too dark to read the ground. Whatever sits past your light won't show until you walk into it.",
       "night": "You'd be caught out there after dark, with no door to close.",
-      "outOfRange": "Further than you can push in one go — pick somewhere nearer.",
+      "outOfRange": "Not enough walking energy, or your load prevents travel. Recover energy or lighten your pack.",
       "noDry": "No dry route — water or sealed ground blocks the way.",
       "tooExhausted": "Too exhausted — sleep first",
       "noDryRoute": "No dry route",
       "tooClose": "Too close to bother",
       "tooFar": "Too far to reach",
-      "crossCta": "Cross on foot · {dur}"
+      "crossCta": "Cross on foot · {dur}",
+      "walkingEnergy": "Walking energy",
+      "energyLeft": "{n} left",
+      "arriveExhausted": "You'll arrive exhausted, with no walking energy left.",
+      "encounterEnergy": "Encounters may cost extra energy."
     },
     "faction": {
       "muster": {
@@ -1979,8 +2020,8 @@
     },
     "mapHere": {
       "emptyLog": "Nothing logged yet",
-      "callEvac": "Call for evac",
-      "raiseChannel": "Raise the channel",
+      "callEvac": "Board evacuation",
+      "raiseChannel": "Report to crew",
       "approach": "Approach the gate",
       "exhausted": "Nothing left",
       "search": "Go inside and search",
@@ -2123,7 +2164,7 @@
         "car_alarm": "A car alarm has drawn attention nearby.",
         "gunfire": "Gunfire has drawn attention nearby.",
         "shutter": "A loose shutter has disturbed this area.",
-        "scavengers": "Scavengers have drawn attention nearby."
+        "scavengers": "A lone scavenger briefly broke cover nearby."
       },
       "noCause": "No fresh disturbance nearby.",
       "quietNotSafe": "Quiet does not mean safe. Dangerous sites and darkness still matter.",
@@ -2136,7 +2177,7 @@
       "events": {
         "car_alarm": {
           "title": "A car alarm nearby",
-          "description": "An abandoned car alarm has drawn attention to this area. You could silence it.",
+          "description": "A recently disturbed car has a newly connected battery and a sounding alarm. Whoever powered it has gone. You could disconnect it.",
           "cost": "15 min · 4 energy. Reduces the disturbance; some attention remains.",
           "action": "Silence alarm"
         },
@@ -2153,8 +2194,8 @@
           "action": "Investigate"
         },
         "scavengers": {
-          "title": "Scavengers nearby",
-          "description": "A thirsty group is struggling to move quietly. Share clean water to help them leave.",
+          "title": "One scavenger in hiding",
+          "description": "A lone scavenger has retreated behind cover, coughing from thirst. They quietly accept clean water left at a distance; you can also leave them alone.",
           "cost": "10 min · 1 clean water. Gain nearby site intel (or scrap metal) and reduce the disturbance.",
           "action": "Share water"
         }
@@ -2162,8 +2203,8 @@
       "results": {
         "quieted": "The sound stops. Some attention remains, but the area can settle.",
         "salvage": "You recover two pieces of scrap metal. The rummaging makes a little fresh noise.",
-        "intel": "They point out {name} nearby, then leave more quietly.",
-        "thanks": "They leave more quietly and give you a piece of scrap metal in thanks."
+        "intel": "From cover, the scavenger quietly points out {name}, then leaves by a sheltered route.",
+        "thanks": "The scavenger leaves a piece of scrap metal in thanks, then withdraws quietly."
       },
       "openTimeline": "Open the timeline for nearby events.",
       "dismissed": "You leave it alone. The disturbance fades naturally.",
@@ -2597,6 +2638,18 @@
       "bleeding": "bleeding",
       "fractured": "fractured",
       "infected": "infected"
+    },
+    "evac": {
+      "announced": "Known evacuation point: {zone}. The window closes in {hours}h. Reach it, report to the crew, then board. Both steps are immediate and free; no items required.",
+      "nextAnnounced": "Next known evacuation point: {zone}. The window closes in {hours}h. Report there, then board for free with no item requirement.",
+      "missed": "You missed the evacuation window. The next announcement is in {hours}h.",
+      "waiting": "The crew is arranging the next evacuation. Announcement in {hours}h.",
+      "unavailable": "No evacuation point is currently available.",
+      "wrongPlace": "Reach the announced evacuation point before reporting or boarding.",
+      "expired": "The evacuation window has closed. Check the next announcement.",
+      "contacted": "The crew confirms your report. There is no cargo fee; an empty backpack is welcome. Choose Board before the published countdown ends.",
+      "boarded": "You board the evacuation flight and leave Singapore safely.",
+      "searchAfterEvent": "The situation at {name} is resolved. You can continue searching."
     }
   },
   "settings": {
@@ -2716,6 +2769,11 @@
         "off": "Off"
       }
     },
+    "buildingShadows": {
+      "label": "3D building shadows",
+      "description": "Nearby buildings cast shadows onto streets, walls and roofs. Uses more graphics power.",
+      "options": { "on": "On", "off": "Off" }
+    },
     "mapKeys": {
       "label": "Keyboard camera",
       "description": "Pan, turn and zoom the run map from the keyboard. The keys are listed below.",
@@ -2779,12 +2837,13 @@
     "survive": {
       "title": "Survive",
       "bullets": [
-        "Hunger, thirst, energy, and infection tick with every hour. Keep them up — empty hunger or thirst below 35 starts eating limb HP.",
+        "Hunger, thirst and infection change with elapsed time. Energy normally drains with time, but surface walking charges by distance instead. Hunger or thirst below 35 starts eating limb HP.",
         "Health is the sum of your six limbs — see the Body topic for how each injury changes travel, aim, and stamina. Major bleeds block regen until bandaged; infection at 100 ends the run.",
         "Before a run, pick a job seed or build traits on the same screen. Positives share one list; all negative traits are flaws. There are no trait-count caps: flaws earn points and positives spend them. Keep points left at 0 or above, and do not combine conflicting traits or pick the same trait twice.",
         "Night (after dusk) is more dangerous. Get inside before dark — the streets fill with a night swarm. After dark you only see as far as your light: fewer blips, fewer pockets on the trek card, and worse aim. A torch (off hand) or headlamp (head) pushes the dark back, but a lit survivor is easier to spot. Rest shows recovery and ambush chance; sleep still drains hunger and thirst (reduced).",
         "Arriving nearby can identify a place by its exterior within 20–60 metres, depending on awareness, before light and weather reduce that range. An identified marker gives its name and type; danger, occupants and supplies stay unknown until you visit or gain fuller intel. Identifying a place does not clear the surrounding fog.",
-        "Surface travel estimates include extra time to navigate city blocks, rubble and crossings. A fresh survivor with average endurance and dexterity, healthy legs and a light pack takes about 10 minutes to cover 500 metres in clear weather outside dense vegetation. Weather, heavy loads and overgrowth can make trips longer. Check your arrival time before setting out.",
+        "The dashed circle shows how far your remaining energy can take you on foot. Walking energy uses straight-line distance and your current build, injuries, hydration, equipment, traits, fitness and load. The card shows the cost and energy left on arrival; reaching the edge can leave you exhausted. Encounters can cost extra energy. Water and sealed areas still require a valid route.",
+        "Surface travel time follows the actual route. Terrain, weather and detours add time, not walking energy; hunger, thirst, injuries and the world clock still advance. There is no flat fee for each move. A fresh average survivor takes about 10 minutes per 500 metres on clear, open ground. Check your arrival time before setting out.",
         "Hazard pockets sit between pins (horde, patrols, collapse, flood). Sense them inside your ring, route around when you can — each kind bites differently if you cross.",
         "Singapore has already fallen. The icon beside the weather shows nearby activity: Quiet, Stirred or Hunting. Noise attracts attention locally for several game hours, including on open ground. Quiet does not mean safe: site danger and night hazards still matter. Keep moving, rest elsewhere, or give a disturbed area time to settle. There is no global countdown or automatic overrun.",
         "Infected animals share the combat loop and can infect on a hit. Otters and monitors claim inland water, macaques and boars the catchment, dogs/cats/rats the streets.",
@@ -2858,9 +2917,9 @@
     "evac": {
       "title": "Evac",
       "bullets": [
-        "A map beacon marks the staging zone. Reach it during the timed window with a haul in your backpack (not stash or equipped). First press at the pad raises the channel — the crew reads this window's demand in numbers, and that read stays for the rest of the window. If the pack already clears, the same press pops the flare.",
-        "Fuel counts most, then meds and ammo; sealed water a little; food and scrap barely; weapons barely count as cargo. On the approach the radio vibe stays qualitative; only the pad channel names the quota. Boiling water burns fuel.",
-        "Miss the window and a new site opens after a cooldown. Keep your supplies up while you wait; extraction is optional."
+        "Every run announces a known evacuation point and a closing countdown. Choose Locate next known evacuation point in Objectives to move the map camera there. Locating does not move your survivor, advance time, or reveal places along the way. Map notes and rumours are optional intel, never evacuation requirements.",
+        "Reach the point before the countdown ends and report to the crew. The first press only confirms contact; choose Board evacuation on the next press to leave. Reporting and boarding take no time, charge no cargo, and require no flare or other item. An empty backpack is welcome. Finish combat, events, searches, travel, block visits, or tunnel travel before using either action.",
+        "If you miss the window, Objectives shows a countdown to the next announcement. The next window publishes another known evacuation point. Extraction is optional; keep your supplies and injuries under control while you wait."
       ]
     },
     "score": {
@@ -4136,7 +4195,7 @@
         "\"Sign in,\" says the gate. \"One {tribute}. Or turn around.\""
       ],
       "night": [
-        "A lamp over the ledger at {name}. \"{short}. One {tribute} and you're on the list.\""
+        "A small battery lamp lights the ledger behind the held gate at {name}. \"{short}. One {tribute} and you are on the list.\""
       ],
       "wet": [
         "They've pulled the table under the awning. \"{tribute} and you can come in out of this.\""
@@ -4169,272 +4228,270 @@
       ],
       "night": [
         "A torch beam pins you in the doorway of {name}. \"{short}. One {tribute}, and lower your hands.\"",
-        "They let you get all the way to the entrance before the lights come on. \"One {tribute}, and we forget you came at night.\""
+        "At {name}, a shielded battery torch comes on behind cover. \"One {tribute}. Then we forget you came at night.\""
       ],
       "wet": [
         "{faction} has the entrance to {name} tarped over and manned. \"Dry inside. One {tribute}.\""
       ]
     },
     "locked_door": {
-      "title": "Locked Security Door",
+      "title": "One Locked Storeroom",
       "choices": {
-        "pry": "Pry it open",
-        "pick": "Pick the lock",
-        "find": "Find a side way",
-        "leave": "Leave it be"
+        "pry": "Pry the room door open",
+        "pick": "Pick the room lock",
+        "find": "Look for another way into the room",
+        "leave": "Leave this room — search elsewhere inside"
       },
       "lines": {
-        "pryFailZombies": "The racket draws something out.",
-        "pickFailTime": "You work the lock until your hands cramp. It doesn't give.",
-        "pickFailDeny": "The door wins.",
-        "findOk": "You circle the building and find a service door nobody thought about.",
-        "findFailTime": "You circle the whole building for nothing.",
-        "findFailEnergy": "The circuit costs you. Legs heavy, nothing gained.",
-        "findFailDeny": "No way in but the hard way, and not today.",
-        "leave": "You leave it be."
+        "pryFailZombies": "The lock holds. The metal shriek brings infected out of the building.",
+        "pickFailTime": "Half an hour at the keyhole gets you nowhere.",
+        "pickFailDeny": "The storeroom stays locked. The rest of the site is still accessible.",
+        "findOk": "Beyond a cluttered corridor, a service hatch leads into the same storeroom.",
+        "findFailTime": "You spend time checking the adjoining corridor without finding a way into the room.",
+        "findFailEnergy": "Moving the old furniture leaves your legs heavy.",
+        "findFailDeny": "You leave the locked room alone and return to the accessible rooms.",
+        "leave": "You leave this one room locked and turn to the rest of the site."
       },
       "tell": [
-        "The main way in is shut, and shut properly.",
-        "Someone secured this place before they left.",
-        "The doors have been chained from the inside."
+        "Inside the site, one storeroom door still has its padlock.",
+        "The corridor is open. A single room off it is locked.",
+        "A keyhole survives under the rust on an interior storeroom door."
       ],
       "text": [
-        "A steel security door bars the way into {name}. It can be forced — loudly.",
-        "The roller shutter on {name} is down and padlocked. Whoever locked it didn't come back out.",
-        "Fire door, magnetic lock, dead building. {name} is sealed and it doesn't care how badly you need it.",
-        "Someone welded a bar across the entrance to {name}. Thorough. Inconvenient.",
-        "The doors to {name} are chained. Through the gap you can see shelves — and they look untouched."
+        "Inside {name}, a padlocked storeroom interrupts an otherwise open corridor. Its ordinary lock might yield to picking or force; prying it will carry through the building. The rest of the site remains accessible.",
+        "One storeroom within {name} has a steel door and a keyed lock. The surrounding rooms are open. You can try this room or leave it closed and search the others.",
+        "At {name}, somebody secured one interior storeroom before leaving. A rusting padlock holds its latch. This is not the site entrance; you can search elsewhere inside."
       ],
       "night": [
-        "In the dark you can barely find the seam of the security door at {name}, let alone the lock."
+        "Your light finds a padlock on one storeroom inside {name}. The corridor and other rooms remain open. Forcing this room would be loud in the dark."
       ],
       "wet": [
-        "The shutter on {name} is streaked with rain and locked fast. Every sound you make here will carry."
+        "Rain drips through the roof of {name}. One interior storeroom has a keyed lock; the other rooms are accessible. Wet metal will still ring if you pry it."
       ]
     },
     "desperate_survivor": {
-      "title": "The Desperate Survivor",
+      "title": "A Voice Behind One Door",
       "choices": {
-        "give": "Give 1× Bottled Water, Isotonic Drink or Canned Food",
-        "reason": "Reason with them",
-        "scare": "Scare them off",
-        "refuse": "Refuse them"
+        "give": "Leave 1× Bottled Water, Isotonic Drink or Canned Food",
+        "reason": "Speak quietly through the door",
+        "leave": "Respect their distance — continue inside"
+      },
+      "lines": {
+        "give": "You leave one supply by the room door and step back. A hand retrieves it. A quiet thank-you comes with what they know about the site.",
+        "giveEmpty": "You have nothing suitable to leave. They say they understand, then fall silent. You leave their room alone.",
+        "reasonOk": "After a while, they answer. Neither of you opens the room door, but the exchange ends without fear.",
+        "reasonRefused": "No answer comes. You respect the silence and leave their room undisturbed.",
+        "leave": "You move away from the occupied room. Its door stays locked; the other rooms are still accessible."
       },
       "tell": [
-        "Someone is sheltering just inside the entrance.",
-        "You're not the first one to want in here today.",
-        "A cough, close by. Human."
+        "A low cough comes from behind one locked room inside the site.",
+        "A cup slides beneath an interior room door, then stops.",
+        "Someone inside one room whispers, asking you to keep your voice down."
       ],
       "text": [
-        "A gaunt figure is huddled inside the doorway of {name}. \"Please… you got water?\"",
-        "Someone has made a nest of cardboard just inside {name}. She doesn't get up. \"Just a bottle, boss. Anything.\"",
-        "A man steps out of the stairwell with both hands showing, eyeing your pack. \"Two days no drink already.\"",
-        "There's a kid's school bag by the entrance to {name}, and the man wearing it hasn't eaten in a while. \"Spare something?\"",
-        "Someone blocks your way into {name} — not with a weapon, just with need. \"You look like you're doing okay, ah.\""
+        "Inside {name}, a voice behind one locked room asks whether you can spare a drink or food. They stay out of sight. Their room is secured; the corridor and the rest of the site are open.",
+        "One room within {name} is occupied. A note slides under its locked door: \"Water or food, if you can. Please step back.\" Nobody blocks the rest of the site.",
+        "A person sheltering in one locked room inside {name} speaks through the door. \"I cannot let you in. Could you leave a little water or food?\" You can leave their room alone and search elsewhere inside."
       ],
       "night": [
-        "A voice out of the dark inside {name}, cracked and dry. \"Don't shine that at me. Please. You got water?\""
+        "In {name}, a dry voice whispers through one locked interior room door: \"Please keep the light down. Anything to drink or eat?\" They stay concealed. The rest of the site is accessible."
       ],
       "wet": [
-        "Someone is pressed into the doorway of {name} out of the rain, soaked through anyway. \"Water? Clean water, I mean.\""
+        "Rain drums on {name}. Behind one locked interior room, somebody asks for clean water or food. Their shelter is just that room; you can still use the corridor and search the others."
       ]
     },
     "rival_scavenger": {
-      "title": "Someone Got Here First",
+      "title": "A Glimpse Between Shelves",
       "choices": {
-        "race": "Race them for the back rooms",
-        "split": "Call out — split the place",
-        "watch": "Hang back and read the place",
-        "confront": "Run them off"
+        "race": "Reach the far shelves before they withdraw",
+        "split": "Offer to keep to separate rooms",
+        "watch": "Wait out of sight — read the site",
+        "confront": "Threaten them — risk a fight"
       },
       "lines": {
-        "raceWin": "You get there first, and you're winded for it.",
-        "raceLose": "They know the floor better than you do. By the time you reach the back, it's bare.",
-        "split": "You each take a half and work it in silence. It's almost companionable.",
-        "watchWin": "You wait them out from the stairwell and learn the building for free.",
-        "watchLose": "You wait them out and learn nothing except that your legs hurt."
+        "raceWin": "You reach the missed cupboard first. The other scavenger slips away; the rush leaves you winded.",
+        "raceLose": "By the time you reach the cupboard, they and its contents are gone. You catch your breath.",
+        "split": "A whispered agreement: separate rooms. Later, an unopened water bottle waits between them. You take it and keep your distance.",
+        "watchWin": "You wait until their footsteps fade, noting which rooms they avoided.",
+        "watchLose": "They leave by a route you cannot see. Waiting teaches you little."
       },
       "tell": [
-        "Fresh boot prints in the dust, going in. None coming out.",
-        "Something falls over inside, and someone swears.",
-        "A trolley is wedged in the doorway to hold it open."
+        "A fresh footprint ends where somebody stepped behind a shelf.",
+        "One muffled footstep, then a long silence.",
+        "A narrow torch beam vanishes behind an interior partition."
       ],
       "text": [
-        "Someone else is already working {name} — you can hear them stripping a shelf. They haven't seen you yet.",
-        "A scavenger in a motorcycle helmet is halfway through {name}, bags at her feet. She looks up. Neither of you moves.",
-        "There's another survivor inside {name}, filling a duffel fast. Whoever commits first gets the back rooms.",
-        "You aren't the only one who thought of {name} today. He raises a hand — not a weapon, just a hand."
+        "A lone scavenger inside {name} sees you and withdraws behind a shelf, keeping an exit at their back. A cupboard farther inside may still hold supplies. Neither of you has to approach.",
+        "At {name}, one person with a nearly empty pack goes still behind a partition. They are preparing to leave, not claiming the building. You can keep your distance.",
+        "You glimpse a solitary scavenger in {name}. They edge toward a side passage, watching you rather than the shelves. A quiet agreement might keep you apart."
       ],
       "night": [
-        "A torch is sweeping the aisles of {name}, and it isn't yours. Whoever holds it is working fast."
+        "One carefully shielded torch moves inside {name}. When its owner notices your light, they pull behind a partition with an exit close by."
       ]
     },
     "armed_raider": {
       "title": "Armed Claim",
       "choices": {
-        "sneak": "Slip past while they're busy",
+        "sneak": "Slip past their position",
         "bluff": "Talk like you belong here",
         "pay": "Buy passage with supplies",
         "fight": "Take the doorway",
         "leave": "Back off"
       },
       "lines": {
-        "bluffOk": "You sell a story about a bigger crew coming. They clear a lane.",
-        "leave": "You leave them the claim."
+        "bluffOk": "You sell a story about others coming. The raider withdraws far enough for you to pass.",
+        "leave": "You retreat along the open approach. The raider keeps their cover."
       },
       "tell": [
-        "Someone is posted at the entrance like they own it.",
-        "A rifle sling creaks. Whoever's inside is not scavenging quietly.",
-        "Fresh brass on the step. Recent work."
+        "A weapon moves behind cover at the entrance.",
+        "Fresh brass on the step. Someone is watching the approach.",
+        "A low voice orders you to stop before you reach the doorway."
       ],
       "text": [
-        "A raider has claimed the doorway of {name}, kit stacked behind him. \"Walk away, or pay in blood.\"",
-        "Someone with a parang and a stolen vest is screening {name}. He's already decided you're competition.",
-        "An armed crew of one is stripping {name} methodically. He looks up mid-cut and doesn't bother with a greeting.",
-        "The entrance to {name} is blocked by someone who treats looting like a job with overtime."
+        "A lone raider watches the entrance to {name} from behind stacked furniture, weapon ready. \"Supplies, or turn around. Try coming past and I will use this.\"",
+        "At {name}, an armed scavenger has chosen cover overlooking the doorway. The threat is deliberate: leave supplies, leave the site, or risk a fight.",
+        "A person with a parang waits behind cover at {name}. \"I saw you. Pay or go.\" Their position leaves you a way to retreat."
       ],
       "night": [
-        "A red laser dots the frame of {name} for half a second, then vanishes. Someone is hunting this block."
+        "A shielded torch catches your feet at {name}. From cover, an armed voice demands supplies and warns you not to come closer. The way back is still open."
       ]
     },
     "block_tout": {
-      "title": "Doorway Tax",
+      "title": "A Register Nobody Keeps",
       "choices": {
-        "pay": "Pay the nonsense fee",
-        "stare": "Stare them down",
-        "fight": "Make it a problem",
-        "leave": "Find another door"
+        "read": "Compare the old register and newer marks",
+        "leave": "Leave the papers — continue inside"
       },
       "lines": {
-        "leave": "You leave him his cardboard throne."
+        "readOk": "The crossed-out room numbers and a newer pencil arrow identify an overlooked part of the site.",
+        "readFail": "You spend a quarter-hour separating damp pages. Nothing still legible helps.",
+        "leave": "Nobody is here to collect the old entrance fee. You continue past the empty desk."
       },
       "tell": [
-        "Someone is hanging around the entrance like it's theirs to tax.",
-        "A voice calls out before you reach the door — friendly, too friendly.",
-        "There's a folding stool by the doorway. Occupied."
+        "An empty chair faces a weathered entrance register.",
+        "An old entrance-fee notice curls off a deserted desk.",
+        "Someone has crossed out the official heading and pencilled in room numbers."
       ],
       "text": [
-        "A tout at {name} opens with a smile and a price. \"Entry fee, ah. Small one. Or we have a problem.\"",
-        "Someone has set up shop in the doorway of {name} — no badge, just nerve. \"You want in, you talk to me.\"",
-        "A block tout blocks {name} with nothing but attitude and a scrap of cardboard that says ENTRY. He means it.",
-        "He's not a guard and not a scavenger — just a man charging for the privilege of walking into {name}."
+        "An abandoned registration desk stands inside {name}. Its old entrance-fee notice has faded. Later pencil marks cross out several rooms; no guard or clerk remains.",
+        "At {name}, a damp ledger records people who once sheltered here. A newer hand has added arrows beside some room numbers. The printed authority on the cover has nobody left behind it.",
+        "Nobody sits at the old desk in {name}. Beneath its expired admission rules, somebody has noted which rooms were searched. The pages may still help you read the site."
       ],
       "night": [
-        "A cigarette tip glows in the doorway of {name}. \"Night rate,\" someone says. \"Still cheap.\""
+        "Your torch finds an empty registration desk inside {name}. Old fee instructions share a page with newer room numbers. Nobody answers the desk bell, which you leave untouched."
       ]
     },
     "rigged_door": {
       "title": "The Door Is Rigged",
       "choices": {
-        "disarm": "Trace the wire and disarm it",
-        "power": "Work out what it's tied to",
+        "disarm": "Release the wire and weighted scrap",
+        "power": "Trace the mechanical anchor",
         "around": "Go the long way round (slow, safe)",
         "leave": "Not worth it"
       },
       "lines": {
-        "disarmFailWound": "The frame comes apart with a bang and takes a piece of you with it.",
-        "disarmFailZombies": "Every dead thing on the block heard that.",
-        "powerOk": "You follow the line back, find the anchor, and pull it slack.",
-        "powerFailTime": "You lose half an hour to a puzzle you can't solve.",
-        "powerFailDeny": "Not worth losing a hand over.",
-        "aroundTime": "You give the door a wide berth and let yourself in through a window on the far side.",
-        "aroundEnergy": "The long way round leaves you winded — but in.",
-        "leave": "You back out the way you came."
+        "disarmFailWound": "The wire releases a weighted strip of sharp scrap. It strikes your arm and slams against the metal frame.",
+        "disarmFailZombies": "The metal crash draws infected from nearby cover.",
+        "powerOk": "You find the mechanical anchor, support the sharp scrap and ease the wire slack.",
+        "powerFailTime": "Half an hour of tracing the wire leaves its anchor beyond safe reach.",
+        "powerFailDeny": "You step back before releasing the weighted scrap.",
+        "aroundTime": "You avoid the tripwire and find a window on the far side.",
+        "aroundEnergy": "The long detour costs your legs, but leaves the trap untouched.",
+        "leave": "You back away from the tripwire."
       },
       "tell": [
-        "There's something wrong with how this door sits.",
-        "A thin line of fishing wire catches the light.",
-        "Someone left this place ready for visitors."
+        "Fishing line runs from the handle to sharp scrap hung above the frame.",
+        "A weighted piece of metal hangs over a taut tripwire.",
+        "Somebody left a mechanical trap, still held by its wire."
       ],
       "text": [
-        "The entrance to {name} has been rigged — wire at ankle height, and a bundle of something taped behind the frame.",
-        "Whoever held {name} last booby-trapped the way in and never came back to disarm it.",
-        "A tripwire runs across the doorway of {name}, strung to a cluster of tins. Not lethal. Very loud.",
-        "{name} has been made unfriendly on purpose: broken glass set in the frame, and a line running somewhere you can't see."
+        "At {name}, fishing line crosses the doorway and holds up a weighted strip of sharp scrap. Pull it wrong and the scrap will swing down, then strike the metal frame. No electricity is needed.",
+        "The doorway of {name} has a mechanical trap: taut wire, sharp suspended scrap and a metal frame that will ring when it falls. Its builder is gone; the weight remains.",
+        "Someone rigged the entrance to {name} with a tripwire and a falling blade of scrap metal. It can cut and make a carrying crash. The anchor is somewhere above the frame."
       ],
       "wet": [
-        "Rain has soaked the rigging on the door of {name}, but the wire is still taut."
+        "Rain beads on the tripwire at {name}. Above it, sharp weighted scrap still hangs ready to swing against the metal doorway. The mechanism needs no power."
       ]
     },
     "quiet_tap": {
-      "title": "The Tap Still Runs",
+      "title": "A Bottle Left Under Cover",
       "choices": {
-        "queue": "Take your place in the queue",
-        "trade": "Trade food for a fill",
-        "push": "Push to the front",
-        "leave": "Leave them to it"
+        "queue": "Check the seal — take the bottle (15 min)",
+        "trade": "Leave food in exchange for the bottle",
+        "push": "Leave the bottle — inspect the site marks",
+        "leave": "Leave the cache — continue inside"
       },
       "lines": {
-        "queue": "You wait your turn like everyone else. It takes an hour and nobody thanks you for it.",
-        "tradeEmpty": "You've nothing to trade, and they've nothing spare for you.",
-        "leave": "You leave the queue to its water and move on."
+        "queue": "The factory seal is intact. You spend a quarter-hour checking it, then take the one bottle left for a traveller.",
+        "trade": "You leave one food supply in the dry box and take the sealed bottle. Someone else may need what you left.",
+        "tradeEmpty": "You have no suitable food to leave. The exchange does not happen; you move on through the site.",
+        "inspect": "You spend a little time reading the maintenance marks and note which part of the site was kept dry.",
+        "leave": "You leave the bottle for someone else and continue through the site."
       },
       "tell": [
-        "You can hear running water. Actual running water.",
-        "There's a queue. An orderly one.",
-        "People are here, and none of them are panicking."
+        "A clean gutter feeds a covered rain barrel. Beside it, one sealed drinking-water bottle.",
+        "Somebody has recently cleared the leaves from a rain collector.",
+        "A dry note beside a rain barrel reads: \"Rainwater untreated. Sealed bottle is for whoever needs it.\""
       ],
       "text": [
-        "A standpipe behind {name} is still pressurised, and eleven people are queuing at it in the shade. Nobody is pushing.",
-        "Someone has rigged a working tap at {name} and made a system of it — a queue, a tally, a woman with a clipboard.",
-        "There's clean water at {name}, and a line of survivors waiting their turn for it. They watch you decide what kind of person you are."
+        "Behind {name}, someone has maintained a small rain collector. Its water is untreated. A separate dry box holds one factory-sealed drinking-water bottle and a note offering it to a traveller. Nobody is here.",
+        "A cleared gutter at {name} drains into a covered barrel. A note warns against drinking the untreated rainwater; beside it, one unopened drinking-water bottle has been left to share. A few recent maintenance marks may tell you about the site.",
+        "At {name}, a rain-catching arrangement shows recent care. Its owner is absent. One factory-sealed drinking-water bottle sits in a dry box with a note: \"Take if needed. Leave food if you can.\" The barrel itself is untreated."
       ],
       "night": [
-        "A single lamp over a working tap at {name}, and a short, patient queue beneath it."
+        "Your light finds a maintained rain collector at {name}. The barrel water is untreated; a separate dry box holds one sealed drinking-water bottle and a sharing note. No lamp or person waits here."
       ]
     },
     "body_in_the_doorway": {
-      "title": "Body in the Doorway",
+      "title": "Remains at the Threshold",
       "choices": {
-        "strip": "Go through their pack",
-        "read": "Work out what killed them",
-        "step": "Step over and get on with it"
+        "strip": "Free the caught pack",
+        "read": "Read the traces around them",
+        "step": "Leave the remains undisturbed — go inside"
       },
       "lines": {
-        "stripFailZombies": "The body comes free all at once, and the clatter carries.",
-        "readOk": "Bite on the forearm, defensive. Whatever did it went back inside.",
-        "readFail": "You learn nothing except that you didn't want to look that closely."
+        "stripFailZombies": "The pack comes free with a crash of metal fittings. Infected nearby follow the sound.",
+        "readOk": "Scrape marks continue toward the back rooms, where several cupboards remain shut. You take note before moving on.",
+        "readFail": "You spend time looking, but the disturbed dust will not tell you what happened."
       },
       "tell": [
-        "Something is lying across the threshold.",
-        "The smell reaches you before the doorway does.",
-        "Flies. A lot of them, and all in one place."
+        "Weathered remains lie beside the threshold, a pack caught under fallen fittings.",
+        "An old pack strap is pinned beneath loose metal by the doorway.",
+        "Dust has gathered around remains at the threshold. The pack is still caught."
       ],
       "text": [
-        "A body is slumped in the entrance to {name}, pack still on. It has been there a while, and it is wedged.",
-        "Someone died in the doorway of {name} with their kit on. Moving them means touching them.",
-        "There's a corpse across the way into {name} — recent enough to still be carrying, old enough to be part of the floor."
+        "Old remains lie beside the way into {name}. Their pack is wedged under a fallen metal fitting. Freeing it could be loud; the rooms beyond are accessible.",
+        "At {name}, weathered remains and a trapped pack mark an earlier failed journey. Loose metal lies across the straps. You can inspect the traces or leave them undisturbed.",
+        "Someone died at {name} long before your arrival. Their pack is still pinned beneath loose fittings by the threshold. Nothing here establishes whether the people they travelled with survived."
       ],
       "wet": [
-        "A body lies in the flooded entrance to {name}, pack half-submerged. The water has not been kind."
+        "Rainwater pools around old remains beside the entrance to {name}. A pack is trapped beneath loose metal. Freeing it will take care; the way past remains open."
       ]
     },
     "looters_fleeing": {
-      "title": "Wrong-Way Traffic",
+      "title": "What Was Left Behind",
       "choices": {
-        "chase": "Chase them — grab what they dropped",
-        "read": "Watch where they came from",
-        "let": "Let them go — get inside"
+        "chase": "Follow the spill — recover the caught parcel",
+        "read": "Study the route of the scattered haul",
+        "let": "Leave the spill — continue inside"
       },
       "lines": {
-        "chaseLose": "They know the floor better. You arrive winded and empty-handed.",
-        "readOk": "You clock the route they took and what they skipped.",
-        "readFail": "They're gone before you learn anything useful."
+        "chaseLose": "You struggle past the fallen racks, but the parcel is ruined. The effort leaves you winded.",
+        "readOk": "The trail skirts several unopened cupboards. You note what the earlier search missed.",
+        "readFail": "You spend a little time with old tracks that lead nowhere useful."
       },
       "tell": [
-        "Someone bursts out of the entrance — wrong way, wrong speed.",
-        "A crash inside, then footsteps coming at you.",
-        "The door swings open and someone nearly runs you down.",
-        "You hear a bag hit the floor, then someone cursing their way out."
+        "A torn bag and scattered packaging mark an old hurried departure.",
+        "Loose wrappers lead from the back rooms to a snagged parcel.",
+        "A split carrying sack hangs from a broken rack. Nobody is moving."
       ],
       "text": [
-        "A scavenger bolts out of {name} with both arms full and nearly bowls you over. Whatever they grabbed is still in the building.",
-        "Someone tears past you out of {name}, kit bouncing. The back rooms might still have something.",
-        "A figure stumbles out of {name} clutching a duffel — they saw you too late to stop.",
-        "Wrong-way traffic at {name}: someone exits at a sprint, leaving the place open behind them."
+        "Inside {name}, a trail of spilled supplies ends at a broken rack. A closed parcel is still snagged behind it. Whoever abandoned the haul is long gone.",
+        "At {name}, dust lies over a torn sack and the route of an earlier retreat. One parcel caught behind fallen shelving might have survived. There is nobody to chase.",
+        "Someone once left {name} in a hurry, losing part of a haul among the racks. Old scuff marks may show which cupboards were missed; a trapped parcel may still be usable."
       ],
       "night": [
-        "A torch beam swings out of {name} and someone runs without looking. The door stays open."
+        "Your light follows old wrappers through {name} to a parcel caught behind a fallen rack. Dust is undisturbed around it. Whoever dropped it is gone."
       ]
     },
     "smoke_block": {
@@ -4442,92 +4499,87 @@
       "choices": {
         "side": "Find a side entry out of the smoke",
         "push": "Push through the smoke",
-        "wait": "Wait for it to clear",
+        "wait": "Wait away from the smoke (48 min)",
         "leave": "Not today"
       },
       "lines": {
         "sideOk": "You circle to a service door where the air is clear enough.",
-        "sideFailTime": "Every way in is the same haze.",
-        "sideFailDeny": "Not worth coughing your lungs out today.",
-        "pushFailWound": "You stumble in the haze and catch something sharp on the way down.",
-        "pushFailDeny": "You back out coughing blood and ash.",
-        "wait": "You wait downwind until the smoke thins enough to breathe.",
-        "leave": "You leave the smoke to its work."
+        "sideFailTime": "You spend time checking approaches, but each leads into the same haze.",
+        "sideFailDeny": "You leave the site rather than breathe the smoke.",
+        "pushFailWound": "You stumble in the haze and catch a sharp edge on the way down.",
+        "pushFailDeny": "You retreat, coughing, with a cut that needs care.",
+        "wait": "You wait well clear, upwind. With little fuel left, the recent fire dies down enough to enter.",
+        "leave": "You withdraw beyond the smoke."
       },
       "tell": [
-        "Smoke curls out from under the door.",
-        "The air at the entrance tastes of burnt plastic.",
-        "Something inside is still smouldering.",
-        "You cough before you reach the handle."
+        "Fresh smoke seeps from a small recently used cooking fire.",
+        "A recently abandoned charcoal brazier has scorched its surroundings.",
+        "A little cooking fuel still smoulders inside, filling the doorway with smoke."
       ],
       "text": [
-        "Smoke pours from the entrance to {name}. Something burned in there and never quite stopped.",
-        "The doorway of {name} is hazy with smoke — not a bonfire, a kitchen or a stall gone wrong.",
-        "You can barely see the frame of {name} through the smoke. It might clear. It might not.",
-        "Burnt oil and charred plastic hang in the air at {name}. Going in blind is a bad idea."
+        "A small cooking fire was abandoned recently inside {name}. It has scorched nearby rubbish and filled the approach with smoke. Little fuel remains, but the air is unsafe now.",
+        "At {name}, somebody recently left a charcoal brazier too close to discarded packaging. It is smouldering out, slowly. There is nobody at the fire.",
+        "Fresh cooking embers have set a little rubbish smouldering at {name}. The fire has almost spent its fuel, but smoke still obscures the doorway and footing."
       ],
       "night": [
-        "An orange glow flickers behind the smoke at {name}. Still hot in there."
+        "A recently abandoned cooking brazier glows inside {name}, its last fuel smouldering among scorched rubbish. The smoke makes the entrance hard to judge."
       ],
       "wet": [
-        "Rain damps the smoke at {name} but the air inside is still wrong."
+        "At {name}, rain is damping a recently abandoned cooking fire, but smoke is still trapped under cover. The remaining fuel is nearly spent."
       ]
     },
     "distress_beacon": {
-      "title": "Still Broadcasting",
+      "title": "An Expired Assembly Notice",
       "choices": {
-        "trace": "Trace the signal — read the place",
-        "rush": "Follow the voice inside",
-        "ignore": "Ignore it and go in quiet"
+        "trace": "Compare the notice with the site marks",
+        "rush": "Rush toward the marked room — ignore the scraping",
+        "ignore": "Leave the notice — enter quietly"
       },
       "lines": {
-        "traceOk": "The message tells you more about the building than the broadcaster meant.",
-        "traceFail": "Static and repetition. You learn nothing but the clock.",
-        "rushZombies": "The beacon was bait — or the dead answered it first."
+        "traceOk": "The old room numbers and later pencil marks help you read this site. The printed pickup date has passed; this is no current evacuation offer.",
+        "traceFail": "You spend time separating old instructions from damaged additions. Nothing useful is clear.",
+        "rushZombies": "Your hurried approach stirs the infected already scraping behind the partition."
       },
       "tell": [
-        "A radio crackles somewhere inside — on a loop.",
-        "You hear a recorded message, tinny and repeating.",
-        "Someone left a beacon running. It hasn't been switched off.",
-        "A siren wails once, then a voice on a speaker."
+        "An expired assembly notice points inward. Scraping comes from beyond the partition.",
+        "An unpowered receiver sits below old evacuation instructions; something scrapes in a room beyond.",
+        "The date on the old pickup notice has passed. Behind it, a slow scraping continues."
       ],
       "text": [
-        "A distress beacon is still broadcasting from inside {name}. \"…anyone receiving… coordinates…\"",
-        "A PA system at {name} loops a pre-recorded SOS. Someone wanted to be found.",
-        "The radio desk at {name} is still transmitting. Static, then a voice, then static again.",
-        "An emergency beacon at {name} hasn't given up yet. The message repeats every thirty seconds."
+        "At {name}, an old assembly notice points to an interior room beside a dead receiver. Its pickup date has passed. Newer pencil marks might describe the building; scraping behind a partition warns against rushing in.",
+        "An abandoned radio desk at {name} holds a receiver with its battery removed and an expired evacuation notice. Later handwritten room numbers remain useful clues. Something scrapes behind the marked partition.",
+        "There is no live broadcast at {name}: just an unpowered receiver, obsolete pickup instructions and later pencil marks. Scraping from the room beyond makes a hurried approach risky."
       ],
       "night": [
-        "In the dark the beacon at {name} is the only thing still working."
+        "Your torch finds a dead receiver and an expired assembly notice at {name}. Pencil marks describe nearby rooms, not a current evacuation. A slow scrape comes from behind the partition."
       ],
       "wet": [
-        "Rain drums the roof while the beacon at {name} keeps calling."
+        "Rain has blurred the old pickup notice at {name}. Its date has passed and the receiver has no battery. Newer room marks may help; scraping beyond the partition warns you to stay quiet."
       ]
     },
     "nomad_trader": {
-      "title": "Travelling Merchant",
+      "title": "A Quiet One-Off Exchange",
       "choices": {
-        "trade": "Trade food for supplies",
-        "leave": "No deal — move on"
+        "trade": "Trade 1 food supply for their spare item",
+        "leave": "Decline — continue through the site"
       },
       "lines": {
-        "tradeEmpty": "No food, no trade. They fold the mat and let you pass anyway.",
-        "leave": "You leave the trader to their stock."
+        "trade": "You leave one food supply at the agreed spot and step back. They leave the spare item, retrieve the food and withdraw.",
+        "tradeEmpty": "You have no suitable food. They decline the exchange and withdraw. The rest of the site remains accessible.",
+        "leave": "You decline. They disappear behind cover, leaving you free to search the rest of the site."
       },
       "tell": [
-        "Someone has set up a mat by the entrance — not scavenging, trading.",
-        "A pack is open on the step. Someone is counting stock.",
-        "There's a handwritten price list taped to the doorframe.",
-        "You smell cooking oil and hear someone haggling with nobody."
+        "A whisper comes from a sheltered recess. One person keeps their pack closed.",
+        "Someone signals once from behind an interior partition, then waits out of sight.",
+        "A lone survivor watches from cover, showing one small parcel."
       ],
       "text": [
-        "A travelling merchant has camped the entrance to {name}. \"Trade only. I don't bite unless you do.\"",
-        "Someone has turned the doorway of {name} into a stall — small stock, fair prices, no questions.",
-        "A nomad trader spreads goods on a tarp at {name}. \"Food for medicine. Batteries for tins. You pick.\"",
-        "The entrance to {name} smells of someone else's cooking. They've got a mat, a scale, and a smile that doesn't reach their eyes."
+        "A lone survivor shelters behind a partition inside {name}. They offer one spare supply for food, exchanged at a distance. This is a brief chance meeting; neither of you has to approach.",
+        "At {name}, one hidden scavenger whispers an offer: a spare item for something to eat. They will leave it between you after you put food down and step back. No stall, no waiting customers.",
+        "A person concealed in a recess at {name} has one item they can spare. \"Food for this? We keep our distance.\" They are ready to withdraw if you decline."
       ],
       "night": [
-        "A lamp over a travelling trader at {name}. \"Night rate's the same. Food talks.\""
+        "A shielded torch briefly shows a parcel behind cover in {name}. A lone survivor offers it for food, without coming closer. They will withdraw if you decline."
       ]
     },
     "car_blockade": {
@@ -4578,7 +4630,7 @@
         "wadeOk": "You pick a line where the footing is still there under the water.",
         "wadeFailTime": "The water hides a step and you go in hard.",
         "wadeFailWound": "Something sharp under the water finds your leg.",
-        "rushEnergy": "Cold water to the knee and every step a fight.",
+        "rushEnergy": "Murky water to the knee; every step takes effort.",
         "rushWound": "You misstep on something that used to be a floor tile.",
         "leave": "You leave the flood to settle."
       },
@@ -4595,13 +4647,13 @@
         "Floodwater fills the lobby of {name}. Whatever's worth taking is above the waterline — if you can reach it."
       ],
       "wet": [
-        "The rain hasn't stopped and neither has the water at {name}. It's worse than yesterday."
+        "Rain keeps feeding the blocked drains at {name}. The entrance remains flooded; no maintained pump is clearing it."
       ]
     },
     "mrt_toll": {
       "title": "Circle Turnstile Toll",
       "tell": "The turnstiles are manned.",
-      "text": "A Warden marshal has the gate chained at waist height. \"Tunnel's not free. Cells, a torch, a tin — I'm not fussy. One of them and you're through.\"",
+      "text": "A Circle lookout holds a chained turnstile from cover. \"We keep this stretch usable. One supply — cells, a torch, a tin — and you can pass. It is no promise about the whole network.\"",
       "choices": {
         "pay": "Pay {price}",
         "leave": "Take the surface instead"
@@ -4613,7 +4665,7 @@
     },
     "field_doctor": {
       "title": "Field Doctor",
-      "tell": "Someone is running a clinic out of a unit in {name}.",
+      "tell": "Behind one secured home in {name}, someone with clinical experience offers to clean injuries.",
       "text": [
         "A woman in a stained polo waves you onto a camp mat. \"I can clean and pack that. I don't take money — I take food. One tin, one meal, whatever you have.\"",
         "The unit smells of iodine. \"Sit,\" says the man sorting gauze by the window. \"An hour of my time for something to eat. That's the whole price list.\"",
@@ -4634,29 +4686,29 @@
       "muster": {
         "faction_checkpoint": {
           "tell": [
-            "A folding table, a ledger, and someone who still stands like they're on duty.",
-            "A clipboard comes up as you approach — not a rifle. A clipboard.",
-            "They've chalked a queue line on the ground in front of {name}."
+            "A folding table and a ledger behind a defended entrance.",
+            "One former public-service worker watches the approach from cover.",
+            "A short chalk line marks where visitors to {name} should stop."
           ],
           "text": [
-            "The Cordon keeps a book at {name}. \"Name in the right column. One {tribute}. Then we know you.\"",
-            "An auxiliary officer with a clipboard and a sidearm looks you over. \"Managed order. One {tribute} for the register.\"",
-            "\"Which block?\" The ledger is already open. \"One {tribute} either way.\""
+            "The Cordon holds this small perimeter at {name}. \"We keep our own register now. One {tribute}. Then we know who came in.\"",
+            "A former auxiliary officer behind cover checks the ledger. \"Only this gate is ours. One {tribute} for entry.\"",
+            "\"Which block?\" The worn ledger is already open at {name}. \"One {tribute} either way. We have people inside to look after.\""
           ],
           "night": [
-            "A lamp over the ledger at {name}. \"Cordon. One {tribute} and you're on the list.\""
+            "A rationed battery lamp lights the ledger at {name}. \"Cordon. One {tribute}, and we keep a place in the register.\""
           ],
           "wet": [
-            "They've pulled the table under the school porch. \"{tribute} and you can come in out of this.\""
+            "Behind cover at {name}, the register has been wrapped against rain. \"One {tribute} and we can let you in.\""
           ]
         }
       },
       "gotong": {
         "faction_checkpoint": {
           "tell": [
-            "Steam, a queue, and someone with a ladle who is also the gate.",
-            "A plastic stool in the doorway of {name}. The auntie on it is not moving.",
-            "They've strung a rope across the wet-market entrance. People are waiting anyway."
+            "Behind a defended entrance, somebody measures a small pot of food.",
+            "An auntie watches from behind the secured doorway of {name}.",
+            "A rope marks the approach to a small held shelter. Nobody waits in the open."
           ],
           "text": [
             "The Common Folk hold {name}. \"Eat first, then we talk. One {tribute} for the pot.\"",
@@ -4664,10 +4716,10 @@
             "\"This is neighbours' food. One {tribute}. Don't bring trouble to the table.\""
           ],
           "night": [
-            "A pot still going at {name}. \"We look after each other here. One {tribute} and you're fed after.\""
+            "Behind the secured entrance at {name}, a small fuel stove warms the shared pot. \"One {tribute} for what we still have to share.\""
           ],
           "wet": [
-            "They've pulled the queue under the tarpaulin. \"{tribute} and you can come in out of this.\""
+            "Rain hits the tarpaulin outside the held entrance at {name}. \"One {tribute} for the pot. Come in once we have checked you.\""
           ]
         }
       },
@@ -4687,7 +4739,7 @@
             "A torch beam off the tiles at {name}. \"Circle. One {tribute} and you can go down.\""
           ],
           "wet": [
-            "Rain drums the concourse. \"{tribute} and you can come in out of this — the stairs stay dry.\""
+            "Rain drums above the held concourse at {name}. \"One {tribute}. We checked this passage; that says nothing about the next station.\""
           ]
         }
       },
@@ -4699,12 +4751,12 @@
           ],
           "text": [
             "The 88 have a book of their own at {name}. \"You're on it. One {tribute} anyway.\"",
-            "A runner at the void deck of {name} holds out a palm. \"Known is not free. One {tribute}.\""
+            "A runner stays behind cover at {name}, palm held out. \"Known is not free. One {tribute}.\""
           ]
         },
         "faction_shakedown": {
           "tell": [
-            "A whistle from the void deck. Not a bird.",
+            "One whistle from behind the entrance cover. A signal.",
             "Someone peels off a pillar at {name}, unhurried.",
             "There's a mark sprayed by the door, still tacky."
           ],

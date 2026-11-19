@@ -118,6 +118,8 @@ export interface DoorwayMark {
 }
 
 export type EventEffect =
+  /** Narrative outcome without stopping access to the rest of a site. */
+  | { t: 'line'; line: string }
   /** Cleared the gate — services (occupied) or search (unclaimed). Terminal. */
   | { t: 'access' }
   /** Turned away — no search, no fight. Terminal. */
@@ -231,11 +233,15 @@ const RAIDER_AT: PoiCategory[] = [
   'police', 'fuel', 'industrial', 'hardware', 'supermarket', 'mrt',
 ];
 const TOUT_AT: PoiCategory[] = [
-  'residential', 'foodcourt', 'convenience', 'school', 'mrt', 'pharmacy',
+  'residential', 'housing', 'eatery', 'community', 'landmark',
+  'foodcourt', 'convenience', 'school', 'mrt', 'pharmacy',
 ];
-// Water points cluster where people already queued for food — and the schools
-// were the designated shelters when it fell.
+// A maintained rain-catching cache can survive at former food/shelter sites.
 const TAP_AT: PoiCategory[] = ['supermarket', 'foodcourt', 'convenience', 'school'];
+const SURVIVOR_AT: PoiCategory[] = [
+  'supermarket', 'convenience', 'pharmacy', 'hospital', 'clinic', 'hardware',
+  'residential', 'housing', 'eatery', 'community', 'foodcourt', 'mrt', 'industrial', 'school', 'landmark',
+];
 const BODY_AT: PoiCategory[] = ['hospital', 'clinic', 'police', 'mrt', 'school'];
 const LOOTERS_AT: PoiCategory[] = [
   'supermarket', 'convenience', 'pharmacy', 'hardware', 'foodcourt',
@@ -443,7 +449,8 @@ function buildLockedDoor(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent
         onSuccess: opened,
         onFailure: [
           { t: 'time', hours: 0.5, line: ev('locked_door.lines.pickFailTime', undefined, locale) },
-          { t: 'deny', line: ev('locked_door.lines.pickFailDeny', undefined, locale) },
+          { t: 'line', line: ev('locked_door.lines.pickFailDeny', undefined, locale) },
+          { t: 'access' },
         ],
       },
       {
@@ -459,14 +466,15 @@ function buildLockedDoor(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent
         onFailure: [
           { t: 'time', hours: 0.4, line: ev('locked_door.lines.findFailTime', undefined, locale) },
           { t: 'energy', amount: 5, line: ev('locked_door.lines.findFailEnergy', undefined, locale) },
-          { t: 'deny', line: ev('locked_door.lines.findFailDeny', undefined, locale) },
+          { t: 'line', line: ev('locked_door.lines.findFailDeny', undefined, locale) },
+          { t: 'access' },
         ],
       },
       {
         id: 'leave',
         kind: 'leave',
         label: ev('locked_door.choices.leave', undefined, locale),
-        onSuccess: [{ t: 'deny', line: ev('locked_door.lines.leave', undefined, locale) }],
+        onSuccess: [{ t: 'line', line: ev('locked_door.lines.leave', undefined, locale) }, { t: 'access' }],
       },
     ],
   };
@@ -489,8 +497,8 @@ function buildSurvivor(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
         kind: 'pay',
         itemIds: ['water_bottle', 'isotonic', 'canned_food'],
         label: ev('desperate_survivor.choices.give', undefined, locale),
-        onSuccess: [settled, { t: 'intel' }, { t: 'access' }],
-        onFailure: [settled, { t: 'fight', foe: 'survivor' }],
+        onSuccess: [settled, { t: 'line', line: ev('desperate_survivor.lines.give', undefined, locale) }, { t: 'intel' }, { t: 'access' }],
+        onFailure: [settled, { t: 'line', line: ev('desperate_survivor.lines.giveEmpty', undefined, locale) }, { t: 'access' }],
       },
       {
         id: 'reason',
@@ -498,23 +506,14 @@ function buildSurvivor(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
         attr: 'wits',
         dc,
         label: ev('desperate_survivor.choices.reason', undefined, locale),
-        onSuccess: [settled, { t: 'access' }],
-        onFailure: [settled, { t: 'fight', foe: 'survivor' }],
+        onSuccess: [settled, { t: 'line', line: ev('desperate_survivor.lines.reasonOk', undefined, locale) }, { t: 'access' }],
+        onFailure: [settled, { t: 'line', line: ev('desperate_survivor.lines.reasonRefused', undefined, locale) }, { t: 'access' }],
       },
       {
-        id: 'scare',
-        kind: 'check',
-        attr: 'perception',
-        dc,
-        label: ev('desperate_survivor.choices.scare', undefined, locale),
-        onSuccess: [settled, { t: 'noise', radius: 90, intensity: 1 }, { t: 'access' }],
-        onFailure: [settled, { t: 'fight', foe: 'survivor' }],
-      },
-      {
-        id: 'refuse',
-        kind: 'fight',
-        label: ev('desperate_survivor.choices.refuse', undefined, locale),
-        onSuccess: [settled, { t: 'fight', foe: 'survivor' }],
+        id: 'leave',
+        kind: 'leave',
+        label: ev('desperate_survivor.choices.leave', undefined, locale),
+        onSuccess: [settled, { t: 'line', line: ev('desperate_survivor.lines.leave', undefined, locale) }, { t: 'access' }],
       },
     ],
   };
@@ -652,33 +651,25 @@ function buildTout(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
     text,
     choices: [
       {
-        id: 'pay',
-        kind: 'pay',
-        itemIds: ['snacks', 'soft_drink', 'water_bottle', 'canned_food'],
-        label: ev('block_tout.choices.pay', undefined, locale),
-        onSuccess: [{ t: 'access' }],
-        onFailure: [{ t: 'fight', foe: 'tout' }],
-      },
-      {
-        id: 'stare',
+        id: 'read',
         kind: 'check',
         attr: 'perception',
         dc,
-        label: ev('block_tout.choices.stare', undefined, locale),
-        onSuccess: [{ t: 'noise', radius: 60, intensity: 1 }, { t: 'access' }],
-        onFailure: [{ t: 'fight', foe: 'tout' }],
-      },
-      {
-        id: 'fight',
-        kind: 'fight',
-        label: ev('block_tout.choices.fight', undefined, locale),
-        onSuccess: [{ t: 'fight', foe: 'tout' }],
+        label: ev('block_tout.choices.read', undefined, locale),
+        onSuccess: [
+          { t: 'time', hours: 0.25, line: ev('block_tout.lines.readOk', undefined, locale) },
+          { t: 'intel' }, { t: 'access' },
+        ],
+        onFailure: [
+          { t: 'time', hours: 0.25, line: ev('block_tout.lines.readFail', undefined, locale) },
+          { t: 'access' },
+        ],
       },
       {
         id: 'leave',
         kind: 'leave',
         label: ev('block_tout.choices.leave', undefined, locale),
-        onSuccess: [{ t: 'deny', line: ev('block_tout.lines.leave', undefined, locale) }],
+        onSuccess: [{ t: 'line', line: ev('block_tout.lines.leave', undefined, locale) }, { t: 'access' }],
       },
     ],
   };
@@ -751,10 +742,9 @@ function buildRigged(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
 function buildTap(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
   const locale = locOf(ctx);
   const { tell, text } = prose(rng, 'quiet_tap', ctx, { name: loc.name });
-  const holder = loc.factionId && loc.factionId !== 'sta' ? loc.factionId : null;
   return {
     kind: 'quiet_tap',
-    factionId: holder,
+    factionId: null,
     title: ev('quiet_tap.title', undefined, locale),
     tell,
     text,
@@ -764,9 +754,8 @@ function buildTap(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
         kind: 'leave',
         label: ev('quiet_tap.choices.queue', undefined, locale),
         onSuccess: [
-          { t: 'time', hours: 1, line: ev('quiet_tap.lines.queue', undefined, locale) },
+          { t: 'time', hours: 0.25, line: ev('quiet_tap.lines.queue', undefined, locale) },
           { t: 'gain', defId: 'water_bottle', count: 1 },
-          { t: 'standing', delta: 1 },
           { t: 'access' },
         ],
       },
@@ -777,29 +766,29 @@ function buildTap(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
         label: ev('quiet_tap.choices.trade', undefined, locale),
         onSuccess: [
           { t: 'gain', defId: 'water_bottle', count: 1 },
-          { t: 'gain', defId: 'isotonic' },
-          { t: 'standing', delta: 1 },
+          { t: 'line', line: ev('quiet_tap.lines.trade', undefined, locale) },
           { t: 'access' },
         ],
         onFailure: [
-          { t: 'deny', line: ev('quiet_tap.lines.tradeEmpty', undefined, locale) },
+          { t: 'line', line: ev('quiet_tap.lines.tradeEmpty', undefined, locale) },
+          { t: 'access' },
         ],
       },
       {
         id: 'push',
-        kind: 'fight',
+        kind: 'leave',
         label: ev('quiet_tap.choices.push', undefined, locale),
         onSuccess: [
-          { t: 'gain', defId: 'water_bottle', count: 1 },
-          { t: 'standing', delta: -2 },
-          { t: 'fight' },
+          { t: 'time', hours: 0.3, line: ev('quiet_tap.lines.inspect', undefined, locale) },
+          { t: 'intel' },
+          { t: 'access' },
         ],
       },
       {
         id: 'leave',
         kind: 'leave',
         label: ev('quiet_tap.choices.leave', undefined, locale),
-        onSuccess: [{ t: 'deny', line: ev('quiet_tap.lines.leave', undefined, locale) }],
+        onSuccess: [{ t: 'line', line: ev('quiet_tap.lines.leave', undefined, locale) }, { t: 'access' }],
       },
     ],
   };
@@ -1025,9 +1014,9 @@ function buildTrader(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
         kind: 'pay',
         itemIds: ['canned_food', 'snacks', 'hawker_meal', 'instant_noodles'],
         label: ev('nomad_trader.choices.trade', undefined, locale),
-        onSuccess: [{ t: 'gain', defId: stock }, { t: 'access' }],
+        onSuccess: [{ t: 'gain', defId: stock }, { t: 'line', line: ev('nomad_trader.lines.trade', undefined, locale) }, { t: 'access' }],
         onFailure: [
-          { t: 'deny', line: ev('nomad_trader.lines.tradeEmpty', undefined, locale) },
+          { t: 'line', line: ev('nomad_trader.lines.tradeEmpty', undefined, locale) },
           { t: 'access' },
         ],
       },
@@ -1035,7 +1024,7 @@ function buildTrader(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
         id: 'leave',
         kind: 'leave',
         label: ev('nomad_trader.choices.leave', undefined, locale),
-        onSuccess: [{ t: 'deny', line: ev('nomad_trader.lines.leave', undefined, locale) }],
+        onSuccess: [{ t: 'line', line: ev('nomad_trader.lines.leave', undefined, locale) }, { t: 'access' }],
       },
     ],
   };
@@ -1206,35 +1195,40 @@ export function rollPreScavengeEvent(
   if (loc.factionId) return null;
 
   const cat = loc.category;
+  const threat = doorwayThreat(loc, ctx);
+  // People seeking a cautious exchange stay concealed when infected pressure,
+  // recent noise or the site's baseline danger makes lingering untenable.
+  const contactSafe = effectiveDanger(loc) < 4 && threat < 0.65 && (ctx.pressure ?? 0) < 0.75;
   const cands: [Exclude<EventKind, 'mrt_toll' | 'field_doctor'>, number][] = [];
 
   if (!loc.doorForced) {
     if (LOCKED_AT.includes(cat)) cands.push(['locked_door', 20]);
     if (RIGGED_AT.includes(cat)) cands.push(['rigged_door', 13]);
   }
-  if (RIVAL_AT.includes(cat)) cands.push(['rival_scavenger', 16]);
-  if (RAIDER_AT.includes(cat)) cands.push(['armed_raider', 12]);
+  if (contactSafe && RIVAL_AT.includes(cat)) cands.push(['rival_scavenger', 2]);
+  if (RAIDER_AT.includes(cat)) cands.push(['armed_raider', 2]);
   if (TOUT_AT.includes(cat)) cands.push(['block_tout', 11]);
   if (TAP_AT.includes(cat)) cands.push(['quiet_tap', 11]);
   if (BODY_AT.includes(cat)) cands.push(['body_in_the_doorway', 12]);
   if (LOOTERS_AT.includes(cat)) cands.push(['looters_fleeing', 13]);
   if (SMOKE_AT.includes(cat)) cands.push(['smoke_block', 11]);
   if (BEACON_AT.includes(cat)) cands.push(['distress_beacon', 11]);
-  if (TRADER_AT.includes(cat)) cands.push(['nomad_trader', 6]);
+  if (contactSafe && TRADER_AT.includes(cat)) cands.push(['nomad_trader', 1]);
   if (BARRICADE_AT.includes(cat)) cands.push(['car_blockade', 12]);
   if (WET.includes(ctx.weather) && FLOODED_AT.includes(cat)) {
     cands.push(['flooded_entry', 10]);
   }
 
   const settled = loc.survivorSettledDay ?? -Infinity;
-  if (ctx.day - settled >= SURVIVOR_MEMORY_DAYS) cands.push(['desperate_survivor', 10]);
+  if (contactSafe && SURVIVOR_AT.includes(cat) && ctx.day - settled >= SURVIVOR_MEMORY_DAYS) {
+    cands.push(['desperate_survivor', 1.5]);
+  }
 
   // The same scene twice running reads as a turnstile, not a city.
   const fresh = cands.length > 1 ? cands.filter(([k]) => k !== ctx.lastKind) : cands;
   if (!fresh.length) return null;
   if (!rng.chance(doorwayChance(loc, ctx))) return null;
 
-  const threat = doorwayThreat(loc, ctx);
   const weighted = fresh.map(([k, w]) => [k, w * threatWeight(k, threat)] as const);
   return BUILDERS[rng.weighted(weighted)](rng, loc, ctx);
 }

@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { Rng } from './rng';
-import { doorwayThreat, rollPreScavengeEvent, threatWeight } from './events';
+import { doorwayThreat, isTerminal, rollPreScavengeEvent, threatWeight, type EventKind, type EventCtx } from './events';
+import { exploreActivity, freshActivity } from './activity';
+import { ensureLocale, flattenMessages } from '../i18n/t';
+import en from '../i18n/messages/en.json';
+import zh from '../i18n/messages/zh-Hans.json';
 import type { LocationState } from './types';
 
 function loc(
@@ -143,5 +147,158 @@ describe('doorway events read the situation', () => {
     expect(t).toBeLessThanOrEqual(1);
     expect(threatWeight('desperate_survivor', 1)).toBeGreaterThan(0);
     expect(threatWeight('armed_raider', 0)).toBeGreaterThan(0);
+  });
+});
+
+const calmContext: EventCtx = { day: 5, time: 'day', weather: 'clear', standing: {}, locale: 'en' };
+
+function scene(kind: EventKind, category: LocationState['category'], ctx = calmContext) {
+  for (let i = 0; i < 12000; i++) {
+    const event = rollPreScavengeEvent(new Rng(`scene-${kind}-${i}`),
+      loc('scene', category, { currentDanger: 1 }), ctx);
+    if (event?.kind === kind) return event;
+  }
+  throw new Error(`Unreachable ${kind} at ${category}`);
+}
+
+describe('months after the outbreak', () => {
+  it('lets failed aid, refused contact and departure end without creating enemies', () => {
+    const event = scene('desperate_survivor', 'school');
+    for (const choice of event.choices) {
+      for (const branch of [choice.onSuccess, choice.onFailure].filter((v) => v != null)) {
+        expect(branch.some((effect) => ['fight', 'zombies', 'trespass'].includes(effect.t)), choice.id).toBe(false);
+        expect(branch.at(-1)?.t, choice.id).toBe('access');
+      }
+    }
+    expect(event.choices.some((choice) => choice.id === 'leave' && choice.kind === 'leave')).toBe(true);
+    expect(event.choices.find((choice) => choice.id === 'give')?.onSuccess).toContainEqual({ t: 'intel' });
+  });
+
+  it('leaves the rest of a site available when its locked room is skipped or cannot be opened quietly', () => {
+    const event = scene('locked_door', 'clinic');
+    expect(event.choices.find((choice) => choice.id === 'leave')?.onSuccess.at(-1)?.t).toBe('access');
+    for (const id of ['pick', 'find']) {
+      expect(event.choices.find((choice) => choice.id === id)?.onFailure?.at(-1)?.t).toBe('access');
+    }
+    expect(event.choices.find((choice) => choice.id === 'pry')?.onFailure?.at(-1)?.t).toBe('zombies');
+  });
+
+  it('does not turn a rainwater cache into unrelated gang standing or combat', () => {
+    const event = scene('quiet_tap', 'school');
+    expect(event.factionId).toBeNull();
+    const outcomes = event.choices.flatMap((choice) => [...choice.onSuccess, ...(choice.onFailure ?? [])]);
+    expect(outcomes.some((effect) => ['standing', 'fight', 'zombies', 'trespass'].includes(effect.t))).toBe(false);
+    expect(outcomes).toContainEqual({ t: 'gain', defId: 'water_bottle', count: 1 });
+  });
+
+  it('grants ordinary site access after a concealed trader declines an empty-handed exchange', () => {
+    const event = scene('nomad_trader', 'convenience');
+    const failed = event.choices.find((choice) => choice.id === 'trade')!.onFailure!;
+    expect(failed.some((effect) => effect.t === 'deny')).toBe(false);
+    expect(failed.at(-1)?.t).toBe('access');
+    expect(event.choices.find((choice) => choice.id === 'leave')!.onSuccess.at(-1)?.t).toBe('access');
+  });
+
+  it('retains foreshadowed danger from armed predation, tripwires and a noisy beacon approach', () => {
+    const raider = scene('armed_raider', 'police');
+    expect(raider.choices.find((choice) => choice.id === 'sneak')!.onFailure).toContainEqual({ t: 'fight', foe: 'raider' });
+    const rigged = scene('rigged_door', 'police');
+    const triggered = rigged.choices.find((choice) => choice.id === 'disarm')!.onFailure!;
+    expect(triggered.some((effect) => effect.t === 'wound')).toBe(true);
+    expect(triggered.some((effect) => effect.t === 'noise')).toBe(true);
+    expect(triggered.at(-1)?.t).toBe('zombies');
+    expect(scene('distress_beacon', 'police').choices.find((choice) => choice.id === 'rush')!.onSuccess.at(-1)?.t).toBe('zombies');
+  });
+
+  it('excludes friendly human contact from very dangerous, noisy or overrun sites', () => {
+    for (const [site, ctx] of [
+      [loc('hot', 'convenience', { currentDanger: 5 }), calmContext],
+      [loc('loud', 'school', { currentDanger: 2, tempDangerBoost: 3 }), calmContext],
+      [loc('overrun', 'landmark', { currentDanger: 1 }), { ...calmContext, pressure: 1 }],
+    ] as const) {
+      for (let n = 0; n < 1800; n++) {
+        const event = rollPreScavengeEvent(new Rng(`hot-${n}`), site, ctx);
+        expect(['desperate_survivor', 'rival_scavenger', 'nomad_trader']).not.toContain(event?.kind);
+      }
+    }
+  });
+
+  it('makes direct human contact a minority of calm doorway events', () => {
+    let humans = 0;
+    let total = 0;
+    for (let n = 0; n < 4000; n++) {
+      const event = rollPreScavengeEvent(new Rng(`scarce-${n}`), loc('s', 'supermarket', { currentDanger: 1 }), calmContext);
+      if (!event) continue;
+      total++;
+      if (['desperate_survivor', 'rival_scavenger', 'nomad_trader', 'armed_raider'].includes(event.kind)) humans++;
+    }
+    expect(total).toBeGreaterThan(500);
+    expect(humans / total).toBeLessThan(0.2);
+  });
+
+  it('offers abandoned traces rather than only people at homes and community sites', () => {
+    for (const category of ['housing', 'eatery', 'community', 'landmark'] as const) {
+      const kinds = new Set<string>();
+      for (let n = 0; n < 1000; n++) {
+        const event = rollPreScavengeEvent(new Rng(`trace-${n}`), loc('s', category, { currentDanger: 1 }), calmContext);
+        if (event) kinds.add(event.kind);
+      }
+      expect(kinds.has('block_tout'), category).toBe(true);
+    }
+  });
+
+  it('keeps hidden-room scenes out of open parks and connective waypoints', () => {
+    for (const category of ['park', 'waypoint'] as const) for (let n = 0; n < 500; n++) {
+      expect(rollPreScavengeEvent(new Rng(`open-${n}`), loc('open', category), calmContext)).toBeNull();
+    }
+  });
+
+  it('uses a single final terminal outcome in every doorway choice branch', () => {
+    const kinds: [EventKind, LocationState['category']][] = [
+      ['locked_door', 'police'], ['desperate_survivor', 'school'], ['rival_scavenger', 'supermarket'],
+      ['armed_raider', 'police'], ['block_tout', 'school'], ['rigged_door', 'police'],
+      ['quiet_tap', 'school'], ['body_in_the_doorway', 'clinic'], ['looters_fleeing', 'supermarket'],
+      ['smoke_block', 'industrial'], ['distress_beacon', 'police'], ['nomad_trader', 'convenience'],
+      ['car_blockade', 'fuel'], ['flooded_entry', 'mrt'],
+    ];
+    for (const [kind, category] of kinds) for (const choice of scene(kind, category, { ...calmContext, weather: 'rain' }).choices) {
+      for (const branch of [choice.onSuccess, choice.onFailure].filter((v) => v != null)) {
+        expect(branch.filter(isTerminal), `${kind}.${choice.id}`).toHaveLength(1);
+        expect(isTerminal(branch.at(-1)!), `${kind}.${choice.id}`).toBe(true);
+      }
+    }
+  });
+
+  it('makes a lone street contact rarer than environmental disturbances and absent in heavy rain', () => {
+    let contacts = 0;
+    let fired = 0;
+    for (let n = 0; n < 2400; n++) {
+      const input = { seed: `street-${n}`, lat: 1.3, lng: 103.8, distanceM: 300, now: 3,
+        weather: 'clear' as const, category: 'supermarket' as const };
+      const event = exploreActivity(freshActivity(), input).event;
+      if (event) fired++;
+      if (event?.kind === 'scavengers') contacts++;
+      expect(exploreActivity(freshActivity(), { ...input, weather: 'thunderstorm' }).event?.kind).not.toBe('scavengers');
+    }
+    expect(contacts).toBeGreaterThan(0);
+    expect(contacts / fired).toBeLessThan(0.12);
+  });
+
+  it('resolves doorway outcome copy and every pool entry in both locales with matching variables', async () => {
+    await ensureLocale('zh-Hans');
+    const english = flattenMessages(en.event);
+    const chinese = new Map(flattenMessages(zh.event).map(({ key, value }) => [key, value]));
+    expect([...chinese.keys()].sort()).toEqual(english.map(({ key }) => key).sort());
+    const variables = (value: string) => [...value.matchAll(/\{(\w+)\}/g)].map((match) => match[1]).sort();
+    for (const { key, value } of english) {
+      expect(chinese.get(key)?.trim(), key).toBeTruthy();
+      expect(variables(chinese.get(key)!), key).toEqual(variables(value));
+    }
+    for (const locale of ['en', 'zh-Hans'] as const) for (const kind of ['desperate_survivor', 'nomad_trader', 'quiet_tap'] as const) {
+      const event = scene(kind, kind === 'nomad_trader' ? 'convenience' : 'school', { ...calmContext, locale });
+      const copy = [event.title, event.tell, event.text, ...event.choices.flatMap((choice) =>
+        [choice.label, ...[...choice.onSuccess, ...(choice.onFailure ?? [])].flatMap((effect) => 'line' in effect ? [effect.line] : [])])];
+      expect(copy.every((value) => value.length > 0 && !value.startsWith('event.') && !/[{}]/.test(value))).toBe(true);
+    }
   });
 });

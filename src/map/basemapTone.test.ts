@@ -32,9 +32,10 @@ describe('road tiers', () => {
       expect(lum(t.secondary)).toBeGreaterThan(lum(t.minor));
       expect(lum(t.minor)).toBeGreaterThan(lum(t.path));
     }
-    expect(roadsFor('day').main).toBe('#ffffff');
+    expect(roadsFor('day')).toBe(DAY_ROADS);
+    expect(lum(DAY_ROADS.main)).toBeLessThan(lum('#c0c0c0'));
     expect(roadsFor('dusk')).toBe(DAY_ROADS);
-    // Night main roads are a cool white: blue channel on top.
+    // Night main roads are cool grey: blue channel on top.
     const n = NIGHT_ROADS.main;
     expect(parseInt(n.slice(5, 7), 16)).toBeGreaterThan(parseInt(n.slice(1, 3), 16));
   });

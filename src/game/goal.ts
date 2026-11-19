@@ -1,30 +1,13 @@
-import type { ItemEffect, ItemInstance, LocationState } from './types';
+import type { ItemEffect, LocationState } from './types';
 import { Rng } from './rng';
-import { itemDef } from './loot';
-import { conditionScale, isCarried } from './inventory';
 import { haversine } from './overpass';
 import { isWalkable } from './playable';
+import { pathCrossesUnplayable, routeLandPath } from './route';
 
-// ---------- Extraction goal ----------
-// Dual-path spine: linger for a rising score multiplier, or gather weighted
-// evac readiness and call for a lift. Best board score = long survival + late
-// successful extract. No hard item IDs — fuel / meds / ammo count more.
-// Demand is rolled per staging window and stays fogged for the whole approach.
-// It only resolves into numbers once the player stands at the pad and raises the
-// channel (`evacManifestRevealed`) — see `callEvac` in store.ts.
+// Known operation windows. Cargo supports the journey, never admission.
 
 /** Base extract bonus before the day multiplier. */
 export const EVAC_SCORE_BONUS = 2000;
-
-/** Mean day-1 weighted readiness (actual demand is ±20% around the day curve). */
-export const EVAC_BASE_VALUE = 150;
-/** Extra mean weighted value required per day after day 1. */
-export const EVAC_VALUE_PER_DAY = 18;
-
-/** Soft category preference for this window's bird. */
-export type EvacDemandBias = 'fuel' | 'meds' | 'ammo' | 'balanced';
-
-const BIAS_MULT = 1.15;
 
 // Each evac is a limited-time window (in-game hours). Miss it and a fresh one is
 // staged elsewhere — another chance, while supplies and shelter still matter.
@@ -43,7 +26,7 @@ export const EVAC_ISLAND_RADIUS = 30000; // metres — comfortably the whole isl
 export const EVAC_COOLDOWN_MIN_HOURS = 10;
 export const EVAC_COOLDOWN_MAX_HOURS = 30;
 
-/** How much a backpack item counts toward extraction readiness. */
+/** Legacy DEV recipe comparison only; never used for evacuation admission. */
 export function evacWeightMult(effect: ItemEffect): number {
   switch (effect.kind) {
     case 'fuel':
@@ -72,152 +55,17 @@ export function evacWeightMult(effect: ItemEffect): number {
   }
 }
 
-function biasMultFor(effect: ItemEffect, bias: EvacDemandBias): number {
-  if (bias === 'balanced') return 1;
-  if (bias === 'fuel' && effect.kind === 'fuel') return BIAS_MULT;
-  if (bias === 'meds' && (effect.kind === 'heal' || effect.kind === 'cure')) return BIAS_MULT;
-  if (bias === 'ammo' && (effect.kind === 'ammo' || effect.kind === 'magazine')) return BIAS_MULT;
-  return 1;
-}
-
-/** Weighted readiness of items currently in the backpack. */
-export function backpackEvacValue(
-  items: ItemInstance[],
-  bias: EvacDemandBias = 'balanced',
-): number {
-  let total = 0;
-  for (const inst of items) {
-    if (!isCarried(inst.container)) continue;
-    const def = itemDef(inst.defId);
-    if (def.effect.kind === 'magazine') {
-      const cap = def.effect.capacity;
-      const fill = inst.loadedRounds ?? 0;
-      if (fill <= 0 || cap <= 0) continue;
-      total +=
-        def.value *
-        (fill / cap) *
-        evacWeightMult(def.effect) *
-        biasMultFor(def.effect, bias);
-      continue;
-    }
-    total +=
-      def.value *
-      conditionScale(inst) *
-      inst.stack *
-      evacWeightMult(def.effect) *
-      biasMultFor(def.effect, bias);
-  }
-  return Math.round(total);
-}
-
-/** Rising mean threshold — the city gets harder to leave as days climb. */
-export function meanEvacValue(day: number): number {
-  return Math.round(EVAC_BASE_VALUE + Math.max(0, day - 1) * EVAC_VALUE_PER_DAY);
-}
-
-/** Persisted window demand wins; otherwise the day-curve mean. */
-export function requiredEvacValue(day: number, demand?: number | null): number {
-  if (demand != null && demand > 0) return demand;
-  return meanEvacValue(day);
-}
-
-export interface EvacDemandRoll {
-  demand: number;
-  bias: EvacDemandBias;
-}
-
-const BIAS_POOL: readonly EvacDemandBias[] = [
-  'balanced',
-  'balanced',
-  'fuel',
-  'meds',
-  'ammo',
-];
-
-/** Seeded appetite for one staging window (±20% around the day curve + soft bias). */
-export function rollEvacDemand(rng: Rng, day: number): EvacDemandRoll {
-  const mean = meanEvacValue(day);
-  const demand = Math.round(mean * (0.8 + rng.next() * 0.4));
-  const bias = rng.pick(BIAS_POOL);
-  return { demand, bias };
-}
-
-export function hasEvacReadiness(
-  items: ItemInstance[],
-  day: number,
-  demand?: number | null,
-  bias: EvacDemandBias = 'balanced',
-): boolean {
-  return backpackEvacValue(items, bias) >= requiredEvacValue(day, demand);
-}
-
-/** @deprecated alias — prefer hasEvacReadiness */
-export function hasEvacKit(items: ItemInstance[], day = 1): boolean {
-  return hasEvacReadiness(items, day);
-}
-
-export type EvacVibe = 'thin' | 'maybe' | 'promising';
-
-export interface EvacReadiness {
-  current: number;
-  required: number;
-  ready: boolean;
-  /** 0..1 true fill — UI must not show this until the pad manifest is read. */
-  ratio: number;
-  /** Fogged radio read for the player. */
-  vibe: EvacVibe;
-  vibeLine: string;
-}
-
-const VIBE_LINES: Record<EvacVibe, string> = {
-  thin: 'Pack still looks light.',
-  maybe: "Channel's unsure.",
-  promising: 'Pilot might take this.',
-};
-
-/**
- * Jitter band edges from seed so the same haul can read differently and
- * players cannot binary-search the true demand from the UI.
- */
-export function evacVibeFromRatio(ratio: number, jitterSeed: string): EvacVibe {
-  const j = new Rng(jitterSeed).next() * 0.16 - 0.08;
-  const thinCut = 0.45 + j;
-  const maybeCut = 0.78 + j * 0.5;
-  if (ratio < thinCut) return 'thin';
-  if (ratio < maybeCut) return 'maybe';
-  return 'promising';
-}
-
-export function evacReadiness(
-  items: ItemInstance[],
-  day: number,
-  demand?: number | null,
-  bias: EvacDemandBias = 'balanced',
-  jitterSeed = 'evac-vibe',
-): EvacReadiness {
-  const current = backpackEvacValue(items, bias);
-  const required = requiredEvacValue(day, demand);
-  const ratio = required > 0 ? Math.min(1, current / required) : 1;
-  const vibe = evacVibeFromRatio(ratio, jitterSeed);
-  return {
-    current,
-    required,
-    ready: current >= required,
-    ratio,
-    vibe,
-    vibeLine: VIBE_LINES[vibe],
-  };
-}
-
 /**
  * Window length shrinks as the city frays — first lift stays generous, later
  * birds give you less time on station.
  */
-export function evacWindowHours(isFirst: boolean, day: number): number {
+export function evacWindowHours(isFirst: boolean, day: number, routeLengthM = 0): number {
   const base = isFirst ? FIRST_EVAC_WINDOW_HOURS : NEXT_EVAC_WINDOW_HOURS;
   const shrink = Math.max(0, day - 3) * 4;
   const floor = isFirst ? 36 : 18;
-  return Math.max(floor, base - shrink);
+  // Three hours per routed kilometre plus a day's reserve covers walking,
+  // sleep and resupply. The late-run curve must not undercut a long approach.
+  return Math.max(floor, base - shrink, Math.ceil(routeLengthM / 1000) * 3 + 24);
 }
 
 /**
@@ -236,31 +84,50 @@ export function pickDistantEvacPoi<
     .sort((a, b) => b.d - a.d);
   if (scored.length === 0) return null;
 
-  for (const tier of [['mrt'], ['school', 'police']]) {
-    const pool = scored.filter((s) => s.poi.category && tier.includes(s.poi.category));
-    if (pool.length > 0) return drawFromFarHalf(pool, rng);
+  const ordered: T[] = [];
+  for (const tier of [['mrt'], ['school', 'police'], null]) {
+    const pool = scored.filter(({ poi }) => tier
+      ? !!poi.category && tier.includes(poi.category)
+      : !['mrt', 'school', 'police'].includes(poi.category ?? ''));
+    if (!pool.length) continue;
+    const offset = rng.int(0, Math.ceil(pool.length / 2) - 1);
+    ordered.push(...pool.slice(offset).map(({ poi }) => poi), ...pool.slice(0, offset).map(({ poi }) => poi));
   }
-  return drawFromFarHalf(scored, rng);
+  // If every chord fails, try the shortest eligible detour first (still at
+  // least 8 km). Long island approaches otherwise dominate startup latency.
+  // There is one shared A* budget across tiers.
+  return pickReachable(ordered, spawn, [
+    scored[scored.length - 1].poi, scored[Math.floor(scored.length / 2)].poi, ordered[0],
+  ]);
 }
 
-function drawFromFarHalf<T>(sorted: { poi: T; d: number }[], rng: Rng): T {
-  const farHalf = sorted.slice(0, Math.max(1, Math.ceil(sorted.length / 2)));
-  return farHalf[rng.int(0, farHalf.length - 1)].poi;
+function pickReachable<T extends { lat: number; lng: number }>(
+  candidates: T[], from: { lat: number; lng: number },
+  detours = [candidates[0], candidates[Math.floor(candidates.length / 2)], candidates[candidates.length - 1]],
+): T | null {
+  // Scan every candidate cheaply before running any A*. A valid middle
+  // destination must not disappear because both distance extremes are islands.
+  for (const poi of candidates) {
+    const distance = haversine(from.lat, from.lng, poi.lat, poi.lng);
+    // Reject a shoreline crossing near the origin before sampling a long
+    // mainland chord. This keeps the full scan cheap for island starts too.
+    if ([350, 700, 1400].some((metres) => {
+      if (metres >= distance) return false;
+      const t = metres / distance;
+      return !isWalkable(from.lat + (poi.lat - from.lat) * t, from.lng + (poi.lng - from.lng) * t);
+    })) continue;
+    if (!pathCrossesUnplayable(from, poi)) return poi;
+  }
+  // At most three deterministic A* searches, rather than 24 on the main thread.
+  for (const poi of new Set(detours)) {
+    if (!poi) continue;
+    if (routeLandPath(from, poi, { deterministic: true })) return poi;
+  }
+  return null;
 }
 
 export function rollEvacCooldown(rng: Rng): number {
   return rng.int(EVAC_COOLDOWN_MIN_HOURS, EVAC_COOLDOWN_MAX_HOURS);
-}
-
-export function pickEvacZone(locations: LocationState[]): string | null {
-  const real = locations.filter((l) => l.category !== 'waypoint');
-  const faraway = real.filter((l) => l.distanceFromSpawn >= MIN_FIRST_EVAC_DIST);
-  const pool = faraway.length > 0 ? faraway : real;
-  let best: LocationState | null = null;
-  for (const l of pool) {
-    if (!best || l.distanceFromSpawn > best.distanceFromSpawn) best = l;
-  }
-  return best?.id ?? null;
 }
 
 export function pickNextEvacZone(
@@ -269,15 +136,30 @@ export function pickNextEvacZone(
   fromLng: number,
   excludeId: string | null,
 ): string | null {
-  let best: LocationState | null = null;
-  let bestD = -1;
-  for (const l of locations) {
-    if (l.id === excludeId || l.category === 'waypoint') continue;
-    const d = haversine(fromLat, fromLng, l.lat, l.lng);
-    if (d > bestD) {
-      bestD = d;
-      best = l;
-    }
-  }
-  return best?.id ?? excludeId;
+  const from = { lat: fromLat, lng: fromLng };
+  const candidates = locations.filter((l) => l.id !== excludeId && l.category !== 'waypoint')
+    .map((poi) => ({ poi, d: haversine(fromLat, fromLng, poi.lat, poi.lng) }))
+    .sort((a, b) => b.d - a.d)
+    .map(({ poi }) => poi);
+  return pickReachable(candidates, from)?.id ?? null;
+}
+
+/** Old v7 cargo fields are deliberately not admission or contact state. */
+export function restoreEvacuation(saved: {
+  day: number; hour: number; locations: Record<string, LocationState>;
+  evacZoneId?: string | null; evacDeadline?: number | null;
+  evacCooldownUntil?: number | null; evacContacted?: boolean;
+}) {
+  const now = (saved.day - 1) * 24 + saved.hour;
+  const cooling = typeof saved.evacCooldownUntil === 'number' && Number.isFinite(saved.evacCooldownUntil);
+  const id = saved.evacZoneId && saved.locations[saved.evacZoneId] ? saved.evacZoneId : null;
+  if (cooling || !id) return {
+    evacZoneId: null, evacDeadline: null,
+    evacCooldownUntil: cooling ? saved.evacCooldownUntil! : now,
+    evacContacted: false,
+  };
+  return { evacZoneId: id,
+    evacDeadline: typeof saved.evacDeadline === 'number' && Number.isFinite(saved.evacDeadline)
+      ? saved.evacDeadline : now + evacWindowHours(true, saved.day),
+    evacCooldownUntil: null, evacContacted: saved.evacContacted === true };
 }

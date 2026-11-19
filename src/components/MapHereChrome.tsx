@@ -25,6 +25,7 @@ const ICON_BTN =
 export function MapHereChrome({
   sel,
   atEvac,
+  evacDisabled,
   onOpenLog,
   onOpenHere,
   onSearch,
@@ -34,6 +35,7 @@ export function MapHereChrome({
   /** Current POI when standing at a site; omit on open ground. */
   sel?: LocationState;
   atEvac?: boolean;
+  evacDisabled?: boolean;
   onOpenLog: () => void;
   onOpenHere?: () => void;
   onSearch?: () => void;
@@ -46,11 +48,11 @@ export function MapHereChrome({
   const clock = useClockFormat();
   const entries = log.filter((e) => e.day === day).slice(0, 2);
 
-  const manifestRead = useGame((s) => s.evacManifestRevealed);
+  const evacContacted = useGame((s) => s.evacContacted);
 
   const occupied = !!sel?.factionId;
   const primaryTitle = atEvac
-    ? manifestRead
+    ? evacContacted
       ? t('ui.mapHere.callEvac')
       : t('ui.mapHere.raiseChannel')
     : occupied
@@ -115,6 +117,7 @@ export function MapHereChrome({
             <button
               type="button"
               onClick={onEvac}
+              disabled={evacDisabled}
               {...tip(primaryTitle)}
               aria-label={primaryTitle}
               className={`${ICON_BTN} border-signal/50 bg-signal/80 text-black`}

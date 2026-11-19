@@ -1,7 +1,5 @@
 import { Icon } from '../icons/Icon';
-import type { EvacVibe } from '../game/goal';
 import { useT } from '../i18n';
-import { tip } from './tips';
 
 interface Props {
   evacZoneName: string | null;
@@ -16,14 +14,7 @@ interface Props {
   evacCooldownHours: number | null;
   urgent: boolean;
   dayMult: number;
-  vibe: EvacVibe;
-  vibeLine: string;
-  /** Once the pad manifest is read, the compact bar tracks the true ratio. */
-  manifestRevealed: boolean;
-  evacRatio: number;
-  evacReady: boolean;
-  evacCurrent: number;
-  evacRequired: number;
+  evacContacted: boolean;
   /** Opens the full objectives sheet (checklist, quests, the long version). */
   onOpen: () => void;
   /** Map notes in the backpack waiting to be deciphered. */
@@ -33,18 +24,6 @@ interface Props {
   /** One line (where to · how long) for the folded desktop phone. */
   compact?: boolean;
 }
-
-const VIBE_FILL: Record<EvacVibe, string> = {
-  thin: '#e8a54b',
-  maybe: '#e8c54b',
-  promising: '#7ec8a0',
-};
-
-const VIBE_WIDTH: Record<EvacVibe, number> = {
-  thin: 28,
-  maybe: 55,
-  promising: 82,
-};
 
 function ReachLine({ zone }: { zone: string }) {
   const { t } = useT();
@@ -68,7 +47,7 @@ function ReachLine({ zone }: { zone: string }) {
 
 /**
  * The always-on objective readout for the left rail: dual-path glance
- * (survival mult + fogged radio vibe). Detail lives one click away.
+ * (survival multiplier + evacuation procedure). Detail lives one click away.
  */
 export function ObjectiveBar({
   evacZoneName,
@@ -78,27 +57,21 @@ export function ObjectiveBar({
   evacCooldownHours,
   urgent,
   dayMult,
-  vibe,
-  vibeLine,
-  manifestRevealed,
-  evacRatio,
-  evacReady,
-  evacCurrent,
-  evacRequired,
+  evacContacted,
   onOpen,
   intelNoteCount = 0,
   rumourCount = 0,
   compact = false,
 }: Props) {
   const { t } = useT();
-  const countdown = atEvac
-    ? t('ui.objective.atEvac')
-    : windowText
-      ? `${windowText}`
+  const countdown = windowText
+    ? windowText
+    : atEvac
+      ? t('ui.objective.atEvac')
       : evacZoneName
         ? `${evacDist} m`
         : evacCooldownHours != null
-          ? `${evacCooldownHours}h`
+          ? t('ui.game.windowH', { h: evacCooldownHours })
           : '—';
   const countdownCls = `shrink-0 text-body tabular-nums ${
     urgent ? 'animate-pulse text-hiss' : 'text-concrete-200'
@@ -124,19 +97,6 @@ export function ObjectiveBar({
       </button>
     );
   }
-  // Post-reveal the strip drops the vibe word for the real fill — the label
-  // and the bar beside it must not disagree about what is known.
-  const vibeShort = manifestRevealed
-    ? `${Math.round(evacRatio * 100)}%`
-    : vibe === 'thin'
-      ? t('ui.objective.vibeThin')
-      : vibe === 'maybe'
-        ? t('ui.objective.vibeMaybe')
-        : t('ui.objective.vibeOk');
-  const vibeTip = manifestRevealed
-    ? `${t('ui.objective.manifest')} ${evacCurrent} / ${evacRequired}`
-    : vibeLine;
-
   return (
     <button
       onClick={onOpen}
@@ -174,24 +134,11 @@ export function ObjectiveBar({
               />
             </div>
           </div>
-          <div className="flex items-center gap-1.5">
-            <span className="w-10 shrink-0 truncate text-micro text-white/35" {...tip(vibeTip)}>
-              {vibeShort}
-            </span>
-            <div className="h-1 flex-1 overflow-hidden rounded bg-black/50">
-              <div
-                className="h-full transition-all"
-                style={{
-                  width: `${manifestRevealed ? Math.round(evacRatio * 100) : VIBE_WIDTH[vibe]}%`,
-                  background: manifestRevealed
-                    ? evacReady
-                      ? VIBE_FILL.promising
-                      : VIBE_FILL.thin
-                    : VIBE_FILL[vibe],
-                }}
-              />
-            </div>
-          </div>
+          {evacZoneName && (
+            <p className="text-micro text-signal/80">
+              {t(evacContacted ? 'ui.objective.readyToBoard' : 'ui.objective.reportAtPoint')}
+            </p>
+          )}
         </div>
       </div>
     </button>

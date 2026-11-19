@@ -311,7 +311,6 @@ export function itemStatLines(
         if (e.thirst != null) lines.push(line('thirst', t('ui.stats.thirst'), restore(e.thirst)));
         break;
       case 'fuel':
-        lines.push(line('fuel', t('ui.stats.fuel'), t('ui.stats.fuelEvac')));
         break;
       case 'intel':
         lines.push(

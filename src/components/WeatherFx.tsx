@@ -99,7 +99,7 @@ function WeatherFxInner({
 }) {
   const mode = useSetting('weatherFx');
   const still = useReducedMotion();
-  const { atmos, lightning } = useAtmosphere(kind, time);
+  const { atmos, lightning } = useAtmosphere(kind, time, view3d);
   if (mode === 'off') return null;
 
   if (view3d && dom) {

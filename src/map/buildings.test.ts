@@ -30,6 +30,24 @@ function loadedEngine() {
 afterEach(() => vi.restoreAllMocks());
 
 describe('buildings follow current travel range', () => {
+  it('includes loaded shadow casters beyond the old count and distance limits and reuses tile fragments', () => {
+    const { engine } = loadedEngine();
+    const ids = Array.from({ length: 220 }, (_, i) => i);
+    const index = new Map(ids.map(id => [id, { lat: 1.3, lng: 103.8 + id * 0.00002, h: 20 }]));
+    const features = ids.map(id => ({
+      id, properties: { height: 20 }, geometry: { type: 'Polygon', coordinates: [[[103.8, 1.3], [103.81, 1.3], [103.8, 1.31], [103.8, 1.3]]] },
+    }));
+    const querySourceFeatures = vi.fn(() => [...features, features[219]]);
+    Object.assign(engine, { index, map: { querySourceFeatures } });
+    const far = engine.shadowBlocks(1.3, 103.8, 600);
+    expect(far).toHaveLength(220);
+    expect(far[219].parts[0].polygons).toHaveLength(2);
+    const near = engine.shadowBlocks(1.3, 103.8, 100);
+    expect(near).toContain(far[0]);
+    expect(near).not.toContain(far[219]);
+    expect(querySourceFeatures).toHaveBeenCalledTimes(1);
+  });
+
   it('lowers discovered buildings and badges as range shrinks, then raises them on recovery', () => {
     const { engine, states } = loadedEngine();
     let badgeHeight: number | undefined;

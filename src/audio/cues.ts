@@ -234,8 +234,8 @@ export const CUES = [
   { id: 'faction.aid', category: 'faction', label: 'Faction help', trigger: 'A faction gives aid, intel, food or an escort.', length: L.medium, priority: 2, volume: 0.6 },
 
   // ---- Evac --------------------------------------------------------------
-  { id: 'evac.call', category: 'evac', label: 'Call the evac', trigger: 'The survivor calls the evac from the beacon.', length: L.sting, priority: 3, duck: true, volume: 0.9 },
-  { id: 'evac.manifest', category: 'evac', label: 'Manifest revealed', trigger: 'The evac\'s cargo demand is revealed.', length: L.medium, priority: 2, volume: 0.7 },
+  { id: 'evac.call', category: 'evac', label: 'Board the evac', trigger: 'The survivor boards after reporting at the evacuation point.', length: L.sting, priority: 3, duck: true, volume: 0.9 },
+  { id: 'evac.manifest', category: 'evac', label: 'Evac crew contacted', trigger: 'The crew confirms the survivor can board before departure.', length: L.medium, priority: 2, volume: 0.7 },
   { id: 'evac.warning', category: 'evac', label: 'Evac leaving soon', trigger: 'Two in-game hours or less before the evac departs.', length: L.long, priority: 3, duck: true, volume: 0.8 },
 
   // ---- Run ---------------------------------------------------------------

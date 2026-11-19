@@ -112,7 +112,7 @@ src/
   game/        pure, seed-driven logic — rng, world, poi, loot, inventory, packGrid, survival,
                travel, weather, fog, combat, factions, events, character, occupations, crafting,
                trade, sleep, nightSight, goal, searchSession, hdbDungeon, tunnelRun, mrtDamage, wilds,
-               wildsEncounter, vegetation, playable, route, noise, activity, ghostSurvivor,
+               wildsEncounter, travelEnergy, vegetation, playable, route, noise, activity, ghostSurvivor,
                itemTileColor, settings, storage, types, Zustand store
                (+ data/ JSON catalogs: items, lootTables, recipes, enemies, itemTileColors)
   api/         same-origin worldwide score client (no fetch under game/)
@@ -171,6 +171,21 @@ goes flat. MapLibre zoom is the old Leaflet zoom − 1 (the saved zoom key moved
   `--roof` / `--roof-lift` CSS variables. Badge heights update on range membership changes,
   while physical roof heights stay available for block cutaways. Building reveal does not scan
   explored discs. Spawn select and the route planner stay 2D.
+  Desktop 3D uses **3D building shadows** by default, with a toggle in Gameplay → Map. A lazy-loaded Three.js
+  custom layer shares the run map's depth buffer and adds shadow to the native streets, roofs and
+  walls. One 2048² directional shadow map fits the current travelable range. The visible edge follows
+  the live range exactly, while the shadow camera resizes in 64 m increments. Loaded footprints
+  and visible ruin pieces share a batched mesh. Closed meshes cast from their back faces to avoid
+  striping on sunlit walls. New geometry builds in 3 ms slices, and the layer reuses the building
+  index's tile query. Changes to reveal height, damage, zoom or sun
+  direction refresh the shadow map. The cutaway suspends shadows while it ghosts surrounding blocks.
+  With a local dev server running, `node scripts/bench-building-shadows.mjs http://localhost:5190`
+  measures a repeatable Orchard glide in desktop Edge. It reports the GPU, range, loaded casters,
+  frame-time percentiles with shadows off and on, and CPU time spent in the shadow layer.
+  Desktop 3D lighting samples the run clock every half game-hour. Daylight starts in the east at
+  06:00, peaks at 48° elevation around 12:30 and fades in the west by 19:00. Sunlit ground is
+  brighter so mid-rise shadows read against it. Night uses cool ambient lighting and skips the sun
+  shadow pass. Weather modulates the lighting, and the clock drives it even with cast shadows off.
   A visited street site's building wears its ruin tier: Damaged is scorched, Ravaged is cut to a
   stump (feature-state `ruin`, a height factor), Gutted swaps for a procedural broken model
   (`map/ruinModel.ts`, own `ruins-3d` layer) on the nearest 30 within 900 m and stays a low stump
@@ -231,6 +246,16 @@ decay, bounded validation and event scheduling are pure logic; rewards and inven
 remain store actions. Sources and event memory persist under **`singvive.run.v7`**, with safe
 defaults for existing saves and the existing debounce/flush policy. The global escalation,
 automatic overrun ending and geographic front no longer drive gameplay.
+
+**Evacuation and surface crossings.** `goal.ts` validates published evacuation destinations
+with a straight-route scan and at most three deterministic A* detours. Interactive map routing
+retains its wall-clock budget. `evacContacted` replaces the runtime cargo quota; legacy quota
+fields remain readable in v7 but are ignored. Objectives reuses camera focus, not movement.
+`crossingEvent.ts` defines the departure choice and language-neutral timeline metadata. The
+store pauses travel before costs and saves a small `pendingCrossing` summary, never zone geometry.
+During an accepted crossing's glide, debounced/flush saves use the unchanged departure snapshot;
+arrival clears it and commits position and consequences together. Reload mid-glide returns to
+the same unpaid choice with seeded outcomes. The v7 key and five-second debounce are unchanged.
 
 **Desktop HUD (`lg:` and up).** The survivor rail defaults to 384px (360px below a
 1440px viewport). Players can drag its right edge or focus the separator and use arrow
@@ -638,7 +663,10 @@ npm run bake:zones
 Rewrites `public/zones.json` — land mask, inland water, coarse restricted
 (military) perimeters, and known forest / nature-reserve polygons. Water and
 restricted hard-block spawn/trek; vegetation stays walkable but adds a soft
-stamina/time cost when a route cuts through it. Same rules as the other bakes:
+time cost when a route cuts through it. Surface walking energy uses direct distance via
+`travelEnergy.ts`; `surfaceTravelProfile` and `quoteTravelEnergy` are shared by the map,
+cards and store. Walking advances the clock with passive energy drain disabled; encounter
+energy remains separate. Same rules as the other bakes:
 manual, committed, never part of `npm run build`. Pass `--local` to skip
 Overpass and write committed fallbacks only (useful when the public Overpass
 mirrors are rate-limiting).

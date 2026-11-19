@@ -36,6 +36,7 @@ import {
 import { sightFactor } from './nightSight';
 import { emptyRunStats, normalizeRunStats } from './stats';
 import { Rng, randomSeed } from './rng';
+import { carefulCrossingMinutes, crossingLogText, type CrossingChoice, type CrossingLog, type PendingCrossing } from './crossingEvent';
 import {
   adjustCraftInputs,
   attrEmoji,
@@ -241,7 +242,8 @@ import {
   weatherEnergyMult,
   weatherThirstMult,
 } from './weather';
-import { mergeExploredCircles, snapshot, travelableRange, VISITED_LIGHT_RADIUS, type ExploredCircle } from './fog';
+import { mergeExploredCircles, snapshot, VISITED_LIGHT_RADIUS, type ExploredCircle } from './fog';
+import { quoteTravelEnergy, surfaceTravelProfile } from './travelEnergy';
 import { estimateExpedition, estimateTunnelWalk, searchMinutes } from './travel';
 import {
   makeAnimalById,
@@ -380,6 +382,7 @@ import {
   hazardsAtPoint,
   type HazardKind,
   type CrossingOutcome,
+  type TrekRisk,
 } from './wilds';
 import {
   applySleepOccupancy,
@@ -474,24 +477,13 @@ import {
 } from './ghostSurvivor';
 import {
   EVAC_SCORE_BONUS,
-  evacReadiness,
   pickDistantEvacPoi,
-  pickEvacZone,
   rollEvacCooldown,
-  rollEvacDemand,
   pickNextEvacZone,
   evacWindowHours,
-  type EvacDemandBias,
+  restoreEvacuation,
 } from './goal';
 import { travelAnimDurationMs } from '../ui/travelMotion';
-
-/** How the crew phrases this window's cargo appetite once the channel is up. */
-const BIAS_LOG: Record<EvacDemandBias, string> = {
-  fuel: 'and they are asking for fuel above all.',
-  meds: 'and they are asking for meds above all.',
-  ammo: 'and they are asking for ammo above all.',
-  balanced: 'and they will take it balanced.',
-};
 
 const SCAVENGE_RADIUS = 1500;
 const DANGER_DEPLETE = 0.7;
@@ -603,15 +595,8 @@ interface State {
    * Non-null only between a missed evac and its replacement.
    */
   evacCooldownUntil: number | null;
-  /** Seeded readiness this bird wants — never shown as a number in UI. */
-  evacDemand: number | null;
-  /** Soft cargo bias for the current window. */
-  evacDemandBias: EvacDemandBias | null;
-  /**
-   * Has the player raised the channel at the pad and read the real manifest?
-   * Scoped to the window, not the run — a fresh bird stages fogged again.
-   */
-  evacManifestRevealed: boolean;
+  /** Contact acknowledged at this operation; cargo never gates admission. */
+  evacContacted: boolean;
   escaped: boolean; // true on a victory ending
 
   maxHp: number; // base max HP; effective max is reduced by injuries
@@ -671,6 +656,8 @@ interface State {
   ghostOffer: { kind: 'trader'; wantDefId: string; giveDefId: string } | null;
 
   pendingEvent: PendingEvent | null;
+  pendingCrossing: PendingCrossing | null;
+  chooseCrossing: (eventId: string, choice: CrossingChoice) => void;
   /** The last attribute check, for the dice overlay to play back. UI only — never persisted. */
   shownRoll: ShownRoll | null;
   /**
@@ -957,6 +944,7 @@ export const useGame = create<State>((set, get) => {
     focus?: GameLogEntry['focus'],
     scope?: LogScope,
     activityEvent?: GameLogEntry['activityEvent'],
+    crossing?: CrossingLog,
   ) => {
     logCounter += 1;
     const s = get();
@@ -983,6 +971,7 @@ export const useGame = create<State>((set, get) => {
       focus,
       scope: resolvedScope,
       activityEvent,
+      crossing,
     };
     // Newest-first, but trim only once we are actually at the cap. The old
     // spread-then-slice allocated two 4000-element arrays per line, and a
@@ -995,6 +984,11 @@ export const useGame = create<State>((set, get) => {
   const siteLogScope = (locationId: string): LogScope | undefined => {
     const loc = get().locations[locationId];
     return loc ? siteScope(locationId, loc.name) : undefined;
+  };
+
+  const pushCrossingLog = (message: CrossingLog, tone: GameLogEntry['tone'] = 'info') => {
+    pushLog(crossingLogText(message, (key, vars) => t(key, vars, activeLocale())), tone,
+      undefined, undefined, undefined, undefined, message);
   };
 
   /** Add to the run counters. Every value is a delta, never an absolute. */
@@ -1022,11 +1016,12 @@ export const useGame = create<State>((set, get) => {
   const skillPackage = () => skillMods(get().skills);
 
   /** Practice XP from a meaningful action (books use applySkillBook instead). */
-  const applyPracticeXp = (skill: SkillId, amount: number) => {
+  const applyPracticeXp = (skill: SkillId, amount: number, fractional = false) => {
     const st = get();
     if (!st.character || amount <= 0) return;
     const r = gainSkillXp(st.skills, st.skillDayXp, st.day, skill, amount, {
       xpMult: traitSkillXpMult(st.character.traitIds, skill),
+      fractional,
     });
     if (r.applied <= 0) return;
     set({ skills: r.skills, skillDayXp: r.dayXp });
@@ -1347,9 +1342,14 @@ export const useGame = create<State>((set, get) => {
    * Snapshot the run. Call sites stay `persist()` so actions stay explicit.
    * The write is debounced (≥5 s) and OSM outlines are stripped — see persistRun.ts.
    */
+  let crossingDeparture: State | null = null;
   const persist = () => {
     schedulePersist(() => {
-      const s = get();
+      const live = get();
+      // Arrival commits the walking transaction. A hide/debounce during the
+      // glide saves its untouched departure decision, so reloading never leaves
+      // a charged survivor at the origin or loses the chosen interception.
+      const s = live.travelAnim && crossingDeparture ? crossingDeparture : live;
       if (!s.character || !s.spawn || s.phase === 'menu') return;
       const run: SavedRun = {
         character: s.character,
@@ -1358,6 +1358,7 @@ export const useGame = create<State>((set, get) => {
         locations: s.locations,
         currentPositionId: s.currentPositionId,
         currentPos: s.currentPos,
+        pendingCrossing: s.pendingCrossing,
         equipment: s.equipment,
         bodyParts: s.bodyParts,
         meters: s.meters,
@@ -1380,9 +1381,8 @@ export const useGame = create<State>((set, get) => {
         evacZoneId: s.evacZoneId,
         evacDeadline: s.evacDeadline,
         evacCooldownUntil: s.evacCooldownUntil,
-        evacDemand: s.evacDemand,
-        evacDemandBias: s.evacDemandBias,
-        evacManifestRevealed: s.evacManifestRevealed,
+
+        evacContacted: s.evacContacted,
         hdbBlocks: s.hdb ? { ...s.hdbBlocks, [s.hdb.locationId]: s.hdb } : s.hdbBlocks,
         tunnel: s.tunnel,
         tunnelSeq: s.tunnelSeq,
@@ -1407,6 +1407,42 @@ export const useGame = create<State>((set, get) => {
     const s = get();
     const now = totalGameHour(s.day, s.hour);
     return (lat: number, lng: number) => activityPressure(s.activity, lat, lng, now);
+  };
+
+  // A choice authorizes exactly one validated departure. Never roll or charge
+  // the crossing while merely presenting its scene, including after a reload.
+  let crossingApproval: { crossing: PendingCrossing; choice: 'careful' | 'direct' } | null = null;
+  const crossingApproach = (
+    mode: PendingCrossing['mode'],
+    target: PendingCrossing['target'],
+    risk: TrekRisk,
+  ): 'careful' | 'direct' | null => {
+    const s = get();
+    const approval = crossingApproval;
+    const approved = approval?.crossing;
+    if (approval && approved && approved.mode === mode && approved.target.lat === target.lat && approved.target.lng === target.lng) {
+      const choice = approval.choice;
+      // A resumed decision must retain the threats the player was shown even
+      // before the zone bake finishes loading. Resolution needs no geometry.
+      risk.hazards = approved.hazards.map((hazard) => ({
+        ...hazard, lat: target.lat, lng: target.lng, radiusM: 0, discs: [],
+      }));
+      crossingApproval = null;
+      return choice;
+    }
+    const hazards = risk.hazards;
+    if (!hazards.length) return 'direct';
+    const id = `crossing:${mode}:${target.lat}:${target.lng}:${s.day}:${s.hour}:${logCounter + 1}`;
+    const unique = [...new Map(hazards.map((hazard) => [hazard.id, {
+      id: hazard.id, kind: hazard.kind, severity: hazard.severity,
+    }])).values()];
+    set({ pendingCrossing: {
+      id, mode, target, from: { ...s.currentPos }, day: s.day, hour: s.hour,
+      hazards: unique, carefulMinutes: carefulCrossingMinutes(unique),
+    } });
+    pushCrossingLog({ kind: 'noticed', hazards: [...new Set(unique.map((hazard) => hazard.kind))] });
+    persist();
+    return null;
   };
 
   // New spatial noise contributes through pressure, once. Legacy POI boosts
@@ -1506,13 +1542,12 @@ export const useGame = create<State>((set, get) => {
     set({
       evacZoneId: null,
       evacDeadline: null,
-      evacDemand: null,
-      evacDemandBias: null,
-      evacManifestRevealed: false,
+
+      evacContacted: false,
       evacCooldownUntil: totalGameHour(s.day, s.hour) + wait,
     });
     pushLog(
-      'The bird lifted off without you. The channel goes quiet — nothing staged, nowhere to be.',
+      t('ui.evac.missed', { hours: wait }, activeLocale()),
       'bad',
     );
   };
@@ -1526,34 +1561,33 @@ export const useGame = create<State>((set, get) => {
       s.currentPos.lng,
       s.evacZoneId,
     );
-    const windowH = evacWindowHours(false, s.day);
+    const destination = nextId ? s.locations[nextId] : null;
+    const route = destination ? routeLandPath(s.currentPos, destination, { deterministic: true }) : null;
+    const windowH = evacWindowHours(false, s.day, route?.lengthM);
     const deadline = totalGameHour(s.day, s.hour) + windowH;
-    const rolled = rollEvacDemand(
-      new Rng(s.seed).fork(`evacdemand:${totalGameHour(s.day, s.hour)}`),
-      s.day,
-    );
     set({
       evacZoneId: nextId,
-      evacDeadline: deadline,
-      evacCooldownUntil: null,
-      evacDemand: rolled.demand,
-      evacDemandBias: rolled.bias,
-      evacManifestRevealed: false,
+      evacDeadline: nextId ? deadline : null,
+      evacCooldownUntil: nextId ? null : totalGameHour(s.day, s.hour) + 12,
+
+      evacContacted: false,
     });
     const loc = nextId ? s.locations[nextId] : null;
     pushLog(
       loc
-        ? `The channel wakes up: "New evac staging at ${loc.name}. ${windowH} hours. Pack fuel, meds, ammo — the bird won't name a quota. Move."`
-        : 'The channel wakes up, but there is nowhere left to stage a lift.',
+        ? t('ui.evac.nextAnnounced', { zone: loc.name, hours: windowH }, activeLocale())
+        : t('ui.evac.unavailable', undefined, activeLocale()),
       loc ? 'good' : 'bad',
+      undefined,
+      loc ? { lat: loc.lat, lng: loc.lng, label: loc.name } : undefined,
     );
   };
 
-  const applyCrossingOutcome = (outcome: CrossingOutcome, vegEnergy: number, rng: Rng) => {
+  const applyCrossingOutcome = (outcome: CrossingOutcome, rng: Rng, summarized = false) => {
     const cur = get();
     let meters = {
       ...cur.meters,
-      energy: clampMeter(cur.meters.energy - outcome.energyCost - vegEnergy),
+      energy: clampMeter(cur.meters.energy - outcome.energyCost),
       infection: clampMeter(cur.meters.infection + outcome.infectionDelta),
     };
     let bodyParts = cur.bodyParts;
@@ -1566,9 +1600,10 @@ export const useGame = create<State>((set, get) => {
       }
     }
     set({ meters, bodyParts });
-    for (const line of outcome.logs) pushLog(line.text, line.tone);
+    if (!summarized) for (const line of outcome.logs) pushLog(line.text, line.tone);
     if (outcome.extraHours > 0) {
-      return advanceTime(outcome.extraHours, undefined, false, true);
+      // Detours/flood delays advance survival and the world, but walking was paid upfront.
+      return advanceTime(outcome.extraHours, undefined, false, true, 0);
     }
     return false;
   };
@@ -3210,7 +3245,7 @@ export const useGame = create<State>((set, get) => {
     void ensureStationLocation(destId).then((to) => {
       if (!to) return;
       const cur = get();
-      if (cur.combat || cur.pendingEvent || cur.tunnel || cur.hdb) return;
+      if (cur.combat || cur.pendingEvent || cur.pendingCrossing || cur.tunnel || cur.hdb) return;
       const fromNow = cur.currentPositionId ? cur.locations[cur.currentPositionId] : null;
       if (!fromNow?.mrtStationId) return;
 
@@ -3669,6 +3704,7 @@ export const useGame = create<State>((set, get) => {
   const arriveAt = (locId: string) => {
     const anim = get().travelAnim;
     if (!anim || anim.toId !== locId) return; // superseded or cancelled
+    crossingDeparture = null;
     const loc = get().locations[locId];
     if (!loc) {
       set({ travelAnim: null });
@@ -3779,6 +3815,7 @@ export const useGame = create<State>((set, get) => {
   const arriveWilds = (lat: number, lng: number, startedAt: number) => {
     const anim = get().travelAnim;
     if (!anim || anim.toId !== null || anim.startedAt !== startedAt) return; // superseded
+    crossingDeparture = null;
 
     set((st) => ({
       travelAnim: null,
@@ -3864,9 +3901,8 @@ export const useGame = create<State>((set, get) => {
     evacZoneId: null,
     evacDeadline: null,
     evacCooldownUntil: null,
-    evacDemand: null,
-    evacDemandBias: null,
-    evacManifestRevealed: false,
+
+    evacContacted: false,
     escaped: false,
     maxHp: 100,
     meters: initialMeters(),
@@ -3897,6 +3933,7 @@ export const useGame = create<State>((set, get) => {
         activity: freshActivity(),
     ghostOffer: null,
     pendingEvent: null,
+    pendingCrossing: null,
     shownRoll: null,
     revealTour: null,
     pendingSearch: null,
@@ -3930,6 +3967,7 @@ export const useGame = create<State>((set, get) => {
       syncBackpackBonuses(sumTraitMod(c.traitIds, 'gridWidthBonus'), emptyEquipment());
       set({
         character: c,
+        pendingCrossing: null,
         explorationLeads: [],
         nearbyRecognition: [],
         maxHp,
@@ -4052,27 +4090,26 @@ export const useGame = create<State>((set, get) => {
       } catch {
         // No bake — fall through to the local pick below.
       }
-      if (!evacZoneId) evacZoneId = pickEvacZone(list);
+      if (!evacZoneId) evacZoneId = pickNextEvacZone(list, spawn.lat, spawn.lng, null);
 
-      const firstWindow = evacWindowHours(true, 1);
+      const firstRoute = evacZoneId ? routeLandPath(spawn, locations[evacZoneId], { deterministic: true }) : null;
+      const firstWindow = evacWindowHours(true, 1, firstRoute?.lengthM);
       const evacDeadline = totalGameHour(1, START_HOUR) + firstWindow;
-      const firstDemand = rollEvacDemand(rng.fork('evacdemand:first'), 1);
 
       set({
         hordeLevel: BASE_ACTIVITY_PRESSURE * 100,
         groundZeroId: null,
         evacZoneId,
-        evacDeadline,
-        evacCooldownUntil: null,
-        evacDemand: firstDemand.demand,
-        evacDemandBias: firstDemand.bias,
-        evacManifestRevealed: false,
+        evacDeadline: evacZoneId ? evacDeadline : null,
+        evacCooldownUntil: evacZoneId ? null : totalGameHour(1, START_HOUR) + 12,
+
+        evacContacted: false,
         escaped: false,
       });
       const evacLoc = evacZoneId ? locations[evacZoneId] : null;
       if (evacLoc) {
         pushLog(
-          `Radio static, then a voice: "Evac staging at ${evacLoc.name}. Pack fuel, meds, and ammo — we won't name a number. We hold the window ${firstWindow} hours, no more. Stay longer and the score climbs. Keep your supplies up and choose your moment."`,
+          t('ui.evac.announced', { zone: evacLoc.name, hours: firstWindow }, activeLocale()),
           'good',
           undefined,
           { lat: evacLoc.lat, lng: evacLoc.lng, label: evacLoc.name },
@@ -4158,17 +4195,46 @@ export const useGame = create<State>((set, get) => {
       return 'ok';
     },
 
+    chooseCrossing: (eventId, choice) => {
+      const s = get();
+      const crossing = s.pendingCrossing;
+      if (!crossing || crossing.id !== eventId || !['careful', 'direct', 'withdraw'].includes(choice)) return;
+      set({ pendingCrossing: null });
+      if (choice === 'withdraw') {
+        pushCrossingLog({ kind: 'withdraw' });
+        persist();
+        return;
+      }
+      if (crossing.from.lat !== s.currentPos.lat || crossing.from.lng !== s.currentPos.lng || crossing.day !== s.day || crossing.hour !== s.hour) {
+        pushCrossingLog({ kind: 'changed' });
+        persist();
+        return;
+      }
+      crossingDeparture = s;
+      pushCrossingLog(choice === 'careful' ? { kind: 'careful', minutes: crossing.carefulMinutes } : { kind: 'direct' });
+      crossingApproval = { crossing, choice };
+      try {
+        if (crossing.mode === 'road' && crossing.target.locationId) get().travel(crossing.target.locationId);
+        else get().trek(crossing.target.lat, crossing.target.lng);
+      } finally {
+        crossingApproval = null;
+        if (!get().travelAnim) crossingDeparture = null;
+      }
+      persist();
+    },
+
     travel: (locationId) => {
       const s = get();
       const loc = s.locations[locationId];
-      if (!loc || s.combat || s.pendingEvent || s.pendingSearch || s.travelAnim) return;
-      if (s.meters.energy < 5) {
+      if (!loc || s.combat || s.pendingEvent || s.pendingCrossing || s.pendingSearch || s.travelAnim) return;
+      if (s.meters.energy <= 0) {
         pushLog(flavor('tooTired'), 'bad');
         return;
       }
 
       const weather = weatherKindFor(s.seed, s.day);
-      const load = loadOf(s);
+      const profile = surfaceTravelProfile({ ...s, character: s.character! });
+      const { load, range } = profile;
       if (pinnedByLoad(load)) return;
 
       const route = routeLandPath(s.currentPos, { lat: loc.lat, lng: loc.lng });
@@ -4176,21 +4242,15 @@ export const useGame = create<State>((set, get) => {
         pushLog(NO_DRY_ROUTE_MSG, 'bad');
         return;
       }
-      const dist = route.lengthM;
       const from = s.currentPos;
-
-      // You can only push so far in one go. Beyond your current range you must
-      // hop via a closer waypoint, rest to recover, or walk a tunnel segment.
-      const range = travelableRange(
-        s.character!.attributes,
-        s.meters.energy,
-        moveFactor(s),
-        weather,
-        load.travelMult,
-      );
-      if (dist > range) {
+      const directM = haversine(from.lat, from.lng, loc.lat, loc.lng);
+      // Routing rounds metres for display; it must not turn a short walk into zero time.
+      const dist = Math.max(route.lengthM, directM);
+      // The circle and walking charge use direct distance; the route prices time.
+      const quote = quoteTravelEnergy(directM, s.meters.energy, profile.energyPerMetre, load.canTravel);
+      if (!quote.affordable) {
         pushLog(
-          `${loc.name} is ${dist} m off — too far to reach in one push (range ${range} m). Rest, hop closer, or go down into the tunnels.`,
+          `${loc.name} needs ${quote.energyCost.toFixed(1)} energy to walk there (range ${Math.floor(range)} m). Recover energy or use the tunnels.`,
           'bad',
         );
         return;
@@ -4204,19 +4264,10 @@ export const useGame = create<State>((set, get) => {
         s.hour,
         weather,
         load.travelMult,
-        moveFactor(s),
+        profile.legFactor,
       );
 
       const vegOnRoute = vegetationCost(from, { lat: loc.lat, lng: loc.lng }, route.points);
-
-      // Advance the in-game clock for the trip up front (search time is spent
-      // later, on searching). Bail if the survivor dies en route.
-      if (advanceTime((est.travelMin / 60) * vegOnRoute.travelMult, undefined, false, true, load.energyMult)) return;
-      bumpStats({ distanceM: dist });
-      {
-        const trekHours = (est.travelMin / 60) * vegOnRoute.travelMult;
-        applyPracticeXp('fitness', Math.max(1, Math.round(trekHours * PRACTICE_XP.trekHour)));
-      }
 
       // Prefetch the landing cell while the glide runs.
       void ensureWorldAround(loc.lat, loc.lng);
@@ -4247,8 +4298,17 @@ export const useGame = create<State>((set, get) => {
       );
 
       const encRng = new Rng(now.seed).fork(`road:${loc.id}:${now.day}:${Math.round(now.hour)}`);
+      const approach = crossingApproach('road', { lat: loc.lat, lng: loc.lng, locationId: loc.id, name: loc.name }, risk);
+      if (approach === null) return;
+      // The player has committed to the crossing; walking retains its quoted
+      // energy cost, and every subsequent consequence follows their choice.
+      set({ meters: { ...s.meters, energy: quote.remainingEnergy } });
+      if (advanceTime((est.travelMin / 60) * vegOnRoute.travelMult, undefined, false, true, 0)) return;
+      bumpStats({ distanceM: dist });
+      applyPracticeXp('fitness', (est.travelMin / 60) * vegOnRoute.travelMult * PRACTICE_XP.trekHour, true);
       const outcome = resolveCrossing(encRng, risk, {
         mode: 'road',
+        approach,
         siteDanger: loc.currentDanger,
         dexterity: now.character!.attributes.dexterity,
         checkBonus: sumTraitMod(now.character!.traitIds, 'checkBonusMod'),
@@ -4271,7 +4331,7 @@ export const useGame = create<State>((set, get) => {
         };
       } else if (
         risk.hazards.some((z) => z.kind === 'floodwater') &&
-        encRng.chance(FLOODWATER_ANIMAL_CHANCE)
+        encRng.chance(FLOODWATER_ANIMAL_CHANCE * (approach === 'careful' ? 0.4 : 1))
       ) {
         roadAmbush = {
           locationId: loc.id,
@@ -4304,7 +4364,10 @@ export const useGame = create<State>((set, get) => {
           'good',
         );
       }
-      if (applyCrossingOutcome(outcome, vegOnRoute.energyCost * load.energyMult, encRng)) return;
+      if (applyCrossingOutcome(outcome, encRng, risk.hazards.length > 0)) return;
+      if (risk.hazards.length > 0) pushCrossingLog(
+        { kind: 'resolved', woundHp: outcome.woundHp, infectionDelta: outcome.infectionDelta, intercepted: !!roadAmbush, extraMinutes: Math.round(outcome.extraHours * 60) },
+        roadAmbush || outcome.woundHp > 0 || outcome.infectionDelta > 0 ? 'bad' : 'info');
       if (travelFindLog) pushLog(travelFindLog.text, travelFindLog.tone);
       set({
         travelAnim: {
@@ -4324,7 +4387,7 @@ export const useGame = create<State>((set, get) => {
 
     enter: () => {
       const s = get();
-      if (s.combat || s.pendingEvent || s.pendingSearch || s.travelAnim || s.hdb) return;
+      if (s.combat || s.pendingEvent || s.pendingCrossing || s.pendingSearch || s.travelAnim || s.hdb) return;
       if (!s.currentPositionId) {
         pushLog('There\'s nothing to go into out here.', 'info');
         return;
@@ -4334,7 +4397,7 @@ export const useGame = create<State>((set, get) => {
 
     sneakEnter: () => {
       const s = get();
-      if (s.combat || s.pendingEvent || s.pendingSearch || s.travelAnim || s.hdb || s.raidMode) return;
+      if (s.combat || s.pendingEvent || s.pendingCrossing || s.pendingSearch || s.travelAnim || s.hdb || s.raidMode) return;
       const id = s.currentPositionId;
       if (!id) return;
       const loc = s.locations[id];
@@ -4364,7 +4427,7 @@ export const useGame = create<State>((set, get) => {
 
     forceEnter: () => {
       const s = get();
-      if (s.combat || s.pendingEvent || s.pendingSearch || s.travelAnim || s.hdb || s.raidMode) return;
+      if (s.combat || s.pendingEvent || s.pendingCrossing || s.pendingSearch || s.travelAnim || s.hdb || s.raidMode) return;
       const id = s.currentPositionId;
       if (!id) return;
       const loc = s.locations[id];
@@ -4380,7 +4443,7 @@ export const useGame = create<State>((set, get) => {
 
     raidSearch: () => {
       const s = get();
-      if (s.combat || s.pendingEvent || s.pendingSearch || s.travelAnim || s.hdb) return;
+      if (s.combat || s.pendingEvent || s.pendingCrossing || s.pendingSearch || s.travelAnim || s.hdb) return;
       const raid = s.raidMode;
       if (!raid || raid.locationId !== s.currentPositionId) return;
       const loc = s.locations[raid.locationId];
@@ -4430,8 +4493,8 @@ export const useGame = create<State>((set, get) => {
     // worse option — no loot, no stash, no roof, and the hazard field bites.
     trek: (lat, lng) => {
       const s = get();
-      if (s.combat || s.pendingEvent || s.pendingSearch || s.travelAnim) return;
-      if (s.meters.energy < 5) {
+      if (s.combat || s.pendingEvent || s.pendingCrossing || s.pendingSearch || s.travelAnim) return;
+      if (s.meters.energy <= 0) {
         pushLog(flavor('tooTired'), 'bad');
         return;
       }
@@ -4448,28 +4511,22 @@ export const useGame = create<State>((set, get) => {
         pushLog(NO_DRY_ROUTE_MSG, 'bad');
         return;
       }
-      const dist = route.lengthM;
-      if (dist < TREK_MIN_DISTANCE_M) {
+      const directM = haversine(from.lat, from.lng, lat, lng);
+      const dist = Math.max(route.lengthM, directM);
+      if (directM < TREK_MIN_DISTANCE_M) {
         pushLog('That\'s a few steps, not a move. Pick somewhere worth the walk.', 'info');
         return;
       }
 
       const weather = weatherKindFor(s.seed, s.day);
-      const load = loadOf(s);
+      const profile = surfaceTravelProfile({ ...s, character: s.character! });
+      const { load, range } = profile;
       if (pinnedByLoad(load)) return;
 
-      // Open ground obeys the same one-push limit as everything else — it's an
-      // escape hatch from bad geometry, not from the stamina economy.
-      const range = travelableRange(
-        s.character!.attributes,
-        s.meters.energy,
-        moveFactor(s),
-        weather,
-        load.travelMult,
-      );
-      if (dist > range) {
+      const quote = quoteTravelEnergy(directM, s.meters.energy, profile.energyPerMetre, load.canTravel);
+      if (!quote.affordable) {
         pushLog(
-          `That's ${dist} m of open ground — further than you can push in one go (range ${range} m).`,
+          `That walk needs ${quote.energyCost.toFixed(1)} energy (range ${Math.floor(range)} m). Recover energy first.`,
           'bad',
         );
         return;
@@ -4483,13 +4540,9 @@ export const useGame = create<State>((set, get) => {
         s.hour,
         weather,
         load.travelMult,
-        moveFactor(s),
+        profile.legFactor,
       );
       const veg = vegetationCost(from, { lat, lng }, route.points);
-      if (advanceTime((est.travelMin / 60) * veg.travelMult, undefined, false, true, load.energyMult)) return;
-      applyPracticeXp('fitness', Math.max(1, Math.round(((est.travelMin / 60) * veg.travelMult) * PRACTICE_XP.trekHour)));
-      bumpStats({ distanceM: dist });
-
       // Prefetch the landing cell — open ground is how you leave the bubble.
       void ensureWorldAround(lat, lng);
 
@@ -4517,8 +4570,15 @@ export const useGame = create<State>((set, get) => {
       const encRng = new Rng(now.seed).fork(
         `trek:${lat.toFixed(5)}:${lng.toFixed(5)}:${now.day}:${Math.round(now.hour)}`,
       );
+      const approach = crossingApproach('trek', { lat, lng }, risk);
+      if (approach === null) return;
+      set({ meters: { ...s.meters, energy: quote.remainingEnergy } });
+      if (advanceTime((est.travelMin / 60) * veg.travelMult, undefined, false, true, 0)) return;
+      applyPracticeXp('fitness', (est.travelMin / 60) * veg.travelMult * PRACTICE_XP.trekHour, true);
+      bumpStats({ distanceM: dist });
       const outcome = resolveCrossing(encRng, risk, {
         mode: 'trek',
+        approach,
         dexterity: now.character!.attributes.dexterity,
         checkBonus: sumTraitMod(now.character!.traitIds, 'checkBonusMod'),
         band: trekBand,
@@ -4540,7 +4600,7 @@ export const useGame = create<State>((set, get) => {
         };
       } else if (
         risk.hazards.some((z) => z.kind === 'floodwater') &&
-        encRng.chance(FLOODWATER_ANIMAL_CHANCE)
+        encRng.chance(FLOODWATER_ANIMAL_CHANCE * (approach === 'careful' ? 0.4 : 1))
       ) {
         trekAmbush = {
           danger: risk.combatDanger,
@@ -4557,11 +4617,14 @@ export const useGame = create<State>((set, get) => {
       const startedAt = Date.now();
       pushLog(flavor('trekOut'), 'info');
       if (veg.patches.length > 0) {
-        pushLog('You push through dense forest — every step costs.', 'info');
+        pushLog('You push through dense forest — every step takes longer.', 'info');
       }
       noteOverload(s.day, load.ratio);
       applyLoadOnWalk(load, dist, { lat, lng }, encRng.fork('load'));
-      if (applyCrossingOutcome(outcome, veg.energyCost * load.energyMult, encRng)) return;
+      if (applyCrossingOutcome(outcome, encRng, risk.hazards.length > 0)) return;
+      if (risk.hazards.length > 0) pushCrossingLog(
+        { kind: 'resolved', woundHp: outcome.woundHp, infectionDelta: outcome.infectionDelta, intercepted: !!trekAmbush, extraMinutes: Math.round(outcome.extraHours * 60) },
+        trekAmbush || outcome.woundHp > 0 || outcome.infectionDelta > 0 ? 'bad' : 'info');
       if (trekFindLog) pushLog(trekFindLog.text, trekFindLog.tone);
       set({
         travelAnim: {
@@ -4582,7 +4645,7 @@ export const useGame = create<State>((set, get) => {
     tunnelEnterRoute: (stationIds) => {
       const s = get();
       const from = s.currentPositionId ? s.locations[s.currentPositionId] : null;
-      if (!from || s.combat || s.pendingEvent || s.tunnel || s.hdb) return;
+      if (!from || s.combat || s.pendingEvent || s.pendingCrossing || s.tunnel || s.hdb) return;
       if (pinnedByLoad(loadOf(s))) return;
       if (!from.isMrtStation || !from.mrtStationId) {
         pushLog('You have to be on a platform to get into the tunnels.', 'bad');
@@ -4612,7 +4675,7 @@ export const useGame = create<State>((set, get) => {
       void ensureStationLocation(destId).then((to) => {
         if (!to) return;
         const cur = get();
-        if (cur.combat || cur.pendingEvent || cur.tunnel || cur.hdb) return;
+        if (cur.combat || cur.pendingEvent || cur.pendingCrossing || cur.tunnel || cur.hdb) return;
 
         const dayPass = (from.tollPaidThroughDay ?? -1) >= cur.day;
         if (
@@ -4882,7 +4945,7 @@ export const useGame = create<State>((set, get) => {
 
     openTrader: (locationId) => {
       const s = get();
-      if (s.combat || s.pendingEvent || s.travelAnim) return;
+      if (s.combat || s.pendingEvent || s.pendingCrossing || s.travelAnim) return;
       const loc = s.locations[locationId];
       if (!loc?.factionId) return;
       if (s.currentPositionId !== locationId) return;
@@ -4959,7 +5022,7 @@ export const useGame = create<State>((set, get) => {
 
     outpostRest: () => {
       const s = get();
-      if (s.combat || s.pendingEvent || s.travelAnim) return;
+      if (s.combat || s.pendingEvent || s.pendingCrossing || s.travelAnim) return;
       const posId = s.currentPositionId;
       const loc = posId ? s.locations[posId] : null;
       if (!loc?.factionId) return;
@@ -5008,7 +5071,7 @@ export const useGame = create<State>((set, get) => {
 
     factionAid: () => {
       const s = get();
-      if (s.combat || s.pendingEvent || s.travelAnim) return;
+      if (s.combat || s.pendingEvent || s.pendingCrossing || s.travelAnim) return;
       const posId = s.currentPositionId;
       const loc = posId ? s.locations[posId] : null;
       if (!loc?.factionId) return;
@@ -5049,7 +5112,7 @@ export const useGame = create<State>((set, get) => {
 
     factionIntel: () => {
       const s = get();
-      if (s.combat || s.pendingEvent || s.travelAnim) return;
+      if (s.combat || s.pendingEvent || s.pendingCrossing || s.travelAnim) return;
       const posId = s.currentPositionId;
       const loc = posId ? s.locations[posId] : null;
       if (!loc?.factionId) return;
@@ -5137,7 +5200,7 @@ export const useGame = create<State>((set, get) => {
 
     factionFeed: () => {
       const s = get();
-      if (s.combat || s.pendingEvent || s.travelAnim) return;
+      if (s.combat || s.pendingEvent || s.pendingCrossing || s.travelAnim) return;
       const posId = s.currentPositionId;
       const loc = posId ? s.locations[posId] : null;
       if (!loc?.factionId) return;
@@ -5181,7 +5244,7 @@ export const useGame = create<State>((set, get) => {
 
     factionEscort: (destinationId) => {
       const s = get();
-      if (s.combat || s.pendingEvent || s.travelAnim) return;
+      if (s.combat || s.pendingEvent || s.pendingCrossing || s.travelAnim) return;
       const posId = s.currentPositionId;
       const loc = posId ? s.locations[posId] : null;
       if (!loc?.factionId) return;
@@ -5298,7 +5361,7 @@ export const useGame = create<State>((set, get) => {
 
     searchKinDeck: () => {
       const s = get();
-      if (s.combat || s.pendingEvent || s.pendingSearch || s.travelAnim || s.hdb) return;
+      if (s.combat || s.pendingEvent || s.pendingCrossing || s.pendingSearch || s.travelAnim || s.hdb) return;
       const loc = s.currentPositionId ? s.locations[s.currentPositionId] : null;
       if (!loc?.factionId) return;
       if (!hasFactionClearance(loc, s.factionStanding, s.day)) {
@@ -5315,38 +5378,27 @@ export const useGame = create<State>((set, get) => {
       get().hdbEnter();
     },
 
-    /**
-     * Two-step at the pad. The approach stays fogged, but standing on the
-     * ground gets you a real read: the first press raises the channel and the
-     * crew states their manifest in numbers. That read persists for the rest of
-     * the window, so a short haul can be topped up on purpose instead of by
-     * guesswork. A pack that already clears the bar lifts on the same press.
-     */
+    /** Confirm contact, then board during the advertised window. Both are free. */
     callEvac: () => {
       const s = get();
-      if (s.combat || s.pendingEvent || s.travelAnim) return;
-      if (!s.evacZoneId || s.currentPositionId !== s.evacZoneId) {
-        pushLog('You need to be at the evac zone to signal for a lift.', 'bad');
-        return;
-      }
-      const bias = s.evacDemandBias ?? 'balanced';
-      const read = evacReadiness(s.items, s.day, s.evacDemand, bias);
-      if (!s.evacManifestRevealed) {
-        set({ evacManifestRevealed: true });
-        pushLog(
-          `Channel up. The crew reads out their manifest: ${read.required} of weighted haul, ${BIAS_LOG[bias]} Your pack scans at ${read.current}.`,
-          'info',
-        );
-      }
-      if (!read.ready) {
-        pushLog(
-          `Still ${read.required - read.current} short of the lift. Fuel, meds, and ammo count most.`,
-          'bad',
-        );
+      if (s.phase !== 'game' || !s.character || s.combat || s.pendingEvent || s.pendingCrossing || s.pendingSearch || s.travelAnim || s.hdb || s.tunnel) return;
+      const now = totalGameHour(s.day, s.hour);
+      if (s.evacZoneId && s.evacDeadline != null && now >= s.evacDeadline) {
+        beginEvacCooldown();
         persist();
         return;
       }
-      pushLog('You pop the flare. Rotors thunder over the rooftops — they came.', 'good');
+      if (!s.evacZoneId || s.evacDeadline == null || !s.locations[s.evacZoneId] || s.currentPositionId !== s.evacZoneId) {
+        pushLog(t('ui.evac.wrongPlace', undefined, activeLocale()), 'info');
+        return;
+      }
+      if (!s.evacContacted) {
+        set({ evacContacted: true });
+        pushLog(t('ui.evac.contacted', undefined, activeLocale()), 'good');
+        persist();
+        return;
+      }
+      pushLog(t('ui.evac.boarded', undefined, activeLocale()), 'good');
       winRun();
     },
 
@@ -5534,6 +5586,7 @@ export const useGame = create<State>((set, get) => {
           persist();
           return;
         }
+        if (site) pushLog(t('ui.evac.searchAfterEvent', { name: site.name }, activeLocale()), 'info', undefined, undefined, siteLogScope(pe.locationId));
         attemptSearch(pe.locationId);
       };
 
@@ -5589,6 +5642,9 @@ export const useGame = create<State>((set, get) => {
       /** @returns false if the survivor died partway through. */
       const applyOne = (e: EventEffect): boolean => {
         switch (e.t) {
+          case 'line':
+            pushLog(e.line, 'info');
+            return true;
           case 'mark':
             mark(e.mark);
             return true;
@@ -5724,7 +5780,7 @@ export const useGame = create<State>((set, get) => {
 
     rest: (length = 'morning') => {
       const s = get();
-      if (s.combat || s.pendingEvent || s.travelAnim || !s.character) return;
+      if (s.combat || s.pendingEvent || s.pendingCrossing || s.travelAnim || !s.character) return;
       const { outcome, pockets, conditions, risk } = planRestFromState(length);
       if (outcome.hours <= 0) {
         pushLog(
@@ -5857,6 +5913,7 @@ export const useGame = create<State>((set, get) => {
 
     applyItem: (uid, partId) => {
       const s = get();
+      if (s.pendingCrossing) return;
       // Fights are committed — no mid-swing bandages from the pack.
       if (s.combat && !s.combat.over) {
         pushLog('No time to dig through the pack mid-fight.', 'bad');
@@ -5867,7 +5924,7 @@ export const useGame = create<State>((set, get) => {
       const def = itemDef(inst.defId);
       const care = careForItem(def.id);
       if (care) {
-        if (s.phase !== 'game' || !s.character || s.travelAnim || s.pendingEvent || s.pendingSearch) return;
+        if (s.phase !== 'game' || !s.character || s.travelAnim || s.pendingEvent || s.pendingCrossing || s.pendingSearch) return;
         if (!isCarried(inst.container) && inst.container !== TEMP_STASH &&
             (inst.container !== s.currentPositionId || s.tunnel)) return;
         const target = partId ?? chooseCareTarget(s.bodyParts, care);
@@ -6251,6 +6308,7 @@ export const useGame = create<State>((set, get) => {
 
     craftItem: (recipeId, mode = 'room', waterSource = 'carried') => {
       const s = get();
+      if (s.pendingCrossing) return;
       if (s.phase !== 'game' || !s.character || s.combat || s.travelAnim || s.pendingSearch || s.pendingEvent) return;
       const recipe = RECIPES.find((r) => r.id === recipeId);
       if (!recipe) return;
@@ -6322,7 +6380,7 @@ export const useGame = create<State>((set, get) => {
       const s = get();
       const loc = surfaceSite(s);
       if (s.phase !== 'game' || !s.character || !loc || loc.localMapRead
-        || s.combat || s.pendingEvent || s.pendingSearch || s.travelAnim || s.hdb || s.tunnel) return;
+        || s.combat || s.pendingEvent || s.pendingCrossing || s.pendingSearch || s.travelAnim || s.hdb || s.tunnel) return;
       const source = loc.category === 'mrt' || loc.isMrtStation ? 'locality'
         : loc.category === 'residential' || loc.category === 'community' ? 'noticeboard' : null;
       if (!source) return;
@@ -6365,6 +6423,7 @@ export const useGame = create<State>((set, get) => {
 
     collectSiteWater: (source) => {
       const s = get();
+      if (s.pendingCrossing) return;
       if (s.phase !== 'game' || s.combat || s.travelAnim || s.pendingSearch || s.pendingEvent) return;
       const loc = surfaceSite(s);
       if (!loc) return;
@@ -6718,7 +6777,7 @@ export const useGame = create<State>((set, get) => {
     hdbEnter: () => {
       const s = get();
       const loc = s.currentPositionId ? s.locations[s.currentPositionId] : null;
-      if (!loc || s.combat || s.pendingEvent || s.pendingSearch || s.hdb) return;
+      if (!loc || s.combat || s.pendingEvent || s.pendingCrossing || s.pendingSearch || s.hdb) return;
       if (loc.category !== 'residential' || !isVerifiedHdb(loc.id, loc.lat, loc.lng)) return;
       if (loc.factionId) {
         const kin =
@@ -7115,7 +7174,7 @@ export const useGame = create<State>((set, get) => {
       const event = s.activity.event;
       const now = totalGameHour(s.day, s.hour);
       if (s.phase !== 'game' || !s.character || !event || (eventId !== undefined && event.id !== eventId) || event.resolved || event.expiresAt <= now
-        || s.combat || s.pendingEvent || s.pendingSearch || s.travelAnim || s.hdb || s.tunnel
+        || s.combat || s.pendingEvent || s.pendingCrossing || s.pendingSearch || s.travelAnim || s.hdb || s.tunnel
         || haversine(s.currentPos.lat, s.currentPos.lng, event.lat, event.lng) > 120) return;
       const energyCost = event.kind === 'gunfire' ? 5 : event.kind === 'scavengers' ? 0 : 4;
       const hours = event.kind === 'gunfire' ? 1 / 3 : event.kind === 'scavengers' ? 1 / 6 : 1 / 4;
@@ -7910,9 +7969,12 @@ export const useGame = create<State>((set, get) => {
     },
 
     resetToMenu: () => {
+      crossingApproval = null;
       flushPersist();
+      crossingDeparture = null;
       set({
         phase: 'menu',
+        pendingCrossing: null,
         character: null,
         spawn: null,
         locations: {},
@@ -7924,9 +7986,8 @@ export const useGame = create<State>((set, get) => {
         evacZoneId: null,
         evacDeadline: null,
         evacCooldownUntil: null,
-        evacDemand: null,
-        evacDemandBias: null,
-        evacManifestRevealed: false,
+
+        evacContacted: false,
         escaped: false,
         combat: null,
         _combatRng: null,
@@ -8007,6 +8068,7 @@ export const useGame = create<State>((set, get) => {
         locations: rehydrateLocationOutlines(run.locations),
         currentPositionId: run.currentPositionId,
         currentPos: run.currentPos,
+        pendingCrossing: run.pendingCrossing ?? null,
         equipment: coerceEquipment(run.equipment),
         bodyParts: migrateBodyParts(run.bodyParts, run.maxHp),
         lastCare: null,
@@ -8025,26 +8087,7 @@ export const useGame = create<State>((set, get) => {
         expandedCells: run.expandedCells ?? [],
         groundZeroId: null,
         hordeLevel: BASE_ACTIVITY_PRESSURE * 100,
-        evacZoneId: run.evacZoneId ?? pickEvacZone(Object.values(run.locations)),
-        evacDeadline:
-          run.evacDeadline ?? totalGameHour(run.day, run.hour) + evacWindowHours(true, run.day),
-        evacCooldownUntil: run.evacCooldownUntil ?? null,
-        evacManifestRevealed: run.evacManifestRevealed ?? false,
-        ...(() => {
-          const validBias = (b: string | null | undefined): EvacDemandBias | null =>
-            b === 'fuel' || b === 'meds' || b === 'ammo' || b === 'balanced' ? b : null;
-          if (run.evacDemand != null && run.evacDemand > 0) {
-            return {
-              evacDemand: run.evacDemand,
-              evacDemandBias: validBias(run.evacDemandBias) ?? 'balanced',
-            };
-          }
-          const rolled = rollEvacDemand(
-            new Rng(run.seed).fork(`evacdemand:resume:${run.day}`),
-            run.day,
-          );
-          return { evacDemand: rolled.demand, evacDemandBias: rolled.bias };
-        })(),
+        ...restoreEvacuation(run),
         escaped: false,
         travelAnim: null,
         worldLoading: false,
@@ -8119,6 +8162,17 @@ export const useGame = create<State>((set, get) => {
           undefined, undefined, undefined, { ...activityEvent });
       }
       pushLog('You pick up where you left off.', 'info');
+
+      // Synchronize old/overdue objectives before the player spends another turn.
+      const operation = get();
+      const resumeHour = totalGameHour(operation.day, operation.hour);
+      if (operation.evacZoneId && operation.evacDeadline != null && resumeHour >= operation.evacDeadline) {
+        beginEvacCooldown();
+        persist();
+      } else if (operation.evacCooldownUntil != null && resumeHour >= operation.evacCooldownUntil) {
+        stageNextEvac();
+        persist();
+      }
 
       // Old saves lack expandedCells; a resume far from spawn may also sit in a
       // thin bubble. Pull the cell underfoot so the neighbourhood fills in.
