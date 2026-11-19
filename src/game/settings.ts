@@ -224,12 +224,15 @@ export const SETTINGS_SCHEMA: SettingDef[] = [
   {
     key: 'buildingShadows',
     label: '3D building shadows',
-    description: 'Nearby buildings cast shadows onto streets, walls and roofs. Uses more graphics power.',
+    description: 'Buildings cast shadows across your travel range. High gives shadows sharper edges and uses more graphics memory.',
     tab: 'gameplay',
     section: 'Map',
-    control: 'toggle',
-    options: [{ value: 'on', label: 'On' }, { value: 'off', label: 'Off' }],
-    // The renderer and the control are already gated to desktop 3D layouts.
+    options: [
+      { value: 'off', label: 'Off' },
+      { value: 'on', label: 'Standard (2K)' },
+      { value: 'high', label: 'High (4K)' },
+    ],
+    // Existing enabled preferences already use 'on' for the 2K map.
     default: 'on',
   },
   {

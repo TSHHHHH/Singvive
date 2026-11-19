@@ -4,7 +4,7 @@ import type { Feature } from 'geojson';
 import type { DestructionTier, Poi, TimeOfDay, WeatherKind, MapAnnotation } from '../game/types';
 import { WeatherFx } from './WeatherFx';
 import { Atmosphere3d } from './Atmosphere3d';
-import { useDesktopShadows, useShadowCapableLayout } from '../hooks/useDesktopShadows';
+import { useDesktopShadowSize, useShadowCapableLayout } from '../hooks/useDesktopShadows';
 import type { WeatherDom } from './useAtmosphere';
 import { TimeOfDayFx } from './TimeOfDayFx';
 import { poiIcon, identifiedIcon, playerIcon, playerLocationIcon, unknownIcon, evacIcon, dangerColor, rumourIcon, trekTargetIcon, knownFactionColor } from './mapIcons';
@@ -539,20 +539,20 @@ function Buildings3d({
   const map = useMapGL();
   const reduced = useReducedMotion();
   const [engine, setEngine] = useState<BuildingEngine | null>(null);
-  const shadows = useDesktopShadows();
+  const shadowSize = useDesktopShadowSize();
 
   useEffect(() => {
-    if (!engine || !shadows) return;
+    if (!engine || !shadowSize) return;
     let active = true;
     let remove: (() => void) | undefined;
     void import('../map/buildingShadows').then(({ installBuildingShadows }) => {
-      if (active) remove = installBuildingShadows(map, engine);
+      if (active) remove = installBuildingShadows(map, engine, shadowSize);
     }).catch((error: unknown) => console.warn('Building shadows unavailable', error));
     return () => {
       active = false;
       remove?.();
     };
-  }, [engine, map, shadows]);
+  }, [engine, map, shadowSize]);
 
   useEffect(() => {
     const e = new BuildingEngine(map);

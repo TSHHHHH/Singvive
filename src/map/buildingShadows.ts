@@ -45,12 +45,12 @@ function geometryFor(block: ShadowBlock) {
 }
 
 /** Native extrusions supply colour, picking and depth. These meshes only add the sun's occlusion. */
-export function installBuildingShadows(map: MlMap, engine: BuildingEngine) {
+export function installBuildingShadows(map: MlMap, engine: BuildingEngine, shadowSize: 2048 | 4096) {
   const scene = new Scene();
   const camera = new Camera();
   const sun = new DirectionalLight();
   sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.mapSize.set(shadowSize, shadowSize);
   sun.shadow.camera.up.set(0, 1, 0);
   sun.shadow.bias = -0.00008;
   sun.shadow.normalBias = 0.25;

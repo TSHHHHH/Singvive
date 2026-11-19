@@ -2771,8 +2771,8 @@
     },
     "buildingShadows": {
       "label": "3D 建筑阴影",
-      "description": "附近建筑的阴影会投在街道、墙面和屋顶上。开启后会增加显卡负载。",
-      "options": { "on": "开", "off": "关" }
+      "description": "建筑会在你的可移动范围内投下阴影。高画质下阴影边缘更清晰，但会占用更多显存。",
+      "options": { "off": "关", "on": "标准（2K）", "high": "高（4K）" }
     },
     "mapKeys": {
       "label": "键盘镜头",

@@ -13,7 +13,9 @@ export function useShadowCapableLayout() {
   return useSyncExternalStore(subscribe, matches, () => false);
 }
 
-export function useDesktopShadows() {
+export function useDesktopShadowSize() {
   const desktop = useShadowCapableLayout();
-  return useSetting('buildingShadows') === 'on' && desktop;
+  const quality = useSetting('buildingShadows');
+  if (!desktop || quality === 'off') return 0;
+  return quality === 'high' ? 4096 : 2048;
 }

@@ -171,9 +171,9 @@ goes flat. MapLibre zoom is the old Leaflet zoom − 1 (the saved zoom key moved
   `--roof` / `--roof-lift` CSS variables. Badge heights update on range membership changes,
   while physical roof heights stay available for block cutaways. Building reveal does not scan
   explored discs. Spawn select and the route planner stay 2D.
-  Desktop 3D uses **3D building shadows** by default, with a toggle in Gameplay → Map. A lazy-loaded Three.js
+  Desktop 3D uses **3D building shadows** by default. Gameplay → Map offers Off, Standard (2K) and High (4K). A lazy-loaded Three.js
   custom layer shares the run map's depth buffer and adds shadow to the native streets, roofs and
-  walls. One 2048² directional shadow map fits the current travelable range. The visible edge follows
+  walls. One directional shadow map fits the current travelable range at either resolution, with 2048² as the default. The visible edge follows
   the live range exactly, while the shadow camera resizes in 64 m increments. Loaded footprints
   and visible ruin pieces share a batched mesh. Closed meshes cast from their back faces to avoid
   striping on sunlit walls. New geometry builds in 3 ms slices, and the layer reuses the building

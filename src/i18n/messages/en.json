@@ -2771,8 +2771,8 @@
     },
     "buildingShadows": {
       "label": "3D building shadows",
-      "description": "Nearby buildings cast shadows onto streets, walls and roofs. Uses more graphics power.",
-      "options": { "on": "On", "off": "Off" }
+      "description": "Buildings cast shadows across your travel range. High gives shadows sharper edges and uses more graphics memory.",
+      "options": { "off": "Off", "on": "Standard (2K)", "high": "High (4K)" }
     },
     "mapKeys": {
       "label": "Keyboard camera",
