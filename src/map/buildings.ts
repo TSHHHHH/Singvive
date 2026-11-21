@@ -1,4 +1,4 @@
-import type { Feature, FeatureCollection } from 'geojson';
+import type { Feature } from 'geojson';
 import {
   type FilterSpecification,
   type GeoJSONSource,
@@ -213,6 +213,9 @@ function heightExpr(base: boolean) {
   ] as unknown as number;
 }
 
+/** A piece's rise: live feature-state while it animates, else the value baked in when it was sent. */
+const PIECE_RISE = ['coalesce', ['feature-state', 'rise'], ['get', 'rise'], 0];
+
 /** A ruin piece's own base / top × rise, on the same zoom ramp. */
 function pieceExpr(prop: 'base' | 'top') {
   return [
@@ -222,16 +225,16 @@ function pieceExpr(prop: 'base' | 'top') {
     LOD_ZOOM,
     0,
     LOD_ZOOM + ZOOM_RISE_SPAN,
-    ['*', ['get', prop], ['coalesce', ['feature-state', 'rise'], 0]],
+    ['*', ['get', prop], PIECE_RISE],
   ] as unknown as number;
 }
 
 /** Fogged flat colour while down, site colour once standing; selection lives on the badge. */
-function standingColor(color: unknown) {
+function standingColor(color: unknown, rise: unknown = ['coalesce', ['feature-state', 'rise'], 0]) {
   return [
     'interpolate',
     ['linear'],
-    ['coalesce', ['feature-state', 'rise'], 0],
+    rise,
     0,
     FLAT_COLOR,
     1,
@@ -319,6 +322,11 @@ export class BuildingEngine {
   private ruinApplied = new Map<string, string>();
   /** The rise last written to each model's pieces (feature-state persists across setData). */
   private pieceRise = new Map<string, number>();
+  /** The models whose pieces are in the ruins source now. */
+  private ruinSent = new Map<string, RuinModel>();
+  /** The rise / tint baked into each sent model's piece properties. */
+  private pieceBaked = new Map<string, number>();
+  private colorBaked = new Map<string, string>();
   private nextPieceId = 1;
   /** Building feature → the wreck key whose pieces rise with it. */
   private wreckOf = new Map<FeatureId, string>();
@@ -553,7 +561,7 @@ export class BuildingEngine {
         source: RUINS_SOURCE,
         minzoom: LOD_ZOOM,
         paint: {
-          'fill-extrusion-color': standingColor(['coalesce', ['feature-state', 'color'], RUIN_COLORS.shell]),
+          'fill-extrusion-color': standingColor(['coalesce', ['feature-state', 'color'], ['get', 'color'], RUIN_COLORS.shell], PIECE_RISE),
           'fill-extrusion-height': pieceExpr('top'),
           'fill-extrusion-base': pieceExpr('base'),
           'fill-extrusion-opacity': SOLID_OPACITY,
@@ -1228,24 +1236,54 @@ export class BuildingEngine {
   /** A model came or went: redraw the pieces, re-flatten boxes, move badges. */
   private afterRuinChange() {
     this.shadowGeometryRevision++;
-    const features: Feature[] = [];
     this.wreckOf.clear();
+    const shown = new Map<string, RuinModel>();
     for (const key of this.ruinShown) {
       const model = this.ruinCache.get(key);
       if (!model) continue;
-      features.push(...model.pieces);
+      shown.set(key, model);
       const ids = key.startsWith('b:') ? [model.owner] : this.siteFeatures.get(key) ?? [];
       for (const id of ids) if (id !== undefined) this.wreckOf.set(id, key);
     }
-    const fc: FeatureCollection = { type: 'FeatureCollection', features };
-    (this.map.getSource(RUINS_SOURCE) as GeoJSONSource | undefined)?.setData(fc);
-    // Feature-state outlives setData (it lives on the source, keyed by id), and
-    // piece ids are never reused, so only models whose rise moved while hidden,
-    // or that are new, need writing. Rewriting every piece of every shown model
-    // here cost 150-350 ms per re-pick while walking.
-    for (const [id, key] of this.wreckOf) {
-      const v = this.rise.get(id)?.v ?? 0;
-      if (this.pieceRise.get(key) !== v) this.setPieceRise(key, v);
+    // Send only the models that came, went or were rebuilt. A full setData
+    // re-tiled every shown piece (~6k) on each change; a diff reloads only the
+    // tiles it touches.
+    const remove: (string | number)[] = [];
+    const add: Feature[] = [];
+    for (const [key, model] of this.ruinSent) {
+      if (shown.get(key) === model) continue;
+      for (const f of model.pieces) remove.push(f.id!);
+      this.ruinSent.delete(key);
+      this.pieceBaked.delete(key);
+      this.colorBaked.delete(key);
+    }
+    const riseOf = new Map<string, number>();
+    for (const [id, key] of this.wreckOf) riseOf.set(key, this.rise.get(id)?.v ?? 0);
+    for (const [key, model] of shown) {
+      if (this.ruinSent.has(key)) continue;
+      // Colour and rise ride in as properties: writing them as feature-state
+      // cost two setFeatureState calls per piece (~200 pieces per model).
+      // Any state written earlier still overrides them; see the checks below.
+      const rise = riseOf.get(key) ?? 0;
+      const tint = this.pieceTint(key);
+      for (const f of model.pieces) {
+        const props = f.properties as { kind: RuinKind; rise?: number; color?: string };
+        props.rise = rise;
+        if (tint) props.color = tint.color(props.kind);
+      }
+      this.pieceBaked.set(key, rise);
+      if (tint) this.colorBaked.set(key, tint.key);
+      add.push(...model.pieces);
+      this.ruinSent.set(key, model);
+    }
+    if (remove.length || add.length) {
+      (this.map.getSource(RUINS_SOURCE) as GeoJSONSource | undefined)?.updateData({ remove, add });
+    }
+    // Feature-state outlives source updates (it lives on the source, keyed by
+    // id), and piece ids are never reused, so only a model whose written state
+    // is stale (its building moved while it was hidden) needs writing.
+    for (const [key, v] of riseOf) {
+      if ((this.pieceRise.get(key) ?? this.pieceBaked.get(key)) !== v) this.setPieceRise(key, v);
     }
     this.applySiteStates();
     this.publishRoofs();
@@ -1264,25 +1302,31 @@ export class BuildingEngine {
     }
   }
 
+  /** How a model's pieces are coloured: their own shade, a site's colour mixed in. */
+  private pieceTint(key: string): { key: string; color: (kind: RuinKind) => string } | null {
+    const s = key.startsWith('b:') ? null : this.sites.get(key);
+    if (!s && !key.startsWith('b:')) return null;
+    return {
+      key: s?.color ?? 'city',
+      color: (kind) => (s && !isRuinDetail(kind) ? mixHex(RUIN_COLORS[kind], s.color, RUIN_SITE_TINT) : RUIN_COLORS[kind]),
+    };
+  }
+
   /** Piece colours: their own shade with the site's colour mixed in. */
   private applyPieceStates() {
     if (!this.map.getSource(RUINS_SOURCE)) return;
     for (const key of this.ruinShown) {
       const model = this.ruinCache.get(key);
       if (!model) continue;
-      const s = key.startsWith('b:') ? null : this.sites.get(key);
-      if (!s && !key.startsWith('b:')) continue;
-      const stateKey = s?.color ?? 'city';
-      if (this.ruinApplied.get(key) === stateKey) continue;
+      const tint = this.pieceTint(key);
+      if (!tint) continue;
+      // Written state wins over the baked property, so compare against it first.
+      if ((this.ruinApplied.get(key) ?? this.colorBaked.get(key)) === tint.key) continue;
       for (const f of model.pieces) {
         const kind = (f.properties as { kind: RuinKind }).kind;
-        const own = RUIN_COLORS[kind];
-        this.map.setFeatureState(
-          { source: RUINS_SOURCE, id: f.id as number },
-          { color: s && !isRuinDetail(kind) ? mixHex(own, s.color, RUIN_SITE_TINT) : own },
-        );
+        this.map.setFeatureState({ source: RUINS_SOURCE, id: f.id as number }, { color: tint.color(kind) });
       }
-      this.ruinApplied.set(key, stateKey);
+      this.ruinApplied.set(key, tint.key);
     }
   }
 
