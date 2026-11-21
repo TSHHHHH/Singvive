@@ -7,6 +7,9 @@ import { useGame } from '../game/store';
 import {
   alarmArmed,
   canCutAlarm,
+  gangHostile,
+  shaftOpen,
+  THEME_RULES,
   cutAlarmChance,
   ROOM_EVENTS,
   breachOutcome,
@@ -79,6 +82,8 @@ export function HdbContextPanel({
   const hdbUseShelter = useGame((s) => s.hdbUseShelter);
   const hdbReadNotice = useGame((s) => s.hdbReadNotice);
   const hdbCutAlarm = useGame((s) => s.hdbCutAlarm);
+  const hdbPayToll = useGame((s) => s.hdbPayToll);
+  const hdbShaftDrop = useGame((s) => s.hdbShaftDrop);
   const hdbLeave = useGame((s) => s.hdbLeave);
   const isPhone = useIsPhoneLayout();
 
@@ -368,6 +373,42 @@ export function HdbContextPanel({
     )
   ) : null;
 
+  // Landing-wide actions a theme brings: the gang toll and the lift-shaft climb.
+  const tollItem = THEME_RULES.tollItems.find((id) =>
+    items.some((i) => isCarried(i.container) && i.defId === id),
+  );
+  const landingActions =
+    gangHostile(floor) || (hdb.currentLevel !== 1 && shaftOpen(floor)) ? (
+      <div className="flex flex-col gap-2">
+        {gangHostile(floor) && (
+          <button
+            type="button"
+            onClick={() => hdbPayToll()}
+            disabled={busy || !tollItem}
+            {...tip(t('ui.hdb.themeAction.tollTip', { pct: Math.round(THEME_RULES.tollEncounterMult * 100) }))}
+            className={BTN.secondary}
+          >
+            <Icon name="hdb.gang" />{' '}
+            {tollItem
+              ? t('ui.hdb.themeAction.toll', { item: msgOr(`item.${tollItem}`, tollItem, undefined, locale) })
+              : t('ui.hdb.themeAction.tollNeed')}
+          </button>
+        )}
+        {hdb.currentLevel !== 1 && shaftOpen(floor) && (
+          <button
+            type="button"
+            onClick={() => hdbShaftDrop()}
+            disabled={busy}
+            {...tip(t('ui.hdb.themeAction.shaftTip'))}
+            className={BTN.secondary}
+          >
+            <Icon name="hdb.shaft" />{' '}
+            {t('ui.hdb.themeAction.shaft', { min: THEME_RULES.shaftMinutes, energy: THEME_RULES.shaftEnergy })}
+          </button>
+        )}
+      </div>
+    ) : null;
+
   // Heat lives on the status dock and the strip; the card only adds what is left to open.
   const levelHint = (
     <div {...tip(landingTip(hdb, t, locale))}>
@@ -396,6 +437,7 @@ export function HdbContextPanel({
           ) : (
             levelHint
           )}
+          {landingActions}
         </PlaceStack>
       </div>
     </div>

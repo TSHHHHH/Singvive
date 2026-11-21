@@ -19,6 +19,7 @@ import {
   travelPlan,
   UNIT_META,
   alarmArmed,
+  themeSearchMult,
   canCutAlarm,
   cutAlarmChance,
   cutAlarmCheck,
@@ -185,7 +186,7 @@ export function simulateClear(
         d = addHeat(d, FIGHT_HEAT, level, SPILL.fight);
       }
       if (UNIT_META[unit.type].lootTable) {
-        tick(SIM_SEARCH_MINUTES);
+        tick(SIM_SEARCH_MINUTES * themeSearchMult(d, level));
         lootSum += out.lootMod;
         looted++;
       }

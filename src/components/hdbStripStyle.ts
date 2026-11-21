@@ -16,7 +16,7 @@ export const SEAL_ICON: Record<SealKind, IconName> = {
 
 /** Room icon ink: red for the rooms that can hurt you, signage white for the rest. */
 export function unitFaceClass(type: HdbUnitType): string {
-  if (type === 'trapped' || type === 'den' || type === 'burning' || type === 'nest') {
+  if (type === 'trapped' || type === 'den' || type === 'burning' || type === 'nest' || type === 'offerings') {
     return 'text-hiss';
   }
   if (type === 'notice') return 'text-signal';
@@ -79,6 +79,41 @@ export const THEME_BACKDROP: Partial<Record<HdbFloorTheme, ThemeBackdrop>> = {
     icon: 'hdb.unavailable',
     wash: 'bg-[repeating-linear-gradient(135deg,transparent_0_10px,rgba(255,255,255,0.035)_10px_12px)]',
     ink: 'text-concrete-200',
+  },
+  blackout: {
+    icon: 'hdb.blackout',
+    wash: 'bg-gradient-to-t from-black/60 via-black/30 to-transparent',
+    ink: 'text-concrete-400',
+  },
+  quarantine: {
+    icon: 'hdb.quarantine',
+    wash: 'bg-[repeating-linear-gradient(135deg,transparent_0_14px,rgba(255,80,80,0.07)_14px_20px)]',
+    ink: 'text-hiss',
+  },
+  renovation: {
+    icon: 'hdb.renovation',
+    wash: 'bg-gradient-to-b from-concrete-200/10 to-transparent',
+    ink: 'text-concrete-200',
+  },
+  lift_shaft: {
+    icon: 'hdb.shaft',
+    wash: 'bg-gradient-to-r from-concrete-200/10 to-transparent',
+    ink: 'text-concrete-200',
+  },
+  sublet: {
+    icon: 'hdb.sublet',
+    wash: 'bg-[repeating-linear-gradient(90deg,transparent_0_22px,rgba(255,255,255,0.03)_22px_24px)]',
+    ink: 'text-concrete-200',
+  },
+  gang: {
+    icon: 'hdb.gang',
+    wash: 'bg-gradient-to-l from-hiss/15 to-transparent',
+    ink: 'text-hiss',
+  },
+  wake: {
+    icon: 'hdb.wake',
+    wash: 'bg-gradient-to-t from-concrete-50/10 to-transparent',
+    ink: 'text-concrete-50',
   },
   roof: {
     icon: 'sleep.roof',

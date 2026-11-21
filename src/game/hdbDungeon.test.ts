@@ -62,15 +62,15 @@ describe('corridor scouting playback', () => {
   const attrs = { strength: 5, dexterity: 6, endurance: 5, perception: 5, wits: 5 };
 
   it('preserves the original seeded intel, including draws between the two sense checks', () => {
-    // Re-recorded when the roof joined the theme deck (it reshuffles the deal).
+    // Re-recorded when the 2026-11 themes joined the deck (it reshuffles the deal).
     // Capturing dice must not alter threats, containers or loot quality.
     const d = block('SCOUT-REGRESSION', 18);
     const result = scoutFloor(new Rng('ORIGINAL-SWEEP'), attrs, d, 3, 0.1);
     expect(result.dungeon.floors[2].units.map((u) => u.scoutedInfo)).toEqual([
-      undefined,
-      { threatCount: -1, lootQuality: 'untouched', containerCategory: 'Food' },
+      { threatCount: -1, lootQuality: 'picked over', containerCategory: 'Food' },
       undefined, undefined,
-      { threatCount: -1, lootQuality: 'untouched', containerCategory: 'Medical' },
+      { threatCount: 1, lootQuality: 'unreadable' },
+      undefined,
       { threatCount: 2, lootQuality: 'promising', containerCategory: 'Medical' },
     ]);
     expect(result.rolls).toHaveLength(3);
@@ -211,8 +211,8 @@ describe('landing themes', () => {
       const counts = new Map<string, number>();
       for (const t of themes) counts.set(t, (counts.get(t) ?? 0) + 1);
       for (const [t, n] of counts) expect(n, t).toBeLessThanOrEqual(t === 'ordinary' ? 2 : 1);
-      // Ground never carries a theme; the top landing is dealt like the rest.
-      expect(d.floors[0].theme).toBeUndefined();
+      // Ground only ever carries its own theme (the wake); the top landing is dealt like the rest.
+      expect([undefined, 'wake']).toContain(d.floors[0].theme);
       expect(d.floors[d.height - 1].theme).toBeDefined();
     }
   });
@@ -254,7 +254,15 @@ describe('landing themes', () => {
   });
 
   it('keeps its promised door on every themed landing', () => {
-    const promised = { holdout: 'holdout', fire: 'burning', nest: 'stocked', picked_over: 'notice', refuge: 'shelter' };
+    const promised = {
+      holdout: 'holdout',
+      fire: 'burning',
+      nest: 'stocked',
+      picked_over: 'notice',
+      refuge: 'shelter',
+      renovation: 'storeroom',
+      wake: 'offerings',
+    };
     for (const seed of SEEDS) {
       for (const f of block(seed, 32).floors) {
         if (!f.theme || !(f.theme in promised)) continue;

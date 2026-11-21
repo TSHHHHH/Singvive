@@ -28,7 +28,8 @@ export type HdbUnitType =
   | 'nest'
   | 'den'
   | 'shelter'
-  | 'notice';
+  | 'notice'
+  | 'offerings';
 
 export type HdbUnitVerb =
   | 'search'
@@ -166,6 +167,16 @@ export const UNIT_META: Record<HdbUnitType, HdbUnitMeta> = {
     lootTable: null,
     lootMod: 0,
     trapped: false,
+  },
+  offerings: {
+    label: 'Offerings',
+    blurb: 'A funeral tent on the void deck. Food on the altar, and mourners who never left.',
+    icon: 'hdb.wake',
+    verb: 'search',
+    lootTable: 'convenience',
+    lootMod: 1,
+    trapped: false,
+    encounterMod: 1.6,
   },
 };
 
@@ -389,8 +400,12 @@ export interface HdbFloor {
   storey?: number;
   /** Sealed rows only: the real storeys this row stands in for. */
   span?: [number, number];
-  /** Mid landings only. */
+  /** Mid landings, plus the void deck when a ground theme is dealt. */
   theme?: HdbFloorTheme;
+  /** Lift-shaft landing: the cable climb down has been used. */
+  shaftUsed?: boolean;
+  /** Gang landing: the toll is paid and they let you work. */
+  tollPaid?: boolean;
   layoutType: 'slab' | 'point';
   heatLevel: number;
   units: HdbUnitNode[];
@@ -631,7 +646,14 @@ export type HdbFloorTheme =
   | 'nest'
   | 'picked_over'
   | 'refuge'
-  | 'roof';
+  | 'roof'
+  | 'blackout'
+  | 'quarantine'
+  | 'renovation'
+  | 'lift_shaft'
+  | 'sublet'
+  | 'gang'
+  | 'wake';
 
 export interface HdbThemeMeta {
   label: string;
@@ -648,6 +670,24 @@ export interface HdbThemeMeta {
   promises?: HdbUnitType;
   /** Stair hunts never ambush on the way onto this landing. */
   safeStairs?: boolean;
+  /** Added to fight threat on the landing (before the cap of 5). */
+  threatBonus?: number;
+  /** Added to corridor read odds (Perception and Dexterity). */
+  senseMod?: number;
+  /** Multiplier on a forced door's heat. */
+  doorHeatMult?: number;
+  /** Every door hangs open — no locks, no barricades. */
+  allOpen?: boolean;
+  /** Rooms on the landing, overriding the corridor length. */
+  rooms?: number;
+  /** Multiplier on search time for rooms on the landing. */
+  searchMult?: number;
+  /** One cable climb straight down to the void deck. */
+  shaft?: boolean;
+  /** Doorway fights are people, not the dead, until the toll is paid. */
+  gang?: boolean;
+  /** Dealt only to the ground storey. */
+  ground?: boolean;
 }
 
 export const THEME_META: Record<HdbFloorTheme, HdbThemeMeta> = {
@@ -713,7 +753,110 @@ export const THEME_META: Record<HdbFloorTheme, HdbThemeMeta> = {
     encounterMod: 1,
     lootMod: 1,
   },
+  blackout: {
+    label: 'Blackout',
+    blurb: 'No light at all. Corridor reads fail more often, but forced doors carry less.',
+    reveal: 'The corridor lights are dead and the windows are boarded. You work by touch.',
+    icon: 'hdb.blackout',
+    encounterMod: 1,
+    lootMod: 0,
+    senseMod: -0.2,
+    doorHeatMult: 0.7,
+  },
+  quarantine: {
+    label: 'Quarantine',
+    blurb: 'Sealed by the authorities with the sick still inside. More fights, harder ones, better stock.',
+    reveal: 'Red MOH notices on every door, tape across the frames. They sealed this landing with people in it.',
+    icon: 'hdb.quarantine',
+    encounterMod: 1.5,
+    lootMod: 1,
+    threatBonus: 1,
+  },
+  renovation: {
+    label: 'Renovation',
+    blurb: 'Doors taken off for the works. Quiet to walk in, little left. One store of tools.',
+    reveal: 'Plastic sheeting, paint tins, door frames with no doors. A contractor never came back.',
+    icon: 'hdb.renovation',
+    encounterMod: 0.9,
+    lootMod: -1,
+    promises: 'storeroom',
+    allOpen: true,
+  },
+  lift_shaft: {
+    label: 'Lift shaft',
+    blurb: 'The lift doors are prised open. Climb the cable straight down to the void deck — once.',
+    reveal: 'The lift doors gape on an empty shaft. A cable hangs in the dark, all the way down.',
+    icon: 'hdb.shaft',
+    encounterMod: 1,
+    lootMod: 0,
+    shaft: true,
+  },
+  sublet: {
+    label: 'Sublet rooms',
+    blurb: 'Flats cut into small rented rooms. More doors, thin pickings, quick searches.',
+    reveal: 'Partition walls, padlocked doors, a name on each one. Every flat here was let by the room.',
+    icon: 'hdb.sublet',
+    encounterMod: 1,
+    lootMod: -1,
+    rooms: 6,
+    searchMult: 0.6,
+  },
+  gang: {
+    label: 'Gang floor',
+    blurb: 'A gang holds this landing. Pay the toll and they let you work, or fight people for their stash.',
+    reveal: 'Someone has painted a tag on the stair door. Voices down the corridor go quiet when you step out.',
+    icon: 'hdb.gang',
+    encounterMod: 1.2,
+    lootMod: 2,
+    gang: true,
+  },
+  wake: {
+    label: 'Funeral wake',
+    blurb: 'A funeral tent on the void deck. Food on the altar, and mourners who never left.',
+    reveal: 'White tent, folding chairs, a wreath, joss paper blowing in the void deck. The wake never ended.',
+    icon: 'hdb.wake',
+    encounterMod: 1,
+    lootMod: 0,
+    promises: 'offerings',
+    ground: true,
+  },
 };
+
+/** Every number the landing themes add, beyond the door mix. */
+export const THEME_RULES = {
+  /** Odds an estate block with a void deck gets the funeral wake on its ground. */
+  wakeChance: 0.25,
+  /** Gang toll: one of these from the pack. */
+  tollItems: ['tiger_beer', 'canned_food', 'jewellery'] as readonly string[],
+  /** After the toll, doorway odds on the landing are cut to this share. */
+  tollEncounterMult: 0.3,
+  /** Cable climb down the lift shaft: minutes and energy. */
+  shaftMinutes: 4,
+  shaftEnergy: 8,
+} as const;
+
+/** Door encounter multiplier from the landing's theme (the gang toll calms it). */
+export function themeEncounterMod(floor: HdbFloor | undefined): number {
+  if (!floor?.theme) return 1;
+  const meta = THEME_META[floor.theme];
+  return meta.encounterMod * (meta.gang && floor.tollPaid ? THEME_RULES.tollEncounterMult : 1);
+}
+
+/** Doorway fights on this landing are the gang, not the dead. */
+export function gangHostile(floor: HdbFloor | undefined): boolean {
+  return !!floor?.theme && !!THEME_META[floor.theme].gang && !floor.tollPaid;
+}
+
+/** The lift-shaft climb can be taken from this landing. */
+export function shaftOpen(floor: HdbFloor | undefined): boolean {
+  return !!floor?.theme && !!THEME_META[floor.theme].shaft && !floor.shaftUsed;
+}
+
+/** Search time multiplier for rooms on this landing. */
+export function themeSearchMult(dungeon: HdbDungeon, level: number): number {
+  const theme = dungeon.floors[level - 1]?.theme;
+  return theme ? (THEME_META[theme].searchMult ?? 1) : 1;
+}
 
 /** Door mix per theme; `ordinary` falls back to the archetype weights. */
 const THEME_WEIGHTS: Partial<Record<HdbFloorTheme, readonly (readonly [HdbUnitType, number])[]>> = {
@@ -758,6 +901,57 @@ const THEME_WEIGHTS: Partial<Record<HdbFloorTheme, readonly (readonly [HdbUnitTy
     ['holdout', 20],
     ['pantry', 20],
     ['storeroom', 20],
+  ],
+  blackout: [
+    ['flat', 34],
+    ['stocked', 10],
+    ['trapped', 14],
+    ['storeroom', 10],
+    ['pantry', 10],
+    ['nest', 10],
+    ['den', 6],
+    ['shelter', 6],
+  ],
+  quarantine: [
+    ['flat', 30],
+    ['stocked', 18],
+    ['pantry', 14],
+    ['nest', 20],
+    ['den', 10],
+    ['trapped', 8],
+  ],
+  renovation: [
+    ['flat', 40],
+    ['storeroom', 30],
+    ['trapped', 14],
+    ['nest', 10],
+    ['notice', 6],
+  ],
+  lift_shaft: [
+    ['flat', 30],
+    ['storeroom', 12],
+    ['trapped', 12],
+    ['pantry', 10],
+    ['shelter', 10],
+    ['nest', 10],
+    ['burning', 8],
+    ['stocked', 4],
+    ['den', 4],
+  ],
+  sublet: [
+    ['flat', 60],
+    ['pantry', 14],
+    ['trapped', 10],
+    ['nest', 10],
+    ['stocked', 6],
+  ],
+  gang: [
+    ['flat', 30],
+    ['stocked', 22],
+    ['storeroom', 18],
+    ['pantry', 14],
+    ['trapped', 10],
+    ['notice', 6],
   ],
   roof: [
     ['storeroom', 40],
@@ -927,7 +1121,19 @@ export function storeysFromRoof(roofM: number | null | undefined): number | null
  * when it isn't, the top landing is just another landing.
  */
 export function dealThemes(rng: Rng, count: number, storeys: number): HdbFloorTheme[] {
-  const specials: HdbFloorTheme[] = ['holdout', 'fire', 'nest', 'picked_over', 'roof'];
+  const specials: HdbFloorTheme[] = [
+    'holdout',
+    'fire',
+    'nest',
+    'picked_over',
+    'roof',
+    'blackout',
+    'quarantine',
+    'renovation',
+    'lift_shaft',
+    'sublet',
+    'gang',
+  ];
   if (storeys >= REFUGE_MIN_STOREYS) specials.push('refuge');
   const deck = rng.shuffle([...specials, 'ordinary', 'ordinary'] as HdbFloorTheme[]);
   const hand = Array.from({ length: count }, (_, i) => deck[i] ?? 'ordinary');
@@ -1020,6 +1226,8 @@ export function generateDungeon(
     const kind: FloorKind = level === 1 ? 'ground' : 'normal';
     let cols = level === 1 ? groundCols : row.theme === 'roof' ? roofCols : slots;
     if (row.theme === 'refuge') cols = refugeSlots(fRng.fork('refugeCols'), cols);
+    const themeRooms = row.theme ? THEME_META[row.theme].rooms : undefined;
+    if (themeRooms) cols = Array.from({ length: themeRooms }, (_, i) => i);
     const units = cols.length
       ? buildUnits(fRng, level, row.storey, archetype, cols, kind, row.theme)
       : [];
@@ -1036,6 +1244,7 @@ export function generateDungeon(
     });
   });
 
+  dealGroundTheme(rng.fork('groundTheme'), floors[0], archetype, groundKind, slots);
   assignRoomEvents(rng.fork('events'), floors, archetype);
 
   return {
@@ -1055,6 +1264,36 @@ export function generateDungeon(
     visited: [1],
     moveSeq: 0,
   };
+}
+
+/**
+ * The void deck's own theme, dealt apart from the landing deck so it never
+ * changes which themes the landings get. Only the funeral wake for now: a tent
+ * pitched in the pillar bays, so it needs a void deck to stand in.
+ */
+function dealGroundTheme(
+  rng: Rng,
+  ground: HdbFloor,
+  archetype: HdbArchetype,
+  groundKind: HdbGroundKind,
+  slots: number[],
+): void {
+  if (archetype !== 'estate' || groundKind === 'enclosed' || ground.sealed) return;
+  if (!rng.chance(THEME_RULES.wakeChance)) return;
+  const taken = new Set(ground.units.map((u) => u.column));
+  const free = slots.filter((c) => !taken.has(c));
+  const column = free.length ? free[Math.floor(free.length / 2)] : Math.max(-1, ...slots) + 1;
+  ground.theme = 'wake';
+  const tent: HdbUnitNode = {
+      id: `L1-c${column}`,
+      type: 'offerings',
+      state: 'unexplored',
+      column,
+      label: `#01-0${column + 1}`,
+      available: true,
+      entry: 'open',
+  };
+  ground.units = [...ground.units, tent].sort((a, b) => a.column - b.column);
 }
 
 export function isLevelRevealed(dungeon: HdbDungeon, level: number): boolean {
@@ -1129,6 +1368,8 @@ function buildUnits(
       ...(type === 'holdout' ? { service: rng.pick(SERVICES) } : {}),
     };
     unit.entry = available ? rollEntry(rng, unit.type, archetype) : 'open';
+    // Renovation: the doors are off their hinges. Rolled first so nothing else shifts.
+    if (theme && THEME_META[theme].allOpen) unit.entry = 'open';
     units.push(unit);
   }
   return units;
@@ -1144,7 +1385,9 @@ function buildUnits(
 export function floorThreat(dungeon: HdbDungeon, level: number): number {
   const band = levelBand(dungeon, level);
   const high = storeyOf(dungeon, level) > (realStoreysOf(dungeon) * 2) / 3;
-  const raw = dungeon.baseDanger + band.threatBonus + (high && band.threatBonus >= 1 ? 1 : 0);
+  const theme = dungeon.floors[level - 1]?.theme;
+  const themed = theme ? (THEME_META[theme].threatBonus ?? 0) : 0;
+  const raw = dungeon.baseDanger + band.threatBonus + (high && band.threatBonus >= 1 ? 1 : 0) + themed;
   return Math.max(0, Math.min(5, raw));
 }
 
@@ -1203,7 +1446,7 @@ function readRoom(
   const info: HdbScoutInfo = { threatCount: -1, lootQuality: 'unreadable' };
   // Read the same draw that chance() used, preserving the seeded sequence.
   const check = (value: number) => {
-    const chance = Math.min(0.95, senseChance(value) + senseBonus);
+    const chance = Math.max(0.02, Math.min(0.95, senseChance(value) + senseBonus));
     const draw = uRng.next();
     return { roll: Math.floor(draw * 100) + 1, chance, success: draw < chance };
   };
@@ -1234,6 +1477,11 @@ function readRoom(
   };
 }
 
+/** What the landing does to corridor reads (a blackout makes them harder). */
+function themeSense(floor: HdbFloor): number {
+  return floor.theme ? (THEME_META[floor.theme].senseMod ?? 0) : 0;
+}
+
 /** True while a room has never been read — the only state scouting touches. */
 export function needsScout(unit: HdbUnitNode | null | undefined): boolean {
   return !!unit && unit.available && unit.state === 'unexplored';
@@ -1261,7 +1509,7 @@ export function scoutUnit(
   const floor = dungeon.floors.find((f) => f.level === level);
   const unit = floor?.units.find((u) => u.id === unitId);
   if (!floor || floor.sealed || !needsScout(unit)) return { dungeon, roll: null };
-  const res = readRoom(rng.fork(unit!.id), attrs, dungeon, level, unit!, senseBonus);
+  const res = readRoom(rng.fork(unit!.id), attrs, dungeon, level, unit!, senseBonus + themeSense(floor));
   const floors = dungeon.floors.map((f) =>
     f !== floor ? f : { ...f, units: f.units.map((u) => (u.id === unitId ? res.unit : u)) },
   );
@@ -1295,7 +1543,7 @@ export function scoutFloor(
           if (unit.scoutedInfo) read += 1;
           return unit;
         }
-        const res = readRoom(rng.fork(unit.id), attrs, dungeon, floor.level, unit, senseBonus);
+        const res = readRoom(rng.fork(unit.id), attrs, dungeon, floor.level, unit, senseBonus + themeSense(floor));
         rolls.push(res.roll);
         if (res.unit.scoutedInfo) read += 1;
         return res.unit;
@@ -1337,10 +1585,10 @@ export function breachOutcome(
   const unitMeta = UNIT_META[unit.type];
   const known = unit.scoutedInfo;
   const typeEnc = unitMeta.encounterMod ?? 1;
-  const theme = dungeon.floors[level - 1]?.theme;
-  const themeMeta = theme ? THEME_META[theme] : null;
+  const floor = dungeon.floors[level - 1];
+  const themeMeta = floor?.theme ? THEME_META[floor.theme] : null;
   const base =
-    heatEncounterBase(dungeon, level) * meta.encounterMod * typeEnc * (themeMeta?.encounterMod ?? 1);
+    heatEncounterBase(dungeon, level) * meta.encounterMod * typeEnc * themeEncounterMod(floor);
   const encounterChance = Math.max(
     0.02,
     Math.min(0.9, known && known.threatCount === 0 ? base * 0.35 : base),
@@ -1354,7 +1602,7 @@ export function breachOutcome(
   return {
     encounterChance,
     lootMod,
-    heat: meta.heat,
+    heat: Math.round(meta.heat * (themeMeta?.doorHeatMult ?? 1)),
     noise: meta.noise,
     dangerBoost: meta.dangerBoost,
     minutes: meta.minutes,

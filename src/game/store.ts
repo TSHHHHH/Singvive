@@ -432,6 +432,10 @@ import {
   HUNT_ELITE_CHANCE,
   updateUnit,
   canCutAlarm,
+  gangHostile,
+  shaftOpen,
+  themeSearchMult,
+  THEME_RULES,
   cutAlarmCheck,
   ROOM_EVENTS,
   tripAlarm,
@@ -898,6 +902,10 @@ interface State {
   hdbReadNotice: (unitId: string) => void;
   /** Try to cut a spotted alarm before opening its door. */
   hdbCutAlarm: (unitId: string) => void;
+  /** Gang landing: hand over the toll so the doors are yours to work. */
+  hdbPayToll: () => void;
+  /** Lift-shaft landing: climb the cable straight down to the void deck, once. */
+  hdbShaftDrop: () => void;
   hdbLeave: () => void;
 
   // --- noise & legacy ---
@@ -2950,7 +2958,7 @@ export const useGame = create<State>((set, get) => {
         fled: false,
         nonce,
         pieces,
-        totalMinutes: searchMinutes(table),
+        totalMinutes: searchMinutes(table) * themeSearchMult(hdb, level),
         speedFactor: speed,
         spendCharges: false,
         chargeBudget: 1,
@@ -3078,10 +3086,16 @@ export const useGame = create<State>((set, get) => {
       }
       pushLog('Something heavy passes the corridor mouth and moves on.', 'info', undefined, undefined, unitLogScope);
     } else if (rng.chance(outcome.encounterChance)) {
+      // A gang landing that hasn't been paid sends people, not the dead.
+      const gang = gangHostile(hot.floors[level - 1]);
       startZombieCombat(hot.locationId, false, {
         terrainOverride: 'hdb_corridor',
-        danger: floorThreat(hot, level),
-        intro: `Something was waiting inside ${unit.label}.`,
+        ...(gang
+          ? { enemy: makeLoner(rng, 'raider', floorThreat(hot, level)) }
+          : { danger: floorThreat(hot, level) }),
+        intro: gang
+          ? `The crew that holds this landing comes out of ${unit.label}. You didn't pay.`
+          : `Something was waiting inside ${unit.label}.`,
         hdbUnit,
       });
       return;
@@ -7130,6 +7144,58 @@ export const useGame = create<State>((set, get) => {
         const hdb = get().hdb!;
         set({ hdbBlocks: { ...get().hdbBlocks, [hdb.locationId]: hdb } });
       }
+      persist();
+    },
+
+    hdbPayToll: () => {
+      const s = get();
+      if (hdbBusy() || !s.hdb) return;
+      const level = s.hdb.currentLevel;
+      const floor = s.hdb.floors[level - 1];
+      if (!gangHostile(floor)) return;
+      const item = THEME_RULES.tollItems.find((id) => hasBackpackItem(id));
+      const scope = hdbFloorScope(s.hdb.locationId, level, storeyLabel(s.hdb, level));
+      if (!item) {
+        pushLog('They look at your pack and laugh. Beer, a tin of food or some gold — come back with one.', 'info', undefined, undefined, scope);
+        return;
+      }
+      consumeBackpackItem(item);
+      if (advanceTime(5 / 60)) return;
+      const g = get();
+      if (!g.hdb) return;
+      const floors = g.hdb.floors.map((f) => (f.level === level ? { ...f, tollPaid: true } : f));
+      const hdb = { ...g.hdb, floors };
+      set({ hdb, hdbBlocks: { ...g.hdbBlocks, [hdb.locationId]: hdb } });
+      pushLog(
+        `You hand over ${itemDef(item).name.toLowerCase()}. A nod down the corridor: work the doors, don't touch their room.`,
+        'good',
+        undefined,
+        undefined,
+        scope,
+      );
+      persist();
+    },
+
+    hdbShaftDrop: () => {
+      const s = get();
+      if (hdbBusy() || !s.hdb) return;
+      const level = s.hdb.currentLevel;
+      if (level === 1 || !shaftOpen(s.hdb.floors[level - 1])) return;
+      if (advanceTime(THEME_RULES.shaftMinutes / 60)) return;
+      const g = get();
+      if (!g.hdb) return;
+      // Hand over hand down a lift cable is the hardest few minutes of the day.
+      set({ meters: { ...g.meters, energy: Math.max(0, g.meters.energy - THEME_RULES.shaftEnergy) } });
+      const floors = g.hdb.floors.map((f) => (f.level === level ? { ...f, shaftUsed: true } : f));
+      const hdb = moveTo({ ...g.hdb, floors, moveSeq: (g.hdb.moveSeq ?? 0) + 1 }, 1);
+      set({ hdb, hdbSelUnit: null, hdbScout: null, hdbBlocks: { ...g.hdbBlocks, [hdb.locationId]: hdb } });
+      pushLog(
+        'You wrap your hands and go down the lift cable in the dark, past every landing, and drop onto the lift car roof at the bottom. The cable will not take you twice.',
+        'good',
+        undefined,
+        undefined,
+        hdbFloorScope(hdb.locationId, 1, storeyLabel(hdb, 1)),
+      );
       persist();
     },
 
