@@ -4,10 +4,15 @@ import { useMapGL } from '../map/hooks';
 import { installOverlay, setData } from '../map/layers';
 import { FOG_BANDS, FOG_COLOUR, FOG_TOTAL, FogGeometry, bandOpacity } from '../map/fogGeometry';
 import type { RangeMotion } from '../map/rangeMotion';
+import { followGlide } from '../map/glideFollow';
+import type { TravelAnim } from '../game/store';
 
 export interface FogOverlayProps {
   exploredArea: ExploredCircle[];
-  currentRevealCenter: { lat: number; lng: number };
+  /** where the player stands; during a walk the sight disc rides the pin instead */
+  home: { lat: number; lng: number };
+  /** the walk in progress, followed frame by frame on the pin's clock */
+  travelAnim: TravelAnim | null;
   /** the live sight radius; the fog edge follows it frame by frame */
   revealRadius: RangeMotion;
 }
@@ -23,7 +28,7 @@ export interface FogOverlayProps {
  */
 const bandIds = Array.from({ length: FOG_BANDS }, (_, k) => `fog-${k}`);
 
-export function FogOverlay({ exploredArea, currentRevealCenter, revealRadius }: FogOverlayProps) {
+export function FogOverlay({ exploredArea, home, travelAnim, revealRadius }: FogOverlayProps) {
   const map = useMapGL();
   const geom = useRef(new FogGeometry());
 
@@ -43,29 +48,38 @@ export function FogOverlay({ exploredArea, currentRevealCenter, revealRadius }: 
     );
   }, [map]);
 
-  const { lat, lng } = currentRevealCenter;
+  const { lat, lng } = home;
   useEffect(() => {
     // Cutting one disc from the cached explored base is ~1 ms, so the edge
-    // keeps pace with the travel ring instead of stepping behind it. A busy
-    // GeoJSON worker coalesces the uploads to the latest one.
-    const draw = (radius: number) => {
+    // keeps pace with the travel ring (both follow the pin every frame) instead
+    // of stepping behind it. A busy GeoJSON worker coalesces the uploads to the
+    // latest one.
+    let at = { lat, lng };
+    const draw = () => {
       let bands;
       try {
-        bands = geom.current.compute(exploredArea, { lat, lng, radius });
+        bands = geom.current.compute(exploredArea, { lat: at.lat, lng: at.lng, radius: revealRadius.value });
       } catch {
         // polygon-clipping can throw on a degenerate union; keep last frame.
         return;
       }
-      // One worker update per sight sample. Separate layers still blend each
-      // band over the previous one, even where their polygons overlap.
+      // One worker update per frame. Separate layers still blend each band
+      // over the previous one, even where their polygons overlap.
       setData(map, 'fog-src', {
         type: 'FeatureCollection',
         features: bands.flatMap((data, band) => data.features.map(f => ({ ...f, properties: { band } }))),
       });
     };
-    draw(revealRadius.value);
-    return revealRadius.subscribe(draw);
-  }, [map, exploredArea, lat, lng, revealRadius]);
+    const offRadius = revealRadius.subscribe(draw);
+    const offGlide = followGlide({ lat, lng }, travelAnim, (p) => {
+      at = p;
+      draw();
+    });
+    return () => {
+      offGlide();
+      offRadius();
+    };
+  }, [map, exploredArea, lat, lng, travelAnim, revealRadius]);
 
   return null;
 }
