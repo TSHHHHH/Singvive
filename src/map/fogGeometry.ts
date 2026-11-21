@@ -100,7 +100,9 @@ export class FogGeometry {
   private layerBands = 0;
   private clear0: Boxed[] = [];
   private rings: Boxed[][] = [];
-  private reachKey = '';
+  /** Which explored circles reachUnions was built for; null = not built. An
+   *  empty reach has key '', so '' cannot double as "not built". */
+  private reachKey: string | null = null;
   private reachUnions: MultiPolygon[] = [];
 
   /**
@@ -135,7 +137,7 @@ export class FogGeometry {
     if (explored !== this.layerExplored || this.layerBands !== bands) {
       this.layerExplored = explored;
       this.layerBands = bands;
-      this.reachKey = '';
+      this.reachKey = null;
       const clears = Array.from({ length: bands }, (_, k) => unionOf(explored, k * SOFT_STEP_M));
       this.clear0 = withBoxes(clears[0]);
       this.rings = clears.slice(1).map((clear, i) => withBoxes(diff(clears[i], clear)));
