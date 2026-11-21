@@ -348,6 +348,12 @@ export interface HdbUnitNode {
   /** Set on holdouts — the service this unit runs. */
   service?: ShelterService;
   scoutedInfo?: HdbScoutInfo;
+  /** A room event riding on the door ({@link ROOM_EVENTS}). Hidden until known. */
+  event?: HdbRoomEvent;
+  /** The player knows about the event: read from the corridor or found inside. */
+  eventKnown?: boolean;
+  /** Alarm cut or tripped; karaoke set used. The event is over. */
+  eventSpent?: boolean;
 }
 
 /** Why a floor can't be walked onto. Sealed storeys are scenery — never opened. */
@@ -1030,6 +1036,8 @@ export function generateDungeon(
     });
   });
 
+  assignRoomEvents(rng.fork('events'), floors, archetype);
+
   return {
     v: 2,
     locationId: loc.id,
@@ -1213,8 +1221,15 @@ function readRoom(
         : uRng.pick(LOOT_QUALITY);
   }
   const readAnything = info.threatCount >= 0 || !!info.containerCategory;
+  // No extra draws: an event shows itself to the read that suits it.
+  const spotted = !!unit.event && eventSpottedBy(unit.event, perception.success, dexterity.success);
   return {
-    unit: { ...unit, state: 'scouted', scoutedInfo: readAnything ? info : undefined },
+    unit: {
+      ...unit,
+      state: 'scouted',
+      scoutedInfo: readAnything ? info : undefined,
+      ...(spotted ? { eventKnown: true } : {}),
+    },
     roll: { unitId: unit.id, perception, dexterity },
   };
 }
@@ -1308,6 +1323,8 @@ export interface BreachOutcome {
   trapped: boolean;
   /** Sequential-search HP tax (burning rooms). */
   searchHp: number;
+  /** An armed alarm goes off the moment this door opens. */
+  alarm: boolean;
 }
 
 /** What getting through this door is likely to cost and yield. */
@@ -1332,7 +1349,8 @@ export function breachOutcome(
     unitMeta.lootMod +
     meta.lootMod +
     Math.floor((level - 1) / 2) +
-    (themeMeta?.lootMod ?? 0);
+    (themeMeta?.lootMod ?? 0) +
+    eventLootMod(dungeon, unit, level);
   return {
     encounterChance,
     lootMod,
@@ -1342,6 +1360,7 @@ export function breachOutcome(
     minutes: meta.minutes,
     trapped: unitMeta.trapped,
     searchHp: unitMeta.searchHp ?? 0,
+    alarm: alarmArmed(unit),
   };
 }
 
@@ -1759,3 +1778,191 @@ export function isRoofFloor(floor: HdbFloor): boolean {
   return floor.theme === 'roof' || !!(floor as HdbFloor & { roof?: boolean }).roof;
 }
 
+
+// ------------------------------------------------------------ room events --
+
+/**
+ * Room events ride on an ordinary door and each one adds a decision, not a
+ * click. They stay hidden until a corridor read or the room itself gives them
+ * away, so scouting is how you get to choose.
+ *
+ * - `alarm`: an armed intruder alarm on a locked flat. Opening the door — by
+ *   force or by pick — sets it off: a forced-door-sized burst of heat through
+ *   the whole stairwell and noise on the street. Spot it (Perception) and you
+ *   can cut it, gamble on it, or leave the room shut.
+ * - `lure`: a battery karaoke set left in a flat. Found when you go in (or a
+ *   Dexterity read). Rig it once: the landing it sits on takes a big spike and
+ *   every other landing cools as the stairwell climbs toward the song. Where and
+ *   when you spend it is the decision.
+ * - `hoard`: somebody's sealed stockpile. Pays more the hotter the landing is
+ *   when you open it, so a known hoard is the room you save for last.
+ */
+export type HdbRoomEvent = 'alarm' | 'lure' | 'hoard';
+
+/** Every room-event number in one place. */
+export const ROOM_EVENTS = {
+  alarm: {
+    /** Odds an eligible locked flat is wired (at most one per landing). */
+    roomChance: 0.12,
+    /** Heat the alarm throws on its landing; it carries like a forced door. */
+    heat: 35,
+    /** Street noise when it goes off (metres) and the danger it leaves. */
+    noise: 420,
+    dangerBoost: 2,
+    /** Someone guarded what is inside. Applies whether it rang or not. */
+    lootMod: 1,
+    /** Cutting it: d20 + Wits (+ trades pick mods) vs DC. */
+    cutDc: 13,
+    cutMinutes: 10,
+    /** A toolbox in the pack. */
+    toolId: 'toolbox',
+    toolBonus: 3,
+  },
+  lure: {
+    /** Odds a block has one karaoke set somewhere above the ground. */
+    blockChance: 0.6,
+    minutes: 10,
+    /** Heat on the landing it plays on (can reach Swarm). */
+    spike: 40,
+    /** Heat every other open landing loses. */
+    draw: 30,
+  },
+  hoard: {
+    /** Odds a block has one hoard, behind a locked or barricaded door. */
+    blockChance: 0.45,
+    /** Flat bonus, plus `perBand` for each heat stage from Awake up. */
+    lootMod: 1,
+    perBand: 1,
+  },
+} as const;
+
+/** Which corridor read gives an event away. Alarms are heard, stockpiles seen. */
+export function eventSpottedBy(event: HdbRoomEvent, perception: boolean, dexterity: boolean): boolean {
+  if (event === 'alarm') return perception;
+  return dexterity;
+}
+
+const LOOT_ROOMS: ReadonlySet<HdbUnitType> = new Set(['flat', 'stocked', 'storeroom', 'pantry']);
+/** Themes where nobody left anything wired or stashed. */
+const NO_EVENT_THEMES: ReadonlySet<HdbFloorTheme> = new Set(['picked_over', 'refuge']);
+
+function eventEligible(floor: HdbFloor, unit: HdbUnitNode): boolean {
+  return (
+    !floor.sealed &&
+    unit.available &&
+    !unit.event &&
+    LOOT_ROOMS.has(unit.type) &&
+    !(floor.theme && NO_EVENT_THEMES.has(floor.theme))
+  );
+}
+
+const shut = (u: HdbUnitNode) => u.entry === 'locked' || u.entry === 'barricaded';
+
+/**
+ * Seed the block's events. Runs on its own fork after the doors are dealt, so
+ * adding events never shifts a door, theme or entry roll. Lived-in shelter
+ * blocks are already worked over and carry none.
+ */
+export function assignRoomEvents(rng: Rng, floors: HdbFloor[], archetype: HdbArchetype): void {
+  if (archetype !== 'estate') return;
+  const ev = ROOM_EVENTS;
+  // Alarms: per landing, on a shut flat.
+  for (const floor of floors) {
+    const pool = floor.units.filter((u) => eventEligible(floor, u) && shut(u));
+    const fRng = rng.fork(`alarm:${floor.level}`);
+    if (pool.length && fRng.chance(Math.min(0.9, ev.alarm.roomChance * pool.length))) {
+      fRng.pick(pool).event = 'alarm';
+    }
+  }
+  const upper = floors.filter((f) => f.level > 1);
+  // One karaoke set: never on the ground, which you always walk back onto.
+  const lRng = rng.fork('lure');
+  if (lRng.chance(ev.lure.blockChance)) {
+    const pool = upper.flatMap((f) => f.units.filter((u) => eventEligible(f, u)));
+    if (pool.length) lRng.pick(pool).event = 'lure';
+  }
+  const hRng = rng.fork('hoard');
+  if (hRng.chance(ev.hoard.blockChance)) {
+    const pool = upper.flatMap((f) => f.units.filter((u) => eventEligible(f, u) && shut(u)));
+    if (pool.length) hRng.pick(pool).event = 'hoard';
+  }
+}
+
+/** The alarm on this door will go off when it opens. */
+export function alarmArmed(unit: HdbUnitNode | null | undefined): boolean {
+  return !!unit && unit.event === 'alarm' && !unit.eventSpent;
+}
+
+/** A known, live alarm the player can try to cut. */
+export function canCutAlarm(unit: HdbUnitNode | null | undefined): boolean {
+  return alarmArmed(unit) && !!unit!.eventKnown && unit!.state !== 'breached' && unit!.state !== 'cleared';
+}
+
+/** A found karaoke set that hasn't played yet. */
+export function canRigLure(unit: HdbUnitNode | null | undefined): boolean {
+  return (
+    !!unit &&
+    unit.event === 'lure' &&
+    !!unit.eventKnown &&
+    !unit.eventSpent &&
+    (unit.state === 'breached' || unit.state === 'cleared')
+  );
+}
+
+/** Hoard bonus at a heat value: flat bonus, plus one per stage from Awake up. */
+export function hoardLootModAt(heat: number): number {
+  const stages = Math.max(0, heatBand(heat).threatBonus - 1);
+  return ROOM_EVENTS.hoard.lootMod + stages * ROOM_EVENTS.hoard.perBand;
+}
+
+/** Loot an event adds to its room, read at the landing's heat right now. */
+export function eventLootMod(dungeon: HdbDungeon, unit: HdbUnitNode, level: number): number {
+  if (unit.event === 'alarm') return ROOM_EVENTS.alarm.lootMod;
+  if (unit.event === 'hoard') return hoardLootModAt(levelHeat(dungeon, level));
+  return 0;
+}
+
+/** Odds of cutting an alarm: d20 + Wits + mods vs DC; a natural 20 always works. */
+export function cutAlarmChance(wits: number, mod: number): number {
+  let ok = 0;
+  for (let roll = 1; roll <= 20; roll++) {
+    if (roll === 20 || roll + wits + mod >= ROOM_EVENTS.alarm.cutDc) ok += 1;
+  }
+  return ok / 20;
+}
+
+export function cutAlarmCheck(
+  rng: Rng,
+  wits: number,
+  mod: number,
+): { roll: number; total: number; dc: number; success: boolean } {
+  const roll = rng.d20();
+  const total = roll + wits + mod;
+  const dc = ROOM_EVENTS.alarm.cutDc;
+  return { roll, total, dc, success: roll === 20 || total >= dc };
+}
+
+/** The alarm goes off: forced-door spread at alarm strength, and it is spent. */
+export function tripAlarm(dungeon: HdbDungeon, level: number, unitId: string): HdbDungeon {
+  const hot = addDoorHeat(dungeon, ROOM_EVENTS.alarm.heat, level);
+  return updateUnit(hot, level, unitId, { eventKnown: true, eventSpent: true });
+}
+
+/** What rigging the karaoke set on `level` would leave every landing at. */
+export function lurePreview(dungeon: HdbDungeon, level: number): { level: number; from: number; to: number }[] {
+  const { spike, draw } = ROOM_EVENTS.lure;
+  return dungeon.floors
+    .filter((f) => !f.sealed)
+    .map((f) => {
+      const from = f.heatLevel;
+      const to = f.level === level ? Math.min(HEAT_MAX, from + spike) : Math.max(0, from - draw);
+      return { level: f.level, from, to };
+    });
+}
+
+/** Play the karaoke set: its landing spikes, the rest of the stairwell drains toward it. */
+export function rigLure(dungeon: HdbDungeon, level: number, unitId: string): HdbDungeon {
+  const to = new Map(lurePreview(dungeon, level).map((p) => [p.level, p.to]));
+  const floors = dungeon.floors.map((f) => (to.has(f.level) ? { ...f, heatLevel: to.get(f.level)! } : f));
+  return updateUnit(withHeat(dungeon, floors), level, unitId, { eventKnown: true, eventSpent: true });
+}

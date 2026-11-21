@@ -5,6 +5,13 @@ import type { IconName } from '../icons/keys';
 import { sumTraitMod } from '../game/character';
 import { useGame } from '../game/store';
 import {
+  alarmArmed,
+  canCutAlarm,
+  canRigLure,
+  cutAlarmChance,
+  hoardLootModAt,
+  levelHeat,
+  ROOM_EVENTS,
   breachOutcome,
   currentFloor,
   ENTRY_META,
@@ -28,6 +35,8 @@ import { useIsPhoneLayout } from './useIsPhoneLayout';
 import { tip } from './tips';
 import { Chip, Ledger, LedgerRow, Note, PlaceHead, PlaceStack } from './placeCard';
 import { BTN } from './placeCardStyle';
+
+const EVENT_ICON = { alarm: 'hdb.alarm', lure: 'hdb.lure', hoard: 'hdb.hoard' } as const;
 
 const CONTAINER_ICON: Record<string, IconName> = {
   Medical: 'meter.infection',
@@ -74,6 +83,8 @@ export function HdbContextPanel({
   const hdbUseService = useGame((s) => s.hdbUseService);
   const hdbUseShelter = useGame((s) => s.hdbUseShelter);
   const hdbReadNotice = useGame((s) => s.hdbReadNotice);
+  const hdbCutAlarm = useGame((s) => s.hdbCutAlarm);
+  const hdbRigLure = useGame((s) => s.hdbRigLure);
   const hdbLeave = useGame((s) => s.hdbLeave);
   const isPhone = useIsPhoneLayout();
 
@@ -178,6 +189,30 @@ export function HdbContextPanel({
     />
   );
 
+  // A known room event gets its own line: what it is and what it does right now.
+  const ev = sel?.eventKnown ? sel.event : undefined;
+  const hoardNow = ev === 'hoard' ? hoardLootModAt(levelHeat(hdb, hdb.currentLevel)) : 0;
+  const eventRow =
+    sel && ev && !(ev !== 'hoard' && sel.eventSpent) ? (
+      <LedgerRow
+        icon={EVENT_ICON[ev]}
+        label={t(`ui.hdb.event.${ev}.label`)}
+        tip={t(`ui.hdb.event.${ev}.tip`, {
+          heat: ROOM_EVENTS.alarm.heat,
+          spike: ROOM_EVENTS.lure.spike,
+          draw: ROOM_EVENTS.lure.draw,
+        })}
+      >
+        <span className={ev === 'alarm' ? 'text-hiss' : 'text-astral'}>
+          {ev === 'alarm'
+            ? t('ui.hdb.event.alarm.value', { n: ROOM_EVENTS.alarm.heat })
+            : ev === 'hoard'
+              ? t('ui.hdb.event.hoard.value', { n: hoardNow })
+              : t('ui.hdb.event.lure.value')}
+        </span>
+      </LedgerRow>
+    ) : null;
+
   // The room picked this turn plays its corridor read in its own fields.
   const roll =
     sel && scout && scout.unitId === sel.id && scout.locationId === hdb.locationId && scout.level === hdb.currentLevel
@@ -241,6 +276,7 @@ export function HdbContextPanel({
           containerValue
         )}
       </LedgerRow>
+      {eventRow}
     </Ledger>
   ) : null;
 
@@ -261,12 +297,38 @@ export function HdbContextPanel({
       ? 0
       : scaledDoor.heat
     : 0;
+  // A spotted alarm is priced into the door; an unspotted one is the surprise.
+  const alarmHeat = sel && alarmArmed(sel) && sel.eventKnown ? ROOM_EVENTS.alarm.heat : 0;
   const heatBit =
-    doorHeat > 0 ? t('ui.hdb.heatPlus', { n: doorHeat }) : t('ui.hdb.quiet');
+    doorHeat + alarmHeat > 0
+      ? t('ui.hdb.heatPlus', { n: doorHeat + alarmHeat })
+      : t('ui.hdb.quiet');
+  const cutMod =
+    (items.some((i) => isCarried(i.container) && i.defId === ROOM_EVENTS.alarm.toolId)
+      ? ROOM_EVENTS.alarm.toolBonus
+      : 0) + sumTraitMod(character.traitIds, 'hdbPickMod');
+  const cutPct = Math.round(cutAlarmChance(character.attributes.wits, cutMod) * 100);
+  const lureButton =
+    sel && canRigLure(sel) ? (
+      <button
+        type="button"
+        onClick={() => hdbRigLure(sel.id)}
+        disabled={busy}
+        {...tip(t('ui.hdb.event.lure.tip', { spike: ROOM_EVENTS.lure.spike, draw: ROOM_EVENTS.lure.draw }))}
+        className={BTN.primary}
+      >
+        <Icon name="hdb.lure" />{' '}
+        {t('ui.hdb.event.lure.action', {
+          min: ROOM_EVENTS.lure.minutes,
+          spike: ROOM_EVENTS.lure.spike,
+          draw: ROOM_EVENTS.lure.draw,
+        })}
+      </button>
+    ) : null;
 
   const doorButtons = sel ? (
     sel.state === 'cleared' ? (
-      <Note>{t('ui.hdb.unitClearedBlurb')}</Note>
+      lureButton ?? <Note>{t('ui.hdb.unitClearedBlurb')}</Note>
     ) : selVerb === 'service' && sel.service ? (
       <button
         type="button"
@@ -298,6 +360,19 @@ export function HdbContextPanel({
       </button>
     ) : (
       <div className="flex flex-col gap-2">
+        {lureButton}
+        {canCutAlarm(sel) && (
+          <button
+            type="button"
+            onClick={() => hdbCutAlarm(sel.id)}
+            disabled={busy}
+            {...tip(t('ui.hdb.event.alarm.cutTip', { dc: ROOM_EVENTS.alarm.cutDc, bonus: ROOM_EVENTS.alarm.toolBonus }))}
+            className={BTN.secondary}
+          >
+            <Icon name="hdb.alarm" />{' '}
+            {t('ui.hdb.event.alarm.cut', { min: ROOM_EVENTS.alarm.cutMinutes, pct: cutPct })}
+          </button>
+        )}
         {sel.state !== 'breached' && (
           <button
             type="button"

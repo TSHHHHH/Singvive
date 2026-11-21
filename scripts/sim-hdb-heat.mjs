@@ -20,15 +20,21 @@ try {
   const { summarize } = await server.ssrLoadModule('/src/dev/hdbHeatSim.ts');
   const { DOOR_SPREAD, COOL_PER_HOUR } = await server.ssrLoadModule('/src/game/hdbDungeon.ts');
   console.log(`\nDOOR_SPREAD ${JSON.stringify(DOOR_SPREAD)} · cool ${COOL_PER_HOUR}/h · ${N} runs per row\n`);
-  const head = ['rule', 'storeys', 'landings', 'forced', 'fights', 'mean heat', 'hunting+', 'swarm', 'runaway', 'clean exit', 'exit fights', 'hours'];
+  const head = ['rule', 'events', 'storeys', 'landings', 'forced', 'fights', 'mean heat', 'hunting+', 'swarm', 'runaway', 'clean exit', 'exit fights', 'hours', 'alarms', 'cut', 'skipped', 'lures', 'loot mod'];
   const rows = [];
-  for (const rule of ['legacy', 'spread']) {
+  const plan = [
+    ...['legacy', 'spread'].map((rule) => [rule, 'off']),
+    ['spread', 'blind'],
+    ['spread', 'smart'],
+  ];
+  for (const [rule, events] of plan) {
     for (const storeys of [6, 12, 18, 30]) {
-      const r = summarize(rule, storeys, N);
+      const r = summarize(rule, storeys, N, events);
       rows.push([
-        rule, storeys, r.landings.toFixed(1), r.forced.toFixed(1), r.doorFights.toFixed(1),
+        rule, events, storeys, r.landings.toFixed(1), r.forced.toFixed(1), r.doorFights.toFixed(1),
         r.meanHeat.toFixed(0), r.huntingLandings.toFixed(2), r.swarmLandings.toFixed(2),
         `${(r.runaway * 100).toFixed(0)}%`, `${(r.cleanExit * 100).toFixed(0)}%`, r.exitFights.toFixed(2), r.hours.toFixed(1),
+        r.alarmsTripped.toFixed(2), r.alarmsCut.toFixed(2), r.skipped.toFixed(2), r.luresPlayed.toFixed(2), r.lootMod.toFixed(2),
       ]);
     }
   }
@@ -36,6 +42,7 @@ try {
   const line = (r) => r.map((v, c) => String(v).padStart(w[c])).join('  ');
   console.log(line(head));
   for (const r of rows) console.log(line(r));
+  console.log('\nevents: off = no room events · blind = never reads doors · smart = reads doors, cuts/skips alarms, hoard last, plays karaoke set.');
   console.log('\nrunaway = runs ending with more than half the open landings at Hunting or above.');
 } finally {
   await server.close();

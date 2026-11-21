@@ -431,6 +431,12 @@ import {
   HAZARD_HEAT,
   HUNT_ELITE_CHANCE,
   updateUnit,
+  canCutAlarm,
+  canRigLure,
+  cutAlarmCheck,
+  rigLure,
+  ROOM_EVENTS,
+  tripAlarm,
   UNIT_META,
   LOCKPICK_ID,
   PICK_MINUTES,
@@ -892,6 +898,10 @@ interface State {
   hdbUseService: (unitId: string) => void;
   hdbUseShelter: (unitId: string) => void;
   hdbReadNotice: (unitId: string) => void;
+  /** Try to cut a spotted alarm before opening its door. */
+  hdbCutAlarm: (unitId: string) => void;
+  /** Play a found karaoke set: its landing spikes, the others cool. */
+  hdbRigLure: (unitId: string) => void;
   hdbLeave: () => void;
 
   // --- noise & legacy ---
@@ -2868,6 +2878,17 @@ export const useGame = create<State>((set, get) => {
     };
   };
 
+  /** Bonus on cutting an alarm: a toolbox, plus the same trades mods a lockpick gets. */
+  const hdbCutMod = () => {
+    const s = get();
+    const tool = s.items.some((i) => isCarried(i.container) && i.defId === ROOM_EVENTS.alarm.toolId);
+    return (
+      (tool ? ROOM_EVENTS.alarm.toolBonus : 0) +
+      sumTraitMod(s.character!.traitIds, 'hdbPickMod') +
+      skillPackage().hdbPickMod
+    );
+  };
+
   const hdbBusy = () => {
     const s = get();
     return !s.hdb || !!s.combat || !!s.pendingSearch || !!s.pendingEvent;
@@ -2952,6 +2973,23 @@ export const useGame = create<State>((set, get) => {
     persist();
   };
 
+  /** An alarm goes off on `level`: stairwell-wide heat, street noise, a log line. */
+  const soundHdbAlarm = (level: number, unitId: string, label: string, how: 'door' | 'cut') => {
+    const g = get();
+    if (!g.hdb) return;
+    set({ hdb: tripAlarm(g.hdb, level, unitId) });
+    get().emitNoise(g.currentPos.lat, g.currentPos.lng, ROOM_EVENTS.alarm.noise, ROOM_EVENTS.alarm.dangerBoost);
+    pushLog(
+      how === 'door'
+        ? `The door gives and an alarm starts screaming in ${label}. Every landing hears it (+${ROOM_EVENTS.alarm.heat} heat).`
+        : `Wrong wire. The alarm in ${label} goes off in your hands (+${ROOM_EVENTS.alarm.heat} heat).`,
+      'bad',
+      undefined,
+      undefined,
+      hdbUnitScope(g.hdb.locationId, level, unitId, label),
+    );
+  };
+
   const resolveHdbDoor = (
     unitId: string,
     outcome: BreachOutcome,
@@ -2978,7 +3016,11 @@ export const useGame = create<State>((set, get) => {
     const g = get();
     if (!g.hdb) return;
     const rng = new Rng(g.seed).fork(`breach:${g.hdb.locationId}:${unitId}`);
-    let next = updateUnit(g.hdb, level, unitId, { state: 'breached' });
+    // Whatever rides on the room shows itself once you are through the door.
+    let next = updateUnit(g.hdb, level, unitId, {
+      state: 'breached',
+      ...(unit.event ? { eventKnown: true } : {}),
+    });
     // A forced door carries through the whole stairwell, not just this landing.
     if (heat > 0) next = addDoorHeat(next, heat, level);
     set({ hdb: next });
@@ -2987,6 +3029,18 @@ export const useGame = create<State>((set, get) => {
       pushLog(`You force ${unit.label}. The sound carries.`, 'bad', undefined, undefined, unitLogScope);
     } else {
       pushLog(`You slip into ${unit.label} without touching the frame.`, 'info', undefined, undefined, unitLogScope);
+    }
+    if (outcome.alarm) soundHdbAlarm(level, unitId, unit.label, 'door');
+    else if (unit.event === 'lure' && !unit.eventSpent) {
+      pushLog(
+        `In the corner of ${unit.label}: a battery karaoke set, still charged. Loud enough to call the whole stairwell.`,
+        'good',
+        undefined,
+        undefined,
+        unitLogScope,
+      );
+    } else if (unit.event === 'hoard') {
+      pushLog(`${unit.label} is somebody's hoard — crates stacked to the ceiling.`, 'good', undefined, undefined, unitLogScope);
     }
 
     if (outcome.trapped && rng.chance(0.35)) {
@@ -7057,6 +7111,61 @@ export const useGame = create<State>((set, get) => {
       const hdb = markHdbUnitCleared(get().hdb!, level, unitId);
       set({ hdb, hdbBlocks: { ...get().hdbBlocks, [hdb.locationId]: hdb } });
       bumpStats({ hdbUnitsCleared: 1 });
+      persist();
+    },
+
+    hdbCutAlarm: (unitId) => {
+      const s = get();
+      if (hdbBusy() || !s.hdb || !s.character) return;
+      const level = s.hdb.currentLevel;
+      const unit = currentFloor(s.hdb).units.find((u) => u.id === unitId);
+      if (!unit || !canCutAlarm(unit)) return;
+      if (advanceTime(ROOM_EVENTS.alarm.cutMinutes / 60)) return;
+      const g = get();
+      if (!g.hdb || !g.character) return;
+      const wits = g.character.attributes.wits;
+      const mod = hdbCutMod();
+      const rng = new Rng(g.seed).fork(`cut:${g.hdb.locationId}:${unitId}`);
+      const check = cutAlarmCheck(rng, wits, mod);
+      const scope = hdbUnitScope(g.hdb.locationId, level, unitId, unit.label);
+      pushLog(
+        `Cut the alarm — ${attrEmoji('wits')} d20 ${check.roll}+${wits}${mod ? `+${mod}` : ''} = ${check.total} vs DC ${check.dc}`,
+        check.success ? 'good' : 'bad',
+        undefined,
+        undefined,
+        scope,
+      );
+      if (check.success) {
+        applyPracticeXp('trades', PRACTICE_XP.hdbPick);
+        const hdb = updateUnit(g.hdb, level, unitId, { eventKnown: true, eventSpent: true });
+        set({ hdb, hdbBlocks: { ...g.hdbBlocks, [hdb.locationId]: hdb } });
+        pushLog(`The standby light on ${unit.label} goes dark. The door is just a door now.`, 'good', undefined, undefined, scope);
+      } else {
+        soundHdbAlarm(level, unitId, unit.label, 'cut');
+        const hdb = get().hdb!;
+        set({ hdbBlocks: { ...get().hdbBlocks, [hdb.locationId]: hdb } });
+      }
+      persist();
+    },
+
+    hdbRigLure: (unitId) => {
+      const s = get();
+      if (hdbBusy() || !s.hdb) return;
+      const level = s.hdb.currentLevel;
+      const unit = currentFloor(s.hdb).units.find((u) => u.id === unitId);
+      if (!unit || !canRigLure(unit)) return;
+      if (advanceTime(ROOM_EVENTS.lure.minutes / 60)) return;
+      const g = get();
+      if (!g.hdb) return;
+      const hdb = rigLure(g.hdb, level, unitId);
+      set({ hdb, hdbBlocks: { ...g.hdbBlocks, [hdb.locationId]: hdb } });
+      pushLog(
+        `You set the karaoke box on repeat and back away. A ballad booms through ${unit.label}; the stairwell turns toward it (+${ROOM_EVENTS.lure.spike} here, −${ROOM_EVENTS.lure.draw} on every other landing).`,
+        'good',
+        undefined,
+        undefined,
+        hdbUnitScope(g.hdb.locationId, level, unitId, unit.label),
+      );
       persist();
     },
 

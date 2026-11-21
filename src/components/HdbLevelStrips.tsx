@@ -182,6 +182,20 @@ function ReadDot({ revealIn }: { revealIn: number }) {
   );
 }
 
+/** Corner badge for a known room event; waits for the corridor dice like the read dot. */
+function EventBadge({ event, phone, revealIn }: { event: 'alarm' | 'lure' | 'hoard'; phone: boolean; revealIn: number }) {
+  const [delay] = useState(revealIn);
+  return (
+    <span
+      aria-hidden
+      className={`absolute left-1 top-1 ${event === 'alarm' ? 'text-hiss' : 'text-astral'} ${delay > 0 ? 'scout-reveal' : ''}`}
+      style={delay > 0 ? { animationDelay: `${delay}ms` } : undefined}
+    >
+      <Icon name={`hdb.${event}`} size={phone ? 12 : 16} />
+    </span>
+  );
+}
+
 function RoomTile({
   unit,
   selected,
@@ -230,12 +244,23 @@ function RoomTile({
     <Icon name={meta.icon} size={phone ? 22 : 28} className={unitFaceClass(unit.type)} />
   );
   const scouted = unit.available && unit.state !== 'cleared' && !!unit.scoutedInfo;
-  const roomTip = `${unit.label} · ${state}${read}`;
+  // A known event that still matters wears a corner badge: live alarm, unplayed karaoke set, unopened hoard.
+  const ev = unit.available && unit.eventKnown && unit.event ? unit.event : null;
+  const evLive =
+    ev === 'alarm' ? !unit.eventSpent && unit.state !== 'cleared'
+    : ev === 'lure' ? !unit.eventSpent
+    : ev === 'hoard' ? unit.state !== 'cleared'
+    : false;
+  const evLabel = ev && evLive ? t(`ui.hdb.event.${ev}.label`) : '';
+  const roomTip = `${unit.label} · ${state}${read}${evLabel ? ` · ${evLabel}` : ''}`;
   const body = (
     <>
       {face}
       {scouted && (
         <ReadDot revealIn={revealIn} />
+      )}
+      {ev && evLive && (
+        <EventBadge event={ev} phone={phone} revealIn={revealIn} />
       )}
       <span className={`w-full truncate px-0.5 text-center tabular-nums ${phone ? 'text-micro' : 'text-body'} ${unit.available ? 'text-concrete-200' : 'text-concrete-600'}`}>
         {unit.label.replace(/^#/, '')}

@@ -18,6 +18,15 @@ import {
   SPILL,
   travelPlan,
   UNIT_META,
+  ROOM_EVENTS,
+  alarmArmed,
+  canCutAlarm,
+  cutAlarmChance,
+  cutAlarmCheck,
+  rigLure,
+  scoutUnit,
+  tripAlarm,
+  updateUnit,
   type HdbDungeon,
 } from '../game/hdbDungeon';
 
@@ -31,6 +40,17 @@ import {
 
 /** How a forced door's heat lands. `spread` is the shipping rule. */
 export type DoorRule = 'spread' | 'legacy';
+
+/**
+ * How the scripted survivor meets room events.
+ * - `off`: events stripped from the block (the world before them).
+ * - `blind`: never reads a door; alarms go off on whoever opens them, karaoke sets are ignored.
+ * - `smart`: reads every door (Perception/Dex odds at SIM_ATTRS), cuts a spotted
+ *   alarm when the odds are even or better (else leaves the room shut), opens a
+ *   known hoard last on its landing, and plays a found karaoke set once its landing
+ *   is done (unless that would pin a landing it must walk back down through).
+ */
+export type EventPolicy = 'off' | 'blind' | 'smart';
 
 export interface ClearResult {
   storeys: number;
@@ -50,6 +70,13 @@ export interface ClearResult {
   /** Expected fights on the walk back down. */
   exitFights: number;
   hours: number;
+  alarmsTripped: number;
+  alarmsCut: number;
+  /** Rooms left shut because of a spotted alarm. */
+  skipped: number;
+  luresPlayed: number;
+  /** Mean loot mod over looted rooms (the payoff side). */
+  lootMod: number;
 }
 
 /** Search time per looted room (game minutes): ~searchMinutes() for a mid table. */
@@ -78,9 +105,27 @@ function forcedDoorHeat(d: HdbDungeon, rule: DoorRule, heat: number, level: numb
   return addHeat(d, heat, level, barricaded ? 0.35 : 0);
 }
 
-export function simulateClear(seed: string, storeys: number, rule: DoorRule, attrs = SIM_ATTRS): ClearResult {
+export function simulateClear(
+  seed: string,
+  storeys: number,
+  rule: DoorRule,
+  attrs = SIM_ATTRS,
+  events: EventPolicy = 'off',
+): ClearResult {
   const rng = new Rng(seed);
   let d = generateDungeon(rng.fork('block'), SITE, 'estate', { storeys });
+  if (events === 'off') {
+    d = {
+      ...d,
+      floors: d.floors.map((f) => ({ ...f, units: f.units.map((u) => ({ ...u, event: undefined })) })),
+    };
+  }
+  let alarmsTripped = 0;
+  let alarmsCut = 0;
+  let skipped = 0;
+  let luresPlayed = 0;
+  let lootSum = 0;
+  let looted = 0;
   const roll = rng.fork('play');
   const open = d.floors.filter((f) => !f.sealed).map((f) => f.level);
   let minutes = 0;
@@ -100,10 +145,36 @@ export function simulateClear(seed: string, storeys: number, rule: DoorRule, att
       for (const c of plan.crossings) if (c.hunt && roll.chance(HUNT_ELITE_CHANCE)) doorFights++;
       d = { ...d, pos: { level }, currentLevel: level };
     }
-    for (const unit of d.floors[level - 1].units) {
+    let order = d.floors[level - 1].units.map((u) => u.id);
+    if (events === 'smart') {
+      // Read every door from the corridor first, then put a known hoard last.
+      const sweep = roll.fork(`sweep:${level}`);
+      for (const id of order) d = scoutUnit(sweep, attrs, d, level, id).dungeon;
+      const units = d.floors[level - 1].units;
+      order = [...units]
+        .sort((a, b) => Number(a.eventKnown && a.event === 'hoard') - Number(b.eventKnown && b.event === 'hoard'))
+        .map((u) => u.id);
+    }
+    for (const id of order) {
+      let unit = d.floors[level - 1].units.find((u) => u.id === id)!;
       if (!unit.available) continue;
       const verb = UNIT_META[unit.type].verb;
       if (verb === 'service' || verb === 'intel') continue;
+      if (events === 'smart' && canCutAlarm(unit)) {
+        if (cutAlarmChance(attrs.wits, 0) < 0.5) {
+          skipped++;
+          continue;
+        }
+        tick(10);
+        if (cutAlarmCheck(roll, attrs.wits, 0).success) {
+          alarmsCut++;
+          d = updateUnit(d, level, id, { eventSpent: true });
+        } else {
+          alarmsTripped++;
+          d = tripAlarm(d, level, id);
+        }
+        unit = d.floors[level - 1].units.find((u) => u.id === id)!;
+      }
       doors++;
       const out = breachOutcome(d, unit, level);
       const heat = verb === 'fight' ? 0 : out.heat;
@@ -112,6 +183,10 @@ export function simulateClear(seed: string, storeys: number, rule: DoorRule, att
         forced++;
         d = forcedDoorHeat(d, rule, heat, level, unit.entry === 'barricaded');
       }
+      if (out.alarm && alarmArmed(unit)) {
+        alarmsTripped++;
+        d = tripAlarm(d, level, id);
+      }
       if (out.trapped && roll.chance(0.35)) d = addHeat(d, HAZARD_HEAT, level, SPILL.trap);
       const fight = verb === 'fight' || roll.chance(out.encounterChance);
       if (fight) {
@@ -119,7 +194,24 @@ export function simulateClear(seed: string, storeys: number, rule: DoorRule, att
         tick(SIM_FIGHT_MINUTES);
         d = addHeat(d, FIGHT_HEAT, level, SPILL.fight);
       }
-      if (UNIT_META[unit.type].lootTable) tick(SIM_SEARCH_MINUTES);
+      if (UNIT_META[unit.type].lootTable) {
+        tick(SIM_SEARCH_MINUTES);
+        lootSum += out.lootMod;
+        looted++;
+      }
+      if (unit.event) d = updateUnit(d, level, id, { eventKnown: true });
+    }
+    // A found karaoke set plays once its landing is done.
+    if (events === 'smart') {
+      const lure = d.floors[level - 1].units.find((u) => u.event === 'lure' && u.eventKnown && !u.eventSpent);
+      // ...unless it would pin a landing it still has to walk back down through.
+      const top = open[open.length - 1];
+      const hot = levelHeat(d, level) + ROOM_EVENTS.lure.spike >= HEAT_MAX;
+      if (lure && (level === top || !hot)) {
+        tick(10);
+        d = rigLure(d, level, lure.id);
+        luresPlayed++;
+      }
     }
   }
 
@@ -151,11 +243,17 @@ export function simulateClear(seed: string, storeys: number, rule: DoorRule, att
     cleanExit,
     exitFights,
     hours: minutes / 60,
+    alarmsTripped,
+    alarmsCut,
+    skipped,
+    luresPlayed,
+    lootMod: lootSum / Math.max(1, looted),
   };
 }
 
 export interface ClearSummary {
   rule: DoorRule;
+  events: EventPolicy;
   storeys: number;
   runs: number;
   landings: number;
@@ -169,13 +267,27 @@ export interface ClearSummary {
   cleanExit: number;
   exitFights: number;
   hours: number;
+  alarmsTripped: number;
+  alarmsCut: number;
+  skipped: number;
+  luresPlayed: number;
+  lootMod: number;
 }
 
-export function summarize(rule: DoorRule, storeys: number, runs: number): ClearSummary {
-  const rs = Array.from({ length: runs }, (_, i) => simulateClear(`heat-${storeys}-${i}`, storeys, rule));
+export function summarize(
+  rule: DoorRule,
+  storeys: number,
+  runs: number,
+  events: EventPolicy = 'off',
+  attrs = SIM_ATTRS,
+): ClearSummary {
+  const rs = Array.from({ length: runs }, (_, i) =>
+    simulateClear(`heat-${storeys}-${i}`, storeys, rule, attrs, events),
+  );
   const mean = (f: (r: ClearResult) => number) => rs.reduce((a, r) => a + f(r), 0) / runs;
   return {
     rule,
+    events,
     storeys,
     runs,
     landings: mean((r) => r.landings),
@@ -188,5 +300,10 @@ export function summarize(rule: DoorRule, storeys: number, runs: number): ClearS
     cleanExit: mean((r) => r.cleanExit),
     exitFights: mean((r) => r.exitFights),
     hours: mean((r) => r.hours),
+    alarmsTripped: mean((r) => r.alarmsTripped),
+    alarmsCut: mean((r) => r.alarmsCut),
+    skipped: mean((r) => r.skipped),
+    luresPlayed: mean((r) => r.luresPlayed),
+    lootMod: mean((r) => r.lootMod),
   };
 }
