@@ -10,17 +10,9 @@ import {
   ENTRY_META,
   encounterChanceKnown,
   encounterChanceReadout,
-  FOB_MINUTES,
-  hasFob,
-  heatBandAfter,
   isVoidDeckFloor,
-  levelHeat,
   LOCKPICK_ID,
   PICK_MINUTES,
-  ROOF_FOB,
-  ROOF_HATCH_HEAT,
-  ROOF_HATCH_MINUTES,
-  roofHatchLevel,
   scaleDoorCost,
   SERVICE_ICON,
   SERVICE_LABEL,
@@ -42,7 +34,6 @@ const CONTAINER_ICON: Record<string, IconName> = {
   Food: 'meter.hunger',
   Tool: 'action.craft',
   Valuables: 'stat.value',
-  Fob: 'item.lockpick',
 };
 
 /** Storey tooltip for the landing you stand on, with its theme if it has one. */
@@ -61,8 +52,8 @@ function landingTip(
 
 /**
  * The HDB action card: the room picked on your landing strip (scout tiles plus
- * Force / Pick / search / rest / read / service), else a landing summary and,
- * below the roof, the hatch. `full` for the desktop here card and the phone
+ * Force / Pick / search / rest / read / service), else a landing summary.
+ * `full` for the desktop here card and the phone
  * strips dock; `compact` for the phone timeline foot. Leave lives on the status
  * dock in {@link HdbDungeonModal}; compact keeps one for when the Log tab hides it.
  */
@@ -83,7 +74,6 @@ export function HdbContextPanel({
   const hdbUseService = useGame((s) => s.hdbUseService);
   const hdbUseShelter = useGame((s) => s.hdbUseShelter);
   const hdbReadNotice = useGame((s) => s.hdbReadNotice);
-  const hdbOpenRoof = useGame((s) => s.hdbOpenRoof);
   const hdbLeave = useGame((s) => s.hdbLeave);
   const isPhone = useIsPhoneLayout();
 
@@ -142,45 +132,7 @@ export function HdbContextPanel({
     .filter((i) => isCarried(i.container) && i.defId === LOCKPICK_ID)
     .reduce((n, i) => n + i.stack, 0);
 
-  const heatWarn = (add: number) => {
-    const band = heatBandAfter(levelHeat(hdb, hdb.currentLevel), add);
-    if (!band) return '';
-    const note = msgOr(`ui.hdb.heatBand.${band.label}.note`, band.note, undefined, locale);
-    return t('ui.hdb.heatCross', { note });
-  };
-
   const busy = !!pendingSearch;
-  const hatchHere = !hdb.roofOpen && roofHatchLevel(hdb) === hdb.currentLevel;
-  const hatchCost = scaleDoorCost(ROOF_HATCH_MINUTES, ROOF_HATCH_HEAT, forceOpts);
-  const hatchActions = hatchHere ? (
-    <div className="flex flex-col gap-2">
-      <Note>{t('ui.hdb.hatchBlurb')}</Note>
-      {hasFob(hdb, ROOF_FOB) && (
-        <button
-          type="button"
-          onClick={() => hdbOpenRoof('fob')}
-          disabled={busy}
-          className={BTN.secondary}
-        >
-          <Icon name="item.lockpick" /> {t('ui.hdb.hatchFob', { min: FOB_MINUTES })}
-        </button>
-      )}
-      <button
-        type="button"
-        onClick={() => hdbOpenRoof('force')}
-        disabled={busy}
-        className={BTN.danger}
-      >
-        <Icon name="hdb.breach" />{' '}
-        {t('ui.hdb.hatchForce', {
-          min: Math.round(hatchCost.minutes),
-          heat: hatchCost.heat,
-        })}
-        {heatWarn(hatchCost.heat)}
-      </button>
-    </div>
-  ) : null;
-
   const levelNn = storeyLabel(hdb, hdb.currentLevel);
   const placeTitle = sel
     ? sel.label
@@ -311,7 +263,6 @@ export function HdbContextPanel({
     : 0;
   const heatBit =
     doorHeat > 0 ? t('ui.hdb.heatPlus', { n: doorHeat }) : t('ui.hdb.quiet');
-  const doorWarn = doorHeat > 0 ? heatWarn(doorHeat) : '';
 
   const doorButtons = sel ? (
     sel.state === 'cleared' ? (
@@ -360,7 +311,6 @@ export function HdbContextPanel({
               min: doorMins,
               heat: heatBit,
             })}
-            {doorWarn}
           </button>
         )}
         {sel.entry === 'locked' && sel.state !== 'breached' && (
@@ -406,10 +356,7 @@ export function HdbContextPanel({
               {doorButtons}
             </>
           ) : (
-            <>
-              {levelHint}
-              {hatchActions}
-            </>
+            levelHint
           )}
         </PlaceStack>
       </div>

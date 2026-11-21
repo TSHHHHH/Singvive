@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { Rng } from './rng';
 import {
+  addDoorHeat,
   addHeat,
+  canTravelTo,
   COOL_PER_HOUR,
+  DOOR_SPREAD,
+  doorSpreadShare,
   coolLevels,
   generateDungeon,
   hdbScar,
@@ -19,9 +23,7 @@ import {
   realStoreysOf,
   scoutFloor,
   scoutUnit,
-  ROOF_FOB,
   sealedStoreys,
-  SPILL,
   STAIR_MINUTES,
   storeyLabel,
   storeyOf,
@@ -60,14 +62,15 @@ describe('corridor scouting playback', () => {
   const attrs = { strength: 5, dexterity: 6, endurance: 5, perception: 5, wits: 5 };
 
   it('preserves the original seeded intel, including draws between the two sense checks', () => {
-    // Recorded from the pre-playback resolver. Capturing dice must not alter
-    // threats, containers, fobs or loot quality in an existing seeded run.
+    // Re-recorded when the roof joined the theme deck (it reshuffles the deal).
+    // Capturing dice must not alter threats, containers or loot quality.
     const d = block('SCOUT-REGRESSION', 18);
     const result = scoutFloor(new Rng('ORIGINAL-SWEEP'), attrs, d, 3, 0.1);
     expect(result.dungeon.floors[2].units.map((u) => u.scoutedInfo)).toEqual([
-      undefined, undefined, undefined,
-      { threatCount: 1, lootQuality: 'unreadable' },
-      { threatCount: -1, lootQuality: 'promising', containerCategory: 'Fob' },
+      undefined,
+      { threatCount: -1, lootQuality: 'untouched', containerCategory: 'Food' },
+      undefined, undefined,
+      { threatCount: -1, lootQuality: 'untouched', containerCategory: 'Medical' },
       { threatCount: 2, lootQuality: 'promising', containerCategory: 'Medical' },
     ]);
     expect(result.rolls).toHaveLength(3);
@@ -155,13 +158,14 @@ describe('real height sets the scale, not the content', () => {
     }
   });
 
-  it('labels rise strictly and the roof row is the real top storey', () => {
+  it('labels rise strictly and the top row is the real top storey, open like any other', () => {
     for (const seed of SEEDS) {
       const d = block(seed, 24);
       for (let l = 2; l <= d.height; l++) expect(storeyOf(d, l)).toBeGreaterThan(storeyOf(d, l - 1));
       expect(storeyOf(d, 1)).toBe(1);
-      expect(d.floors[d.height - 1].roof).toBe(true);
       expect(storeyOf(d, d.height)).toBe(24);
+      // No hatch: the stairs reach the top landing straight from the ground.
+      expect(canTravelTo(d, d.height)).toBe(true);
     }
   });
 
@@ -200,17 +204,37 @@ describe('real height sets the scale, not the content', () => {
 });
 
 describe('landing themes', () => {
-  it('deals mid landings without repeats (ordinary at most twice)', () => {
+  it('deals landings without repeats (ordinary at most twice)', () => {
     for (const seed of SEEDS) {
       const d = block(seed, 40);
       const themes = d.floors.map((f) => f.theme).filter((t) => t !== undefined);
       const counts = new Map<string, number>();
       for (const t of themes) counts.set(t, (counts.get(t) ?? 0) + 1);
       for (const [t, n] of counts) expect(n, t).toBeLessThanOrEqual(t === 'ordinary' ? 2 : 1);
-      // Ground and roof never carry a theme.
+      // Ground never carries a theme; the top landing is dealt like the rest.
       expect(d.floors[0].theme).toBeUndefined();
-      expect(d.floors[d.height - 1].theme).toBeUndefined();
+      expect(d.floors[d.height - 1].theme).toBeDefined();
     }
+  });
+
+  it('deals the roof deck like any card, and only ever onto the top landing', () => {
+    let roofs = 0;
+    let n = 0;
+    for (const seed of SEEDS) {
+      for (const storeys of [5, 12, 24]) {
+        const d = block(seed, storeys);
+        n++;
+        const at = d.floors.findIndex((f) => f.theme === 'roof');
+        if (at < 0) continue;
+        roofs++;
+        expect(at).toBe(d.height - 1);
+        // A roof deck is mostly open: two to four rooms.
+        expect(d.floors[at].units.length).toBeLessThanOrEqual(4);
+      }
+    }
+    // Neither guaranteed nor rare.
+    expect(roofs / n).toBeGreaterThan(0.25);
+    expect(roofs / n).toBeLessThan(0.95);
   });
 
   it('only deals a refuge floor at 20 storeys or more', () => {
@@ -233,8 +257,8 @@ describe('landing themes', () => {
     const promised = { holdout: 'holdout', fire: 'burning', nest: 'stocked', picked_over: 'notice', refuge: 'shelter' };
     for (const seed of SEEDS) {
       for (const f of block(seed, 32).floors) {
-        if (!f.theme || f.theme === 'ordinary') continue;
-        const want = promised[f.theme];
+        if (!f.theme || !(f.theme in promised)) continue;
+        const want = promised[f.theme as keyof typeof promised];
         expect(f.units.some((u) => u.type === want && u.available), `${f.theme} → ${want}`).toBe(true);
       }
     }
@@ -305,11 +329,34 @@ describe('per-landing heat', () => {
     expect(levelHeat(capped, above)).toBe(100);
   });
 
-  it('a door adds no spill by default', () => {
+  it('a forced door heats every open landing, falling off with distance', () => {
     const d = block('DOOR', 30);
-    const mid = openLevels(d)[2];
-    const hot = addHeat(d, 15, mid, SPILL.door);
-    expect(hot.floors.filter((f) => f.heatLevel > 0).map((f) => f.level)).toEqual([mid]);
+    const open = openLevels(d);
+    const at = open[1];
+    const hot = addDoorHeat(d, 20, at);
+    for (const f of hot.floors) {
+      if (f.sealed) {
+        expect(f.heatLevel).toBe(0);
+        continue;
+      }
+      const steps = Math.abs(open.indexOf(f.level) - 1);
+      expect(f.heatLevel, `level ${f.level}`).toBe(Math.round(20 * doorSpreadShare(steps)));
+    }
+    // Next landing takes half, the far end of the block still takes the floor share.
+    expect(levelHeat(hot, open[2])).toBe(10);
+    expect(levelHeat(hot, open[open.length - 1])).toBe(Math.round(20 * DOOR_SPREAD.floor));
+  });
+
+  it('spread never lifts another landing past the cap, but the breach landing still can', () => {
+    const d = block('CAP', 30);
+    const [a, b] = openLevels(d);
+    let hot = d;
+    for (let i = 0; i < 20; i++) hot = addDoorHeat(hot, 24, a);
+    expect(levelHeat(hot, a)).toBe(100);
+    expect(levelHeat(hot, b)).toBe(DOOR_SPREAD.cap);
+    // A landing already above the cap keeps its own heat.
+    const own = addDoorHeat(addHeat(d, 90, b), 24, a);
+    expect(levelHeat(own, b)).toBe(90);
   });
 
   it('peakHeat is the hottest landing and blockHeat mirrors it', () => {
@@ -349,7 +396,7 @@ describe('old saves', () => {
 });
 
 describe('maze saves', () => {
-  it('become strips: back on 01, doors and heat kept, open gate opens the hatch', () => {
+  it('become strips: back on 01, doors and heat kept, old fobs dropped', () => {
     const fresh = block('MAZE', 24);
     const lvl = openLevels(fresh)[2];
     const unit = fresh.floors[lvl - 1].units.find((u) => u.available)!;
@@ -375,15 +422,30 @@ describe('maze saves', () => {
     expect(isStripModel(d)).toBe(true);
     expect(d.pos).toEqual({ level: 1 });
     expect(d.currentLevel).toBe(1);
-    expect(d.roofOpen).toBe(true);
     expect(levelHeat(d, lvl)).toBe(42);
     expect(d.blockHeat).toBe(42);
-    expect(d.keys).toEqual([ROOF_FOB]);
     const u = d.floors[lvl - 1].units.find((x) => x.id === unit.id)!;
     expect(u.state).toBe('cleared');
-    expect(u.holdsKey).toBe(ROOF_FOB);
     for (const k of ['stairs', 'stripWidth', 'unitColumns', 'blocks']) expect(k in d).toBe(false);
     expect(migrateHdbDungeon(d)).toEqual(d);
+  });
+});
+
+describe('hatch-era saves', () => {
+  it('turn the old roof deck into a roof themed landing the stairs can reach', () => {
+    const fresh = block('HATCH', 24);
+    const top = fresh.height;
+    const legacy = {
+      ...fresh,
+      roofOpen: false,
+      keys: [],
+      floors: fresh.floors.map((f) =>
+        f.level === top ? { ...f, theme: undefined, roof: true } : f,
+      ),
+    } as unknown as HdbDungeon;
+    const d = migrateHdbDungeon(legacy);
+    expect(d.floors[top - 1].theme).toBe('roof');
+    expect(canTravelTo(d, top)).toBe(true);
   });
 });
 

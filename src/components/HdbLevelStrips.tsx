@@ -5,10 +5,12 @@ import { loadEffectsFor } from '../game/inventory';
 import { torsoCarryMult } from '../game/survival';
 import { useGame } from '../game/store';
 import {
+  bandDc,
   canTravelTo,
   COOL_PER_HOUR,
   HEAT_BANDS,
   HEAT_MAX,
+  heatEncounterAt,
   HUNT_ELITE_CHANCE,
   isLevelRevealed,
   isRoofFloor,
@@ -24,8 +26,10 @@ import {
   travelClearChance,
   travelPlan,
   UNIT_META,
+  heatBand,
   type HdbDungeon,
   type HdbUnitNode,
+  type HeatBand,
 } from '../game/hdbDungeon';
 import type { Attributes } from '../game/types';
 import { msgOr, useT, type LocaleId, type TVars } from '../i18n';
@@ -80,6 +84,40 @@ function themeChip(hdb: HdbDungeon, level: number, locale: LocaleId) {
     label: msgOr(`ui.hdb.theme.${theme}.label`, THEME_META[theme].label, undefined, locale),
     blurb: msgOr(`ui.hdb.theme.${theme}.blurb`, THEME_META[theme].blurb, undefined, locale),
   };
+}
+
+/**
+ * One heat stage's effects as a line: room threat, base encounter odds, descent
+ * DC (plus the stair ambush at Swarm). `heat` is the value the odds are read at.
+ */
+function bandEffects(band: HeatBand, heat: number, dcMod: number, t: T): string {
+  const effects = t('ui.hdb.bandEffects', {
+    threat: band.threatBonus,
+    enc: Math.round(heatEncounterAt(heat) * 100),
+    dc: bandDc(band) + dcMod,
+  });
+  return band.at >= HEAT_MAX
+    ? effects + t('ui.hdb.bandAmbush', { n: Math.round(HUNT_ELITE_CHANCE * 100) })
+    : effects;
+}
+
+/**
+ * The heat chip's tooltip: where the landing stands, what this stage does,
+ * what the next one will do, and how heat moves through the block.
+ */
+function heatTipLines(heat: number, dcMod: number, t: T, locale: LocaleId): string[] {
+  const band = heatBand(heat);
+  const next = HEAT_BANDS[HEAT_BANDS.indexOf(band) + 1];
+  const label = (b: HeatBand) => msgOr(`ui.hdb.heatBand.${b.label}.label`, b.label, undefined, locale);
+  return [
+    t('ui.hdb.levelHeatTip', { heat: Math.round(heat), band: label(band) }),
+    msgOr(`ui.hdb.heatBand.${band.label}.note`, band.note, undefined, locale),
+    t('ui.hdb.bandNow', { effects: bandEffects(band, heat, dcMod, t) }),
+    next
+      ? t('ui.hdb.bandNext', { at: next.at, label: label(next), effects: bandEffects(next, next.at, dcMod, t) })
+      : t('ui.hdb.bandTop'),
+    t('ui.hdb.coolingNote', { n: COOL_PER_HOUR }),
+  ];
 }
 
 /** A level's heat as a short bar with band ticks. */
@@ -323,19 +361,7 @@ export function HdbLevelStrips({ phone }: { phone: boolean }) {
         const hunting = levelHunting(hdb, level);
         const bandLabel = msgOr(`ui.hdb.heatBand.${band.label}.label`, band.label, undefined, locale);
         const theme = revealed ? themeChip(hdb, level, locale) : null;
-        const nextBand = HEAT_BANDS[idx + 1];
-        const heatTip = [
-          t('ui.hdb.levelHeatTip', { heat: Math.round(heat), band: bandLabel }),
-          msgOr(`ui.hdb.heatBand.${band.label}.note`, band.note, undefined, locale),
-          t('ui.hdb.descentNeedsAttrs', { dc: retreatDc(hdb, level) + load.fleeDcMod }),
-          hunting ? t('ui.hdb.huntChance', { n: Math.round(HUNT_ELITE_CHANCE * 100) }) : '',
-          nextBand ? t('ui.hdb.nextBand', {
-            label: msgOr(`ui.hdb.heatBand.${nextBand.label}.label`, nextBand.label, undefined, locale),
-            at: nextBand.at,
-          }).trim() : '',
-          t('ui.hdb.coolingNote', { n: COOL_PER_HOUR }),
-        ].filter(Boolean).join('\n');
-        const roofShut = roof && !hdb.roofOpen;
+        const heatTip = heatTipLines(heat, load.fleeDcMod, t, locale).join('\n');
         const canGo = !busy && canTravelTo(hdb, level);
         const hovered = hoverRow === level;
         const units = f.units;
@@ -345,9 +371,7 @@ export function HdbLevelStrips({ phone }: { phone: boolean }) {
 
         const title = here
           ? t('ui.hdb.youAreHere')
-          : roofShut
-            ? t('ui.hdb.roofShutTip')
-            : canGo
+          : canGo
               ? travelTip(hdb, level, character.attributes, load.stairMult, load.fleeDcMod, t)
               : undefined;
 
@@ -438,15 +462,10 @@ export function HdbLevelStrips({ phone }: { phone: boolean }) {
                       <HeatMeter heat={heat} className="ml-1 min-w-8 flex-1" />
                   </button>
                 ) : <span className="h-1.5 min-w-8 flex-1 rounded-sm bg-concrete-800" />}
-                {roofShut && (
-                  <span className="rounded-sm border border-concrete-600 px-1.5 py-0.5 uppercase text-concrete-400">
-                    {t('ui.hdb.roofShut')}
-                  </span>
-                )}
                 {!revealed ? (
                   <span className="uppercase text-concrete-400">{t('ui.hdb.unexplored')}</span>
                 ) : units.length === 0 ? (
-                  roof || roofShut ? null : (
+                  roof ? null : (
                     <span className="uppercase text-concrete-400">{t('ui.hdb.noDoors')}</span>
                   )
                 ) : (

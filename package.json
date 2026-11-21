@@ -11,6 +11,7 @@
     "lint:type": "node scripts/check-type-scale.mjs",
     "test": "vitest run",
     "sim:kits": "node scripts/sim-kits.mjs",
+    "sim:hdb-heat": "node scripts/sim-hdb-heat.mjs",
     "sim:combat": "node scripts/sim-combat.mjs",
     "sim:encounters": "node scripts/sim-encounters.mjs",
     "sim:carry": "node scripts/sim-carry.mjs",

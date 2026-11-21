@@ -7,7 +7,7 @@ export type IslandInteriorCommand = {type:'enterBuilding'|'leaveUnit'|'exitBuild
 export interface IslandInteriorChoice {
   kind:'enter'|'stairs'|'unit'|'leaveUnit'|'exit'; label:string; command:IslandInteriorCommand;
   available:boolean; reason?:string; storey?:number; unitLabel?:string; unitType?:HdbUnitType;
-  reasonCode?:'sealed'|'locked'|'roof'|'unsupported'|'unavailable';
+  reasonCode?:'sealed'|'locked'|'unsupported'|'unavailable';
 }
 const landingId = (parent:string,level:number) => `hdb:${parent}:floor:${level}`;
 const roomId = (parent:string,level:number,unit:string) => `${landingId(parent,level)}:unit:${unit}`;
@@ -33,8 +33,8 @@ export function availableIslandInteriorChoices(room:RoomState,playerId:string):I
   if (!floor) return [];
   const choices:IslandInteriorChoice[]=floors.filter(f=>f.level!==level).map(f=>({
     kind:'stairs',label:`Storey ${f.storey??f.level}`,storey:f.storey??f.level,command:{type:'stairs',level:f.level},
-    available:!f.sealed&&!f.roof,
-    ...(f.sealed?{reasonCode:'sealed' as const,reason:'This landing is permanently sealed.'}:f.roof?{reasonCode:'roof' as const,reason:'Roof access is unavailable.'}:{}),
+    available:!f.sealed,
+    ...(f.sealed?{reasonCode:'sealed' as const,reason:'This landing is permanently sealed.'}:{}),
   }));
   for (const u of floor.units) {
     const reasonCode=!u.available?'unavailable':!supported(u.type)?'unsupported':u.entry==='locked'||u.entry==='barricaded'?'locked':undefined;

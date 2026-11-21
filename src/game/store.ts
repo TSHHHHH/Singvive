@@ -404,6 +404,7 @@ import { nextSearchStreak, searchAmbushChance } from './encounterOdds';
 import type { AnimalHabitat } from './enemies';
 import {
   addHeat,
+  addDoorHeat,
   dropHeat,
   scoutUnit,
   needsScout,
@@ -416,16 +417,10 @@ import {
   retreatCheck,
   travelPlan,
   canTravelTo,
-  roofHatchLevel,
-  isOpen,
   isStripModel,
   halveHeat,
   coolLevels,
   SPILL,
-  ROOF_FOB,
-  ROOF_HATCH_HEAT,
-  ROOF_HATCH_MINUTES,
-  ROOF_HATCH_NOISE,
   THEME_META,
   HDB_LEAK_RADIUS_M,
   HDB_LEAK_INTENSITY,
@@ -439,13 +434,10 @@ import {
   UNIT_META,
   LOCKPICK_ID,
   PICK_MINUTES,
-  FOB_MINUTES,
   SHELTER_HEAT_DROP,
   SHELTER_HOURS,
   scaleDoorCost,
   pickCheck,
-  grantFob,
-  hasFob,
   migrateHdbDungeon,
   type BreachOutcome,
   type HdbArchetype,
@@ -897,8 +889,6 @@ interface State {
   hdbPick: (unitId: string) => void;
   /** Take the stairs to another landing (descent checks + Swarm ambushes on the way). */
   hdbTravel: (level: number) => void;
-  /** Open the roof hatch from the landing below the roof. */
-  hdbOpenRoof: (mode: 'force' | 'fob') => void;
   hdbUseService: (unitId: string) => void;
   hdbUseShelter: (unitId: string) => void;
   hdbReadNotice: (unitId: string) => void;
@@ -2866,22 +2856,7 @@ export const useGame = create<State>((set, get) => {
    * Loot opens a sequential search session (same timeline grid as outdoor sites).
    */
   const markHdbUnitCleared = (hdb: HdbDungeon, level: number, unitId: string): HdbDungeon => {
-    const unit = hdb.floors[level - 1]?.units.find((u) => u.id === unitId);
-    let next = updateUnit(hdb, level, unitId, { state: 'cleared' });
-    if (unit?.holdsKey) {
-      const had = hasFob(next, unit.holdsKey);
-      next = grantFob(next, unit.holdsKey);
-      if (!had) {
-        pushLog(
-          'A fob on a lanyard. The roof hatch might take it.',
-          'good',
-          undefined,
-          undefined,
-          hdbUnitScope(hdb.locationId, level, unitId, unit.label),
-        );
-      }
-    }
-    return next;
+    return updateUnit(hdb, level, unitId, { state: 'cleared' });
   };
 
   const hdbForceOpts = () => {
@@ -3004,7 +2979,8 @@ export const useGame = create<State>((set, get) => {
     if (!g.hdb) return;
     const rng = new Rng(g.seed).fork(`breach:${g.hdb.locationId}:${unitId}`);
     let next = updateUnit(g.hdb, level, unitId, { state: 'breached' });
-    if (heat > 0) next = addHeat(next, heat, level, entry === 'barricaded' ? SPILL.barricade : SPILL.door);
+    // A forced door carries through the whole stairwell, not just this landing.
+    if (heat > 0) next = addDoorHeat(next, heat, level);
     set({ hdb: next });
     if (noise > 0) {
       get().emitNoise(g.currentPos.lat, g.currentPos.lng, noise, outcome.dangerBoost);
@@ -6899,12 +6875,7 @@ export const useGame = create<State>((set, get) => {
       const s = get();
       if (hdbBusy() || !s.hdb || !s.character) return;
       const from = s.hdb.pos.level;
-      if (!canTravelTo(s.hdb, level)) {
-        if (level === s.hdb.height && isOpen(s.hdb, level) && !s.hdb.roofOpen) {
-          pushLog('The roof hatch is shut. Open it from the landing below.', 'info');
-        }
-        return;
-      }
+      if (!canTravelTo(s.hdb, level)) return;
       const load = loadOf(s);
       const plan = travelPlan(s.hdb, from, level, load.stairMult);
       const seq = (s.hdb.moveSeq ?? 0) + 1;
@@ -6963,42 +6934,6 @@ export const useGame = create<State>((set, get) => {
       const wasNew = !d.revealedLevels.includes(level);
       set({ hdb: moveTo(d, level), hdbSelUnit: null });
       if (wasNew) sweepFloor(level);
-      persist();
-    },
-
-    hdbOpenRoof: (mode) => {
-      const s = get();
-      if (hdbBusy() || !s.hdb || s.hdb.roofOpen) return;
-      if (roofHatchLevel(s.hdb) !== s.hdb.pos.level) return;
-      const scope = hdbFloorScope(
-        s.hdb.locationId,
-        s.hdb.pos.level,
-        storeyLabel(s.hdb, s.hdb.pos.level),
-      );
-      if (mode === 'fob') {
-        if (!hasFob(s.hdb, ROOF_FOB)) return;
-        if (advanceTime(FOB_MINUTES / 60)) return;
-        const g = get();
-        if (!g.hdb) return;
-        set({ hdb: { ...g.hdb, roofOpen: true } });
-        pushLog('The fob clicks. The roof hatch lifts on its spring.', 'good', undefined, undefined, scope);
-        persist();
-        return;
-      }
-      const scaled = scaleDoorCost(ROOF_HATCH_MINUTES, ROOF_HATCH_HEAT, hdbForceOpts());
-      if (advanceTime(scaled.minutes / 60)) return;
-      const g = get();
-      if (!g.hdb) return;
-      const level = g.hdb.pos.level;
-      set({ hdb: { ...addHeat(g.hdb, scaled.heat, level, SPILL.hatch), roofOpen: true } });
-      get().emitNoise(g.currentPos.lat, g.currentPos.lng, ROOF_HATCH_NOISE, 1);
-      pushLog(
-        `You lever the roof hatch off its hinges. ${Math.round(scaled.minutes)} min, and the stairwell hears it.`,
-        'bad',
-        undefined,
-        undefined,
-        scope,
-      );
       persist();
     },
 

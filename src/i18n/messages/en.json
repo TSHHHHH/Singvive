@@ -1365,9 +1365,11 @@
       "residential": "Residential block",
       "slab": "slab",
       "point": "point",
-      "descentNeedsAttrs": "Going down needs Dexterity + Endurance (need {dc}+).",
-      "nextBand": " Next: {label} at {at}.",
-      "huntChance": "{n}% chance of a hunt on every door and stair here.",
+      "bandNow": "Now · {effects}",
+      "bandNext": "Next at {at} · {label}: {effects}",
+      "bandTop": "Top stage. Climb or get out.",
+      "bandEffects": "threat +{threat} · base encounters ~{enc}% · descent DC {dc}",
+      "bandAmbush": " · {n}% stair ambush",
       "showDetails": "Key and sense checks",
       "hideDetails": "Hide details",
       "ariaShowDetails": "Show block details",
@@ -1391,7 +1393,6 @@
       "scoutNestFight": "A pack is already in there — opening the door starts the fight",
       "scoutDenFight": "Something bigger nested here — force the door, then a Hulk",
       "breachLine": "{verb} · {min} min · {heat}",
-      "heatCross": " — {note}",
       "pickLine": "Pick it · {min} min · quiet",
       "pickNeed": "Pick it — need a lockpick",
       "readNotice": "Read the board · {min} min",
@@ -1493,6 +1494,10 @@
         "refuge": {
           "label": "Refuge floor",
           "blurb": "Open deck, safe stairs, somewhere to rest."
+        },
+        "roof": {
+          "label": "Roof deck",
+          "blurb": "Water tanks and plant rooms. Fewer doors, better finds."
         }
       },
       "sealKind": {
@@ -1545,8 +1550,7 @@
         "Medical": "Medical",
         "Food": "Food",
         "Tool": "Tool",
-        "Valuables": "Valuables",
-        "Fob": "Fob"
+        "Valuables": "Valuables"
       },
       "stripTravel": "Take the stairs to {nn} · ~{min} min",
       "travelUpFree": "Climbing: no descent checks",
@@ -1554,20 +1558,15 @@
       "travelCheck": "{nn}: {pct}% fail (need {dc}+)",
       "travelClear": "~{pct}% to arrive without a fight",
       "youAreHere": "You are here",
-      "roofShut": "Hatch shut",
-      "roofShutTip": "The roof hatch is shut. Open it from the landing below.",
       "levelHeatTip": "Landing heat {heat}/100 · {band}",
       "levelHeat": "Heat {nn}",
       "blockPeak": "· block peak {n}",
-      "coolingNote": "Each landing has its own heat. Loud acts carry to the landings above and below. Landings you leave cool about {n} heat an hour.",
+      "coolingNote": "Forcing a door heats this landing fully and every other landing a little, less the further away. Spread alone never pushes a landing past Awake. Landings you leave cool about {n} heat an hour.",
       "unexplored": "unexplored",
       "noDoors": "no doors",
       "roomsLeft": "{n} rooms left",
       "legendHeat": "bar = landing heat",
       "legendScouted": "read from the corridor",
-      "hatchBlurb": "The roof hatch is above this landing. It is shut.",
-      "hatchFob": "Use the fob on the hatch · {min} min · quiet",
-      "hatchForce": "Force the roof hatch · {min} min · +{heat} heat · loud",
       "noDoorsHint": "No doors on this landing. Pick another strip to take the stairs.",
       "levelHint": "Click a room on your strip for its actions. Click another strip to take the stairs.",
       "levelHintPhone": "Tap a room on your strip for its actions. Tap another strip to take the stairs.",
@@ -2578,7 +2577,7 @@
       },
       "building": {
         "title": "Inside the block",
-        "hint": "Rooms share supplies, but each survivor moves independently. This first interior pass supports open doors; locked doors and roof access remain unavailable.",
+        "hint": "Rooms share supplies, but each survivor moves independently. This first interior pass supports open doors; locked doors remain unavailable.",
         "useDoors": "Use the block stairs and doors to move between rooms. Return to ground level before travelling outside.",
         "unit": "Enter {name}",
         "stairs": "Stairs · storey {storey}",
@@ -2588,7 +2587,6 @@
         "reasons": {
           "sealed": "This landing is permanently sealed.",
           "locked": "Locked and barricaded doors are not available yet.",
-          "roof": "Roof access is not available yet.",
           "unsupported": "This room service is not available yet.",
           "unavailable": "This room is inaccessible."
         }
@@ -2900,8 +2898,8 @@
     "hdb": {
       "title": "Inside the block",
       "bullets": [
-        "Void decks open the block as a stack of landing strips beside the 3D tower. Hover a strip to light its storey; click it to take the stairs there. A block is as tall as it stands on the map, but only a handful of landings are open — the storeys between them are sealed spans. Each landing has a character: ordinary flats, a holdout, a fire floor, a nest, a picked-over floor, or (in towers of 20+ storeys) a refuge floor whose stairs never ambush. The roof sits behind a hatch: force it loud, or open it quietly with a fob found in a flat.",
-        "Every landing has its own heat. What you do on a landing heats that landing; loud acts (barricades, traps, fights, the hatch) carry to the landings above and below. Heat raises encounter odds, room threat and the descent DC on that landing. A landing at Swarm ambushes anyone who crosses it. Landings you are not on cool slowly (about 5 an hour), and the whole block halves while you are away.",
+        "Void decks open the block as a stack of landing strips beside the 3D tower. Hover a strip to light its storey; click it to take the stairs there. A block is as tall as it stands on the map, but only a handful of landings are open — the storeys between them are sealed spans. Each landing has a character: ordinary flats, a holdout, a fire floor, a nest, a picked-over floor, a roof deck (always the top landing when it turns up), or (in towers of 20+ storeys) a refuge floor whose stairs never ambush.",
+        "Every landing has its own heat. Forcing a door heats that landing fully and every other landing in the block a little, less the further away; spread alone never lifts a landing past Awake. Traps and fights carry to the landings above and below. Heat raises encounter odds, room threat and the descent DC on that landing. A landing at Swarm ambushes anyone who crosses it. Landings you are not on cool slowly (about 5 an hour), and the whole block halves while you are away.",
         "Most loot doors are locked or barricaded. Pick a lock if you have a lockpick (quiet, consumed on the try); otherwise Force it and raise heat. A crowbar makes a smash cheaper. Click a room on your strip to see its actions. Going down rolls Dexterity + Endurance on every landing you cross, against that landing's heat — a fight stops you there. Climbing has no checks. Leave only from level 01. Walk out while any landing is at Swarm and the noise spills into the street. The block remembers: worked blocks dim on the map and the site card shows doors cleared."
       ]
     },
