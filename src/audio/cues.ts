@@ -207,7 +207,6 @@ export const CUES = [
   { id: 'hdb.scout', category: 'site', label: 'Scout a room', trigger: 'A unit is picked and scouted (Perception / Dexterity dice reveal).', length: L.short, priority: 2, volume: 0.6 },
   { id: 'hdb.breach', category: 'site', label: 'Breach a unit', trigger: 'A locked unit door is breached.', length: L.medium, priority: 3, volume: 0.9 },
   { id: 'hdb.unit', category: 'site', label: 'Open a unit', trigger: 'The survivor goes into a unit.', length: L.short, priority: 2, volume: 0.6 },
-  { id: 'hdb.roof', category: 'site', label: 'Open the roof', trigger: 'The roof hatch is forced or opened with a fob.', length: L.medium, priority: 2, volume: 0.8 },
   { id: 'hdb.leave', category: 'site', label: 'Leave the block', trigger: 'The survivor leaves the HDB block.', length: L.short, priority: 1, volume: 0.6 },
 
   // ---- Crafting ----------------------------------------------------------

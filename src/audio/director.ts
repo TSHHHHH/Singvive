@@ -351,9 +351,6 @@ const WRAPS: { [K in ActionKey]?: After<K> } = {
   hdbPick: (b, a) => {
     if (changed(b, a)) cue('hdb.unit');
   },
-  hdbOpenRoof: (b, a) => {
-    if (changed(b, a)) cue('hdb.roof');
-  },
   hdbLeave: (b, a) => {
     if (b.hdb && !a.hdb) cue('hdb.leave');
   },

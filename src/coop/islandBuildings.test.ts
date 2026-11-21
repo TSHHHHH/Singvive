@@ -44,13 +44,13 @@ function enter() {
   return {...s,go};
 }
 describe('interior isolation and conservation',()=>{
-  it('rejects sealed, roof, locked and cross-floor door targets',()=>{
+  it('rejects sealed, locked and cross-floor door targets',()=>{
     const {room,catalog,go}=enter(); const a=room.players[0];
     const floors=room.world!.locations.block.building!.floors;
-    for(const floor of floors.filter(f=>f.sealed||f.roof)) {
+    for(const floor of floors.filter(f=>f.sealed)) {
       expect(applyCommand(room,'a',{type:'stairs',level:floor.level},room.wallAt,catalog)).toBeTruthy();
     }
-    const floor=floors.find(f=>!f.sealed&&!f.roof&&f.level!==1&&f.units.length)!;
+    const floor=floors.find(f=>!f.sealed&&f.level!==1&&f.units.length)!;
     const u=floor.units[0]; u.type='flat';u.available=true;u.entry='locked';
     expect(applyCommand(room,'a',{type:'enterUnit',unitId:u.id},room.wallAt,catalog)).toBeTruthy();
     go('a',{type:'stairs',level:floor.level});
@@ -60,7 +60,7 @@ describe('interior isolation and conservation',()=>{
   it('keeps rescue, trade and combat bound to exact floor identities',()=>{
     const {room,catalog,go}=enter();go('b',{type:'enterBuilding'});
     const a=room.players[0], b=room.players[1];
-    const floor=room.world!.locations.block.building!.floors.find(f=>!f.sealed&&!f.roof&&f.level!==1)!;
+    const floor=room.world!.locations.block.building!.floors.find(f=>!f.sealed&&f.level!==1)!;
     go('a',{type:'stairs',level:floor.level});
     b.status='downed';b.downedUntil=room.simMs+30000;
     expect(applyCommand(room,'a',{type:'rescue',playerId:'b'},room.wallAt,catalog)).toBeTruthy();
@@ -76,7 +76,7 @@ describe('interior isolation and conservation',()=>{
   it('reserves finite room searches once and keeps loot, drop cache and layout across revisit and restart',()=>{
     const {room,catalog,go}=enter();go('b',{type:'enterBuilding'});
     const floors=room.world!.locations.block.building!.floors;
-    const floor=floors.find(f=>!f.sealed&&!f.roof&&f.units.some(u=>u.available&&['open','ajar'].includes(u.entry)&&UNIT_META[u.type].lootTable))!;
+    const floor=floors.find(f=>!f.sealed&&f.units.some(u=>u.available&&['open','ajar'].includes(u.entry)&&UNIT_META[u.type].lootTable))!;
     const u=floor.units.find(u=>u.available&&['open','ajar'].includes(u.entry)&&UNIT_META[u.type].lootTable)!;
     if(floor.level!==1) {go('a',{type:'stairs',level:floor.level});go('b',{type:'stairs',level:floor.level});}
     go('a',{type:'enterUnit',unitId:u.id});room.sites[room.players[0].site].enemyHp=0;
@@ -97,7 +97,7 @@ describe('interior isolation and conservation',()=>{
   });
   it('flees only one room transition, pays damage and never teleports to spawn',()=>{
     const {room,catalog,go}=enter();
-    const floor=room.world!.locations.block.building!.floors.find(f=>!f.sealed&&!f.roof&&f.level!==1&&f.units.some(u=>u.available&&['open','ajar'].includes(u.entry)&&UNIT_META[u.type].lootTable))!;
+    const floor=room.world!.locations.block.building!.floors.find(f=>!f.sealed&&f.level!==1&&f.units.some(u=>u.available&&['open','ajar'].includes(u.entry)&&UNIT_META[u.type].lootTable))!;
     go('a',{type:'stairs',level:floor.level});
     const a=room.players[0];const landing=a.site;const u=floor.units.find(u=>u.available&&['open','ajar'].includes(u.entry)&&UNIT_META[u.type].lootTable);
     if(!u) throw new Error('Fixture requires an open searchable unit');
@@ -109,7 +109,7 @@ describe('interior isolation and conservation',()=>{
 });
 it('marks a lethal arrival trap downed at the arrival deadline',()=>{
   const {room,catalog,go}=enter(); room.seed+='0'; const a=room.players[0];
-  const floor=room.world!.locations.block.building!.floors.find(f=>!f.sealed&&!f.roof&&f.units.length)!;
+  const floor=room.world!.locations.block.building!.floors.find(f=>!f.sealed&&f.units.length)!;
   if(floor.level!==1) go('a',{type:'stairs',level:floor.level});
   const u=floor.units[0];u.type='trapped';u.entry='open';u.available=true;
   for(const part of Object.values(a.expedition!.bodyParts)) part.hp=0;

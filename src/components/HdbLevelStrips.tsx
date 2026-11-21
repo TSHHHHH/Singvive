@@ -5,10 +5,12 @@ import { loadEffectsFor } from '../game/inventory';
 import { torsoCarryMult } from '../game/survival';
 import { useGame } from '../game/store';
 import {
+  bandDc,
   canTravelTo,
   COOL_PER_HOUR,
   HEAT_BANDS,
   HEAT_MAX,
+  heatEncounterAt,
   HUNT_ELITE_CHANCE,
   isLevelRevealed,
   isRoofFloor,
@@ -24,8 +26,10 @@ import {
   travelClearChance,
   travelPlan,
   UNIT_META,
+  heatBand,
   type HdbDungeon,
   type HdbUnitNode,
+  type HeatBand,
 } from '../game/hdbDungeon';
 import type { Attributes } from '../game/types';
 import { msgOr, useT, type LocaleId, type TVars } from '../i18n';
@@ -34,7 +38,7 @@ import { tip } from './tips';
 import { SCOUT_REVEAL_MS } from './HdbScoutDice';
 import { useSetting } from '../game/settings';
 import { useReducedMotion } from '../hooks/useReducedMotion';
-import { BAND_FILL, bandText, SEAL_ICON, unitFaceClass } from './hdbStripStyle';
+import { BAND_FILL, bandText, SEAL_ICON, THEME_BACKDROP, unitFaceClass, type ThemeBackdrop } from './hdbStripStyle';
 
 type T = (key: string, vars?: TVars) => string;
 
@@ -77,9 +81,61 @@ function themeChip(hdb: HdbDungeon, level: number, locale: LocaleId) {
   const theme = hdb.floors[level - 1]?.theme;
   if (!theme || theme === 'ordinary') return null;
   return {
+    id: theme,
+    icon: THEME_META[theme].icon,
     label: msgOr(`ui.hdb.theme.${theme}.label`, THEME_META[theme].label, undefined, locale),
     blurb: msgOr(`ui.hdb.theme.${theme}.blurb`, THEME_META[theme].blurb, undefined, locale),
   };
+}
+
+/**
+ * One heat stage's effects as a line: room threat, base encounter odds, descent
+ * DC (plus the stair ambush at Swarm). `heat` is the value the odds are read at.
+ */
+function bandEffects(band: HeatBand, heat: number, dcMod: number, t: T): string {
+  const effects = t('ui.hdb.bandEffects', {
+    threat: band.threatBonus,
+    enc: Math.round(heatEncounterAt(heat) * 100),
+    dc: bandDc(band) + dcMod,
+  });
+  return band.at >= HEAT_MAX
+    ? effects + t('ui.hdb.bandAmbush', { n: Math.round(HUNT_ELITE_CHANCE * 100) })
+    : effects;
+}
+
+/**
+ * The heat chip's tooltip: where the landing stands, what this stage does,
+ * what the next one will do, and how heat moves through the block.
+ */
+function heatTipLines(heat: number, dcMod: number, t: T, locale: LocaleId): string[] {
+  const band = heatBand(heat);
+  const next = HEAT_BANDS[HEAT_BANDS.indexOf(band) + 1];
+  const label = (b: HeatBand) => msgOr(`ui.hdb.heatBand.${b.label}.label`, b.label, undefined, locale);
+  return [
+    t('ui.hdb.levelHeatTip', { heat: Math.round(heat), band: label(band) }),
+    msgOr(`ui.hdb.heatBand.${band.label}.note`, band.note, undefined, locale),
+    t('ui.hdb.bandNow', { effects: bandEffects(band, heat, dcMod, t) }),
+    next
+      ? t('ui.hdb.bandNext', { at: next.at, label: label(next), effects: bandEffects(next, next.at, dcMod, t) })
+      : t('ui.hdb.bandTop'),
+    t('ui.hdb.coolingNote', { n: COOL_PER_HOUR }),
+  ];
+}
+
+/** A themed landing's wash and faint icon art, drawn behind the rooms. */
+function ThemeBackdropArt({ backdrop, phone }: { backdrop: ThemeBackdrop; phone: boolean }) {
+  const big = phone ? 72 : 132;
+  const small = phone ? 40 : 72;
+  return (
+    <span aria-hidden className={`pointer-events-none absolute inset-0 -z-10 overflow-hidden rounded-sm ${backdrop.wash}`}>
+      <span className={`absolute -bottom-6 -left-5 -rotate-12 opacity-[0.16] ${backdrop.ink}`}>
+        <Icon name={backdrop.icon} size={big} />
+      </span>
+      <span className={`absolute -right-4 -top-3 rotate-12 opacity-[0.12] ${backdrop.ink}`}>
+        <Icon name={backdrop.icon} size={small} />
+      </span>
+    </span>
+  );
 }
 
 /** A level's heat as a short bar with band ticks. */
@@ -323,19 +379,7 @@ export function HdbLevelStrips({ phone }: { phone: boolean }) {
         const hunting = levelHunting(hdb, level);
         const bandLabel = msgOr(`ui.hdb.heatBand.${band.label}.label`, band.label, undefined, locale);
         const theme = revealed ? themeChip(hdb, level, locale) : null;
-        const nextBand = HEAT_BANDS[idx + 1];
-        const heatTip = [
-          t('ui.hdb.levelHeatTip', { heat: Math.round(heat), band: bandLabel }),
-          msgOr(`ui.hdb.heatBand.${band.label}.note`, band.note, undefined, locale),
-          t('ui.hdb.descentNeedsAttrs', { dc: retreatDc(hdb, level) + load.fleeDcMod }),
-          hunting ? t('ui.hdb.huntChance', { n: Math.round(HUNT_ELITE_CHANCE * 100) }) : '',
-          nextBand ? t('ui.hdb.nextBand', {
-            label: msgOr(`ui.hdb.heatBand.${nextBand.label}.label`, nextBand.label, undefined, locale),
-            at: nextBand.at,
-          }).trim() : '',
-          t('ui.hdb.coolingNote', { n: COOL_PER_HOUR }),
-        ].filter(Boolean).join('\n');
-        const roofShut = roof && !hdb.roofOpen;
+        const heatTip = heatTipLines(heat, load.fleeDcMod, t, locale).join('\n');
         const canGo = !busy && canTravelTo(hdb, level);
         const hovered = hoverRow === level;
         const units = f.units;
@@ -345,9 +389,7 @@ export function HdbLevelStrips({ phone }: { phone: boolean }) {
 
         const title = here
           ? t('ui.hdb.youAreHere')
-          : roofShut
-            ? t('ui.hdb.roofShutTip')
-            : canGo
+          : canGo
               ? travelTip(hdb, level, character.attributes, load.stairMult, load.fleeDcMod, t)
               : undefined;
 
@@ -374,7 +416,7 @@ export function HdbLevelStrips({ phone }: { phone: boolean }) {
             onMouseEnter={() => setHoverRow(level)}
             onFocus={() => setHoverRow(level)}
             {...tip(title, { follow: true })}
-            className={`relative flex shrink-0 items-center rounded-sm border transition-colors ${
+            className={`relative isolate flex shrink-0 items-center rounded-sm border transition-colors ${
               phone ? 'min-h-[4.5rem] gap-2 px-2 py-2' : 'min-h-[7.5rem] gap-3 px-3 py-3'
             } ${
               here
@@ -386,6 +428,9 @@ export function HdbLevelStrips({ phone }: { phone: boolean }) {
               hovered && !here ? 'border-concrete-400' : ''
             }`}
           >
+            {theme && THEME_BACKDROP[theme.id] && (
+              <ThemeBackdropArt backdrop={THEME_BACKDROP[theme.id]!} phone={phone} />
+            )}
             {/* Pointer notch toward the tower (desktop over-map). */}
             {!phone && (
               <span
@@ -403,9 +448,12 @@ export function HdbLevelStrips({ phone }: { phone: boolean }) {
             <div className={`flex shrink-0 flex-col items-center gap-2 ${phone ? 'w-12' : 'w-16'}`}>
               {theme && (
                 <span
-                  className="w-full break-words text-center text-micro uppercase text-concrete-200"
+                  className={`flex w-full flex-col items-center gap-0.5 break-words text-center text-micro uppercase ${
+                    THEME_BACKDROP[theme.id]?.ink ?? 'text-concrete-200'
+                  }`}
                   {...tip(`${theme.label}: ${theme.blurb}`)}
                 >
+                  <Icon name={theme.icon} size={phone ? 14 : 18} />
                   {theme.label}
                 </span>
               )}
@@ -418,7 +466,10 @@ export function HdbLevelStrips({ phone }: { phone: boolean }) {
                       : 'border-concrete-800 text-concrete-400'
                 }`}
               >
-                {roof ? t('ui.hdb.roofShort') : label}
+                <span className="block text-micro uppercase leading-tight text-concrete-400">
+                  {level === 1 ? t('ui.hdb.floorGround') : t('ui.hdb.floorWord')}
+                </span>
+                {label}
               </span>
               {here && <PlayerPin size={phone ? 'xs' : 'sm'} />}
             </div>
@@ -438,15 +489,10 @@ export function HdbLevelStrips({ phone }: { phone: boolean }) {
                       <HeatMeter heat={heat} className="ml-1 min-w-8 flex-1" />
                   </button>
                 ) : <span className="h-1.5 min-w-8 flex-1 rounded-sm bg-concrete-800" />}
-                {roofShut && (
-                  <span className="rounded-sm border border-concrete-600 px-1.5 py-0.5 uppercase text-concrete-400">
-                    {t('ui.hdb.roofShut')}
-                  </span>
-                )}
                 {!revealed ? (
                   <span className="uppercase text-concrete-400">{t('ui.hdb.unexplored')}</span>
                 ) : units.length === 0 ? (
-                  roof || roofShut ? null : (
+                  roof ? null : (
                     <span className="uppercase text-concrete-400">{t('ui.hdb.noDoors')}</span>
                   )
                 ) : (
