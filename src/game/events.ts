@@ -8,6 +8,7 @@ import type {
 } from './types';
 import type { Rng } from './rng';
 import { effectiveDanger } from './noise';
+import type { DisturbanceKind } from './disturbance';
 import {
   activeLocale,
   ev,
@@ -73,7 +74,16 @@ export type EventKind =
   | 'nomad_trader'
   | 'car_blockade'
   | 'flooded_entry'
-  | 'field_doctor';
+  | 'field_doctor'
+  // Street scenes: they find you on arrival, not at the door.
+  | 'street_car_alarm'
+  | 'street_gunfire'
+  | 'street_shutter'
+  | 'street_scavenger';
+
+export type StreetKind = Extract<EventKind, `street_${string}`>;
+/** Scenes that can wait at a doorway (and draw from the shared prose pools). */
+type DoorwayKind = Exclude<EventKind, 'mrt_toll' | 'field_doctor' | StreetKind>;
 
 export type ChoiceKind = 'check' | 'pay' | 'fight' | 'leave';
 
@@ -147,7 +157,16 @@ export type EventEffect =
   | { t: 'time'; hours: number; line: string }
   | { t: 'energy'; amount: number; line: string }
   | { t: 'wound'; amount: number; line: string }
-  | { t: 'noise'; radius: number; intensity: number }
+  /** Leave a disturbance zone here (see disturbance.ts). */
+  | { t: 'disturb'; kind: DisturbanceKind }
+  /** End a zone early — the alarm pulled, the shutter wedged. */
+  | { t: 'quiet'; zoneId: string }
+  /** The next search at this site ignores disturbances (they're drawn elsewhere). */
+  | { t: 'cover' }
+  /** Spend one loaded round from the holstered firearm. */
+  | { t: 'fireShot' }
+  /** Somebody points you at the nearest site you haven't found yet. */
+  | { t: 'scout' }
   | { t: 'gain'; defId: string; count?: number }
   | { t: 'standing'; delta: number }
   | { t: 'mark'; mark: DoorwayMark }
@@ -167,6 +186,8 @@ export interface EventChoice {
   dc?: number;
   /** For 'pay': any one of these settles it, preferred first. */
   itemIds?: string[];
+  /** Only offered as live when the survivor can actually do it. */
+  needs?: 'loadedGun';
   /** Applied when the check passes, the item is handed over, or there's no roll. */
   onSuccess: EventEffect[];
   /** Applied when the check fails or the price can't be met. */
@@ -195,6 +216,8 @@ export interface EventCtx {
   pressure?: number;
   /** The last doorway scene that fired — it won't be picked again straight away. */
   lastKind?: EventKind | string;
+  /** Danger points from the strongest disturbance over this site (disturbance.ts). */
+  disturbance?: number;
 }
 
 /** Attribute-check DC scaled off the site's current danger. */
@@ -210,7 +233,7 @@ const WET: readonly WeatherKind[] = ['rain', 'thunderstorm'];
 
 function prose(
   rng: Rng,
-  kind: Exclude<EventKind, 'mrt_toll' | 'field_doctor'>,
+  kind: DoorwayKind,
   ctx: EventCtx,
   vars: Record<string, string>,
   factionId?: FactionId,
@@ -255,7 +278,7 @@ const FLOODED_AT: PoiCategory[] = ['mrt', 'industrial', 'school'];
 /** Odds that *something* is waiting, given anything is eligible at all. */
 function doorwayChance(loc: LocationState, ctx: EventCtx): number {
   // Effective danger, so the noise you just made is waiting at the next door.
-  let p = 0.25 + effectiveDanger(loc) * 0.07;
+  let p = 0.25 + effectiveDanger(loc, ctx.disturbance) * 0.07;
   if (ctx.time === 'night') p += 0.1;
   else if (ctx.time === 'dusk') p += 0.05;
   return Math.max(0.05, Math.min(0.8, p));
@@ -267,8 +290,8 @@ function doorwayChance(loc: LocationState, ctx: EventCtx): number {
  * the hour, and how far the rot has spread here.
  */
 export function doorwayThreat(loc: LocationState, ctx: EventCtx): number {
-  const boost = loc.tempDangerBoost ?? 0;
-  let t = (Math.min(5, effectiveDanger(loc)) / 5) * 0.6;
+  const boost = ctx.disturbance ?? 0;
+  let t = (Math.min(5, effectiveDanger(loc, boost)) / 5) * 0.6;
   t += Math.min(0.15, boost * 0.05);
   if (ctx.time === 'night') t += 0.2;
   else if (ctx.time === 'dusk') t += 0.1;
@@ -421,7 +444,7 @@ function buildLockedDoor(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent
   const { tell, text } = prose(rng, 'locked_door', ctx, { name: loc.name });
   const opened: EventEffect[] = [{ t: 'mark', mark: { door: true } }, { t: 'access' }];
   const racket: EventEffect[] = [
-    { t: 'noise', radius: 140, intensity: 2 },
+    { t: 'disturb', kind: 'botched' },
     { t: 'zombies', line: ev('locked_door.lines.pryFailZombies', undefined, locale) },
   ];
   return {
@@ -468,6 +491,16 @@ function buildLockedDoor(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent
           { t: 'energy', amount: 5, line: ev('locked_door.lines.findFailEnergy', undefined, locale) },
           { t: 'line', line: ev('locked_door.lines.findFailDeny', undefined, locale) },
           { t: 'access' },
+        ],
+      },
+      {
+        id: 'smash',
+        kind: 'leave',
+        label: ev('locked_door.choices.smash', undefined, locale),
+        onSuccess: [
+          { t: 'line', line: ev('locked_door.lines.smash', undefined, locale) },
+          { t: 'disturb', kind: 'loud' },
+          ...opened,
         ],
       },
       {
@@ -574,6 +607,18 @@ function buildRival(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
         ],
       },
       {
+        id: 'warn',
+        kind: 'leave',
+        needs: 'loadedGun',
+        label: ev('rival_scavenger.choices.warn', undefined, locale),
+        onSuccess: [
+          { t: 'fireShot' },
+          { t: 'line', line: ev('rival_scavenger.lines.warn', undefined, locale) },
+          { t: 'gain', defId: prize },
+          { t: 'access' },
+        ],
+      },
+      {
         id: 'confront',
         kind: 'fight',
         label: ev('rival_scavenger.choices.confront', undefined, locale),
@@ -622,6 +667,17 @@ function buildRaider(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
         label: ev('armed_raider.choices.pay', undefined, locale),
         onSuccess: [{ t: 'access' }],
         onFailure: [{ t: 'fight', foe: 'raider' }],
+      },
+      {
+        id: 'warn',
+        kind: 'leave',
+        needs: 'loadedGun',
+        label: ev('armed_raider.choices.warn', undefined, locale),
+        onSuccess: [
+          { t: 'fireShot' },
+          { t: 'line', line: ev('armed_raider.lines.warn', undefined, locale) },
+          { t: 'access' },
+        ],
       },
       {
         id: 'fight',
@@ -699,7 +755,7 @@ function buildRigged(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
         ],
         onFailure: [
           { t: 'wound', amount: 9, line: ev('rigged_door.lines.disarmFailWound', undefined, locale) },
-          { t: 'noise', radius: 200, intensity: 3 },
+          { t: 'disturb', kind: 'botched' },
           { t: 'zombies', line: ev('rigged_door.lines.disarmFailZombies', undefined, locale) },
         ],
       },
@@ -717,6 +773,17 @@ function buildRigged(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
         onFailure: [
           { t: 'time', hours: 0.5, line: ev('rigged_door.lines.powerFailTime', undefined, locale) },
           { t: 'deny', line: ev('rigged_door.lines.powerFailDeny', undefined, locale) },
+        ],
+      },
+      {
+        id: 'trip',
+        kind: 'leave',
+        label: ev('rigged_door.choices.trip', undefined, locale),
+        onSuccess: [
+          { t: 'time', hours: 0.2, line: ev('rigged_door.lines.trip', undefined, locale) },
+          { t: 'disturb', kind: 'loud' },
+          { t: 'mark', mark: { door: true } },
+          { t: 'access' },
         ],
       },
       {
@@ -799,6 +866,7 @@ function buildBody(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
   const locale = locOf(ctx);
   const { tell, text } = prose(rng, 'body_in_the_doorway', ctx, { name: loc.name });
   const carried = rng.pick(['bandage', 'painkillers', 'torch', 'batteries', 'canned_food', 'ammo_box']);
+  const extra = rng.pick(['bandage', 'painkillers', 'batteries', 'canned_food', 'water_bottle']);
   return {
     kind: 'body_in_the_doorway',
     factionId: null,
@@ -815,7 +883,7 @@ function buildBody(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
         onSuccess: [{ t: 'gain', defId: carried }, { t: 'access' }],
         onFailure: [
           { t: 'gain', defId: carried },
-          { t: 'noise', radius: 120, intensity: 2 },
+          { t: 'disturb', kind: 'botched' },
           { t: 'zombies', line: ev('body_in_the_doorway.lines.stripFailZombies', undefined, locale) },
         ],
       },
@@ -832,6 +900,18 @@ function buildBody(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
         ],
         onFailure: [
           { t: 'time', hours: 0.3, line: ev('body_in_the_doorway.lines.readFail', undefined, locale) },
+          { t: 'access' },
+        ],
+      },
+      {
+        id: 'drag',
+        kind: 'leave',
+        label: ev('body_in_the_doorway.choices.drag', undefined, locale),
+        onSuccess: [
+          { t: 'line', line: ev('body_in_the_doorway.lines.drag', undefined, locale) },
+          { t: 'gain', defId: carried },
+          { t: 'gain', defId: extra },
+          { t: 'disturb', kind: 'loud' },
           { t: 'access' },
         ],
       },
@@ -882,6 +962,17 @@ function buildLooters(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
         ],
         onFailure: [
           { t: 'time', hours: 0.2, line: ev('looters_fleeing.lines.readFail', undefined, locale) },
+          { t: 'access' },
+        ],
+      },
+      {
+        id: 'shout',
+        kind: 'leave',
+        label: ev('looters_fleeing.choices.shout', undefined, locale),
+        onSuccess: [
+          { t: 'line', line: ev('looters_fleeing.lines.shout', undefined, locale) },
+          { t: 'gain', defId: prize },
+          { t: 'disturb', kind: 'loud' },
           { t: 'access' },
         ],
       },
@@ -984,7 +1075,7 @@ function buildBeacon(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
         kind: 'leave',
         label: ev('distress_beacon.choices.rush', undefined, locale),
         onSuccess: [
-          { t: 'noise', radius: 100, intensity: 2 },
+          { t: 'disturb', kind: 'loud' },
           { t: 'zombies', line: ev('distress_beacon.lines.rushZombies', undefined, locale) },
         ],
       },
@@ -1142,7 +1233,7 @@ function buildFlooded(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
 
 type Builder = (rng: Rng, loc: LocationState, ctx: EventCtx) => GameEvent;
 
-const BUILDERS: Record<Exclude<EventKind, 'mrt_toll' | 'field_doctor'>, Builder> = {
+const BUILDERS: Record<DoorwayKind, Builder> = {
   faction_shakedown: (rng, loc, ctx) => buildTributeGate(rng, loc, ctx, true),
   faction_checkpoint: buildFeeGate,
   locked_door: buildLockedDoor,
@@ -1198,8 +1289,8 @@ export function rollPreScavengeEvent(
   const threat = doorwayThreat(loc, ctx);
   // People seeking a cautious exchange stay concealed when infected pressure,
   // recent noise or the site's baseline danger makes lingering untenable.
-  const contactSafe = effectiveDanger(loc) < 4 && threat < 0.65 && (ctx.pressure ?? 0) < 0.75;
-  const cands: [Exclude<EventKind, 'mrt_toll' | 'field_doctor'>, number][] = [];
+  const contactSafe = effectiveDanger(loc, ctx.disturbance) < 4 && threat < 0.65 && (ctx.pressure ?? 0) < 0.75;
+  const cands: [DoorwayKind, number][] = [];
 
   if (!loc.doorForced) {
     if (LOCKED_AT.includes(cat)) cands.push(['locked_door', 20]);

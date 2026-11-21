@@ -24,6 +24,8 @@ import { hazardBlobDrawList } from '../game/hazardBlob';
 import { hazardSiteById } from '../game/hazardSites';
 import { bakedOutlineByOsmId } from '../game/bakedPois';
 import { NoiseWaves } from './NoiseWaves';
+import { DisturbanceZones } from './DisturbanceZones';
+import type { Disturbance } from '../game/disturbance';
 import { MrtOverlay, MrtLineLegend, MRT_STATION_LAYER } from './MrtOverlay';
 import { useMrtNetwork } from './useMrtNetwork';
 import { VegetationOverlay } from './UnplayableOverlay';
@@ -993,6 +995,9 @@ interface Props {
   evacZoneId: string | null;
   /** expanding rings of noise the player has made */
   noisePulses: NoisePulse[];
+  /** one-shot danger zones left by loud things, with the game hour to age them */
+  disturbances?: Disturbance[];
+  gameHourNow?: number;
   /** diegetic frame feedback — no numbers, just the edges of vision */
   /** Bleeding is deliberately absent — it reads on the body doll, not here. */
   vitals: { exhausted: boolean; infected: boolean };
@@ -1403,15 +1408,13 @@ interface PoiLayerProps {
   evacZoneId: string | null;
 }
 
-/** The danger ring the player actually sees on a location: its standing level
- *  plus whatever noise it has heard lately. The colour steps in whole points,
+/** The danger ring the player actually sees on a location: its standing level.
+ *  The colour steps in whole points,
  *  so that's the resolution anything comparing on it needs. */
 function ringDanger(poi: Poi, here: boolean): number {
   const base = here ? poi.currentDanger : poi.lastSeen?.currentDanger ?? poi.currentDanger;
-  // The boost is live, not remembered, and deliberately so: the noise is
-  // *yours*, and you can reason about what it stirred up whether or not you
-  // are standing there to watch it happen.
-  return base + (poi.tempDangerBoost ?? 0);
+  // Noise isn't folded in here: disturbances draw their own rings over the map.
+  return base;
 }
 
 /** Only the fields that reach the screen. Everything else about a location can
@@ -1814,6 +1817,8 @@ function GameMapInner({
   travelAnim,
   evacZoneId,
   noisePulses,
+  disturbances,
+  gameHourNow = 0,
   vitals,
   hazards,
   pathHazardIds = [],
@@ -1973,6 +1978,9 @@ function GameMapInner({
           />
         )}
 
+        {disturbances && disturbances.length > 0 && (
+          <DisturbanceZones zones={disturbances} now={gameHourNow} />
+        )}
         <NoiseWaves pulses={noisePulses} />
         <PlayerMarker
           home={home}

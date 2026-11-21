@@ -1,6 +1,7 @@
 import { haversine } from './overpass';
 import { Rng } from './rng';
 import type { PoiCategory, WeatherKind } from './types';
+import { normalizeDisturbances, pruneDisturbances, type Disturbance } from './disturbance';
 
 export type ActivityKind = 'player' | 'car_alarm' | 'gunfire' | 'shutter' | 'scavengers';
 export type ActivityEventKind = Exclude<ActivityKind, 'player'>;
@@ -43,6 +44,13 @@ export interface ActivityState {
     anchorLng?: number;
   };
   event: ActivityEvent | null;
+  /** One-shot danger zones left by loud things (see disturbance.ts). */
+  zones: Disturbance[];
+  /**
+   * A car alarm is drawing everything to the car: the next search at this
+   * site ignores disturbances. Cleared by that search or when it runs out.
+   */
+  cover?: { locationId: string; until: number };
 }
 
 type ActivityEmission = Pick<ActivitySource, 'lat' | 'lng' | 'radiusMeters' | 'intensity' | 'kind'>;
@@ -54,6 +62,8 @@ interface ActivityExploration {
   now: number;
   weather: WeatherKind;
   category?: PoiCategory | null;
+  /** Already inside a disturbance — a lone scavenger won't break cover here. */
+  disturbed?: boolean;
 }
 
 const MAX_SOURCES = 32;
@@ -75,6 +85,7 @@ export function freshActivity(): ActivityState {
     sources: [], sequence: 0,
     eventClock: { lastAt: null, distanceM: 0, day: 1, count: 0, lastKind: null },
     event: null,
+    zones: [],
   };
 }
 
@@ -110,8 +121,13 @@ export function pruneActivity(state: ActivityState, now: number): ActivityState 
   if (!gameHour(now)) return state;
   const sources = state.sources.filter((source) => source.expiresAt > now);
   const event = state.event && state.event.expiresAt > now ? state.event : null;
-  if (sources.length === state.sources.length && event === state.event) return state;
-  return { ...state, sources, event };
+  const zones = pruneDisturbances(state.zones ?? [], now);
+  const cover = state.cover && state.cover.until > now ? state.cover : undefined;
+  if (sources.length === state.sources.length && event === state.event && zones === state.zones
+    && cover === state.cover) return state;
+  const next: ActivityState = { ...state, sources, event, zones };
+  if (cover) next.cover = cover; else delete next.cover;
+  return next;
 }
 
 export function addActivity(state: ActivityState, emission: ActivityEmission, now: number): ActivityState {
@@ -190,7 +206,7 @@ export function exploreActivity(state: ActivityState, input: ActivityExploration
     // A lone scavenger only risks contact beside plausible cover, away from
     // an already noisy area; a storm makes this quiet exchange impossible.
     return !storm && input.category != null && input.category !== 'park'
-      && input.category !== 'waypoint' && activityAt(live, lat, lng, now) < 0.12;
+      && input.category !== 'waypoint' && !input.disturbed && activityAt(live, lat, lng, now) < 0.12;
   });
   if (eligible.length === 0 || !rng.chance(storm ? 0.35 : 0.55)) return attempted;
   const kind = rng.weighted(eligible.map((kind) => [kind, kind === 'scavengers' ? 1 : 12] as const));
@@ -202,30 +218,11 @@ export function exploreActivity(state: ActivityState, input: ActivityExploration
     id, kind, lat: eventLat, lng: eventLng, createdAt: now,
     expiresAt: now + EVENT_HOURS, resolved: false,
   };
-  const effects: Record<ActivityEventKind, [number, number]> = {
-    car_alarm: [550, 0.9], gunfire: [900, 0.7], shutter: [300, 0.55], scavengers: [250, 0.35],
-  };
-  const [radiusMeters, intensity] = effects[kind];
-  const source: ActivitySource = {
-    id, kind, lat: eventLat, lng: eventLng, radiusMeters, intensity,
-    createdAt: now, expiresAt: now + SOURCE_HOURS,
-  };
+  // The scene's danger is a disturbance zone the caller places, not a source here.
   return {
     ...attempted, event,
     eventClock: { ...eventClock, count: eventClock.count + 1, lastKind: kind },
-    sources: [...live.sources, source].slice(-MAX_SOURCES),
   };
-}
-
-/** Contextual costs and rewards belong to the caller; a response can quiet a scene only once. */
-export function respondActivity(state: ActivityState, now: number): ActivityState {
-  const live = pruneActivity(state, now);
-  if (!gameHour(now) || !live.event || live.event.resolved) return live;
-  const event = { ...live.event, resolved: true };
-  const sources = live.sources.map((source) => source.id === event.id
-    ? { ...source, intensity: source.intensity * 0.45 }
-    : source);
-  return { ...live, event, sources };
 }
 
 function record(value: unknown): Record<string, unknown> | null {
@@ -307,5 +304,13 @@ export function normalizeActivity(value: unknown, now: number): ActivityState {
     const n = ordinal ? Number(ordinal[1]) : 0;
     if (finite(n, 0, MAX_SEQUENCE)) sequence = Math.max(sequence, n);
   }
-  return { sources: sources.slice(-MAX_SOURCES), sequence: Math.max(sequence, sources.length), eventClock, event };
+  const result: ActivityState = {
+    sources: sources.slice(-MAX_SOURCES), sequence: Math.max(sequence, sources.length), eventClock, event,
+    zones: normalizeDisturbances(saved.zones, now),
+  };
+  const cover = record(saved.cover);
+  if (cover && validId(cover.locationId) && finite(cover.until, now, now + 12)) {
+    result.cover = { locationId: cover.locationId as string, until: cover.until as number };
+  }
+  return result;
 }
