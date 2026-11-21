@@ -431,6 +431,14 @@ import {
   HAZARD_HEAT,
   HUNT_ELITE_CHANCE,
   updateUnit,
+  canCutAlarm,
+  gangHostile,
+  shaftOpen,
+  themeSearchMult,
+  THEME_RULES,
+  cutAlarmCheck,
+  ROOM_EVENTS,
+  tripAlarm,
   UNIT_META,
   LOCKPICK_ID,
   PICK_MINUTES,
@@ -892,6 +900,12 @@ interface State {
   hdbUseService: (unitId: string) => void;
   hdbUseShelter: (unitId: string) => void;
   hdbReadNotice: (unitId: string) => void;
+  /** Try to cut a spotted alarm before opening its door. */
+  hdbCutAlarm: (unitId: string) => void;
+  /** Gang landing: hand over the toll so the doors are yours to work. */
+  hdbPayToll: () => void;
+  /** Lift-shaft landing: climb the cable straight down to the void deck, once. */
+  hdbShaftDrop: () => void;
   hdbLeave: () => void;
 
   // --- noise & legacy ---
@@ -2868,6 +2882,17 @@ export const useGame = create<State>((set, get) => {
     };
   };
 
+  /** Bonus on cutting an alarm: a toolbox, plus the same trades mods a lockpick gets. */
+  const hdbCutMod = () => {
+    const s = get();
+    const tool = s.items.some((i) => isCarried(i.container) && i.defId === ROOM_EVENTS.alarm.toolId);
+    return (
+      (tool ? ROOM_EVENTS.alarm.toolBonus : 0) +
+      sumTraitMod(s.character!.traitIds, 'hdbPickMod') +
+      skillPackage().hdbPickMod
+    );
+  };
+
   const hdbBusy = () => {
     const s = get();
     return !s.hdb || !!s.combat || !!s.pendingSearch || !!s.pendingEvent;
@@ -2933,7 +2958,7 @@ export const useGame = create<State>((set, get) => {
         fled: false,
         nonce,
         pieces,
-        totalMinutes: searchMinutes(table),
+        totalMinutes: searchMinutes(table) * themeSearchMult(hdb, level),
         speedFactor: speed,
         spendCharges: false,
         chargeBudget: 1,
@@ -2950,6 +2975,23 @@ export const useGame = create<State>((set, get) => {
     set({ pendingSearch: session });
     pushLog(flavor('searchStart', { name: label }), 'info');
     persist();
+  };
+
+  /** An alarm goes off on `level`: stairwell-wide heat, street noise, a log line. */
+  const soundHdbAlarm = (level: number, unitId: string, label: string, how: 'door' | 'cut') => {
+    const g = get();
+    if (!g.hdb) return;
+    set({ hdb: tripAlarm(g.hdb, level, unitId) });
+    get().emitNoise(g.currentPos.lat, g.currentPos.lng, ROOM_EVENTS.alarm.noise, ROOM_EVENTS.alarm.dangerBoost);
+    pushLog(
+      how === 'door'
+        ? `The door gives and an alarm starts screaming in ${label}. Every landing hears it (+${ROOM_EVENTS.alarm.heat} heat).`
+        : `Wrong wire. The alarm in ${label} goes off in your hands (+${ROOM_EVENTS.alarm.heat} heat).`,
+      'bad',
+      undefined,
+      undefined,
+      hdbUnitScope(g.hdb.locationId, level, unitId, label),
+    );
   };
 
   const resolveHdbDoor = (
@@ -2978,7 +3020,11 @@ export const useGame = create<State>((set, get) => {
     const g = get();
     if (!g.hdb) return;
     const rng = new Rng(g.seed).fork(`breach:${g.hdb.locationId}:${unitId}`);
-    let next = updateUnit(g.hdb, level, unitId, { state: 'breached' });
+    // Whatever rides on the room shows itself once you are through the door.
+    let next = updateUnit(g.hdb, level, unitId, {
+      state: 'breached',
+      ...(unit.event ? { eventKnown: true } : {}),
+    });
     // A forced door carries through the whole stairwell, not just this landing.
     if (heat > 0) next = addDoorHeat(next, heat, level);
     set({ hdb: next });
@@ -2988,6 +3034,7 @@ export const useGame = create<State>((set, get) => {
     } else {
       pushLog(`You slip into ${unit.label} without touching the frame.`, 'info', undefined, undefined, unitLogScope);
     }
+    if (outcome.alarm) soundHdbAlarm(level, unitId, unit.label, 'door');
 
     if (outcome.trapped && rng.chance(0.35)) {
       const dmg = rng.int(4, 12);
@@ -3039,10 +3086,16 @@ export const useGame = create<State>((set, get) => {
       }
       pushLog('Something heavy passes the corridor mouth and moves on.', 'info', undefined, undefined, unitLogScope);
     } else if (rng.chance(outcome.encounterChance)) {
+      // A gang landing that hasn't been paid sends people, not the dead.
+      const gang = gangHostile(hot.floors[level - 1]);
       startZombieCombat(hot.locationId, false, {
         terrainOverride: 'hdb_corridor',
-        danger: floorThreat(hot, level),
-        intro: `Something was waiting inside ${unit.label}.`,
+        ...(gang
+          ? { enemy: makeLoner(rng, 'raider', floorThreat(hot, level)) }
+          : { danger: floorThreat(hot, level) }),
+        intro: gang
+          ? `The crew that holds this landing comes out of ${unit.label}. You didn't pay.`
+          : `Something was waiting inside ${unit.label}.`,
         hdbUnit,
       });
       return;
@@ -7057,6 +7110,92 @@ export const useGame = create<State>((set, get) => {
       const hdb = markHdbUnitCleared(get().hdb!, level, unitId);
       set({ hdb, hdbBlocks: { ...get().hdbBlocks, [hdb.locationId]: hdb } });
       bumpStats({ hdbUnitsCleared: 1 });
+      persist();
+    },
+
+    hdbCutAlarm: (unitId) => {
+      const s = get();
+      if (hdbBusy() || !s.hdb || !s.character) return;
+      const level = s.hdb.currentLevel;
+      const unit = currentFloor(s.hdb).units.find((u) => u.id === unitId);
+      if (!unit || !canCutAlarm(unit)) return;
+      if (advanceTime(ROOM_EVENTS.alarm.cutMinutes / 60)) return;
+      const g = get();
+      if (!g.hdb || !g.character) return;
+      const wits = g.character.attributes.wits;
+      const mod = hdbCutMod();
+      const rng = new Rng(g.seed).fork(`cut:${g.hdb.locationId}:${unitId}`);
+      const check = cutAlarmCheck(rng, wits, mod);
+      const scope = hdbUnitScope(g.hdb.locationId, level, unitId, unit.label);
+      pushLog(
+        `Cut the alarm — ${attrEmoji('wits')} d20 ${check.roll}+${wits}${mod ? `+${mod}` : ''} = ${check.total} vs DC ${check.dc}`,
+        check.success ? 'good' : 'bad',
+        undefined,
+        undefined,
+        scope,
+      );
+      if (check.success) {
+        applyPracticeXp('trades', PRACTICE_XP.hdbPick);
+        const hdb = updateUnit(g.hdb, level, unitId, { eventKnown: true, eventSpent: true });
+        set({ hdb, hdbBlocks: { ...g.hdbBlocks, [hdb.locationId]: hdb } });
+        pushLog(`The standby light on ${unit.label} goes dark. The door is just a door now.`, 'good', undefined, undefined, scope);
+      } else {
+        soundHdbAlarm(level, unitId, unit.label, 'cut');
+        const hdb = get().hdb!;
+        set({ hdbBlocks: { ...get().hdbBlocks, [hdb.locationId]: hdb } });
+      }
+      persist();
+    },
+
+    hdbPayToll: () => {
+      const s = get();
+      if (hdbBusy() || !s.hdb) return;
+      const level = s.hdb.currentLevel;
+      const floor = s.hdb.floors[level - 1];
+      if (!gangHostile(floor)) return;
+      const item = THEME_RULES.tollItems.find((id) => hasBackpackItem(id));
+      const scope = hdbFloorScope(s.hdb.locationId, level, storeyLabel(s.hdb, level));
+      if (!item) {
+        pushLog('They look at your pack and laugh. Beer, a tin of food or some gold — come back with one.', 'info', undefined, undefined, scope);
+        return;
+      }
+      consumeBackpackItem(item);
+      if (advanceTime(5 / 60)) return;
+      const g = get();
+      if (!g.hdb) return;
+      const floors = g.hdb.floors.map((f) => (f.level === level ? { ...f, tollPaid: true } : f));
+      const hdb = { ...g.hdb, floors };
+      set({ hdb, hdbBlocks: { ...g.hdbBlocks, [hdb.locationId]: hdb } });
+      pushLog(
+        `You hand over ${itemDef(item).name.toLowerCase()}. A nod down the corridor: work the doors, don't touch their room.`,
+        'good',
+        undefined,
+        undefined,
+        scope,
+      );
+      persist();
+    },
+
+    hdbShaftDrop: () => {
+      const s = get();
+      if (hdbBusy() || !s.hdb) return;
+      const level = s.hdb.currentLevel;
+      if (level === 1 || !shaftOpen(s.hdb.floors[level - 1])) return;
+      if (advanceTime(THEME_RULES.shaftMinutes / 60)) return;
+      const g = get();
+      if (!g.hdb) return;
+      // Hand over hand down a lift cable is the hardest few minutes of the day.
+      set({ meters: { ...g.meters, energy: Math.max(0, g.meters.energy - THEME_RULES.shaftEnergy) } });
+      const floors = g.hdb.floors.map((f) => (f.level === level ? { ...f, shaftUsed: true } : f));
+      const hdb = moveTo({ ...g.hdb, floors, moveSeq: (g.hdb.moveSeq ?? 0) + 1 }, 1);
+      set({ hdb, hdbSelUnit: null, hdbScout: null, hdbBlocks: { ...g.hdbBlocks, [hdb.locationId]: hdb } });
+      pushLog(
+        'You wrap your hands and go down the lift cable in the dark, past every landing, and drop onto the lift car roof at the bottom. The cable will not take you twice.',
+        'good',
+        undefined,
+        undefined,
+        hdbFloorScope(hdb.locationId, 1, storeyLabel(hdb, 1)),
+      );
       persist();
     },
 

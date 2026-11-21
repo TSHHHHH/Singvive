@@ -1453,6 +1453,26 @@
         "notice": {
           "label": "Notice",
           "blurb": "RC board — read it for a nearby site."
+        },
+        "offerings": {
+          "label": "Offerings",
+          "blurb": "A funeral tent on the void deck. Food on the altar, and mourners who never left."
+        }
+      },
+      "themeAction": {
+        "toll": "Pay the toll · {item}",
+        "tollNeed": "Pay the toll — need beer, a tin of food or jewellery",
+        "tollTip": "Hand over one beer, tin of food or piece of jewellery. Doorway fights here drop to {pct}% of the odds, and they are the dead again, not the gang.",
+        "shaft": "Climb down the lift shaft · {min} min · −{energy} energy",
+        "shaftTip": "Straight down to the void deck: no descent checks, no stair ambush. The cable only takes you once."
+      },
+      "event": {
+        "alarm": {
+          "label": "Alarm",
+          "value": "goes off on entry · +{n} heat",
+          "tip": "An armed intruder alarm. Opening this door any way — forced or picked — sets it off: +{heat} heat here, carried through the stairwell like a forced door, and the street hears it. Cut it first, or leave the room shut.",
+          "cut": "Cut the alarm · {min} min · {pct}%",
+          "cutTip": "Wits check: d20 + Wits vs DC {dc}. A toolbox in the pack adds +{bonus}. Fail and it goes off in your hands."
         }
       },
       "entry": {
@@ -1501,6 +1521,34 @@
         "roof": {
           "label": "Roof deck",
           "blurb": "Water tanks and plant rooms. Fewer doors, better finds."
+        },
+        "blackout": {
+          "label": "Blackout",
+          "blurb": "No light at all. Corridor reads fail more often (−20%), but forced doors carry less (heat ×0.7)."
+        },
+        "quarantine": {
+          "label": "Quarantine",
+          "blurb": "Sealed by the authorities with the sick still inside. Doorway fights ×1.5 and one threat harder; loot +1."
+        },
+        "renovation": {
+          "label": "Renovation",
+          "blurb": "Doors taken off for the works: every room walks in quiet. Little left (loot −1). One store of tools."
+        },
+        "lift_shaft": {
+          "label": "Lift shaft",
+          "blurb": "The lift doors are prised open. Climb the cable straight down to the void deck — no stair checks, once."
+        },
+        "sublet": {
+          "label": "Sublet rooms",
+          "blurb": "Flats cut into six small rented rooms. Thin pickings (loot −1), searches 40% faster."
+        },
+        "gang": {
+          "label": "Gang floor",
+          "blurb": "A gang holds this landing: doorway fights are people, loot +2. Pay a toll and they mostly leave you to it."
+        },
+        "wake": {
+          "label": "Funeral wake",
+          "blurb": "A funeral tent on the void deck. Food on the altar, and mourners who never left."
         }
       },
       "sealKind": {

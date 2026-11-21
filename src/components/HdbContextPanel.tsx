@@ -5,6 +5,13 @@ import type { IconName } from '../icons/keys';
 import { sumTraitMod } from '../game/character';
 import { useGame } from '../game/store';
 import {
+  alarmArmed,
+  canCutAlarm,
+  gangHostile,
+  shaftOpen,
+  THEME_RULES,
+  cutAlarmChance,
+  ROOM_EVENTS,
   breachOutcome,
   currentFloor,
   ENTRY_META,
@@ -74,6 +81,9 @@ export function HdbContextPanel({
   const hdbUseService = useGame((s) => s.hdbUseService);
   const hdbUseShelter = useGame((s) => s.hdbUseShelter);
   const hdbReadNotice = useGame((s) => s.hdbReadNotice);
+  const hdbCutAlarm = useGame((s) => s.hdbCutAlarm);
+  const hdbPayToll = useGame((s) => s.hdbPayToll);
+  const hdbShaftDrop = useGame((s) => s.hdbShaftDrop);
   const hdbLeave = useGame((s) => s.hdbLeave);
   const isPhone = useIsPhoneLayout();
 
@@ -178,6 +188,18 @@ export function HdbContextPanel({
     />
   );
 
+  // A spotted, live alarm gets its own line.
+  const eventRow =
+    sel && sel.eventKnown && alarmArmed(sel) ? (
+      <LedgerRow
+        icon="hdb.alarm"
+        label={t('ui.hdb.event.alarm.label')}
+        tip={t('ui.hdb.event.alarm.tip', { heat: ROOM_EVENTS.alarm.heat })}
+      >
+        <span className="text-hiss">{t('ui.hdb.event.alarm.value', { n: ROOM_EVENTS.alarm.heat })}</span>
+      </LedgerRow>
+    ) : null;
+
   // The room picked this turn plays its corridor read in its own fields.
   const roll =
     sel && scout && scout.unitId === sel.id && scout.locationId === hdb.locationId && scout.level === hdb.currentLevel
@@ -241,6 +263,7 @@ export function HdbContextPanel({
           containerValue
         )}
       </LedgerRow>
+      {eventRow}
     </Ledger>
   ) : null;
 
@@ -261,9 +284,17 @@ export function HdbContextPanel({
       ? 0
       : scaledDoor.heat
     : 0;
+  // A spotted alarm is priced into the door; an unspotted one is the surprise.
+  const alarmHeat = sel && alarmArmed(sel) && sel.eventKnown ? ROOM_EVENTS.alarm.heat : 0;
   const heatBit =
-    doorHeat > 0 ? t('ui.hdb.heatPlus', { n: doorHeat }) : t('ui.hdb.quiet');
-
+    doorHeat + alarmHeat > 0
+      ? t('ui.hdb.heatPlus', { n: doorHeat + alarmHeat })
+      : t('ui.hdb.quiet');
+  const cutMod =
+    (items.some((i) => isCarried(i.container) && i.defId === ROOM_EVENTS.alarm.toolId)
+      ? ROOM_EVENTS.alarm.toolBonus
+      : 0) + sumTraitMod(character.traitIds, 'hdbPickMod');
+  const cutPct = Math.round(cutAlarmChance(character.attributes.wits, cutMod) * 100);
   const doorButtons = sel ? (
     sel.state === 'cleared' ? (
       <Note>{t('ui.hdb.unitClearedBlurb')}</Note>
@@ -298,6 +329,18 @@ export function HdbContextPanel({
       </button>
     ) : (
       <div className="flex flex-col gap-2">
+        {canCutAlarm(sel) && (
+          <button
+            type="button"
+            onClick={() => hdbCutAlarm(sel.id)}
+            disabled={busy}
+            {...tip(t('ui.hdb.event.alarm.cutTip', { dc: ROOM_EVENTS.alarm.cutDc, bonus: ROOM_EVENTS.alarm.toolBonus }))}
+            className={BTN.secondary}
+          >
+            <Icon name="hdb.alarm" />{' '}
+            {t('ui.hdb.event.alarm.cut', { min: ROOM_EVENTS.alarm.cutMinutes, pct: cutPct })}
+          </button>
+        )}
         {sel.state !== 'breached' && (
           <button
             type="button"
@@ -330,6 +373,42 @@ export function HdbContextPanel({
     )
   ) : null;
 
+  // Landing-wide actions a theme brings: the gang toll and the lift-shaft climb.
+  const tollItem = THEME_RULES.tollItems.find((id) =>
+    items.some((i) => isCarried(i.container) && i.defId === id),
+  );
+  const landingActions =
+    gangHostile(floor) || (hdb.currentLevel !== 1 && shaftOpen(floor)) ? (
+      <div className="flex flex-col gap-2">
+        {gangHostile(floor) && (
+          <button
+            type="button"
+            onClick={() => hdbPayToll()}
+            disabled={busy || !tollItem}
+            {...tip(t('ui.hdb.themeAction.tollTip', { pct: Math.round(THEME_RULES.tollEncounterMult * 100) }))}
+            className={BTN.secondary}
+          >
+            <Icon name="hdb.gang" />{' '}
+            {tollItem
+              ? t('ui.hdb.themeAction.toll', { item: msgOr(`item.${tollItem}`, tollItem, undefined, locale) })
+              : t('ui.hdb.themeAction.tollNeed')}
+          </button>
+        )}
+        {hdb.currentLevel !== 1 && shaftOpen(floor) && (
+          <button
+            type="button"
+            onClick={() => hdbShaftDrop()}
+            disabled={busy}
+            {...tip(t('ui.hdb.themeAction.shaftTip'))}
+            className={BTN.secondary}
+          >
+            <Icon name="hdb.shaft" />{' '}
+            {t('ui.hdb.themeAction.shaft', { min: THEME_RULES.shaftMinutes, energy: THEME_RULES.shaftEnergy })}
+          </button>
+        )}
+      </div>
+    ) : null;
+
   // Heat lives on the status dock and the strip; the card only adds what is left to open.
   const levelHint = (
     <div {...tip(landingTip(hdb, t, locale))}>
@@ -358,6 +437,7 @@ export function HdbContextPanel({
           ) : (
             levelHint
           )}
+          {landingActions}
         </PlaceStack>
       </div>
     </div>
