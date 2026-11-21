@@ -86,7 +86,7 @@ import {
 } from '../game/inventory';
 import { haversine } from '../game/overpass';
 import { rollWeather, timeOfDay, weatherEncounterMod } from '../game/weather';
-import { awareness, blipMargin } from '../game/fog';
+import { awareness } from '../game/fog';
 import {
   equipAwarenessMod,
   equipLightPower,
@@ -107,7 +107,7 @@ import {
   NIGHT_SWARM_SENSE_M,
   TREK_MIN_DISTANCE_M,
 } from '../game/wilds';
-import { sightFactor, sightLimitedRange, swarmSenseRange, veilAlpha } from '../game/nightSight';
+import { sightFactor, sightRadius, swarmSenseRange, veilAlpha } from '../game/nightSight';
 import type { LocationState } from '../game/types';
 import type { IconName } from '../icons/keys';
 import { BTN } from '../components/placeCardStyle';
@@ -647,16 +647,13 @@ export function GameScreen() {
     lightPower,
     character ? sumTraitMod(character.traitIds, 'nightSightMod') : 0,
   );
-  const blipRange = sightLimitedRange(
-    travelRange + blipMargin(awarenessValue) * detectMult,
-    sight,
-  );
-  // The map follows the walking pin with its departure range, just like the
-  // buildings and fog. Gameplay/hazard checks keep the actual current range.
-  const mapBlipRange = sightLimitedRange(
-    mapRangeTarget + blipMargin(awarenessValue) * detectMult,
-    sight,
-  );
+  // What the survivor can actually see. One circle for everything known:
+  // it opens the fog, stands the 3D buildings, and bounds the "?" blips and
+  // sensed hazard pockets. Energy never moves it, so the travel ring can reach
+  // past it into ground you cannot see.
+  const sightRadiusM = sightRadius(time, weather, sight, awarenessValue, detectMult);
+  const blipRange = sightRadiusM;
+  const mapBlipRange = sightRadiusM;
   // Quantised so energy ticks don't rewrite the veil's style every hour.
   const nightVeilAlpha = Math.round(veilAlpha(time, sight) * 20) / 20;
 
@@ -1798,7 +1795,8 @@ export function GameScreen() {
                 hereId={currentPositionId}
                 travelRange={mapRangeTarget}
                 blipRange={mapBlipRange}
-                veilRadiusM={blipRange}
+                sightRadius={sightRadiusM}
+                veilRadiusM={sightRadiusM}
                 veilAlpha={nightVeilAlpha}
                 exploredArea={exploredArea}
                 travelAnim={travelAnim}

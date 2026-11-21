@@ -508,10 +508,16 @@ ground for rest; landmarks are not selected as guaranteed indoor spawn shelters.
   The perimeter is affordable and may leave zero energy, with an **arrive exhausted** warning.
   Cards show walking energy and the remaining budget; encounters may cost extra. A valid dry
   route is still required. The ring shrinks as energy is spent and expands as it is recovered.
-  This same range opens the live fog disc and raises 3D buildings; all buildings fall as
-  the range retreats, including previously visited sites. Discovered location markers remain
-  at ground level outside the range. During travel,
-  the disc follows the walking pin at departure range, then eases to the remaining range on arrival.
+  The ring is planning only: it may run past the fog edge into ground you cannot see.
+- The live fog disc is **sight**, not travel: `sightRadius` in `src/game/nightSight.ts`.
+  450 m in clear daylight for awareness 5, ±40 m per awareness point (Perception, gear, traits,
+  head wounds), cut by daytime haze (×0.7), storms (×0.75) and rain (×0.85), and after dark by
+  the same `sightFactor` that drives the night veil (light, cloud, torch, Night Owl), scaled as
+  0.35 + 0.65 × sight so pitch dark keeps about a third of daylight sight (~220 m unlit at night,
+  ~360 m with a torch). The same radius bounds the "?" blips, sensed hazard pockets and the veil.
+  Clamped to 90–700 m. Energy never moves it. Sight opens the fog and raises 3D buildings;
+  buildings fall outside it, including previously visited sites. Discovered location markers
+  remain at ground level outside it. During travel the disc follows the walking pin.
   **Perception/awareness**
   extends how far out you *sense* blips (never their identity).
 - **Discover-on-visit → permanent memory.** Arriving charts a location forever as **last-known intel**
