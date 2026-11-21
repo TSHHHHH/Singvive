@@ -59,6 +59,7 @@ import { useMarkerPresence } from '../map/useMarkerPresence';
 import { useRecognitionHint } from '../map/useRecognitionHint';
 import { REVEAL_MS } from '../map/revealMotion';
 import { RangeMotion, sampleMotion } from '../map/rangeMotion';
+import { followGlide, glidePath, glidePointAt } from '../map/glideFollow';
 import { EMPTY_FC, boxContains, circleFeature, dimHex, fc, lineFeature, padBox, toLngLatRing, type LatLngBox } from '../map/geo';
 import { BuildingEngine, LOD_ZOOM, type Site3d } from '../map/buildings';
 import { hdbScar, STOREY_M, type HdbDungeon } from '../game/hdbDungeon';
@@ -593,15 +594,15 @@ function Buildings3d({
 const BUILDING_SAMPLE_MS = 80;
 const MARKER_SAMPLE_MS = 120;
 
-/** How often the sight disc catches up with the walking pin (ms). */
+/** How often the buildings and markers catch up with the walking pin (ms). */
 const SIGHT_STEP_MS = 100;
 
 /**
- * Where the player can see from: `home`, or during a glide the pin's spot on
- * the same clock as `PlayerMarker`, sampled every SIGHT_STEP_MS. The fog edge
- * and the buildings then move with the walker, so arrival has nothing left to
- * reveal. The same centre drives marker presentation; gameplay position and
- * location recognition still commit through the store on arrival.
+ * Where the player can see from, for the heavier consumers (3D buildings,
+ * markers): `home`, or during a glide the pin's spot sampled every
+ * SIGHT_STEP_MS. The ring and fog edge follow the pin every frame on their
+ * own (followGlide). Gameplay position and location recognition still commit
+ * through the store on arrival.
  */
 function useSightCenter(home: { lat: number; lng: number }, travelAnim: TravelAnim | null) {
   const [sight, setSight] = useState(home);
@@ -610,17 +611,9 @@ function useSightCenter(home: { lat: number; lng: number }, travelAnim: TravelAn
       setSight(home);
       return;
     }
-    const path =
-      travelAnim.path.length >= 2
-        ? travelAnim.path
-        : [
-            { lat: travelAnim.fromLat, lng: travelAnim.fromLng },
-            { lat: travelAnim.toLat, lng: travelAnim.toLng },
-          ];
-    const { startedAt, durationMs } = travelAnim;
+    const path = glidePath(travelAnim);
     const sample = () => {
-      const t = Math.min(1, (Date.now() - startedAt) / durationMs);
-      const at = pointAlongPath(path, travelEase(t));
+      const at = glidePointAt(travelAnim, Date.now(), path);
       setSight((cur) => (cur.lat === at.lat && cur.lng === at.lng ? cur : at));
     };
     sample();
@@ -632,9 +625,10 @@ function useSightCenter(home: { lat: number; lng: number }, travelAnim: TravelAn
 
 /**
  * The fog, 3D buildings and planning ring share the current travel range,
- * centred on the walking pin. The range eases outside React (RangeMotion):
- * the ring and the fog edge redraw every frame, the buildings and markers
- * sample it, and none of it re-renders this tree while it moves.
+ * centred on the walking pin. The range eases outside React (RangeMotion)
+ * and the pin's spot comes from the glide clock (followGlide): the ring and
+ * the fog edge redraw every frame, the buildings and markers sample both, and
+ * none of it re-renders this tree per frame.
  */
 function SightLayers({
   home,
@@ -663,11 +657,11 @@ function SightLayers({
   const sight = useSightCenter(home, travelAnim);
   return (
     <>
-      <FogOverlay exploredArea={exploredArea} currentRevealCenter={sight} revealRadius={reach} />
+      <FogOverlay exploredArea={exploredArea} home={home} travelAnim={travelAnim} revealRadius={reach} />
       {view3d && <Buildings3d home={sight} radius={reach} onEngine={onEngine} />}
       {/* Never hit-tested: the fills cover everywhere you can walk, so a
           clickable ring would swallow every ground pick inside your range. */}
-      <RangeRing home={sight} range={reach} planning={planning} />
+      <RangeRing home={home} travelAnim={travelAnim} range={reach} planning={planning} />
       <SensedPoiLayer {...poiLayer} home={sight} sensed={sensed} />
     </>
   );
@@ -1254,10 +1248,13 @@ const RING_PLANNING = { width: 1.5, opacity: 0.95 };
 
 const RangeRing = memo(function RangeRing({
   home,
+  travelAnim,
   range,
   planning,
 }: {
   home: { lat: number; lng: number };
+  /** the walk in progress; the ring rides the pin frame by frame */
+  travelAnim: TravelAnim | null;
   range: RangeMotion;
   planning: boolean;
 }) {
@@ -1289,14 +1286,27 @@ const RangeRing = memo(function RangeRing({
     map.setPaintProperty('range-line', 'line-width', look.width);
     map.setPaintProperty('range-line', 'line-opacity', look.opacity);
   }, [map, planning]);
-  // One small polygon per animation frame while the range eases; nothing
-  // once it lands.
+  // One small polygon per animation frame while the range eases or the pin
+  // walks (same clock as PlayerMarker, so the ring stays on the walker while
+  // the camera chases); nothing once both land.
   useEffect(() => {
-    const draw = (r: number) =>
-      setData(map, 'range-src', r > 0 ? fc([circleFeature(home.lat, home.lng, r, {}, RING_STEPS)]) : EMPTY_FC);
-    draw(range.value);
-    return range.subscribe(draw);
-  }, [map, home.lat, home.lng, range]);
+    let at = home;
+    const draw = () => {
+      const r = range.value;
+      setData(map, 'range-src', r > 0 ? fc([circleFeature(at.lat, at.lng, r, {}, RING_STEPS)]) : EMPTY_FC);
+    };
+    const offRange = range.subscribe(draw);
+    const offGlide = followGlide(home, travelAnim, (p) => {
+      at = p;
+      draw();
+    });
+    return () => {
+      offGlide();
+      offRange();
+    };
+    // `home` is an object rebuilt per render; its coordinates are the deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, home.lat, home.lng, travelAnim, range]);
   return null;
 });
 
