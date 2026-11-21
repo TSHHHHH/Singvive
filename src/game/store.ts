@@ -280,7 +280,7 @@ import {
   refillHolsteredFirearm,
   refillMagazineFromAmmo,
   resolveCombatReload,
-  gunshotNoiseRadius,
+  canFireHolstered,
   gunFireDamage,
   stampFirearmLoot,
   isGunClubMainHand,
@@ -412,7 +412,6 @@ import {
   currentFloor,
   generateDungeon,
   floorThreat,
-  isHunting,
   levelHunting,
   retreatCheck,
   travelPlan,
@@ -422,8 +421,6 @@ import {
   coolLevels,
   SPILL,
   THEME_META,
-  HDB_LEAK_RADIUS_M,
-  HDB_LEAK_INTENSITY,
   storeysFromRoof,
   storeyLabel,
   moveTo,
@@ -460,9 +457,16 @@ import {
   type NoisePulse,
 } from './noise';
 import {
-  activityPressure, addActivity, BASE_ACTIVITY_PRESSURE, exploreActivity,
-  freshActivity, normalizeActivity, pruneActivity, respondActivity, type ActivityState,
+  activityPressure, BASE_ACTIVITY_PRESSURE, exploreActivity,
+  freshActivity, normalizeActivity, pruneActivity, type ActivityEvent, type ActivityState,
 } from './activity';
+import {
+  addDisturbance, disturbanceAt, disturbanceSpec, quietDisturbance,
+  type Disturbance, type DisturbanceKind,
+} from './disturbance';
+
+let zoneCounter = 0;
+import { buildStreetScene, STREET_ZONE } from './streetScenes';
 import { t } from '../i18n/t';
 import { ANTIBIOTIC_COVER_HOURS, applyAntibiotics, applyCare, isOpenWound, canCareWithItem, careForItem, chooseCareTarget, CARE_MINUTES, recoverySupportMultiplier, type CareAction } from './woundCare';
 import { activeLocale } from './eventCopy';
@@ -909,9 +913,8 @@ interface State {
   hdbLeave: () => void;
 
   // --- noise & legacy ---
-  emitNoise: (lat: number, lng: number, radiusMeters: number, intensity: number) => void;
-  respondToActivity: (eventId?: string) => void;
-  dismissActivity: (eventId?: string) => void;
+  /** Leave a one-shot disturbance zone (defaults to where you stand). */
+  disturb: (kind: DisturbanceKind, at?: { lat: number; lng: number }) => void;
   acceptGhostTrade: () => void;
   declineGhostTrade: () => void;
 
@@ -1311,9 +1314,7 @@ export const useGame = create<State>((set, get) => {
     dest: { lat: number; lng: number },
     rng: Rng,
   ) => {
-    if (load.arrivalNoise > 0) {
-      get().emitNoise(dest.lat, dest.lng, 250, load.arrivalNoise);
-    }
+    void dest;
     if (load.injuryPerKm <= 0) return;
     const km = distM / 1000;
     let sprain = false;
@@ -1449,9 +1450,55 @@ export const useGame = create<State>((set, get) => {
     return null;
   };
 
-  // New spatial noise contributes through pressure, once. Legacy POI boosts
-  // remain readable and decay through the existing location clock.
-  const siteDanger = (loc: LocationState) => effectiveDanger(loc);
+  /** Danger points the strongest disturbance adds over a site right now. */
+  const disturbanceOver = (loc: LocationState): number => {
+    const s = get();
+    const now = totalGameHour(s.day, s.hour);
+    // A car alarm pulling everything toward it buys one quiet search here.
+    const cover = s.activity.cover;
+    if (cover && cover.locationId === loc.id && cover.until > now) return 0;
+    return disturbanceAt(s.activity.zones ?? [], loc.lat, loc.lng, now)?.danger ?? 0;
+  };
+  /**
+   * Leave a one-shot disturbance zone. Night keeps it longer, rain shrinks it
+   * (disturbance.ts). The map gets its burst ring either way; the timeline
+   * hears about it only when a new zone appears, not when a fight refreshes one.
+   */
+  const placeDisturbance = (
+    kind: DisturbanceKind,
+    at?: { lat: number; lng: number },
+    opts: { silent?: boolean } = {},
+  ): Disturbance => {
+    const s = get();
+    const now = totalGameHour(s.day, s.hour);
+    const weather = weatherKindFor(s.seed, s.day);
+    const spec = disturbanceSpec(kind, {
+      night: timeOfDay(s.hour) === 'night',
+      wet: weather === 'rain' || weather === 'thunderstorm',
+    });
+    const pos = at ?? s.currentPos;
+    zoneCounter += 1;
+    const placed = addDisturbance(s.activity.zones ?? [], {
+      id: `zone-${Math.round(now * 60)}-${zoneCounter}`, kind,
+      lat: pos.lat, lng: pos.lng, radiusM: spec.radiusM, danger: spec.danger,
+      createdAt: now, expiresAt: now + spec.hours,
+    }, now);
+    set({
+      activity: { ...s.activity, zones: placed.zones },
+      noisePulses: [...prunePulses(s.noisePulses),
+        emitNoisePulse(pos.lat, pos.lng, spec.radiusM, spec.danger)].slice(-24),
+    });
+    if (placed.created && !opts.silent) {
+      pushLog(t(`ui.disturbance.made.${kind}`, {
+        m: spec.radiusM, h: Math.round(spec.hours * 10) / 10,
+      }, activeLocale()), 'bad');
+    }
+    persist();
+    return placed.zone;
+  };
+
+  // Noise reaches a site only through its disturbance bonus, and only once.
+  const siteDanger = (loc: LocationState) => effectiveDanger(loc, disturbanceOver(loc));
 
   const endRun = (cause: Exclude<DeathCause, null>) => {
     cancelPersist();
@@ -2715,6 +2762,7 @@ export const useGame = create<State>((set, get) => {
       standing: s.factionStanding,
       pressure: pressureFn()(loc.lat, loc.lng),
       lastKind: clock.lastKind,
+      disturbance: disturbanceOver(loc),
     });
 
     if (event) {
@@ -2766,6 +2814,11 @@ export const useGame = create<State>((set, get) => {
     const encRng = new Rng(s.seed).fork(`encroll:${loc.id}:${s.day}:${loc.remainingSearches}`);
     const encChance = searchChanceAt(loc);
     const ambushed = encRng.chance(encChance);
+    if (s.activity.cover?.locationId === locationId) {
+      const { cover: _spent, ...rest } = get().activity;
+      void _spent;
+      set({ activity: rest });
+    }
     {
       // The site remembers its last fight (see encounterOdds.ts).
       const locs = get().locations;
@@ -3029,8 +3082,8 @@ export const useGame = create<State>((set, get) => {
     if (heat > 0) next = addDoorHeat(next, heat, level);
     set({ hdb: next });
     if (noise > 0) {
-      get().emitNoise(g.currentPos.lat, g.currentPos.lng, noise, outcome.dangerBoost);
       pushLog(`You force ${unit.label}. The sound carries.`, 'bad', undefined, undefined, unitLogScope);
+      placeDisturbance(entry === 'barricaded' ? 'barricade' : 'door');
     } else {
       pushLog(`You slip into ${unit.label} without touching the frame.`, 'info', undefined, undefined, unitLogScope);
     }
@@ -3705,29 +3758,59 @@ export const useGame = create<State>((set, get) => {
     return true;
   };
 
-  // Fires when a walking glide finishes: commit the new position and run the
-  // usual arrival logic (faction reveal, pre-scavenge event, search).
-  const noticeActivity = (from: { lat: number; lng: number }) => {
+  // Walking somewhere can stumble into a street scene. The roll's rate limits
+  // live in activity.ts; the scene itself is staged once arrival has settled.
+  const noticeActivity = (from: { lat: number; lng: number }): ActivityEvent | null => {
     const s = get();
+    const loc = s.currentPositionId ? s.locations[s.currentPositionId] : null;
+    if (!loc) return null;
     const now = totalGameHour(s.day, s.hour);
     const activity = exploreActivity(s.activity, {
       seed: s.seed, ...s.currentPos, now,
       distanceM: haversine(from.lat, from.lng, s.currentPos.lat, s.currentPos.lng),
       weather: weatherKindFor(s.seed, s.day),
-      category: s.currentPositionId ? s.locations[s.currentPositionId]?.category : null,
+      category: loc.category,
+      disturbed: disturbanceOver(loc) > 0,
     });
-    if (activity === s.activity) return;
+    if (activity === s.activity) return null;
     set({ activity });
-    if (activity.event && activity.event.id !== s.activity.event?.id) {
-      const event = activity.event;
-      const source = activity.sources.find((p) => p.id === event.id);
-      // The arrival scene is observed locally; it never reveals an unknown POI.
-      if (source) set({ noisePulses: [...prunePulses(s.noisePulses),
-        emitNoisePulse(source.lat, source.lng, source.radiusMeters, source.intensity)].slice(-24) });
-      pushLog(t(`ui.surroundings.events.${event.kind}.description`, undefined, activeLocale()), 'info',
-        undefined, undefined, undefined, { ...event });
+    const event = activity.event;
+    return event && event.id !== s.activity.event?.id ? event : null;
+  };
+
+  /**
+   * Put a street scene in front of the player: its disturbance goes down first
+   * (the alarm is already ringing), then the same card and dice as a doorway.
+   */
+  const stageStreetScene = (scene: ActivityEvent, locId: string) => {
+    const s = get();
+    const loc = s.locations[locId];
+    if (!loc || s.combat || s.pendingEvent || s.pendingCrossing || s.pendingSearch || s.hdb || s.tunnel) return;
+    const rng = new Rng(s.seed).fork(`street:${scene.id}`);
+    const zoneKind = STREET_ZONE[scene.kind];
+    let zoneId: string | null = null;
+    if (zoneKind) {
+      let at = { lat: loc.lat, lng: loc.lng };
+      if (zoneKind === 'gunfire') {
+        // Somebody else's fight, a few streets over — not at your feet.
+        const bearing = rng.next() * Math.PI * 2;
+        const dist = 250 + rng.next() * 150;
+        at = {
+          lat: loc.lat + (dist * Math.cos(bearing)) / 111_320,
+          lng: loc.lng + (dist * Math.sin(bearing)) / (111_320 * Math.cos((loc.lat * Math.PI) / 180)),
+        };
+      }
+      zoneId = placeDisturbance(zoneKind, at, { silent: true }).id;
     }
-    persist();
+    const event = buildStreetScene(scene.kind, rng.fork('scene'), loc, {
+      day: s.day,
+      time: timeOfDay(s.hour),
+      weather: weatherKindFor(s.seed, s.day),
+      standing: s.factionStanding,
+      locale: activeLocale(),
+    }, zoneId);
+    pushLog(event.tell, 'bad', undefined, undefined, siteLogScope(locId));
+    set({ pendingEvent: { locationId: locId, event }, _eventRng: rng.fork('resolve') });
   };
 
   const arriveAt = (locId: string) => {
@@ -3760,7 +3843,7 @@ export const useGame = create<State>((set, get) => {
     );
     discoverLocation(loc.id);
     recognizeSurroundings();
-    noticeActivity({ lat: anim.fromLat, lng: anim.fromLng });
+    const scene = noticeActivity({ lat: anim.fromLat, lng: anim.fromLng });
 
     // Pull in the bake cell under this site so the frontier past it fills with
     // undiscovered "?" as you push toward distant objectives.
@@ -3826,6 +3909,7 @@ export const useGame = create<State>((set, get) => {
         'info',
       );
     }
+    if (scene) stageStreetScene(scene, loc.id);
     persist();
   };
 
@@ -3858,7 +3942,6 @@ export const useGame = create<State>((set, get) => {
     }));
     pushLog(flavor('trekArrive'), 'info');
     recognizeSurroundings();
-    noticeActivity({ lat: anim.fromLat, lng: anim.fromLng });
 
     // Open ground is how you leave the starting bubble — materialise whatever
     // the bake has under this landing so the walk toward evac stays a city.
@@ -5695,9 +5778,48 @@ export const useGame = create<State>((set, get) => {
             pushLog(e.line, 'bad');
             return true;
           }
-          case 'noise': {
+          case 'disturb':
+            placeDisturbance(e.kind);
+            return true;
+          case 'quiet': {
             const cur = get();
-            get().emitNoise(cur.currentPos.lat, cur.currentPos.lng, e.radius, e.intensity);
+            const zones = quietDisturbance(cur.activity.zones ?? [], e.zoneId);
+            if (zones !== cur.activity.zones) {
+              set({ activity: { ...cur.activity, zones } });
+              pushLog(t('ui.disturbance.quieted', undefined, activeLocale()), 'good');
+            }
+            return true;
+          }
+          case 'cover': {
+            const cur = get();
+            set({ activity: { ...cur.activity,
+              cover: { locationId: pe.locationId, until: totalGameHour(cur.day, cur.hour) + 1 } } });
+            return true;
+          }
+          case 'fireShot': {
+            const cur = get();
+            const gun = cur.equipment.firearm;
+            if (gun && canFireHolstered(cur.equipment)) {
+              set({ equipment: { ...cur.equipment,
+                firearm: { ...gun, loadedRounds: Math.max(0, (gun.loadedRounds ?? 0) - 1) } } });
+              placeDisturbance(gun.defId === 'shotgun' ? 'shotgun' : 'gunshot');
+            }
+            return true;
+          }
+          case 'scout': {
+            const cur = get();
+            const here = cur.locations[pe.locationId] ?? { lat: cur.currentPos.lat, lng: cur.currentPos.lng };
+            const lead = Object.values(cur.locations).filter((l) => !l.discovered
+              && haversine(here.lat, here.lng, l.lat, l.lng) <= 1000)
+              .sort((a, b) => haversine(here.lat, here.lng, a.lat, a.lng) - haversine(here.lat, here.lng, b.lat, b.lng)
+                || a.id.localeCompare(b.id))[0];
+            if (lead) {
+              discoverLocation(lead.id);
+              pushLog(t('ui.surroundings.results.intel', { name: lead.name }, activeLocale()), 'good');
+            } else {
+              set({ items: addToCarry(get().items, 'scrap_metal', 1).items });
+              pushLog(t('ui.surroundings.results.thanks', undefined, activeLocale()), 'good');
+            }
             return true;
           }
           case 'gain': {
@@ -7220,89 +7342,14 @@ export const useGame = create<State>((set, get) => {
         hdbBlocks: g.hdb ? { ...g.hdbBlocks, [blockId]: g.hdb } : g.hdbBlocks,
       });
       pushLog('You step back out onto the void deck.', 'info', undefined, undefined, leaveScope);
-      // A block that's hunting doesn't settle when you leave — the street hears it.
-      const out = g.hdb;
-      const site = s.locations[blockId];
-      if (out && site && isHunting(out)) {
-        get().emitNoise(site.lat, site.lng, HDB_LEAK_RADIUS_M, HDB_LEAK_INTENSITY);
-        pushLog('Behind you the stairwells are still banging. The street turns to look.', 'bad', undefined, undefined, leaveScope);
-      }
       persist();
     },
 
     // ------------------------------------------------------ noise & legacy --
 
-    emitNoise: (lat, lng, radiusMeters, intensity) => {
-      const s = get();
-      const pulse = emitNoisePulse(lat, lng, radiusMeters, intensity);
-      set({
-        noisePulses: [...prunePulses(s.noisePulses), pulse].slice(-24),
-        activity: addActivity(s.activity, { lat, lng, radiusMeters,
-          intensity: Math.min(1, intensity * 0.25), kind: 'player' }, totalGameHour(s.day, s.hour)),
-      });
-      persist();
-    },
-
-    respondToActivity: (eventId) => {
-      const s = get();
-      const event = s.activity.event;
-      const now = totalGameHour(s.day, s.hour);
-      if (s.phase !== 'game' || !s.character || !event || (eventId !== undefined && event.id !== eventId) || event.resolved || event.expiresAt <= now
-        || s.combat || s.pendingEvent || s.pendingCrossing || s.pendingSearch || s.travelAnim || s.hdb || s.tunnel
-        || haversine(s.currentPos.lat, s.currentPos.lng, event.lat, event.lng) > 120) return;
-      const energyCost = event.kind === 'gunfire' ? 5 : event.kind === 'scavengers' ? 0 : 4;
-      const hours = event.kind === 'gunfire' ? 1 / 3 : event.kind === 'scavengers' ? 1 / 6 : 1 / 4;
-      const water = s.items.find((i) => isCarried(i.container) && i.stack > 0
-        && (i.defId === 'water_bottle' || i.defId === 'newater') && !i.contaminationRisk);
-      if (s.meters.energy < energyCost || (event.kind === 'scavengers' && !water)) {
-        pushLog(t('ui.surroundings.needSupplies', undefined, activeLocale()), 'info');
-        return;
-      }
-      // Commit the one-shot choice before charging time; a late death cannot
-      // grant a free response or allow the reward to be claimed again.
-      set({ activity: respondActivity(s.activity, now),
-        log: s.log.map((entry) => entry.activityEvent?.id === event.id
-          ? { ...entry, activityEvent: { ...entry.activityEvent, resolved: true, resolution: 'responded' as const } } : entry),
-        meters: { ...s.meters, energy: s.meters.energy - energyCost },
-        ...(event.kind === 'scavengers' && water ? { items: consumeOne(s.items, water.uid) } : {}),
-      });
-      if (advanceTime(hours)) return;
-      let reward = '';
-      if (event.kind === 'gunfire') {
-        const haul = addToCarry(get().items, 'scrap_metal', 2);
-        set({ items: haul.items });
-        get().emitNoise(event.lat, event.lng, 160, 0.4);
-        reward = t('ui.surroundings.results.salvage', undefined, activeLocale());
-      } else if (event.kind === 'scavengers') {
-        const intel = Object.values(get().locations).filter((l) => !l.discovered
-          && haversine(event.lat, event.lng, l.lat, l.lng) <= 1000)
-          .sort((a, b) => haversine(event.lat, event.lng, a.lat, a.lng) - haversine(event.lat, event.lng, b.lat, b.lng)
-            || a.id.localeCompare(b.id))[0];
-        if (intel) {
-          discoverLocation(intel.id);
-          reward = t('ui.surroundings.results.intel', { name: intel.name }, activeLocale());
-        } else {
-          set({ items: addToCarry(get().items, 'scrap_metal', 1).items });
-          reward = t('ui.surroundings.results.thanks', undefined, activeLocale());
-        }
-      } else reward = t('ui.surroundings.results.quieted', undefined, activeLocale());
-      set((state) => ({ log: state.log.map((entry) => entry.activityEvent?.id === event.id
-        ? { ...entry, activityEvent: { ...entry.activityEvent, outcome: reward } } : entry) }));
-      // The card owns its outcome; avoid repeating it as another timeline row.
-      if (!get().log.some((entry) => entry.activityEvent?.id === event.id)) pushLog(reward, 'good');
-      persist();
-    },
-
-    dismissActivity: (eventId) => {
-      const s = get();
-      const event = s.activity.event;
-      if (s.phase !== 'game' || !event || event.resolved || (eventId !== undefined && event.id !== eventId)
-        || event.expiresAt <= totalGameHour(s.day, s.hour)) return;
-      set({ activity: { ...s.activity, event: { ...event, resolved: true } },
-        log: s.log.map((entry) => entry.activityEvent?.id === event.id
-          ? { ...entry, activityEvent: { ...entry.activityEvent, resolved: true, resolution: 'dismissed' as const } } : entry),
-      });
-      persist();
+    disturb: (kind, at) => {
+      if (get().phase !== 'game') return;
+      placeDisturbance(kind, at);
     },
 
     acceptGhostTrade: () => {
@@ -7575,13 +7622,8 @@ export const useGame = create<State>((set, get) => {
             if (res.hit) applyPracticeXp('shooting', PRACTICE_XP.firearmShot);
           }
           if (res.applyGunshotDanger && res.gunshotIntensity > 0) {
-            const g = get();
-            get().emitNoise(
-              g.currentPos.lat,
-              g.currentPos.lng,
-              gunshotNoiseRadius(res.gunshotIntensity),
-              res.gunshotIntensity,
-            );
+            // Every gun is loud. One fight is one zone: later shots refresh it.
+            placeDisturbance(res.gunshotIntensity > 1 ? 'shotgun' : 'gunshot');
           }
           if (res.timeCostHours > 0) advanceTime(res.timeCostHours);
           return;
@@ -8229,12 +8271,6 @@ export const useGame = create<State>((set, get) => {
       }
       // Keep new entries above anything restored, or React keys collide.
       logCounter = (run.log ?? []).reduce((m, e) => Math.max(m, e.id), logCounter);
-      // Saves from the first noise UI have a live scene but only a plain log line.
-      const activityEvent = get().activity.event;
-      if (activityEvent && !get().log.some((entry) => entry.activityEvent?.id === activityEvent.id)) {
-        pushLog(t(`ui.surroundings.events.${activityEvent.kind}.description`, undefined, activeLocale()), 'info',
-          undefined, undefined, undefined, { ...activityEvent });
-      }
       pushLog('You pick up where you left off.', 'info');
 
       // Synchronize old/overdue objectives before the player spends another turn.

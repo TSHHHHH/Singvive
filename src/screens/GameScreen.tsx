@@ -312,6 +312,7 @@ export function GameScreen() {
     hdb,
     ghostOffer,
     noisePulses,
+    disturbances,
     activity,
     evacZoneId,
     evacDeadline,
@@ -344,6 +345,7 @@ export function GameScreen() {
       hdb: s.hdb,
       ghostOffer: s.ghostOffer,
       noisePulses: s.noisePulses,
+      disturbances: s.activity.zones,
       activity: s.activity,
       evacZoneId: s.evacZoneId,
       evacDeadline: s.evacDeadline,
@@ -1802,6 +1804,8 @@ export function GameScreen() {
                 travelAnim={travelAnim}
                 evacZoneId={evacZoneId}
                 noisePulses={noisePulses}
+                disturbances={disturbances}
+                gameHourNow={(day - 1) * 24 + hour}
                 vitals={mapVitals}
                 hazards={sensedHazards}
                 pathHazardIds={

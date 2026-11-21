@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { loadRun } from './storage';
 import { writeSavedRun } from './persistRun';
-import { activityAt, exploreActivity, freshActivity, respondActivity, type ActivityState } from './activity';
+import { exploreActivity, freshActivity, type ActivityState } from './activity';
 
 const store = new Map<string, string>();
 const key = 'singvive.run.v7';
@@ -82,19 +82,16 @@ describe('activity persistence through v7 loadRun', () => {
     expect(again.activity?.eventClock).toEqual(activity.eventClock);
   });
 
-  it('keeps a responded choice spent after reload while preserving residual attention', () => {
-    const activity = explorationState(true);
-    const responded = respondActivity(activity, 273);
-    write({ activity: responded });
+  it('round-trips live disturbance zones and drops them once they end', () => {
+    const zone = { id: 'zone-1', kind: 'car_alarm', ...position, radiusM: 450, danger: 2.5,
+      createdAt: 272, expiresAt: 275 };
+    write({ activity: { ...freshActivity(), zones: [zone] } });
     const first = loadRun()!;
-    expect(first.activity?.event?.resolved).toBe(true);
-    expect(respondActivity(first.activity!, 273)).toEqual(first.activity);
-    const event = activity.event!;
-    expect(activityAt(first.activity!, event.lat, event.lng, 273)).toBeGreaterThan(0);
-    expect(activityAt(first.activity!, event.lat, event.lng, 273))
-      .toBeLessThan(activityAt(activity, event.lat, event.lng, 273));
+    expect(first.activity?.zones).toEqual([zone]);
     expect(writeSavedRun(first)).toBe('ok');
-    expect(loadRun()!.activity).toEqual(first.activity);
+    expect(loadRun()!.activity?.zones).toEqual([zone]);
+    write({ activity: { ...freshActivity(), zones: [zone] }, hour: 13 });
+    expect(loadRun()!.activity?.zones).toEqual([]);
   });
 
   it('remembers failed exploration attempts so loading cannot reroll an empty arrival', () => {
@@ -108,19 +105,6 @@ describe('activity persistence through v7 loadRun', () => {
     expect(attemptedAgain).toEqual(activity);
     expect(attemptedAgain.event).toBeNull();
     expect(attemptedAgain.eventClock.lastAt).toBe(273);
-  });
-
-  it('drops expired opportunities while retaining their still-audible noise', () => {
-    const activity = explorationState(true);
-    write({ activity, hour: 11 });
-    const loaded = loadRun()!;
-    expect(loaded.activity?.event).toBeNull();
-    expect(loaded.activity?.sources).toHaveLength(1);
-    const source = loaded.activity!.sources[0];
-    expect(activityAt(loaded.activity!, source.lat, source.lng, 275)).toBeGreaterThan(0);
-    expect(loaded.activity?.eventClock.lastAt).toBe(273);
-    write({ activity, hour: 16 });
-    expect(loadRun()!.activity?.sources).toEqual([]);
   });
 
   it('repairs malformed activity data without discarding the rest of the run', () => {

@@ -34,6 +34,7 @@ import { LocalMapAction } from './LocalMapAction';
 import { FactionDesk, FactionStrip } from './FactionDesk';
 import { BTN, tint } from './placeCardStyle';
 import { SEARCH_RISK_COLOR, searchRiskLevel, type SearchRiskLevel } from '../game/encounterOdds';
+import { disturbanceAt, hoursLeft } from '../game/disturbance';
 
 const SEARCH_RISK_KEY = {
   low: 'ui.location.searchRiskLow',
@@ -559,6 +560,13 @@ function KnownCard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [here, liveLoc, hour, day, activity, character, skills],
   );
+  // Why the odds are up: the disturbance this site sits in, if any.
+  const disturbedBy = useMemo(() => {
+    if (!here || !liveLoc) return null;
+    const now = (day - 1) * 24 + hour;
+    if (activity.cover?.locationId === liveLoc.id && activity.cover.until > now) return null;
+    return disturbanceAt(activity.zones ?? [], liveLoc.lat, liveLoc.lng, now);
+  }, [here, liveLoc, activity, day, hour]);
   const searchRiskRow =
     searchRisk === null || searchingHere ? null : (
       <LedgerRow
@@ -569,6 +577,14 @@ function KnownCard({
         <span style={{ color: SEARCH_RISK_COLOR[searchRiskLevel(searchRisk)] }}>
           {t(SEARCH_RISK_KEY[searchRiskLevel(searchRisk)])}
         </span>
+        {disturbedBy && (
+          <span className="ml-1.5 whitespace-nowrap text-hiss" data-disturbed-by={disturbedBy.kind}>
+            · {t('ui.disturbance.reason', {
+              what: t(`ui.disturbance.kind.${disturbedBy.kind}`),
+              h: hoursLeft(disturbedBy, (day - 1) * 24 + hour),
+            })}
+          </span>
+        )}
       </LedgerRow>
     );
 

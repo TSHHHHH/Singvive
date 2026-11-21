@@ -118,7 +118,7 @@ describe('doorway events read the situation', () => {
 
   it('counts recent noise at the door', () => {
     const quiet = tally(loc('s', 'supermarket', { currentDanger: 2 }), day);
-    const loud = tally(loc('s', 'supermarket', { currentDanger: 2, tempDangerBoost: 2 }), day);
+    const loud = tally(loc('s', 'supermarket', { currentDanger: 2 }), { ...day, disturbance: 2 });
     expect(loud.rate).toBeGreaterThan(quiet.rate + 0.1);
   });
 
@@ -140,9 +140,10 @@ describe('doorway events read the situation', () => {
   });
 
   it('threat stays in 0..1 and weights stay positive', () => {
-    const t = doorwayThreat(loc('s', 'police', { currentDanger: 9, tempDangerBoost: 9 }), {
+    const t = doorwayThreat(loc('s', 'police', { currentDanger: 9 }), {
       ...night,
       pressure: 3,
+      disturbance: 9,
     });
     expect(t).toBeLessThanOrEqual(1);
     expect(threatWeight('desperate_survivor', 1)).toBeGreaterThan(0);
@@ -205,7 +206,7 @@ describe('months after the outbreak', () => {
     const rigged = scene('rigged_door', 'police');
     const triggered = rigged.choices.find((choice) => choice.id === 'disarm')!.onFailure!;
     expect(triggered.some((effect) => effect.t === 'wound')).toBe(true);
-    expect(triggered.some((effect) => effect.t === 'noise')).toBe(true);
+    expect(triggered).toContainEqual({ t: 'disturb', kind: 'botched' });
     expect(triggered.at(-1)?.t).toBe('zombies');
     expect(scene('distress_beacon', 'police').choices.find((choice) => choice.id === 'rush')!.onSuccess.at(-1)?.t).toBe('zombies');
   });
@@ -213,7 +214,7 @@ describe('months after the outbreak', () => {
   it('excludes friendly human contact from very dangerous, noisy or overrun sites', () => {
     for (const [site, ctx] of [
       [loc('hot', 'convenience', { currentDanger: 5 }), calmContext],
-      [loc('loud', 'school', { currentDanger: 2, tempDangerBoost: 3 }), calmContext],
+      [loc('loud', 'school', { currentDanger: 2 }), { ...calmContext, disturbance: 3 }],
       [loc('overrun', 'landmark', { currentDanger: 1 }), { ...calmContext, pressure: 1 }],
     ] as const) {
       for (let n = 0; n < 1800; n++) {

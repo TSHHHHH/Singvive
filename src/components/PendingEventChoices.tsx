@@ -7,6 +7,49 @@ import type { IconName } from '../icons/keys';
 import { formatClock } from '../game/survival';
 import { useClockFormat } from '../game/settings';
 import { useT } from '../i18n';
+import { canFireHolstered } from '../game/firearms';
+import { choiceNoise, type ChoiceNoise } from '../game/choiceNoise';
+import { disturbanceSpec } from '../game/disturbance';
+import { useMemo } from 'react';
+import { rollWeather, timeOfDay } from '../game/weather';
+import { Rng } from '../game/rng';
+
+/** A small speaker, in the same stroke as the HUD's nearby-noise mark. */
+export function NoiseGlyph({ size = 12, loud = true }: { size?: number; loud?: boolean }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+      strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0">
+      <path d="M4 9h3l5-4v14l-5-4H4z" />
+      {loud ? <><path d="M16 8.5a5 5 0 0 1 0 7" /><path d="M19 5.5a9 9 0 0 1 0 13" /></> : <path d="M16 10l4 4m0-4l-4 4" />}
+    </svg>
+  );
+}
+
+/** One line under a choice saying what it does to the street. */
+function NoiseTag({ noise }: { noise: ChoiceNoise }) {
+  const { t } = useT();
+  const hour = useGame((s) => s.hour);
+  const seed = useGame((s) => s.seed);
+  const day = useGame((s) => s.day);
+  const wet = useMemo(() => {
+    const w = rollWeather(new Rng(seed), day);
+    return w === 'rain' || w === 'thunderstorm';
+  }, [seed, day]);
+  if (noise.tag === 'quiet') {
+    return (
+      <span className="mt-0.5 flex items-center gap-1 text-micro text-astral">
+        <NoiseGlyph loud={false} />{t('ui.disturbance.tagQuiet')}
+      </span>
+    );
+  }
+  const spec = disturbanceSpec(noise.kind, { night: timeOfDay(hour) === 'night', wet });
+  const vars = { m: spec.radiusM, h: Math.round(spec.hours * 10) / 10 };
+  return (
+    <span className={`mt-0.5 flex items-center gap-1 text-micro ${noise.tag === 'loud' ? 'text-hiss' : 'text-white/45'}`}>
+      <NoiseGlyph />{t(noise.tag === 'loud' ? 'ui.disturbance.tagLoud' : 'ui.disturbance.tagRisk', vars)}
+    </span>
+  );
+}
 
 /** One glyph per kind of choice, so a decision reads before it's read. */
 export const CHOICE_ICON: Record<ChoiceKind, IconName> = {
@@ -28,6 +71,8 @@ export function PendingEventChoices({
   className?: string;
 }) {
   const items = useGame((s) => s.items);
+  const loadedGun = useGame((s) => canFireHolstered(s.equipment));
+  const gunKind = useGame((s) => (s.equipment.firearm?.defId === 'shotgun' ? 'shotgun' : 'gunshot'));
   const resolveEvent = useGame((s) => s.resolveEvent);
   const { t } = useT();
 
@@ -38,7 +83,9 @@ export function PendingEventChoices({
     <div className={`flex flex-col gap-1 ${className}`}>
       {event.choices.map((c) => {
         const affordable =
-          c.kind !== 'pay' || !!c.itemIds?.some((id) => hasItem(id));
+          (c.kind !== 'pay' || !!c.itemIds?.some((id) => hasItem(id)))
+          && (c.needs !== 'loadedGun' || loadedGun);
+        const noise = choiceNoise(c, gunKind);
         const tone =
           c.kind === 'fight'
             ? 'border-hiss/50 text-hiss hover:bg-hiss/10'
@@ -63,6 +110,10 @@ export function PendingEventChoices({
               {c.kind === 'pay' && !affordable && (
                 <span className="ml-1 text-hiss">{t('ui.pending.youHaveNone')}</span>
               )}
+              {c.needs === 'loadedGun' && !loadedGun && (
+                <span className="ml-1 text-hiss">{t('ui.disturbance.needsGun')}</span>
+              )}
+              {noise && <NoiseTag noise={noise} />}
             </span>
             {check && (
               <span className="inline-flex shrink-0 items-center gap-1 tabular-nums opacity-60">
@@ -90,7 +141,7 @@ export function PendingEventCardBody({ event }: { event: GameEvent }) {
   return (
     <div className="space-y-2">
       <div className="text-label uppercase text-signal/70">
-        {t('ui.pending.someoneWantsWord')}
+        {t(event.kind.startsWith('street_') ? 'ui.pending.streetScene' : 'ui.pending.someoneWantsWord')}
       </div>
       <p className="text-body text-white/70">
         <span className="mr-1.5 text-micro tabular-nums text-white/35">

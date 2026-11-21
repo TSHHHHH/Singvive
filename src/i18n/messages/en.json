@@ -1801,7 +1801,8 @@
     "pending": {
       "someoneWantsWord": "Someone wants a word",
       "youHaveNone": "(you have none)",
-      "dc": "DC {n}"
+      "dc": "DC {n}",
+      "streetScene": "Something on the street"
     },
     "sleep": {
       "safe": "Safe",
@@ -2699,6 +2700,39 @@
       "contacted": "The crew confirms your report. There is no cargo fee; an empty backpack is welcome. Choose Board before the published countdown ends.",
       "boarded": "You board the evacuation flight and leave Singapore safely.",
       "searchAfterEvent": "The situation at {name} is resolved. You can continue searching."
+    },
+    "disturbance": {
+      "made": {
+        "gunshot": "Your shots crack between the blocks. Within {m} m everything is awake for {h} h.",
+        "shotgun": "The shotgun booms down the street. Within {m} m everything is awake for {h} h.",
+        "car_alarm": "A car alarm is screaming. Within {m} m everything is awake for {h} h.",
+        "gunfire": "Gunfire a few streets over. Within {m} m of it everything is awake for {h} h.",
+        "shutter": "A loose shutter keeps banging. Within {m} m everything is awake for {h} h.",
+        "loud": "That carried. Within {m} m everything is awake for {h} h.",
+        "botched": "Too loud. Within {m} m something heard you; it stays awake for {h} h.",
+        "door": "The forced door rings down the stairwell and out onto the street: {m} m, {h} h.",
+        "barricade": "The barricade comes down with a crash the street hears: {m} m, {h} h."
+      },
+      "quieted": "The noise stops. The street can settle.",
+      "kind": {
+        "gunshot": "Your gunfire",
+        "shotgun": "Your shotgun",
+        "car_alarm": "Car alarm",
+        "gunfire": "Gunfire",
+        "shutter": "Banging shutter",
+        "loud": "Your racket",
+        "botched": "Your racket",
+        "door": "Forced door",
+        "barricade": "Broken barricade"
+      },
+      "tagLoud": "Loud: stirs up {m} m for {h} h",
+      "tagRisk": "If it fails: stirs up {m} m for {h} h",
+      "tagQuiet": "Success ends the disturbance",
+      "needsGun": "(needs a loaded gun)",
+      "badge": "{what} nearby · {h} h left",
+      "badgeQuiet": "No disturbance here",
+      "badgeEffect": "Searches and doorways here count {n} danger higher until it ends.",
+      "reason": "{what} · {h} h"
     }
   },
   "settings": {
@@ -2821,7 +2855,11 @@
     "buildingShadows": {
       "label": "3D building shadows",
       "description": "Buildings cast shadows across your travel range. High gives shadows sharper edges and uses more graphics memory.",
-      "options": { "off": "Off", "on": "Standard (2K)", "high": "High (4K)" }
+      "options": {
+        "off": "Off",
+        "on": "Standard (2K)",
+        "high": "High (4K)"
+      }
     },
     "mapKeys": {
       "label": "Keyboard camera",
@@ -4289,7 +4327,8 @@
         "pry": "Pry the room door open",
         "pick": "Pick the room lock",
         "find": "Look for another way into the room",
-        "leave": "Leave this room — search elsewhere inside"
+        "leave": "Leave this room — search elsewhere inside",
+        "smash": "Smash it open — sure to work, loud"
       },
       "lines": {
         "pryFailZombies": "The lock holds. The metal shriek brings infected out of the building.",
@@ -4299,7 +4338,8 @@
         "findFailTime": "You spend time checking the adjoining corridor without finding a way into the room.",
         "findFailEnergy": "Moving the old furniture leaves your legs heavy.",
         "findFailDeny": "You leave the locked room alone and return to the accessible rooms.",
-        "leave": "You leave this one room locked and turn to the rest of the site."
+        "leave": "You leave this one room locked and turn to the rest of the site.",
+        "smash": "Three swings and the hasp tears out of the frame. The whole building hears it."
       },
       "tell": [
         "Inside the site, one storeroom door still has its padlock.",
@@ -4355,14 +4395,16 @@
         "race": "Reach the far shelves before they withdraw",
         "split": "Offer to keep to separate rooms",
         "watch": "Wait out of sight — read the site",
-        "confront": "Threaten them — risk a fight"
+        "confront": "Threaten them — risk a fight",
+        "warn": "Fire a warning shot — they drop it and run"
       },
       "lines": {
         "raceWin": "You reach the missed cupboard first. The other scavenger slips away; the rush leaves you winded.",
         "raceLose": "By the time you reach the cupboard, they and its contents are gone. You catch your breath.",
         "split": "A whispered agreement: separate rooms. Later, an unopened water bottle waits between them. You take it and keep your distance.",
         "watchWin": "You wait until their footsteps fade, noting which rooms they avoided.",
-        "watchLose": "They leave by a route you cannot see. Waiting teaches you little."
+        "watchLose": "They leave by a route you cannot see. Waiting teaches you little.",
+        "warn": "The shot sends them through the side door. What they were carrying stays on the floor."
       },
       "tell": [
         "A fresh footprint ends where somebody stepped behind a shelf.",
@@ -4385,11 +4427,13 @@
         "bluff": "Talk like you belong here",
         "pay": "Buy passage with supplies",
         "fight": "Take the doorway",
-        "leave": "Back off"
+        "leave": "Back off",
+        "warn": "Fire a warning shot — they run, the street hears"
       },
       "lines": {
         "bluffOk": "You sell a story about others coming. The raider withdraws far enough for you to pass.",
-        "leave": "You retreat along the open approach. The raider keeps their cover."
+        "leave": "You retreat along the open approach. The raider keeps their cover.",
+        "warn": "One shot into the awning. They break for the back lane without looking round."
       },
       "tell": [
         "A weapon moves behind cover at the entrance.",
@@ -4436,7 +4480,8 @@
         "disarm": "Release the wire and weighted scrap",
         "power": "Trace the mechanical anchor",
         "around": "Go the long way round (slow, safe)",
-        "leave": "Not worth it"
+        "leave": "Not worth it",
+        "trip": "Trip it from a distance — no risk to you, very loud"
       },
       "lines": {
         "disarmFailWound": "The wire releases a weighted strip of sharp scrap. It strikes your arm and slams against the metal frame.",
@@ -4446,7 +4491,8 @@
         "powerFailDeny": "You step back before releasing the weighted scrap.",
         "aroundTime": "You avoid the tripwire and find a window on the far side.",
         "aroundEnergy": "The long detour costs your legs, but leaves the trap untouched.",
-        "leave": "You back away from the tripwire."
+        "leave": "You back away from the tripwire.",
+        "trip": "You tug the wire from behind a pillar. The charge goes off in an empty doorway."
       },
       "tell": [
         "Fishing line runs from the handle to sharp scrap hung above the frame.",
@@ -4496,12 +4542,14 @@
       "choices": {
         "strip": "Free the caught pack",
         "read": "Read the traces around them",
-        "step": "Leave the remains undisturbed — go inside"
+        "step": "Leave the remains undisturbed — go inside",
+        "drag": "Drag it clear and turn out the bag — get more, loud"
       },
       "lines": {
         "stripFailZombies": "The pack comes free with a crash of metal fittings. Infected nearby follow the sound.",
         "readOk": "Scrape marks continue toward the back rooms, where several cupboards remain shut. You take note before moving on.",
-        "readFail": "You spend time looking, but the disturbed dust will not tell you what happened."
+        "readFail": "You spend time looking, but the disturbed dust will not tell you what happened.",
+        "drag": "You haul the body over the step. Buckles scrape, a bottle smashes, and the bag gives up more than you hoped."
       },
       "tell": [
         "Weathered remains lie beside the threshold, a pack caught under fallen fittings.",
@@ -4522,12 +4570,14 @@
       "choices": {
         "chase": "Follow the spill — recover the caught parcel",
         "read": "Study the route of the scattered haul",
-        "let": "Leave the spill — continue inside"
+        "let": "Leave the spill — continue inside",
+        "shout": "Bellow after them — they drop a bag, loud"
       },
       "lines": {
         "chaseLose": "You struggle past the fallen racks, but the parcel is ruined. The effort leaves you winded.",
         "readOk": "The trail skirts several unopened cupboards. You note what the earlier search missed.",
-        "readFail": "You spend a little time with old tracks that lead nowhere useful."
+        "readFail": "You spend a little time with old tracks that lead nowhere useful.",
+        "shout": "You roar and bang a shelf. One of them panics and flings the parcel away to run faster."
       },
       "tell": [
         "A torn bag and scattered packaging mark an old hurried departure.",
@@ -4821,6 +4871,106 @@
             "They've tarped the entrance. \"Dry inside. One {tribute}.\""
           ]
         }
+      }
+    },
+    "street_car_alarm": {
+      "title": "A Car Alarm Starts Screaming",
+      "tell": [
+        "Somewhere close a car alarm goes off and does not stop.",
+        "Headlights flash in a carpark. Then the siren starts.",
+        "A car on the kerb starts whooping. Nobody comes to turn it off."
+      ],
+      "text": [
+        "Outside {name} a car someone rewired is wailing, lights flashing. Whoever connected the battery is gone. Everything for streets around is turning toward it.",
+        "A saloon by {name} has its bonnet up and a fresh battery clamped in. The alarm is deafening, and it is drawing the dead in from every direction."
+      ],
+      "night": [
+        "In the dark outside {name} a car alarm strobes orange across the block. Every shape in the shadows is turning toward the light."
+      ],
+      "choices": {
+        "disarm": "Reach in and pull the battery",
+        "cover": "Let it scream — use it as cover to search this place",
+        "leave": "Walk away and let it run"
+      },
+      "lines": {
+        "disarmOk": "The siren dies mid-whoop. The battery comes away in your hand.",
+        "disarmFail": "The bonnet slams on your fingers.",
+        "disarmFailStill": "The alarm keeps screaming. You back off before anything arrives.",
+        "cover": "While everything shambles toward the car, this building is as quiet as it will ever be. Go in now.",
+        "leave": "You leave it wailing. This corner will be busy for hours."
+      }
+    },
+    "street_gunfire": {
+      "title": "Gunfire Nearby",
+      "tell": [
+        "A burst of gunfire, close. Then shouting. Then nothing.",
+        "Three shots ring off the blocks a few streets away.",
+        "Somebody is shooting near here."
+      ],
+      "text": [
+        "Shots, a few streets from {name}. Somebody fought somebody, and now everything nearby is listening. Whatever they were fighting over may still be lying there.",
+        "The shooting near {name} has stopped. Spent cases, maybe a pack, maybe the shooter still waiting. The area around it is wide awake."
+      ],
+      "choices": {
+        "look": "Go and look — careful",
+        "avoid": "Give it a wide berth"
+      },
+      "lines": {
+        "lookOk": "You work round by the back lanes and find the spot: cases on the road, a dropped bag.",
+        "lookOkEnd": "You take what was left and get out before the next one comes.",
+        "lookFail": "You come round the corner straight into the shooter.",
+        "avoid": "You keep your head down. That stretch stays dangerous for a while."
+      }
+    },
+    "street_shutter": {
+      "title": "A Banging Shutter",
+      "tell": [
+        "A metal shutter bangs in the wind, over and over.",
+        "Somewhere a roller door is slamming against its rails."
+      ],
+      "text": [
+        "A loose roller shutter at {name} is crashing against its frame with every gust. It will keep calling them until somebody wedges it.",
+        "The shutter by {name} has come off one rail and swings into the steel post, again and again."
+      ],
+      "choices": {
+        "wedge": "Wedge it shut",
+        "leave": "Leave it banging"
+      },
+      "lines": {
+        "wedgeOk": "You jam a pallet under the edge and lean on it until it stops.",
+        "wedgeOkEnd": "The street goes quiet again.",
+        "wedgeFail": "The shutter bucks out of your hands and clangs harder.",
+        "wedgeFailEnd": "It's still banging. You leave it.",
+        "leave": "You leave it to bang. It will keep the area awake for a while."
+      }
+    },
+    "street_scavenger": {
+      "title": "One Scavenger in Hiding",
+      "tell": [
+        "Someone ducks behind a pillar as you come up. They're coughing.",
+        "A shape freezes behind a dumpster. Just one person."
+      ],
+      "text": [
+        "A lone scavenger near {name} has backed into cover, hoarse with thirst. They are watching you more than they are watching the street.",
+        "Behind the bins at {name} a thin figure is clutching a bag and trying not to cough. They are alone and they know you've seen them."
+      ],
+      "choices": {
+        "share": "Leave them clean water",
+        "scare": "Scare them off their bag",
+        "follow": "Let them go — and follow",
+        "leave": "Leave them be"
+      },
+      "lines": {
+        "share": "They drink, then point you down a sheltered lane toward a place you haven't found.",
+        "shareNone": "You have no water to give. They slip away.",
+        "scareOk": "You come at them shouting. They drop the bag and run.",
+        "scareOkEnd": "You go through what they left.",
+        "scareFail": "They don't run. They pull a blade.",
+        "followOk": "You trail them at a distance to a stairwell cache.",
+        "followOkEnd": "While they're gone again, you help yourself.",
+        "followFail": "You lose them in the back lanes.",
+        "followFailEnd": "Half an hour gone, nothing to show for it.",
+        "leave": "You let them be. They watch you go."
       }
     }
   },

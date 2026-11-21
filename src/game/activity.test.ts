@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   activityAt, activityBand, activityPressure, addActivity, exploreActivity,
-  freshActivity, normalizeActivity, pruneActivity, respondActivity,
+  freshActivity, normalizeActivity, pruneActivity,
   type ActivityState,
 } from './activity';
 
@@ -90,7 +90,7 @@ describe('remembered exploration events', () => {
 
   it('requires travel and a two-hour interval between attempts', () => {
     const state = eventFixture();
-    const quiet = { ...respondActivity(state, 3), event: null };
+    const quiet = { ...state, event: null };
     const before = exploreActivity(quiet, { ...trip, lat: 1.31, now: 4.99 });
     expect(before.event).toBeNull();
     expect(before.eventClock.lastAt).toBe(3);
@@ -109,7 +109,7 @@ describe('remembered exploration events', () => {
     expect(state.event).toBeNull();
     expect(state.eventClock.lastAt).toBeNull();
     const previous = eventFixture();
-    state = { ...respondActivity(previous, 3), event: null };
+    state = { ...previous, event: null };
     for (let n = 0; n < 20; n++) {
       state = exploreActivity(state, {
         ...trip, distanceM: 100, lat: origin.lat + (n % 2) * 0.0009, now: 6 + n,
@@ -129,7 +129,7 @@ describe('remembered exploration events', () => {
   it('has one event, never repeats its kind, and caps a game day at three', () => {
     const state = eventFixture();
     expect(exploreActivity(state, { ...trip, lat: 1.32, now: 3.1 }).event).toEqual(state.event);
-    const quiet = { ...respondActivity(state, 3), event: null };
+    const quiet = { ...state, event: null };
     for (let n = 0; n < 100; n++) {
       const next = exploreActivity(quiet, { ...trip, seed: `next-${n}`, lat: 1.31, now: 5 });
       if (next.event) expect(next.event.kind).not.toBe(state.event!.kind);
@@ -154,20 +154,6 @@ describe('remembered exploration events', () => {
       expect(['gunfire', 'car_alarm', 'shutter']).not.toContain(storm.event?.kind);
     }
     expect([...seen].sort()).toEqual(['car_alarm', 'gunfire', 'scavengers', 'shutter']);
-  });
-
-  it('responds once, preserving a decaying residual source', () => {
-    const state = eventFixture();
-    const event = state.event!;
-    const before = activityAt(state, event.lat, event.lng, 3);
-    const responded = respondActivity(state, 3);
-    const after = activityAt(responded, event.lat, event.lng, 3);
-    expect(responded.event?.resolved).toBe(true);
-    expect(after).toBeGreaterThan(0);
-    expect(after).toBeLessThan(before);
-    expect(respondActivity(responded, 3)).toEqual(responded);
-    expect(activityAt(responded, event.lat, event.lng, 20)).toBe(0);
-    expect(respondActivity(state, event.expiresAt).event).toBeNull();
   });
 });
 

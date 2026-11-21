@@ -5,6 +5,7 @@
 //   A. doorway events — how often one fires and which scene, by situation
 //   B. search ambushes — per-search odds, streaks and dry spells over a site
 //   C. road crossings — the route label vs the real fight rate
+//   D. disturbances — what each kind of zone does to a search here
 //
 //   npm run sim:encounters             default 20000 rolls per case
 //   npm run sim:encounters -- --n 5000
@@ -33,7 +34,7 @@ try {
   for (const cat of ['supermarket', 'police', 'mrt', 'school']) {
     for (const [label, sit] of SITUATIONS) {
       const loc = {
-        id: 'x', name: 'Site', category: cat, currentDanger: sit.danger, tempDangerBoost: sit.boost,
+        id: 'x', name: 'Site', category: cat, currentDanger: sit.danger,
         factionId: null, doorForced: false, lat: 1.3, lng: 103.8,
       };
       const counts = {};
@@ -41,6 +42,7 @@ try {
       for (let k = 0; k < N; k++) {
         const e = ev.rollPreScavengeEvent(new Rng(`s${k}`).fork('event'), loc, {
           day: 5, standing: {}, locale: 'en', time: sit.time, weather: 'clear', pressure: sit.pressure,
+          disturbance: sit.boost,
         });
         if (e) { fired++; counts[e.kind] = (counts[e.kind] ?? 0) + 1; }
       }
@@ -96,6 +98,20 @@ try {
     }
     console.log(`${label.padEnd(22)} label "${w.riskLabel(risk.fightChance).text}"`.padEnd(58) +
       `predicted ${pct(risk.fightChance).padStart(4)}  actual ${pct(fights / N).padStart(4)}`);
+  }
+
+  console.log('\n== D. Disturbances: next search at a d1 convenience store (base pressure, streak fresh) ==');
+  const dz = await server.ssrLoadModule('/src/game/disturbance.ts');
+  const act = await server.ssrLoadModule('/src/game/activity.ts');
+  const pressure = act.BASE_ACTIVITY_PRESSURE;
+  for (const band of ['day', 'night']) {
+    const quiet = odds.searchAmbushChance({ ...base, pressure, danger: 1, band });
+    const rows = dz.DISTURBANCE_KINDS.map((kind) => {
+      const spec = dz.disturbanceSpec(kind, { night: band === 'night' });
+      const p = odds.searchAmbushChance({ ...base, pressure, danger: 1 + spec.danger, band });
+      return `${kind} ${pct(p)} (${spec.radiusM} m, ${spec.hours} h)`;
+    });
+    console.log(`${band.padEnd(6)} quiet ${pct(quiet)}  |  ${rows.join('  ')}`);
   }
 } finally {
   await server.close();
