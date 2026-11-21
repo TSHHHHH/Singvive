@@ -317,6 +317,8 @@ export class BuildingEngine {
   private ruinTimer: ReturnType<typeof setTimeout> | null = null;
   /** Piece colour applied, by site. */
   private ruinApplied = new Map<string, string>();
+  /** The rise last written to each model's pieces (feature-state persists across setData). */
+  private pieceRise = new Map<string, number>();
   private nextPieceId = 1;
   /** Building feature → the wreck key whose pieces rise with it. */
   private wreckOf = new Map<FeatureId, string>();
@@ -350,6 +352,7 @@ export class BuildingEngine {
   shadowRuinRevision = 0;
   private shadowTiles?: ReturnType<MlMap['querySourceFeatures']>;
   private shadowFootprints?: Map<FeatureId, ShadowBlock>;
+  private wreckShadows = new WeakMap<RuinModel, ShadowBlock>();
 
   releaseShadowFootprints() {
     this.shadowTiles = undefined;
@@ -382,7 +385,13 @@ export class BuildingEngine {
     for (const key of this.ruinShown) {
       const model = this.ruinCache.get(key);
       if (!model?.pieces.length || model.owner === undefined || !nearby(model.owner)) continue;
-      result.push({
+      // One block object per model, so the shadow layer's identity check skips it.
+      const cached = this.wreckShadows.get(model);
+      if (cached) {
+        result.push(cached);
+        continue;
+      }
+      const block: ShadowBlock = {
         target: { source: RUINS_SOURCE, id: model.pieces[0].id! },
         wreck: true,
         parts: model.pieces.flatMap(({ geometry, properties }) => {
@@ -392,7 +401,9 @@ export class BuildingEngine {
           if (!Number.isFinite(base) || !Number.isFinite(top) || top <= base) return [];
           return [{ polygons: [geometry.coordinates as Polygon], base, top }];
         }),
-      });
+      };
+      this.wreckShadows.set(model, block);
+      result.push(block);
     }
     return result;
   }
@@ -1145,6 +1156,9 @@ export class BuildingEngine {
         if (!built) continue; // its tiles are not in yet: the next pick retries
         model = { ...built, tier: w.tier, signature: w.signature };
         this.ruinCache.set(w.key, model);
+        // Fresh piece ids carry no state yet.
+        this.ruinApplied.delete(w.key);
+        this.pieceRise.delete(w.key);
       }
       if (!model.pieces.length) continue; // nothing usable: stays a stump
       this.ruinShown.add(w.key);
@@ -1225,10 +1239,13 @@ export class BuildingEngine {
     }
     const fc: FeatureCollection = { type: 'FeatureCollection', features };
     (this.map.getSource(RUINS_SOURCE) as GeoJSONSource | undefined)?.setData(fc);
-    // New data starts without feature-state: colour and rise go back on.
-    this.ruinApplied.clear();
+    // Feature-state outlives setData (it lives on the source, keyed by id), and
+    // piece ids are never reused, so only models whose rise moved while hidden,
+    // or that are new, need writing. Rewriting every piece of every shown model
+    // here cost 150-350 ms per re-pick while walking.
     for (const [id, key] of this.wreckOf) {
-      this.setPieceRise(key, this.rise.get(id)?.v ?? 0);
+      const v = this.rise.get(id)?.v ?? 0;
+      if (this.pieceRise.get(key) !== v) this.setPieceRise(key, v);
     }
     this.applySiteStates();
     this.publishRoofs();
@@ -1241,6 +1258,7 @@ export class BuildingEngine {
   }
 
   private setPieceRise(key: string, rise: number) {
+    this.pieceRise.set(key, rise);
     for (const f of this.ruinCache.get(key)?.pieces ?? []) {
       this.map.setFeatureState({ source: RUINS_SOURCE, id: f.id as number }, { rise });
     }
