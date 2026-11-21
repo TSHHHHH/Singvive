@@ -9,7 +9,6 @@ import {
   hasCondition,
   isTwoHandedEquipped,
   canEquip,
-  bagWeightReduction,
   carriedWeight,
   isCarried,
   loadEffectsFor,
@@ -38,6 +37,7 @@ import { isConsumableUsable } from './itemStatLines';
 import { ItemInspectBody } from './ItemInspectBody';
 import { useInventoryInteraction } from './InventoryInteractionContext';
 import { TipHint } from '../TipHint';
+import { HELP_BUTTON_CLASS } from '../GuideInfoButton';
 import { LOAD_TIP_CLASS, LoadTipBody } from '../loadTip';
 import { loadTierShown, loadTierTone } from '../loadTier';
 import { CarriedList } from './CarriedList';
@@ -88,7 +88,7 @@ function InventoryControlsHint({ coarse }: { coarse: boolean }): ReactNode {
       <button
         type="button"
         aria-label={t('ui.inventory.controlsAria')}
-        className="inline-flex h-4 w-4 items-center justify-center rounded border border-white/15 text-micro font-semibold leading-none text-white/45 transition hover:border-signal/40 hover:text-signal"
+        className={HELP_BUTTON_CLASS}
       >
         ?
       </button>
@@ -208,8 +208,32 @@ export function InventoryPanel({
   const loadPct = carry > 0 ? (loadKg / carry) * 50 : 0;
   const barClass =
     !fx || fx.strain <= 0 ? 'bg-signal' : fx.ratio < 1 ? 'bg-amber-400' : 'bg-hiss';
-  const bagShare = bagWeightReduction(equipment);
-  const bagCut = Math.round(bagShare * 100);
+
+  // Lives in the Backpack header so it shows without scrolling, even collapsed.
+  const loadMeter = (
+    <span className="flex min-w-0 items-center gap-1.5 text-body">
+      {fx && <LoadStatusIcon fx={fx} loadKg={loadKg} carryKg={carry} />}
+      <TipHint
+        className="flex min-w-0 items-center gap-1.5"
+        placement="bottom"
+        tipClassName={LOAD_TIP_CLASS}
+        tip={fx ? <LoadTipBody fx={fx} t={t} title={t('ui.inventory.carry')} /> : t('ui.inventory.carry')}
+      >
+        <span className="sr-only">{t('ui.inventory.carry')}</span>
+        <span className="h-1 w-12 shrink-0 overflow-hidden rounded-full bg-white/10" aria-hidden>
+          <span
+            className={`block h-full rounded-full transition-[width] duration-200 ${barClass}`}
+            style={{ width: `${Math.min(100, loadPct)}%` }}
+          />
+        </span>
+        <span
+          className={`whitespace-nowrap tabular-nums ${fx ? loadTierTone(fx) : 'text-white/60'} ${fx && loadTierShown(fx) ? 'font-semibold' : ''}`}
+        >
+          {t('ui.inventory.loadKg', { load: loadKg.toFixed(1), carry })}
+        </span>
+      </TipHint>
+    </span>
+  );
 
   const gridHandlers = {
     onItemPointerDown,
@@ -496,7 +520,12 @@ export function InventoryPanel({
           <InventoryGrid
             grid={BACKPACK}
             title={t('ui.inventory.backpack')}
-            titleAccessory={<InventoryControlsHint coarse={coarse} />}
+            titleAccessory={
+              <span className="flex min-w-0 items-center gap-2">
+                {loadMeter}
+                <InventoryControlsHint coarse={coarse} />
+              </span>
+            }
             onToggle={onToggle}
             collapsed={collapsed}
             largeCells
@@ -523,44 +552,13 @@ export function InventoryPanel({
                 {...gridHandlers}
               />
 
-              <div className="flex items-center gap-2 text-body">
-                {fx && <LoadStatusIcon fx={fx} loadKg={loadKg} carryKg={carry} />}
-                <TipHint
-                  className="flex min-w-0 flex-1 items-center gap-2"
-                  placement="top"
-                  tipClassName={LOAD_TIP_CLASS}
-                  tip={
-                    fx ? (
-                      <LoadTipBody fx={fx} t={t} title={t('ui.inventory.carry')} />
-                    ) : (
-                      t('ui.inventory.carry')
-                    )
-                  }
-                >
-                  <span className="shrink-0 uppercase tracking-widest text-white/40">
-                    {t('ui.inventory.carry')}
-                  </span>
-                  <div className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-white/10">
-                    <div
-                      className={`h-full rounded-full transition-[width] duration-200 ${barClass}`}
-                      style={{ width: `${Math.min(100, loadPct)}%` }}
-                    />
-                  </div>
-                  <span className={`tabular-nums ${fx ? loadTierTone(fx) : 'text-white/60'} ${fx && loadTierShown(fx) ? 'font-semibold' : ''}`}>
-                    {t('ui.inventory.loadKg', { load: loadKg.toFixed(1), carry })}
-                  </span>
-                  {bagCut > 0 && (
-                    <span className="shrink-0 text-micro text-emerald-300/80">
-                      {t('ui.inventory.bagCut', { n: bagCut })}
-                    </span>
-                  )}
-                </TipHint>
-                {holstered && (
+              {holstered && (
+                <div className="text-body">
                   <span className={holsterLoaded === 0 ? 'font-semibold text-hiss' : 'text-white/50'}>
                     {t('ui.inventory.holstered', { n: holsterLoaded, cap: holsterCap })}
                   </span>
-                )}
-              </div>
+                </div>
+              )}
             </>
           )}
         </>
