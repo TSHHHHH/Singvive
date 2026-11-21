@@ -4,7 +4,11 @@ import {
   conditionFamily,
   conditionOf,
   conditionPct,
+  bagWeightReduction,
+  feltWeightFactor,
   hasCondition,
+  LOOSE,
+  LOOSE_WEIGHT_MULT,
   tierOf,
   instanceValue,
   isBroken,
@@ -21,6 +25,7 @@ import { itemIcon } from './itemIcon';
 import { itemKind, itemStatLines } from './itemStatLines';
 import { PackGridPreview } from './PackGridPreview';
 import { tip } from '../tips';
+import { feltWeightLabel } from './weightLabel';
 
 function ConditionBlock({
   inst,
@@ -98,6 +103,16 @@ export function ItemInspectBody({
   // Location (backpack/stash) adds noise on hover — only slot label is useful.
   const kindLine = equipSlot ? `${kind} · ${slotLabel(equipSlot)}` : kind;
   const packGrid = def.slot === 'bag' ? resolveItemPackGrid(def) : undefined;
+  // Packed items feel the equipped bag's cut; loose ones the ×1.5 penalty.
+  const weightFactor = feltWeightFactor(inst.container, equipment);
+  const bagCutPct = Math.round(bagWeightReduction(equipment) * 100);
+  const weightNote =
+    weightFactor === 1
+      ? null
+      : inst.container === LOOSE
+        ? t('ui.inventory.looseWeightNote', { mult: LOOSE_WEIGHT_MULT })
+        : t('ui.inventory.packedWeightNote', { n: bagCutPct });
+  const ownCutPct = Math.round((def.weightReduction ?? 0) * 100);
   const traitW = character ? sumTraitMod(character.traitIds, 'gridWidthBonus') : 0;
   const bagWontFit =
     def.slot === 'bag' && character
@@ -203,13 +218,21 @@ export function ItemInspectBody({
         </span>
         <span className="inline-flex items-center gap-1" {...tip(t('ui.inventory.weight'))}>
           <Icon name="meta.weight" size={12} className="shrink-0 opacity-55" />
-          <span className="tabular-nums">{def.weight.toFixed(1)} kg</span>
+          <span className="tabular-nums">{feltWeightLabel(def.weight, weightFactor)}</span>
         </span>
         <span className="inline-flex items-center gap-1" {...tip(t('ui.inventory.tradeValue'))}>
           <Icon name="meta.value" size={12} className="shrink-0 opacity-55" />
           <span className="tabular-nums">{instanceValue(inst)}</span>
         </span>
       </div>
+      {weightNote && (
+        <div className={`text-micro ${weightFactor < 1 ? 'text-emerald-300/80' : 'text-white/45'}`}>
+          {weightNote}
+        </div>
+      )}
+      {ownCutPct > 0 && (
+        <div className="text-micro text-emerald-300/80">{t('ui.inventory.bagCutsPacked', { n: ownCutPct })}</div>
+      )}
       {def.stackable && inst.stack > 1 && (
         <div className="text-body text-white/40">{t('ui.inventory.stacked', { n: inst.stack })}</div>
       )}

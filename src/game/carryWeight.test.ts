@@ -10,6 +10,7 @@ import {
   carriedWeight,
   carrySlot,
   emptyEquipment,
+  feltWeightFactor,
   findSlot,
   isCarried,
   LOAD_HARD_CAP,
@@ -130,6 +131,18 @@ describe('carried weight', () => {
     expect(packed).toBeCloseTo(bag.weight + can * 10 * 0.35);
     const loose = carriedWeight([inst('canned_food', LOOSE, { stack: 10 })], eq);
     expect(loose).toBeCloseTo(bag.weight + can * 10 * LOOSE_WEIGHT_MULT);
+  });
+
+  it('feltWeightFactor matches what carriedWeight charges per item', () => {
+    const eq = withBag('military_rucksack');
+    expect(feltWeightFactor(BACKPACK, eq)).toBeCloseTo(0.35);
+    expect(feltWeightFactor(LOOSE, eq)).toBe(LOOSE_WEIGHT_MULT);
+    expect(feltWeightFactor('poi:x', eq)).toBe(1);
+    expect(feltWeightFactor(BACKPACK, emptyEquipment())).toBe(1);
+    const bag = itemDef('military_rucksack').weight;
+    const items = [inst('canned_food', BACKPACK, { stack: 3 }), inst('canned_food', LOOSE)];
+    const byFactor = items.reduce((s, i) => s + can * i.stack * feltWeightFactor(i.container, eq), 0);
+    expect(carriedWeight(items, eq)).toBeCloseTo(bag + byFactor);
   });
 
   it('bigger bags cut more', () => {

@@ -950,6 +950,17 @@ export function bagWeightReduction(equipment: Equipment): number {
   return Math.min(0.9, Math.max(0, itemDef(bag.defId).weightReduction ?? 0));
 }
 
+/**
+ * How much one kg in `container` weighs on the survivor: the equipped bag's cut
+ * for packed items, ×1.5 for loose ones, and 1 everywhere else (stashes, worn).
+ * Same factors `carriedWeight` applies.
+ */
+export function feltWeightFactor(container: string, equipment: Equipment): number {
+  if (container === BACKPACK) return 1 - bagWeightReduction(equipment);
+  if (container === LOOSE) return LOOSE_WEIGHT_MULT;
+  return 1;
+}
+
 /** Raw kg in each place on the survivor, before the bag and loose factors. */
 export function carriedBreakdown(
   items: ItemInstance[],
