@@ -4,14 +4,9 @@ import {
   alarmArmed,
   breachOutcome,
   canCutAlarm,
-  canRigLure,
   cutAlarmChance,
   generateDungeon,
-  HEAT_MAX,
-  hoardLootModAt,
   levelHeat,
-  lurePreview,
-  rigLure,
   ROOM_EVENTS,
   scoutUnit,
   tripAlarm,
@@ -31,17 +26,11 @@ function find(d: HdbDungeon, event: HdbRoomEvent) {
   return null;
 }
 
-function withHeat(d: HdbDungeon, heat: Record<number, number>): HdbDungeon {
-  return { ...d, floors: d.floors.map((f) => (heat[f.level] != null ? { ...f, heatLevel: heat[f.level] } : f)) };
-}
-
 describe('room event placement', () => {
-  it('rides on loot rooms only, never on the ground for lure/hoard, and alarms/hoards sit behind shut doors', () => {
-    const counts = { alarm: 0, lure: 0, hoard: 0 };
+  it('rides on shut loot rooms only, at most one per landing', () => {
+    const counts = { alarm: 0 };
     for (const seed of SEEDS) {
       const d = block(seed);
-      let lures = 0;
-      let hoards = 0;
       for (const f of d.floors) {
         let alarms = 0;
         for (const u of f.units) {
@@ -50,23 +39,16 @@ describe('room event placement', () => {
           expect(['flat', 'stocked', 'storeroom', 'pantry']).toContain(u.type);
           expect(u.available).toBe(true);
           expect(u.eventKnown).toBeFalsy();
-          if (u.event !== 'lure') expect(['locked', 'barricaded']).toContain(u.entry);
-          if (u.event !== 'alarm') expect(f.level).toBeGreaterThan(1);
-          if (u.event === 'alarm') alarms += 1;
-          if (u.event === 'lure') lures += 1;
-          if (u.event === 'hoard') hoards += 1;
+          expect(['locked', 'barricaded']).toContain(u.entry);
+          alarms += 1;
           expect(f.theme === 'picked_over' || f.theme === 'refuge').toBe(false);
         }
         expect(alarms).toBeLessThanOrEqual(1);
       }
-      expect(lures).toBeLessThanOrEqual(1);
-      expect(hoards).toBeLessThanOrEqual(1);
     }
     // Some blocks have each, most landings have none.
     expect(counts.alarm / SEEDS.length).toBeGreaterThan(0.3);
     expect(counts.alarm / SEEDS.length).toBeLessThan(1.2);
-    expect(counts.lure).toBeGreaterThan(SEEDS.length * 0.3);
-    expect(counts.hoard).toBeGreaterThan(SEEDS.length * 0.2);
   });
 
   it('lived-in shelter blocks carry none', () => {
@@ -121,54 +103,5 @@ describe('alarm', () => {
     expect(cutAlarmChance(5, 0)).toBeCloseTo(0.65);
     expect(cutAlarmChance(5, ROOM_EVENTS.alarm.toolBonus)).toBeCloseTo(0.8);
     expect(cutAlarmChance(-20, 0)).toBeCloseTo(0.05);
-  });
-});
-
-describe('karaoke set (lure)', () => {
-  const seed = SEEDS.find((s) => find(block(s), 'lure'))!;
-
-  it('is usable only once found and inside, and only once', () => {
-    const d = block(seed);
-    const { level, unit } = find(d, 'lure')!;
-    expect(canRigLure(unit)).toBe(false);
-    const inside = updateUnit(d, level, unit.id, { state: 'cleared', eventKnown: true });
-    const u = inside.floors[level - 1].units.find((x) => x.id === unit.id)!;
-    expect(canRigLure(u)).toBe(true);
-    const played = rigLure(inside, level, unit.id);
-    expect(canRigLure(played.floors[level - 1].units.find((x) => x.id === unit.id))).toBe(false);
-  });
-
-  it('spikes its own landing and drains every other one, within 0..max', () => {
-    const d = block(seed);
-    const { level, unit } = find(d, 'lure')!;
-    const open = d.floors.filter((f) => !f.sealed).map((f) => f.level);
-    const heat = Object.fromEntries(open.map((l, i) => [l, l === level ? 70 : i * 15]));
-    const hot = withHeat(d, heat);
-    const preview = lurePreview(hot, level);
-    const played = rigLure(hot, level, unit.id);
-    for (const p of preview) {
-      expect(levelHeat(played, p.level)).toBe(p.to);
-      if (p.level === level) expect(p.to).toBe(Math.min(HEAT_MAX, 70 + ROOM_EVENTS.lure.spike));
-      else expect(p.to).toBe(Math.max(0, p.from - ROOM_EVENTS.lure.draw));
-    }
-  });
-});
-
-describe('hoard', () => {
-  it('pays more the hotter the landing: +1 quiet, +2 awake, +3 hunting', () => {
-    expect(hoardLootModAt(0)).toBe(1);
-    expect(hoardLootModAt(30)).toBe(1);
-    expect(hoardLootModAt(50)).toBe(2);
-    expect(hoardLootModAt(80)).toBe(3);
-    expect(hoardLootModAt(100)).toBe(3);
-  });
-
-  it('feeds the door loot roll at the heat it is opened at', () => {
-    const seed = SEEDS.find((s) => find(block(s), 'hoard'))!;
-    const d = block(seed);
-    const { level, unit } = find(d, 'hoard')!;
-    const cold = breachOutcome(d, unit, level).lootMod;
-    const hot = breachOutcome(withHeat(d, { [level]: 80 }), unit, level).lootMod;
-    expect(hot - cold).toBe(2);
   });
 });

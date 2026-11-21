@@ -432,9 +432,7 @@ import {
   HUNT_ELITE_CHANCE,
   updateUnit,
   canCutAlarm,
-  canRigLure,
   cutAlarmCheck,
-  rigLure,
   ROOM_EVENTS,
   tripAlarm,
   UNIT_META,
@@ -900,8 +898,6 @@ interface State {
   hdbReadNotice: (unitId: string) => void;
   /** Try to cut a spotted alarm before opening its door. */
   hdbCutAlarm: (unitId: string) => void;
-  /** Play a found karaoke set: its landing spikes, the others cool. */
-  hdbRigLure: (unitId: string) => void;
   hdbLeave: () => void;
 
   // --- noise & legacy ---
@@ -3031,17 +3027,6 @@ export const useGame = create<State>((set, get) => {
       pushLog(`You slip into ${unit.label} without touching the frame.`, 'info', undefined, undefined, unitLogScope);
     }
     if (outcome.alarm) soundHdbAlarm(level, unitId, unit.label, 'door');
-    else if (unit.event === 'lure' && !unit.eventSpent) {
-      pushLog(
-        `In the corner of ${unit.label}: a battery karaoke set, still charged. Loud enough to call the whole stairwell.`,
-        'good',
-        undefined,
-        undefined,
-        unitLogScope,
-      );
-    } else if (unit.event === 'hoard') {
-      pushLog(`${unit.label} is somebody's hoard — crates stacked to the ceiling.`, 'good', undefined, undefined, unitLogScope);
-    }
 
     if (outcome.trapped && rng.chance(0.35)) {
       const dmg = rng.int(4, 12);
@@ -7145,27 +7130,6 @@ export const useGame = create<State>((set, get) => {
         const hdb = get().hdb!;
         set({ hdbBlocks: { ...get().hdbBlocks, [hdb.locationId]: hdb } });
       }
-      persist();
-    },
-
-    hdbRigLure: (unitId) => {
-      const s = get();
-      if (hdbBusy() || !s.hdb) return;
-      const level = s.hdb.currentLevel;
-      const unit = currentFloor(s.hdb).units.find((u) => u.id === unitId);
-      if (!unit || !canRigLure(unit)) return;
-      if (advanceTime(ROOM_EVENTS.lure.minutes / 60)) return;
-      const g = get();
-      if (!g.hdb) return;
-      const hdb = rigLure(g.hdb, level, unitId);
-      set({ hdb, hdbBlocks: { ...g.hdbBlocks, [hdb.locationId]: hdb } });
-      pushLog(
-        `You set the karaoke box on repeat and back away. A ballad booms through ${unit.label}; the stairwell turns toward it (+${ROOM_EVENTS.lure.spike} here, −${ROOM_EVENTS.lure.draw} on every other landing).`,
-        'good',
-        undefined,
-        undefined,
-        hdbUnitScope(g.hdb.locationId, level, unitId, unit.label),
-      );
       persist();
     },
 

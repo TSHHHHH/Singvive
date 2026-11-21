@@ -21,9 +21,9 @@ describe('HDB heat over a full clear', () => {
   }
 });
 
-// Room events (alarm / karaoke set / hoard) must add stakes without breaking a
-// normal clear: a survivor who never reads doors pays a little, one who reads
-// them comes out no worse than before events existed.
+// Alarm rooms must add stakes without breaking a normal clear: a survivor who
+// never reads doors pays a little, one who reads them comes out about as well
+// as before alarms existed.
 describe('HDB room events over a full clear', () => {
   for (const storeys of [8, 24]) {
     it(`${storeys} storeys: alarms bite the blind, reading doors pays`, () => {
@@ -38,10 +38,11 @@ describe('HDB room events over a full clear', () => {
       expect(blind.swarmLandings).toBeLessThan(0.5);
       expect(blind.runaway).toBeLessThan(0.3);
       expect(blind.cleanExit).toBeGreaterThan(0.6);
-      // Reading doors and using the karaoke set gets the way out back.
+      // Reading doors and cutting or skipping spotted alarms gets most of it back.
       expect(smart.alarmsTripped).toBeLessThan(blind.alarmsTripped);
-      expect(smart.cleanExit).toBeGreaterThanOrEqual(off.cleanExit - 0.02);
-      // Hoards and alarms pay out a little more loot.
+      expect(smart.cleanExit).toBeGreaterThan(blind.cleanExit);
+      expect(smart.cleanExit).toBeGreaterThanOrEqual(off.cleanExit - 0.03);
+      // Alarmed rooms pay out a little more loot.
       expect(blind.lootMod).toBeGreaterThan(off.lootMod);
     }, 60000);
   }

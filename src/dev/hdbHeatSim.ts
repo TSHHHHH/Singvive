@@ -18,12 +18,10 @@ import {
   SPILL,
   travelPlan,
   UNIT_META,
-  ROOM_EVENTS,
   alarmArmed,
   canCutAlarm,
   cutAlarmChance,
   cutAlarmCheck,
-  rigLure,
   scoutUnit,
   tripAlarm,
   updateUnit,
@@ -44,11 +42,9 @@ export type DoorRule = 'spread' | 'legacy';
 /**
  * How the scripted survivor meets room events.
  * - `off`: events stripped from the block (the world before them).
- * - `blind`: never reads a door; alarms go off on whoever opens them, karaoke sets are ignored.
- * - `smart`: reads every door (Perception/Dex odds at SIM_ATTRS), cuts a spotted
- *   alarm when the odds are even or better (else leaves the room shut), opens a
- *   known hoard last on its landing, and plays a found karaoke set once its landing
- *   is done (unless that would pin a landing it must walk back down through).
+ * - `blind`: never reads a door; alarms go off on whoever opens them.
+ * - `smart`: reads every door (Perception odds at SIM_ATTRS) and cuts a spotted
+ *   alarm when the odds are even or better (else leaves the room shut).
  */
 export type EventPolicy = 'off' | 'blind' | 'smart';
 
@@ -74,7 +70,6 @@ export interface ClearResult {
   alarmsCut: number;
   /** Rooms left shut because of a spotted alarm. */
   skipped: number;
-  luresPlayed: number;
   /** Mean loot mod over looted rooms (the payoff side). */
   lootMod: number;
 }
@@ -123,7 +118,6 @@ export function simulateClear(
   let alarmsTripped = 0;
   let alarmsCut = 0;
   let skipped = 0;
-  let luresPlayed = 0;
   let lootSum = 0;
   let looted = 0;
   const roll = rng.fork('play');
@@ -145,15 +139,11 @@ export function simulateClear(
       for (const c of plan.crossings) if (c.hunt && roll.chance(HUNT_ELITE_CHANCE)) doorFights++;
       d = { ...d, pos: { level }, currentLevel: level };
     }
-    let order = d.floors[level - 1].units.map((u) => u.id);
+    const order = d.floors[level - 1].units.map((u) => u.id);
     if (events === 'smart') {
-      // Read every door from the corridor first, then put a known hoard last.
+      // Read every door from the corridor first.
       const sweep = roll.fork(`sweep:${level}`);
       for (const id of order) d = scoutUnit(sweep, attrs, d, level, id).dungeon;
-      const units = d.floors[level - 1].units;
-      order = [...units]
-        .sort((a, b) => Number(a.eventKnown && a.event === 'hoard') - Number(b.eventKnown && b.event === 'hoard'))
-        .map((u) => u.id);
     }
     for (const id of order) {
       let unit = d.floors[level - 1].units.find((u) => u.id === id)!;
@@ -201,18 +191,6 @@ export function simulateClear(
       }
       if (unit.event) d = updateUnit(d, level, id, { eventKnown: true });
     }
-    // A found karaoke set plays once its landing is done.
-    if (events === 'smart') {
-      const lure = d.floors[level - 1].units.find((u) => u.event === 'lure' && u.eventKnown && !u.eventSpent);
-      // ...unless it would pin a landing it still has to walk back down through.
-      const top = open[open.length - 1];
-      const hot = levelHeat(d, level) + ROOM_EVENTS.lure.spike >= HEAT_MAX;
-      if (lure && (level === top || !hot)) {
-        tick(10);
-        d = rigLure(d, level, lure.id);
-        luresPlayed++;
-      }
-    }
   }
 
   const heats = open.map((l) => levelHeat(d, l));
@@ -246,7 +224,6 @@ export function simulateClear(
     alarmsTripped,
     alarmsCut,
     skipped,
-    luresPlayed,
     lootMod: lootSum / Math.max(1, looted),
   };
 }
@@ -270,7 +247,6 @@ export interface ClearSummary {
   alarmsTripped: number;
   alarmsCut: number;
   skipped: number;
-  luresPlayed: number;
   lootMod: number;
 }
 
@@ -303,7 +279,6 @@ export function summarize(
     alarmsTripped: mean((r) => r.alarmsTripped),
     alarmsCut: mean((r) => r.alarmsCut),
     skipped: mean((r) => r.skipped),
-    luresPlayed: mean((r) => r.luresPlayed),
     lootMod: mean((r) => r.lootMod),
   };
 }

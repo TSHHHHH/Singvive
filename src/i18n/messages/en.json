@@ -1462,17 +1462,6 @@
           "tip": "An armed intruder alarm. Opening this door any way — forced or picked — sets it off: +{heat} heat here, carried through the stairwell like a forced door, and the street hears it. Cut it first, or leave the room shut.",
           "cut": "Cut the alarm · {min} min · {pct}%",
           "cutTip": "Wits check: d20 + Wits vs DC {dc}. A toolbox in the pack adds +{bonus}. Fail and it goes off in your hands."
-        },
-        "lure": {
-          "label": "Karaoke set",
-          "value": "unplayed — call the stairwell here",
-          "tip": "Play it once: this landing takes +{spike} heat, every other landing loses {draw} as they climb toward the song. Best on a landing you are done with — and never one you must walk back down through.",
-          "action": "Play the karaoke set · {min} min · here +{spike}, others −{draw}"
-        },
-        "hoard": {
-          "label": "Hoard",
-          "value": "+{n} loot now",
-          "tip": "Somebody's sealed stockpile. Pays more the hotter this landing is when you open it: +1 more at Awake, +2 at Hunting. Save it for last."
         }
       },
       "entry": {

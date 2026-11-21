@@ -28,6 +28,7 @@ import {
   UNIT_META,
   heatBand,
   type HdbDungeon,
+  type HdbRoomEvent,
   type HdbUnitNode,
   type HeatBand,
 } from '../game/hdbDungeon';
@@ -183,12 +184,12 @@ function ReadDot({ revealIn }: { revealIn: number }) {
 }
 
 /** Corner badge for a known room event; waits for the corridor dice like the read dot. */
-function EventBadge({ event, phone, revealIn }: { event: 'alarm' | 'lure' | 'hoard'; phone: boolean; revealIn: number }) {
+function EventBadge({ event, phone, revealIn }: { event: HdbRoomEvent; phone: boolean; revealIn: number }) {
   const [delay] = useState(revealIn);
   return (
     <span
       aria-hidden
-      className={`absolute left-1 top-1 ${event === 'alarm' ? 'text-hiss' : 'text-astral'} ${delay > 0 ? 'scout-reveal' : ''}`}
+      className={`absolute left-1 top-1 text-hiss ${delay > 0 ? 'scout-reveal' : ''}`}
       style={delay > 0 ? { animationDelay: `${delay}ms` } : undefined}
     >
       <Icon name={`hdb.${event}`} size={phone ? 12 : 16} />
@@ -244,13 +245,9 @@ function RoomTile({
     <Icon name={meta.icon} size={phone ? 22 : 28} className={unitFaceClass(unit.type)} />
   );
   const scouted = unit.available && unit.state !== 'cleared' && !!unit.scoutedInfo;
-  // A known event that still matters wears a corner badge: live alarm, unplayed karaoke set, unopened hoard.
+  // A spotted alarm that is still live wears a corner badge.
   const ev = unit.available && unit.eventKnown && unit.event ? unit.event : null;
-  const evLive =
-    ev === 'alarm' ? !unit.eventSpent && unit.state !== 'cleared'
-    : ev === 'lure' ? !unit.eventSpent
-    : ev === 'hoard' ? unit.state !== 'cleared'
-    : false;
+  const evLive = ev === 'alarm' && !unit.eventSpent && unit.state !== 'cleared';
   const evLabel = ev && evLive ? t(`ui.hdb.event.${ev}.label`) : '';
   const roomTip = `${unit.label} · ${state}${read}${evLabel ? ` · ${evLabel}` : ''}`;
   const body = (

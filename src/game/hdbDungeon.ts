@@ -1790,14 +1790,8 @@ export function isRoofFloor(floor: HdbFloor): boolean {
  *   force or by pick — sets it off: a forced-door-sized burst of heat through
  *   the whole stairwell and noise on the street. Spot it (Perception) and you
  *   can cut it, gamble on it, or leave the room shut.
- * - `lure`: a battery karaoke set left in a flat. Found when you go in (or a
- *   Dexterity read). Rig it once: the landing it sits on takes a big spike and
- *   every other landing cools as the stairwell climbs toward the song. Where and
- *   when you spend it is the decision.
- * - `hoard`: somebody's sealed stockpile. Pays more the hotter the landing is
- *   when you open it, so a known hoard is the room you save for last.
  */
-export type HdbRoomEvent = 'alarm' | 'lure' | 'hoard';
+export type HdbRoomEvent = 'alarm';
 
 /** Every room-event number in one place. */
 export const ROOM_EVENTS = {
@@ -1818,32 +1812,15 @@ export const ROOM_EVENTS = {
     toolId: 'toolbox',
     toolBonus: 3,
   },
-  lure: {
-    /** Odds a block has one karaoke set somewhere above the ground. */
-    blockChance: 0.6,
-    minutes: 10,
-    /** Heat on the landing it plays on (can reach Swarm). */
-    spike: 40,
-    /** Heat every other open landing loses. */
-    draw: 30,
-  },
-  hoard: {
-    /** Odds a block has one hoard, behind a locked or barricaded door. */
-    blockChance: 0.45,
-    /** Flat bonus, plus `perBand` for each heat stage from Awake up. */
-    lootMod: 1,
-    perBand: 1,
-  },
 } as const;
 
-/** Which corridor read gives an event away. Alarms are heard, stockpiles seen. */
-export function eventSpottedBy(event: HdbRoomEvent, perception: boolean, dexterity: boolean): boolean {
-  if (event === 'alarm') return perception;
-  return dexterity;
+/** Which corridor read gives an event away. An armed alarm is heard (Perception). */
+export function eventSpottedBy(event: HdbRoomEvent, perception: boolean, _dexterity: boolean): boolean {
+  return event === 'alarm' ? perception : false;
 }
 
 const LOOT_ROOMS: ReadonlySet<HdbUnitType> = new Set(['flat', 'stocked', 'storeroom', 'pantry']);
-/** Themes where nobody left anything wired or stashed. */
+/** Themes where nobody left anything wired. */
 const NO_EVENT_THEMES: ReadonlySet<HdbFloorTheme> = new Set(['picked_over', 'refuge']);
 
 function eventEligible(floor: HdbFloor, unit: HdbUnitNode): boolean {
@@ -1865,26 +1842,13 @@ const shut = (u: HdbUnitNode) => u.entry === 'locked' || u.entry === 'barricaded
  */
 export function assignRoomEvents(rng: Rng, floors: HdbFloor[], archetype: HdbArchetype): void {
   if (archetype !== 'estate') return;
-  const ev = ROOM_EVENTS;
   // Alarms: per landing, on a shut flat.
   for (const floor of floors) {
     const pool = floor.units.filter((u) => eventEligible(floor, u) && shut(u));
     const fRng = rng.fork(`alarm:${floor.level}`);
-    if (pool.length && fRng.chance(Math.min(0.9, ev.alarm.roomChance * pool.length))) {
+    if (pool.length && fRng.chance(Math.min(0.9, ROOM_EVENTS.alarm.roomChance * pool.length))) {
       fRng.pick(pool).event = 'alarm';
     }
-  }
-  const upper = floors.filter((f) => f.level > 1);
-  // One karaoke set: never on the ground, which you always walk back onto.
-  const lRng = rng.fork('lure');
-  if (lRng.chance(ev.lure.blockChance)) {
-    const pool = upper.flatMap((f) => f.units.filter((u) => eventEligible(f, u)));
-    if (pool.length) lRng.pick(pool).event = 'lure';
-  }
-  const hRng = rng.fork('hoard');
-  if (hRng.chance(ev.hoard.blockChance)) {
-    const pool = upper.flatMap((f) => f.units.filter((u) => eventEligible(f, u) && shut(u)));
-    if (pool.length) hRng.pick(pool).event = 'hoard';
   }
 }
 
@@ -1898,28 +1862,9 @@ export function canCutAlarm(unit: HdbUnitNode | null | undefined): boolean {
   return alarmArmed(unit) && !!unit!.eventKnown && unit!.state !== 'breached' && unit!.state !== 'cleared';
 }
 
-/** A found karaoke set that hasn't played yet. */
-export function canRigLure(unit: HdbUnitNode | null | undefined): boolean {
-  return (
-    !!unit &&
-    unit.event === 'lure' &&
-    !!unit.eventKnown &&
-    !unit.eventSpent &&
-    (unit.state === 'breached' || unit.state === 'cleared')
-  );
-}
-
-/** Hoard bonus at a heat value: flat bonus, plus one per stage from Awake up. */
-export function hoardLootModAt(heat: number): number {
-  const stages = Math.max(0, heatBand(heat).threatBonus - 1);
-  return ROOM_EVENTS.hoard.lootMod + stages * ROOM_EVENTS.hoard.perBand;
-}
-
-/** Loot an event adds to its room, read at the landing's heat right now. */
-export function eventLootMod(dungeon: HdbDungeon, unit: HdbUnitNode, level: number): number {
-  if (unit.event === 'alarm') return ROOM_EVENTS.alarm.lootMod;
-  if (unit.event === 'hoard') return hoardLootModAt(levelHeat(dungeon, level));
-  return 0;
+/** Loot an event adds to its room. */
+export function eventLootMod(_dungeon: HdbDungeon, unit: HdbUnitNode, _level: number): number {
+  return unit.event === 'alarm' ? ROOM_EVENTS.alarm.lootMod : 0;
 }
 
 /** Odds of cutting an alarm: d20 + Wits + mods vs DC; a natural 20 always works. */
@@ -1946,23 +1891,4 @@ export function cutAlarmCheck(
 export function tripAlarm(dungeon: HdbDungeon, level: number, unitId: string): HdbDungeon {
   const hot = addDoorHeat(dungeon, ROOM_EVENTS.alarm.heat, level);
   return updateUnit(hot, level, unitId, { eventKnown: true, eventSpent: true });
-}
-
-/** What rigging the karaoke set on `level` would leave every landing at. */
-export function lurePreview(dungeon: HdbDungeon, level: number): { level: number; from: number; to: number }[] {
-  const { spike, draw } = ROOM_EVENTS.lure;
-  return dungeon.floors
-    .filter((f) => !f.sealed)
-    .map((f) => {
-      const from = f.heatLevel;
-      const to = f.level === level ? Math.min(HEAT_MAX, from + spike) : Math.max(0, from - draw);
-      return { level: f.level, from, to };
-    });
-}
-
-/** Play the karaoke set: its landing spikes, the rest of the stairwell drains toward it. */
-export function rigLure(dungeon: HdbDungeon, level: number, unitId: string): HdbDungeon {
-  const to = new Map(lurePreview(dungeon, level).map((p) => [p.level, p.to]));
-  const floors = dungeon.floors.map((f) => (to.has(f.level) ? { ...f, heatLevel: to.get(f.level)! } : f));
-  return updateUnit(withHeat(dungeon, floors), level, unitId, { eventKnown: true, eventSpent: true });
 }

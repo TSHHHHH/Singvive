@@ -67,8 +67,6 @@ export type IconName =
   | 'hdb.shelter'
   | 'hdb.notice'
   | 'hdb.alarm'
-  | 'hdb.lure'
-  | 'hdb.hoard'
   | 'hdb.unavailable'
   | 'hdb.sealedCollapsed'
   | 'hdb.sealedFlooded'
@@ -432,8 +430,6 @@ export const EMOJI_FALLBACK: Record<IconName, string> = {
   'hdb.shelter': '🛡️',
   'hdb.notice': '📋',
   'hdb.alarm': '🚨',
-  'hdb.lure': '🎤',
-  'hdb.hoard': '🗃️',
   'hdb.unavailable': '✕',
   'hdb.sealedCollapsed': '🧱',
   'hdb.sealedFlooded': '🌊',
