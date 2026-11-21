@@ -38,7 +38,7 @@ import { tip } from './tips';
 import { SCOUT_REVEAL_MS } from './HdbScoutDice';
 import { useSetting } from '../game/settings';
 import { useReducedMotion } from '../hooks/useReducedMotion';
-import { BAND_FILL, bandText, SEAL_ICON, unitFaceClass } from './hdbStripStyle';
+import { BAND_FILL, bandText, SEAL_ICON, THEME_BACKDROP, unitFaceClass, type ThemeBackdrop } from './hdbStripStyle';
 
 type T = (key: string, vars?: TVars) => string;
 
@@ -81,6 +81,8 @@ function themeChip(hdb: HdbDungeon, level: number, locale: LocaleId) {
   const theme = hdb.floors[level - 1]?.theme;
   if (!theme || theme === 'ordinary') return null;
   return {
+    id: theme,
+    icon: THEME_META[theme].icon,
     label: msgOr(`ui.hdb.theme.${theme}.label`, THEME_META[theme].label, undefined, locale),
     blurb: msgOr(`ui.hdb.theme.${theme}.blurb`, THEME_META[theme].blurb, undefined, locale),
   };
@@ -118,6 +120,22 @@ function heatTipLines(heat: number, dcMod: number, t: T, locale: LocaleId): stri
       : t('ui.hdb.bandTop'),
     t('ui.hdb.coolingNote', { n: COOL_PER_HOUR }),
   ];
+}
+
+/** A themed landing's wash and faint icon art, drawn behind the rooms. */
+function ThemeBackdropArt({ backdrop, phone }: { backdrop: ThemeBackdrop; phone: boolean }) {
+  const big = phone ? 72 : 132;
+  const small = phone ? 40 : 72;
+  return (
+    <span aria-hidden className={`pointer-events-none absolute inset-0 -z-10 overflow-hidden rounded-sm ${backdrop.wash}`}>
+      <span className={`absolute -bottom-6 -left-5 -rotate-12 opacity-[0.16] ${backdrop.ink}`}>
+        <Icon name={backdrop.icon} size={big} />
+      </span>
+      <span className={`absolute -right-4 -top-3 rotate-12 opacity-[0.12] ${backdrop.ink}`}>
+        <Icon name={backdrop.icon} size={small} />
+      </span>
+    </span>
+  );
 }
 
 /** A level's heat as a short bar with band ticks. */
@@ -398,7 +416,7 @@ export function HdbLevelStrips({ phone }: { phone: boolean }) {
             onMouseEnter={() => setHoverRow(level)}
             onFocus={() => setHoverRow(level)}
             {...tip(title, { follow: true })}
-            className={`relative flex shrink-0 items-center rounded-sm border transition-colors ${
+            className={`relative isolate flex shrink-0 items-center rounded-sm border transition-colors ${
               phone ? 'min-h-[4.5rem] gap-2 px-2 py-2' : 'min-h-[7.5rem] gap-3 px-3 py-3'
             } ${
               here
@@ -410,6 +428,9 @@ export function HdbLevelStrips({ phone }: { phone: boolean }) {
               hovered && !here ? 'border-concrete-400' : ''
             }`}
           >
+            {theme && THEME_BACKDROP[theme.id] && (
+              <ThemeBackdropArt backdrop={THEME_BACKDROP[theme.id]!} phone={phone} />
+            )}
             {/* Pointer notch toward the tower (desktop over-map). */}
             {!phone && (
               <span
@@ -427,9 +448,12 @@ export function HdbLevelStrips({ phone }: { phone: boolean }) {
             <div className={`flex shrink-0 flex-col items-center gap-2 ${phone ? 'w-12' : 'w-16'}`}>
               {theme && (
                 <span
-                  className="w-full break-words text-center text-micro uppercase text-concrete-200"
+                  className={`flex w-full flex-col items-center gap-0.5 break-words text-center text-micro uppercase ${
+                    THEME_BACKDROP[theme.id]?.ink ?? 'text-concrete-200'
+                  }`}
                   {...tip(`${theme.label}: ${theme.blurb}`)}
                 >
+                  <Icon name={theme.icon} size={phone ? 14 : 18} />
                   {theme.label}
                 </span>
               )}
@@ -442,7 +466,10 @@ export function HdbLevelStrips({ phone }: { phone: boolean }) {
                       : 'border-concrete-800 text-concrete-400'
                 }`}
               >
-                {roof ? t('ui.hdb.roofShort') : label}
+                <span className="block text-micro uppercase leading-tight text-concrete-400">
+                  {level === 1 ? t('ui.hdb.floorGround') : t('ui.hdb.floorWord')}
+                </span>
+                {label}
               </span>
               {here && <PlayerPin size={phone ? 'xs' : 'sm'} />}
             </div>

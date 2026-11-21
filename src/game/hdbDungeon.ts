@@ -703,7 +703,7 @@ export const THEME_META: Record<HdbFloorTheme, HdbThemeMeta> = {
     label: 'Roof deck',
     blurb: 'Water tanks and plant rooms. Fewer doors, better finds.',
     reveal: 'Wind and open sky. Water tanks, a padlocked plant room, washing nobody took in.',
-    icon: 'hdb.storeroom',
+    icon: 'sleep.roof',
     encounterMod: 1,
     lootMod: 1,
   },
