@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import type { ExploredCircle } from '../game/fog';
 import { useMapGL } from '../map/hooks';
 import { installOverlay, setData } from '../map/layers';
-import { FOG_BANDS, FOG_COLOUR, FOG_TOTAL, FogGeometry, bandOpacity } from '../map/fogGeometry';
+import { FOG_BANDS, FOG_COLOUR, FogGeometry, layerOpacity } from '../map/fogGeometry';
 import type { RangeMotion } from '../map/rangeMotion';
 import { followGlide } from '../map/glideFollow';
 import type { TravelAnim } from '../game/store';
@@ -24,27 +24,27 @@ export interface FogOverlayProps {
  * the MRT stay readable through it.
  *
  * Near-black on purpose: the unexplored island should recede, not compete.
- * Three stacked bands give the edge a soft step instead of a hard cut.
+ * Three bands give the edge a soft step instead of a hard cut. They are drawn
+ * as one layer of disjoint pieces (fogLayers), each at the opacity the stacked
+ * bands compound to there: three stacked full-screen translucent fills were
+ * the costliest thing on the map to draw.
  */
-const bandIds = Array.from({ length: FOG_BANDS }, (_, k) => `fog-${k}`);
-
 export function FogOverlay({ exploredArea, home, travelAnim, revealRadius }: FogOverlayProps) {
   const map = useMapGL();
   const geom = useRef(new FogGeometry());
 
   useEffect(() => {
-    const op = bandOpacity(FOG_TOTAL);
+    const opacity = ['match', ['get', 'n'], ...Array.from({ length: FOG_BANDS }, (_, k) => [k + 1, layerOpacity(k + 1)]).flat(), 0];
     return installOverlay(
       map,
       'fog',
       { 'fog-src': 'geojson' },
-      bandIds.map((id, k) => ({
-        id: `${id}-fill`,
+      [{
+        id: 'fog-fill',
         type: 'fill' as const,
         source: 'fog-src',
-        filter: ['==', ['get', 'band'], k],
-        paint: { 'fill-color': FOG_COLOUR, 'fill-opacity': op, 'fill-antialias': false },
-      })),
+        paint: { 'fill-color': FOG_COLOUR, 'fill-opacity': opacity as unknown as number, 'fill-antialias': false },
+      }],
     );
   }, [map]);
 
@@ -56,19 +56,15 @@ export function FogOverlay({ exploredArea, home, travelAnim, revealRadius }: Fog
     // latest one.
     let at = { lat, lng };
     const draw = () => {
-      let bands;
+      let layers;
       try {
-        bands = geom.current.compute(exploredArea, { lat: at.lat, lng: at.lng, radius: revealRadius.value });
+        layers = geom.current.computeLayers(exploredArea, { lat: at.lat, lng: at.lng, radius: revealRadius.value });
       } catch {
         // polygon-clipping can throw on a degenerate union; keep last frame.
         return;
       }
-      // One worker update per frame. Separate layers still blend each band
-      // over the previous one, even where their polygons overlap.
-      setData(map, 'fog-src', {
-        type: 'FeatureCollection',
-        features: bands.flatMap((data, band) => data.features.map(f => ({ ...f, properties: { band } }))),
-      });
+      // One worker update per frame.
+      setData(map, 'fog-src', layers);
     };
     const offRadius = revealRadius.subscribe(draw);
     const offGlide = followGlide({ lat, lng }, travelAnim, (p) => {
