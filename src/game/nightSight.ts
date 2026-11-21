@@ -86,11 +86,6 @@ export function sightFactor(
   return Math.max(MIN_SIGHT, Math.min(1, s));
 }
 
-/** Blip / hazard sensing radius after darkness. */
-export function sightLimitedRange(rangeM: number, sight: number): number {
-  return Math.round(rangeM * sight);
-}
-
 /**
  * How far the night swarm reads through the dark. Still further than ordinary
  * pockets — you hear a street flood before you see it — but no longer the
@@ -140,4 +135,72 @@ export function sightTier(sight: number): SightTier {
   if (sight >= 0.6) return 'dim';
   if (sight >= 0.35) return 'dark';
   return 'pitch';
+}
+
+// ---------------------------------------------------------------------------
+// Sight radius — how far the survivor can actually see from where they stand.
+//
+// This is what opens the fog and stands the 3D buildings. It is not the travel
+// range (how far today's energy can carry you): a rested survivor can walk
+// further than they can see, and an exhausted one can still see down the
+// street. Built only from inputs the game already has: Perception and its
+// gear/trait/head-wound mods (awareness), the light read above (time of day,
+// cloud, torch, Night Owl), and daytime haze or rain.
+// ---------------------------------------------------------------------------
+
+/** Clear daylight sight for an average survivor (awareness 5), in metres. */
+export const SIGHT_BASE_M = 450;
+
+/** Metres of sight per awareness point away from the average of 5. */
+export const SIGHT_PER_AWARENESS_M = 40;
+
+/** Awareness counted as average: no bonus, no penalty. */
+export const SIGHT_AWARENESS_BASE = 5;
+
+/**
+ * Share of daylight sight kept in total darkness. Darkness cuts the far view
+ * more than the near one: you still make out shapes down the block by
+ * starlight and the glow of fires, so sight scales as floor + (1 − floor) × light.
+ */
+export const SIGHT_DARK_FLOOR = 0.35;
+
+/** Never less than the spot you stand on (a trek's lit landing is 90 m). */
+export const SIGHT_MIN_M = 90;
+
+/** Even a sharp-eyed survivor on a clear day sees only a few blocks of city. */
+export const SIGHT_MAX_M = 700;
+
+/**
+ * Daylight haze and rain. After dark the same weather is already in
+ * `ambientLight`, so this applies to the day band only.
+ */
+const DAY_WEATHER_SIGHT: Partial<Record<WeatherKind, number>> = {
+  haze: 0.7,
+  thunderstorm: 0.75,
+  rain: 0.85,
+};
+
+export function dayWeatherSight(band: TimeOfDay, weather: WeatherKind): number {
+  return band === 'day' ? (DAY_WEATHER_SIGHT[weather] ?? 1) : 1;
+}
+
+/**
+ * Radius of what the survivor can see, in metres. `sight` is `sightFactor()`;
+ * `awarenessValue` already carries Perception, gear, traits and head wounds;
+ * `detectMult` is the sharp-eyed trait bonus (`traitDetectRadiusMult`).
+ * Fog, 3D buildings, "?" blips and sensed hazard pockets all use this one
+ * radius: what you can see is what you know.
+ */
+export function sightRadius(
+  band: TimeOfDay,
+  weather: WeatherKind,
+  sight: number,
+  awarenessValue: number,
+  detectMult = 1,
+): number {
+  const eyes =
+    (SIGHT_BASE_M + (awarenessValue - SIGHT_AWARENESS_BASE) * SIGHT_PER_AWARENESS_M) * detectMult;
+  const dark = SIGHT_DARK_FLOOR + (1 - SIGHT_DARK_FLOOR) * sight;
+  const r = eyes * dayWeatherSight(band, weather) * dark;
+  return Math.round(Math.max(SIGHT_MIN_M, Math.min(SIGHT_MAX_M, r)));
 }

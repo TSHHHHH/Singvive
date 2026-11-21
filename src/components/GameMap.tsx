@@ -624,8 +624,9 @@ function useSightCenter(home: { lat: number; lng: number }, travelAnim: TravelAn
 }
 
 /**
- * The fog, 3D buildings and planning ring share the current travel range,
- * centred on the walking pin. The range eases outside React (RangeMotion)
+ * The fog and 3D buildings follow the sight radius (how far the survivor can
+ * see); the planning ring follows the travel range (how far today's energy
+ * reaches), which may run past the fog edge. All centre on the walking pin. The range eases outside React (RangeMotion)
  * and the pin's spot comes from the glide clock (followGlide): the ring and
  * the fog edge redraw every frame, the buildings and markers sample both, and
  * none of it re-renders this tree per frame.
@@ -635,6 +636,7 @@ function SightLayers({
   travelAnim,
   exploredArea,
   reach,
+  seen,
   sensed,
   view3d,
   onEngine,
@@ -644,8 +646,10 @@ function SightLayers({
   home: { lat: number; lng: number };
   travelAnim: TravelAnim | null;
   exploredArea: ExploredCircle[];
-  /** the travel range, easing */
+  /** the travel range, easing: the planning ring */
   reach: RangeMotion;
+  /** the sight radius, easing: fog edge and standing buildings */
+  seen: RangeMotion;
   /** the sensing range for blips, easing */
   sensed: RangeMotion;
   view3d: boolean;
@@ -657,8 +661,8 @@ function SightLayers({
   const sight = useSightCenter(home, travelAnim);
   return (
     <>
-      <FogOverlay exploredArea={exploredArea} home={home} travelAnim={travelAnim} revealRadius={reach} />
-      {view3d && <Buildings3d home={sight} radius={reach} onEngine={onEngine} />}
+      <FogOverlay exploredArea={exploredArea} home={home} travelAnim={travelAnim} revealRadius={seen} />
+      {view3d && <Buildings3d home={sight} radius={seen} onEngine={onEngine} />}
       {/* Never hit-tested: the fills cover everywhere you can walk, so a
           clickable ring would swallow every ground pick inside your range. */}
       <RangeRing home={home} travelAnim={travelAnim} range={reach} planning={planning} />
@@ -973,8 +977,10 @@ interface Props {
   selectedId: string | null;
   /** id of the location the player is standing at (live data), if any */
   hereId: string | null;
-  /** how far the survivor can comfortably travel now; drives fog and building rise */
+  /** how far the survivor can comfortably travel now: the dashed planning ring */
   travelRange: number;
+  /** how far the survivor can see: opens the fog and stands the 3D buildings */
+  sightRadius: number;
   /** how far out anonymous "?" blips are sensed */
   blipRange: number;
   /** after dark: edge of sight in metres, and how black it is past it (0 = day) */
@@ -1800,6 +1806,7 @@ function GameMapInner({
   selectedId,
   hereId,
   travelRange,
+  sightRadius,
   blipRange,
   veilRadiusM,
   veilAlpha,
@@ -1832,18 +1839,21 @@ function GameMapInner({
   // The ranges ease outside React: nothing here re-renders while they move.
   const reducedMotion = useReducedMotion();
   const [reach] = useState(() => new RangeMotion(travelRange, RANGE_EASE_MS));
+  const [seen] = useState(() => new RangeMotion(sightRadius, RANGE_EASE_MS));
   const [sensed] = useState(() => new RangeMotion(blipRange, REVEAL_MS));
   // A swing spends game time. Apply the resulting range once during combat
   // so fog geometry and buildings don't compete with the hit animation.
   const instantRange = reducedMotion || inCombat;
   useEffect(() => reach.set(travelRange, instantRange), [reach, travelRange, instantRange]);
+  useEffect(() => seen.set(sightRadius, instantRange), [seen, sightRadius, instantRange]);
   useEffect(() => sensed.set(blipRange, instantRange), [sensed, blipRange, instantRange]);
   useEffect(
     () => () => {
       reach.destroy();
+      seen.destroy();
       sensed.destroy();
     },
-    [reach, sensed],
+    [reach, seen, sensed],
   );
   const pathIdSet = useMemo(() => new Set(pathHazardIds), [pathHazardIds]);
   const view3d = useSetting('mapView3d') === 'on';
@@ -1929,6 +1939,7 @@ function GameMapInner({
           travelAnim={travelAnim}
           exploredArea={exploredArea}
           reach={reach}
+          seen={seen}
           sensed={sensed}
           view3d={view3d}
           onEngine={setEngine}

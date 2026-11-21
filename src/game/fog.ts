@@ -7,14 +7,12 @@ export { travelableRange } from './travelEnergy';
 // Locations start unknown. Nearby recognition and local clues identify exterior
 // names/categories; visits and specialist intel record fuller memories. The
 // evacuation beacon is a separate broadcast objective.
-// The ring on the map is not vision — it is the *travelable range*: how far
-// the survivor can afford with their remaining energy, build, injuries and load.
-// Terrain, weather and detours affect time, not walking energy. Locations in it show
-// as anonymous "?" blips until identified by exploration or visited.
+// The dashed ring on the map is not vision — it is the *travelable range*: how
+// far the survivor can afford with their remaining energy, build, injuries and
+// load. Terrain, weather and detours affect time, not walking energy. Vision is
+// the sight radius (`sightRadius` in nightSight.ts): it opens the fog, and
+// locations inside it show as anonymous "?" blips until identified or visited.
 // ---------------------------------------------------------------------------
-
-// Metres of blip-sensing range added per awareness point above baseline.
-export const AWARENESS_RANGE_PER_POINT = 60;
 
 import { haversine } from './overpass';
 
@@ -75,16 +73,11 @@ export function mergeExploredCircles(circles: ExploredCircle[]): ExploredCircle[
 
 /**
  * Derive awareness from Perception + equipment/trait modifiers.
- * Awareness extends how far beyond the travel ring you can *sense* blips —
+ * Awareness widens the sight radius (see `sightRadius` in nightSight.ts) —
  * Recognition uses a separate short radius in exploration.ts.
  */
 export function awareness(perception: number, equipMod: number, traitMod: number): number {
   return Math.max(0, perception + equipMod + traitMod);
-}
-
-/** Extra blip-sensing margin beyond the travel ring, from awareness. */
-export function blipMargin(awarenessValue: number): number {
-  return Math.max(0, awarenessValue - 5) * AWARENESS_RANGE_PER_POINT;
 }
 
 export type Visibility = 'inSight' | 'memory' | 'identified' | 'detected' | 'hidden';
