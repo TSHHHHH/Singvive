@@ -107,6 +107,20 @@ describe('local exploration store integration', () => {
     expect(run.currentPositionId).toBe('source');
   });
 
+  it('keeps taken and abandoned finds in the same search result', () => {
+    const session = buildSearchSession({ locationId: 'source', stashLocationId: 'source',
+      raiding: false, fled: false, nonce: 'mixed-haul',
+      pieces: [{ defId: 'scrap_metal', count: 1 }, { defId: 'canned_food', count: 1 }],
+      totalMinutes: 5, speedFactor: 1 });
+    useGame.setState({ log: [], pendingSearch: { ...session, queue: [],
+      slots: session.slots.map((slot, i) => ({ ...slot, state: i === 0 ? 'taken' : 'found' })) } });
+    useGame.getState().abortSearch();
+    const hauls = useGame.getState().log.filter((entry) => entry.loot?.length || entry.leftover?.length);
+    expect(hauls).toHaveLength(1);
+    expect(hauls[0].loot).toEqual([{ defId: session.slots[0].defId, count: 1 }]);
+    expect(hauls[0].leftover).toEqual([{ defId: session.slots[1].defId, count: 1 }]);
+  });
+
   it('checks for a search clue only after a full street search, never on abort', () => {
     const session = buildSearchSession({ locationId: 'source', stashLocationId: 'source',
       raiding: false, fled: false, nonce: 'fixture', pieces: [{ defId: 'scrap_metal', count: 1 }],
@@ -134,6 +148,20 @@ describe('local exploration store integration', () => {
     expect(useGame.getState().nearbyRecognition).toEqual([]);
   });
 
+  it('tracks one named clue at a time and restores the choice from a v7 save', () => {
+    useGame.getState().readLocalMap();
+    const state = useGame.getState();
+    const [first, second] = state.explorationLeads;
+    expect(state.log.some(entry => entry.focus?.leadId === first.id)).toBe(true);
+    state.trackLead(first.id);
+    state.trackLead(second.id);
+    state.trackLead('missing-lead');
+    flushPersist();
+    expect(loadRun()?.explorationLeads?.filter(l => l.tracked).map(l => l.id)).toEqual([second.id]);
+    state.trackLead(null);
+    expect(useGame.getState().explorationLeads.some(l => l.tracked)).toBe(false);
+  });
+
   it('dismisses only the displayed cue and never persists the animation', () => {
     const oldCue = ['clinic'];
     const newCue = ['market'];
@@ -156,13 +184,18 @@ describe('local exploration store integration', () => {
       // Keep this small controlled world: no external bake expansion is needed.
       expandedCells: [`${Math.round(target.lat / 0.009)},${Math.round(target.lng / 0.009)}`],
     });
+    s.trackLead(s.explorationLeads[0].id);
     useGame.getState().travel(target.id);
+    expect(useGame.getState().explorationLeads[0].tracked).toBe(true);
     expect(useGame.getState().explorationLeads[0].completedDay).toBeUndefined();
     const anim = useGame.getState().travelAnim;
     expect(anim).not.toBeNull();
     await vi.advanceTimersByTimeAsync(anim!.durationMs + 1);
     const arrived = useGame.getState();
     expect(arrived.currentPositionId).toBe(target.id);
+    expect(arrived.explorationLeads.some(l => l.tracked)).toBe(false);
+    arrived.trackLead(s.explorationLeads[0].id);
+    expect(useGame.getState().explorationLeads.some(l => l.tracked)).toBe(false);
     expect(arrived.locations[target.id].visited).toBe(true);
     expect(arrived.explorationLeads.find(lead => lead.targetId === target.id)?.completedDay).toBe(1);
     expect(arrived.locations.neighbour.identified).toBe(true);

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useGame } from '../game/store';
-import { REST_LENGTHS, type RestLength, type RestOutcome } from '../game/restPlan';
+import { formatRestHours, REST_LENGTHS, type RestLength, type RestOutcome } from '../game/restPlan';
 import { formatClock } from '../game/survival';
 import { useClockFormat } from '../game/settings';
 import { restAmbushLabel } from '../game/wilds';
@@ -10,14 +10,6 @@ import { ModalShell } from './ModalShell';
 import { VitalMeter } from './VitalMeter';
 
 const LENGTHS: RestLength[] = [...REST_LENGTHS, 'morning'];
-
-function hoursLabel(hours: number, t: ReturnType<typeof useT>['t']): string {
-  const total = Math.round(hours * 60);
-  const h = Math.floor(total / 60);
-  const m = total % 60;
-  if (h === 0) return t('ui.sleep.dialog.minutes', { m });
-  return m === 0 ? t('ui.sleep.dialog.hours', { h }) : t('ui.sleep.dialog.hoursMinutes', { h, m });
-}
 
 /**
  * Pick how long to sleep and see what it costs before committing. Every number
@@ -69,7 +61,7 @@ export function RestDialog({ onClose }: { onClose: () => void }) {
           >
             <Icon name="action.sleep" />{' '}
             {canRest
-              ? t('ui.sleep.dialog.confirm', { dur: hoursLabel(outcome.hours, t) })
+              ? t('ui.sleep.dialog.confirm', { dur: formatRestHours(outcome.hours, t) })
               : t('ui.sleep.dialog.cannot')}
           </button>
         </>
@@ -93,11 +85,11 @@ export function RestDialog({ onClose }: { onClose: () => void }) {
               }`}
             >
               <span className="block font-semibold">
-                {l === 'morning' ? t('ui.sleep.dialog.morning') : hoursLabel(l, t)}
+                {l === 'morning' ? t('ui.sleep.dialog.morning') : formatRestHours(l, t)}
               </span>
               {l === 'morning' && (
                 <span className="block text-micro text-white/45 tabular-nums">
-                  {hoursLabel(plan.outcome.requestedHours, t)}
+                  {formatRestHours(plan.outcome.requestedHours, t)}
                 </span>
               )}
             </button>
@@ -115,7 +107,7 @@ export function RestDialog({ onClose }: { onClose: () => void }) {
       {outcome.wokeBy && (
         <p className="mb-2 rounded border border-hiss/30 bg-hiss/10 px-2 py-1.5 text-body text-hiss">
           {canRest
-            ? t(`ui.sleep.dialog.woke.${outcome.wokeBy}`, { dur: hoursLabel(outcome.hours, t) })
+            ? t(`ui.sleep.dialog.woke.${outcome.wokeBy}`, { dur: formatRestHours(outcome.hours, t) })
             : t(`ui.sleep.dialog.blocked.${outcome.wokeBy === 'blood' ? 'blood' : 'meters'}`)}
         </p>
       )}

@@ -75,6 +75,8 @@ import {
   type LonerKind,
   type AnimalHabitat,
 } from './enemies';
+import { DEFAULT_UNARMED_MULT } from './enemies';
+export { DEFAULT_UNARMED_MULT };
 import { emptySkills, skillMods, type SkillsState } from './skills';
 
 export type { LonerKind, AnimalHabitat } from './enemies';
@@ -90,6 +92,8 @@ export interface PlayerCombatStats {
   damage: number; // damage on a hit
   infectionResist: number; // 0..1
   weaponName: string;
+  /** No usable main-hand weapon (empty or broken): hits take the target's `unarmedMult`. */
+  unarmed: boolean;
   /** Swinging a holstered gun from mainHand as a club. */
   gunClub?: boolean;
   /** @deprecated Melee track never shoots; kept for test compat. */
@@ -423,7 +427,7 @@ export function playerCombatStats(
   const defBonus = sumTraitMod(traitIds, 'defenseMod') + sm.defenseMod + gearDefense;
 
   let weaponAcc = w?.accuracy ?? 0;
-  let baseDamage = usableWeapon && w ? effectiveDamage(usableWeapon) : 4;
+  let baseDamage = usableWeapon && w ? effectiveDamage(usableWeapon) : FIST_BASE_DAMAGE;
   let wearRate = weaponDef?.wearRate ?? 1;
   let speedFactor =
     usableWeapon && w ? weaponSpeedFactor(w, !!weaponDef?.twoHanded) : FIST_SPEED_FACTOR;
@@ -473,6 +477,7 @@ export function playerCombatStats(
     damage,
     infectionResist: Math.min(1, Math.max(-0.5, infectionResist)),
     weaponName,
+    unarmed: !usableWeapon,
     gunClub,
     ranged: false,
     roundsPerShot: 0,
@@ -536,6 +541,8 @@ function clamp(n: number, lo: number, hi: number): number {
 
 /** Unarmed swing rate — a little quicker than a light blade. */
 export const FIST_SPEED_FACTOR = 1.15;
+/** Base damage of a bare-handed hit, before Strength. */
+export const FIST_BASE_DAMAGE = 6;
 
 /**
  * Gauge-fill multiplier from the weapon. Heavy hits land slower; an authored
@@ -761,6 +768,10 @@ export function resolvePlayerAction(
     if (crit) dmg = Math.round(dmg * 1.75);
     const soak = stance.ignoresArmor ? 0 : zombie.armor;
     dmg = Math.max(1, dmg - soak);
+    // Bare hands only bite on soft targets; the multiplier lands last.
+    if (player.unarmed) {
+      dmg = Math.max(1, Math.round(dmg * (zombie.unarmedMult ?? DEFAULT_UNARMED_MULT)));
+    }
     damageDealt = dmg;
     zombieHp -= dmg;
     weaponWear = (WEAR_ON_HIT + (zombie.armor > 0 ? WEAR_ARMOR_EXTRA : 0)) * player.wearRate;

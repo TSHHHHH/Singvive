@@ -1,151 +1,189 @@
 import type { Occupation } from './types';
-import { TRAITS, TRAIT_BUDGET, canPickTrait, countNegatives, getTrait, traitBudgetUsed } from './character';
+import { SCAVENGER_FINDS } from './kitFinds';
 
-// ---------- Occupations (curated presets) ----------
-// Who you were on the Friday before it fell. One-click starting builds that
-// spend the trait budget *exactly* (net 0 under the 0-start pool), so picking
-// one is never the weaker choice against another or against a hand-rolled build.
-// Anything here loads as an editable seed on the create screen.
+// ---------- Roles (occupations) ----------
+// Who you are now, months after the outbreak: a name, a story and what you
+// still carry. A role gives no traits and no stats; the trait build is picked
+// by hand on its own step. Kits fit the setting: no fresh food, worn gear, and
+// every role keeps its legs covered.
+
+export const DEFAULT_OCCUPATION_ID = 'survivor';
 
 export const OCCUPATIONS: Occupation[] = [
   {
+    id: 'survivor',
+    name: 'Classic Survivor',
+    tagline: 'A knife, a jacket, a bag. The same kit as everyone still walking.',
+    blurb:
+      'Whatever you were before, it stopped mattering around the third month. You kept what works: a blade that holds an edge, a jacket that turns a scratch, and a bag you never put down.',
+    kit: { standard: true },
+  },
+  {
+    id: 'drifter',
+    name: 'Drifter',
+    tagline: 'Rags on your hands, a tote on your shoulder. Everything else went somewhere.',
+    blurb:
+      'You lost the knife in the second month and the bag in the third, and stopped counting after that. What you have now is wrapped knuckles, a shopping tote and the habit of walking until you find something.',
+    kit: {
+      items: [{ id: 'cloth_wraps' }, { id: 'jeans' }, { id: 'flip_flops' }, { id: 'grocery_tote' }],
+    },
+  },
+  {
     id: 'student',
     name: 'College Student',
-    tagline: 'Campus legs. Mall aircon. A body that has not learned to quit.',
+    tagline: 'Campus legs and a school bag. The lectures ended months ago.',
     blurb:
-      'Two years of lectures you slept through and 3am suppers you did not. You can walk all day and talk a door open — you have just never spent one without aircon.',
-    traitIds: ['young_blood', 'never_outdoors'],
-    goodAt: ['Travel', 'Night work', 'Talking through doors'],
-    strugglesWith: ['Heat', 'The undead', 'Thirst'],
+      'The hall emptied in the first week and you never went back for your notes. A box cutter from the art room, a water bottle you refill wherever you can, and legs that still walk all day.',
+    kit: {
+      items: [
+        { id: 'school_bag' },
+        { id: 'jeans' },
+        { id: 'sneakers' },
+        { id: 'water_bottle' },
+        { id: 'box_cutter' },
+      ],
+    },
   },
   {
     id: 'trainer',
     name: 'Personal Trainer',
-    tagline: 'Hyrox heats. Sandbag lunges. An engine that will not idle.',
+    tagline: 'The gym is dark. The engine is not.',
     blurb:
-      'Stadium races, condo gyms, the whole circus. The engine is still there. Sitting still was never the job — and sleep has not been either.',
-    traitIds: ['hyrox_champion', 'restlessness'],
-    goodAt: ['Endurance', 'Travel', 'Health'],
-    strugglesWith: ['Rest', 'Staying quiet'],
+      'The condo gym went dark in the first month, so you train on stairwells now. Grip gloves, a hammer from the maintenance room, and a gel you save for the long days.',
+    kit: {
+      items: [
+        { id: 'cargo_shorts' },
+        { id: 'grip_gloves' },
+        { id: 'sneakers' },
+        { id: 'sling_bag' },
+        { id: 'water_bottle' },
+        { id: 'energy_gel' },
+        { id: 'hammer' },
+      ],
+    },
   },
   {
     id: 'soldier',
     name: 'Soldier',
-    tagline: 'NS, then the real thing. The first blow never lands clean.',
+    tagline: 'Your unit stopped reporting in. You did not stop.',
     blurb:
-      'You were on duty when the order stopped coming. The training holds. The sleep does not — every hour of it is one ear open, and it shows by day three. The Cordon is who kept showing up.',
-    traitIds: ['combat_veteran', 'hypervigilant'],
-    goodAt: ['Fighting', 'Soaking the first hit'],
-    strugglesWith: ['Sleep', 'Night travel'],
+      'The last order came months ago. You still wear the uniform, because it still works: boots that hold up, a parang from the field kit, and one ration you are saving.',
+    kit: {
+      items: [
+        { id: 'army_uniform' },
+        { id: 'camo_pants' },
+        { id: 'combat_boots' },
+        { id: 'daypack' },
+        { id: 'parang' },
+        { id: 'army_ration' },
+      ],
+    },
   },
   {
     id: 'nurse',
     name: 'Nurse',
-    tagline: 'A&E nights. You close holes other people bleed out of.',
+    tagline: 'The ward closed. Your hands still know the work.',
     blurb:
-      'Twelve-hour shifts taught you triage, and taught your hands to stop bleeding that would kill anyone else. The tank never fills. You stopped expecting it to.',
-    traitIds: ['trauma_medic', 'shift_burnout'],
-    goodAt: ['Healing', 'Infection', 'Clotting'],
-    strugglesWith: ['Rest', 'Energy'],
+      'The hospital stopped taking people in the second month. You kept the gloves, a mask, one clean bandage, and the box cutter you used to open supply crates.',
+    kit: {
+      items: [
+        { id: 'rubber_gloves' },
+        { id: 'n95_mask' },
+        { id: 'work_trousers' },
+        { id: 'sneakers' },
+        { id: 'sling_bag' },
+        { id: 'bandage' },
+        { id: 'box_cutter' },
+      ],
+    },
   },
   {
     id: 'hawker',
     name: 'Food Vendor',
-    tagline: 'Thirty years of service. Extra rice. A voice the whole block knows.',
+    tagline: 'No stall, no customers. Still the cleaver, still the pot.',
     blurb:
-      'You fed half the estate and knew all of it by name. Food goes further in your hands, and the Common Folk still count you as one of theirs. So does everything that hunts by sound.',
-    traitIds: ['estate_kitchen', 'stall_voice'],
-    goodAt: ['Food', 'Common Folk', 'Hawker-centre loot'],
-    strugglesWith: ['Stealth', 'Ambushes'],
+      'The hawker centre went quiet months ago. You took what a cook cannot work without: the cleaver, the pot, a lighter, and boots that do not slip on a wet floor.',
+    kit: {
+      items: [
+        { id: 'meat_cleaver' },
+        { id: 'cargo_shorts' },
+        { id: 'rubber_boots' },
+        { id: 'cooking_pot' },
+        { id: 'lighter' },
+        { id: 'daypack' },
+      ],
+    },
   },
   {
     id: 'karung_guni',
     name: 'Scavenger',
-    tagline: 'You already knew which blocks had the good stuff.',
+    tagline: 'Rag-and-bone before. Rag-and-bone now. Business is better.',
     blurb:
-      'Rag-and-bone, floor by floor, for longer than most of these buildings have stood. The looting is not new. The knees gave out somewhere around the fourteenth storey.',
-    traitIds: ['estate_memory', 'ruined_knees'],
-    goodAt: ['Looting', 'Searches', 'Reading a site'],
-    strugglesWith: ['Travel', 'Stairs', 'Leg injuries'],
+      'You collected what other people threw out for thirty years. Now nobody throws anything out, but the empty flats are full. A duffel bag, a pipe wrench, work gloves, and always something odd in a pocket.',
+    kit: {
+      items: [
+        { id: 'work_gloves' },
+        { id: 'work_trousers' },
+        { id: 'duffel_bag' },
+        { id: 'pipe_wrench' },
+        { id: 'cloth_rags', count: 2 },
+      ],
+      pool: { pick: 1, from: SCAVENGER_FINDS },
+    },
   },
   {
     id: 'office',
     name: 'Office Worker',
-    tagline: 'Soft hands, sharp elbows, and a bag with one more pocket.',
+    tagline: 'The office emptied. You kept the golf club and the powerbank.',
     blurb:
-      'Four reorgs and a return-to-office mandate. You know how to work a room and how to take more than your share. You have not run for a bus since 2019.',
-    traitIds: ['operator', 'desk_body'],
-    goodAt: ['Loot value', 'Pack space', 'Talking through doors'],
-    strugglesWith: ['Anything physical', 'Heat'],
+      'The last email went out in the first week. The golf bag in your car boot had one club that swings well, and a powerbank you keep charged by any means.',
+    kit: {
+      items: [
+        { id: 'work_trousers' },
+        { id: 'sneakers' },
+        { id: 'sling_bag' },
+        { id: 'golf_club' },
+        { id: 'powerbank' },
+      ],
+    },
   },
   {
     id: 'contractor',
     name: 'Contractor',
-    tagline: 'You built these blocks. Quiet was never the job.',
+    tagline: 'You built these blocks. Now you take them apart for parts.',
     blurb:
-      'Twenty years of renovation across every estate on the island. You know what a building is made of — which means you know how to take one apart, loudly.',
-    traitIds: ['site_foreman', 'heavy_hands'],
-    goodAt: ['Crafting', 'Hardware loot', 'Reading HDB corridors'],
-    strugglesWith: ['Stealth', 'Ambushes'],
+      'No renovation jobs since the first month. The hard hat, vest and safety boots stay on, because the concrete has not stopped falling. A hammer and a roll of duct tape fix most things.',
+    kit: {
+      items: [
+        { id: 'hard_hat' },
+        { id: 'work_vest' },
+        { id: 'work_trousers' },
+        { id: 'safety_boots' },
+        { id: 'daypack' },
+        { id: 'hammer' },
+        { id: 'duct_tape' },
+      ],
+    },
   },
   {
     id: 'runner',
     name: 'Fixer',
-    tagline: 'They know your face. The void decks are open. The checkpoints are not.',
+    tagline: 'Collections, before. Now you open the doors other people cannot.',
     blurb:
-      'Collections, mostly. Nothing you would put on a resume. The 88 Tong still counts you as one of theirs. The Cordon has a file, and it is not flattering.',
-    traitIds: ['made_man', 'warrant'],
-    goodAt: ['88 Tong territory', 'Void-deck access'],
-    strugglesWith: ['The Cordon', 'Checkpoints'],
+      'You did work nobody put on a résumé. Months on, the work is the same: a bat for arguments, a pick for locks, and a jacket that says you are not worth the trouble.',
+    kit: {
+      items: [
+        { id: 'leather_jacket' },
+        { id: 'jeans' },
+        { id: 'sneakers' },
+        { id: 'sling_bag' },
+        { id: 'baseball_bat' },
+        { id: 'lockpick' },
+      ],
+    },
   },
 ];
 
 export function getOccupation(id: string): Occupation | null {
   return OCCUPATIONS.find((o) => o.id === id) ?? null;
-}
-
-/**
- * Whether a trait set is one an occupation could legally have been built by
- * hand — spends the whole budget and has no conflicts or duplicates.
- * Curated occupation kits contain one positive and one flaw; custom builds have no count caps.
- *
- * Traits are added cheapest-first because `canPickTrait` enforces the budget at
- * every step, so a build that nets exactly 0 has to bank its negatives before
- * it can afford its last positive.
- */
-export function occupationIssues(o: Occupation): string[] {
-  const issues: string[] = [];
-  const picked: string[] = [];
-  const inPickOrder = [...o.traitIds].sort((a, b) => getTrait(a).cost - getTrait(b).cost);
-  for (const id of inPickOrder) {
-    if (!TRAIT_IDS.has(id)) {
-      issues.push(`unknown trait "${id}"`);
-      continue;
-    }
-    if (!canPickTrait(id, picked)) {
-      issues.push(`"${getTrait(id).name}" is not legal on top of the earlier picks`);
-      continue;
-    }
-    picked.push(id);
-  }
-  const used = traitBudgetUsed(o.traitIds);
-  if (used !== TRAIT_BUDGET) {
-    issues.push(`nets ${used} (expected ${TRAIT_BUDGET}) — presets must spend the budget exactly`);
-  }
-  const positives = o.traitIds.filter((id) => getTrait(id).category === 'positive');
-  const flaws = countNegatives(o.traitIds);
-  if (positives.length !== 1) issues.push(`expected 1 positive, got ${positives.length}`);
-  if (flaws !== 1) issues.push(`expected 1 flaw, got ${flaws}`);
-  return issues;
-}
-
-const TRAIT_IDS = new Set(TRAITS.map((t) => t.id));
-
-if (import.meta.env.DEV) {
-  for (const o of OCCUPATIONS) {
-    const issues = occupationIssues(o);
-    if (issues.length > 0) {
-      console.error(`[occupations] "${o.name}" is not a legal build:`, issues.join('; '));
-    }
-  }
 }

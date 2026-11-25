@@ -1,4 +1,5 @@
 import type { IconName } from '../icons/keys';
+import type { RoleKit } from './kitFinds';
 
 // ---------- Phases ----------
 // Combat no longer has its own phase — it renders as a panel inside 'game'.
@@ -176,9 +177,8 @@ export interface Character {
   attributes: Attributes;
   traitIds: string[];
   /**
-   * The preset this build started from, kept for flavour and for showing the
-   * player what they picked. Absent on hand-rolled builds — and on any build
-   * whose traits were edited away from the preset.
+   * The role picked on the create screen: name, story and starting kit only.
+   * Absent on runs saved before roles; those start with the Classic Survivor kit.
    */
   occupationId?: string;
 }
@@ -189,17 +189,11 @@ export interface Character {
  */
 export interface Occupation {
   id: string;
-  /** The job, as it read on the pass hanging round your neck. */
   name: string;
-  /** One line, shown on the card. */
   tagline: string;
-  /** The longer pitch, shown once the card is selected. */
   blurb: string;
-  /** Positive and negative traits together, in pick order. */
-  traitIds: string[];
-  /** Plain-English strengths — no numbers, for players who don't want them. */
-  goodAt: string[];
-  strugglesWith: string[];
+  /** What this role still carries. A role gives no traits or stats. */
+  kit: RoleKit;
 }
 
 // ---------- Items / Inventory ----------
@@ -718,6 +712,8 @@ export interface Enemy {
   damage: number; // per hit
   infectious: number; // 0..1 chance to infect on hit (0 for humans)
   armor: number; // flat damage soak — bypassed by the precision stance
+  /** Fist-damage multiplier, 0..1; missing (old saves) = 0.5. */
+  unarmedMult?: number;
   /** Per-archetype combat glyph. Zombies/humans omit this and use the kind default. */
   icon?: IconName;
   /**
@@ -937,7 +933,7 @@ export interface GameLogEntry {
   /** What wouldn't fit in the pack. */
   leftover?: LootStackRef[];
   /** Optional map focus — e.g. outpost intel tip. */
-  focus?: { lat: number; lng: number; label?: string };
+  focus?: { lat: number; lng: number; label?: string; leadId?: string };
   /** When set, UI collapses a place-visit (plus unscoped lines still at that place) under one header. */
   scope?: LogScope;
 }

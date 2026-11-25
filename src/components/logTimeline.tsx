@@ -1,3 +1,4 @@
+import { LeadTrackingButton } from './LeadTrackingButton';
 import { useState, type CSSProperties } from 'react';
 import { ActivityEventCard } from './ActivityEventCard';
 import { crossingLogText } from '../game/crossingEvent';
@@ -89,7 +90,7 @@ export function LogEntryBody({
   return (
     <div className="min-w-0 flex-1">
       {compact ? (
-        <div className={`break-words text-body ${toneClass[e.tone] ?? 'text-white/60'}`}>
+        <div className={`whitespace-pre-line break-words text-body ${toneClass[e.tone] ?? 'text-white/60'}`}>
           <span className="mr-2 shrink-0 tabular-nums text-micro text-white/25">
             {formatClock(e.hour, clock)}
           </span>
@@ -98,7 +99,7 @@ export function LogEntryBody({
       ) : (
         <p
           style={hang}
-          className={`whitespace-normal break-words text-body ${
+          className={`whitespace-pre-line break-words text-body ${
             toneClass[e.tone] ?? 'text-white/60'
           }`}
         >
@@ -111,7 +112,8 @@ export function LogEntryBody({
           {highlightLogText(text)}
         </p>
       )}
-      {e.focus && onFocusMap && (
+      {e.focus?.leadId && <LeadTrackingButton id={e.focus.leadId} onFocusMap={onFocusMap} />}
+      {e.focus && !e.focus.leadId && onFocusMap && (
         <div style={{ paddingLeft: compact ? 0 : timeW }} className="mt-1">
           <button
             type="button"
@@ -155,7 +157,7 @@ export function LogEntryBody({
           className="mt-1 text-micro text-hiss"
           style={compact ? undefined : { paddingLeft: timeW }}
         >
-          {tr('ui.log.packFull', {
+          {tr('ui.log.leftBehind', {
             items: e.leftover
               .map((s) => `${itemName(s.defId, locale)} ×${s.count}`)
               .join(', '),
@@ -299,6 +301,7 @@ function CompactLogSection({
   clock,
   timeW,
   tr,
+  onFocusMap,
   stripe,
   divide,
 }: {
@@ -307,6 +310,7 @@ function CompactLogSection({
   clock: ClockFormat;
   timeW: string;
   tr: Translate;
+  onFocusMap?: (lat: number, lng: number) => void;
   stripe: number;
   divide: boolean;
 }) {
@@ -342,6 +346,7 @@ function CompactLogSection({
             <li key={e.id}>
               <LogEntryBody
                 e={e}
+                onFocusMap={onFocusMap}
                 locale={locale}
                 clock={clock}
                 timeW={timeW}
@@ -409,6 +414,7 @@ export function GroupedLogList({
               >
                 <LogEntryBody
                   e={g.entry}
+                  onFocusMap={onFocusMap}
                   locale={locale}
                   clock={clock}
                   timeW={timeW}
@@ -423,6 +429,7 @@ export function GroupedLogList({
             <CompactLogSection
               key={`${g.key}:${g.entries[0]?.id ?? i}`}
               group={g}
+              onFocusMap={onFocusMap}
               locale={locale}
               clock={clock}
               timeW={timeW}

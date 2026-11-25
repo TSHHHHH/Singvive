@@ -42,7 +42,6 @@ import { ObjectiveBar } from '../components/ObjectiveBar';
 import { ActivityBadge } from '../components/ActivityBadge';
 import { NearbyRecognitionNotice } from '../components/NearbyRecognitionNotice';
 import { ObjectivesPanel } from '../components/ObjectivesPanel';
-import { PendingCrossingCard } from '../components/PendingCrossingCard';
 import { tip } from '../components/tips';
 import { useUnseen } from '../components/railBadges';
 import { loadTierLabel, loadTierShown } from '../components/loadTier';
@@ -307,7 +306,6 @@ export function GameScreen() {
     worldError,
     travelAnim,
     pendingEvent,
-    pendingCrossing,
     searchNonce,
     hdb,
     ghostOffer,
@@ -340,7 +338,6 @@ export function GameScreen() {
       worldError: s.worldError,
       travelAnim: s.travelAnim,
       pendingEvent: s.pendingEvent,
-      pendingCrossing: s.pendingCrossing,
       searchNonce: s.pendingSearch?.nonce ?? null,
       hdb: s.hdb,
       ghostOffer: s.ghostOffer,
@@ -498,15 +495,13 @@ export function GameScreen() {
   const phoneInterruptId =
     !isPhone || hdb || tunnel
       ? null
-      : pendingCrossing
-        ? `crossing:${pendingCrossing.id}`
-        : pendingEvent
-          ? `event:${pendingEvent.locationId}`
-          : searchNonce !== null
-            ? `search:${searchNonce}`
-            : inCombat
-              ? `combat:${awaitingStance ? 'contact' : 'fight'}`
-              : null;
+      : pendingEvent
+        ? `event:${pendingEvent.locationId}`
+        : searchNonce !== null
+          ? `search:${searchNonce}`
+          : inCombat
+            ? `combat:${awaitingStance ? 'contact' : 'fight'}`
+            : null;
   const seenInterruptId = useRef<string | null>(null);
   useEffect(() => {
     if (phoneInterruptId === seenInterruptId.current) return;
@@ -816,6 +811,10 @@ export function GameScreen() {
           day,
           sight,
           lightPower,
+          // Same stats the slip-past checks roll with, so the label counts them.
+          checker: character
+            ? { attributes: character.attributes, checkBonus: sumTraitMod(character.traitIds, 'checkBonusMod') }
+            : undefined,
         },
         known,
         via,
@@ -880,6 +879,10 @@ export function GameScreen() {
           day,
           sight,
           lightPower,
+          // Same stats the slip-past checks roll with, so the label counts them.
+          checker: character
+            ? { attributes: character.attributes, checkBonus: sumTraitMod(character.traitIds, 'checkBonusMod') }
+            : undefined,
         },
         known,
         via,
@@ -953,7 +956,7 @@ export function GameScreen() {
   // the panel's edge and squeeze, a 300-750 px jump). Only where even its
   // narrowest size can't clear the panel does it slide aside (inspectorShift).
   const timelineWanted =
-    !isPhone && (timelinePinned || inCombat || awaitingStance || !!pendingEvent || !!pendingCrossing || searchNonce !== null);
+    !isPhone && (timelinePinned || inCombat || awaitingStance || !!pendingEvent || searchNonce !== null);
   const inspectorReserve = timelineWanted ? tlW + HUD_GAP : 0;
   const inspectorRoomed = mapW - SLIDE_OUT_W - HUD_EDGE * 2 - inspectorReserve;
   // Too narrow to leave a panel its room (a pinned timeline on a laptop): the
@@ -967,7 +970,7 @@ export function GameScreen() {
         );
   const timelineFits = isPhone || !sidePanel || mapW >= SLIDE_OUT_W + inspectorW + tlW + HUD_EDGE * 2 + HUD_GAP;
   const timelineFull =
-    (timelinePinned && timelineFits) || inCombat || awaitingStance || !!pendingEvent || !!pendingCrossing || searchNonce !== null;
+    (timelinePinned && timelineFits) || inCombat || awaitingStance || !!pendingEvent || searchNonce !== null;
   const timelineBeside = timelineFull && timelineFits;
   const timelineStacked = timelineFull && !timelineFits;
   const slideOutW = wideSlideOut
@@ -1172,7 +1175,7 @@ export function GameScreen() {
   const evacZone = evacZoneId && evacWindowActive ? locations[evacZoneId] : null;
   const atEvac = !!evacZone && currentPositionId === evacZoneId;
   const evacDisabled =
-    phase !== 'game' || inCombat || !!pendingEvent || !!pendingCrossing ||
+    phase !== 'game' || inCombat || !!pendingEvent ||
     searchNonce !== null || !!travelAnim || !!hdb || !!tunnel;
   const dayMult = scoreDayMult(day);
   const projectedScore = computeScore(day, kills, Math.round(totalLootValue(items)));
@@ -1399,16 +1402,14 @@ export function GameScreen() {
   const contactGate = awaitingStance;
   const phoneFight = isPhone && inCombat && !contactGate;
   const phoneOwnsLive =
-    isPhone && (inCombat || !!pendingEvent || !!pendingCrossing || searchNonce !== null);
-  const phoneInterruptKind: 'contact' | 'crossing' | 'event' | 'search' | null = contactGate
+    isPhone && (inCombat || !!pendingEvent || searchNonce !== null);
+  const phoneInterruptKind: 'contact' | 'event' | 'search' | null = contactGate
     ? 'contact'
-    : pendingCrossing
-      ? 'crossing'
-      : pendingEvent
-        ? 'event'
-        : searchNonce !== null
-          ? 'search'
-          : null;
+    : pendingEvent
+      ? 'event'
+      : searchNonce !== null
+        ? 'search'
+        : null;
   /** Idle here/log chrome only while Map tab is showing the world surface. */
   const phoneOnMap = isPhone && mobileView === 'map' && !sidePanel;
   // Desktop contact gate dims the world until Fight/Flee. Phone tabs stay live;
@@ -2050,11 +2051,6 @@ export function GameScreen() {
           <EncounterPrompt variant="card" />
         </MapInterruptCard>
       )}
-      {isPhone && !phoneFight && phoneInterruptKind === 'crossing' && pendingCrossing && (
-        <MapInterruptCard className={phoneOnMap ? '' : 'hidden'}>
-          <PendingCrossingCard />
-        </MapInterruptCard>
-      )}
       {isPhone && !phoneFight && phoneInterruptKind === 'event' && pendingEvent && (
         <MapInterruptCard className={phoneOnMap ? '' : 'hidden'}>
           <PendingEventCardBody event={pendingEvent.event} />
@@ -2120,7 +2116,7 @@ export function GameScreen() {
           active={phoneOnMap}
           onClick={() => goToPhoneTab('map')}
           pulse={
-            !!(pendingEvent || pendingCrossing || searchNonce !== null || inCombat) &&
+            !!(pendingEvent || searchNonce !== null || inCombat) &&
             !phoneOnMap &&
             !hdb &&
             !tunnel
@@ -2184,7 +2180,10 @@ export function GameScreen() {
           onReviewGuide={() => setHowToPlayOpen(true)}
         />
       )}
-      {dayLogsOpen && <DayLogsModal onClose={() => setDayLogsOpen(false)} />}
+      {dayLogsOpen && <DayLogsModal onClose={() => setDayLogsOpen(false)} onFocusMap={(lat, lng) => {
+        setDayLogsOpen(false);
+        focusStashOnMap(lat, lng);
+      }} />}
       {guideTopic && <GuideModal topic={guideTopic} onClose={() => setGuideTopic(null)} />}
       <DiceRoll />
       <GuideOverlay />

@@ -1,3 +1,4 @@
+import { LeadTrackingButton } from './LeadTrackingButton';
 import { useMemo } from 'react';
 import { isCarried } from '../game/inventory';
 import { useGame } from '../game/store';
@@ -146,6 +147,7 @@ function LeadEntry({ lead, locations, onFocusLocation }: { lead: ExplorationLead
   return (
     <li className="rounded-lg border border-white/15 bg-concrete-900/80 p-3">
       <PlaceHeading location={target} onFocusLocation={onFocusLocation} />
+      <LeadTrackingButton id={lead.id} onFocusMap={onFocusLocation} />
       {lead.completedDay === undefined && <p className="mt-2 text-body text-white/75">{t(`ui.exploration.descriptions.${lead.source}`)}</p>}
       <p className="mt-2 text-body text-white/50">{t('ui.exploration.sourceDay', { source: t(`ui.exploration.sources.${lead.source}`), name: source?.name ?? t('ui.location.unknownLocation'), day: lead.createdDay })}</p>
       {lead.facility && <p className="mt-1 text-body text-white/60">{t('ui.exploration.reportedFacility', { facility: t(`ui.exploration.facilities.${lead.facility}`) })}</p>}

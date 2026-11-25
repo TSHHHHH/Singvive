@@ -14,7 +14,7 @@ import {
   traitBudgetUsed,
   attributesFromTraits,
 } from '../game/character';
-import { OCCUPATIONS, getOccupation } from '../game/occupations';
+import { DEFAULT_OCCUPATION_ID, OCCUPATIONS, getOccupation } from '../game/occupations';
 import {
   deletePreset,
   loadPresets,
@@ -36,6 +36,7 @@ import {
   traitKit,
   type KitEntry,
   type KitLine,
+  type ResolvedKit,
 } from '../game/startingKit';
 import { tip } from '../components/tips';
 
@@ -48,7 +49,7 @@ const TRAIT_TIP_PANEL =
   'bg-concrete-900/95 px-3 py-2.5 text-read text-concrete-50 ' +
   'shadow-signage backdrop-blur-sm';
 
-/** Same set, order-insensitive — an edited build is no longer that occupation. */
+/** Same set, order-insensitive — an edited build is no longer that preset. */
 function sameTraits(a: string[], b: string[]): boolean {
   return a.length === b.length && a.every((id) => b.includes(id));
 }
@@ -82,12 +83,12 @@ export function CharacterCreate() {
   const { commitCharacter, resetToMenu } = useGame(
     useShallow((s) => ({ commitCharacter: s.commitCharacter, resetToMenu: s.resetToMenu })),
   );
-  const { locale, t, tList } = useT();
+  const { locale, t } = useT();
   const coarsePointer = useCoarsePointer();
   const [step, setStep] = useState<Step>('background');
   const [name, setName] = useState('');
   const [traitIds, setTraitIds] = useState<string[]>([]);
-  const [pickedId, setPickedId] = useState<string | null>(null);
+  const [occupationId, setOccupationId] = useState<string>(DEFAULT_OCCUPATION_ID);
   const [myPresets, setMyPresets] = useState<TraitPreset[]>(() => loadPresets());
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
   const [presetNameDraft, setPresetNameDraft] = useState('');
@@ -101,9 +102,7 @@ export function CharacterCreate() {
   const budgetRemaining = TRAIT_BUDGET - traitBudgetUsed(traitIds);
   const legal = isLegalTraitBuild(traitIds);
 
-  const picked = pickedId ? getOccupation(pickedId) : null;
-  const matchesOccupation = picked != null && sameTraits(traitIds, picked.traitIds);
-  const occupationId = matchesOccupation ? picked.id : undefined;
+  const picked = getOccupation(occupationId) ?? OCCUPATIONS[0];
   const selectedMyPreset = selectedPresetId
     ? (myPresets.find((p) => p.id === selectedPresetId) ?? null)
     : null;
@@ -113,22 +112,11 @@ export function CharacterCreate() {
   const positiveCount = traitIds.filter((id) => getTrait(id).category === 'positive').length;
   const negativeCount = traitIds.filter((id) => getTrait(id).category === 'negative').length;
 
-  const identityLabel = matchesOccupation
-    ? t(`occupation.${picked.id}.name`)
-    : matchesPreset
-      ? selectedMyPreset.name
-      : picked
-        ? t('ui.create.basedOn', { name: t(`occupation.${picked.id}.name`) })
-        : selectedMyPreset
-          ? t('ui.create.basedOn', { name: selectedMyPreset.name })
-          : traitIds.length === 0
-            ? t('ui.create.blank')
-            : t('ui.create.custom');
-
-  const budgetHint =
-    budgetRemaining === 0 && traitIds.length === 2 && picked != null
-      ? t('ui.create.budgetHint')
-      : null;
+  const identityLabel = matchesPreset
+    ? selectedMyPreset.name
+    : traitIds.length === 0
+      ? t('ui.create.blank')
+      : t('ui.create.custom');
 
   const start = () => {
     if (!legal) return;
@@ -136,29 +124,23 @@ export function CharacterCreate() {
       name: name.trim() || t('ui.create.survivor'),
       attributes: attrs,
       traitIds,
-      occupationId,
+      occupationId: picked.id,
     });
   };
 
   const refreshPresets = () => setMyPresets(loadPresets());
 
-  const selectOccupation = (o: Occupation) => {
-    setPickedId(o.id);
-    setSelectedPresetId(null);
-    setTraitIds(o.traitIds);
-    setPresetMsg(null);
-  };
+  /** A role is story and kit only: picking one never touches the traits. */
+  const selectOccupation = (o: Occupation) => setOccupationId(o.id);
 
   const selectMyPreset = (p: TraitPreset) => {
     setSelectedPresetId(p.id);
-    setPickedId(null);
     setTraitIds(p.traitIds);
     setPresetNameDraft(p.name);
     setPresetMsg(null);
   };
 
   const clearBuild = () => {
-    setPickedId(null);
     setSelectedPresetId(null);
     setTraitIds([]);
     setPresetMsg(null);
@@ -166,9 +148,7 @@ export function CharacterCreate() {
   };
 
   const revert = () => {
-    if (picked) setTraitIds(picked.traitIds);
-    else if (selectedMyPreset) setTraitIds(selectedMyPreset.traitIds);
-    else setTraitIds([]);
+    setTraitIds(selectedMyPreset ? selectedMyPreset.traitIds : []);
   };
 
   const toggleTrait = (id: string) => {
@@ -181,7 +161,7 @@ export function CharacterCreate() {
 
   const handleSavePreset = () => {
     const label =
-      presetNameDraft.trim() || selectedMyPreset?.name || (picked ? t(`occupation.${picked.id}.name`) : t('ui.create.myBuild'));
+      presetNameDraft.trim() || selectedMyPreset?.name || t('ui.create.myBuild');
     const existing = myPresets.find((p) => p.name.toLowerCase() === label.toLowerCase());
     if (existing && !window.confirm(t('ui.create.overwrite', { name: existing.name }))) return;
     const saved = savePreset(label, traitIds);
@@ -197,7 +177,6 @@ export function CharacterCreate() {
     }
     refreshPresets();
     setSelectedPresetId(saved.id);
-    setPickedId(null);
     setPresetNameDraft(saved.name);
     setPresetMsg(t('ui.create.saved', { name: saved.name }));
   };
@@ -286,17 +265,17 @@ export function CharacterCreate() {
     </div>
   );
 
-  const kit = resolveStartingKit(traitIds);
+  const kit = resolveStartingKit(picked.id, traitIds);
   const listSep = locale === 'zh-Hans' ? '、' : ', ';
   const poolLine = (p: { pick: number; from: KitEntry[] }) =>
     t('ui.create.kit.oneOf', { n: p.pick, items: p.from.map((e) => kitLabel(e, locale)).join(listSep) });
 
-  /** One build's whole kit: what is worn, then what is packed, trait gear highlighted. */
-  const kitBlock = (
+  /** One kit: what is worn, then what is packed, trait gear highlighted. */
+  const kitChips = (k: ResolvedKit) => (
     <div className="flex flex-wrap gap-1" {...tip(t('ui.create.kit.hint'))}>
-      {kitLines(kit).map((line) => {
-        const worn = Object.values(kit.equip).includes(line);
-        const fromTrait = line.source !== 'base';
+      {kitLines(k).map((line) => {
+        const worn = Object.values(k.equip).includes(line);
+        const fromTrait = line.source !== 'role';
         return (
           <span
             key={`${worn ? 'w' : 'p'}:${line.id}`}
@@ -309,16 +288,22 @@ export function CharacterCreate() {
           </span>
         );
       })}
-      {kit.pools.map((p) => (
-        <span
-          key={`pool:${p.trait}`}
-          className="rounded border border-dashed border-signal/30 px-1.5 py-0.5 text-micro text-signal/80"
-        >
-          {poolLine(p)}
-        </span>
-      ))}
+      {k.pools.map((p) => {
+        const fromTrait = p.source !== 'role';
+        return (
+          <span
+            key={`pool:${fromTrait && typeof p.source === 'object' ? p.source.trait : 'role'}`}
+            className={`rounded border border-dashed px-1.5 py-0.5 text-micro ${
+              fromTrait ? 'border-signal/30 text-signal/80' : 'border-white/15 text-white/50'
+            }`}
+          >
+            {poolLine(p)}
+          </span>
+        );
+      })}
     </div>
   );
+  const kitBlock = kitChips(kit);
 
   /** What one trait adds (detail panel, mobile tip). */
   const traitKitText = (id: string): string[] => {
@@ -378,7 +363,7 @@ export function CharacterCreate() {
             onClick={revert}
             className="text-label uppercase text-white/40 hover:text-white/80"
           >
-            ⟳ {t(picked || selectedMyPreset ? 'ui.create.revert' : 'ui.create.reset')}
+            ⟳ {t(selectedMyPreset ? 'ui.create.revert' : 'ui.create.reset')}
           </button>
           <button
             type="button"
@@ -392,7 +377,6 @@ export function CharacterCreate() {
       <div>
         <SectionLabel>{t('ui.create.removeHint')}</SectionLabel>
         {selectedChips}
-        {budgetHint && <p className="mt-1 text-micro text-white/40">{budgetHint}</p>}
       </div>
       <div>
         <SectionLabel>{t('ui.create.attributes')}</SectionLabel>
@@ -434,9 +418,13 @@ export function CharacterCreate() {
     </label>
   );
 
+  const roleKitText = (id: string): string => {
+    const k = resolveStartingKit(id, []);
+    return [...kitLines(k).map((line) => kitLabel(line, locale)), ...k.pools.map(poolLine)].join(listSep);
+  };
+
   const renderJobCard = (o: Occupation) => {
-    const selected = matchesOccupation && pickedId === o.id;
-    const basedOn = !matchesOccupation && pickedId === o.id;
+    const selected = picked.id === o.id;
     return (
       <button
         key={o.id}
@@ -446,29 +434,12 @@ export function CharacterCreate() {
         className={`flex flex-col rounded border px-3 py-2 text-left transition ${
           selected
             ? 'border-signal bg-signal/15'
-            : basedOn
-              ? 'border-signal/40 bg-signal/5'
-              : 'border-white/10 bg-white/[0.03] hover:border-signal/50 hover:bg-white/[0.06]'
+            : 'border-white/10 bg-white/[0.03] hover:border-signal/50 hover:bg-white/[0.06]'
         }`}
       >
         <span className="text-plate uppercase">{t(`occupation.${o.id}.name`)}</span>
         <span className="mt-0.5 line-clamp-2 text-micro text-white/55">{t(`occupation.${o.id}.tagline`)}</span>
-        <span className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
-          {o.traitIds.map((id) => {
-            const tr = getTrait(id);
-            return (
-              <span
-                key={id}
-                className={`inline-flex items-center gap-1 whitespace-nowrap text-micro ${
-                  tr.category === 'positive' ? 'text-signal' : 'text-hiss'
-                }`}
-              >
-                <Icon name={tr.icon} size={12} className="shrink-0" />
-                {traitName(id, locale)}
-              </span>
-            );
-          })}
-        </span>
+        <span className="mt-1.5 line-clamp-2 text-micro text-white/40">{roleKitText(o.id)}</span>
       </button>
     );
   };
@@ -552,63 +523,26 @@ export function CharacterCreate() {
     </div>
   );
 
-  const jobDetail = picked ? (
+  const jobDetail = (
     <div className="rounded border border-white/10 bg-white/[0.03] p-3">
       <p className="text-plate uppercase text-signal">{t(`occupation.${picked.id}.name`)}</p>
       <p className="mt-1 text-body leading-relaxed text-white/60">{t(`occupation.${picked.id}.blurb`)}</p>
-      <div className="mt-2 grid grid-cols-2 gap-2 text-micro">
-        <div>
-          <span className="block uppercase text-white/40">{t('ui.create.goodAt')}</span>
-          <span className="text-signal">{tList(`occupation.${picked.id}.goodAt`).join(locale === 'zh-Hans' ? '、' : ', ')}</span>
-        </div>
-        <div>
-          <span className="block uppercase text-white/40">{t('ui.create.strugglesWith')}</span>
-          <span className="text-hiss">{tList(`occupation.${picked.id}.strugglesWith`).join(locale === 'zh-Hans' ? '、' : ', ')}</span>
-        </div>
+      <div className="mt-2">
+        <SectionLabel>{t('ui.create.kit.startsWith')}</SectionLabel>
+        {kitChips(resolveStartingKit(picked.id, []))}
       </div>
-      {picked.traitIds.some((id) => traitKit(id)) && (
-        <div className="mt-2 text-micro">
-          <span className="block uppercase text-white/40">{t('ui.create.kit.startsWith')}</span>
-          {picked.traitIds.flatMap(traitKitText).map((line) => (
-            <span key={line} className="block text-concrete-50">
-              {line}
-            </span>
-          ))}
-        </div>
-      )}
     </div>
-  ) : (
-    <p className="rounded border border-dashed border-white/10 p-3 text-body text-white/40">
-      {t('ui.create.jobHint')}
-    </p>
   );
 
   const backgroundStep = (
     <div className="flex min-w-0 flex-col gap-4">
       {nameField}
       <div>
-        <SectionLabel
-          right={
-            <button
-              type="button"
-              onClick={clearBuild}
-              className={`text-label uppercase ${
-                !picked && !selectedMyPreset && traitIds.length === 0
-                  ? 'text-signal'
-                  : 'text-white/40 hover:text-white/80'
-              }`}
-            >
-              {t('ui.create.blank')}
-            </button>
-          }
-        >
-          {t('ui.create.backgroundPrompt')}
-        </SectionLabel>
+        <SectionLabel>{t('ui.create.backgroundPrompt')}</SectionLabel>
         <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
           {OCCUPATIONS.map(renderJobCard)}
         </div>
       </div>
-      {presetsBlock}
     </div>
   );
 
@@ -870,7 +804,7 @@ export function CharacterCreate() {
 
   const secondaryAction =
     step === 'background' ? (
-      legal && traitIds.length > 0 ? (
+      legal ? (
         <button
           type="button"
           onClick={start}
@@ -913,6 +847,7 @@ export function CharacterCreate() {
         <aside className="flex min-h-0 flex-col gap-3 lg:overflow-y-auto">
           {summary}
           {step === 'background' ? jobDetail : traitDetail}
+          {step === 'traits' && presetsBlock}
           {step === 'traits' && savePresetRow}
           <div className="hidden flex-col items-center gap-2 lg:mt-auto lg:flex">
             {primaryButton}

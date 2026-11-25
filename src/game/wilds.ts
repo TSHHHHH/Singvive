@@ -1,4 +1,4 @@
-import type { TimeOfDay, WeatherKind } from './types';
+import type { AttributeKey, Attributes, TimeOfDay, WeatherKind } from './types';
 import { Rng } from './rng';
 import { haversine } from './overpass';
 import { flavorHazard } from './flavor';
@@ -21,7 +21,6 @@ import {
   type HazardSiteCategory,
 } from './hazardSites';
 import { darkTrekEncounterMod } from './nightSight';
-import { carefulCrossingMinutes } from './crossingEvent';
 
 // ---------------------------------------------------------------------------
 // The wilds — the ground *between* the pins.
@@ -807,13 +806,16 @@ export interface TrekRisk {
   encounterChance: number;
   /**
    * 0..1 chance the crossing actually ends in a fight, given the hazards this
-   * risk was priced with. This is what the route label reads.
+   * risk was priced with (and the slip-past checks, when a `checker` was given).
+   * This is what the route label reads.
    */
   fightChance: number;
   /** Danger tier (1..5) any fight out here is built at. */
   combatDanger: number;
   /** Hazards the route runs through. */
   hazards: HazardZone[];
+  /** Encounter chance before the hazards multiplied it (see {@link repriceTrekRisk}). */
+  baseChance?: number;
 }
 
 /**
@@ -839,6 +841,11 @@ export function trekRisk(
     lightPower?: number;
     /** Rain or storm — reshapes what a quiet-road roll turns into. */
     wet?: boolean;
+    /**
+     * The walker's check stats. When set, `fightChance` counts the zones they
+     * would slip past (route labels). The roll itself never needs it.
+     */
+    checker?: HazardChecker;
   },
   hazardsOverride?: HazardZone[],
   via?: { lat: number; lng: number }[],
@@ -891,6 +898,15 @@ export function trekRisk(
   p += opts.weatherEncounterMod;
   p += darkTrekEncounterMod(opts.band, opts.sight ?? 1, opts.lightPower ?? 0);
 
+  const risk = priceHazards(p, hazards, opts.wet ?? false);
+  if (opts.checker) {
+    risk.fightChance = slipAwareFightChance(p, hazards, from, to, opts.checker, opts.wet ?? false);
+  }
+  return risk;
+}
+
+function priceHazards(baseChance: number, hazards: HazardZone[], wet: boolean): TrekRisk {
+  let p = baseChance;
   let worst = 0;
   for (const z of hazards) {
     const cfg = HAZARD_CONFIG[z.kind];
@@ -901,10 +917,150 @@ export function trekRisk(
   const encounterChance = Math.max(0, Math.min(0.95, p));
   return {
     encounterChance,
-    fightChance: crossingFightChance(encounterChance, hazards, opts.wet ?? false),
+    fightChance: crossingFightChance(encounterChance, hazards, wet),
     combatDanger: Math.max(1, Math.min(5, 2 + worst)),
     hazards,
+    baseChance,
   };
+}
+
+/**
+ * The same crossing priced with only `hazards` left on it — the zones the
+ * survivor slipped past no longer push the quiet-road roll either.
+ */
+export function repriceTrekRisk(risk: TrekRisk, hazards: HazardZone[], wet: boolean): TrekRisk {
+  return priceHazards(risk.baseChance ?? risk.encounterChance, hazards, wet);
+}
+
+// --- slipping past a zone ---------------------------------------------------
+
+/** What each zone tests: footing, stamina, reading people, or spotting them first. */
+export const HAZARD_CHECK_ATTR: Record<HazardKind, AttributeKey> = {
+  collapse: 'dexterity',
+  floodwater: 'endurance',
+  gang_patrol: 'wits',
+  horde_pocket: 'perception',
+  wildlife_water: 'perception',
+  wildlife_forest: 'perception',
+  wildlife_urban: 'perception',
+  night_swarm: 'perception',
+};
+
+/** Leaving ground you already stand in is easier than walking into it blind. */
+const EXIT_DC_BONUS = 2;
+/** The swarm owns the streets after dark; slipping past it is harder. */
+const NIGHT_SWARM_DC_MOD = 3;
+
+export type HazardCheckMode = 'cross' | 'exit';
+
+export function hazardCheckDc(z: Pick<HazardZone, 'kind' | 'severity'>, mode: HazardCheckMode): number {
+  return 8 + z.severity * 3
+    + (z.kind === 'night_swarm' ? NIGHT_SWARM_DC_MOD : 0)
+    - (mode === 'exit' ? EXIT_DC_BONUS : 0);
+}
+
+export interface HazardCheck {
+  zone: HazardZone;
+  mode: HazardCheckMode;
+  attr: AttributeKey;
+  roll: number;
+  total: number;
+  dc: number;
+  success: boolean;
+}
+
+/**
+ * One d20 check per distinct zone on the route. A zone the survivor starts in
+ * and stays in asks nothing (they are already there); a zone they start in and
+ * leave is an exit check; any other zone on the route is a crossing check.
+ * Natural 20 always slips past, natural 1 never does.
+ */
+export function rollHazardChecks(
+  rng: Rng,
+  hazards: readonly HazardZone[],
+  from: { lat: number; lng: number },
+  to: { lat: number; lng: number },
+  attributes: Attributes,
+  checkBonus: number,
+): HazardCheck[] {
+  return hazardCheckPlan(hazards, from, to).map(({ zone, mode }) => {
+    const attr = HAZARD_CHECK_ATTR[zone.kind];
+    const dc = hazardCheckDc(zone, mode);
+    // Each zone draws from its own fork, so the order of zones never shifts a roll.
+    const roll = rng.fork(`check:${zone.id}`).d20();
+    const total = roll + attributes[attr] + checkBonus;
+    return { zone, mode, attr, roll, total, dc, success: roll === 20 || (roll !== 1 && total >= dc) };
+  });
+}
+
+/** Distinct zones that ask for a check on this walk, and which kind, sorted by id. */
+function hazardCheckPlan(
+  hazards: readonly HazardZone[],
+  from: { lat: number; lng: number },
+  to: { lat: number; lng: number },
+): { zone: HazardZone; mode: HazardCheckMode }[] {
+  const unique = [...new Map(hazards.map((z) => [z.id, z])).values()]
+    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const out: { zone: HazardZone; mode: HazardCheckMode }[] = [];
+  for (const zone of unique) {
+    const startIn = pointInZone(from.lat, from.lng, zone);
+    if (startIn && pointInZone(to.lat, to.lng, zone)) continue;
+    out.push({ zone, mode: startIn ? 'exit' : 'cross' });
+  }
+  return out;
+}
+
+/** Exact chance a d20 + `mod` check meets `dc`; natural 20 passes, natural 1 fails. */
+export function hazardCheckPassChance(mod: number, dc: number): number {
+  let pass = 0;
+  for (let roll = 1; roll <= 20; roll++) {
+    if (roll === 20 || (roll !== 1 && roll + mod >= dc)) pass++;
+  }
+  return pass / 20;
+}
+
+/** Who is walking — lets the route label count the zones they would slip past. */
+export interface HazardChecker {
+  attributes: Attributes;
+  checkBonus: number;
+}
+
+/** Past this many zones the label stops enumerating outcomes and assumes every zone catches. */
+const SLIP_ENUM_MAX = 12;
+
+/**
+ * Fight chance with the slip-past checks folded in: every combination of zones
+ * that catch the survivor, weighted by its odds, priced the way the store
+ * resolves it (a crossing of the caught zones, or the quiet road when
+ * none catch). Zones the survivor stays inside drop out, as in the store.
+ */
+function slipAwareFightChance(
+  baseChance: number,
+  hazards: readonly HazardZone[],
+  from: { lat: number; lng: number },
+  to: { lat: number; lng: number },
+  checker: HazardChecker,
+  wet: boolean,
+): number {
+  const plan = hazardCheckPlan(hazards, from, to);
+  if (plan.length > SLIP_ENUM_MAX) return priceHazards(baseChance, plan.map((p) => p.zone), wet).fightChance;
+  const caughtP = plan.map(({ zone, mode }) =>
+    1 - hazardCheckPassChance(checker.attributes[HAZARD_CHECK_ATTR[zone.kind]] + checker.checkBonus, hazardCheckDc(zone, mode)));
+  let total = 0;
+  for (let mask = 0; mask < 1 << plan.length; mask++) {
+    let p = 1;
+    const caught: HazardZone[] = [];
+    for (let i = 0; i < plan.length; i++) {
+      if (mask & (1 << i)) {
+        p *= caughtP[i];
+        caught.push(plan[i].zone);
+      } else {
+        p *= 1 - caughtP[i];
+      }
+    }
+    if (p > 0) total += p * priceHazards(baseChance, caught, wet).fightChance;
+  }
+  return total;
 }
 
 const COMBAT_KINDS: ReadonlySet<HazardKind> = new Set([
@@ -1096,8 +1252,6 @@ export function resolveCrossing(
     pressure?: number;
     forest?: boolean;
     weather?: WeatherKind;
-    /** Only supplied after the player chooses how to cross a hazardous route. */
-    approach?: 'careful' | 'direct';
   },
 ): CrossingOutcome {
   const logs: { text: string; tone: 'info' | 'bad' }[] = [];
@@ -1116,8 +1270,6 @@ export function resolveCrossing(
   const byId = new Map<string, HazardZone>();
   for (const z of risk.hazards) byId.set(z.id, z);
   const unique = [...byId.values()];
-  const careful = opts.approach === 'careful';
-  if (careful) extraHours += carefulCrossingMinutes(unique) / 60;
 
   let combatBest: HazardZone | null = null;
   let combatChance = 0;
@@ -1125,7 +1277,7 @@ export function resolveCrossing(
     if (z.kind === 'collapse') {
       const dc = 10 + z.severity * 2;
       const roll = rng.d20();
-      const ok = roll === 20 || (roll !== 1 && roll + opts.dexterity + opts.checkBonus + (careful ? 4 : 0) >= dc);
+      const ok = roll === 20 || (roll !== 1 && roll + opts.dexterity + opts.checkBonus >= dc);
       if (!ok) {
         woundHp += 6 + z.severity * 3;
         woundPreferLeg = true;
@@ -1136,18 +1288,18 @@ export function resolveCrossing(
     } else if (z.kind === 'floodwater') {
       extraHours += 0.12 * z.severity;
       logs.push({ text: flavorHazard('floodwater', 'cross', flavorRng), tone: 'bad' });
-      if (rng.chance(0.1 * z.severity * (careful ? 0.4 : 1))) {
+      if (rng.chance(0.1 * z.severity)) {
         infectionDelta += 4 * z.severity;
         logs.push({ text: flavorHazard('floodwater', 'infect', flavorRng), tone: 'bad' });
       }
     } else if (COMBAT_KINDS.has(z.kind)) {
       logs.push({ text: flavorHazard(z.kind, 'cross', flavorRng), tone: 'bad' });
-      const p = ambushChanceFor(z.kind, z.severity) * (careful ? 0.4 : 1);
+      const p = ambushChanceFor(z.kind, z.severity);
       if (p >= combatChance) {
         combatChance = p;
         combatBest = z;
       }
-      if (z.kind === 'horde_pocket' && z.severity >= 3 && !careful) {
+      if (z.kind === 'horde_pocket' && z.severity >= 3) {
         infectionDelta += 3;
         logs.push({ text: flavorHazard('horde_pocket', 'infect', flavorRng), tone: 'bad' });
       }

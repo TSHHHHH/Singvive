@@ -5,6 +5,7 @@ import { Rng } from './rng';
 export interface ExplorationLead {
   id: string; sourceId: string; targetId: string;
   source: 'search' | 'noticeboard' | 'locality'; createdDay: number; completedDay?: number;
+  tracked?: true;
   facility?: 'water' | 'shelter' | 'stove';
 }
 
@@ -220,7 +221,7 @@ export function tourOrder(origin: Position, sites: LocationState[]): string[] {
 export function completeExplorationLeads(leads: ExplorationLead[], targetId: string, day: number): ExplorationLead[] {
   if (!validDay(day) || !leads.some(lead => lead.targetId === targetId && lead.completedDay === undefined)) return leads;
   return leads.map(lead => lead.targetId === targetId && lead.completedDay === undefined
-    ? { ...lead, completedDay: Math.max(day, lead.createdDay) } : lead);
+    ? { ...lead, tracked: undefined, completedDay: Math.max(day, lead.createdDay) } : lead);
 }
 
 function validDay(value: unknown): value is number {
@@ -246,6 +247,7 @@ export function normalizeExplorationLeads(value: unknown, locations: Record<stri
     const lead: ExplorationLead = {
       id: row.id, sourceId: row.sourceId, targetId: row.targetId, source: row.source, createdDay: row.createdDay,
       ...(row.completedDay === undefined ? {} : { completedDay: row.completedDay as number }),
+      ...(row.tracked === true && row.completedDay === undefined && !active.some(l => l.tracked) ? { tracked: true as const } : {}),
       ...(row.facility === undefined ? {} : { facility: row.facility as Facility }),
     };
     ids.add(lead.id);

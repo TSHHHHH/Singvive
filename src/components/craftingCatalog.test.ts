@@ -96,6 +96,45 @@ describe('crafting variant groups', () => {
     expect(pickVariant(entries.find((e) => e.key === 'family:kopi')!.variants, 'kopi_po').recipe.id).toBe('kopi_po');
   });
 
+  it('ranks an entry by its best matching variant, so a variant pick never moves it', () => {
+    const items = [pack('coffee_portion', 2), pack('water_bottle'), pack('cloth_rags', 2)];
+    const entries = groupCraftRows(craftingRows(items, false, 0));
+    const order = (chosen: Record<string, string>, sort: 'ready' | 'time' | 'name' = 'ready') =>
+      browseCraftEntries(entries, { ...defaults, sort }, chosen).map((v) => v.entry.key);
+    for (const sort of ['ready', 'time', 'name'] as const) {
+      expect(order({ 'family:kopi': 'kopi_gau' }, sort)).toEqual(order({}, sort));
+      expect(order({ 'family:kopi': 'kopi_o_kosong' }, sort)).toEqual(order({}, sort));
+    }
+  });
+
+  it('keeps a family with one ready variant under Ready, and marks it ready whatever is picked', () => {
+    const entries = groupCraftRows(craftingRows([pack('coffee_portion', 2), pack('water_bottle')], false, 0));
+    const kopi = (filter: 'all' | 'ready', chosen: Record<string, string>) =>
+      browseCraftEntries(entries, { ...defaults, filter }, chosen).find((v) => v.entry.key === 'family:kopi');
+    expect(kopi('ready', { 'family:kopi': 'kopi_gau' })).toBeDefined();
+    expect(kopi('all', { 'family:kopi': 'kopi_gau' })!.anyReady).toBe(true);
+  });
+
+  it('shows the open strip with the variant just picked and keeps it listed when it stops matching', () => {
+    const items = [pack('coffee_portion', 2), pack('water_bottle')];
+    const entries = groupCraftRows(craftingRows(items, false, 0));
+    const open = browseCraftEntries(entries, { ...defaults, filter: 'ready' }, { 'family:kopi': 'kopi_gau' }, { expanded: 'family:kopi' });
+    expect(open.find((v) => v.entry.key === 'family:kopi')!.row.recipe.id).toBe('kopi_gau');
+    // Crafted the last cup: nothing in the family is ready, but the open strip stays.
+    const spent = groupCraftRows(craftingRows([], false, 0));
+    expect(browseCraftEntries(spent, { ...defaults, filter: 'ready' }).some((v) => v.entry.key === 'family:kopi')).toBe(false);
+    expect(browseCraftEntries(spent, { ...defaults, filter: 'ready' }, {}, { expanded: 'family:kopi' }).some((v) => v.entry.key === 'family:kopi')).toBe(true);
+    // Search and category still apply to the open strip.
+    expect(browseCraftEntries(spent, { ...defaults, category: 'food' }, {}, { expanded: 'family:kopi' }).some((v) => v.entry.key === 'family:kopi')).toBe(false);
+  });
+
+  it('sorts by the shown name when one is given (family label, not a variant name)', () => {
+    const entries = groupCraftRows(craftingRows([], false, 0));
+    const label = (e: { family?: string; variants: { recipe: { outputDefId: string } }[] }) => e.family ? `Family ${e.family}` : itemName(e.variants[0].recipe.outputDefId, 'en');
+    const names = browseCraftEntries(entries, { ...defaults, sort: 'name' }, {}, { entryName: label }).map((v) => label(v.entry));
+    expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b, 'en')));
+  });
+
   it('finds a family entry by any variant name', () => {
     const entries = groupCraftRows(craftingRows([], false, 0));
     const hits = browseCraftEntries(entries, { ...defaults, query: itemName('kopi_o_kosong_di_lo', 'en') });

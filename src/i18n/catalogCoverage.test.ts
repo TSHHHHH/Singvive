@@ -90,7 +90,7 @@ describe('localization catalog integrity', () => {
 
   it('covers the dynamic UI families using their real content ids in both catalogs', () => {
     const keys = [
-      ...OCCUPATIONS.flatMap(({ id }) => ['name', 'tagline', 'blurb', 'goodAt', 'strugglesWith'].map((field) => `occupation.${id}.${field}`)),
+      ...OCCUPATIONS.flatMap(({ id }) => ['name', 'tagline', 'blurb'].map((field) => `occupation.${id}.${field}`)),
       ...SKILL_IDS.flatMap((id) => [`ui.skills.names.${id}`, `ui.skills.descriptions.${id}`]),
       ...TRAIT_TAG_ORDER.map((id) => `ui.create.tags.${id}`),
       ...ATTRIBUTE_KEYS.map((id) => `ui.attributes.blurb.${id}`),

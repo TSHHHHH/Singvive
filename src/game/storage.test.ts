@@ -62,6 +62,21 @@ const write = (over: Record<string, unknown>) => {
  * `loadRun`'s outer catch turned that into `null` — the player lost the entire
  * run rather than one item.
  */
+it('omits old inventory receipts while retaining hazards, loot and progress in order', () => {
+  const entries = [
+    ['Made 2× Tinder Bundle — no room in the pack, so you carry it loose.', 'good'],
+    ['Trades rose to 1.', 'good'],
+    ['Equipped Knee Pads.', 'good'],
+    ['Dropped Sneakers.', 'info'],
+    ['Ate Snacks. Hunger restored.', 'good'],
+    ['Drank Bubble Tea. Hunger, thirst, and energy restored.', 'good'],
+    ['Drank Bottled Water. Thirst quenched — it sits wrong (+3 infection).', 'bad'],
+    ['Something moved in the dark.', 'info'],
+  ].map(([text, tone], id) => ({ id, day: 1, hour: 10, text, tone }));
+  write({ log: entries });
+  expect(loadRun()?.log?.map(entry => entry.id)).toEqual([1, 6, 7]);
+});
+
 describe('loadRun with items missing from the catalog', () => {
   it('refreshes expanded cells once after a bake update while preserving run progress', () => {
     write({ poiRevision: 'old-bake', expandedCells: ['1,2'], day: 12, items: [inst('a', 'parang')] });

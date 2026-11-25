@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useShownLog } from '../ui/diceGate';
 import { useGame } from '../game/store';
 import { Icon } from '../icons/Icon';
 import { useClockFormat } from '../game/settings';
@@ -27,14 +28,20 @@ function groupByDay(log: GameLogEntry[]): { day: number; entries: GameLogEntry[]
  * Every day the run has lived through, kept out of the Timeline so that column
  * only ever shows today. Days open one at a time — the newest is open on entry.
  */
-export function DayLogsModal({ onClose }: { onClose: () => void }) {
+export function DayLogsModal({ onClose, onFocusMap }: { onClose: () => void; onFocusMap?: (lat: number, lng: number) => void }) {
   const { locale, t } = useT();
-  const log = useGame((s) => s.log);
+  const log = useShownLog();
   const currentDay = useGame((s) => s.day);
   const clock = useClockFormat();
 
-  const days = useMemo(() => groupByDay(log), [log]);
-  const [openDay, setOpenDay] = useState<number | null>(days[0]?.day ?? null);
+  const [filter, setFilter] = useState<'all' | 'warnings' | 'items' | 'leads'>('all');
+  const days = useMemo(() => {
+    if (filter === 'leads') return groupByDay(log.filter(entry => entry.focus?.leadId));
+    if (filter === 'warnings') return groupByDay(log.filter((entry) => entry.tone === 'bad'));
+    if (filter === 'items') return groupByDay(log.filter((entry) => entry.loot?.length || entry.leftover?.length));
+    return groupByDay(log);
+  }, [filter, log]);
+  const [openDay, setOpenDay] = useState<number | null | undefined>(undefined);
 
   const timeW = clock === '12' ? '3.4rem' : '2.5rem';
   const hang = { paddingLeft: timeW, textIndent: `-${timeW}` };
@@ -57,13 +64,22 @@ export function DayLogsModal({ onClose }: { onClose: () => void }) {
           </button>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto p-3">
+        <div role="group" aria-label={t('ui.log.filterLabel')} className="flex gap-1 px-3 pt-2">
+          {(['all', 'warnings', 'items', 'leads'] as const).map((value) => (
+            <button key={value} type="button" aria-pressed={filter === value}
+              onClick={() => { setFilter(value); setOpenDay(undefined); }}
+              className={`rounded border px-2 py-1 text-label ${filter === value ? 'border-signal/50 text-signal' : 'border-white/15 text-white/60'}`}>
+              {t(`ui.log.filters.${value}`)}
+            </button>
+          ))}
+        </div>
+        <div key={filter} className="min-h-0 flex-1 overflow-y-auto p-3">
           {days.length === 0 ? (
-            <p className="p-4 text-center text-read text-white/30">{t('ui.log.nothingRecorded')}</p>
+            <p className="p-4 text-center text-read text-white/30">{t(filter === 'all' ? 'ui.log.nothingRecorded' : 'ui.log.noMatches')}</p>
           ) : (
             <ul className="flex flex-col gap-1.5">
               {days.map(({ day, entries }) => {
-                const open = openDay === day;
+                const open = (openDay === undefined ? days[0]?.day : openDay) === day;
                 const bad = entries.filter((e) => e.tone === 'bad').length;
                 const hauls = entries.reduce((n, e) => n + (e.loot?.length ?? 0), 0);
                 return (
@@ -74,6 +90,7 @@ export function DayLogsModal({ onClose }: { onClose: () => void }) {
                     }`}
                   >
                     <button
+                      aria-expanded={open}
                       onClick={() => setOpenDay(open ? null : day)}
                       className="flex w-full items-center justify-between px-3 py-2 text-left transition hover:bg-white/5"
                     >
@@ -105,6 +122,7 @@ export function DayLogsModal({ onClose }: { onClose: () => void }) {
                       <div className="border-t border-white/10 px-2 py-2">
                         <GroupedLogList
                           entries={entries}
+                          onFocusMap={onFocusMap}
                           locale={locale}
                           clock={clock}
                           timeW={timeW}

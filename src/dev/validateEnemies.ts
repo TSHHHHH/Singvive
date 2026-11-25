@@ -54,6 +54,14 @@ function validateDrops(
   }
 }
 
+/** Optional fist-damage multiplier — must sit in 0..1 when present. */
+function validateUnarmedMult(label: string, raw: Record<string, unknown>, errors: string[]): void {
+  if (raw.unarmedMult === undefined) return;
+  if (!isNumber(raw.unarmedMult) || raw.unarmedMult < 0 || raw.unarmedMult > 1) {
+    errors.push(`${label}: unarmedMult must be 0..1`);
+  }
+}
+
 function validateZombie(raw: unknown, index: number, errors: string[], seenIds: Set<string>): void {
   const label = `zombies[${index}]`;
   if (!isRecord(raw)) {
@@ -79,6 +87,7 @@ function validateZombie(raw: unknown, index: number, errors: string[], seenIds: 
   if (!isIntRange(raw.hpJitter)) errors.push(`${label}: hpJitter must be [lo, hi]`);
   if (isNumber(raw.hp) && raw.hp < 1) errors.push(`${label}: hp must be ≥ 1`);
   if (isNumber(raw.speed) && raw.speed < 1) errors.push(`${label}: speed must be ≥ 1`);
+  validateUnarmedMult(label, raw, errors);
 }
 
 function validateElite(id: string, raw: unknown, errors: string[]): void {
@@ -98,6 +107,7 @@ function validateElite(id: string, raw: unknown, errors: string[]): void {
     errors.push(`${label}: infectious must be 0..1`);
   }
   if (!isIntRange(raw.hpJitter)) errors.push(`${label}: hpJitter must be [lo, hi]`);
+  validateUnarmedMult(label, raw, errors);
 }
 
 function validateHumanScaling(label: string, raw: Record<string, unknown>, errors: string[], required: boolean): void {
@@ -134,6 +144,7 @@ function validateHumanScaling(label: string, raw: Record<string, unknown>, error
   if (isNumber(raw.defensePerDangerDiv) && raw.defensePerDangerDiv < 1) {
     errors.push(`${label}: defensePerDangerDiv must be ≥ 1`);
   }
+  validateUnarmedMult(label, raw, errors);
 }
 
 function validateHumanDefaults(raw: unknown, errors: string[]): void {
@@ -196,6 +207,7 @@ function validateLoner(kind: string, raw: unknown, errors: string[], knownItemId
   if (!isIntRange(raw.hpJitter)) errors.push(`${label}: hpJitter must be [lo, hi]`);
   if (!isIntRange(raw.damageJitter)) errors.push(`${label}: damageJitter must be [lo, hi]`);
   validateDrops(label, raw.drops, errors, knownItemIds);
+  validateUnarmedMult(label, raw, errors);
 }
 
 function validateAnimal(
@@ -233,6 +245,7 @@ function validateAnimal(
   if (isNumber(raw.hp) && raw.hp < 1) errors.push(`${label}: hp must be ≥ 1`);
   if (isNumber(raw.speed) && raw.speed < 1) errors.push(`${label}: speed must be ≥ 1`);
   if (isNumber(raw.weight) && raw.weight < 1) errors.push(`${label}: weight must be ≥ 1`);
+  validateUnarmedMult(label, raw, errors);
   if (!Array.isArray(raw.habitats) || raw.habitats.length < 1) {
     errors.push(`${label}: habitats must be a non-empty array`);
   } else {

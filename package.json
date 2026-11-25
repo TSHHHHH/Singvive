@@ -23,6 +23,7 @@
     "test:locations": "node --test scripts/location-expansion.test.mjs",
     "bake:mrt": "node scripts/bake-mrt.mjs",
     "bake:zones": "node --experimental-strip-types scripts/bake-zones.mjs",
+    "bake:crossings": "node --experimental-strip-types scripts/bake-crossings.mjs",
     "bake:towns": "node --experimental-strip-types scripts/bake-towns.mjs",
     "bake:hazard-sites": "node scripts/bake-hazard-sites.mjs",
     "bake:hazard-areas": "node scripts/bake-hazard-areas.mjs",

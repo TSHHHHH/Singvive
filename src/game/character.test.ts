@@ -1,12 +1,13 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { ensureLocale } from '../i18n/t';
 import {
+  TRAITS,
   canPickTrait,
+  getTrait,
   isLegalTraitBuild,
   pickBlockReason,
   traitBudgetRemaining,
 } from './character';
-import { OCCUPATIONS, occupationIssues } from './occupations';
 
 describe('uncapped trait builds', () => {
   beforeAll(async () => {
@@ -73,10 +74,25 @@ describe('uncapped trait builds', () => {
     expect(canPickTrait('warrant', ['warrant'])).toBe(false);
     expect(isLegalTraitBuild(['warrant', 'warrant'])).toBe(false);
   });
+});
 
-  it.each(OCCUPATIONS)('preserves the $name starting build', (occupation) => {
-    expect(occupationIssues(occupation)).toEqual([]);
-    expect(isLegalTraitBuild(occupation.traitIds)).toBe(true);
-    expect(traitBudgetRemaining(occupation.traitIds)).toBe(0);
+describe('gear trait costs', () => {
+  it('go_bag and prepper cost 1', () => {
+    expect(getTrait('go_bag').cost).toBe(1);
+    expect(getTrait('prepper').cost).toBe(1);
+  });
+
+  it('old presets with go_bag and prepper stay legal', () => {
+    // The old costs (2 + 3) needed 5 points of flaws; that build must still load.
+    const flaws: string[] = [];
+    let sum = 0;
+    for (const t of TRAITS) {
+      if (t.category !== 'negative' || sum <= -5) continue;
+      if (!isLegalTraitBuild([...flaws, t.id])) continue;
+      flaws.push(t.id);
+      sum += t.cost;
+    }
+    expect(sum).toBeLessThanOrEqual(-5);
+    expect(isLegalTraitBuild(['go_bag', 'prepper', ...flaws])).toBe(true);
   });
 });

@@ -90,22 +90,8 @@ export function EncounterPrompt({
     enemy: zDisplay, terrain: t(`ui.combat.terrain.${terrain.id}`).toLocaleLowerCase(locale),
   });
 
-  /** Timeline row — mirrors live-event title — body. */
   const prose = (
-    <>
-      <span className="font-semibold text-hiss">{t('ui.combat.contact')}</span>
-      {' — '}
-      {enemyIcon}{' '}
-      <span className="text-concrete-50">{contactText}</span>
-    </>
-  );
-
-  /** Phone card already has a Contact eyebrow — skip the repeated label. */
-  const cardProse = (
-    <>
-      {enemyIcon}{' '}
-      <span className="text-concrete-50">{contactText}</span>
-    </>
+    <span className="text-concrete-50">{enemyIcon} {contactText}</span>
   );
 
   const footnote = (
@@ -122,6 +108,15 @@ export function EncounterPrompt({
     </>
   );
 
+  const details = (
+    <details className="mt-1 text-body text-white/60">
+      <summary className="cursor-pointer text-label">{t('ui.combat.contactDetails')}</summary>
+      <p className="mt-1 text-micro">{footnote}</p>
+      <p className="text-micro">{t('ui.combat.fightHint')} {t('ui.combat.stanceHint.disengage')}</p>
+      <InjuryBrief parts={bodyParts} className="mt-1" />
+    </details>
+  );
+
   const choices = (
     <>
       <button
@@ -132,7 +127,6 @@ export function EncounterPrompt({
         <Icon name="combat.player" size={13} className="shrink-0" />
         <span className="min-w-0 flex-1 whitespace-normal break-words">
           <span className="font-semibold">{t('ui.combat.fight')}</span>{' '}
-          <span className="text-white/40">{t('ui.combat.fightHint')}</span>
         </span>
       </button>
       <button
@@ -149,7 +143,7 @@ export function EncounterPrompt({
         <Icon name={STANCES.disengage.icon} size={13} className="shrink-0" />
         <span className="min-w-0 flex-1 whitespace-normal break-words">
           <span className="font-semibold">{t('ui.combat.flee')}</span>{' '}
-          <span className="text-hiss/70">{t('ui.combat.stanceHint.disengage')}</span>
+          <span>{t(load.canFlee ? 'ui.combat.pursuit' : 'ui.combat.overloaded')}</span>
         </span>
       </button>
     </>
@@ -158,18 +152,14 @@ export function EncounterPrompt({
   if (variant === 'card') {
     return (
       <div className="space-y-2">
-        <div className="text-label uppercase text-hiss/80">
-          {t('ui.combat.contact')}
-        </div>
         <p className="text-body text-white/70">
           <span className="mr-1.5 text-micro tabular-nums text-white/35">
             {formatClock(hour, clock)}
           </span>
-          {cardProse}
+          {prose}
         </p>
-        <div className="text-micro text-white/40">{footnote}</div>
-        <InjuryBrief parts={bodyParts} />
         <div className="flex flex-col gap-1">{choices}</div>
+        {details}
       </div>
     );
   }
@@ -188,14 +178,9 @@ export function EncounterPrompt({
           <p className="min-w-0 flex-1 whitespace-normal break-words">{prose}</p>
         </div>
 
-        <div className="mt-1 text-micro text-white/40" style={{ paddingLeft: timeW }}>
-          {footnote}
-        </div>
-
-        <InjuryBrief parts={bodyParts} className="mt-1" style={{ paddingLeft: timeW }} />
-
         <div className="mt-1.5 flex flex-col gap-1" style={{ paddingLeft: timeW }}>
           {choices}
+          {details}
         </div>
       </div>
     </li>

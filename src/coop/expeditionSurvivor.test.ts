@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ItemInstance } from '../game/types';
 import { ITEMS } from '../game/loot';
-import { maxHpFor } from '../game/character';
+import { BASE_ATTRIBUTE, maxHpFor } from '../game/character';
 import { totalMaxHp } from '../game/survival';
 import {
   addExpeditionItem, applyExpeditionCommand, cancelExpeditionCraft,
@@ -264,5 +264,20 @@ describe('independent expedition survivors', () => {
     s.meters.energy = 0;
     s.bodyParts.leftLeg = { ...s.bodyParts.leftLeg, hp: 0, fractured: true, crippled: true };
     expect(expeditionTravelSpeed(s)).toBeLessThan(speed);
+  });
+
+
+  it('co-op survivors start with no traits', () => {
+    const s = createExpeditionSurvivor('A', 'soldier', 's');
+    expect(s.character.traitIds).toEqual([]);
+    expect(Object.values(s.character.attributes).every((v) => v === BASE_ATTRIBUTE)).toBe(true);
+  });
+
+  it('co-op survivors get the role kit', () => {
+    const soldier = createExpeditionSurvivor('A', 'soldier', 's');
+    expect(soldier.equipment.body?.defId).toBe('army_uniform');
+    expect(soldier.equipment.legs?.defId).toBe('camo_pants');
+    expect(soldier.equipment.mainHand?.defId).toBe('parang');
+    expect(createExpeditionSurvivor('B', 'drifter', 's').equipment.mainHand).toBeFalsy();
   });
 });

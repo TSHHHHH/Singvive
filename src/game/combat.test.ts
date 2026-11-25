@@ -10,6 +10,9 @@ import {
   TERRAIN,
   terrainForCategory,
   type PlayerCombatStats,
+  DEFAULT_UNARMED_MULT,
+  FIST_BASE_DAMAGE,
+  playerCombatStats,
 } from './combat';
 import { emptyEquipment } from './inventory';
 import { environmentCombatMods, timeAccuracyPenalty } from './weather';
@@ -34,6 +37,7 @@ const BASE_PLAYER: PlayerCombatStats = {
   strength: 10,
   dexterity: 10,
   offHand: null,
+  unarmed: false,
 };
 
 const SHAMBLER: Zombie = {
@@ -244,5 +248,59 @@ describe('combat clock', () => {
 
   it('keeps Precision slower than a normal swing', () => {
     expect(minutesFor('precision')).toBeGreaterThan(minutesFor('aggressive'));
+  });
+});
+
+describe('unarmed combat', () => {
+  const FIST: PlayerCombatStats = { ...BASE_PLAYER, unarmed: true };
+  const hitWith = (player: PlayerCombatStats, target: Zombie) =>
+    resolvePlayerAction(
+      new Rng('COMBAT-GOLDEN-v1'),
+      player,
+      target,
+      CLEAR_WEATHER,
+      1,
+      STANCES.aggressive,
+      OPEN_TERRAIN,
+      80,
+    );
+  const raw = hitWith({ ...BASE_PLAYER, unarmed: false }, SHAMBLER).damageDealt;
+
+  it('fists deal 6 base damage', () => {
+    const p = playerCombatStats(ATTRS, [], emptyEquipment());
+    expect(p.damage).toBe(6 + Math.floor(ATTRS.strength / 2));
+    expect(p.unarmed).toBe(true);
+    expect(FIST_BASE_DAMAGE).toBe(6);
+  });
+
+  it('applies unarmedMult to fist hits', () => {
+    const r = hitWith(FIST, { ...SHAMBLER, unarmedMult: 0.15 });
+    expect(r.hit).toBe(true);
+    expect(r.damageDealt).toBe(Math.max(1, Math.round(raw * 0.15)));
+    expect(hitWith(FIST, { ...SHAMBLER, unarmedMult: 1 }).damageDealt).toBe(raw);
+  });
+
+  it('defaults a missing unarmedMult to 0.5', () => {
+    expect(DEFAULT_UNARMED_MULT).toBe(0.5);
+    expect(hitWith(FIST, SHAMBLER).damageDealt).toBe(Math.max(1, Math.round(raw * 0.5)));
+  });
+
+  it('treats a broken main-hand weapon as fists', () => {
+    const eq = emptyEquipment();
+    eq.mainHand = { uid: 'k', defId: 'kitchen_knife', condition: 0 } as NonNullable<typeof eq.mainHand>;
+    const p = playerCombatStats(ATTRS, [], eq);
+    expect(p.unarmed).toBe(true);
+    expect(p.weaponName).toMatch(/broken/);
+  });
+
+  it('does not multiply weapon hits', () => {
+    const r = hitWith({ ...BASE_PLAYER, unarmed: false }, { ...SHAMBLER, unarmedMult: 0.15 });
+    expect(r.damageDealt).toBe(raw);
+  });
+
+  it('an armed player is not unarmed', () => {
+    const eq = emptyEquipment();
+    eq.mainHand = { uid: 'k', defId: 'kitchen_knife', condition: 100 } as NonNullable<typeof eq.mainHand>;
+    expect(playerCombatStats(ATTRS, [], eq).unarmed).toBe(false);
   });
 });

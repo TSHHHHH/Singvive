@@ -1,11 +1,12 @@
 import type {
-  BodyPartId, BodyParts, Character, Equipment, ItemInstance, Meters,
+  BodyPartId, BodyParts, Character, EquipSlot, Equipment, ItemInstance, Meters,
   PoiCategory, SkillDayXp, SkillId, SkillsState, WeatherKind,
 } from '../game/types';
 import {
   adjustCraftInputs, attributesFromTraits, hasTraitFlag, maxHpFor, sumTraitMod,
 } from '../game/character';
 import { getOccupation } from '../game/occupations';
+import { resolveStartingKit, type KitLine } from '../game/startingKit';
 import {
   ALL_EQUIP_SLOTS, arrangeOrLoose, armorConditionScale, BACKPACK, canEquip, effectiveDamage,
   emptyEquipment, equipDefenseBonus, equipTravelSpeedFactor, isBroken,
@@ -105,7 +106,7 @@ export function createExpeditionSurvivor(
   if (!occupation) throw new Error('Unknown occupation');
   const character: Character = {
     name: name.trim().slice(0, 32) || 'Survivor', occupationId,
-    traitIds: [...occupation.traitIds], attributes: attributesFromTraits(occupation.traitIds),
+    traitIds: [], attributes: attributesFromTraits([]),
   };
   const s: ExpeditionSurvivor = {
     character, meters: initialMeters(), bodyParts: initialBodyParts(maxHpFor(character)),
@@ -118,15 +119,19 @@ export function createExpeditionSurvivor(
   s.bodyParts.torso = { ...s.bodyParts.torso,
     hp: s.bodyParts.torso.hp + hpRemainder, maxHp: s.bodyParts.torso.maxHp + hpRemainder };
   if (starterKit) {
-    // Follow the solo kit, bounded against accidental catalog quantity explosions.
-    const starting = Object.values(ITEMS).filter(d => d.startingItem).slice(0, 16);
-    for (const def of starting) {
-      for (const inst of instances(def.id, Math.min(4, Math.max(1, def.startingCount ?? 1)), `${seed}:kit:${def.id}`)) {
-        if (def.maxCondition !== undefined) inst.condition = def.maxCondition;
-        if (def.slot && !s.equipment[def.slot]) s.equipment[def.slot] = inst;
-        else addExpeditionItem(s, inst);
-      }
+    // The role's kit (no traits in co-op): worn gear first, bag included, then
+    // the pack. Counts stay bounded against accidental catalog quantity explosions.
+    const kit = resolveStartingKit(occupationId, [], new Rng(`${seed}:kit`));
+    const fresh = (line: KitLine) => {
+      const max = definition(line.id)?.maxCondition;
+      return instances(line.id, Math.min(4, Math.max(1, line.count)), `${seed}:kit:${line.id}`)
+        .map(inst => (max === undefined ? inst : { ...inst, condition: max }));
+    };
+    for (const [slot, line] of Object.entries(kit.equip) as [EquipSlot, KitLine][]) {
+      const [inst] = fresh(line);
+      if (inst) s.equipment[slot] = inst;
     }
+    for (const line of kit.pack) for (const inst of fresh(line)) addExpeditionItem(s, inst);
     for (const defId of ['canned_food', 'bandage']) {
       for (const inst of instances(defId, 1, `${seed}:supplies:${defId}`)) addExpeditionItem(s, inst);
     }

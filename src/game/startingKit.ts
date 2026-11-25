@@ -3,172 +3,63 @@ import { ITEMS, itemDef } from './loot';
 import { getTrait } from './character';
 import type { Rng } from './rng';
 
+import { getOccupation } from './occupations';
+import { OPPORTUNIST_FINDS, SCAVENGER_FINDS, type KitEntry, type RoleKit, type TraitKit } from './kitFinds';
+
+export type { KitEntry, RoleKit, TraitKit } from './kitFinds';
+
 // ---------- Starting kit ----------
-// Everyone wakes up with the base kit (items flagged `startingItem` in
-// items.json — editable in the DEV loot browser). Traits then add what that
-// person would plausibly have had on them when it fell:
+// The role (occupations.ts) lays down the first layer: what that survivor
+// still carries months after the outbreak. Classic Survivor uses the standard
+// kit (items flagged `startingItem` in items.json, editable in the DEV loot
+// browser). Traits then add at most one signature item each:
 //
-//   - Job-signature traits (one per occupation preset) carry a full outfit,
-//     so every preset starts dressed for its job. Because the outfit rides on
-//     the trait, not the preset, editing a preset never silently strips it.
-//   - Ordinary traits add a small themed extra or two.
-//   - Gear-only traits are nothing *but* a kit.
+//   - Ordinary traits add a small themed extra.
+//   - Gear-only traits are nothing *but* that item.
 //
-// Slot rules: a trait's wearable replaces whatever the base kit put in that
-// slot. If another trait already claimed the slot, a positive trait's item
-// goes in the pack instead (you can swap it in), and a flaw's item is simply
-// not there. Traits apply dearest first, so the job outfit wins ties.
+// Slot rules: a trait's wearable replaces whatever the role put in that slot.
+// If another trait already claimed the slot, a positive trait's item goes in
+// the pack instead (you can swap it in), and a flaw's item is simply not
+// there. Traits apply dearest first.
 //
 // Everything is fixed per build except `pool` picks, which roll off the run
 // seed — same seed, same kit.
 
-export interface KitEntry {
-  id: string;
-  count?: number;
-}
-
-export interface TraitKit {
-  items?: KitEntry[];
-  /** Seeded random finds: `pick` distinct entries from `from`. */
-  pool?: { pick: number; from: KitEntry[] };
-  /** Base-kit items this trait starts without. */
-  drop?: string[];
-}
-
-/** Things a scavenger tends to have in a pocket. */
-const SCAVENGER_FINDS: KitEntry[] = [
-  { id: 'powerbank' },
-  { id: 'batteries', count: 2 },
-  { id: 'spare_parts' },
-  { id: 'duct_tape', count: 2 },
-  { id: 'whetstone' },
-  { id: 'lighter' },
-];
-
-/** Whatever was free, on offer, or not nailed down. */
-const OPPORTUNIST_FINDS: KitEntry[] = [
-  { id: 'bak_kwa' },
-  { id: 'powerbank' },
-  { id: 'canned_luncheon_meat', count: 2 },
-  { id: 'red_packet', count: 3 },
-  { id: 'painkillers', count: 2 },
-];
-
 export const TRAIT_KITS: Record<string, TraitKit> = {
-  // ── Job signatures (one per occupation preset) ──
-  combat_veteran: {
-    items: [
-      { id: 'army_uniform' },
-      { id: 'combat_boots' },
-      { id: 'army_ration' },
-    ],
-  },
-  trauma_medic: {
-    items: [
-      { id: 'rubber_gloves' },
-      { id: 'n95_mask' },
-      { id: 'ifak_pouch' },
-      { id: 'bandage', count: 2 },
-    ],
-  },
-  hyrox_champion: {
-    items: [
-      { id: 'cargo_shorts' },
-      { id: 'grip_gloves' },
-      { id: 'energy_gel', count: 3 },
-      { id: 'isotonic', count: 2 },
-    ],
-  },
-  young_blood: {
-    items: [{ id: 'school_bag' }, { id: 'jeans' }, { id: 'energy_drink' }, { id: 'bubble_tea' }],
-  },
-  estate_kitchen: {
-    items: [
-      { id: 'meat_cleaver' },
-      { id: 'rubber_boots' },
-      { id: 'tingkat_lunch' },
-      { id: 'cooking_pot' },
-    ],
-  },
-  estate_memory: {
-    items: [{ id: 'work_gloves' }, { id: 'cloth_rags', count: 2 }],
-    pool: { pick: 2, from: SCAVENGER_FINDS },
-  },
-  operator: {
-    items: [
-      { id: 'golf_club' },
-      { id: 'powerbank' },
-      { id: 'phone_charging_cable' },
-      { id: 'kopi_sachets', count: 2 },
-    ],
-  },
-  site_foreman: {
-    items: [
-      { id: 'hard_hat' },
-      { id: 'safety_boots' },
-      { id: 'hammer' },
-      { id: 'duct_tape', count: 2 },
-    ],
-  },
-  made_man: {
-    items: [
-      { id: 'baseball_bat' },
-      { id: 'lockpick', count: 2 },
-      { id: 'red_packet', count: 3 },
-      { id: 'jewellery', count: 2 },
-    ],
-  },
+  // Job outfits live on the roles (occupations.ts). A trait gives at most one
+  // signature item, so it changes a playstyle without dressing the survivor.
 
   // ── Ordinary traits: a themed extra ──
   ns_combat: { items: [{ id: 'army_ration' }] },
-  medic: { items: [{ id: 'bandage', count: 2 }, { id: 'antiseptic' }] },
-  hawker_cook: { items: [{ id: 'cooking_pot' }, { id: 'lighter' }] },
+  medic: { items: [{ id: 'bandage', count: 2 }] },
+  hawker_cook: { items: [{ id: 'cooking_pot' }] },
   marathoner: { items: [{ id: 'energy_gel', count: 3 }] },
-  karang_guni: {
-    items: [{ id: 'cloth_rags', count: 2 }],
-    pool: { pick: 1, from: SCAVENGER_FINDS },
-  },
+  karang_guni: { pool: { pick: 1, from: SCAVENGER_FINDS } },
   tekong_legs: { items: [{ id: 'hiking_boots' }] },
   night_owl: { items: [{ id: 'torch' }] },
   kiasuism: { pool: { pick: 1, from: OPPORTUNIST_FINDS } },
   kampong_spirit: { items: [{ id: 'kopi_sachets', count: 3 }] },
   ah_long_debt: { items: [{ id: 'four_d_ticket', count: 3 }] },
   water_baby: { items: [{ id: 'water_bottle' }] },
-  handyman: { items: [{ id: 'duct_tape', count: 2 }, { id: 'zip_ties', count: 4 }] },
+  handyman: { items: [{ id: 'zip_ties', count: 4 }] },
   deep_sleeper: { items: [{ id: 'camp_pillow' }] },
   iron_stomach: { items: [{ id: 'canned_sardines', count: 2 }] },
-  field_dressing: { items: [{ id: 'improvised_bandage', count: 3 }, { id: 'splint' }] },
+  field_dressing: { items: [{ id: 'improvised_bandage', count: 3 }] },
   frugal: { items: [{ id: 'hardtack', count: 3 }] },
   umbrella_city: { items: [{ id: 'golf_umbrella' }] },
   haze_mask: { items: [{ id: 'n95_mask' }] },
   void_deck_chat: { items: [{ id: 'chin_chow', count: 2 }] },
-  train_memory: { items: [{ id: 'ez_link_card' }, { id: 'headlamp' }] },
+  train_memory: { items: [{ id: 'headlamp' }] },
 
   // ── Gear-only traits ──
-  go_bag: {
-    items: [
-      { id: 'torch' },
-      { id: 'large_water_bottle' },
-      { id: 'hardtack', count: 2 },
-      { id: 'emergency_blanket' },
-    ],
-  },
-  prepper: {
-    items: [
-      { id: 'school_bag' },
-      { id: 'canned_food', count: 3 },
-      { id: 'purification_tabs', count: 2 },
-      { id: 'lighter' },
-    ],
-  },
-  medicine_cabinet: {
-    items: [{ id: 'bandage', count: 2 }, { id: 'painkillers' }, { id: 'po_chai' }],
-  },
+  go_bag: { items: [{ id: 'large_water_bottle' }] },
+  prepper: { items: [{ id: 'canned_food', count: 3 }] },
+  medicine_cabinet: { items: [{ id: 'painkillers' }] },
   heirloom_blade: { items: [{ id: 'parang' }] },
-  weekend_cyclist: { items: [{ id: 'bike_helmet' }, { id: 'isotonic' }] },
-  supper_run: { items: [{ id: 'bak_kwa' }, { id: 'curry_puff' }, { id: 'soya_bean' }] },
+  weekend_cyclist: { items: [{ id: 'bike_helmet' }] },
+  supper_run: { items: [{ id: 'bak_kwa' }] },
   just_popped_out: {
-    items: [{ id: 'flip_flops' }, { id: 'grocery_tote' }],
+    items: [{ id: 'flip_flops' }],
     drop: ['leather_jacket'],
   },
 };
@@ -181,14 +72,14 @@ export function hasTraitKit(traitId: string): boolean {
   return traitId in TRAIT_KITS;
 }
 
-/** The base kit everyone gets: `startingItem` flags in items.json. */
+/** The standard (Classic Survivor) kit: `startingItem` flags in items.json. */
 export function baseKit(): KitEntry[] {
   return Object.values(ITEMS)
     .filter((d) => d.startingItem)
     .map((d) => ({ id: d.id, count: Math.max(1, d.startingCount ?? 1) }));
 }
 
-export type KitSource = 'base' | { trait: string };
+export type KitSource = 'role' | { trait: string };
 
 export interface KitLine {
   id: string;
@@ -201,7 +92,7 @@ export interface ResolvedKit {
   /** Merged by item id, in the order first added. */
   pack: KitLine[];
   /** Pools not rolled (no rng given) — for previews. */
-  pools: { trait: string; pick: number; from: KitEntry[] }[];
+  pools: { source: KitSource; pick: number; from: KitEntry[] }[];
 }
 
 /** Traits in the order their kits apply: dearest first, then pick order. */
@@ -223,11 +114,26 @@ export function rollKitPool(rng: Rng, pick: number, from: KitEntry[]): KitEntry[
   return out;
 }
 
+/** A role's kit; an unknown or missing id is the Classic Survivor. */
+export function roleKit(occupationId: string | undefined): RoleKit {
+  return (occupationId ? getOccupation(occupationId) : null)?.kit ?? { standard: true };
+}
+
+/** A role kit's fixed entries, the standard kit expanded. */
+function roleKitEntries(kit: RoleKit): KitEntry[] {
+  return [...(kit.standard ? baseKit() : []), ...(kit.items ?? [])];
+}
+
 /**
- * Resolve a build's starting kit. Pass the run rng to roll pools (the store
- * does); omit it to get the fixed part plus the unrolled pools (the preview).
+ * Resolve a starting kit: the role's kit first, then each trait's on top.
+ * Pass the run rng to roll pools (the store does); omit it to get the fixed
+ * part plus the unrolled pools (the preview).
  */
-export function resolveStartingKit(traitIds: string[], rng?: Rng): ResolvedKit {
+export function resolveStartingKit(
+  occupationId: string | undefined,
+  traitIds: string[],
+  rng?: Rng,
+): ResolvedKit {
   const equip: Partial<Record<EquipSlot, KitLine>> = {};
   const pack: KitLine[] = [];
   const pools: ResolvedKit['pools'] = [];
@@ -241,10 +147,19 @@ export function resolveStartingKit(traitIds: string[], rng?: Rng): ResolvedKit {
   const order = kitOrder(traitIds);
   const dropped = new Set(order.flatMap((id) => TRAIT_KITS[id].drop ?? []));
 
-  for (const e of baseKit()) {
+  const role = roleKit(occupationId);
+  const roleEntries = roleKitEntries(role);
+  if (role.pool) {
+    if (rng) {
+      roleEntries.push(
+        ...rollKitPool(rng.fork(`kit:role:${occupationId ?? 'survivor'}`), role.pool.pick, role.pool.from),
+      );
+    } else pools.push({ source: 'role', pick: role.pool.pick, from: role.pool.from });
+  }
+  for (const e of roleEntries) {
     if (dropped.has(e.id)) continue;
     const def = itemDef(e.id);
-    const line: KitLine = { id: e.id, count: e.count ?? 1, source: 'base' };
+    const line: KitLine = { id: e.id, count: e.count ?? 1, source: 'role' };
     if (def.slot && !equip[def.slot]) equip[def.slot] = { ...line, count: 1 };
     else toPack(line);
   }
@@ -255,7 +170,7 @@ export function resolveStartingKit(traitIds: string[], rng?: Rng): ResolvedKit {
     const entries = [...(kit.items ?? [])];
     if (kit.pool) {
       if (rng) entries.push(...rollKitPool(rng.fork(`kit:${traitId}`), kit.pool.pick, kit.pool.from));
-      else pools.push({ trait: traitId, pick: kit.pool.pick, from: kit.pool.from });
+      else pools.push({ source: { trait: traitId }, pick: kit.pool.pick, from: kit.pool.from });
     }
     for (const e of entries) {
       const def = itemDef(e.id);
@@ -263,7 +178,7 @@ export function resolveStartingKit(traitIds: string[], rng?: Rng): ResolvedKit {
       const slot = def.slot;
       if (slot) {
         const held = equip[slot];
-        if (!held || held.source === 'base') {
+        if (!held || held.source === 'role') {
           equip[slot] = { ...line, count: 1 };
           continue;
         }

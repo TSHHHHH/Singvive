@@ -183,22 +183,54 @@ export interface CraftEntryView {
   row: CraftRecipeRow;
   /** Variants that pass the current filter/search (all of them when unfiltered). */
   matching: CraftRecipeRow[];
+  /** True when any variant can be crafted now, whichever one is picked. */
+  anyReady: boolean;
 }
 
-/** Same filters as `browseCraftingRows`, applied per entry: an entry shows when any variant matches. */
+export interface CraftBrowseExtras {
+  /**
+   * The open strip. Its pick is shown even when that variant fails the
+   * filter or search, and it stays listed when crafting or a prep change
+   * takes it out of the availability filter, so it never vanishes in use.
+   */
+  expanded?: string | null;
+  /** The name the strip shows (a family label for families), for the name sort. */
+  entryName?: (entry: CraftEntry) => string;
+}
+
+/**
+ * Same filters as `browseCraftingRows`, applied per entry: an entry shows when
+ * any variant matches. The entry ranks by its best matching variant, never by
+ * the picked one, so changing the variant dropdown never moves the strip.
+ */
 export function browseCraftEntries(
   entries: CraftEntry[],
   options: { query: string; category: CraftCategory; filter: CraftFilter; sort: CraftSort; locale: LocaleId },
   chosen: Record<string, string> = {},
+  extras: CraftBrowseExtras = {},
 ): CraftEntryView[] {
-  const views: CraftEntryView[] = [];
+  const ranked: { view: CraftEntryView; rank: CraftRecipeRow; name: string | null }[] = [];
   for (const entry of entries) {
-    const matching = browseCraftingRows(entry.variants, options);
+    const open = entry.key === extras.expanded;
+    let matching = browseCraftingRows(entry.variants, options);
+    if (matching.length === 0 && open) matching = browseCraftingRows(entry.variants, { ...options, filter: 'all' });
     if (matching.length === 0) continue;
     const pick = chosen[entry.key];
-    // Keep the player's pick while it still matches; a "Ready" filter must never show an unready variant.
-    const row = matching.find((r) => r.recipe.id === pick) ?? pickVariant(matching, undefined, options.locale);
-    views.push({ entry, row, matching });
+    // Keep the player's pick while it still matches (a collapsed "Ready" strip never shows an unready
+    // variant); the open strip always shows what the player just picked.
+    const row = (open ? entry.variants : matching).find((r) => r.recipe.id === pick)
+      ?? pickVariant(matching, undefined, options.locale);
+    ranked.push({
+      view: { entry, row, matching, anyReady: entry.variants.some((v) => v.check.ok) },
+      rank: matching[0],
+      name: extras.entryName ? extras.entryName(entry) : null,
+    });
   }
-  return views.sort((a, b) => craftRowComparator(options.sort, options.locale)(a.row, b.row));
+  const compare = craftRowComparator(options.sort, options.locale);
+  return ranked.sort((a, b) => {
+    if (options.sort === 'name' && a.name !== null && b.name !== null) {
+      return a.name.localeCompare(b.name, options.locale) || compare(a.rank, b.rank);
+    }
+    return compare(a.rank, b.rank);
+  }).map((r) => r.view);
 }

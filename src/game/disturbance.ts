@@ -31,7 +31,8 @@ export type DisturbanceKind =
   /** A flat door forced inside an HDB block. */
   | 'door'
   /** A barricade broken through inside an HDB block. */
-  | 'barricade';
+  | 'barricade'
+  | 'hdb_alarm';
 
 export interface Disturbance {
   id: string;
@@ -54,6 +55,7 @@ export interface DisturbanceSpec {
 
 /** Daytime, dry-weather size of each kind of zone. */
 export const DISTURBANCE_SPEC: Record<DisturbanceKind, DisturbanceSpec> = {
+  hdb_alarm: { radiusM: 420, danger: 2, hours: 2 },
   car_alarm: { radiusM: 450, danger: 2.5, hours: 3 },
   gunfire: { radiusM: 600, danger: 1.5, hours: 2 },
   shutter: { radiusM: 250, danger: 1, hours: 2 },

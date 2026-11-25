@@ -36,7 +36,7 @@ import {
 import { sightFactor } from './nightSight';
 import { emptyRunStats, normalizeRunStats } from './stats';
 import { Rng, randomSeed } from './rng';
-import { carefulCrossingMinutes, crossingLogText, type CrossingChoice, type CrossingLog, type PendingCrossing } from './crossingEvent';
+import { crossingLogText, type CrossingLog } from './crossingEvent';
 import {
   adjustCraftInputs,
   attrEmoji,
@@ -378,6 +378,8 @@ import {
   TREK_LIGHT_RADIUS,
   TREK_MIN_DISTANCE_M,
   resolveCrossing,
+  repriceTrekRisk,
+  rollHazardChecks,
   isWetWeather,
   hazardsAtPoint,
   type HazardKind,
@@ -660,8 +662,6 @@ interface State {
   ghostOffer: { kind: 'trader'; wantDefId: string; giveDefId: string } | null;
 
   pendingEvent: PendingEvent | null;
-  pendingCrossing: PendingCrossing | null;
-  chooseCrossing: (eventId: string, choice: CrossingChoice) => void;
   /** The last attribute check, for the dice overlay to play back. UI only — never persisted. */
   shownRoll: ShownRoll | null;
   /**
@@ -726,6 +726,7 @@ interface State {
   mapAnnotations: MapAnnotation[];
   /** Local leads persist independently of the scrolling timeline. */
   explorationLeads: ExplorationLead[];
+  trackLead: (id: string | null) => void;
   readLocalMap: () => void;
   /** Ephemeral identity-reveal cue; never part of a saved run. */
   nearbyRecognition: readonly string[];
@@ -853,7 +854,7 @@ interface State {
   /** Put an item down for good. The only way to shed weight without a stash. */
   dropItem: (uid: string) => void;
   /** Run a recipe from `crafting.ts`, consuming its inputs. */
-  craftItem: (recipeId: string, mode?: 'hot' | 'room', waterSource?: 'carried' | 'site') => void;
+  craftItem: (recipeId: string, mode?: 'hot' | 'room', waterSource?: 'carried' | 'site') => { loose: number } | undefined;
   collectSiteWater: (source: 'rain' | 'boiled') => void;
   /**
    * Patch up one worn instance, carried or equipped. `materialDefId` picks the
@@ -871,7 +872,7 @@ interface State {
    * bottom: no loot, no garment in the pack, still not out of options. Finite
    * (`clothingTears`) so it is a lifeline and not a rag farm.
    */
-  tearOwnClothes: () => void;
+  tearOwnClothes: () => { loose: number } | undefined;
 
   /** Advance the initiative track by `dtSeconds` of fight time. */
   combatTick: (dtSeconds: number) => void;
@@ -1347,14 +1348,9 @@ export const useGame = create<State>((set, get) => {
    * Snapshot the run. Call sites stay `persist()` so actions stay explicit.
    * The write is debounced (≥5 s) and OSM outlines are stripped — see persistRun.ts.
    */
-  let crossingDeparture: State | null = null;
   const persist = () => {
     schedulePersist(() => {
-      const live = get();
-      // Arrival commits the walking transaction. A hide/debounce during the
-      // glide saves its untouched departure decision, so reloading never leaves
-      // a charged survivor at the origin or loses the chosen interception.
-      const s = live.travelAnim && crossingDeparture ? crossingDeparture : live;
+      const s = get();
       if (!s.character || !s.spawn || s.phase === 'menu') return;
       const run: SavedRun = {
         character: s.character,
@@ -1363,7 +1359,6 @@ export const useGame = create<State>((set, get) => {
         locations: s.locations,
         currentPositionId: s.currentPositionId,
         currentPos: s.currentPos,
-        pendingCrossing: s.pendingCrossing,
         equipment: s.equipment,
         bodyParts: s.bodyParts,
         meters: s.meters,
@@ -1414,40 +1409,30 @@ export const useGame = create<State>((set, get) => {
     return (lat: number, lng: number) => activityPressure(s.activity, lat, lng, now);
   };
 
-  // A choice authorizes exactly one validated departure. Never roll or charge
-  // the crossing while merely presenting its scene, including after a reload.
-  let crossingApproval: { crossing: PendingCrossing; choice: 'careful' | 'direct' } | null = null;
-  const crossingApproach = (
-    mode: PendingCrossing['mode'],
-    target: PendingCrossing['target'],
-    risk: TrekRisk,
-  ): 'careful' | 'direct' | null => {
+  // Each zone on the walk gets one check. A pass slips past it with no
+  // consequence; the zones that catch the survivor stay in the risk and are
+  // crossed directly. Seeded per target and hour, so a retry gives the same answer.
+  const checkHazardZones = (target: { lat: number; lng: number }, risk: TrekRisk, rng: Rng, wet: boolean) => {
+    if (!risk.hazards.length) return;
     const s = get();
-    const approval = crossingApproval;
-    const approved = approval?.crossing;
-    if (approval && approved && approved.mode === mode && approved.target.lat === target.lat && approved.target.lng === target.lng) {
-      const choice = approval.choice;
-      // A resumed decision must retain the threats the player was shown even
-      // before the zone bake finishes loading. Resolution needs no geometry.
-      risk.hazards = approved.hazards.map((hazard) => ({
-        ...hazard, lat: target.lat, lng: target.lng, radiusM: 0, discs: [],
-      }));
-      crossingApproval = null;
-      return choice;
-    }
-    const hazards = risk.hazards;
-    if (!hazards.length) return 'direct';
-    const id = `crossing:${mode}:${target.lat}:${target.lng}:${s.day}:${s.hour}:${logCounter + 1}`;
-    const unique = [...new Map(hazards.map((hazard) => [hazard.id, {
-      id: hazard.id, kind: hazard.kind, severity: hazard.severity,
-    }])).values()];
-    set({ pendingCrossing: {
-      id, mode, target, from: { ...s.currentPos }, day: s.day, hour: s.hour,
-      hazards: unique, carefulMinutes: carefulCrossingMinutes(unique),
-    } });
-    pushCrossingLog({ kind: 'noticed', hazards: [...new Set(unique.map((hazard) => hazard.kind))] });
-    persist();
-    return null;
+    const checks = rollHazardChecks(
+      rng.fork('hazard-check'),
+      risk.hazards,
+      s.currentPos,
+      target,
+      s.character!.attributes,
+      sumTraitMod(s.character!.traitIds, 'checkBonusMod'),
+    );
+    const caught = new Set(checks.filter((c) => !c.success).map((c) => c.zone.id));
+    const kinds = (pick: (c: (typeof checks)[number]) => boolean) =>
+      [...new Set(checks.filter(pick).map((c) => c.zone.kind))];
+    const slippedOut = kinds((c) => c.success && c.mode === 'exit');
+    const slippedPast = kinds((c) => c.success && c.mode === 'cross');
+    const caughtBy = kinds((c) => !c.success);
+    if (slippedOut.length) pushCrossingLog({ kind: 'slippedOut', hazards: slippedOut }, 'good');
+    if (slippedPast.length) pushCrossingLog({ kind: 'slipped', hazards: slippedPast }, 'good');
+    if (caughtBy.length) pushCrossingLog({ kind: 'caught', hazards: caughtBy }, 'bad');
+    Object.assign(risk, repriceTrekRisk(risk, risk.hazards.filter((z) => caught.has(z.id)), wet));
   };
 
   /** Danger points the strongest disturbance adds over a site right now. */
@@ -1920,7 +1905,9 @@ export const useGame = create<State>((set, get) => {
     set({ locations, explorationLeads: normalizeExplorationLeads([...s.explorationLeads, ...leads], locations) });
     for (const lead of leads) {
       const target = locations[lead.targetId];
-      if (target) pushLog(t('ui.exploration.clueFound', { name: target.name }, activeLocale()), 'good');
+      if (target) pushLog(t('ui.exploration.clueFound', { name: target.name }, activeLocale()), 'good', undefined, {
+        lat: target.lat, lng: target.lng, leadId: lead.id,
+      });
     }
   };
 
@@ -2410,51 +2397,19 @@ export const useGame = create<State>((set, get) => {
 
     const unitLabel = working.hdbUnit?.label;
     const locName = unitLabel ?? get().locations[working.locationId]?.name ?? 'the site';
-    if (working.hdbUnit) {
-      if (haulLoot.length === 0 && leftover.length === 0 && mode === 'abort') {
-        pushLog(flavor('searchAbortEmpty', { name: locName }), 'info');
-      } else if (mode === 'abort') {
-        pushLog(flavor('searchAbort', { name: locName }), 'info', {
-          loot: haulLoot,
-          leftover: [],
-        });
-      } else if (haulLoot.length === 0 && leftover.length === 0) {
-        pushLog(flavor('searchBare', { name: locName }), 'info');
-      } else if (haulLoot.length === 0) {
-        pushLog(flavor('searchClear', { name: locName }), 'info');
-      } else {
-        pushLog(flavor('searchClear', { name: locName }), 'good', {
-          loot: haulLoot,
-          leftover: [],
-        });
-      }
-    } else if (haulLoot.length === 0 && leftover.length === 0 && mode === 'abort') {
-      pushLog(flavor('searchAbortEmpty', { name: locName }), 'info');
-    } else if (mode === 'abort') {
-      pushLog(flavor('searchAbort', { name: locName }), 'info', {
-        loot: haulLoot,
-        leftover: [],
-      });
-    } else if (working.fled) {
-      pushLog(flavor('searchFledDone', { name: locName }), 'good', {
-        loot: haulLoot,
-        leftover: [],
-      });
-    } else if (working.raiding) {
-      pushLog(flavor('searchRaidDone', { name: locName }), 'good', {
-        loot: haulLoot,
-        leftover: [],
-      });
-    } else if (haulLoot.length === 0) {
-      pushLog(flavor('searchEmpty', { name: locName }), 'info');
+    const haul = { loot: haulLoot, leftover };
+    if (leftover.length) {
+      const key = mode === 'abort' ? 'searchStopped' : 'searchDone';
+      pushLog(t(`ui.log.${key}`, { name: locName }, activeLocale()), mode === 'complete' && haulLoot.length ? 'good' : 'info', haul);
     } else {
-      pushLog(flavor('searchFound', { name: locName }), 'good', {
-        loot: haulLoot,
-        leftover: [],
-      });
-    }
-    if (leftover.length > 0) {
-      pushLog('You leave the rest behind.', 'info', { loot: [], leftover });
+      let key: Parameters<typeof flavor>[0];
+      if (mode === 'abort') key = haulLoot.length ? 'searchAbort' : 'searchAbortEmpty';
+      else if (working.hdbUnit) key = haulLoot.length ? 'searchClear' : 'searchBare';
+      else if (working.fled) key = 'searchFledDone';
+      else if (working.raiding) key = 'searchRaidDone';
+      else key = haulLoot.length ? 'searchFound' : 'searchEmpty';
+      const good = mode === 'complete' && (haulLoot.length > 0 || (!working.hdbUnit && (working.fled || working.raiding)));
+      pushLog(flavor(key, { name: locName }), good ? 'good' : 'info', haul);
     }
 
     applyPracticeXp('scavenging', PRACTICE_XP.searchComplete);
@@ -3035,7 +2990,7 @@ export const useGame = create<State>((set, get) => {
     const g = get();
     if (!g.hdb) return;
     set({ hdb: tripAlarm(g.hdb, level, unitId) });
-    get().emitNoise(g.currentPos.lat, g.currentPos.lng, ROOM_EVENTS.alarm.noise, ROOM_EVENTS.alarm.dangerBoost);
+    placeDisturbance('hdb_alarm', g.currentPos, { silent: true });
     pushLog(
       how === 'door'
         ? `The door gives and an alarm starts screaming in ${label}. Every landing hears it (+${ROOM_EVENTS.alarm.heat} heat).`
@@ -3327,7 +3282,7 @@ export const useGame = create<State>((set, get) => {
     void ensureStationLocation(destId).then((to) => {
       if (!to) return;
       const cur = get();
-      if (cur.combat || cur.pendingEvent || cur.pendingCrossing || cur.tunnel || cur.hdb) return;
+      if (cur.combat || cur.pendingEvent || cur.tunnel || cur.hdb) return;
       const fromNow = cur.currentPositionId ? cur.locations[cur.currentPositionId] : null;
       if (!fromNow?.mrtStationId) return;
 
@@ -3785,7 +3740,7 @@ export const useGame = create<State>((set, get) => {
   const stageStreetScene = (scene: ActivityEvent, locId: string) => {
     const s = get();
     const loc = s.locations[locId];
-    if (!loc || s.combat || s.pendingEvent || s.pendingCrossing || s.pendingSearch || s.hdb || s.tunnel) return;
+    if (!loc || s.combat || s.pendingEvent || s.pendingSearch || s.hdb || s.tunnel) return;
     const rng = new Rng(s.seed).fork(`street:${scene.id}`);
     const zoneKind = STREET_ZONE[scene.kind];
     let zoneId: string | null = null;
@@ -3816,7 +3771,6 @@ export const useGame = create<State>((set, get) => {
   const arriveAt = (locId: string) => {
     const anim = get().travelAnim;
     if (!anim || anim.toId !== locId) return; // superseded or cancelled
-    crossingDeparture = null;
     const loc = get().locations[locId];
     if (!loc) {
       set({ travelAnim: null });
@@ -3928,7 +3882,6 @@ export const useGame = create<State>((set, get) => {
   const arriveWilds = (lat: number, lng: number, startedAt: number) => {
     const anim = get().travelAnim;
     if (!anim || anim.toId !== null || anim.startedAt !== startedAt) return; // superseded
-    crossingDeparture = null;
 
     set((st) => ({
       travelAnim: null,
@@ -4045,7 +3998,6 @@ export const useGame = create<State>((set, get) => {
         activity: freshActivity(),
     ghostOffer: null,
     pendingEvent: null,
-    pendingCrossing: null,
     shownRoll: null,
     revealTour: null,
     pendingSearch: null,
@@ -4079,7 +4031,6 @@ export const useGame = create<State>((set, get) => {
       syncBackpackBonuses(sumTraitMod(c.traitIds, 'gridWidthBonus'), emptyEquipment());
       set({
         character: c,
-        pendingCrossing: null,
         explorationLeads: [],
         nearbyRecognition: [],
         maxHp,
@@ -4228,12 +4179,13 @@ export const useGame = create<State>((set, get) => {
         );
       }
 
-      // Starting kit: base `startingItem` flags plus trait kits (startingKit.ts).
+      // Starting kit: the role's kit plus trait kits (startingKit.ts).
       // Equip first (incl. bag), sync the pack silhouette, then pack the rest —
       // anything that does not fit rides loose. Pools roll off the run seed.
       let items: ItemInstance[] = [];
       const equipment = emptyEquipment();
-      const kit = resolveStartingKit(get().character!.traitIds, rng.fork('startingKit'));
+      const character = get().character!;
+      const kit = resolveStartingKit(character.occupationId, character.traitIds, rng.fork('startingKit'));
       for (const [slot, line] of Object.entries(kit.equip) as [EquipSlot, KitLine][]) {
         const def = itemDef(line.id);
         equipment[slot] = {
@@ -4307,38 +4259,10 @@ export const useGame = create<State>((set, get) => {
       return 'ok';
     },
 
-    chooseCrossing: (eventId, choice) => {
-      const s = get();
-      const crossing = s.pendingCrossing;
-      if (!crossing || crossing.id !== eventId || !['careful', 'direct', 'withdraw'].includes(choice)) return;
-      set({ pendingCrossing: null });
-      if (choice === 'withdraw') {
-        pushCrossingLog({ kind: 'withdraw' });
-        persist();
-        return;
-      }
-      if (crossing.from.lat !== s.currentPos.lat || crossing.from.lng !== s.currentPos.lng || crossing.day !== s.day || crossing.hour !== s.hour) {
-        pushCrossingLog({ kind: 'changed' });
-        persist();
-        return;
-      }
-      crossingDeparture = s;
-      pushCrossingLog(choice === 'careful' ? { kind: 'careful', minutes: crossing.carefulMinutes } : { kind: 'direct' });
-      crossingApproval = { crossing, choice };
-      try {
-        if (crossing.mode === 'road' && crossing.target.locationId) get().travel(crossing.target.locationId);
-        else get().trek(crossing.target.lat, crossing.target.lng);
-      } finally {
-        crossingApproval = null;
-        if (!get().travelAnim) crossingDeparture = null;
-      }
-      persist();
-    },
-
     travel: (locationId) => {
       const s = get();
       const loc = s.locations[locationId];
-      if (!loc || s.combat || s.pendingEvent || s.pendingCrossing || s.pendingSearch || s.travelAnim) return;
+      if (!loc || s.combat || s.pendingEvent || s.pendingSearch || s.travelAnim) return;
       if (s.meters.energy <= 0) {
         pushLog(flavor('tooTired'), 'bad');
         return;
@@ -4410,17 +4334,13 @@ export const useGame = create<State>((set, get) => {
       );
 
       const encRng = new Rng(now.seed).fork(`road:${loc.id}:${now.day}:${Math.round(now.hour)}`);
-      const approach = crossingApproach('road', { lat: loc.lat, lng: loc.lng, locationId: loc.id, name: loc.name }, risk);
-      if (approach === null) return;
-      // The player has committed to the crossing; walking retains its quoted
-      // energy cost, and every subsequent consequence follows their choice.
+      checkHazardZones({ lat: loc.lat, lng: loc.lng }, risk, encRng, isWetWeather(weather));
       set({ meters: { ...s.meters, energy: quote.remainingEnergy } });
       if (advanceTime((est.travelMin / 60) * vegOnRoute.travelMult, undefined, false, true, 0)) return;
       bumpStats({ distanceM: dist });
       applyPracticeXp('fitness', (est.travelMin / 60) * vegOnRoute.travelMult * PRACTICE_XP.trekHour, true);
       const outcome = resolveCrossing(encRng, risk, {
         mode: 'road',
-        approach,
         siteDanger: loc.currentDanger,
         dexterity: now.character!.attributes.dexterity,
         checkBonus: sumTraitMod(now.character!.traitIds, 'checkBonusMod'),
@@ -4443,7 +4363,7 @@ export const useGame = create<State>((set, get) => {
         };
       } else if (
         risk.hazards.some((z) => z.kind === 'floodwater') &&
-        encRng.chance(FLOODWATER_ANIMAL_CHANCE * (approach === 'careful' ? 0.4 : 1))
+        encRng.chance(FLOODWATER_ANIMAL_CHANCE)
       ) {
         roadAmbush = {
           locationId: loc.id,
@@ -4499,7 +4419,7 @@ export const useGame = create<State>((set, get) => {
 
     enter: () => {
       const s = get();
-      if (s.combat || s.pendingEvent || s.pendingCrossing || s.pendingSearch || s.travelAnim || s.hdb) return;
+      if (s.combat || s.pendingEvent || s.pendingSearch || s.travelAnim || s.hdb) return;
       if (!s.currentPositionId) {
         pushLog('There\'s nothing to go into out here.', 'info');
         return;
@@ -4509,7 +4429,7 @@ export const useGame = create<State>((set, get) => {
 
     sneakEnter: () => {
       const s = get();
-      if (s.combat || s.pendingEvent || s.pendingCrossing || s.pendingSearch || s.travelAnim || s.hdb || s.raidMode) return;
+      if (s.combat || s.pendingEvent || s.pendingSearch || s.travelAnim || s.hdb || s.raidMode) return;
       const id = s.currentPositionId;
       if (!id) return;
       const loc = s.locations[id];
@@ -4539,7 +4459,7 @@ export const useGame = create<State>((set, get) => {
 
     forceEnter: () => {
       const s = get();
-      if (s.combat || s.pendingEvent || s.pendingCrossing || s.pendingSearch || s.travelAnim || s.hdb || s.raidMode) return;
+      if (s.combat || s.pendingEvent || s.pendingSearch || s.travelAnim || s.hdb || s.raidMode) return;
       const id = s.currentPositionId;
       if (!id) return;
       const loc = s.locations[id];
@@ -4555,7 +4475,7 @@ export const useGame = create<State>((set, get) => {
 
     raidSearch: () => {
       const s = get();
-      if (s.combat || s.pendingEvent || s.pendingCrossing || s.pendingSearch || s.travelAnim || s.hdb) return;
+      if (s.combat || s.pendingEvent || s.pendingSearch || s.travelAnim || s.hdb) return;
       const raid = s.raidMode;
       if (!raid || raid.locationId !== s.currentPositionId) return;
       const loc = s.locations[raid.locationId];
@@ -4605,7 +4525,7 @@ export const useGame = create<State>((set, get) => {
     // worse option — no loot, no stash, no roof, and the hazard field bites.
     trek: (lat, lng) => {
       const s = get();
-      if (s.combat || s.pendingEvent || s.pendingCrossing || s.pendingSearch || s.travelAnim) return;
+      if (s.combat || s.pendingEvent || s.pendingSearch || s.travelAnim) return;
       if (s.meters.energy <= 0) {
         pushLog(flavor('tooTired'), 'bad');
         return;
@@ -4682,15 +4602,13 @@ export const useGame = create<State>((set, get) => {
       const encRng = new Rng(now.seed).fork(
         `trek:${lat.toFixed(5)}:${lng.toFixed(5)}:${now.day}:${Math.round(now.hour)}`,
       );
-      const approach = crossingApproach('trek', { lat, lng }, risk);
-      if (approach === null) return;
+      checkHazardZones({ lat, lng }, risk, encRng, isWetWeather(weather));
       set({ meters: { ...s.meters, energy: quote.remainingEnergy } });
       if (advanceTime((est.travelMin / 60) * veg.travelMult, undefined, false, true, 0)) return;
       applyPracticeXp('fitness', (est.travelMin / 60) * veg.travelMult * PRACTICE_XP.trekHour, true);
       bumpStats({ distanceM: dist });
       const outcome = resolveCrossing(encRng, risk, {
         mode: 'trek',
-        approach,
         dexterity: now.character!.attributes.dexterity,
         checkBonus: sumTraitMod(now.character!.traitIds, 'checkBonusMod'),
         band: trekBand,
@@ -4712,7 +4630,7 @@ export const useGame = create<State>((set, get) => {
         };
       } else if (
         risk.hazards.some((z) => z.kind === 'floodwater') &&
-        encRng.chance(FLOODWATER_ANIMAL_CHANCE * (approach === 'careful' ? 0.4 : 1))
+        encRng.chance(FLOODWATER_ANIMAL_CHANCE)
       ) {
         trekAmbush = {
           danger: risk.combatDanger,
@@ -4757,7 +4675,7 @@ export const useGame = create<State>((set, get) => {
     tunnelEnterRoute: (stationIds) => {
       const s = get();
       const from = s.currentPositionId ? s.locations[s.currentPositionId] : null;
-      if (!from || s.combat || s.pendingEvent || s.pendingCrossing || s.tunnel || s.hdb) return;
+      if (!from || s.combat || s.pendingEvent || s.tunnel || s.hdb) return;
       if (pinnedByLoad(loadOf(s))) return;
       if (!from.isMrtStation || !from.mrtStationId) {
         pushLog('You have to be on a platform to get into the tunnels.', 'bad');
@@ -4787,7 +4705,7 @@ export const useGame = create<State>((set, get) => {
       void ensureStationLocation(destId).then((to) => {
         if (!to) return;
         const cur = get();
-        if (cur.combat || cur.pendingEvent || cur.pendingCrossing || cur.tunnel || cur.hdb) return;
+        if (cur.combat || cur.pendingEvent || cur.tunnel || cur.hdb) return;
 
         const dayPass = (from.tollPaidThroughDay ?? -1) >= cur.day;
         if (
@@ -5057,7 +4975,7 @@ export const useGame = create<State>((set, get) => {
 
     openTrader: (locationId) => {
       const s = get();
-      if (s.combat || s.pendingEvent || s.pendingCrossing || s.travelAnim) return;
+      if (s.combat || s.pendingEvent || s.travelAnim) return;
       const loc = s.locations[locationId];
       if (!loc?.factionId) return;
       if (s.currentPositionId !== locationId) return;
@@ -5134,7 +5052,7 @@ export const useGame = create<State>((set, get) => {
 
     outpostRest: () => {
       const s = get();
-      if (s.combat || s.pendingEvent || s.pendingCrossing || s.travelAnim) return;
+      if (s.combat || s.pendingEvent || s.travelAnim) return;
       const posId = s.currentPositionId;
       const loc = posId ? s.locations[posId] : null;
       if (!loc?.factionId) return;
@@ -5183,7 +5101,7 @@ export const useGame = create<State>((set, get) => {
 
     factionAid: () => {
       const s = get();
-      if (s.combat || s.pendingEvent || s.pendingCrossing || s.travelAnim) return;
+      if (s.combat || s.pendingEvent || s.travelAnim) return;
       const posId = s.currentPositionId;
       const loc = posId ? s.locations[posId] : null;
       if (!loc?.factionId) return;
@@ -5224,7 +5142,7 @@ export const useGame = create<State>((set, get) => {
 
     factionIntel: () => {
       const s = get();
-      if (s.combat || s.pendingEvent || s.pendingCrossing || s.travelAnim) return;
+      if (s.combat || s.pendingEvent || s.travelAnim) return;
       const posId = s.currentPositionId;
       const loc = posId ? s.locations[posId] : null;
       if (!loc?.factionId) return;
@@ -5312,7 +5230,7 @@ export const useGame = create<State>((set, get) => {
 
     factionFeed: () => {
       const s = get();
-      if (s.combat || s.pendingEvent || s.pendingCrossing || s.travelAnim) return;
+      if (s.combat || s.pendingEvent || s.travelAnim) return;
       const posId = s.currentPositionId;
       const loc = posId ? s.locations[posId] : null;
       if (!loc?.factionId) return;
@@ -5356,7 +5274,7 @@ export const useGame = create<State>((set, get) => {
 
     factionEscort: (destinationId) => {
       const s = get();
-      if (s.combat || s.pendingEvent || s.pendingCrossing || s.travelAnim) return;
+      if (s.combat || s.pendingEvent || s.travelAnim) return;
       const posId = s.currentPositionId;
       const loc = posId ? s.locations[posId] : null;
       if (!loc?.factionId) return;
@@ -5473,7 +5391,7 @@ export const useGame = create<State>((set, get) => {
 
     searchKinDeck: () => {
       const s = get();
-      if (s.combat || s.pendingEvent || s.pendingCrossing || s.pendingSearch || s.travelAnim || s.hdb) return;
+      if (s.combat || s.pendingEvent || s.pendingSearch || s.travelAnim || s.hdb) return;
       const loc = s.currentPositionId ? s.locations[s.currentPositionId] : null;
       if (!loc?.factionId) return;
       if (!hasFactionClearance(loc, s.factionStanding, s.day)) {
@@ -5493,7 +5411,7 @@ export const useGame = create<State>((set, get) => {
     /** Confirm contact, then board during the advertised window. Both are free. */
     callEvac: () => {
       const s = get();
-      if (s.phase !== 'game' || !s.character || s.combat || s.pendingEvent || s.pendingCrossing || s.pendingSearch || s.travelAnim || s.hdb || s.tunnel) return;
+      if (s.phase !== 'game' || !s.character || s.combat || s.pendingEvent || s.pendingSearch || s.travelAnim || s.hdb || s.tunnel) return;
       const now = totalGameHour(s.day, s.hour);
       if (s.evacZoneId && s.evacDeadline != null && now >= s.evacDeadline) {
         beginEvacCooldown();
@@ -5698,7 +5616,6 @@ export const useGame = create<State>((set, get) => {
           persist();
           return;
         }
-        if (site) pushLog(t('ui.evac.searchAfterEvent', { name: site.name }, activeLocale()), 'info', undefined, undefined, siteLogScope(pe.locationId));
         attemptSearch(pe.locationId);
       };
 
@@ -5751,6 +5668,13 @@ export const useGame = create<State>((set, get) => {
       };
 
 
+      let checkDetail = '';
+      const reportOutcome = (line: string, tone: GameLogEntry['tone']) => {
+        if (!line) return;
+        pushLog(checkDetail ? `${line}\n${checkDetail}` : line, tone);
+        checkDetail = '';
+      };
+
       /** @returns false if the survivor died partway through. */
       const applyOne = (e: EventEffect): boolean => {
         switch (e.t) {
@@ -5764,8 +5688,10 @@ export const useGame = create<State>((set, get) => {
             if (ev.factionId) shiftStanding(ev.factionId, e.delta);
             return true;
           case 'time':
-            if (e.line) pushLog(e.line, 'info');
-            return !advanceTime(e.hours);
+            reportOutcome(e.line, 'info');
+            if (!advanceTime(e.hours)) return true;
+            if (checkDetail) pushLog(checkDetail, 'bad');
+            return false;
           case 'energy': {
             const cur = get();
             set({ meters: { ...cur.meters, energy: clampMeter(cur.meters.energy - e.amount) } });
@@ -5775,7 +5701,7 @@ export const useGame = create<State>((set, get) => {
           case 'wound': {
             const cur = get();
             set({ bodyParts: applyWound(cur.bodyParts, e.amount, rng) });
-            pushLog(e.line, 'bad');
+            reportOutcome(e.line, 'bad');
             return true;
           }
           case 'disturb':
@@ -5862,7 +5788,7 @@ export const useGame = create<State>((set, get) => {
           }
           // --- terminal ---
           case 'deny':
-            pushLog(e.line, 'info');
+            reportOutcome(e.line, 'info');
             persist();
             return true;
           case 'fight':
@@ -5919,11 +5845,15 @@ export const useGame = create<State>((set, get) => {
           const attrVal = s.character!.attributes[attrKey];
           const bonus = sumTraitMod(s.character!.traitIds, 'checkBonusMod');
           const res = shownCheck(rng, attrKey, choice.dc!, choice.label);
-          pushLog(
-            `${choice.label} — ${attrEmoji(attrKey)} ${ATTRIBUTE_LABELS[attrKey]} d20 ${res.roll}+${attrVal}${bonus ? `+${bonus}` : ''}=${res.total} vs ${res.dc}: ${res.success ? 'success' : 'failure'}`,
-            res.success ? 'good' : 'bad',
-          );
-          run(res.success ? choice.onSuccess : (choice.onFailure ?? [{ t: 'access' }]));
+          const effects = res.success ? choice.onSuccess : (choice.onFailure ?? [{ t: 'access' } as const]);
+          const detail = `${choice.label} — ${attrEmoji(attrKey)} d20 ${res.roll}+${attrVal}${bonus ? `+${bonus}` : ''}=${res.total} vs DC ${res.dc}`;
+          if ((ev.kind === 'smoke_block' || ev.kind === 'flooded_entry') &&
+              effects.some((e) => (e.t === 'wound' || e.t === 'time' || e.t === 'deny') && e.line)) {
+            checkDetail = detail;
+          } else {
+            pushLog(`${choice.label} — ${attrEmoji(attrKey)} ${ATTRIBUTE_LABELS[attrKey]} d20 ${res.roll}+${attrVal}${bonus ? `+${bonus}` : ''}=${res.total} vs ${res.dc}: ${res.success ? 'success' : 'failure'}`, res.success ? 'good' : 'bad');
+          }
+          run(effects);
           break;
         }
       }
@@ -5931,7 +5861,7 @@ export const useGame = create<State>((set, get) => {
 
     rest: (length = 'morning') => {
       const s = get();
-      if (s.combat || s.pendingEvent || s.pendingCrossing || s.travelAnim || !s.character) return;
+      if (s.combat || s.pendingEvent || s.travelAnim || !s.character) return;
       const { outcome, pockets, conditions, risk } = planRestFromState(length);
       if (outcome.hours <= 0) {
         pushLog(
@@ -5960,21 +5890,11 @@ export const useGame = create<State>((set, get) => {
       const posId = get().currentPositionId;
       if (posId) discoverLocation(posId);
       const rough = conditions.recoveryMult < 0.85;
-      const longSleep = outcome.hours >= 6;
-      pushLog(
-        longSleep
-          ? flavor(rough ? 'restExposed' : 'rest')
-          : `You rest ${formatRestHours(outcome.hours)}.`,
-        rough ? 'bad' : 'info',
-      );
-      if (longSleep) pushLog(conditions.summary, rough ? 'bad' : 'info');
-      for (const note of conditions.occupancyNotes) {
-        pushLog(note, 'info');
-      }
-      if (outcome.wokeBy === 'hunger') pushLog('Hunger drags you awake early.', 'bad');
-      else if (outcome.wokeBy === 'thirst') pushLog('Thirst drags you awake early.', 'bad');
-      else if (outcome.wokeBy === 'blood') pushLog('You wake light-headed — the wound will not let you sleep on.', 'bad');
-      else if (outcome.wokeBy === 'restless') pushLog('Too hungry or thirsty to sleep long. You doze, then give up.', 'bad');
+      const locale = activeLocale();
+      const duration = formatRestHours(outcome.hours, (key, vars) => t(key, vars, locale));
+      const notes = [t(`ui.sleep.result.${outcome.wokeBy ?? 'rested'}`, { dur: duration }, locale)];
+      if (rough) notes.push(t('ui.sleep.result.rough', { pct: Math.round(conditions.recoveryMult * 100) }, locale));
+      let harmed = false;
 
       if (outcome.infectionDelta > 0) {
         set({
@@ -5983,19 +5903,23 @@ export const useGame = create<State>((set, get) => {
             infection: clampMeter(get().meters.infection + outcome.infectionDelta),
           },
         });
-        pushLog('The damp gets into you.', 'bad');
+        notes.push(t('ui.sleep.result.damp', undefined, locale));
+        harmed = true;
       }
       if (outcome.collapseChance > 0 && nightRng.chance(outcome.collapseChance)) {
         const leg = nightRng.chance(0.5) ? 'leftLeg' : 'rightLeg';
         set({
           bodyParts: applyPartDamage(get().bodyParts, leg, 6 + nightRng.int(0, 6), nightRng),
         });
-        pushLog('The rubble shifts under you in the night.', 'bad');
+        notes.push(t('ui.sleep.result.rubble', undefined, locale));
+        harmed = true;
       }
+
+      pushLog(notes.join(locale === 'zh-Hans' ? '' : ' '), rough || outcome.wokeBy || harmed ? 'bad' : 'info');
 
       if (conditions.ambush && risk && nightRng.chance(outcome.ambushChance)) {
         const g = get();
-        pushLog('Something found you in the dark.', 'bad');
+        pushLog(t('ui.sleep.result.ambush', undefined, locale), 'bad');
         const worst = pockets.reduce<typeof pockets[number] | null>(
           (acc, z) => (!acc || z.severity > acc.severity ? z : acc),
           null,
@@ -6064,7 +5988,6 @@ export const useGame = create<State>((set, get) => {
 
     applyItem: (uid, partId) => {
       const s = get();
-      if (s.pendingCrossing) return;
       // Fights are committed — no mid-swing bandages from the pack.
       if (s.combat && !s.combat.over) {
         pushLog('No time to dig through the pack mid-fight.', 'bad');
@@ -6075,7 +5998,7 @@ export const useGame = create<State>((set, get) => {
       const def = itemDef(inst.defId);
       const care = careForItem(def.id);
       if (care) {
-        if (s.phase !== 'game' || !s.character || s.travelAnim || s.pendingEvent || s.pendingCrossing || s.pendingSearch) return;
+        if (s.phase !== 'game' || !s.character || s.travelAnim || s.pendingEvent || s.pendingSearch) return;
         if (!isCarried(inst.container) && inst.container !== TEMP_STASH &&
             (inst.container !== s.currentPositionId || s.tunnel)) return;
         const target = partId ?? chooseCareTarget(s.bodyParts, care);
@@ -6115,10 +6038,7 @@ export const useGame = create<State>((set, get) => {
           if (fx.thirst != null) m.thirst = clampMeter(m.thirst + fresh(fx.thirst));
           if (fx.energy != null) m.energy = clampMeter(m.energy + fresh(fx.energy));
           consumed = true;
-          pushLog(
-            `Ate ${def.name}. ${consumableRestoreSummary(fx)}${freshnessNote(inst)}.`,
-            faded ? 'info' : 'good',
-          );
+          if (faded) pushLog(`Ate ${def.name}. ${consumableRestoreSummary(fx)}${freshnessNote(inst)}.`, 'info');
           break;
         }
         case 'water': {
@@ -6136,11 +6056,8 @@ export const useGame = create<State>((set, get) => {
               `Drank ${def.name}. ${consumableRestoreSummary(fx)} — it sits wrong (+${Math.round(waterRisk * (1 - resist))} infection).`,
               'bad',
             );
-          } else {
-            pushLog(
-              `Drank ${def.name}. ${consumableRestoreSummary(fx)}${freshnessNote(inst)}.`,
-              faded ? 'info' : 'good',
-            );
+          } else if (faded) {
+            pushLog(`Drank ${def.name}. ${consumableRestoreSummary(fx)}${freshnessNote(inst)}.`, 'info');
           }
           consumed = true;
           break;
@@ -6157,12 +6074,7 @@ export const useGame = create<State>((set, get) => {
             newBodyParts = applyAntibiotics(newBodyParts);
             pushLog(t(hadInfectedWound ? 'ui.care.antibioticsCleared' : 'ui.care.antibioticsCover', { n: ANTIBIOTIC_COVER_HOURS }, activeLocale()), 'good');
           }
-          pushLog(
-            faded
-              ? `Took ${def.name}. Past its date — infection pushed back, but not as hard.`
-              : `Took ${def.name}. Infection pushed back.`,
-            faded ? 'info' : 'good',
-          );
+          if (faded) pushLog(`Took ${def.name}. Past its date — infection pushed back, but not as hard.`, 'info');
           break;
         case 'energy': {
           const fx = effect;
@@ -6172,10 +6084,7 @@ export const useGame = create<State>((set, get) => {
           }
           if (fx.thirst != null) m.thirst = clampMeter(m.thirst + fresh(fx.thirst));
           consumed = true;
-          pushLog(
-            `Had a ${def.name}. ${consumableRestoreSummary(fx)}${freshnessNote(inst)}.`,
-            faded ? 'info' : 'good',
-          );
+          if (faded) pushLog(`Had a ${def.name}. ${consumableRestoreSummary(fx)}${freshnessNote(inst)}.`, 'info');
           break;
         }
         case 'ammo': {
@@ -6443,23 +6352,17 @@ export const useGame = create<State>((set, get) => {
       const s = get();
       const inst = s.items.find((i) => i.uid === uid);
       if (!inst) return;
-      const def = itemDef(inst.defId);
       // The hoarder can't make themselves let go of anything.
       if (hasTraitFlag(s.character!.traitIds, 'cannotDropItems')) {
-        pushLog(`You can't bring yourself to leave the ${def.name} behind.`, 'bad');
+        pushLog(`You can't bring yourself to leave the ${itemDef(inst.defId).name} behind.`, 'bad');
         return;
       }
       set({ items: s.items.filter((i) => i.uid !== uid) });
-      pushLog(
-        inst.stack > 1 ? `Dropped ${inst.stack}× ${def.name}.` : `Dropped ${def.name}.`,
-        'info',
-      );
       persist();
     },
 
     craftItem: (recipeId, mode = 'room', waterSource = 'carried') => {
       const s = get();
-      if (s.pendingCrossing) return;
       if (s.phase !== 'game' || !s.character || s.combat || s.travelAnim || s.pendingSearch || s.pendingEvent) return;
       const recipe = RECIPES.find((r) => r.id === recipeId);
       if (!recipe) return;
@@ -6492,10 +6395,9 @@ export const useGame = create<State>((set, get) => {
         const current = get().locations[loc.id];
         const facilities = buildFacility(current.facilities, recipe.facility, end, recipe.outputCount);
         set({ items, locations: { ...get().locations, [loc.id]: { ...current, facilities } } });
-        pushLog(`Prepared ${recipe.name} at ${loc.name}.`, 'good');
         applyPracticeXp('trades', PRACTICE_XP.craft);
         persist();
-        return;
+        return { loose: 0 };
       }
       if (recipe.waterInput && waterSource === 'site' && recipe.preparation !== 'boil' && loc) {
         const current = get().locations[loc.id];
@@ -6515,23 +6417,27 @@ export const useGame = create<State>((set, get) => {
         contaminated,
         recipe.preparation === 'drink' && mode === 'room',
       );
-      const outName = itemDef(recipe.outputDefId).name;
       set({ items: made.items });
-      pushLog(
-        made.loose > 0
-          ? `Made ${recipe.outputCount}× ${outName} — no room in the pack, so you carry it loose.`
-          : `Made ${recipe.outputCount}× ${outName}.`,
-        'good',
-      );
       applyPracticeXp('trades', PRACTICE_XP.craft);
       persist();
+      return { loose: made.loose };
     },
 
+    trackLead: (id) => {
+      const leads = get().explorationLeads;
+      if (id !== null && !leads.some(lead => lead.id === id && lead.completedDay === undefined)) return;
+      if ((leads.find(lead => lead.tracked)?.id ?? null) === id) return;
+      set({ explorationLeads: leads.map(lead => {
+        if (lead.id === id) return { ...lead, tracked: true };
+        return lead.tracked ? { ...lead, tracked: undefined } : lead;
+      }) });
+      persist();
+    },
     readLocalMap: () => {
       const s = get();
       const loc = surfaceSite(s);
       if (s.phase !== 'game' || !s.character || !loc || loc.localMapRead
-        || s.combat || s.pendingEvent || s.pendingCrossing || s.pendingSearch || s.travelAnim || s.hdb || s.tunnel) return;
+        || s.combat || s.pendingEvent || s.pendingSearch || s.travelAnim || s.hdb || s.tunnel) return;
       const source = loc.category === 'mrt' || loc.isMrtStation ? 'locality'
         : loc.category === 'residential' || loc.category === 'community' ? 'noticeboard' : null;
       if (!source) return;
@@ -6574,7 +6480,6 @@ export const useGame = create<State>((set, get) => {
 
     collectSiteWater: (source) => {
       const s = get();
-      if (s.pendingCrossing) return;
       if (s.phase !== 'game' || s.combat || s.travelAnim || s.pendingSearch || s.pendingEvent) return;
       const loc = surfaceSite(s);
       if (!loc) return;
@@ -6643,13 +6548,9 @@ export const useGame = create<State>((set, get) => {
       const made = addToCarry(now.items, 'cloth_rags', TEAR_RAGS_YIELD);
       const left = now.clothingTears - 1;
       set({ items: made.items, clothingTears: left });
-      pushLog(
-        left > 0
-          ? `Cut strips off your own clothes. ${left} more like that and there is nothing left.`
-          : 'Cut the last usable strip off your own clothes.',
-        'info',
-      );
+      if (left === 0) pushLog('Cut the last usable strip off your own clothes.', 'info');
       persist();
+      return { loose: made.loose };
     },
 
     repairItem: (uid, materialDefId) => {
@@ -6796,10 +6697,6 @@ export const useGame = create<State>((set, get) => {
       }
 
       set({ items: nextItems, equipment: nextEquip });
-      pushLog(
-        def.twoHanded ? `Equipped ${def.name} (two-handed).` : `Equipped ${def.name}.`,
-        'good',
-      );
       persist();
     },
 
@@ -6928,7 +6825,7 @@ export const useGame = create<State>((set, get) => {
     hdbEnter: () => {
       const s = get();
       const loc = s.currentPositionId ? s.locations[s.currentPositionId] : null;
-      if (!loc || s.combat || s.pendingEvent || s.pendingCrossing || s.pendingSearch || s.hdb) return;
+      if (!loc || s.combat || s.pendingEvent || s.pendingSearch || s.hdb) return;
       if (loc.category !== 'residential' || !isVerifiedHdb(loc.id, loc.lat, loc.lng)) return;
       if (loc.factionId) {
         const kin =
@@ -7030,16 +6927,15 @@ export const useGame = create<State>((set, get) => {
       const rng = new Rng(g.seed).fork(`pick:${g.hdb.locationId}:${unitId}:${g.day}:${g.hdb.moveSeq}`);
       const check = pickCheck(rng, g.character.attributes.dexterity, pickMod);
       pushLog(
-        `Pick the lock — ${attrEmoji('dexterity')} d20 ${check.roll}+${g.character.attributes.dexterity}${pickMod ? `+${pickMod}` : ''} = ${check.total} vs DC ${check.dc}`,
+        t(check.success ? 'ui.log.lockOpened' : 'ui.log.lockFailed', undefined, activeLocale()) +
+          `\n${attrEmoji('dexterity')} d20 ${check.roll}+${g.character.attributes.dexterity}${pickMod ? `+${pickMod}` : ''} = ${check.total} vs DC ${check.dc}`,
         check.success ? 'good' : 'bad',
       );
       if (!check.success) {
-        pushLog('The lock holds. The pick snaps in the cylinder.', 'bad');
         persist();
         return;
       }
       applyPracticeXp('trades', PRACTICE_XP.hdbPick);
-      pushLog('The lock turns without a sound.', 'good');
       scoutHdbRoom(unitId, false);
       const known = currentFloor(get().hdb!).units.find((u) => u.id === unitId) ?? unit;
       const quiet = { ...known, entry: 'ajar' as const };
@@ -8085,12 +7981,9 @@ export const useGame = create<State>((set, get) => {
     },
 
     resetToMenu: () => {
-      crossingApproval = null;
       flushPersist();
-      crossingDeparture = null;
-      set({
+        set({
         phase: 'menu',
-        pendingCrossing: null,
         character: null,
         spawn: null,
         locations: {},
@@ -8184,7 +8077,6 @@ export const useGame = create<State>((set, get) => {
         locations: rehydrateLocationOutlines(run.locations),
         currentPositionId: run.currentPositionId,
         currentPos: run.currentPos,
-        pendingCrossing: run.pendingCrossing ?? null,
         equipment: coerceEquipment(run.equipment),
         bodyParts: migrateBodyParts(run.bodyParts, run.maxHp),
         lastCare: null,

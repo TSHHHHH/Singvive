@@ -1,9 +1,9 @@
 // Starting-kit balance sim — `npm run sim:kits`.
 //
-// For every occupation preset and every gear-granting trait, resolves the real
+// For every role, and every gear-granting trait on the Classic Survivor, resolves the real
 // starting kit (`resolveStartingKit`) and measures what the *gear* is worth on
 // top of the traits: the same build is fought twice through the production
-// combat resolvers, once with its kit and once with the plain base kit. The
+// combat resolvers, once with its kit and once with the plain Classic Survivor kit. The
 // difference is the kit's advantage. Also reports the non-combat haul: healing
 // HP, hunger/thirst carried, carry capacity and pack cells.
 //
@@ -111,21 +111,19 @@ try {
   }
 
   const builds = [
-    ['(base kit, no traits)', []],
-    ...OCCUPATIONS.map((o) => [o.name, o.traitIds]),
+    ...OCCUPATIONS.map((o) => [o.name, o.id, []]),
     ...Object.keys(kitMod.TRAIT_KITS)
-      .filter((id) => !OCCUPATIONS.some((o) => o.traitIds.includes(id)))
-      .map((id) => [`+ ${character.getTrait(id).name} (${character.getTrait(id).cost})`, [id]]),
+      .map((id) => [`+ ${character.getTrait(id).name} (${character.getTrait(id).cost})`, 'survivor', [id]]),
   ];
-  const baseKit = kitMod.resolveStartingKit([]);
+  const baseKit = kitMod.resolveStartingKit('survivor', []);
   const baseEq = equipFrom(baseKit);
   const pct = (n) => `${(n * 100).toFixed(0)}%`.padStart(5);
   const sgn = (n, d = 1) => (n >= 0 ? '+' : '') + n.toFixed(d);
   console.log(`\nStarting-kit sim — ${N} fights × ${enemies.length} early enemies × day/night × guarded/aggressive`);
-  console.log('"kit Δ" = this build with its kit minus the same traits on the plain base kit.\n');
+  console.log('"kit Δ" = this build with its kit minus the same traits on the plain Classic Survivor kit.\n');
   console.log('build                          win   Δwin  dmg taken  Δdmg   Δswings  weapon         heal  food  water  cells  value');
-  for (const [label, traitIds] of builds) {
-    const kit = kitMod.resolveStartingKit(traitIds, new Rng('sim-kits'));
+  for (const [label, roleId, traitIds] of builds) {
+    const kit = kitMod.resolveStartingKit(roleId, traitIds, new Rng('sim-kits'));
     const withKit = fight(traitIds, equipFrom(kit));
     const plain = fight(traitIds, baseEq);
     const h = haul(kit);

@@ -132,26 +132,24 @@ export function PendingEventChoices({
   );
 }
 
-/** Phone map card body for a pending story event. */
+/** The same decision appears in the timeline or on the phone map. */
 export function PendingEventCardBody({ event }: { event: GameEvent }) {
   const hour = useGame((s) => s.hour);
   const clock = useClockFormat();
   const { t } = useT();
-
   return (
     <div className="space-y-2">
-      <div className="text-label uppercase text-signal/70">
-        {t(event.kind.startsWith('street_') ? 'ui.pending.streetScene' : 'ui.pending.someoneWantsWord')}
-      </div>
-      <p className="text-body text-white/70">
-        <span className="mr-1.5 text-micro tabular-nums text-white/35">
-          {formatClock(hour, clock)}
-        </span>
-        <span className="font-semibold text-concrete-50">{event.title}</span>
-        {' — '}
-        {event.text}
+      <p className="text-body font-semibold text-concrete-50">
+        <span className="mr-1.5 text-micro tabular-nums text-white/35">{formatClock(hour, clock)}</span>
+        {event.kind === 'smoke_block' ? t('ui.pending.smokeBrief') : event.title}
       </p>
       <PendingEventChoices event={event} />
+      {event.text && (
+        <details key={event.text} className="text-body text-white/65">
+          <summary className="cursor-pointer text-label">{t('ui.pending.sceneDetails')}</summary>
+          <p className="mt-1">{event.text}</p>
+        </details>
+      )}
     </div>
   );
 }

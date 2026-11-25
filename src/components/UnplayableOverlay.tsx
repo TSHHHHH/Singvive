@@ -54,8 +54,16 @@ interface Terrain {
   vegetation: FeatureCollection;
 }
 
+/** Raw water geometry, kept so the deck cut-out can run later. */
+interface WaterShapes {
+  sea: MultiPolygon;
+  water: MultiPolygon;
+}
+
 /** Unions are a one-off ~50 ms; keep them for the page's lifetime. */
 const terrainCache = new WeakMap<ZonesData, Terrain>();
+const shapesCache = new WeakMap<ZonesData, WaterShapes>();
+const deckCutCache = new WeakMap<ZonesData, Pick<Terrain, 'sea' | 'water'>>();
 const vegCache = new WeakMap<ZonesData, FeatureCollection>();
 
 function vegetationOf(zones: ZonesData): FeatureCollection {
@@ -67,8 +75,8 @@ function vegetationOf(zones: ZonesData): FeatureCollection {
   return v;
 }
 
-function terrainOf(zones: ZonesData): Terrain {
-  const hit = terrainCache.get(zones);
+function waterShapesOf(zones: ZonesData): WaterShapes {
+  const hit = shapesCache.get(zones);
   if (hit) return hit;
   let sea: MultiPolygon = [];
   const outer = toPoly(seaMaskOuter());
@@ -80,14 +88,55 @@ function terrainOf(zones: ZonesData): Terrain {
       sea = [];
     }
   }
+  const shapes = { sea, water: union(zones.water) };
+  shapesCache.set(zones, shapes);
+  return shapes;
+}
+
+/** The tint without bridge cut-outs: cheap, shown at once. */
+function terrainOf(zones: ZonesData): Terrain {
+  const hit = terrainCache.get(zones);
+  if (hit) return hit;
+  const { sea, water } = waterShapesOf(zones);
   const t: Terrain = {
-      sea: asFc(withoutCrossingDecks(sea)),
-      water: asFc(withoutCrossingDecks(union(zones.water))),
+    sea: asFc(sea),
+    water: asFc(water),
     restricted: asFc(union(zones.restricted)),
     vegetation: vegetationOf(zones),
   };
   terrainCache.set(zones, t);
   return t;
+}
+
+/** Sea and water with walkable decks cleared (~300 ms once with ~1200 bridges). */
+function deckCutOf(zones: ZonesData): Pick<Terrain, 'sea' | 'water'> {
+  const hit = deckCutCache.get(zones);
+  if (hit) return hit;
+  const { sea, water } = waterShapesOf(zones);
+  const cut = { sea: asFc(withoutCrossingDecks(sea)), water: asFc(withoutCrossingDecks(water)) };
+  deckCutCache.set(zones, cut);
+  return cut;
+}
+
+/**
+ * Show the plain tint now and the deck cut-outs when the browser is idle, so
+ * the bridge clipping never stalls the first map frame. Returns a cancel.
+ */
+function withDeckCut(zones: ZonesData, apply: (t: Pick<Terrain, 'sea' | 'water'>) => void): () => void {
+  const ready = deckCutCache.get(zones);
+  if (ready) {
+    apply(ready);
+    return () => {};
+  }
+  const t = terrainOf(zones);
+  apply(t);
+  const run = () => apply(deckCutOf(zones));
+  if (typeof requestIdleCallback === 'function') {
+    const id = requestIdleCallback(run, { timeout: 2000 });
+    return () => cancelIdleCallback(id);
+  }
+  const id = setTimeout(run, 50);
+  return () => clearTimeout(id);
 }
 
 function johorOf(scene: ReturnType<typeof getBorder>): Polygon | null {
@@ -168,12 +217,13 @@ export function VegetationOverlay() {
 
   useEffect(() => {
     if (!zones) return;
-    const t = terrainOf(zones);
-    setData(map, 'veg-src', t.vegetation);
-    setData(map, 'run-water-src', {
-      type: 'FeatureCollection',
-      features: [...(johor ? seaWithout(t.sea, johor) : t.sea).features, ...t.water.features],
-    });
+    setData(map, 'veg-src', terrainOf(zones).vegetation);
+    return withDeckCut(zones, (t) =>
+      setData(map, 'run-water-src', {
+        type: 'FeatureCollection',
+        features: [...(johor ? seaWithout(t.sea, johor) : t.sea).features, ...t.water.features],
+      }),
+    );
   }, [map, zones, johor]);
 
   return null;
@@ -204,10 +254,12 @@ export function UnplayableOverlay({ zones }: { zones: ZonesData }) {
 
   useEffect(() => {
     const t = terrainOf(zones);
-    setData(map, 'zone-sea', t.sea);
-    setData(map, 'zone-water', t.water);
     setData(map, 'zone-restricted', t.restricted);
     setData(map, 'zone-veg', t.vegetation);
+    return withDeckCut(zones, (w) => {
+      setData(map, 'zone-sea', w.sea);
+      setData(map, 'zone-water', w.water);
+    });
   }, [map, zones]);
 
   return null;

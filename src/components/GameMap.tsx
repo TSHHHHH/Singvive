@@ -7,7 +7,7 @@ import { Atmosphere3d } from './Atmosphere3d';
 import { useDesktopShadowSize, useShadowCapableLayout } from '../hooks/useDesktopShadows';
 import type { WeatherDom } from './useAtmosphere';
 import { TimeOfDayFx } from './TimeOfDayFx';
-import { poiIcon, identifiedIcon, playerIcon, playerLocationIcon, unknownIcon, evacIcon, dangerColor, rumourIcon, trekTargetIcon, knownFactionColor } from './mapIcons';
+import { poiIcon, identifiedIcon, playerIcon, playerLocationIcon, unknownIcon, evacIcon, dangerColor, trackedLeadIcon, rumourIcon, trekTargetIcon, knownFactionColor } from './mapIcons';
 import { POI_CONFIG } from '../game/poi';
 import { haversine } from '../game/overpass';
 import { visibilityOf } from '../game/fog';
@@ -66,6 +66,7 @@ import { EMPTY_FC, boxContains, circleFeature, dimHex, fc, lineFeature, padBox, 
 import { BuildingEngine, LOD_ZOOM, type Site3d } from '../map/buildings';
 import { hdbScar, STOREY_M, type HdbDungeon } from '../game/hdbDungeon';
 import { blockFraming } from '../map/blockFraming';
+import { easeWithElevation } from '../map/placeEase';
 import { useT } from '../i18n';
 import { VEIL_BANDS, bandOpacity, veilBands } from '../map/fogGeometry';
 import { CameraFocusRequest, type CameraFocusTarget } from './cameraFocus';
@@ -289,6 +290,8 @@ const SITE_PITCH_3D = 52;
 const SITE_ROOF_M = 10;
 /** Close enough to read the site against its street, not a single roof. */
 const SITE_MAX_ZOOM = 18;
+/** The swing between the run map and a place view, either way. */
+const PLACE_EASE_MS = 1100;
 
 /** What the place view's camera holds: a block's tower or a faction site. */
 export type PlaceFocus = { kind: 'block' | 'site'; id: string };
@@ -345,6 +348,8 @@ function BlockView({
   } | null>(null);
   const bearingRef = useRef(0);
   const restoreRef = useRef(0);
+  /** The place the camera last swung onto; null once it has swung back out. */
+  const framedRef = useRef<string | null>(null);
   const externalFocus = useRef(false);
   useEffect(() => {
     externalFocus.current = false;
@@ -388,11 +393,18 @@ function BlockView({
       // eases in with the way back instead of turning the camera afterwards.
       restoreRef.current = requestAnimationFrame(() => {
         backRef.current = null;
+        framedRef.current = null;
         try {
           map.setCenterClampedToGround(back.clamped);
           map.setMaxZoom(back.maxZoom);
-          map.setCenterElevation(back.elevation);
-          map.easeTo({ ...back, center: backCenter, padding: hudPadding(map), duration: reduced ? 0 : 900 });
+          easeWithElevation(map, {
+            center: backCenter,
+            zoom: back.zoom,
+            pitch: back.pitch,
+            bearing: back.bearing,
+            padding: hudPadding(map),
+            duration: reduced ? 0 : PLACE_EASE_MS,
+          }, back.elevation);
         } catch {
           // The map went away with the run; nothing to ease back.
         }
@@ -414,16 +426,19 @@ function BlockView({
     const box = map.getContainer();
     const framing = blockFraming(site, roofM, box.clientWidth - left - right,
       box.clientHeight - top - bottom, bearingRef.current, pitch);
-    // MapLibre's easeTo does not interpolate elevation; set the orbit target first.
-    map.setCenterElevation(view3d ? framing.elevation : 0);
-    map.easeTo({
-      ...framing,
+    // The first framing is the swing in from the map; later ones (resize,
+    // floor panel) are small re-aims.
+    const entering = framedRef.current !== siteId;
+    framedRef.current = siteId;
+    // easeTo ignores elevation; easeWithElevation moves the orbit target with the rest.
+    easeWithElevation(map, {
+      center: framing.center,
       zoom: kind === 'site' ? Math.min(framing.zoom, SITE_MAX_ZOOM) : framing.zoom,
       pitch,
       bearing: bearingRef.current,
       padding: { top, left, right, bottom },
-      duration: reduced ? 0 : 650,
-    });
+      duration: reduced ? 0 : entering ? PLACE_EASE_MS : 650,
+    }, view3d ? framing.elevation : 0);
   }, [map, on, siteId, pad, roofM, reduced, pitch, kind, view3d]);
   useEffect(() => {
     frameBuilding();
@@ -1781,6 +1796,18 @@ const PoiLayer = memo(
     prev.pois.every((p, i) => poiLooksSame(p, next.pois[i])),
 );
 
+function TrackedLeadMarker({ onSelect }: { onSelect: (id: string) => void }) {
+  const target = useGame(s => {
+    const lead = s.explorationLeads.find(l => l.tracked && l.completedDay === undefined);
+    return lead ? s.locations[lead.targetId] : undefined;
+  });
+  const { t } = useT();
+  const box = usePaddedBounds();
+  if (!target || (!target.identified && !target.discovered) || !boxContains(box, target.lat, target.lng)) return null;
+  return <MapMarker lat={target.lat} lng={target.lng} icon={trackedLeadIcon} zIndex={790}
+    title={t('ui.exploration.trackedPlace', { name: target.name })} onClick={() => onSelect(target.id)} />;
+}
+
 const RumourLayer = memo(function RumourLayer({ annotations }: { annotations: MapAnnotation[] }) {
   const box = usePaddedBounds();
   const drawn = useMemo(() => annotations.filter((a) => boxContains(box, a.lat, a.lng)), [annotations, box]);
@@ -1961,6 +1988,7 @@ function GameMapInner({
 
         <BlockView engine={engine} pois={pois} pad={`${padTop}:${padLeft}:${padRight}:${padBottom}`} focus={placeCam ? placeFocus : null} />
 
+        <TrackedLeadMarker onSelect={selectSite} />
         {mapAnnotations.length > 0 && <RumourLayer annotations={mapAnnotations} />}
 
         {/* Light pillars over evac and faction outposts, readable from afar when tilted. */}

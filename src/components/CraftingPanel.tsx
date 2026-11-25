@@ -17,7 +17,7 @@ import { itemName, recipeBlurb, recipeName, useT } from '../i18n';
 import { tip } from './tips';
 import {
   browseCraftEntries, CRAFT_CATEGORIES, craftingRows, groupCraftRows, tearRow, TEAR_RECIPE_ID,
-  type CraftCategory, type CraftEntryView, type CraftFilter, type CraftRecipeRow, type CraftSort,
+  type CraftCategory, type CraftEntry, type CraftEntryView, type CraftFilter, type CraftRecipeRow, type CraftSort,
 } from './craftingCatalog';
 
 const controlClass = 'min-h-11 min-w-0 rounded border border-white/20 bg-concrete-950 px-3 text-body text-white/85 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal';
@@ -54,11 +54,12 @@ export function CraftingPanel() {
   const [sort, setSort] = useState<CraftSort>('ready');
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
-  const [crafted, setCrafted] = useState<{ defId: string; count: number } | null>(null);
+  const [crafted, setCrafted] = useState<{ defId: string; count: number; loose: number } | null>(null);
   const [modePick, setModePick] = useState<'auto' | 'hot' | 'room'>('auto');
   const [waterPick, setWaterPick] = useState<'carried' | 'site'>('carried');
   const [picks, setPicks] = useState<Record<string, string>>(loadVariantPicks);
   const [hover, setHover] = useState<{ row: CraftRecipeRow; x: number; y: number } | null>(null);
+  const [frozen, setFrozen] = useState<{ keys: string[]; browseKey: string } | null>(null);
   const now = gameHour(day, hour);
   const heat = heatRemaining(site, now);
   // Hot when you can (pot + heat here), room temperature otherwise — the player can still override per drink.
@@ -75,7 +76,12 @@ export function CraftingPanel() {
   ], [items, craftCost, context, clothingTears]);
   const entries = useMemo(() => groupCraftRows(rows), [rows]);
   const browse = { query, category, sort, locale };
-  const views = browseCraftEntries(entries, { ...browse, filter }, picks);
+  const browseKey = `${query}|${category}|${filter}|${sort}`;
+  const entryName = (entry: CraftEntry) => entry.family ? t(`ui.craft.family.${entry.family}`) : itemName(entry.variants[0].recipe.outputDefId, locale);
+  const sorted = browseCraftEntries(entries, { ...browse, filter }, picks, { expanded: selected, entryName });
+  // While a strip is open, the list keeps the order it had when the strip opened: crafting, a variant
+  // pick or a hot/room switch changes readiness, and the strip must not jump away from the pointer.
+  const views = frozen && selected !== null && frozen.browseKey === browseKey ? keepOrder(sorted, frozen.keys) : sorted;
   const counts = Object.fromEntries((['all', 'ready', 'almost'] as const).map((id) => [id, browseCraftEntries(entries, { ...browse, filter: id }, picks).length]));
   const categoryCounts = Object.fromEntries(CRAFT_CATEGORIES.map((id) => [id, browseCraftEntries(entries, { ...browse, category: id, filter }, picks).length]));
   const filtered = query !== '' || category !== 'all' || filter !== 'all';
@@ -86,15 +92,8 @@ export function CraftingPanel() {
     saveVariantPicks(next);
   };
   const craft = (row: CraftRecipeRow) => {
-    // The store can interrupt crafting when time advancement ends a run.
-    const before = useGame.getState().items;
-    const beforeLocs = useGame.getState().locations;
-    if (row.recipe.id === TEAR_RECIPE_ID) tearOwnClothes();
-    else craftItem(row.recipe.id, mode, waterSource);
-    const after = useGame.getState();
-    if (after.phase === 'game' && (after.items !== before || after.locations !== beforeLocs)) {
-      setCrafted({ defId: row.recipe.outputDefId, count: row.recipe.outputCount });
-    }
+    const result = row.recipe.id === TEAR_RECIPE_ID ? tearOwnClothes() : craftItem(row.recipe.id, mode, waterSource);
+    setCrafted(result ? { defId: row.recipe.outputDefId, count: row.recipe.outputCount, loose: result.loose } : null);
   };
   const hoverInst: ItemInstance | null = hover ? previewInstance(hover.row) : null;
 
@@ -145,6 +144,7 @@ export function CraftingPanel() {
 
       <div role="status" aria-live="polite" className={crafted ? 'border-l-2 border-astral bg-astral/5 px-3 py-2 text-body text-astral' : 'sr-only'}>
         {crafted && t('ui.craft.made', { n: crafted.count, name: itemName(crafted.defId, locale) })}
+        {crafted && crafted.loose > 0 && <> · {t('ui.craft.carryLoose', { n: crafted.loose })}</>}
       </div>
 
       {views.length === 0 ? (
@@ -157,7 +157,12 @@ export function CraftingPanel() {
         <ul className="flex flex-col divide-y divide-white/[0.07] rounded border border-white/10" onPointerLeave={() => setHover(null)}>
           {views.map((view) => <RecipeStrip key={view.entry.key} view={view} busy={busy}
             expanded={selected === view.entry.key}
-            onToggle={() => { setHover(null); setSelected(selected === view.entry.key ? null : view.entry.key); }}
+            onToggle={() => {
+              setHover(null);
+              const open = selected !== view.entry.key;
+              setSelected(open ? view.entry.key : null);
+              setFrozen(open ? { keys: views.map((v) => v.entry.key), browseKey } : null);
+            }}
             onHover={coarse ? undefined : (e) => setHover(e ? { row: view.row, x: e.clientX, y: e.clientY } : null)}
             onPickVariant={(id) => pickVariantFor(view.entry.key, id)}
             mode={mode} onMode={setModePick}
@@ -170,6 +175,13 @@ export function CraftingPanel() {
 
     </div>
   );
+}
+
+/** Sorted views laid out in a remembered key order; keys the order does not know go last, in sorted order. */
+function keepOrder(views: CraftEntryView[], keys: string[]): CraftEntryView[] {
+  const at = new Map(keys.map((key, i) => [key, i]));
+  const slot = (view: CraftEntryView) => at.get(view.entry.key) ?? keys.length;
+  return views.map((view, i) => ({ view, i })).sort((a, b) => slot(a.view) - slot(b.view) || a.i - b.i).map(({ view }) => view);
 }
 
 /** Quick read of what's built here, above the list; tapping it shows the camp setup recipes. */
@@ -246,11 +258,13 @@ function RecipeStrip({ view, expanded, onToggle, onHover, onCraft, onPickVariant
   const status = facilityStatus(row, t, seed);
   const detailsId = `craft-details-${entry.key.replace(/[^a-z0-9_-]/gi, '-')}`;
   const ready = check.ok;
+  // The edge bar marks the strip as craftable when any variant is, so it agrees with the Ready filter.
+  const anyReady = view.anyReady;
   // Three chips fit beside the name on a phone; past that, two plus a "+n".
   const slots = recipe.tool ? 2 : 3;
   const shownInputs = ingredients.length > slots ? slots - 1 : slots;
   return <li className={`relative min-w-0 ${expanded ? 'bg-white/[0.04]' : ''}`}>
-    <span aria-hidden="true" className={`absolute inset-y-0 left-0 w-0.5 ${ready ? 'bg-astral/80' : 'bg-transparent'}`} />
+    <span aria-hidden="true" className={`absolute inset-y-0 left-0 w-0.5 ${ready ? 'bg-astral/80' : anyReady ? 'bg-astral/35' : 'bg-transparent'}`} />
     <button type="button" aria-expanded={expanded} aria-controls={detailsId}
       aria-label={t('ui.craft.inspect', { name: variantName ? `${name} · ${variantName}` : name })} onClick={onToggle}
       onPointerMove={onHover ? (e) => { if (e.pointerType === 'mouse') onHover(e); } : undefined}

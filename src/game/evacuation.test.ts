@@ -59,18 +59,11 @@ describe('evacuation admission', () => {
     expect(useGame.getState().log).toHaveLength(0);
   });
 
-  it('cannot bypass an unresolved event or crossing to report', () => {
+  it('cannot bypass an unresolved event to report', () => {
     useGame.setState({ pendingEvent: { locationId: 'evac', event: {
       kind: 'locked_door', title: 'Room', tell: 'A door', text: 'A room inside',
       factionId: null, choices: [],
     } } });
-    useGame.getState().callEvac();
-    expect(useGame.getState().evacContacted).toBe(false);
-    useGame.setState({ pendingEvent: null, pendingCrossing: {
-      id: 'crossing', mode: 'road', from: {lat:site.lat,lng:site.lng},
-      target: {lat:site.lat,lng:site.lng,locationId:'evac'}, day:1,hour:8,
-      carefulMinutes:9,hazards:[{id:'flood',kind:'floodwater',severity:1}],
-    } });
     useGame.getState().callEvac();
     expect(useGame.getState().evacContacted).toBe(false);
     expect(useGame.getState().log).toHaveLength(0);

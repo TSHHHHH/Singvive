@@ -2,9 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useGame } from './store';
 import { cancelPersist, flushPersist } from './persistRun';
 import { loadRun } from './storage';
-import { migrateBodyParts } from './survival';
-import { trekRisk } from './wilds';
-import type { ItemInstance, LocationState } from './types';
+import { rollHazardChecks, trekRisk } from './wilds';
+import type { LocationState } from './types';
 
 // Only map input is substituted. The store's meters, clock, log, choice and
 // movement mutations remain real; the route always crosses the same rubble.
@@ -16,14 +15,21 @@ vi.mock('./playable', async (original) => ({
   ...await original<typeof import('./playable')>(),
   walkabilityOf: () => 'ok',
 }));
-vi.mock('./wilds', async (original) => ({
-  ...await original<typeof import('./wilds')>(),
-  trekRisk: vi.fn(() => ({ encounterChance: 0, fightChance: 0, combatDanger: 2,
-    hazards: [{ id: 'rubble', kind: 'collapse', severity: 3, lat: 1.3, lng: 103.8, radiusM: 60, discs: [] }],
-  })),
-}));
+vi.mock('./wilds', async (original) => {
+  const actual = await original<typeof import('./wilds')>();
+  return {
+    ...actual,
+    trekRisk: vi.fn(() => ({ encounterChance: 0, fightChance: 0, combatDanger: 2,
+      hazards: [{ id: 'rubble', kind: 'collapse', severity: 3, lat: 1.3, lng: 103.8, radiusM: 60, discs: [] }],
+    })),
+    // By default the zone catches the survivor; the check
+    // itself is covered in wilds.test.ts. Individual tests override the result.
+    rollHazardChecks: vi.fn((...args: Parameters<typeof actual.rollHazardChecks>) =>
+      actual.rollHazardChecks(...args).map((check) => ({ ...check, success: false }))),
+  };
+});
 
-describe('surface crossing decisions', () => {
+describe('surface hazard crossings', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     const saved = new Map<string, string>();
@@ -36,161 +42,78 @@ describe('surface crossing decisions', () => {
       attributes: { strength: 5, dexterity: 5, endurance: 5, perception: 5, wits: 5 } });
     useGame.setState({ phase: 'game', seed: 'crossing-test',
       spawn: { lat: 1.3, lng: 103.8, name: 'Start' },
-      currentPos: { lat: 1.3, lng: 103.8 }, pendingCrossing: null,
+      currentPos: { lat: 1.3, lng: 103.8 },
     });
   });
   afterEach(() => { cancelPersist(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 
-  it('puts the hazard in the timeline before spending walking energy or time', () => {
+  it('crosses a zone that catches the survivor straight away, with no decision', () => {
     const before = useGame.getState();
     before.trek(1.301, 103.8);
     const after = useGame.getState();
-    expect(after.pendingCrossing?.hazards[0]?.kind).toBe('collapse');
-    expect(after.log[0]?.crossing).toEqual({ kind: 'noticed', hazards: ['collapse'] });
-    expect(after.meters).toEqual(before.meters);
-    expect(after.bodyParts).toBe(before.bodyParts);
-    expect(after.hour).toBe(before.hour);
-    expect(after.currentPos).toEqual(before.currentPos);
-    expect(after.travelAnim).toBeNull();
-    expect(after.combat).toBeNull();
+    expect(after.log.some((entry) => entry.crossing?.kind === 'caught')).toBe(true);
+    expect(after.log.some((entry) => entry.crossing?.kind === 'resolved')).toBe(true);
+    expect(after.meters.energy).toBeLessThan(before.meters.energy);
+    expect(after.hour).toBeGreaterThan(before.hour);
+    expect(after.travelAnim).not.toBeNull();
   });
 
-  it('withdraws without paying for or committing the trip', () => {
-    const before = useGame.getState();
-    before.trek(1.301, 103.8);
-    const event = useGame.getState().pendingCrossing!;
-    useGame.getState().chooseCrossing(event.id, 'withdraw');
-    const after = useGame.getState();
-    expect(after.pendingCrossing).toBeNull();
-    expect(after.meters).toEqual(before.meters);
-    expect(after.hour).toBe(before.hour);
-    expect(after.currentPos).toEqual(before.currentPos);
-    expect(after.travelAnim).toBeNull();
-  });
-
-  it('rejects an old choice when the same route is considered again', () => {
-    useGame.getState().trek(1.301, 103.8);
-    const first = useGame.getState().pendingCrossing!;
-    useGame.getState().chooseCrossing(first.id, 'withdraw');
-    useGame.getState().trek(1.301, 103.8);
-    const second = useGame.getState().pendingCrossing!;
-    useGame.getState().chooseCrossing(first.id, 'withdraw');
-    expect(useGame.getState().pendingCrossing).toBe(second);
-  });
-
-  it('settles an accepted crossing once and preserves the normal walking charge', () => {
-    const before = useGame.getState();
-    before.trek(1.301, 103.8);
-    const crossing = useGame.getState().pendingCrossing!;
-    useGame.getState().chooseCrossing(crossing.id, 'direct');
-    const settled = useGame.getState();
-    expect(settled.pendingCrossing).toBeNull();
-    expect(settled.meters.energy).toBeLessThan(before.meters.energy);
-    expect(settled.hour).toBeGreaterThan(before.hour);
-    expect(settled.travelAnim).not.toBeNull();
-    expect(settled.log.some((entry) => entry.text.startsWith('Crossing resolved:'))).toBe(true);
-    useGame.getState().chooseCrossing(crossing.id, 'careful');
-    expect(useGame.getState()).toBe(settled);
-  });
-
-  it('pauses a known-site walk before charging it too', () => {
+  it('crosses on a known-site walk too', () => {
     const site = { id: 'market', name: 'Market', lat: 1.301, lng: 103.8,
       category: 'foodcourt', currentDanger: 2 } as LocationState;
     useGame.setState({ locations: { market: site } });
     const before = useGame.getState();
     before.travel('market');
     const after = useGame.getState();
-    expect(after.pendingCrossing?.mode).toBe('road');
-    expect(after.pendingCrossing?.target.locationId).toBe('market');
-    expect(after.meters).toEqual(before.meters);
-    expect(after.hour).toBe(before.hour);
-    expect(after.travelAnim).toBeNull();
+    expect(after.log.some((entry) => entry.crossing?.kind === 'caught')).toBe(true);
+    expect(after.hour).toBeGreaterThan(before.hour);
+    expect(after.travelAnim?.toId).toBe('market');
   });
 
-  it('saves the unanswered decision in v7 without hazard geometry or a prepaid trip', () => {
+  it('walks straight past a zone when the check passes, with no crossing result', () => {
+    vi.mocked(rollHazardChecks).mockImplementationOnce((_rng, hazards) => hazards.map((zone) => ({
+      zone, mode: 'cross' as const, attr: 'dexterity' as const, roll: 18, total: 23, dc: 17, success: true,
+    })));
     const before = useGame.getState();
     before.trek(1.301, 103.8);
-    const crossing = useGame.getState().pendingCrossing!;
-    flushPersist();
-    const run = loadRun()!;
-    expect(run.pendingCrossing).toEqual(crossing);
-    expect(run.pendingCrossing?.hazards[0]).not.toHaveProperty('discs');
-    expect(run.meters).toEqual(before.meters);
-    expect(run.hour).toBe(before.hour);
-    expect(run.currentPos).toEqual(before.currentPos);
-  });
-
-  it('saves a consistent departure decision if hidden during an accepted glide', () => {
-    const before = useGame.getState();
-    before.trek(1.301, 103.8);
-    const crossing = useGame.getState().pendingCrossing!;
-    useGame.getState().chooseCrossing(crossing.id, 'direct');
-    expect(useGame.getState().travelAnim).not.toBeNull();
-    flushPersist();
-    const run = loadRun()!;
-    expect(run.pendingCrossing).toEqual(crossing);
-    expect(run.meters).toEqual(before.meters);
-    expect(run.hour).toBe(before.hour);
-    expect(run.bodyParts).toEqual(migrateBodyParts(before.bodyParts, before.maxHp));
-    expect(run.currentPos).toEqual(before.currentPos);
-  });
-
-  it('blocks reading and crafting while the departure choice is pending', () => {
-    const carried = (uid: string, defId: string, stack: number): ItemInstance => ({ uid, defId, stack,
-      container: 'backpack', x: 0, y: 0, rotated: false });
-    useGame.setState({ items: [carried('book', 'book_reservist', 1), carried('cloth', 'cloth_rags', 4)] });
-    useGame.getState().trek(1.301, 103.8);
-    const before = useGame.getState();
-    before.applyItem('book');
-    before.craftItem('bandages');
     const after = useGame.getState();
-    expect(after.hour).toBe(before.hour);
-    expect(after.items).toBe(before.items);
-    expect(after.skills).toBe(before.skills);
-    expect(after.pendingCrossing).toBe(before.pendingCrossing);
+    expect(after.travelAnim).not.toBeNull();
+    expect(after.meters.energy).toBeLessThan(before.meters.energy);
+    expect(after.log.some((entry) => entry.crossing?.kind === 'slipped')).toBe(true);
+    expect(after.log.some((entry) => entry.crossing?.kind === 'caught')).toBe(false);
+    expect(after.log.some((entry) => entry.crossing?.kind === 'resolved')).toBe(false);
+    const hp = (parts: typeof before.bodyParts) => Object.values(parts).map((part) => part.hp);
+    expect(hp(after.bodyParts)).toEqual(hp(before.bodyParts));
   });
 
-  it('settles cautious travel once with its advertised extra time', () => {
-    const before = useGame.getState();
-    before.trek(1.301, 103.8);
-    let crossing = useGame.getState().pendingCrossing!;
-    useGame.getState().chooseCrossing(crossing.id, 'direct');
-    const directHour = useGame.getState().hour;
-    vi.clearAllTimers();
-    useGame.setState(before, true);
-    before.trek(1.301, 103.8);
-    crossing = useGame.getState().pendingCrossing!;
-    useGame.getState().chooseCrossing(crossing.id, 'careful');
-    const after = useGame.getState();
-    expect(after.hour - directHour).toBeCloseTo(crossing.carefulMinutes / 60);
-    expect(after.pendingCrossing).toBeNull();
-    useGame.getState().chooseCrossing(crossing.id, 'careful');
-    expect(useGame.getState()).toBe(after);
-  });
-
-  it('saves the committed arrival after the accepted glide finishes', () => {
+  it('crosses only the zones that caught the survivor', () => {
+    vi.mocked(trekRisk).mockReturnValueOnce({ encounterChance: 0, fightChance: 0, combatDanger: 2, hazards: [
+      { id: 'rubble', kind: 'collapse', severity: 3, lat: 1.3, lng: 103.8, radiusM: 60, discs: [] },
+      { id: 'pack', kind: 'horde_pocket', severity: 2, lat: 1.3, lng: 103.8, radiusM: 60, discs: [] },
+    ] });
+    vi.mocked(rollHazardChecks).mockImplementationOnce((_rng, hazards) => hazards.map((zone) => ({
+      zone, mode: 'exit' as const, attr: 'perception' as const, roll: 10, total: 15, dc: 12,
+      success: zone.kind === 'horde_pocket',
+    })));
     useGame.getState().trek(1.301, 103.8);
-    const crossing = useGame.getState().pendingCrossing!;
-    useGame.getState().chooseCrossing(crossing.id, 'careful');
+    const log = useGame.getState().log;
+    expect(log.find((entry) => entry.crossing?.kind === 'caught')?.crossing).toEqual({ kind: 'caught', hazards: ['collapse'] });
+    expect(log.some((entry) => entry.crossing?.kind === 'slippedOut')).toBe(true);
+  });
+
+  it('ignores a decision left in an older save and loads at the departure point', () => {
+    useGame.getState().trek(1.301, 103.8);
     vi.advanceTimersByTime(useGame.getState().travelAnim!.durationMs);
-    const arrived = useGame.getState();
-    expect(arrived.travelAnim).toBeNull();
-    expect(arrived.currentPos).toEqual({ lat: 1.301, lng: 103.8 });
     flushPersist();
-    const run = loadRun()!;
-    expect(run.pendingCrossing).toBeNull();
-    expect(run.currentPos).toEqual(arrived.currentPos);
-    expect(run.meters).toEqual(arrived.meters);
-    expect(run.hour).toBe(arrived.hour);
-  });
-
-  it('retains the presented hazard if map geometry is not loaded when a saved choice resumes', () => {
-    useGame.getState().trek(1.301, 103.8);
-    const crossing = useGame.getState().pendingCrossing!;
-    vi.mocked(trekRisk).mockReturnValueOnce({ encounterChance: 0, fightChance: 0, combatDanger: 2, hazards: [] });
-    useGame.getState().chooseCrossing(crossing.id, 'careful');
-    const outcome = useGame.getState().log.find((entry) => entry.crossing?.kind === 'resolved')?.crossing;
-    expect(outcome?.kind).toBe('resolved');
-    if (outcome?.kind === 'resolved') expect(outcome.extraMinutes).toBe(crossing.carefulMinutes);
+    const raw = JSON.parse(localStorage.getItem('singvive.run.v7')!);
+    raw.pendingCrossing = { id: 'old', mode: 'trek', target: { lat: 1.302, lng: 103.8 },
+      from: raw.currentPos, day: 1, hour: 8, hazards: [], carefulMinutes: 9 };
+    localStorage.setItem('singvive.run.v7', JSON.stringify(raw));
+    expect(loadRun()?.currentPos).toEqual({ lat: 1.301, lng: 103.8 });
+    useGame.getState().continueRun();
+    const resumed = useGame.getState();
+    expect(resumed.phase).toBe('game');
+    expect(resumed.currentPos).toEqual({ lat: 1.301, lng: 103.8 });
+    expect('pendingCrossing' in resumed).toBe(false);
   });
 });

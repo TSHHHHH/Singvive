@@ -9,6 +9,7 @@
       "damage": 7,
       "infectious": 0.25,
       "armor": 0,
+      "unarmedMult": 1,
       "speed": 5,
       "hpJitter": [-4, 6]
     },
@@ -21,6 +22,7 @@
       "damage": 6,
       "infectious": 0.4,
       "armor": 0,
+      "unarmedMult": 1,
       "speed": 3,
       "hpJitter": [-3, 5]
     },
@@ -33,6 +35,7 @@
       "damage": 9,
       "infectious": 0.3,
       "armor": 0,
+      "unarmedMult": 1,
       "speed": 7,
       "hpJitter": [-4, 6]
     },
@@ -45,6 +48,7 @@
       "damage": 10,
       "infectious": 0.35,
       "armor": 1,
+      "unarmedMult": 0.6,
       "speed": 13,
       "hpJitter": [-4, 6]
     },
@@ -57,6 +61,7 @@
       "damage": 11,
       "infectious": 0.55,
       "armor": 1,
+      "unarmedMult": 0.5,
       "speed": 4,
       "hpJitter": [-5, 8]
     },
@@ -69,6 +74,7 @@
       "damage": 13,
       "infectious": 0.4,
       "armor": 2,
+      "unarmedMult": 0.5,
       "speed": 7,
       "hpJitter": [-4, 6]
     },
@@ -81,6 +87,7 @@
       "damage": 14,
       "infectious": 0.35,
       "armor": 4,
+      "unarmedMult": 0.4,
       "speed": 8,
       "hpJitter": [-4, 6]
     },
@@ -93,6 +100,7 @@
       "damage": 18,
       "infectious": 0.5,
       "armor": 3,
+      "unarmedMult": 0.3,
       "speed": 6,
       "hpJitter": [-4, 6]
     },
@@ -105,6 +113,7 @@
       "damage": 22,
       "infectious": 0.55,
       "armor": 4,
+      "unarmedMult": 0.25,
       "speed": 5,
       "hpJitter": [-6, 8]
     }
@@ -119,6 +128,7 @@
       "damage": 26,
       "infectious": 0.6,
       "armor": 5,
+      "unarmedMult": 0.15,
       "speed": 7,
       "hpPerDanger": 4,
       "hpJitter": [-6, 8]
@@ -132,12 +142,14 @@
       "damage": 22,
       "infectious": 0.5,
       "armor": 2,
+      "unarmedMult": 0.15,
       "speed": 15,
       "hpPerDanger": 5,
       "hpJitter": [-8, 8]
     }
   },
   "humanDefaults": {
+    "unarmedMult": 0.5,
     "baseHp": 30,
     "hpPerDanger": 6,
     "hpJitter": [-4, 8],
@@ -199,6 +211,7 @@
     "scavenger": {
       "name": "Rival Scavenger",
       "armor": 1,
+      "unarmedMult": 0.8,
       "speed": 10,
       "baseHp": 26,
       "hpPerDanger": 4,
@@ -217,6 +230,7 @@
     "survivor": {
       "name": "Desperate Survivor",
       "armor": 0,
+      "unarmedMult": 1,
       "speed": 11,
       "baseHp": 18,
       "hpPerDanger": 4,
@@ -235,6 +249,7 @@
     "raider": {
       "name": "Armed Raider",
       "armor": 2,
+      "unarmedMult": 0.4,
       "speed": 11,
       "baseHp": 32,
       "hpPerDanger": 5,
@@ -253,6 +268,7 @@
     "tout": {
       "name": "Block Tout",
       "armor": 0,
+      "unarmedMult": 1,
       "speed": 12,
       "baseHp": 20,
       "hpPerDanger": 3,
@@ -279,6 +295,7 @@
       "damage": 8,
       "infectious": 0.45,
       "armor": 0,
+      "unarmedMult": 1,
       "speed": 14,
       "hpJitter": [-3, 5],
       "habitats": ["forest"],
@@ -296,6 +313,7 @@
       "damage": 10,
       "infectious": 0.4,
       "armor": 0,
+      "unarmedMult": 0.7,
       "speed": 12,
       "hpJitter": [-4, 6],
       "habitats": ["water"],
@@ -313,6 +331,7 @@
       "damage": 16,
       "infectious": 0.35,
       "armor": 2,
+      "unarmedMult": 0.4,
       "speed": 8,
       "hpJitter": [-5, 8],
       "habitats": ["forest"],
@@ -330,6 +349,7 @@
       "damage": 12,
       "infectious": 0.5,
       "armor": 3,
+      "unarmedMult": 0.5,
       "speed": 6,
       "hpJitter": [-4, 6],
       "habitats": ["water"],
@@ -347,6 +367,7 @@
       "damage": 11,
       "infectious": 0.35,
       "armor": 0,
+      "unarmedMult": 0.7,
       "speed": 12,
       "hpJitter": [-4, 6],
       "habitats": ["urban"],
@@ -364,6 +385,7 @@
       "damage": 6,
       "infectious": 0.4,
       "armor": 0,
+      "unarmedMult": 1,
       "speed": 15,
       "hpJitter": [-3, 5],
       "habitats": ["urban"],
@@ -381,6 +403,7 @@
       "damage": 5,
       "infectious": 0.55,
       "armor": 0,
+      "unarmedMult": 1,
       "speed": 11,
       "hpJitter": [-3, 4],
       "habitats": ["urban"],

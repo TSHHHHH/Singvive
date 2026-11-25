@@ -1,5 +1,5 @@
 import { inPolygon, inSingapore, SG_BOUNDS } from './singapore';
-import { onLandCrossing } from './crossings';
+import { installCrossings, onLandCrossing, type BakedCrossing } from './crossings';
 import {
   installHazardAreas,
   installHazardSites,
@@ -29,6 +29,8 @@ export interface ZonesData {
   restricted: ZoneRing[];
   /** Known forest / nature-reserve polygons (soft cost, still walkable). */
   vegetation: ZoneRing[];
+  /** Bridge decks over masked water (`npm run bake:crossings`); optional in old bakes. */
+  crossings?: BakedCrossing[];
 }
 
 interface RingIndex {
@@ -169,6 +171,7 @@ export function installZones(data: ZonesData): ZonesData {
   waterGrid = buildRingGrid(waterIdx);
   restrictedGrid = buildRingGrid(restrictedIdx);
   vegetationGrid = buildRingGrid(vegetationIdx);
+  installCrossings(Array.isArray(data.crossings) ? data.crossings : []);
   return data;
 }
 

@@ -3,6 +3,9 @@
     "crossing": {
       "log": {
         "noticed": "The route crosses {hazards}. You stop at the departure point to decide how to proceed.",
+        "slipped": "You read the ground ahead and slip past {hazards} unnoticed.",
+        "slippedOut": "You find a quiet way out of {hazards}.",
+        "caught": "{hazards} catches you on the way. You push straight through.",
         "withdraw": "You withdraw before setting out. No walking energy or time is spent, and no crossing consequence is applied.",
         "changed": "Conditions have changed. Check the route again before setting out.",
         "careful": "You check the footing and watch the movement before crossing. Allow {minutes} extra minutes.",
@@ -15,9 +18,6 @@
         "intercepted": "A threat intercepts the final approach.",
         "clear": "You pass without interception."
       },
-      "title": "Hazard crossing",
-      "beforeDeparture": "You are still at your departure point. Decide how to cross before spending walking energy or time. One choice covers every hazardous stretch listed below.",
-      "severity": "severity {n}/3",
       "kind": {
         "horde_pocket": "Horde pocket",
         "gang_patrol": "Claimed approach",
@@ -27,26 +27,6 @@
         "wildlife_forest": "Animal territory",
         "wildlife_urban": "Stray territory",
         "night_swarm": "Night swarm"
-      },
-      "scene": {
-        "horde_pocket": "Infected movement fills the route. Crossing risks interception; the densest pockets also risk exposure on a direct crossing.",
-        "gang_patrol": "A watched choke point lies ahead. Crossing openly risks a confrontation with the people holding it.",
-        "collapse": "A locally damaged structure has shed slabs and exposed rebar across the passage. Bad footing can injure a leg. A careful crossing improves the footing check.",
-        "floodwater": "Blocked drainage has left dirty water hiding the path. Crossing takes extra time and risks infection; an animal may be concealed near the water.",
-        "wildlife_water": "Movement and territorial signs mark the bank. An animal may intercept anyone using this stretch.",
-        "wildlife_forest": "Fresh tracks and movement in the undergrowth mark animal territory. Crossing may bring you too close.",
-        "wildlife_urban": "Strays shelter among the shuttered units. Their movements cross the same passage you would use.",
-        "night_swarm": "Infected are moving through the dark along this route. Waiting for a gap reduces the chance of interception."
-      },
-      "choice": {
-        "careful": "Check the route and cross cautiously",
-        "direct": "Take the direct crossing",
-        "withdraw": "Withdraw before setting out"
-      },
-      "detail": {
-        "careful": "+{minutes} minutes, plus normal travel and terrain delays. Better footing and lower exposure and interception risk; danger remains.",
-        "direct": "Normal walking cost and terrain delays. Accept the full injury, exposure and interception risks described above.",
-        "withdraw": "Stay here. No walking energy, time, injury or encounter is applied. Pick a different route yourself."
       }
     },
     "dice": {
@@ -248,6 +228,9 @@
     "combat": {
       "contact": "Contact",
       "fight": "Fight",
+      "contactDetails": "Combat details",
+      "pursuit": "· One parting attack",
+      "overloaded": "· Too overloaded to flee",
       "fightHint": "Commit — open on Guarded, switch stance once the track is running.",
       "flee": "Flee",
       "breakOff": "Break off",
@@ -294,8 +277,8 @@
         "precision": "+15% crit, ignores armour, slow and deliberate — each swing takes longer.",
         "disengage": "Break contact. Flee DC −4, but they get one parting swing at −2."
       },
-      "contactHuman": "{enemy} blocks your way on the {terrain}. Nothing else happens until you decide.",
-      "contactOther": "{enemy} has found you on the {terrain}. Nothing else happens until you decide.",
+      "contactHuman": "{enemy} blocks your way on the {terrain}.",
+      "contactOther": "{enemy} has found you on the {terrain}.",
       "movesAt": "It moves at {speed}",
       "you": "you",
       "them": "them",
@@ -807,6 +790,7 @@
       "toolKept": "{name} · not consumed",
       "craftAction": "Craft",
       "unavailable": "Unavailable",
+      "carryLoose": "Pack full · {n} carried loose",
       "made": "Made {n}× {name}",
       "unsafeWater": "Uses murky water. Drinking this adds {n} infection.",
       "tearRemaining": "{n} uses left",
@@ -1228,7 +1212,11 @@
       "previousDays": "previous days in Day logs",
       "showOnMap": "Show on map",
       "showOnMapLabel": "Show on map · {label}",
-      "packFull": "Pack full — left behind {items}",
+      "leftBehind": "Left behind: {items}",
+      "searchStopped": "You cut the search short at {name}.",
+      "searchDone": "You finish searching {name}.",
+      "lockOpened": "The lock turns without a sound.",
+      "lockFailed": "The lock holds. The pick snaps in the cylinder.",
       "dayLogs": "Day logs",
       "nothingRecorded": "Nothing recorded yet.",
       "dayN": "Day {day}",
@@ -1248,6 +1236,14 @@
       "pin": "Keep the timeline open",
       "unpin": "Shrink to the ticker",
       "expandTicker": "Open the timeline",
+      "filterLabel": "Filter log entries",
+      "filters": {
+        "leads": "Leads",
+        "all": "All",
+        "warnings": "Warnings",
+        "items": "Items"
+      },
+      "noMatches": "No matching entries.",
       "jumpLatest": "Latest"
     },
     "dock": {
@@ -1367,11 +1363,20 @@
       "residential": "Residential block",
       "slab": "slab",
       "point": "point",
-      "bandNow": "Now · {effects}",
-      "bandNext": "Next at {at} · {label}: {effects}",
-      "bandTop": "Top stage. Climb or get out.",
-      "bandEffects": "threat +{threat} · base encounters ~{enc}% · descent DC {dc}",
-      "bandAmbush": " · {n}% stair ambush",
+      "stageHead": "{label} · heat {from}–{to}",
+      "stageHeadTop": "{label} · heat {at}",
+      "stageHere": "▶ This landing is here now ({heat})",
+      "stageThreat": "• Enemies behind doors: +{n} stronger",
+      "stageThreatNone": "• Enemies behind doors: normal strength",
+      "stageEnc": "• Chance a door hides a fight: about {from}–{to}%",
+      "stageEncOne": "• Chance a door hides a fight: about {n}%",
+      "stageDc": "• Going down past this landing: roll {dc}+ or get caught",
+      "stageAmbush": "• Stairs: {n}% chance something blocks your way",
+      "heatWhat": "Heat is the noise this landing has heard. More heat, more danger. Hover each part of the bar to see what that stage does.",
+      "heatHowTitle": "How heat changes:",
+      "heatHowDoor": "• Forcing a door: this landing heats a lot, nearby landings a little.",
+      "heatHowSpread": "• Heat from other landings never pushes this one past Awake.",
+      "heatHowCool": "• A landing you leave cools about {n} heat per hour.",
       "showDetails": "Key and sense checks",
       "hideDetails": "Hide details",
       "ariaShowDetails": "Show block details",
@@ -1612,7 +1617,7 @@
       "levelHeatTip": "Landing heat {heat}/100 · {band}",
       "levelHeat": "Heat {nn}",
       "blockPeak": "· block peak {n}",
-      "coolingNote": "Forcing a door heats this landing fully and every other landing a little, less the further away. Spread alone never pushes a landing past Awake. Landings you leave cool about {n} heat an hour.",
+      "coolingNote": "Forcing a door heats that landing a lot and nearby landings a little. Heat from other landings never pushes a landing past Awake. A landing you leave cools about {n} heat per hour.",
       "unexplored": "unexplored",
       "noDoors": "no doors",
       "roomsLeft": "{n} rooms left",
@@ -1799,12 +1804,25 @@
       "footer": "The board turns over at dawn. What's gone is gone."
     },
     "pending": {
+      "sceneDetails": "Scene details",
+      "smokeBrief": "Smoke blocks the entrance. The fire is burning out.",
       "someoneWantsWord": "Someone wants a word",
       "youHaveNone": "(you have none)",
       "dc": "DC {n}",
       "streetScene": "Something on the street"
     },
     "sleep": {
+      "result": {
+        "rested": "You slept for {dur}.",
+        "hunger": "Hunger woke you after {dur}.",
+        "thirst": "Thirst woke you after {dur}.",
+        "blood": "You woke light-headed after {dur}, your wound still bleeding.",
+        "restless": "Too hungry or thirsty to settle, you dozed for {dur}.",
+        "rough": "Poor conditions limited energy recovery to {pct}%.",
+        "damp": "The damp worsened your infection.",
+        "rubble": "Shifting rubble injured your leg.",
+        "ambush": "Something found you in the dark."
+      },
       "safe": "Safe",
       "restRecovery": "Rest recovery",
       "walls": "Walls · {label}",
@@ -1937,15 +1955,12 @@
       "attributes": "Attributes",
       "name": "Name",
       "random": "Random",
-      "noPresets": "No saved builds yet — save one from the Traits step.",
+      "noPresets": "No saved builds yet. Save the traits you pick here.",
       "needsFixing": "needs fixing",
       "rename": "Rename",
       "delete": "Delete",
-      "goodAt": "Good at",
-      "strugglesWith": "Struggles with",
-      "jobHint": "Jobs are starting builds. Pick one to see who they were, then fine-tune its traits in the next step — or skip the jobs and build from scratch.",
       "blank": "Blank slate",
-      "backgroundPrompt": "Who were you before it fell?",
+      "backgroundPrompt": "Who are you now, months on?",
       "points": "Pts",
       "noMatches": "No traits on this side match that filter.",
       "pointUnit": "pt",
@@ -1957,8 +1972,6 @@
       "backBackground": "← Background",
       "title": "Before It Fell",
       "custom": "Custom",
-      "basedOn": "Custom · based on {name}",
-      "budgetHint": "This build spends all its points. Add another flaw or choose cheaper positives to make room for another trait.",
       "survivor": "Survivor",
       "myBuild": "My Build",
       "overwrite": "Overwrite preset “{name}”?",
@@ -2007,7 +2020,7 @@
         "worn": "worn",
         "oneOf": "{n} random from: {items}",
         "dropped": "Starts without: {items}",
-        "hint": "Gear from traits and job outfits. Random finds roll from the run seed."
+        "hint": "Gear from your role and your traits. Random finds roll from the run seed."
       }
     },
     "tour": {
@@ -2023,6 +2036,9 @@
     },
     "exploration": {
       "conditionsUnknown": "Unvisited · conditions unknown",
+      "track": "Track",
+      "untrack": "Stop tracking",
+      "trackedPlace": "Tracking · {name}",
       "activeLeads": "Places to explore · {n}/6",
       "leadHint": "Follow a clue or a local map to a nearby place. Up to six active leads; visiting completes a lead.",
       "noLeads": "No leads yet. Search places or read an MRT locality map or a neighbourhood noticeboard.",
@@ -2711,6 +2727,7 @@
         "loud": "That carried. Within {m} m everything is awake for {h} h.",
         "botched": "Too loud. Within {m} m something heard you; it stays awake for {h} h.",
         "door": "The forced door rings down the stairwell and out onto the street: {m} m, {h} h.",
+        "hdb_alarm": "An alarm rings through the block: {m} m, {h} h.",
         "barricade": "The barricade comes down with a crash the street hears: {m} m, {h} h."
       },
       "quieted": "The noise stops. The street can settle.",
@@ -2723,6 +2740,7 @@
         "loud": "Your racket",
         "botched": "Your racket",
         "door": "Forced door",
+        "hdb_alarm": "Block alarm",
         "barricade": "Broken barricade"
       },
       "tagLoud": "Loud: stirs up {m} m for {h} h",
@@ -2953,6 +2971,7 @@
       "title": "Fight",
       "bullets": [
         "Both markers race one track. First to the end swings. Speed is how fast you fill it — stance, weapon weight, and a free off-hand all count. Switch Aggressive / Guarded / Precision any time; Break off is the flee.",
+        "No weapon in hand means fists. They work on shamblers, walkers and small animals, but barely mark the big infected or armed people. Find something to swing.",
         "Holster a pistol or shotgun to shoot — Fire is a separate gauge from melee. Empty + Fire reloads from a loaded magazine (pistol) or 12g shells in pack (shotgun). Wield the gun in main hand to bash; gunshots on the surface draw danger.",
         "Out of combat: right-click a magazine + ammo box to refill, then load it into the holstered pistol. Shotguns take shells directly on the holstered gun. Typed ammo only — no global round pool."
       ]
@@ -4206,21 +4225,21 @@
     },
     "go_bag": {
       "name": "Go-Bag",
-      "description": "The emergency bag the pamphlets told everyone to pack. You actually packed it.",
+      "description": "You packed the go-bag the pamphlets asked for. Months on, the big water bottle is all that is left of it.",
       "effects": [
         "Starting gear only"
       ]
     },
     "prepper": {
       "name": "Prepper",
-      "description": "Your family laughed at the shelf of tins in the storeroom. Nobody is laughing now.",
+      "description": "The shelf of tins in the storeroom got you through the first months. Three are left.",
       "effects": [
         "Starting gear only"
       ]
     },
     "medicine_cabinet": {
       "name": "Medicine Cabinet",
-      "description": "You emptied the bathroom cabinet into your pockets on the way out.",
+      "description": "The bathroom cabinet ran dry weeks ago. You kept the painkillers for last.",
       "effects": [
         "Starting gear only"
       ]
@@ -4234,21 +4253,21 @@
     },
     "weekend_cyclist": {
       "name": "Weekend Cyclist",
-      "description": "Sunday rides round the island. The bike is gone; the helmet and gloves are not.",
+      "description": "Sunday rides round the island, back when there were Sundays. The bike is long gone; the helmet is not.",
       "effects": [
         "Starting gear only"
       ]
     },
     "supper_run": {
       "name": "Supper Run",
-      "description": "You were out buying supper when the sirens started. At least you did not drop it.",
+      "description": "Old habit: you still go looking for supper after dark. Tonight it is a strip of bak kwa.",
       "effects": [
         "Starting gear only"
       ]
     },
     "just_popped_out": {
       "name": "Just Popped Out",
-      "description": "You only went down for kopi. Flip-flops, a grocery tote, and no jacket.",
+      "description": "Your jacket was torn off you in a crowd months ago. You still walk in flip-flops.",
       "effects": [
         "Worse starting clothes"
       ]
@@ -4598,15 +4617,13 @@
       "choices": {
         "side": "Find a side entry out of the smoke",
         "push": "Push through the smoke",
-        "wait": "Wait away from the smoke (48 min)",
+        "wait": "Wait 48 min",
         "leave": "Not today"
       },
       "lines": {
         "sideOk": "You circle to a service door where the air is clear enough.",
-        "sideFailTime": "You spend time checking approaches, but each leads into the same haze.",
-        "sideFailDeny": "You leave the site rather than breathe the smoke.",
-        "pushFailWound": "You stumble in the haze and catch a sharp edge on the way down.",
-        "pushFailDeny": "You retreat, coughing, with a cut that needs care.",
+        "sideFailDeny": "After 18 minutes looking for a way in, you turn back. Smoke chokes every entrance.",
+        "pushFailWound": "You stumble in the smoke, catch a sharp edge and retreat coughing, a cut to tend.",
         "wait": "You wait well clear, upwind. With little fuel left, the recent fire dies down enough to enter.",
         "leave": "You withdraw beyond the smoke."
       },
@@ -4727,10 +4744,8 @@
       },
       "lines": {
         "wadeOk": "You pick a line where the footing is still there under the water.",
-        "wadeFailTime": "The water hides a step and you go in hard.",
-        "wadeFailWound": "Something sharp under the water finds your leg.",
-        "rushEnergy": "Murky water to the knee; every step takes effort.",
-        "rushWound": "You misstep on something that used to be a floor tile.",
+        "wadeFailWound": "You miss a submerged step and cut your leg on something sharp. The crossing costs you 18 minutes.",
+        "rushWound": "You strain against the knee-deep water, slip and cut yourself on a broken tile.",
         "leave": "You leave the flood to settle."
       },
       "tell": [
@@ -4975,131 +4990,60 @@
     }
   },
   "occupation": {
+    "survivor": {
+      "name": "Classic Survivor",
+      "tagline": "A knife, a jacket, a bag. The same kit as everyone still walking.",
+      "blurb": "Whatever you were before, it stopped mattering around the third month. You kept what works: a blade that holds an edge, a jacket that turns a scratch, and a bag you never put down."
+    },
+    "drifter": {
+      "name": "Drifter",
+      "tagline": "Rags on your hands, a tote on your shoulder. Everything else went somewhere.",
+      "blurb": "You lost the knife in the second month and the bag in the third, and stopped counting after that. What you have now is wrapped knuckles, a shopping tote and the habit of walking until you find something."
+    },
     "student": {
       "name": "College Student",
-      "tagline": "Campus legs. Mall aircon. A body that has not learned to quit.",
-      "blurb": "Two years of lectures you slept through and 3am suppers you did not. You can walk all day and talk a door open — you have just never spent one without aircon.",
-      "goodAt": [
-        "Travel",
-        "Night work",
-        "Talking through doors"
-      ],
-      "strugglesWith": [
-        "Heat",
-        "The undead",
-        "Thirst"
-      ]
+      "tagline": "Campus legs and a school bag. The lectures ended months ago.",
+      "blurb": "The hall emptied in the first week and you never went back for your notes. A box cutter from the art room, a water bottle you refill wherever you can, and legs that still walk all day."
     },
     "trainer": {
       "name": "Personal Trainer",
-      "tagline": "Hyrox heats. Sandbag lunges. An engine that will not idle.",
-      "blurb": "Stadium races, condo gyms, the whole circus. The engine is still there. Sitting still was never the job — and sleep has not been either.",
-      "goodAt": [
-        "Endurance",
-        "Travel",
-        "Health"
-      ],
-      "strugglesWith": [
-        "Rest",
-        "Staying quiet"
-      ]
+      "tagline": "The gym is dark. The engine is not.",
+      "blurb": "The condo gym went dark in the first month, so you train on stairwells now. Grip gloves, a hammer from the maintenance room, and a gel you save for the long days."
     },
     "soldier": {
       "name": "Soldier",
-      "tagline": "NS, then the real thing. The first blow never lands clean.",
-      "blurb": "You were on duty when the order stopped coming. The training holds. The sleep does not — every hour of it is one ear open, and it shows by day three. The Cordon is who kept showing up.",
-      "goodAt": [
-        "Fighting",
-        "Soaking the first hit"
-      ],
-      "strugglesWith": [
-        "Sleep",
-        "Night travel"
-      ]
+      "tagline": "Your unit stopped reporting in. You did not stop.",
+      "blurb": "The last order came months ago. You still wear the uniform, because it still works: boots that hold up, a parang from the field kit, and one ration you are saving."
     },
     "nurse": {
       "name": "Nurse",
-      "tagline": "A&E nights. You close holes other people bleed out of.",
-      "blurb": "Twelve-hour shifts taught you triage, and taught your hands to stop bleeding that would kill anyone else. The tank never fills. You stopped expecting it to.",
-      "goodAt": [
-        "Healing",
-        "Infection",
-        "Clotting"
-      ],
-      "strugglesWith": [
-        "Rest",
-        "Energy"
-      ]
+      "tagline": "The ward closed. Your hands still know the work.",
+      "blurb": "The hospital stopped taking people in the second month. You kept the gloves, a mask, one clean bandage, and the box cutter you used to open supply crates."
     },
     "hawker": {
       "name": "Food Vendor",
-      "tagline": "Thirty years of service. Extra rice. A voice the whole block knows.",
-      "blurb": "You fed half the estate and knew all of it by name. Food goes further in your hands, and the Common Folk still count you as one of theirs. So does everything that hunts by sound.",
-      "goodAt": [
-        "Food",
-        "Common Folk",
-        "Hawker-centre loot"
-      ],
-      "strugglesWith": [
-        "Stealth",
-        "Ambushes"
-      ]
+      "tagline": "No stall, no customers. Still the cleaver, still the pot.",
+      "blurb": "The hawker centre went quiet months ago. You took what a cook cannot work without: the cleaver, the pot, a lighter, and boots that do not slip on a wet floor."
     },
     "karung_guni": {
       "name": "Scavenger",
-      "tagline": "You already knew which blocks had the good stuff.",
-      "blurb": "Rag-and-bone, floor by floor, for longer than most of these buildings have stood. The looting is not new. The knees gave out somewhere around the fourteenth storey.",
-      "goodAt": [
-        "Looting",
-        "Searches",
-        "Reading a site"
-      ],
-      "strugglesWith": [
-        "Travel",
-        "Stairs",
-        "Leg injuries"
-      ]
+      "tagline": "Rag-and-bone before. Rag-and-bone now. Business is better.",
+      "blurb": "You collected what other people threw out for thirty years. Now nobody throws anything out, but the empty flats are full. A duffel bag, a pipe wrench, work gloves, and always something odd in a pocket."
     },
     "office": {
       "name": "Office Worker",
-      "tagline": "Soft hands, sharp elbows, and a bag with one more pocket.",
-      "blurb": "Four reorgs and a return-to-office mandate. You know how to work a room and how to take more than your share. You have not run for a bus since 2019.",
-      "goodAt": [
-        "Loot value",
-        "Pack space",
-        "Talking through doors"
-      ],
-      "strugglesWith": [
-        "Anything physical",
-        "Heat"
-      ]
+      "tagline": "The office emptied. You kept the golf club and the powerbank.",
+      "blurb": "The last email went out in the first week. The golf bag in your car boot had one club that swings well, and a powerbank you keep charged by any means."
     },
     "contractor": {
       "name": "Contractor",
-      "tagline": "You built these blocks. Quiet was never the job.",
-      "blurb": "Twenty years of renovation across every estate on the island. You know what a building is made of — which means you know how to take one apart, loudly.",
-      "goodAt": [
-        "Crafting",
-        "Hardware loot",
-        "Reading HDB corridors"
-      ],
-      "strugglesWith": [
-        "Stealth",
-        "Ambushes"
-      ]
+      "tagline": "You built these blocks. Now you take them apart for parts.",
+      "blurb": "No renovation jobs since the first month. The hard hat, vest and safety boots stay on, because the concrete has not stopped falling. A hammer and a roll of duct tape fix most things."
     },
     "runner": {
       "name": "Fixer",
-      "tagline": "They know your face. The void decks are open. The checkpoints are not.",
-      "blurb": "Collections, mostly. Nothing you would put on a resume. The 88 Tong still counts you as one of theirs. The Cordon has a file, and it is not flattering.",
-      "goodAt": [
-        "88 Tong territory",
-        "Void-deck access"
-      ],
-      "strugglesWith": [
-        "The Cordon",
-        "Checkpoints"
-      ]
+      "tagline": "Collections, before. Now you open the doors other people cannot.",
+      "blurb": "You did work nobody put on a résumé. Months on, the work is the same: a bat for arguments, a pick for locks, and a jacket that says you are not worth the trouble."
     }
   }
 }

@@ -24,6 +24,12 @@ export interface MapIcon {
   anchor: [number, number];
 }
 
+export const trackedLeadIcon: MapIcon = {
+  html: `<span class="flex h-7 w-7 items-center justify-center rounded-full border-2 border-signal bg-concrete-900 shadow-signage">${iconMarkup('action.target', { size: 18, color: '#e6ed88' })}</span>`,
+  size: [28, 28],
+  anchor: [14, 38],
+};
+
 const poiIconCache = new Map<string, MapIcon>();
 const identifiedIconCache = new Map<PoiCategory, MapIcon>();
 

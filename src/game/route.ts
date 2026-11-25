@@ -1,6 +1,6 @@
 import { haversine } from './overpass';
 import { isWalkable } from './playable';
-import { LAND_CROSSINGS, nearLandCrossing, onLandCrossing } from './crossings';
+import { crossingSegmentsAt, crossingsInBox, nearLandCrossing } from './crossings';
 
 /**
  * Land-aware walking routes against the baked walkability mask.
@@ -224,53 +224,104 @@ function astarLand(from: LatLng, to: LatLng, deterministic = false): LandRoute |
 
   type Link = { i: number; j: number; cost: number };
   const links = new Map<number, Link[]>();
+  const addLink = (ai: number, aj: number, bi: number, bj: number, cost: number): void => {
+    const key = cellKey(ai, aj);
+    const list = links.get(key);
+    const next = { i: bi, j: bj, cost };
+    if (list) list.push(next);
+    else links.set(key, [next]);
+  };
+  /** Exact-node links; each is validated once, when the search first uses it. */
   const connect = (ai: number, aj: number, bi: number, bj: number): void => {
     const a = cellCenter(ai, aj);
     const b = cellCenter(bi, bj);
-    if (pathCrossesUnplayable(a, b)) return;
     const cost = haversine(a.lat, a.lng, b.lat, b.lng) / CELL_M;
-    const add = (i: number, j: number, next: Link) => {
-      const key = cellKey(i, j);
-      const list = links.get(key);
-      if (list) list.push(next);
-      else links.set(key, [next]);
-    };
-    add(ai, aj, { i: bi, j: bj, cost });
-    add(bi, bj, { i: ai, j: aj, cost });
+    addLink(ai, aj, bi, bj, cost);
+    addLink(bi, bj, ai, aj, cost);
+  };
+  const linkOk = new Map<string, boolean>();
+  const exactLinkOk = (ak: number, l: Link): boolean => {
+    const bk = cellKey(l.i, l.j);
+    const key = ak < bk ? `${ak}:${bk}` : `${bk}:${ak}`;
+    let ok = linkOk.get(key);
+    if (ok === undefined) {
+      ok = !pathCrossesUnplayable(cellCenter(ak >> 16, ak & 0xffff), cellCenter(l.i, l.j));
+      linkOk.set(key, ok);
+    }
+    return ok;
   };
 
-  for (const crossing of LAND_CROSSINGS) {
-    if (!crossing.points.every((p) => p.lat >= minLat && p.lat <= maxLat &&
-        p.lng >= minLng && p.lng <= maxLng)) continue;
+  // Each deck is a chain of exact nodes. Nothing is validated up front: deck
+  // links and links to the land grid are tested when the search reaches
+  // them, so a corridor full of bridges stays cheap.
+  const deckEnds: number[] = [];
+  for (const crossing of crossingsInBox(minLat, maxLat, minLng, maxLng)) {
     const offset = exactPoints.length;
     exactPoints.push(...crossing.points);
     gridAttachments.add(offset);
     gridAttachments.add(exactPoints.length - 1);
+    deckEnds.push(offset, exactPoints.length - 1);
     for (let n = offset + 1; n < exactPoints.length; n++) connect(-n, 0, -n - 1, 0);
-  }
-
-  for (let n = 0; n < exactPoints.length; n++) {
-    const p = exactPoints[n];
-    // Join the land grid at the shore approaches only. Interior deck vertices
-    // already have explicit links; probing a grid around each wastes the budget.
-    if (gridAttachments.has(n)) {
-      const c = toCell(p);
-      for (let di = -1; di <= 1; di++) {
-        for (let dj = -1; dj <= 1; dj++) {
-          if (walkable(c.i + di, c.j + dj)) connect(-n - 1, 0, c.i + di, c.j + dj);
-        }
-      }
-    }
-    // A trek may begin or end partway across a deck, far from dry grid cells.
-    if (n < 2) continue;
+    // A trek may begin or end mid-span, far from any deck vertex.
     for (let endpoint = 0; endpoint < 2; endpoint++) {
       const e = exactPoints[endpoint];
-      if (gridAttachments.has(n) || (onLandCrossing(e.lat, e.lng) &&
-          haversine(p.lat, p.lng, e.lat, e.lng) <= CELL_M * 2)) {
-        connect(-n - 1, 0, -endpoint - 1, 0);
+      for (const hit of crossingSegmentsAt(e.lat, e.lng)) {
+        if (hit.crossing !== crossing) continue;
+        connect(-endpoint - 1, 0, -(offset + hit.seg - 1) - 1, 0);
+        connect(-endpoint - 1, 0, -(offset + hit.seg) - 1, 0);
       }
     }
   }
+
+  // Deck ends that meet mid-span (a T-junction, or a deck split into ways the
+  // bake could not stitch) link to each other and to nearby trek endpoints.
+  const JOIN_M = 30;
+  const attachNear = [0, 1, ...deckEnds];
+  for (let x = 0; x < attachNear.length; x++) {
+    for (let y = x + 1; y < attachNear.length; y++) {
+      const a = attachNear[x];
+      const b = attachNear[y];
+      if (a < 2 && b < 2) continue;
+      const pa = exactPoints[a];
+      const pb = exactPoints[b];
+      const limit = a < 2 ? CELL_M * 1.5 : JOIN_M;
+      if (haversine(pa.lat, pa.lng, pb.lat, pb.lng) <= limit) connect(-a - 1, 0, -b - 1, 0);
+    }
+  }
+
+  // Grid cell → exact nodes it may link to, and the reverse. Validated on use.
+  const gridToExact = new Map<number, number[]>();
+  const exactToGrid = new Map<number, { i: number; j: number }[]>();
+  for (const n of gridAttachments) {
+    const c = toCell(exactPoints[n]);
+    const cells: { i: number; j: number }[] = [];
+    for (let di = -1; di <= 1; di++) {
+      for (let dj = -1; dj <= 1; dj++) {
+        const i = c.i + di;
+        const j = c.j + dj;
+        if (i < 0 || j < 0 || i >= rows || j >= cols) continue;
+        cells.push({ i, j });
+        const k = cellKey(i, j);
+        const list = gridToExact.get(k);
+        if (list) list.push(n);
+        else gridToExact.set(k, [n]);
+      }
+    }
+    exactToGrid.set(cellKey(-n - 1, 0), cells);
+  }
+  const lazyOk = new Map<string, boolean>();
+  /** Exact node n ↔ grid cell (i, j): dry chord, cached per pair. */
+  const attachOk = (n: number, i: number, j: number): boolean => {
+    const key = `${n}:${i}:${j}`;
+    let ok = lazyOk.get(key);
+    if (ok === undefined) {
+      const p = exactPoints[n];
+      ok = walkable(i, j) && isWalkable(p.lat, p.lng) &&
+        !chordCrossesUnplayable(p, cellCenter(i, j));
+      lazyOk.set(key, ok);
+    }
+    return ok;
+  };
 
   const s0 = { i: -1, j: 0 };
   const g0 = { i: -2, j: 0 };
@@ -312,7 +363,25 @@ function astarLand(from: LatLng, to: LatLng, deterministic = false): LandRoute |
       return { points: simplified, lengthM: Math.round(pathLengthM(simplified)) };
     }
 
-    const next: Link[] = [...(links.get(curK) ?? [])];
+    const next: Link[] = (links.get(curK) ?? []).filter((l) => exactLinkOk(curK, l));
+    if (cur.i < 0) {
+      const n = -cur.i - 1;
+      for (const c of exactToGrid.get(curK) ?? []) {
+        if (attachOk(n, c.i, c.j)) {
+          const p = exactPoints[n];
+          const q = cellCenter(c.i, c.j);
+          next.push({ i: c.i, j: c.j, cost: haversine(p.lat, p.lng, q.lat, q.lng) / CELL_M });
+        }
+      }
+    } else {
+      const here = cellCenter(cur.i, cur.j);
+      for (const n of gridToExact.get(curK) ?? []) {
+        if (attachOk(n, cur.i, cur.j)) {
+          const p = exactPoints[n];
+          next.push({ i: -n - 1, j: 0, cost: haversine(p.lat, p.lng, here.lat, here.lng) / CELL_M });
+        }
+      }
+    }
     for (const [di, dj, cost] of cur.i < 0 ? [] : NEIGHBORS) {
       const ni = cur.i + di;
       const nj = cur.j + dj;
@@ -329,7 +398,7 @@ function astarLand(from: LatLng, to: LatLng, deterministic = false): LandRoute |
       const prev = gScore.get(nk);
       if (prev !== undefined && tentative >= prev) continue;
       // Only sample a grid edge when it can improve the route. Exact-node links
-      // were validated on insertion, and walkable() cached the grid endpoints.
+      // were validated above, and walkable() cached the grid endpoints.
       if (cur.i >= 0 && ni >= 0 &&
           chordCrossesUnplayable(cellCenter(cur.i, cur.j), cellCenter(ni, nj))) continue;
       gScore.set(nk, tentative);

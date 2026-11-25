@@ -187,10 +187,14 @@ export function planRest(input: RestPlanInput): RestOutcome {
 }
 
 /** "45m", "2h", "7h 30m". */
-export function formatRestHours(hours: number): string {
+export function formatRestHours(hours: number, tr?: (key: string, vars: Record<string, number>) => string): string {
   const total = Math.round(hours * 60);
   const h = Math.floor(total / 60);
   const m = total % 60;
+  if (tr) {
+    if (h === 0) return tr('ui.sleep.dialog.minutes', { m });
+    return m ? tr('ui.sleep.dialog.hoursMinutes', { h, m }) : tr('ui.sleep.dialog.hours', { h });
+  }
   if (h === 0) return `${m}m`;
   return m === 0 ? `${h}h` : `${h}h ${m}m`;
 }

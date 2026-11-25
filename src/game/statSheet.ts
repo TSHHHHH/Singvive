@@ -431,7 +431,7 @@ function combatRows(args: {
 
   const strDmg = Math.floor(attributes.strength / 2);
   const dmg: SheetSource[] = [];
-  const unarmed = /fists/i.test(pStats.weaponName);
+  const unarmed = pStats.unarmed;
   push(dmg, keySrc(unarmed ? 'unarmed' : 'weapon', pStats.damage - strDmg));
   push(dmg, attrSrc('strength', strDmg));
   rows.push(row('damage', 'combat', 'flat', dmg, true, { total: pStats.damage }));

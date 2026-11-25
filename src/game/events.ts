@@ -1008,7 +1008,7 @@ function buildSmoke(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
           { t: 'access' },
         ],
         onFailure: [
-          { t: 'time', hours: 0.3, line: ev('smoke_block.lines.sideFailTime', undefined, locale) },
+          { t: 'time', hours: 0.3, line: '' },
           { t: 'deny', line: ev('smoke_block.lines.sideFailDeny', undefined, locale) },
         ],
       },
@@ -1021,7 +1021,7 @@ function buildSmoke(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
         onSuccess: [{ t: 'access' }],
         onFailure: [
           { t: 'wound', amount: 8, line: ev('smoke_block.lines.pushFailWound', undefined, locale) },
-          { t: 'deny', line: ev('smoke_block.lines.pushFailDeny', undefined, locale) },
+          { t: 'deny', line: '' },
         ],
       },
       {
@@ -1202,7 +1202,7 @@ function buildFlooded(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
           { t: 'access' },
         ],
         onFailure: [
-          { t: 'time', hours: 0.3, line: ev('flooded_entry.lines.wadeFailTime', undefined, locale) },
+          { t: 'time', hours: 0.3, line: '' },
           { t: 'wound', amount: 7, line: ev('flooded_entry.lines.wadeFailWound', undefined, locale) },
           { t: 'access' },
         ],
@@ -1212,7 +1212,7 @@ function buildFlooded(rng: Rng, loc: LocationState, ctx: EventCtx): GameEvent {
         kind: 'leave',
         label: ev('flooded_entry.choices.rush', undefined, locale),
         onSuccess: [
-          { t: 'energy', amount: 10, line: ev('flooded_entry.lines.rushEnergy', undefined, locale) },
+          { t: 'energy', amount: 10, line: '' },
           { t: 'wound', amount: 5, line: ev('flooded_entry.lines.rushWound', undefined, locale) },
           { t: 'access' },
         ],

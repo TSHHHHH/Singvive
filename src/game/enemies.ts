@@ -24,6 +24,8 @@ export interface AnimalArchetype {
   damage: number;
   infectious: number;
   armor: number;
+  /** Fist-damage multiplier, 0..1. Missing = DEFAULT_UNARMED_MULT. */
+  unarmedMult?: number;
   speed: number;
   hpJitter: IntRange;
   habitats: AnimalHabitat[];
@@ -42,6 +44,8 @@ export interface ZombieArchetype {
   damage: number;
   infectious: number;
   armor: number;
+  /** Fist-damage multiplier, 0..1. Missing = DEFAULT_UNARMED_MULT. */
+  unarmedMult?: number;
   speed: number;
   hpJitter: IntRange;
 }
@@ -55,6 +59,8 @@ export interface EliteArchetype {
   damage: number;
   infectious: number;
   armor: number;
+  /** Fist-damage multiplier, 0..1. Missing = DEFAULT_UNARMED_MULT. */
+  unarmedMult?: number;
   speed: number;
   hpPerDanger: number;
   hpJitter: IntRange;
@@ -74,6 +80,8 @@ export interface HumanScaling {
   damagePerDanger: number;
   damageJitter: IntRange;
   baseSpeed: number;
+  /** Fist-damage multiplier, 0..1. Missing = DEFAULT_UNARMED_MULT. */
+  unarmedMult?: number;
 }
 
 export interface HumanFactionEntry extends Partial<HumanScaling> {
@@ -92,6 +100,8 @@ export type HumanArchetype = HumanScaling & {
 export interface LonerArchetype {
   name: string;
   armor: number;
+  /** Fist-damage multiplier, 0..1. Missing = DEFAULT_UNARMED_MULT. */
+  unarmedMult?: number;
   speed: number;
   baseHp: number;
   hpPerDanger: number;
@@ -155,6 +165,9 @@ export const HUMAN_SCALING_KEYS: readonly (keyof HumanScaling)[] = [
   'baseSpeed',
 ] as const;
 
+/** Fist hits on an enemy with no `unarmedMult` (old saves, new entries). */
+export const DEFAULT_UNARMED_MULT = 0.5;
+
 /** Source of truth is src/game/data/enemies.json (editable via the DEV enemy browser). */
 export const ENEMIES: EnemiesCatalog = structuredClone(enemiesCatalog) as unknown as EnemiesCatalog;
 
@@ -178,6 +191,7 @@ export function resolveHuman(catalog: EnemiesCatalog, faction: FactionKey): Huma
     damagePerDanger: h.damagePerDanger ?? d.damagePerDanger,
     damageJitter: h.damageJitter ?? d.damageJitter,
     baseSpeed: h.baseSpeed ?? d.baseSpeed,
+    unarmedMult: h.unarmedMult ?? d.unarmedMult,
   };
 }
 
@@ -206,6 +220,7 @@ export function rollZombie(catalog: EnemiesCatalog, rng: Rng, danger: number): E
     damage: t.damage,
     infectious: t.infectious,
     armor: t.armor,
+    unarmedMult: t.unarmedMult ?? DEFAULT_UNARMED_MULT,
     speed: t.speed,
   };
 }
@@ -231,6 +246,7 @@ export function rollElite(
     damage: t.damage,
     infectious: t.infectious,
     armor: t.armor,
+    unarmedMult: t.unarmedMult ?? DEFAULT_UNARMED_MULT,
     speed: t.speed,
   };
 }
@@ -255,6 +271,7 @@ export function rollHuman(
     damage: t.baseDamage + danger * t.damagePerDanger + intRange(t.damageJitter, r),
     infectious: 0,
     armor: t.armor,
+    unarmedMult: t.unarmedMult ?? DEFAULT_UNARMED_MULT,
     speed: t.baseSpeed - t.armor,
   };
 }
@@ -280,6 +297,7 @@ export function rollLoner(
     damage: t.baseDamage + danger * t.damagePerDanger + intRange(t.damageJitter, r),
     infectious: 0,
     armor: t.armor,
+    unarmedMult: t.unarmedMult ?? DEFAULT_UNARMED_MULT,
     speed: t.speed,
   };
 }
@@ -309,6 +327,7 @@ function scaleAnimal(
     damage: pick.damage,
     infectious: pick.infectious,
     armor: pick.armor,
+    unarmedMult: pick.unarmedMult ?? DEFAULT_UNARMED_MULT,
     speed: pick.speed,
     icon: pick.icon,
   };

@@ -21,7 +21,8 @@
 
 The menu's **Online co-op prototype** opens a separate expedition across Singapore.
 Up to four survivors join with an invite code and act independently. The host chooses
-Bishan, Tampines, Jurong East, Woodlands or Chinatown; each survivor chooses an occupation.
+Bishan, Tampines, Jurong East, Woodlands or Chinatown; each survivor chooses a role
+(its starting kit, with no traits).
 One real second represents one game minute. Surface journeys use validated land routes
 in hops up to 1.2 km, with duration determined by distance, equipment, injuries and weather.
 Free-ground waypoints allow crossing beyond known POIs. Exploration is shared with the squad;
@@ -95,7 +96,8 @@ so no two survivors face the same city.
 3. **The body is a resource** — a Project-Zomboid-style injury model on top of survival meters; wounds
    are lasting, location-specific, and have to be treated.
 4. **Roguelike depth** — permadeath, procedural worlds, seeded reproducibility, and deep build variety
-   through occupations, attributes derived from traits, and a positive/negative trait economy.
+   through roles (story and starting kit), attributes derived from traits, and a positive/negative
+   trait economy.
 5. **Tactile inventory** — a spatial, Tarkov-style grid where weight and space are both real
    constraints.
 6. **Dual-path scoring** — linger for a rising day multiplier, or haul a fogged cargo kit to a timed
@@ -336,7 +338,7 @@ survivor conditions and relief operations above are fictional extrapolations.
 ## 2. Core Gameplay Loop
 
 ```
-Pick an occupation seed (or build traits freely on the same screen) → Choose a real SG spawn (density-checked) →
+Pick a role (story + starting kit) → build traits from empty → Choose a real SG spawn (density-checked) →
   [ read the map: "?" blips inside your travelable range → trek BLIND across open ground →
     arrive (pre-scavenge event / faction gate may fire) → search session → maybe fight →
     optional HDB dive or tunnel run → haul loot into the grid → cache surplus in the stash →
@@ -378,8 +380,8 @@ currency, and the survivor is always moving — the map is explored, not surveye
 - **Walkability zones** (`public/zones.json`, `npm run bake:zones`): land mask, inland water,
   restricted (military) perimeters, and vegetation. Water and restricted hard-block spawn/trek;
   vegetation stays walkable but adds time only. Routes prefer land paths around water.
-  Known pedestrian crossings, starting with Sentosa Gateway, provide narrow walkable links over
-  water in both directions; their full path determines travel time and recorded distance,
+  Real road and foot bridges (baked from OSM by `npm run bake:crossings`, plus the hand-placed
+  Sentosa Gateway path) provide narrow walkable links over water in both directions; their full path determines travel time and recorded distance,
   while walking energy uses the direct distance between endpoints. Players
   can stop on the crossing and continue later. Nearby sea and restricted ground remain blocked
   (`game/route.ts`, `game/playable.ts`, `game/crossings.ts`, `game/vegetation.ts`).
@@ -414,11 +416,23 @@ ground for rest; landmarks are not selected as guaranteed indoor spawn shelters.
 | Landmark | Marina Bay Sands, ArtScience Museum, Supertree Grove | Visitor bags, water, snacks, basic supplies | 3 |
 | Waypoint | Between-pin stops | Not a destination — whatever the road left behind | 2 |
 
-### 3.2 Survivor — occupations, attributes & traits
-- **Occupations** — nine two-trait kits (College Student, Personal Trainer, Soldier, Nurse,
-  Food Vendor, Scavenger, Office Worker, Contractor, Fixer). Each is **one positive + one matching
-  flaw**, nets the budget at exactly 0, and loads as an **editable seed** on the create screen
-  (same grid as a hand-rolled build — swap traits to make it yours).
+### 3.2 Survivor — roles, attributes & traits
+- **Roles** (`occupations.ts`, `occupationId` in saves) — eleven: Classic Survivor, Drifter,
+  College Student, Personal Trainer, Soldier, Nurse, Food Vendor, Scavenger, Office Worker,
+  Contractor, Fixer. A role is a **name, a story and a starting kit only** — no traits, no stats.
+  Every run has one; the create screen selects **Classic Survivor** by default. Stories and kits
+  are set months after the outbreak: worn gear, no fresh food, and every kit covers the legs.
+  Classic Survivor carries the standard kit (the `startingItem` items: knife, jacket, jeans,
+  sneakers, daypack, water). Drifter carries cloth wraps, jeans, flip-flops and a tote — no weapon,
+  no water. The copy never labels a role as hard or easy. Scavenger adds one seeded pocket find.
+- **Starting kit** — the role kit goes down first, then each trait adds **at most one** item
+  (`TRAIT_KITS` in `startingKit.ts`). Traits that once granted a set keep one signature item.
+  A trait wearable replaces the role item in that slot; a flaw item never displaces one; a
+  two-handed weapon sends the off-hand item to the pack. *Go-Bag* and *Prepper* cost **1**.
+  Pool picks roll off the run seed (role pool: fork `kit:role:<id>`).
+- **Create screen** — step 1 picks the name and role (cards show the tagline and kit); step 2
+  builds traits from **empty**. Picking a role never changes the traits, and loading a preset
+  never changes the role.
 - **Attributes** are **derived from traits** (base 5 each, clamped 1–12) — Strength, Dexterity,
   Endurance, Perception, Wits. There is no separate point-buy panel; traits *are* the build.
 - **Traits** — budget starts at **0**. All negative traits are **flaws** and *refund* points;
@@ -427,7 +441,8 @@ ground for rest; landmarks are not selected as guaranteed indoor spawn shelters.
   remaining points stay ≥ 0. A trait cannot be picked twice. Theme filters and point sorting
   apply across the whole list. Existing costs, effects, conflicts and trait IDs are unchanged;
   saved builds and active runs need no migration.
-- **Trait presets** persist across runs in `localStorage` so custom builds can be reused.
+- **Trait presets** persist across runs in `localStorage` so custom builds can be reused. They
+  hold **traits only** and live on the traits step.
   Older builds with many flaws are valid if they satisfy the budget and conflict rules and
   contain no duplicates. Invalid presets still show “needs fixing” on the create screen.
 - Trait modifiers feed combat, travel, survival, loot, fog, crafting cost, faction standing, and
@@ -546,13 +561,21 @@ ground for rest; landmarks are not selected as guaranteed indoor spawn shelters.
   may still spend energy. Recorded distance uses the walked route. Tunnel walking retains its
   separate time-based costs. A fresh END/DEX 5 survivor with healthy legs and no load penalty takes about
   **10 minutes per 500 m** on clear, non-vegetated ground. The map glide remains brief.
+- **Weather drain** (`game/weather.ts`): passive thirst and energy drain run faster on two kinds
+  of day. Heat wave: thirst ×1.9, energy ×1.25. Haze: thirst ×2.1, energy ×1.4 — the hardest day
+  on water and legs, with no change to encounter odds.
 - **Open-ground treks** (`game/wilds.ts`): between pins the path crosses seeded ~350 m hazard
   pockets (overlapping discs: horde, patrol, collapse, flood, wildlife). POI travel cards preview
-  sensed pockets on the route. Committing to a hazardous surface route opens a timeline decision
-  before walking energy, time, injuries or encounters are applied. Cross cautiously (6 + 3 ×
-  severity extra minutes per distinct zone, lower injury/exposure/interception risk), cross
-  directly, or withdraw for no cost. Withdrawal stays at departure; choosing another route is
-  manual. The choice covers the listed zones, is persisted in v7, and settles once. Even a severe
+  sensed pockets on the route. Each distinct zone on a surface route first rolls a **slip-past check**
+  (`rollHazardChecks`): d20 + the fitting attribute (DEX collapse, END floodwater, WITS patrol, PER
+  horde / wildlife / swarm) + trait check bonus vs DC 8 + 3 × severity (+3 night swarm). Starting
+  inside a zone and leaving it is an **exit check** at −2 DC; moving within the zone you stand in asks
+  nothing. Natural 20 passes, natural 1 fails. Passed zones are slipped past with no consequence and
+  drop out of the route's encounter price; the roll is seeded per target and hour, so retrying the
+  same walk in the same hour does not reroll. Zones that catch the survivor are crossed directly, with
+  no prompt: the timeline names them, then the walk applies its energy, time, injury, exposure and
+  interception results. The route label's fight chance weighs every pass / fail outcome of these
+  checks by its exact d20 odds for the current survivor. Even a severe
   collapse allows a natural-20 success instead of an unconditional failure.
 - **Sealed-off areas** (`game/hazardSites.ts`, `public/hazard-areas.json`). When a hazard cell holds
   a block-sized OpenStreetMap area (an estate, park, school grounds, campus, hospital, commercial or
@@ -664,6 +687,13 @@ ground for rest; landmarks are not selected as guaranteed indoor spawn shelters.
   fists). Item **condition** degrades and can be repaired (whetstone / gun oil in the field;
   workbench repair with tape + scrap). Perishable food wears with elapsed hours. Items stay in the
   pack until the fight ends; **Break off** attempts to flee.
+- **Fists:** with no usable main-hand weapon (including "Fists (X broken)") a hit starts from base
+  damage **6**, then the final damage is multiplied by the target's `unarmedMult` (rounded,
+  minimum 1). A missing value is **0.5**. Shamblers, crawlers, walkers, rats, cats, macaques and
+  loner survivors/touts take full damage (1); scavengers 0.8; otters and dogs 0.7; runners 0.6; bloaters, lurchers and monitors 0.5;
+  rioters, boars and raiders 0.4; brutes 0.3; abominations 0.25; hulks and stalkers 0.15. Bare
+  hands work against the weak and fail against the strong. Off-hand weapons and a dry gun used
+  as a club are not fists.
 
 ### 3.7 Events, factions & trade
 Four factions hold territory (seeded by category), with a **standing ladder** (−5…+5) that gates
@@ -1112,7 +1142,7 @@ the routes, supplies and landmarks that make Singapore specific.
 1. **Local consequences worth routing around.** An alarm changes the nearby street for a while;
    helping scavengers can reveal a useful destination. Make those choices legible and let the
    player judge whether responding, waiting or taking another route is worth the cost.
-2. **Local knowledge as the build.** Occupations already gesture at this (*Estate Memory*, *Made Man*,
+2. **Local knowledge as the build.** Traits already gesture at this (*Estate Memory*, *Made Man*,
    Wardens). Make spawn + job change *what you remember*: MRT lines you can trust, which void decks are
    88, where Kampung Kitchen still cooks. A tourist run is fog; a resident run is a damaged mental map.
    The MRT overlay (visible above fog) is the proof this fantasy already works.
@@ -1173,7 +1203,7 @@ safely from existing `singvive.run.v7` saves before these proposals ship.
 
 - Crafting & repair, faction barter + marked outposts, ammo + weapon condition, extraction and
   open-ended survival, persistent local noise and response events, HDB cutaways, search sessions,
-  sleep quality, occupations, in-game guide (en + zh-Hans), fill-the-track combat, worldwide
+  sleep quality, roles, in-game guide (en + zh-Hans), fill-the-track combat, worldwide
   honor board (D1) beside the personal local top-10.
 
 ### Known constraints

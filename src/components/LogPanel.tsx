@@ -6,12 +6,10 @@ import { LOG_VIEW_MODES, logViewMode, useClockFormat, useSetting, useSettings } 
 import { tip } from './tips';
 import { EncounterPrompt } from './EncounterPrompt';
 import { SearchSessionNode } from './SearchSessionNode';
-import { PendingEventChoices } from './PendingEventChoices';
-import { PendingCrossingCard } from './PendingCrossingCard';
+import { PendingEventCardBody } from './PendingEventChoices';
 import type { GuideTopic } from '../content/guideContent';
 import { useT } from '../i18n';
 import { GroupedLogList, LIVE_NODE_BAND, useActiveLogScopeKey } from './logTimeline';
-import { formatClock } from '../game/survival';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 
 /** Every control in the timeline header shares one box, so the row reads even. */
@@ -59,7 +57,6 @@ export function LogPanel({
   const log = useShownLog();
   const day = useGame((s) => s.day);
   const pending = useGame((s) => s.pendingEvent);
-  const pendingCrossing = useGame((s) => s.pendingCrossing);
   const pendingSearch = useGame((s) => s.pendingSearch);
   const hdb = useGame((s) => s.hdb);
   const tunnel = useGame((s) => s.tunnel);
@@ -91,7 +88,7 @@ export function LogPanel({
   const contentRef = useRef<HTMLOListElement>(null);
   const following = useRef(true);
   const [showLatest, setShowLatest] = useState(false);
-  const previousView = useRef({ day, viewId, liveNodes, pending, pendingCrossing, pendingSearchNonce, awaitingStance });
+  const previousView = useRef({ day, viewId, liveNodes, pending, pendingSearchNonce, awaitingStance });
   const newestId = log[0]?.id ?? 0;
   const seenLogId = useRef(newestId);
   const seenLiveNodes = useRef(new WeakSet<HTMLElement>());
@@ -121,7 +118,6 @@ export function LogPanel({
   // The newest log entry is "latest" only when there's no live node below it.
   const latestId =
     !(showLive && ev) &&
-    !(showLive && pendingCrossing) &&
     !(showLive && awaitingStance) &&
     !(showLive && pendingSearchNonce) &&
     shown.length > 0
@@ -146,10 +142,9 @@ export function LogPanel({
     seenLogId.current = newestId;
     if (!el) return;
     const previous = previousView.current;
-    previousView.current = { day, viewId, liveNodes, pending, pendingCrossing, pendingSearchNonce, awaitingStance };
+    previousView.current = { day, viewId, liveNodes, pending, pendingSearchNonce, awaitingStance };
     const requestedView = day !== previous.day || viewId !== previous.viewId || liveNodes !== previous.liveNodes;
     const newLiveNode = (pending && pending !== previous.pending)
-      || (pendingCrossing && pendingCrossing !== previous.pendingCrossing)
       || (pendingSearchNonce && pendingSearchNonce !== previous.pendingSearchNonce)
       || (awaitingStance && !previous.awaitingStance);
     if (requestedView || newLiveNode) following.current = true;
@@ -186,7 +181,7 @@ export function LogPanel({
       el.scrollTop = el.scrollHeight;
       setShowLatest(false);
     }
-  }, [newestId, pending, pendingCrossing, pendingSearchNonce, awaitingStance, viewId, day, liveNodes, reducedMotion]);
+  }, [newestId, pending, pendingSearchNonce, awaitingStance, viewId, day, liveNodes, reducedMotion]);
 
   useLayoutEffect(() => {
     if (!activityFocus) return;
@@ -218,7 +213,7 @@ export function LogPanel({
   }, [empty, liveNodes]);
 
   const hasLiveNode =
-    showLive && (!!ev || !!pendingCrossing || awaitingStance || !!pendingSearchNonce);
+    showLive && (!!ev || awaitingStance || !!pendingSearchNonce);
 
   return (
     <div className="relative flex h-full min-h-0 flex-col">
@@ -325,34 +320,12 @@ export function LogPanel({
               activeKey={activeKey}
             />
 
-            {showLive && pendingCrossing && (
-              <li data-timeline-live="" className={`relative py-1 pl-6 ${LIVE_NODE_BAND}`}>
-                <span className="absolute left-0 top-[7px] h-[11px] w-[11px] animate-pulse rounded-full border-2 border-concrete-900 bg-signal" />
-                <PendingCrossingCard />
-              </li>
-            )}
 
             {showLive && ev && (
               <li data-timeline-live="" className={`relative flex gap-2 py-1 pl-6 ${LIVE_NODE_BAND}`}>
                 <span className="absolute left-0 top-[7px] h-[11px] w-[11px] animate-pulse rounded-full border-2 border-concrete-900 bg-signal" />
                 <div className="min-w-0 flex-1">
-                  <p
-                    style={hang}
-                    className="whitespace-normal break-words text-body text-white/70"
-                  >
-                    <span
-                      className="inline-block text-micro tabular-nums text-white/25"
-                      style={{ width: timeW, textIndent: 0 }}
-                    >
-                      {formatClock(hour, clock)}
-                    </span>
-                    <span className="font-semibold text-concrete-50">{ev.title}</span>
-                    {' — '}
-                    {ev.text}
-                  </p>
-                  <div className="mt-1.5" style={{ paddingLeft: timeW }}>
-                    <PendingEventChoices event={ev} />
-                  </div>
+                  <PendingEventCardBody event={ev} />
                 </div>
               </li>
             )}

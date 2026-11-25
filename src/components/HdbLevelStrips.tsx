@@ -89,38 +89,106 @@ function themeChip(hdb: HdbDungeon, level: number, locale: LocaleId) {
   };
 }
 
-/**
- * One heat stage's effects as a line: room threat, base encounter odds, descent
- * DC (plus the stair ambush at Swarm). `heat` is the value the odds are read at.
- */
-function bandEffects(band: HeatBand, heat: number, dcMod: number, t: T): string {
-  const effects = t('ui.hdb.bandEffects', {
-    threat: band.threatBonus,
-    enc: Math.round(heatEncounterAt(heat) * 100),
-    dc: bandDc(band) + dcMod,
-  });
-  return band.at >= HEAT_MAX
-    ? effects + t('ui.hdb.bandAmbush', { n: Math.round(HUNT_ELITE_CHANCE * 100) })
-    : effects;
+/** Where a heat stage ends: the next stage's start, or the gauge top for the last. */
+function stageEnd(i: number): number {
+  return HEAT_BANDS[i + 1]?.at ?? HEAT_MAX;
+}
+
+function stageLabel(b: HeatBand, locale: LocaleId): string {
+  return msgOr(`ui.hdb.heatBand.${b.label}.label`, b.label, undefined, locale);
 }
 
 /**
- * The heat chip's tooltip: where the landing stands, what this stage does,
- * what the next one will do, and how heat moves through the block.
+ * One heat stage's tooltip, in plain words: the heat range, the flavour note,
+ * then each effect on its own line. `heat` marks the stage the landing is in.
  */
-function heatTipLines(heat: number, dcMod: number, t: T, locale: LocaleId): string[] {
-  const band = heatBand(heat);
-  const next = HEAT_BANDS[HEAT_BANDS.indexOf(band) + 1];
-  const label = (b: HeatBand) => msgOr(`ui.hdb.heatBand.${b.label}.label`, b.label, undefined, locale);
-  return [
-    t('ui.hdb.levelHeatTip', { heat: Math.round(heat), band: label(band) }),
-    msgOr(`ui.hdb.heatBand.${band.label}.note`, band.note, undefined, locale),
-    t('ui.hdb.bandNow', { effects: bandEffects(band, heat, dcMod, t) }),
-    next
-      ? t('ui.hdb.bandNext', { at: next.at, label: label(next), effects: bandEffects(next, next.at, dcMod, t) })
-      : t('ui.hdb.bandTop'),
-    t('ui.hdb.coolingNote', { n: COOL_PER_HOUR }),
+function stageTipLines(i: number, heat: number, dcMod: number, t: T, locale: LocaleId): string[] {
+  const band = HEAT_BANDS[i];
+  const top = band.at >= HEAT_MAX;
+  const to = stageEnd(i) - 1;
+  const encFrom = Math.round(heatEncounterAt(band.at) * 100);
+  const encTo = Math.round(heatEncounterAt(top ? band.at : to) * 100);
+  const lines = [
+    top
+      ? t('ui.hdb.stageHeadTop', { label: stageLabel(band, locale), at: band.at })
+      : t('ui.hdb.stageHead', { label: stageLabel(band, locale), from: band.at, to }),
   ];
+  if (heatBand(heat) === band) lines.push(t('ui.hdb.stageHere', { heat: Math.round(heat) }));
+  lines.push(msgOr(`ui.hdb.heatBand.${band.label}.note`, band.note, undefined, locale));
+  lines.push(
+    band.threatBonus > 0 ? t('ui.hdb.stageThreat', { n: band.threatBonus }) : t('ui.hdb.stageThreatNone'),
+    encFrom === encTo ? t('ui.hdb.stageEncOne', { n: encFrom }) : t('ui.hdb.stageEnc', { from: encFrom, to: encTo }),
+    t('ui.hdb.stageDc', { dc: bandDc(band) + dcMod }),
+  );
+  if (top) lines.push(t('ui.hdb.stageAmbush', { n: Math.round(HUNT_ELITE_CHANCE * 100) }));
+  return lines;
+}
+
+/** The heat label's tooltip: where the landing stands and how heat moves. */
+function heatTipLines(heat: number, t: T, locale: LocaleId): string[] {
+  return [
+    t('ui.hdb.levelHeatTip', { heat: Math.round(heat), band: stageLabel(heatBand(heat), locale) }),
+    t('ui.hdb.heatWhat'),
+    '',
+    t('ui.hdb.heatHowTitle'),
+    t('ui.hdb.heatHowDoor'),
+    t('ui.hdb.heatHowSpread'),
+    t('ui.hdb.heatHowCool', { n: COOL_PER_HOUR }),
+  ];
+}
+
+/**
+ * The heat gauge split into its stages. Each part fills with the heat inside its
+ * range and carries its own tooltip, so a player can hover ahead to see what the
+ * next stage does. Swarm sits at the very top, so it is a short cap at the end.
+ */
+function HeatStageBar({
+  heat,
+  dcMod,
+  className = '',
+}: {
+  heat: number;
+  dcMod: number;
+  className?: string;
+}) {
+  const { t, locale } = useT();
+  const cur = HEAT_BANDS.indexOf(heatBand(heat));
+  const hunting = heat >= HEAT_MAX;
+  return (
+    <span className={`flex items-stretch gap-0.5 ${className}`} onClick={(e) => e.stopPropagation()}>
+      {HEAT_BANDS.map((b, i) => {
+        const top = b.at >= HEAT_MAX;
+        const span = stageEnd(i) - b.at;
+        const fill = top ? (hunting ? 1 : 0) : Math.max(0, Math.min(1, (heat - b.at) / span));
+        const text = stageTipLines(i, heat, dcMod, t, locale).join('\n');
+        return (
+          <span
+            key={b.label}
+            tabIndex={0}
+            aria-label={text}
+            {...tip(text, { placement: 'top' })}
+            className={`group flex cursor-help items-center rounded-sm py-1.5 outline-offset-1 focus-visible:outline focus-visible:outline-1 focus-visible:outline-signal ${
+              top ? 'w-2 shrink-0' : 'min-w-1.5'
+            }`}
+            style={top ? undefined : { flexGrow: span, flexBasis: 0 }}
+          >
+            <span
+              className={`relative block h-1.5 w-full overflow-hidden rounded-sm transition-colors ${
+                i === cur ? 'bg-concrete-800 ring-1 ring-concrete-400/70' : 'bg-concrete-800'
+              } group-hover:bg-concrete-600`}
+            >
+              <span
+                className={`block h-full w-full origin-left transition-transform duration-300 ${BAND_FILL[cur]} ${
+                  hunting ? 'pulse-danger' : ''
+                }`}
+                style={{ transform: `scaleX(${fill})` }}
+              />
+            </span>
+          </span>
+        );
+      })}
+    </span>
+  );
 }
 
 /** A themed landing's wash and faint icon art, drawn behind the rooms. */
@@ -401,7 +469,7 @@ export function HdbLevelStrips({ phone }: { phone: boolean }) {
         const hunting = levelHunting(hdb, level);
         const bandLabel = msgOr(`ui.hdb.heatBand.${band.label}.label`, band.label, undefined, locale);
         const theme = revealed ? themeChip(hdb, level, locale) : null;
-        const heatTip = heatTipLines(heat, load.fleeDcMod, t, locale).join('\n');
+        const heatTip = heatTipLines(heat, t, locale).join('\n');
         const canGo = !busy && canTravelTo(hdb, level);
         const hovered = hoverRow === level;
         const units = f.units;
@@ -499,17 +567,19 @@ export function HdbLevelStrips({ phone }: { phone: boolean }) {
             <div className="flex min-w-0 flex-1 flex-col gap-2">
               <div className={`flex min-w-0 flex-wrap items-center gap-2 ${phone ? 'text-micro' : 'text-body'}`}>
                 {revealed ? (
-                  <button
-                    type="button"
-                    className="flex min-w-0 flex-1 items-center gap-1.5 rounded-sm py-1 uppercase outline-offset-2 focus-visible:outline focus-visible:outline-1 focus-visible:outline-signal"
-                    aria-label={heatTip}
-                    {...tip(heatTip, { placement: 'top' })}
-                    onClick={(e) => e.stopPropagation()}
-                  >
+                  <span className="flex min-w-0 flex-1 items-center gap-1.5">
+                    <button
+                      type="button"
+                      className="flex min-w-0 shrink items-center gap-1.5 rounded-sm py-1 uppercase outline-offset-2 focus-visible:outline focus-visible:outline-1 focus-visible:outline-signal"
+                      aria-label={heatTip}
+                      {...tip(heatTip, { placement: 'top' })}
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <span className={`truncate ${bandText(idx, hunting)}`}>{bandLabel}</span>
                       <span className="tabular-nums text-concrete-400">{Math.round(heat)}</span>
-                      <HeatMeter heat={heat} className="ml-1 min-w-8 flex-1" />
-                  </button>
+                    </button>
+                    <HeatStageBar heat={heat} dcMod={load.fleeDcMod} className="ml-1 min-w-16 flex-1" />
+                  </span>
                 ) : <span className="h-1.5 min-w-8 flex-1 rounded-sm bg-concrete-800" />}
                 {!revealed ? (
                   <span className="uppercase text-concrete-400">{t('ui.hdb.unexplored')}</span>

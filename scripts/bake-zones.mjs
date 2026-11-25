@@ -10,7 +10,7 @@
 //
 // NOT part of `npm run build`.
 
-import { writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { inPolygon, inSingapore, NEIGHBOURHOODS } from '../src/game/singapore.ts';
@@ -745,12 +745,23 @@ out geom;`;
     land = committedRings([FALLBACK_MAINLAND]);
   }
 
+  // Bridge decks come from `bake:crossings`; keep the committed ones so a
+  // zones re-bake does not drop them. Re-run bake:crossings after this.
+  let crossings = [];
+  try {
+    const prev = JSON.parse(readFileSync(OUT_FILE, 'utf8'));
+    if (Array.isArray(prev.crossings)) crossings = prev.crossings;
+  } catch {
+    crossings = [];
+  }
+
   const payload = {
     generated: new Date().toISOString().slice(0, 10),
     land,
     water,
     restricted,
     vegetation,
+    crossings,
   };
 
   mkdirSync(dirname(OUT_FILE), { recursive: true });

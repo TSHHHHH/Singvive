@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { TRAITS, attributesFromTraits, getTrait, sumTraitMod } from './character';
-import { OCCUPATIONS } from './occupations';
+import { DEFAULT_OCCUPATION_ID, OCCUPATIONS } from './occupations';
 import { ITEMS, itemDef } from './loot';
 import { Rng } from './rng';
 import {
@@ -57,7 +57,7 @@ function kitLoad(traitIds: string[], kit: ResolvedKit): number {
 
 describe('starting kit', () => {
   it('gives a hand-rolled build exactly the base kit', () => {
-    const kit = resolveStartingKit([]);
+    const kit = resolveStartingKit('survivor', []);
     expect(ids(kit).sort()).toEqual(baseKit().map((e) => e.id).sort());
     expect(kit.equip.mainHand?.id).toBe('kitchen_knife');
   });
@@ -73,70 +73,54 @@ describe('starting kit', () => {
     }
   });
 
-  it('dresses every occupation preset differently', () => {
-    const kits = OCCUPATIONS.map((o) => JSON.stringify(ids(resolveStartingKit(o.traitIds)).sort()));
-    expect(new Set(kits).size).toBe(OCCUPATIONS.length);
-    for (const o of OCCUPATIONS) {
-      const positive = o.traitIds.find((id) => getTrait(id).category === 'positive')!;
-      expect(TRAIT_KITS[positive], `${o.id} signature trait has a kit`).toBeDefined();
-    }
-  });
-
-  it('lets a job outfit replace base clothes', () => {
-    const soldier = resolveStartingKit(['combat_veteran', 'hypervigilant']);
-    expect(soldier.equip.body?.id).toBe('army_uniform');
-    expect(soldier.equip.feet?.id).toBe('combat_boots');
-    expect(ids(soldier)).not.toContain('leather_jacket');
+  it('lets a trait wearable replace a base item', () => {
+    const kit = resolveStartingKit('survivor', ['tekong_legs']);
+    expect(kit.equip.feet?.id).toBe('hiking_boots');
+    expect(ids(kit)).not.toContain('sneakers');
   });
 
   it('packs a second claim on a slot instead of losing it', () => {
-    // Soldier boots win (dearer trait); trail-leg boots go in the pack.
-    const kit = resolveStartingKit(['tekong_legs', 'combat_veteran']);
-    expect(kit.equip.feet?.id).toBe('combat_boots');
-    expect(kit.pack.map((l) => l.id)).toContain('hiking_boots');
-  });
-
-  it('moves an off-hand item to the pack under a two-handed weapon', () => {
-    const kit = resolveStartingKit(['operator', 'night_owl']);
-    expect(itemDef(kit.equip.mainHand!.id).twoHanded).toBe(true);
-    expect(kit.equip.offHand).toBeUndefined();
-    expect(kit.pack.map((l) => l.id)).toContain('torch');
+    // Torch and umbrella both want the off hand: one is worn, the other packed.
+    const kit = resolveStartingKit('survivor', ['night_owl', 'umbrella_city']);
+    const worn = kit.equip.offHand?.id;
+    expect(['torch', 'golf_umbrella']).toContain(worn);
+    const other = worn === 'torch' ? 'golf_umbrella' : 'torch';
+    expect(kit.pack.map((l) => l.id)).toContain(other);
   });
 
   it('applies a flaw kit as a downgrade', () => {
-    const kit = resolveStartingKit(['just_popped_out']);
+    const kit = resolveStartingKit('survivor', ['just_popped_out']);
     expect(kit.equip.feet?.id).toBe('flip_flops');
-    expect(kit.equip.bag?.id).toBe('grocery_tote');
     expect(kit.equip.body).toBeUndefined();
     expect(ids(kit)).not.toContain('sneakers');
-    expect(ids(kit)).not.toContain('daypack');
   });
 
   it('rolls pools from the seed: same seed, same kit', () => {
-    const build = ['estate_memory', 'ruined_knees'];
-    const a = resolveStartingKit(build, new Rng('seed-a'));
-    const b = resolveStartingKit(build, new Rng('seed-a'));
+    const build = ['karang_guni'];
+    const a = resolveStartingKit('survivor', build, new Rng('seed-a'));
+    const b = resolveStartingKit('survivor', build, new Rng('seed-a'));
     expect(a).toEqual(b);
     expect(a.pools).toEqual([]);
     const variety = new Set(
       Array.from({ length: 30 }, (_, i) =>
-        JSON.stringify(resolveStartingKit(build, new Rng(`s${i}`)).pack),
+        JSON.stringify(resolveStartingKit('survivor', build, new Rng(`s${i}`)).pack),
       ),
     );
     expect(variety.size).toBeGreaterThan(3);
     // Unrolled preview reports the pool instead.
-    expect(resolveStartingKit(build).pools).toHaveLength(1);
+    expect(resolveStartingKit('survivor', build).pools).toHaveLength(1);
   });
 
   it('keeps every preset and every single-trait kit in the Light tier', () => {
     const builds = [
-      ...OCCUPATIONS.map((o) => o.traitIds),
-      ...Object.keys(TRAIT_KITS).map((id) => [id]),
+      ...OCCUPATIONS.map((o) => ({ role: o.id, traits: [] as string[] })),
+      ...Object.keys(TRAIT_KITS).map((id) => ({ role: 'survivor', traits: [id] })),
     ];
     for (const build of builds) {
       for (let s = 0; s < 5; s++) {
-        const kit = resolveStartingKit(build, new Rng(`load${s}`));
-        expect(kitLoad(build, kit), build.join('+')).toBeLessThanOrEqual(LOAD_COMFORT);
+        const kit = resolveStartingKit(build.role, build.traits, new Rng(`load${s}`));
+        const label = [build.role, ...build.traits].join('+');
+        expect(kitLoad(build.traits, kit), label).toBeLessThanOrEqual(LOAD_COMFORT);
       }
     }
   });
@@ -158,5 +142,138 @@ describe('starting kit', () => {
       const cap = statOnly ? 20 + 20 * trait.cost : 35 * trait.cost;
       expect(worth, `${id} kit worth ${worth} > ${cap}`).toBeLessThanOrEqual(cap);
     }
+  });
+});
+
+describe('trimmed trait kits', () => {
+  const JOB_SIGNATURES = [
+    'combat_veteran',
+    'trauma_medic',
+    'hyrox_champion',
+    'young_blood',
+    'estate_kitchen',
+    'estate_memory',
+    'operator',
+    'site_foreman',
+    'made_man',
+  ];
+
+  it('job-signature traits give no items', () => {
+    for (const id of JOB_SIGNATURES) expect(TRAIT_KITS[id], id).toBeUndefined();
+  });
+
+  it('trimmed traits keep one signature item', () => {
+    const expected: Record<string, { id: string; count?: number }[]> = {
+      medic: [{ id: 'bandage', count: 2 }],
+      hawker_cook: [{ id: 'cooking_pot' }],
+      handyman: [{ id: 'zip_ties', count: 4 }],
+      field_dressing: [{ id: 'improvised_bandage', count: 3 }],
+      train_memory: [{ id: 'headlamp' }],
+      go_bag: [{ id: 'large_water_bottle' }],
+      prepper: [{ id: 'canned_food', count: 3 }],
+      medicine_cabinet: [{ id: 'painkillers' }],
+      weekend_cyclist: [{ id: 'bike_helmet' }],
+      supper_run: [{ id: 'bak_kwa' }],
+      just_popped_out: [{ id: 'flip_flops' }],
+    };
+    for (const [id, items] of Object.entries(expected)) {
+      expect(TRAIT_KITS[id]?.items, id).toEqual(items);
+    }
+    expect(TRAIT_KITS.karang_guni?.items).toBeUndefined();
+    expect(TRAIT_KITS.karang_guni?.pool?.pick).toBe(1);
+    expect(TRAIT_KITS.just_popped_out?.drop).toEqual(['leather_jacket']);
+  });
+});
+
+describe('role kits', () => {
+  const EXPECTED: Record<string, string[]> = {
+    drifter: ['cloth_wraps', 'jeans', 'flip_flops', 'grocery_tote'],
+    student: ['school_bag', 'jeans', 'sneakers', 'water_bottle', 'box_cutter'],
+    trainer: ['cargo_shorts', 'grip_gloves', 'sneakers', 'sling_bag', 'water_bottle', 'energy_gel', 'hammer'],
+    soldier: ['army_uniform', 'camo_pants', 'combat_boots', 'daypack', 'parang', 'army_ration'],
+    nurse: ['rubber_gloves', 'n95_mask', 'work_trousers', 'sneakers', 'sling_bag', 'bandage', 'box_cutter'],
+    hawker: ['meat_cleaver', 'cargo_shorts', 'rubber_boots', 'cooking_pot', 'lighter', 'daypack'],
+    office: ['work_trousers', 'sneakers', 'sling_bag', 'golf_club', 'powerbank'],
+    contractor: ['hard_hat', 'work_vest', 'work_trousers', 'safety_boots', 'daypack', 'hammer', 'duct_tape'],
+    runner: ['leather_jacket', 'jeans', 'sneakers', 'sling_bag', 'baseball_bat', 'lockpick'],
+  };
+
+  it('lists Classic Survivor first and Drifter second', () => {
+    expect(OCCUPATIONS.map((o) => o.id).slice(0, 2)).toEqual(['survivor', 'drifter']);
+    expect(DEFAULT_OCCUPATION_ID).toBe('survivor');
+    expect(OCCUPATIONS).toHaveLength(11);
+  });
+
+  it('each role resolves to its kit', () => {
+    expect(ids(resolveStartingKit('survivor', [])).sort()).toEqual(baseKit().map((e) => e.id).sort());
+    for (const [role, want] of Object.entries(EXPECTED)) {
+      expect(ids(resolveStartingKit(role, [])).sort(), role).toEqual([...want].sort());
+    }
+    // Scavenger: fixed part plus one seeded find.
+    const kg = resolveStartingKit('karung_guni', []);
+    expect(ids(kg).sort()).toEqual(['cloth_rags', 'duffel_bag', 'pipe_wrench', 'work_gloves', 'work_trousers'].sort());
+    expect(kg.pools).toEqual([{ source: 'role', pick: 1, from: expect.any(Array) }]);
+  });
+
+  it('the classic survivor kit wears jeans', () => {
+    expect(resolveStartingKit('survivor', []).equip.legs?.id).toBe('jeans');
+  });
+
+  it('every role kit fills the legs slot', () => {
+    for (const o of OCCUPATIONS) expect(resolveStartingKit(o.id, []).equip.legs, o.id).toBeDefined();
+  });
+
+  it('every role kit differs', () => {
+    const kits = OCCUPATIONS.map((o) => JSON.stringify(ids(resolveStartingKit(o.id, [])).sort()));
+    expect(new Set(kits).size).toBe(OCCUPATIONS.length);
+  });
+
+  it('role and trait kits reference real items', () => {
+    for (const o of OCCUPATIONS) {
+      for (const e of [...(o.kit.items ?? []), ...(o.kit.pool?.from ?? [])]) {
+        expect(ITEMS[e.id], `${o.id} → ${e.id}`).toBeDefined();
+      }
+    }
+  });
+
+  it('drifter has no weapon and no water', () => {
+    const kit = resolveStartingKit('drifter', []);
+    expect(kit.equip.mainHand).toBeUndefined();
+    expect(kitLines(kit).some((l) => itemDef(l.id).effect.kind === 'water')).toBe(false);
+  });
+
+  it('a trait wearable replaces the role item in its slot', () => {
+    expect(resolveStartingKit('soldier', ['tekong_legs']).equip.feet?.id).toBe('hiking_boots');
+  });
+
+  it('a two-handed role weapon packs the off-hand item', () => {
+    const kit = resolveStartingKit('office', ['night_owl']);
+    expect(kit.equip.mainHand?.id).toBe('golf_club');
+    expect(kit.equip.offHand).toBeUndefined();
+    expect(kit.pack.map((l) => l.id)).toContain('torch');
+  });
+
+  it('just_popped_out drops the role body item', () => {
+    const kit = resolveStartingKit('survivor', ['just_popped_out']);
+    expect(kit.equip.body).toBeUndefined();
+    expect(kit.equip.feet?.id).toBe('flip_flops');
+  });
+
+  it('the role pool is stable per seed', () => {
+    const a = resolveStartingKit('karung_guni', [], new Rng('s'));
+    const b = resolveStartingKit('karung_guni', [], new Rng('s'));
+    expect(a.pack).toEqual(b.pack);
+    expect(a.pools).toEqual([]);
+    const variety = new Set(
+      Array.from({ length: 20 }, (_, i) =>
+        JSON.stringify(resolveStartingKit('karung_guni', [], new Rng(`r${i}`)).pack),
+      ),
+    );
+    expect(variety.size).toBeGreaterThan(1);
+  });
+
+  it('unknown role falls back to survivor', () => {
+    expect(resolveStartingKit('no_such_role', [])).toEqual(resolveStartingKit('survivor', []));
+    expect(resolveStartingKit(undefined, [])).toEqual(resolveStartingKit('survivor', []));
   });
 });

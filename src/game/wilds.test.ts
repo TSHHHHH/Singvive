@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { Rng } from './rng';
 import {
   crossingFightChance,
+  hazardCheckDc,
+  hazardCheckPassChance,
   quietPathAmbush,
+  repriceTrekRisk,
+  rollHazardChecks,
   resolveCrossing,
   riskLabel,
   trekRisk,
@@ -36,7 +40,7 @@ describe('quietPathAmbush', () => {
   });
 });
 
-describe('chosen hazard crossing', () => {
+describe('hazard crossing', () => {
   const hazardRisk = (kind: HazardZone['kind'], severity = 3): TrekRisk => ({
     encounterChance: 1, fightChance: 1, combatDanger: 4,
     hazards: [{ id: 'crossed', kind, severity, lat: 1.3, lng: 103.8, radiusM: 60, discs: [] }],
@@ -49,40 +53,23 @@ describe('chosen hazard crossing', () => {
     expect(resolveCrossing(new Rng(seed), hazardRisk('collapse'), opts).woundHp).toBe(0);
   });
 
-  it('prices checking the route after a cautious choice', () => {
-    const direct = resolveCrossing(new Rng('inspect'), hazardRisk('collapse'), opts);
-    const careful = resolveCrossing(new Rng('inspect'), hazardRisk('collapse'), { ...opts, approach: 'careful' });
-    expect(careful.extraHours).toBeGreaterThan(direct.extraHours);
-  });
-
-  it('cautious crossings reduce the established threat instead of inventing an enemy', () => {
+  it('keeps a crossing threat to the zone that caused it', () => {
     for (const kind of ['gang_patrol', 'horde_pocket', 'night_swarm', 'wildlife_water', 'wildlife_forest', 'wildlife_urban'] as const) {
-      let directFights = 0;
-      let carefulFights = 0;
-      for (let n = 0; n < 200; n++) {
-        const direct = resolveCrossing(new Rng(`choice-${n}`), hazardRisk(kind), opts);
-        const careful = resolveCrossing(new Rng(`choice-${n}`), hazardRisk(kind), { ...opts, approach: 'careful' });
-        if (direct.ambush) directFights++;
-        if (careful.ambush) {
-          carefulFights++;
-          expect(careful.ambush.hazard).toBe(kind);
-        }
+      for (let n = 0; n < 50; n++) {
+        const outcome = resolveCrossing(new Rng(`choice-${n}`), hazardRisk(kind), opts);
+        if (outcome.ambush) expect(outcome.ambush.hazard).toBe(kind);
       }
-      expect(carefulFights).toBeLessThan(directFights);
     }
   });
 
-  it('cautious flood crossings reduce exposure without adding infected encounters', () => {
-    let directExposure = 0;
-    let carefulExposure = 0;
+  it('flood crossings expose the survivor without adding infected encounters', () => {
+    let exposure = 0;
     for (let n = 0; n < 200; n++) {
-      const direct = resolveCrossing(new Rng(`water-${n}`), hazardRisk('floodwater'), opts);
-      const careful = resolveCrossing(new Rng(`water-${n}`), hazardRisk('floodwater'), { ...opts, approach: 'careful' });
-      directExposure += direct.infectionDelta;
-      carefulExposure += careful.infectionDelta;
-      expect(careful.ambush).toBeNull();
+      const outcome = resolveCrossing(new Rng(`water-${n}`), hazardRisk('floodwater'), opts);
+      exposure += outcome.infectionDelta;
+      expect(outcome.ambush).toBeNull();
     }
-    expect(carefulExposure).toBeLessThan(directExposure);
+    expect(exposure).toBeGreaterThan(0);
   });
 });
 
@@ -217,5 +204,110 @@ describe('route fight chance', () => {
   it('counts the floodwater animal and ignores terrain-only hazards', () => {
     expect(crossingFightChance(0.5, [zone('floodwater', 1)], false)).toBeCloseTo(0.55);
     expect(crossingFightChance(0.5, [zone('collapse', 2)], false)).toBe(0);
+  });
+});
+
+describe('hazard checks', () => {
+  const attrs = { strength: 5, dexterity: 5, endurance: 5, perception: 5, wits: 5 };
+  // A 100 m disc centred on (1.3, 103.8).
+  const disc = (id: string, kind: HazardZone['kind'], severity: number): HazardZone => ({
+    id, kind, severity, lat: 1.3, lng: 103.8, radiusM: 100,
+    discs: [{ lat: 1.3, lng: 103.8, radiusM: 100 }],
+  });
+  const inside = { lat: 1.3, lng: 103.8 };
+  const inside2 = { lat: 1.3003, lng: 103.8 };
+  const outside = { lat: 1.31, lng: 103.8 };
+
+  it('scales the DC with severity, eases exits and hardens the swarm', () => {
+    expect(hazardCheckDc({ kind: 'collapse', severity: 1 }, 'cross')).toBe(11);
+    expect(hazardCheckDc({ kind: 'collapse', severity: 3 }, 'cross')).toBe(17);
+    expect(hazardCheckDc({ kind: 'collapse', severity: 3 }, 'exit')).toBe(15);
+    expect(hazardCheckDc({ kind: 'night_swarm', severity: 2 }, 'cross')).toBe(17);
+  });
+
+  it('asks nothing while moving within a zone, an exit check to leave it, a crossing check otherwise', () => {
+    const z = disc('z', 'horde_pocket', 2);
+    expect(rollHazardChecks(new Rng('c'), [z], inside, inside2, attrs, 0)).toEqual([]);
+    expect(rollHazardChecks(new Rng('c'), [z], inside, outside, attrs, 0)[0]?.mode).toBe('exit');
+    expect(rollHazardChecks(new Rng('c'), [z], outside, inside, attrs, 0)[0]?.mode).toBe('cross');
+  });
+
+  it('tests the attribute that fits the zone and counts each zone once', () => {
+    const checks = rollHazardChecks(new Rng('c'), [
+      disc('a', 'collapse', 1), disc('a', 'collapse', 1), disc('b', 'floodwater', 1), disc('c', 'gang_patrol', 1),
+    ], outside, { lat: 1.32, lng: 103.8 }, attrs, 0);
+    expect(checks.map((c) => c.attr)).toEqual(['dexterity', 'endurance', 'wits']);
+  });
+
+  it('passes on a natural 20 and fails on a natural 1 whatever the modifiers', () => {
+    for (let i = 0; i < 300; i++) {
+      const [c] = rollHazardChecks(new Rng(`n-${i}`), [disc('z', 'night_swarm', 3)], outside, inside, attrs, 0);
+      if (c.roll === 20) expect(c.success).toBe(true);
+      const [d] = rollHazardChecks(new Rng(`n-${i}`), [disc('z', 'collapse', 1)], outside, inside,
+        { ...attrs, dexterity: 30 }, 0);
+      if (d.roll === 1) expect(d.success).toBe(false);
+    }
+  });
+
+  it('is deterministic for the same seed', () => {
+    const run = () => rollHazardChecks(new Rng('same'), [disc('z', 'collapse', 2)], outside, inside, attrs, 0);
+    expect(run()).toEqual(run());
+  });
+
+  it('reprices the route without the zones slipped past', () => {
+    const risk = trekRisk('reprice', { lat: 1.3, lng: 103.8 }, { lat: 1.305, lng: 103.8 }, {
+      band: 'day', hordeIntensity: 0, weatherEncounterMod: 0, traitEncounterMod: 0,
+    }, [disc('z', 'horde_pocket', 3)]);
+    const clear = repriceTrekRisk(risk, [], false);
+    expect(clear.hazards).toEqual([]);
+    expect(clear.encounterChance).toBeLessThan(risk.encounterChance);
+    expect(repriceTrekRisk(risk, risk.hazards, false).encounterChance).toBeCloseTo(risk.encounterChance);
+  });
+
+  it('gives the exact d20 pass chance with natural 20 and natural 1', () => {
+    expect(hazardCheckPassChance(5, 17)).toBeCloseTo(9 / 20);
+    expect(hazardCheckPassChance(30, 17)).toBeCloseTo(19 / 20);
+    expect(hazardCheckPassChance(-30, 17)).toBeCloseTo(1 / 20);
+  });
+
+  describe('route label with slip-past checks', () => {
+    const from = { lat: 1.3, lng: 103.79 };
+    const to = { lat: 1.3, lng: 103.81 };
+    const opts = { band: 'day' as const, hordeIntensity: 0, weatherEncounterMod: 0, traitEncounterMod: 0 };
+    const zones = [disc('a', 'horde_pocket', 3), disc('b', 'collapse', 2)];
+    const plain = trekRisk('slip', from, to, opts, zones);
+    const quiet = repriceTrekRisk(plain, [], false).fightChance;
+    const withStats = (attr: number) => trekRisk('slip', from, to,
+      { ...opts, checker: { attributes: { ...attrs, perception: attr, dexterity: attr }, checkBonus: 0 } }, zones);
+
+    it('drops the fight chance toward the quiet road as the checks get easier', () => {
+      expect(withStats(5).fightChance).toBeLessThan(plain.fightChance);
+      expect(withStats(5).fightChance).toBeGreaterThan(quiet);
+      expect(withStats(30).fightChance).toBeLessThan(withStats(5).fightChance);
+      expect(withStats(-30).fightChance).toBeGreaterThan(withStats(5).fightChance);
+    });
+
+    it('keeps everything except the fight chance', () => {
+      const r = withStats(5);
+      expect(r.encounterChance).toBe(plain.encounterChance);
+      expect(r.hazards).toEqual(plain.hazards);
+    });
+
+    it('matches the single-zone weighted outcome', () => {
+      const one = [disc('a', 'horde_pocket', 3)];
+      const caught = trekRisk('slip', from, to, opts, one);
+      const p = hazardCheckPassChance(5, hazardCheckDc(one[0], 'cross'));
+      const r = trekRisk('slip', from, to, { ...opts, checker: { attributes: attrs, checkBonus: 0 } }, one);
+      expect(r.fightChance).toBeCloseTo(p * repriceTrekRisk(caught, [], false).fightChance + (1 - p) * caught.fightChance);
+    });
+
+    it('counts no check for a zone the walk never leaves', () => {
+      const a = { lat: 1.3, lng: 103.8 };
+      const b = { lat: 1.3003, lng: 103.8 };
+      const one = [disc('a', 'horde_pocket', 3)];
+      const inZone = trekRisk('slip', a, b, opts, one);
+      const r = trekRisk('slip', a, b, { ...opts, checker: { attributes: attrs, checkBonus: 0 } }, one);
+      expect(r.fightChance).toBeCloseTo(repriceTrekRisk(inZone, [], false).fightChance);
+    });
   });
 });

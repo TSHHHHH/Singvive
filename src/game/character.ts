@@ -500,9 +500,9 @@ export const TRAITS: Trait[] = [
   {
     id: 'go_bag',
     name: 'Go-Bag',
-    description: 'The emergency bag the pamphlets told everyone to pack. You actually packed it.',
+    description: 'You packed the go-bag the pamphlets asked for. Months on, the big water bottle is all that is left of it.',
     category: 'positive',
-    cost: 2,
+    cost: 1,
     icon: 'trait.go_bag',
     effects: ['Starting gear only'],
     conflicts: [],
@@ -510,9 +510,9 @@ export const TRAITS: Trait[] = [
   {
     id: 'prepper',
     name: 'Prepper',
-    description: 'Your family laughed at the shelf of tins in the storeroom. Nobody is laughing now.',
+    description: 'The shelf of tins in the storeroom got you through the first months. Three are left.',
     category: 'positive',
-    cost: 3,
+    cost: 1,
     icon: 'trait.prepper',
     effects: ['Starting gear only'],
     conflicts: [],
@@ -520,7 +520,7 @@ export const TRAITS: Trait[] = [
   {
     id: 'medicine_cabinet',
     name: 'Medicine Cabinet',
-    description: 'You emptied the bathroom cabinet into your pockets on the way out.',
+    description: 'The bathroom cabinet ran dry weeks ago. You kept the painkillers for last.',
     category: 'positive',
     cost: 1,
     icon: 'trait.medicine_cabinet',
@@ -540,7 +540,7 @@ export const TRAITS: Trait[] = [
   {
     id: 'weekend_cyclist',
     name: 'Weekend Cyclist',
-    description: 'Sunday rides round the island. The bike is gone; the helmet and gloves are not.',
+    description: 'Sunday rides round the island, back when there were Sundays. The bike is long gone; the helmet is not.',
     category: 'positive',
     cost: 1,
     icon: 'trait.weekend_cyclist',
@@ -550,7 +550,7 @@ export const TRAITS: Trait[] = [
   {
     id: 'supper_run',
     name: 'Supper Run',
-    description: 'You were out buying supper when the sirens started. At least you did not drop it.',
+    description: 'Old habit: you still go looking for supper after dark. Tonight it is a strip of bak kwa.',
     category: 'positive',
     cost: 1,
     icon: 'trait.supper_run',
@@ -1064,7 +1064,7 @@ export const TRAITS: Trait[] = [
   {
     id: 'just_popped_out',
     name: 'Just Popped Out',
-    description: 'You only went down for kopi. Flip-flops, a grocery tote, and no jacket.',
+    description: 'Your jacket was torn off you in a crowd months ago. You still walk in flip-flops.',
     category: 'negative',
     cost: -1,
     icon: 'trait.just_popped_out',

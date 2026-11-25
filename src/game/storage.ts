@@ -14,7 +14,6 @@ import type {
   SkillsState,
 } from './types';
 import type { ExploredCircle } from './fog';
-import type { PendingCrossing } from './crossingEvent';
 import type { HdbDungeon } from './hdbDungeon';
 import { migrateHdbDungeon } from './hdbDungeon';
 import type { TunnelRun } from './tunnelRun';
@@ -32,7 +31,7 @@ import {
 import { coerceEquipment } from './inventory';
 import { fullEquipment } from './equipmentSlots';
 import { magazineSizeFor, normalizeAmmoDefId } from './firearms';
-import { itemDefOrNull } from './loot';
+import { ITEMS, itemDefOrNull } from './loot';
 import { migrateBodyParts, migrateMeters } from './survival';
 import { normalizeRunStats } from './stats';
 import { repairUnverifiedSites } from './hdbSites';
@@ -50,8 +49,8 @@ export interface SavedRun {
   locations: Record<string, LocationState>;
   currentPositionId: string | null;
   currentPos: { lat: number; lng: number };
-  /** Departure is paused before spending anything. Older v7 runs have none. */
-  pendingCrossing?: PendingCrossing | null;
+  // Older v7 runs may still carry `pendingCrossing` (the removed departure
+  // decision). Load ignores it: the survivor is still at the departure point.
   equipment: Equipment;
   bodyParts: BodyParts;
   meters: Meters;
@@ -201,6 +200,24 @@ function dropUnknownItems(parsed: SavedRun): void {
   }
 }
 
+// Older v7 saves recorded successful inventory actions as untagged English text.
+const itemNames = new Set(Object.values(ITEMS).map(item => item.name));
+function legacyInventoryReceipt(entry: GameLogEntry): boolean {
+  if (!entry || entry.focus || entry.activityEvent || entry.crossing || entry.loot || entry.leftover) return false;
+  if (entry.tone === 'info') {
+    const drop = /^Dropped (?:\d+× )?(.+)\.$/.exec(entry.text);
+    return !!drop && itemNames.has(drop[1]);
+  }
+  if (entry.tone !== 'good') return false;
+  const equipped = /^Equipped (.+?)(?: \(two-handed\))?\.$/.exec(entry.text);
+  if (equipped) return itemNames.has(equipped[1]);
+  const made = /^Made \d+× (.+?)(?: — no room in the pack, so you carry it loose)?\.$/.exec(entry.text);
+  if (made) return itemNames.has(made[1]);
+  const used = /^(?:Ate|Drank|Had a|Took) (.+?)\. (?:Hunger restored|Thirst quenched|Feeling sharper|Infection pushed back|(?:Hunger|Thirst)(?:, thirst,)? and (?:thirst|energy) restored)\.$/.exec(entry.text);
+  if (used) return itemNames.has(used[1]);
+  return /^Prepared .+ at .+\.$/.test(entry.text);
+}
+
 export function loadRun(): SavedRun | null {
   try {
     const raw = localStorage.getItem(RUN_KEY);
@@ -265,7 +282,7 @@ export function loadRun(): SavedRun | null {
     parsed.stats = normalizeRunStats(
       parsed.stats ?? { zombieKills: parsed.kills ?? 0 },
     );
-    if (!parsed.log) parsed.log = [];
+    parsed.log = (parsed.log ?? []).filter(entry => !legacyInventoryReceipt(entry));
     parsed.meters = migrateMeters(parsed.meters as Meters & { health?: number });
     parsed.bodyParts = migrateBodyParts(parsed.bodyParts, parsed.maxHp ?? 84);
     // Must run before anything that dereferences an item definition.

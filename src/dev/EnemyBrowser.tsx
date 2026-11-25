@@ -19,6 +19,7 @@ import {
   ELITE_IDS,
   FACTION_KEYS,
   HUMAN_SCALING_KEYS,
+  DEFAULT_UNARMED_MULT,
   LONER_KINDS,
   resolveHuman,
 } from '../game/enemies';
@@ -1174,6 +1175,7 @@ export function DevEnemyBrowser() {
                             <NumField label="Damage" value={z.damage} onChange={(damage) => updateZombie(z.id, { damage })} />
                             <NumField label="Infectious" value={z.infectious} step={0.05} min={0} max={1} onChange={(infectious) => updateZombie(z.id, { infectious })} />
                             <NumField label="Armor" value={z.armor} onChange={(armor) => updateZombie(z.id, { armor })} />
+                            <NumField label="Unarmed ×" step={0.05} min={0} max={1} value={z.unarmedMult ?? DEFAULT_UNARMED_MULT} onChange={(unarmedMult) => ((p) => updateZombie(z.id, p))({ unarmedMult })} />
                             <NumField label="Speed" value={z.speed} onChange={(speed) => updateZombie(z.id, { speed })} />
                             <RangeField label="HP jitter" value={z.hpJitter} onChange={(hpJitter) => updateZombie(z.id, { hpJitter })} />
                           </StatGrid>
@@ -1207,6 +1209,7 @@ export function DevEnemyBrowser() {
                             <NumField label="Damage" value={e.damage} onChange={(damage) => updateElite(e.id, { damage })} />
                             <NumField label="Infectious" value={e.infectious} step={0.05} min={0} max={1} onChange={(infectious) => updateElite(e.id, { infectious })} />
                             <NumField label="Armor" value={e.armor} onChange={(armor) => updateElite(e.id, { armor })} />
+                            <NumField label="Unarmed ×" step={0.05} min={0} max={1} value={e.unarmedMult ?? DEFAULT_UNARMED_MULT} onChange={(unarmedMult) => ((p) => updateElite(e.id, p))({ unarmedMult })} />
                             <NumField label="Speed" value={e.speed} onChange={(speed) => updateElite(e.id, { speed })} />
                             <RangeField label="HP jitter" value={e.hpJitter} onChange={(hpJitter) => updateElite(e.id, { hpJitter })} />
                           </StatGrid>
@@ -1313,6 +1316,14 @@ export function DevEnemyBrowser() {
                       <HumanScalingFields
                         value={catalog.humanDefaults}
                         onChange={updateHumanDefaults}
+                      />
+                      <NumField
+                        label="Unarmed ×"
+                        step={0.05}
+                        min={0}
+                        max={1}
+                        value={catalog.humanDefaults.unarmedMult ?? DEFAULT_UNARMED_MULT}
+                        onChange={(unarmedMult) => updateHumanDefaults({ unarmedMult })}
                       />
                     </>
                   )}
@@ -1429,6 +1440,7 @@ export function DevEnemyBrowser() {
                           />
                           <StatGrid>
                             <NumField label="Armor" value={l.armor} onChange={(armor) => updateLoner(humanSel.id, { armor })} />
+                            <NumField label="Unarmed ×" step={0.05} min={0} max={1} value={l.unarmedMult ?? DEFAULT_UNARMED_MULT} onChange={(unarmedMult) => ((p) => updateLoner(humanSel.id, p))({ unarmedMult })} />
                             <NumField label="Speed" value={l.speed} onChange={(speed) => updateLoner(humanSel.id, { speed })} />
                             <NumField label="Base HP" value={l.baseHp} onChange={(baseHp) => updateLoner(humanSel.id, { baseHp })} />
                             <NumField label="HP / danger" value={l.hpPerDanger} onChange={(hpPerDanger) => updateLoner(humanSel.id, { hpPerDanger })} />
@@ -1536,6 +1548,7 @@ export function DevEnemyBrowser() {
                           <NumField label="Damage" value={a.damage} onChange={(damage) => updateAnimal(a.id, { damage })} />
                           <NumField label="Infectious" value={a.infectious} step={0.05} min={0} max={1} onChange={(infectious) => updateAnimal(a.id, { infectious })} />
                           <NumField label="Armor" value={a.armor} onChange={(armor) => updateAnimal(a.id, { armor })} />
+                          <NumField label="Unarmed ×" step={0.05} min={0} max={1} value={a.unarmedMult ?? DEFAULT_UNARMED_MULT} onChange={(unarmedMult) => ((p) => updateAnimal(a.id, p))({ unarmedMult })} />
                           <NumField label="Speed" value={a.speed} onChange={(speed) => updateAnimal(a.id, { speed })} />
                           <NumField label="Weight" value={a.weight} min={1} onChange={(weight) => updateAnimal(a.id, { weight })} />
                           <RangeField label="HP jitter" value={a.hpJitter} onChange={(hpJitter) => updateAnimal(a.id, { hpJitter })} />

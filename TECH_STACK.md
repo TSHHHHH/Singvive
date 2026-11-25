@@ -257,11 +257,10 @@ automatic overrun ending and geographic front no longer drive gameplay.
 with a straight-route scan and at most three deterministic A* detours. Interactive map routing
 retains its wall-clock budget. `evacContacted` replaces the runtime cargo quota; legacy quota
 fields remain readable in v7 but are ignored. Objectives reuses camera focus, not movement.
-`crossingEvent.ts` defines the departure choice and language-neutral timeline metadata. The
-store pauses travel before costs and saves a small `pendingCrossing` summary, never zone geometry.
-During an accepted crossing's glide, debounced/flush saves use the unchanged departure snapshot;
-arrival clears it and commits position and consequences together. Reload mid-glide returns to
-the same unpaid choice with seeded outcomes. The v7 key and five-second debounce are unchanged.
+`crossingEvent.ts` holds the language-neutral timeline metadata for crossings. The store rolls
+the slip-past checks (`rollHazardChecks`) and crosses the caught zones at once; there is no
+departure decision. Older v7 saves may still carry a `pendingCrossing` field, which load ignores.
+The v7 key and five-second debounce are unchanged.
 
 **Desktop HUD (`lg:` and up).** The survivor rail defaults to 384px (360px below a
 1440px viewport). Players can drag its right edge or focus the separator and use arrow
@@ -423,7 +422,7 @@ Deep-links still work via `src/dev/devBridge.ts` (`openLootItem`, `openEnemyEdit
 - Keyboard: `Ctrl/Cmd+S` save, `Esc` dismiss/close, `↑/↓` move the list
 - Duplicate item, side-by-side compare, where-used (loot tables / recipes / factions / starting)
 - Filters: exotic, starting, missing art; sort + group-by-kind
-- `ItemDef.startingItem` (+ optional `startingCount`) drives run-start gear in `store.ts`
+- `ItemDef.startingItem` (+ optional `startingCount`) defines the Classic Survivor kit; other roles define `kit` in `occupations.ts`. Run start calls `resolveStartingKit(occupationId, traitIds, rng)` (`startingKit.ts`)
 - Bags: in-item **bag-grid editor** (`packGrid` silhouette + blocked cells)
 - Tables editor: scarcity-aware effective %, sort, badges, weight bars, ± steppers, normalize, duplicate category, drag reorder, craft-only / no-common warnings, only-in-table, diff-before-save, roll simulator + richness, jump-to-item
 - Recipes editor: combination builder (search-add ingredients with kind filter + keyboard), output, optional tool, field vs shelter, hours, economy strip (value/weight/evac Δ), source badges, soft warnings, sandbox pack + Handyman, workbench preview + read-only repair, chain/cousin links, overview table, compare, family duplicate (swap one input), reorder, dirty-nav, jump-to-item; drafts stay mounted across Items/Tables tabs; item where-used reads the live recipe draft
@@ -677,13 +676,34 @@ manual, committed, never part of `npm run build`. Pass `--local` to skip
 Overpass and write committed fallbacks only (useful when the public Overpass
 mirrors are rate-limiting).
 
-Narrow pedestrian crossings are committed separately in `src/game/crossings.ts`, starting with the
-Sentosa Gateway footpath (OpenStreetMap geometry, with source way links). Their narrow deck corridors
-override water in `playable.ts`; country bounds and restricted zones still win. `route.ts` adds the
-crossing vertices and exact trek endpoints to the existing 100 m A* grid, connecting to land at the
-shore approaches under the same 8 ms / 8,000-expansion budget. This avoids missing a bridge between
+Bridge decks live in the same file as `crossings`, written by a second manual step:
+
+```bash
+npm run bake:crossings   # run after bake:zones; bake:zones keeps the committed list
+```
+
+It fetches every OSM `highway` + `bridge` way (tiled Overpass), stitches ways that meet end to end,
+keeps only decks that cross masked water (sea or a `water` ring), pushes wet ends along their
+heading until they reach dry ground (≤ 80 m), and stores each as `{ id, halfWidthM, points }`
+(half-width from the highway class, 5–12 m). Decks with no dry vertex (Johor, offshore piers) are
+dropped; the current bake keeps ~1,200 decks (~127 KB). Overpass tiles are cached in the OS temp dir
+(`--fresh` refetches), so a 502 midway only costs the failed tile. `src/game/crossings.ts` merges them with the hand-placed
+`MANUAL_CROSSINGS` (Sentosa Gateway footpath) when `installZones` runs, in a ~220 m grid index.
+Deck corridors override water in `playable.ts`; country bounds and restricted zones still win (the
+Causeway and Second Link stay closed). `route.ts` adds the deck vertices in the A* corridor and
+exact trek endpoints to the existing 100 m A* grid under the same 8 ms / 8,000-expansion budget.
+No deck link is validated up front: deck segments, deck-end ↔ grid links and joins are tested
+lazily when the search reaches them, and deck ends within 30 m join each other (T-junctions). Grid
+edges use the fine 10 m chord step only where they actually meet a deck capsule. A trek that
+starts or ends mid-span links to that segment's two vertices. This avoids missing a bridge between
 grid cells. Route simplification preserves crossing vertices, and memo keys retain exact endpoints
 so a nearby sea click cannot reuse a deck route. No runtime map request or save migration is needed.
+
+The water tint clears decks in `src/map/crossingGeometry.ts`. polygon-clipping throws on an
+island-wide union of every deck, so each deck is unioned on its own, each water polygon is clipped
+only by the decks over its bounding box, and a clip that throws is bisected (a single failing deck
+stays tinted, never a crash). The ~300 ms cut runs in `requestIdleCallback` from
+`UnplayableOverlay`; the plain tint shows first.
 Regression tests use the committed `public/zones.json` for both directions and mid-crossing treks.
 The spawn terrain wash subtracts those same deck corridors from sea and inland-water tint through
 `src/map/crossingGeometry.ts`, so the map does not paint a traversable bridge as blocked water.

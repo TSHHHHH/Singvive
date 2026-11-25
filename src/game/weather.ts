@@ -56,14 +56,19 @@ export function weatherTravelMult(kind: WeatherKind): number {
 /**
  * Multiplier on passive thirst and energy drain. This is the heat wave's real
  * bite: the clock costs you water roughly twice as fast, so a long trek without
- * a drink in the pack is what actually kills you.
+ * a drink in the pack is what actually kills you. Haze bites harder still:
+ * every breath of smoke dries the throat and leaves the legs heavy.
  */
 export function weatherThirstMult(kind: WeatherKind): number {
-  return kind === 'heat' ? 1.9 : 1;
+  if (kind === 'haze') return 2.1;
+  if (kind === 'heat') return 1.9;
+  return 1;
 }
 
 export function weatherEnergyMult(kind: WeatherKind): number {
-  return kind === 'heat' ? 1.25 : 1;
+  if (kind === 'haze') return 1.4;
+  if (kind === 'heat') return 1.25;
+  return 1;
 }
 
 /**

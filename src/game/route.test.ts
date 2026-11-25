@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ZonesData, ZoneRing } from './playable';
 import type { LandRoute, LatLng } from './route';
-import { LAND_CROSSINGS } from './crossings';
+import { MANUAL_CROSSINGS } from './crossings';
 import { inPolygon } from './singapore';
 
 const bakedZones = JSON.parse(readFileSync('public/zones.json', 'utf8')) as ZonesData;
@@ -40,7 +40,7 @@ describe('Sentosa pedestrian crossing against the committed mask', () => {
     expect(walkabilityOf(deck.lat, deck.lng)).toBe('ok');
     expect(walkabilityOf(deck.lat, deck.lng - 0.0004)).toBe('water');
     expect(walkabilityOf(deck.lat, deck.lng + 0.0004)).toBe('water');
-    const points = LAND_CROSSINGS[0].points;
+    const points = MANUAL_CROSSINGS[0].points;
     for (const p of [points[0], points[points.length - 1]]) {
       expect(bakedZones.land.some((ring) => inPolygon(p.lat, p.lng, ring))).toBe(true);
     }
@@ -68,7 +68,8 @@ describe('Sentosa pedestrian crossing against the committed mask', () => {
 
   it('does not reuse a deck route for water in the old 50 m memo bucket', async () => {
     const { routeLandPath, walkabilityOf } = await loadZones();
-    const water = { lat: deck.lat, lng: deck.lng + 0.00015 };
+    // East of the boardwalk is now the baked Sentosa Gateway road deck.
+    const water = { lat: deck.lat, lng: deck.lng - 0.0002 };
     expect(walkabilityOf(water.lat, water.lng)).toBe('water');
     expect(routeLandPath(mainland, deck)).not.toBeNull();
     expect(routeLandPath(mainland, water)).toBeNull();
@@ -101,6 +102,51 @@ describe('bounded land routing', () => {
       land: [rectangle(1.30, 103.80, 1.305, 103.805), rectangle(1.31, 103.80, 1.315, 103.805)],
     });
     expect(routeLandPath({ lat: 1.302, lng: 103.802 }, { lat: 1.312, lng: 103.802 })).toBeNull();
+  });
+
+  it('crosses a river on a baked bridge deck, and only on the deck', async () => {
+    // A 300 m river across the whole land block; one footbridge spans it.
+    const fixture: ZonesData = {
+      generated: 'fixture', restricted: [], vegetation: [],
+      land: [rectangle(1.30, 103.80, 1.32, 103.82)],
+      water: [rectangle(1.3085, 103.79, 1.3115, 103.83)],
+      crossings: [{ id: 1, halfWidthM: 5, points: [[1.3080, 103.8121], [1.3120, 103.8121]] }],
+    };
+    const { routeLandPath, samplePolyline, isWalkable, walkabilityOf } = await loadZones(fixture);
+    expect(walkabilityOf(1.31, 103.8121)).toBe('ok');
+    expect(walkabilityOf(1.31, 103.8125)).toBe('water');
+    const from = { lat: 1.304, lng: 103.805 };
+    const to = { lat: 1.316, lng: 103.806 };
+    const route = routeLandPath(from, to);
+    expect(route).not.toBeNull();
+    expect(samplePolyline(route!.points, 5).every((p) => isWalkable(p.lat, p.lng))).toBe(true);
+    // Mid-span start reaches both banks.
+    const midSpan = { lat: 1.3101, lng: 103.81212 };
+    expect(routeLandPath(midSpan, from)).not.toBeNull();
+    expect(routeLandPath(to, midSpan)).not.toBeNull();
+  });
+
+  it('crosses the Singapore River on a committed baked bridge', async () => {
+    // North bank to south bank near Coleman Bridge; the straight line is wet.
+    const north = { lat: 1.2900, lng: 103.8460 };
+    const south = { lat: 1.2885, lng: 103.8470 };
+    const baked = await loadZones();
+    expect(baked.pathCrossesUnplayable(north, south)).toBe(true);
+    const route = baked.routeLandPath(north, south, { deterministic: true });
+    expect(route).not.toBeNull();
+    expect(baked.samplePolyline(route!.points, 5).every((p) => baked.isWalkable(p.lat, p.lng))).toBe(true);
+    vi.resetModules();
+    const bare = await loadZones({ ...bakedZones, crossings: [] });
+    expect(bare.routeLandPath(north, south, { deterministic: true })).toBeNull();
+  });
+
+  it('keeps the river closed when the bake has no crossings', async () => {
+    const { routeLandPath } = await loadZones({
+      generated: 'fixture', restricted: [], vegetation: [],
+      land: [rectangle(1.30, 103.80, 1.32, 103.82)],
+      water: [rectangle(1.3085, 103.79, 1.3115, 103.83)],
+    });
+    expect(routeLandPath({ lat: 1.304, lng: 103.805 }, { lat: 1.316, lng: 103.806 })).toBeNull();
   });
 
   it('does not simplify a detour through blocked water', async () => {

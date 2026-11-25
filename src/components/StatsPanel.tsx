@@ -9,10 +9,6 @@ import { StatCard } from './statFold';
 import { traitHoverText, traitName, useT } from '../i18n';
 import { tip } from './tips';
 
-function sameTraits(a: string[], b: string[]): boolean {
-  return a.length === b.length && a.every((id) => b.includes(id));
-}
-
 /**
  * Who they are (traits) above live derived stats (sheet cards) and what
  * they've done (counters that only ever go up). Compact combat/mobility
@@ -27,8 +23,6 @@ export function StatsPanel() {
   const occupation = character?.occupationId
     ? getOccupation(character.occupationId)
     : null;
-  const occupationMatches =
-    occupation != null && sameTraits(character!.traitIds, occupation.traitIds);
 
   return (
     <div className="flex flex-col gap-3">
@@ -41,9 +35,9 @@ export function StatsPanel() {
             <span className="truncate text-read font-bold text-signal">{character.name}</span>
             <span className="shrink-0 text-body text-white/40">{t('ui.stats.day', { day })}</span>
           </div>
-          {occupationMatches && occupation && (
+          {occupation && (
             <div className="mt-0.5 text-plate uppercase text-white/40">
-              {occupation.name}
+              {t(`occupation.${occupation.id}.name`)}
             </div>
           )}
           {traits.length > 0 && (

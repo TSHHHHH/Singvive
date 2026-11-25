@@ -1,3 +1,4 @@
+import { DISTURBANCE_SPEC } from './disturbance';
 import type { Attributes, LocationState, PoiCategory } from './types';
 import type { Rng } from './rng';
 import type { IconName } from '../icons/keys';
@@ -2049,8 +2050,8 @@ export const ROOM_EVENTS = {
     /** Heat the alarm throws on its landing; it carries like a forced door. */
     heat: 35,
     /** Street noise when it goes off (metres) and the danger it leaves. */
-    noise: 420,
-    dangerBoost: 2,
+    noise: DISTURBANCE_SPEC.hdb_alarm.radiusM,
+    dangerBoost: DISTURBANCE_SPEC.hdb_alarm.danger,
     /** Someone guarded what is inside. Applies whether it rang or not. */
     lootMod: 1,
     /** Cutting it: d20 + Wits (+ trades pick mods) vs DC. */
