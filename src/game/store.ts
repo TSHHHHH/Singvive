@@ -159,6 +159,7 @@ import {
   type LoadEffects,
   newUid,
   preparedEffect,
+  prepOf,
   OWN_CLOTHES_TEARS,
   TEAR_CONDITION_COST,
   TEAR_HOURS,
@@ -197,7 +198,7 @@ import {
   REPAIR_HOURS,
   REPAIR_INPUTS,
   REPAIR_TOOL,
-  DIRTY_WATER_DRINK_INFECTION,
+  craftedPrep,
   recipeInputs,
   type CraftContext,
 } from './crafting';
@@ -2346,8 +2347,7 @@ export const useGame = create<State>((set, get) => {
       inst.defId,
       inst.stack,
       inst.condition,
-      inst.contaminationRisk,
-      inst.coldPrepared,
+      prepOf(inst),
     );
     return { items: carried.items, loose: carried.loose > 0, defId: inst.defId, count: inst.stack };
   };
@@ -6412,17 +6412,7 @@ export const useGame = create<State>((set, get) => {
           ...current.facilities, water: { ...water, amount: water.amount - recipe.waterInput },
         } } } });
       }
-      const contaminated =
-        (inputs.dirty_water ?? 0) > 0 && recipe.preparation === 'drink' && mode === 'room'
-          ? DIRTY_WATER_DRINK_INFECTION : undefined;
-      const made = addToCarry(
-        items,
-        recipe.outputDefId,
-        recipe.outputCount,
-        undefined,
-        contaminated,
-        recipe.preparation === 'drink' && mode === 'room',
-      );
+      const made = addToCarry(items, recipe.outputDefId, recipe.outputCount, undefined, craftedPrep(recipe, inputs, context));
       set({ items: made.items });
       applyPracticeXp('trades', PRACTICE_XP.craft);
       persist();
@@ -8165,7 +8155,7 @@ export const useGame = create<State>((set, get) => {
         if (orphans.length > 0) {
           let items = s.items.filter((i) => !i.container.startsWith('search:'));
           for (const inst of orphans) {
-            items = addToCarry(items, inst.defId, inst.stack, inst.condition, inst.contaminationRisk, inst.coldPrepared).items;
+            items = addToCarry(items, inst.defId, inst.stack, inst.condition, prepOf(inst)).items;
           }
           set({ items });
         }

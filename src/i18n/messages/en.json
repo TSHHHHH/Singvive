@@ -794,6 +794,14 @@
       "made": "Made {n}× {name}",
       "unsafeWater": "Uses murky water. Drinking this adds {n} infection.",
       "tearRemaining": "{n} uses left",
+      "muddyPenalty": "Murky water · all restores halved, hydration included",
+      "madeAs": {
+        "hot": "Hot {name}",
+        "hotMuddy": "Hot Muddy {name}",
+        "room": "Room-temp {name}",
+        "roomMuddy": "Room-temp Muddy {name}",
+        "muddy": "Muddy {name}"
+      },
       "categories": {
         "all": "All categories",
         "medical": "Medical",

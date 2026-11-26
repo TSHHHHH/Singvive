@@ -3,7 +3,7 @@ import type { ItemInstance } from '../../game/types';
 import { LOOSE_WEIGHT_MULT } from '../../game/inventory';
 import { conditionBarColor, tileColor, ITEM_TILE_COLORS } from '../../game/itemTileColor';
 import { Icon } from '../../icons/Icon';
-import { itemName, useLocale, useT } from '../../i18n';
+import { instanceName, useLocale, useT } from '../../i18n';
 import { itemIcon } from './itemIcon';
 import { tip } from '../tips';
 import {
@@ -123,7 +123,7 @@ export function CarriedList({
   };
 
   const rows = useMemo(
-    () => carriedRows(items, 0, (id) => itemName(id, locale)).filter((r) => !r.packed),
+    () => carriedRows(items, 0, (_id, inst) => instanceName(inst, locale)).filter((r) => !r.packed),
     [items, locale],
   );
   const chips = useMemo(() => kindCounts(rows), [rows]);
