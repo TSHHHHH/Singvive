@@ -28,6 +28,7 @@ Overlay catalog: `src/i18n/messages/zh-Hans.json` (English source of truth: `en.
 | The 88 Tong / 88 Tong (`syndicate_88`) | 双八堂 | Secret-society 堂口 |
 | The Circle (`sta`) | 环线同盟 / 环线 | League of MRT stations; lines/stations prefer 地铁 |
 | auntie | 阿姨 | Never raw English |
+| kopi / teh drinks | 咖啡乌 · 咖啡西 · 茶乌 · 少甜 · 厚 · 薄 · 无糖 · 滴罗 | Kopitiam names, not descriptions (Kopi-O = 咖啡乌, not 黑咖啡加糖) |
 | bird (evac aircraft) | 班机 / 直升机 by context | |
 | surroundings / HDB heat bands | 安静 / 骚动 / 惊醒 / 猎杀 / 蜂拥 | Same words in the HUD chip, HDB heat bar and the guide |
 | loose (carried outside the bag) | 散装携带 | |
