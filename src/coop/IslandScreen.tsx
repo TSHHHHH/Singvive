@@ -5,7 +5,7 @@ import { DEFAULT_OCCUPATION_ID, OCCUPATIONS } from '../game/occupations';
 import { ITEMS } from '../game/loot';
 import { RECIPES } from '../game/crafting';
 import { BODY_PART_IDS, totalHp, totalMaxHp } from '../game/survival';
-import { SKILL_IDS, XP_TO_NEXT } from '../game/skills';
+import { SKILL_IDS, SKILLS_ENABLED, XP_TO_NEXT } from '../game/skills';
 import { careForItem } from '../game/woundCare';
 import type { BodyPartId, EquipSlot, ItemInstance } from '../game/types';
 import { medicalCount } from './expeditionSurvivor';
@@ -19,8 +19,9 @@ import IslandMap from './IslandMap';
 const PANEL = 'border border-white/15 bg-concrete-900';
 const SELECT = 'min-h-11 w-full rounded-sm border border-white/20 bg-concrete-950 px-3 py-2 text-read text-signal outline-none focus:border-signal';
 const STANCES = ['guarded', 'aggressive', 'precision'] as const;
-const TABS = ['site', 'pack', 'body', 'craft', 'skills'] as const;
-type Tab = typeof TABS[number];
+const ALL_TABS = ['site', 'pack', 'body', 'craft', 'skills'] as const;
+type Tab = typeof ALL_TABS[number];
+const TABS: readonly Tab[] = ALL_TABS.filter(value => SKILLS_ENABLED || value !== 'skills');
 type Send = (command: Command) => boolean;
 interface Props {
   room: RoomState;
@@ -241,7 +242,7 @@ export default function IslandScreen({ room, me, state, client, credentials, onL
         <div className="mt-2 flex flex-wrap justify-between gap-2 text-body text-white/35"><p>{t('ui.coopIsland.mapHint')}</p><p>{t('ui.coopIsland.discovered', { count: Object.keys(world.locations).length })} · {t(`ui.weather.${world.weather}`)}</p></div>
       </div>
       <aside className={`${PANEL} min-w-0 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:max-h-[calc(100dvh-11rem)] lg:overflow-y-auto`}>
-        <nav className="sticky top-0 z-10 grid grid-cols-5 border-b border-white/15 bg-concrete-900" aria-label={t('ui.coopIsland.panelNav')}>{TABS.map(value => <button key={value} type="button" aria-pressed={tab === value} onClick={() => setTab(value)} className={`min-h-12 border-b-2 px-1 py-3 text-body ${tab === value ? 'border-astral bg-astral/5 text-signal' : 'border-transparent text-white/45 hover:text-white'}`}>{t(`ui.coopIsland.tabs.${value}`)}</button>)}</nav>
+        <nav className={`sticky top-0 z-10 grid ${SKILLS_ENABLED ? 'grid-cols-5' : 'grid-cols-4'} border-b border-white/15 bg-concrete-900`} aria-label={t('ui.coopIsland.panelNav')}>{TABS.map(value => <button key={value} type="button" aria-pressed={tab === value} onClick={() => setTab(value)} className={`min-h-12 border-b-2 px-1 py-3 text-body ${tab === value ? 'border-astral bg-astral/5 text-signal' : 'border-transparent text-white/45 hover:text-white'}`}>{t(`ui.coopIsland.tabs.${value}`)}</button>)}</nav>
         {tab === 'site' ? <SitePanel room={room} me={me} selected={selected} ground={ground} active={active} idle={idle} send={client.send} onCurrent={() => select(me.site)} /> : tab === 'pack' ? <PackPanel room={room} me={me} idle={idle} send={client.send} /> : tab === 'body' ? <BodyPanel me={me} onPack={() => setTab('pack')} /> : tab === 'craft' ? <CraftPanel idle={idle && !(room.sites[me.site]?.enemyHp ?? 0)} send={client.send} /> : <SkillPanel me={me} />}
       </aside>
       <div className="min-w-0 lg:col-start-1 lg:row-start-2"><Squad room={room} me={me} onSelect={select} /></div>

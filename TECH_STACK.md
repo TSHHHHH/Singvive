@@ -276,7 +276,8 @@ the top of the scrolling content. Body and Backpack start open together, each wi
 compact clickable heading and its own collapse control; Backpack omits cell counts.
 The footer groups 2D/3D as a view selector and keeps the rail overlay as an independent
 toggle. Body shows limbs and attributes; the compact tool
-row opens Stash, Craft or More (Logbook, Stats, Skills, Timeline, Day logs and Settings).
+row opens Stash, Craft or More (Logbook, Stats, Skills, Timeline, Day logs and Settings; Skills is
+hidden while `SKILLS_ENABLED` is off).
 Stash automatically reveals the backpack beside the equipment/stash slide-out. Closing
 Stash or switching to Craft keeps the backpack open; collapsing a section leaves the
 slide-out open. Bleeding/infection share one clickable summary, and a heavy-load warning
@@ -296,8 +297,9 @@ An `ActivityBadge` beside weather shows Quiet / Stirred / Hunting and opens the 
 control and neighbourhood status wash are removed. A pinned map footer holds the 3D and Rail map toggles.
 The phone keeps those toggles on the map, `showModeToggles`), with panels in the slide-out beside it; the map fills the rest. The rail, slide-out
 and phone tabs share the existing shell; the timeline column renders only below `lg`. Hotkeys `1`–`9`
-follow `RAIL_KEYS` in `GameScreen.tsx` (objective, stash, craft, logbook, stats, skills, timeline
-pin, day logs, settings) and stand down under `isModalOpen()`, text focus and the contact gate;
+follow `RAIL_KEYS_SHOWN` in `GameScreen.tsx` (objective, stash, craft, logbook, stats, skills, timeline
+pin, day logs, settings; skills drops out, and later keys move up one, while `SKILLS_ENABLED` in
+`src/game/featureFlags.ts` is off) and stand down under `isModalOpen()`, text focus and the contact gate;
 `Esc` closes the slide-out. Location actions shift past an open slide-out and remain
 clickable. Craft widens only into spare space (360–640 px); on narrower desktops, pinned
 idle history temporarily becomes a ticker to make room, preserving its pin preference.

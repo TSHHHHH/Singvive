@@ -24,7 +24,7 @@ import {
 import { URBAN_DECAY_DETOUR, walkSpeed } from '../game/travel';
 import { weatherEnergyMult, weatherThirstMult } from '../game/weather';
 import {
-  emptySkillDayXp, gainSkillXp, PRACTICE_XP, skillMods, skillsFromTraits, traitSkillXpMult,
+  emptySkillDayXp, gainSkillXp, PRACTICE_XP, skillMods, skillsFromTraits, SKILLS_ENABLED, traitSkillXpMult, emptySkills,
 } from '../game/skills';
 import {
   applyCare, canCareWithItem, careForItem, CARE_MINUTES, chooseCareTarget,
@@ -110,7 +110,7 @@ export function createExpeditionSurvivor(
   };
   const s: ExpeditionSurvivor = {
     character, meters: initialMeters(), bodyParts: initialBodyParts(maxHpFor(character)),
-    items: [], equipment: emptyEquipment(), skills: skillsFromTraits(character.traitIds),
+    items: [], equipment: emptyEquipment(), skills: SKILLS_ENABLED ? skillsFromTraits(character.traitIds) : emptySkills(),
     skillDayXp: emptySkillDayXp(), elapsedHours: 0, tickRemainder: 0, craftSerial: 0,
   };
   // Solo rounds each limb independently; assign its rounding remainder to the
@@ -157,6 +157,7 @@ export function addExpeditionItem(s: ExpeditionSurvivor, item: ItemInstance): st
 export function expeditionHp(s: ExpeditionSurvivor): number { return totalHp(s.bodyParts); }
 
 export function practiceExpedition(s: ExpeditionSurvivor, skill: SkillId, amount: number): void {
+  if (!SKILLS_ENABLED) return;
   const gain = gainSkillXp(s.skills, s.skillDayXp, 1 + Math.floor((s.elapsedHours ?? 0) / 24), skill, amount,
     { xpMult: traitSkillXpMult(s.character.traitIds, skill) });
   s.skills = gain.skills;

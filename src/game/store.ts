@@ -62,6 +62,7 @@ import {
   SKILL_LABELS,
   traitSkillXpMult,
   type SkillId,
+  SKILLS_ENABLED,
 } from './skills';
 import { fetchOsmPois, haversine, type RawPoi } from './overpass';
 import { bakedEvacPois, bakedPoisNear, ensurePoiOutlines } from './bakedPois';
@@ -1026,7 +1027,7 @@ export const useGame = create<State>((set, get) => {
   /** Practice XP from a meaningful action (books use applySkillBook instead). */
   const applyPracticeXp = (skill: SkillId, amount: number, fractional = false) => {
     const st = get();
-    if (!st.character || amount <= 0) return;
+    if (!SKILLS_ENABLED || !st.character || amount <= 0) return;
     const r = gainSkillXp(st.skills, st.skillDayXp, st.day, skill, amount, {
       xpMult: traitSkillXpMult(st.character.traitIds, skill),
       fractional,
@@ -4046,7 +4047,7 @@ export const useGame = create<State>((set, get) => {
         clothingTears: OWN_CLOTHES_TEARS,
         kills: 0,
         stats: emptyRunStats(),
-        skills: skillsFromTraits(c.traitIds),
+        skills: SKILLS_ENABLED ? skillsFromTraits(c.traitIds) : emptySkills(),
         skillDayXp: emptySkillDayXp(1),
         log: [],
       });
@@ -6096,6 +6097,11 @@ export const useGame = create<State>((set, get) => {
         }
         case 'skillBook': {
           const book = effect;
+          if (!SKILLS_ENABLED) {
+            // Skills are switched off: a book carried over from an old save stays unread.
+            pushLog(def.name + ' has nothing useful for you right now.', 'info');
+            break;
+          }
           const result = applySkillBook(s.skills, book.skill, book.tier);
           if (!result.ok) {
             pushLog(
@@ -8088,7 +8094,10 @@ export const useGame = create<State>((set, get) => {
         clothingTears: run.clothingTears ?? OWN_CLOTHES_TEARS,
         kills: run.kills,
         stats: normalizeRunStats(run.stats),
-        skills: run.skills ?? skillsFromTraits(run.character.traitIds),
+        // With skills off, levels from an older save reset to 0 so they add nothing.
+        skills: SKILLS_ENABLED
+          ? (run.skills ?? skillsFromTraits(run.character.traitIds))
+          : emptySkills(),
         skillDayXp: run.skillDayXp ?? emptySkillDayXp(run.day),
         usedFallback: run.usedFallback,
         exploredArea: mergeExploredCircles(run.exploredArea ?? []),

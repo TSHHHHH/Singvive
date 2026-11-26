@@ -451,7 +451,15 @@ ground for rest; landmarks are not selected as guaranteed indoor spawn shelters.
   factions, chosen deterministically from the run's existing outposts. Grants map knowledge only,
   with no standing bonus. If fewer than two factions have hubs, reveal only those available.
 
-### 3.2b Skills (in-run, passive)
+### 3.2b Skills (in-run, passive) — switched off
+
+> **Currently disabled** (`SKILLS_ENABLED = false` in `src/game/featureFlags.ts`). The layer
+> added little to a run and pushed play towards grinding XP. While off: every survivor stays at
+> level 0 in every skill (so skills add no mods), practice and books grant no XP, skill books
+> are filtered out of the loot tables, and the Skills panel, create-screen preview, guide page
+> and co-op Skills tab are hidden. Traits keep their own `*Mod` fields, so they still work;
+> their `skillStart` / `skillXpMult` values do nothing. The rules below describe the layer for
+> when it is switched back on.
 
 - Seven **passive** skills sit between traits and mechanical mods: Fighting, Shooting,
   Fitness, Scavenging, Medicine, Trades, Stealth. Levels run **0–5** and **die with the run**.

@@ -7,6 +7,7 @@ import { vegetationCost } from './vegetation';
 import { resolveCrossing } from './wilds';
 import { surfaceTravelProfile } from './travelEnergy';
 import type { LocationState } from './types';
+import { SKILLS_ENABLED } from './featureFlags';
 
 // Control route geometry and encounters; keep the store, clock, meters and costs real.
 vi.mock('./route', async (original) => ({ ...await original<typeof import('./route')>(), routeLandPath: vi.fn() }));
@@ -52,8 +53,12 @@ describe.each(['travel', 'trek'] as const)('%s surface energy', (mode) => {
     expect(after.travelAnim).not.toBeNull();
     expect(after.hour).toBeGreaterThan(8);
     expect(after.meters.thirst).toBeLessThan(50);
-    expect(after.skills.fitness.xp).toBeGreaterThan(0);
-    expect(after.skills.fitness.xp).toBeLessThan(0.1);
+    if (SKILLS_ENABLED) {
+      expect(after.skills.fitness.xp).toBeGreaterThan(0);
+      expect(after.skills.fitness.xp).toBeLessThan(0.1);
+    } else {
+      expect(after.skills.fitness.xp).toBe(0);
+    }
   });
 
   it('can spend the full budget and rejects destinations just beyond it', () => {
