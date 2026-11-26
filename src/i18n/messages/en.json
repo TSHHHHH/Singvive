@@ -854,7 +854,8 @@
         "site_water": "Not enough prepared water at this location.",
         "occupied": "Already built or still in use. Empty stored water before boiling another batch.",
         "stove": "Build a fixed stove here first.",
-        "tears": "The clothes on your back are already stripped."
+        "tears": "The clothes on your back are already stripped.",
+        "tearsWorn": "That garment is too worn to cut clean strips from."
       },
       "variants": "{n} versions",
       "variant": "Version",
@@ -888,7 +889,10 @@
         "shelter": "Rain shelter",
         "rain": "Rain {n}/4",
         "water": "Water ×{n}"
-      }
+      },
+      "tearSource": "Cut from",
+      "tearOwn": "Clothes you're wearing · {n} left",
+      "tearGarment": "{slot} · {item} · {n} left"
     },
     "attributes": {
       "strength": "Strength",
@@ -2111,7 +2115,7 @@
       "fractured": "Fractured",
       "critical": "Critical",
       "crippled": "Crippled",
-      "majorDetail": "Drains this limb until dressed. Raises encounter chance (+10% each, capped) — blood trail draws them in.",
+      "majorDetail": "Loses {n} HP an hour until dressed. Once the limb is empty the blood keeps coming from the torso and the rest of the body: left alone, you bleed out. All other recovery is paused. The blood trail also raises encounter chance (+10% each, capped).",
       "minorDetail": "Slow drain; may clot on its own. Still raises encounter chance (+4% each, capped). Dress it if you can.",
       "fracturedLeg": "Slows travel and shortens each push. A splint supports healing; an unsupported fracture still heals slowly.",
       "fracturedArm": "Hurts aim and melee. A splint supports healing; an unsupported fracture still heals slowly.",
@@ -2341,7 +2345,18 @@
       "openHint": "Open wound · holds back {n} max HP until it closes ({left}h at this rate)\nA clean dressing closes it fastest.",
       "riskHint": "Infection check in {h}h · {pct}% chance\nCleaning or antibiotics cut it hard; a dressing helps a little.",
       "coverActive": "Antibiotic cover · {n}h",
-      "effectsLabel": "Effects"
+      "effectsLabel": "Effects",
+      "chip": {
+        "infected": "Infected",
+        "splinted": "Splinted",
+        "dirty": "Dirty wound",
+        "soiled": "Dressing soiled",
+        "dressed": "Dressed",
+        "risk": "Infection {pct}%",
+        "cover": "Antibiotics {n}h",
+        "pain": "Painkiller {n}h",
+        "support": "Recovery +25% {n}h"
+      }
     },
     "coop": {
       "menu": "Co-op expedition",
@@ -2703,7 +2718,19 @@
       },
       "bleeding": "bleeding",
       "fractured": "fractured",
-      "infected": "infected"
+      "infected": "infected",
+      "effectDetail": {
+        "accuracy": "Your attack rolls take −{n}. Recovers as this part heals; painkillers ease part of it.",
+        "block": "Off-hand blocks and free-hand tempo are {n}% weaker while this arm is hurt.",
+        "dodge": "Your chance to dodge is {n} points lower while your legs are hurt.",
+        "travel": "Overland travel takes {n}% longer while your legs are hurt.",
+        "search": "Searching takes {n}% longer: a hurt head is slow to notice things.",
+        "awareness": "Perception −{n}: you are less likely to spot trouble first.",
+        "energy": "Energy drains {n}% faster while your torso is hurt.",
+        "carry": "You can carry {n}% less while your torso is hurt.",
+        "maxHp": "An open wound holds back {n} max HP until it closes.",
+        "recovery": "This part recovers {n}% slower while the wound is infected."
+      }
     },
     "evac": {
       "announced": "Known evacuation point: {zone}. The window closes in {hours}h. Reach it, report to the crew, then board. Both steps are immediate and free; no items required.",

@@ -127,7 +127,7 @@ export function countOf(items: ItemInstance[], defId: string): number {
  * the DEV recipe sandbox, which both want plain English.
  */
 export type CraftBlock =
-  | { kind: 'site' | 'heat' | 'pot' | 'site_water' | 'occupied' | 'stove' | 'tears' }
+  | { kind: 'site' | 'heat' | 'pot' | 'site_water' | 'occupied' | 'stove' | 'tears' | 'tearsWorn' }
   | { kind: 'tool'; defId: string }
   | { kind: 'input'; defId: string; need: number; have: number }
   | { kind: 'water'; need: number; have: number };

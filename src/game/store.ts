@@ -867,7 +867,7 @@ interface State {
    * bleeding economy: you are always wearing something, so there is always a
    * way to stop a bleed, and it is never free. It costs the garment.
    */
-  tearForRags: (uid: string) => void;
+  tearForRags: (uid: string) => { loose: number } | undefined;
   /**
    * Cut down the clothes you are actually wearing. The guarantee at the very
    * bottom: no loot, no garment in the pack, still not out of options. Finite
@@ -6540,6 +6540,7 @@ export const useGame = create<State>((set, get) => {
         'info',
       );
       persist();
+      return { loose: made.loose };
     },
 
     tearOwnClothes: () => {

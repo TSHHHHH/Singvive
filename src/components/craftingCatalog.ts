@@ -84,14 +84,14 @@ export function craftingRows(items: ItemInstance[], atShelter: boolean, craftCos
  * strip that groups with the towel recipe under Cloth Rags.
  */
 export const TEAR_RECIPE_ID = 'tear_clothes';
-export function tearRow(usesLeft: number, hours: number, yieldCount: number, context: CraftContext = DEFAULT_CRAFT_CONTEXT): CraftRecipeRow {
+export function tearRow(usesLeft: number, hours: number, yieldCount: number, context: CraftContext = DEFAULT_CRAFT_CONTEXT, garment = false): CraftRecipeRow {
   const ok = usesLeft > 0;
   return {
     recipe: {
       id: TEAR_RECIPE_ID, name: 'Cut Up Your Clothes', inputs: {}, outputDefId: 'cloth_rags', outputCount: yieldCount,
       hours, needsShelter: false, blurb: 'Cut strips from what you are wearing. Costs nothing but the clothes.',
     },
-    check: ok ? { ok: true, reason: '' } : { ok: false, reason: 'Nothing left to cut', block: { kind: 'tears' } },
+    check: ok ? { ok: true, reason: '' } : { ok: false, reason: 'Nothing left to cut', block: { kind: garment ? 'tearsWorn' : 'tears' } },
     category: outputCategory(itemDef('cloth_rags')),
     ingredients: [], toolHave: 0, setupReady: ok, missingKinds: ok ? 0 : 1, missingUnits: ok ? 0 : 1,
     waterId: null, context, usesLeft,
