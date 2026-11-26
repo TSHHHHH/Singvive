@@ -24,7 +24,7 @@ import {
   type TraitPreset,
 } from '../game/traitPresets';
 import { randomSurvivorName, SURVIVOR_NAME_MAX } from '../game/randomNames';
-import { previewStartingSkills, SKILL_IDS } from '../game/skills';
+import { previewStartingSkills, SKILL_IDS, SKILLS_ENABLED } from '../game/skills';
 import { TRAIT_TAG_ORDER, traitTags, type TraitTag } from '../game/traitTags';
 import type { Occupation, Trait } from '../game/types';
 import { Icon } from '../icons/Icon';
@@ -382,10 +382,12 @@ export function CharacterCreate() {
         <SectionLabel>{t('ui.create.attributes')}</SectionLabel>
         {attributeRow}
       </div>
-      <div>
-        <SectionLabel>{t('ui.skills.starting')}</SectionLabel>
-        {skillsLine}
-      </div>
+      {SKILLS_ENABLED && (
+        <div>
+          <SectionLabel>{t('ui.skills.starting')}</SectionLabel>
+          {skillsLine}
+        </div>
+      )}
       <div>
         <SectionLabel>{t('ui.create.kit.title')}</SectionLabel>
         {kitBlock}
@@ -837,7 +839,10 @@ export function CharacterCreate() {
           <h2 className="text-title uppercase tracking-signage text-signal">{t('ui.create.title')}</h2>
         </div>
         {stepper}
-        <div className="hidden lg:block">{pointsBadge}</div>
+        {/* The trait budget only matters on the traits step. */}
+        <div className={step === 'traits' ? 'hidden lg:block' : 'hidden lg:invisible lg:block'}>
+          {pointsBadge}
+        </div>
       </header>
 
       <div className="mt-3 grid min-h-0 flex-1 gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
@@ -845,7 +850,8 @@ export function CharacterCreate() {
           {step === 'background' ? backgroundStep : traitsStep}
         </main>
         <aside className="flex min-h-0 flex-col gap-3 lg:overflow-y-auto">
-          {summary}
+          {/* Background is story + kit only: the build summary waits for the traits step. */}
+          {step === 'traits' && summary}
           {step === 'background' ? jobDetail : traitDetail}
           {step === 'traits' && presetsBlock}
           {step === 'traits' && savePresetRow}
@@ -858,7 +864,7 @@ export function CharacterCreate() {
 
       {/* Mobile: the primary action stays in reach without scrolling to the end. */}
       <div className="fixed inset-x-0 bottom-0 z-10 flex items-center gap-3 border-t border-white/10 bg-concrete-950/95 px-4 py-2.5 backdrop-blur lg:hidden">
-        <div className="shrink-0">{pointsBadge}</div>
+        {step === 'traits' && <div className="shrink-0">{pointsBadge}</div>}
         <div className="flex min-w-0 flex-1 flex-col items-end gap-1">
           {primaryButton}
           {secondaryAction}

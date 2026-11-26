@@ -9,6 +9,8 @@ import { getTraits } from './character';
 
 export type { SkillDayXp, SkillId, SkillProgress, SkillsState };
 
+export { SKILLS_ENABLED } from './featureFlags';
+
 export const SKILL_IDS: readonly SkillId[] = [
   'fighting',
   'shooting',

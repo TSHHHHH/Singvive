@@ -6,6 +6,7 @@ import { applyCommand, createRoom, joinRoom, advanceRoom } from './simulation';
 import { availableIslandTunnels, discoverIslandTunnels } from './islandSystems';
 import { islandAttack, completeIslandAction } from './islandActions';
 import { ITEMS } from '../game/loot';
+import { SKILLS_ENABLED } from '../game/featureFlags';
 import { parseEnvelope } from './protocol';
 
 function setup() {
@@ -54,7 +55,8 @@ describe('island tunnels', () => {
     expect(p.expedition!.items).toEqual(ammo);
     p.expedition!.equipment.mainHand=null;
     completeIslandAction(room,p,{kind:'search',startedAt:0,endsAt:1,target:'test'},catalog);
-    expect(p.expedition!.skills.scavenging).not.toEqual(skills.scavenging);
+    if (SKILLS_ENABLED) expect(p.expedition!.skills.scavenging).not.toEqual(skills.scavenging);
+    else expect(p.expedition!.skills.scavenging).toEqual(skills.scavenging);
   });
   it('samples straight surface routes between sparse vertices', () => {
     const {room,catalog,p}=setup();

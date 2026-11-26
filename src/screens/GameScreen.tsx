@@ -17,6 +17,7 @@ import { DockResizeHandle } from '../components/DockResizeHandle';
 import { useDockWidth } from '../components/useDockWidth';
 import { StatsPanel } from '../components/StatsPanel';
 import { SkillsPanel } from '../components/SkillsPanel';
+import { SKILLS_ENABLED } from '../game/featureFlags';
 import { LogPanel } from '../components/LogPanel';
 import { CombatPanel } from '../components/CombatPanel';
 import { PhoneStatusBar } from '../components/PhoneStatusBar';
@@ -181,7 +182,9 @@ const SIDE_PANEL_ICONS: Record<SidePanel, IconName> = {
 };
 
 /** Rail switchers — objectives opens from its own bar. */
-const PANEL_BUTTONS: SidePanel[] = ['inventory', 'craft', 'logbook', 'stats', 'skills'];
+const PANEL_BUTTONS: SidePanel[] = (['inventory', 'craft', 'logbook', 'stats', 'skills'] as const).filter(
+  (id) => SKILLS_ENABLED || id !== 'skills',
+);
 
 function sidePanelLabelKey(id: SidePanel): string {
   if (id === 'inventory') return 'ui.phone.stash';
@@ -208,8 +211,10 @@ const RAIL_KEYS = [
   'settings',
 ] as const;
 type RailKey = (typeof RAIL_KEYS)[number];
+/** Rail shortcuts actually on screen (Skills drops out while the skill layer is off). */
+const RAIL_KEYS_SHOWN: readonly RailKey[] = RAIL_KEYS.filter((id) => SKILLS_ENABLED || id !== 'skills');
 const RAIL_HOTKEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
-const railHotkey = (id: RailKey): string => RAIL_HOTKEYS[RAIL_KEYS.indexOf(id)];
+const railHotkey = (id: RailKey): string => RAIL_HOTKEYS[RAIL_KEYS_SHOWN.indexOf(id)];
 
 /** Gap between HUD pieces, and between them and the screen edge, px. */
 const HUD_GAP = 12;
@@ -1009,7 +1014,7 @@ export function GameScreen() {
         ...mapAnnotations.map((a) => `rumour:${a.id}`),
         ...items.filter((i) => itemDef(i.defId).effect.kind === 'intel').map((i) => `intel:${i.uid}`),
       ],
-      skills: Object.entries(skills).map(([id, p]) => `${id}:${p.level}`),
+      skills: SKILLS_ENABLED ? Object.entries(skills).map(([id, p]) => `${id}:${p.level}`) : [],
       timeline: gameLog
         .slice(0, 40)
         .filter((e) => e.tone === 'bad' || e.activityEvent)
@@ -1057,9 +1062,9 @@ export function GameScreen() {
         return;
       if (awaitingStance) return;
       const i = RAIL_HOTKEYS.indexOf(e.key);
-      if (i < 0) return;
+      if (i < 0 || i >= RAIL_KEYS_SHOWN.length) return;
       e.preventDefault();
-      activateRail(RAIL_KEYS[i]);
+      activateRail(RAIL_KEYS_SHOWN[i]);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -1601,8 +1606,8 @@ export function GameScreen() {
                 onOpenGuide={setGuideTopic}
                 load={load}
                 menu={
-                  <nav aria-label={t('ui.dock.tools')} className="grid grid-cols-8 gap-1">
-                    {(['inventory', 'craft', 'logbook', 'stats', 'skills', 'timeline', 'dayLogs', 'settings'] as const).map((id) => {
+                  <nav aria-label={t('ui.dock.tools')} className={`grid ${SKILLS_ENABLED ? 'grid-cols-8' : 'grid-cols-7'} gap-1`}>
+                    {(['inventory', 'craft', 'logbook', 'stats', 'skills', 'timeline', 'dayLogs', 'settings'] as const).filter((id) => SKILLS_ENABLED || id !== 'skills').map((id) => {
                       const utility = id === 'timeline' || id === 'dayLogs' || id === 'settings';
                       const active = id === 'timeline' ? timelinePinned : id === 'dayLogs' ? dayLogsOpen : id === 'settings' ? settingsOpen : sidePanel === id;
                       const label = t(utility ? `ui.hud.${id}` : sidePanelLabelKey(id));
@@ -1713,7 +1718,7 @@ export function GameScreen() {
             {sidePanel === 'craft' && <CraftingPanel />}
             {sidePanel === 'logbook' && <StashLogbook onFocusLocation={focusStashOnMap} />}
             {sidePanel === 'stats' && <StatsPanel />}
-            {sidePanel === 'skills' && <SkillsPanel />}
+            {SKILLS_ENABLED && sidePanel === 'skills' && <SkillsPanel />}
             {sidePanel === 'objective' && (
               <ObjectivesPanel
                 evacZoneName={evacZone?.name ?? null}

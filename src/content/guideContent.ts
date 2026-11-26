@@ -3,6 +3,7 @@
 import { t, tList } from '../i18n/t';
 import type { LocaleId } from '../i18n/types';
 import { DEFAULT_LOCALE } from '../i18n/types';
+import { SKILLS_ENABLED } from '../game/featureFlags';
 
 export type GuideTopic =
   | 'survive'
@@ -21,7 +22,7 @@ export interface GuideSection {
   bullets: string[];
 }
 
-export const GUIDE_TOPIC_ORDER: readonly GuideTopic[] = [
+export const GUIDE_TOPIC_ORDER: readonly GuideTopic[] = ([
   'survive',
   'body',
   'fight',
@@ -31,7 +32,7 @@ export const GUIDE_TOPIC_ORDER: readonly GuideTopic[] = [
   'tunnels',
   'evac',
   'score',
-] as const;
+] as const satisfies readonly GuideTopic[]).filter((id) => SKILLS_ENABLED || id !== 'skills');
 
 /** Localized guide sections (English fallback inside t / tList). */
 export function getGuideSections(locale: LocaleId = DEFAULT_LOCALE): GuideSection[] {

@@ -13,6 +13,7 @@ import lootTablesCatalog from './data/lootTables.json' with { type: 'json' };
 import { FACTION_CONFIG } from './factions';
 import { POI_CATEGORIES } from './poi';
 import { collectPackGridErrors, resolveItemPackGrid } from './packGrid';
+import { SKILLS_ENABLED } from './featureFlags';
 
 /** Street scavenges use ruin + size haul counts; HDB blocks stay on unit loot. */
 export function isStreetLootPoi(category: PoiCategory): boolean {
@@ -154,6 +155,15 @@ export type LootEntry = readonly [itemId: string, weight: number];
 export const LOOT_TABLES: Record<PoiCategory, LootEntry[]> = structuredClone(
   lootTablesCatalog,
 ) as unknown as Record<PoiCategory, LootEntry[]>;
+
+// Skill books only feed the skill layer; while it is switched off they would be dead weight.
+if (!SKILLS_ENABLED) {
+  for (const category of Object.keys(LOOT_TABLES) as PoiCategory[]) {
+    LOOT_TABLES[category] = LOOT_TABLES[category].filter(
+      ([id]) => ITEMS[id]?.effect?.kind !== 'skillBook',
+    );
+  }
+}
 
 if (import.meta.env.DEV) {
   for (const category of POI_CATEGORIES) {

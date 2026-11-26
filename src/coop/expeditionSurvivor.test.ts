@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ItemInstance } from '../game/types';
 import { ITEMS } from '../game/loot';
+import { SKILLS_ENABLED } from '../game/featureFlags';
 import { BASE_ATTRIBUTE, maxHpFor } from '../game/character';
 import { totalMaxHp } from '../game/survival';
 import {
@@ -130,7 +131,8 @@ describe('independent expedition survivors', () => {
     expect(s.bodyParts.leftArm.bleed).toBe('none');
     expect(expeditionHp(s)).toBe(before);
     expect(s.items).toHaveLength(0);
-    expect(s.skillDayXp.gained.medicine).toBeGreaterThan(0);
+    if (SKILLS_ENABLED) expect(s.skillDayXp.gained.medicine).toBeGreaterThan(0);
+    else expect(s.skillDayXp.gained.medicine ?? 0).toBe(0);
   });
 
   it('does not consume a treatment when there is no valid injury', () => {
