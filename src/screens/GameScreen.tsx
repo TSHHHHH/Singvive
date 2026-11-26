@@ -223,6 +223,9 @@ const SLIDE_OUT_W = 360;
 /** Crafting gets a wider drawer (+20%) so its strips have room for name, chips and time. */
 const CRAFT_SLIDE_OUT_W = Math.round(SLIDE_OUT_W * 1.2);
 const CRAFT_SLIDE_OUT_MAX_W = 768;
+/** The logbook reads as prose (faction blurbs, lead notes, stash lists), so it
+ *  gets a calmer measure than the 360px column: ~480px, only from spare space. */
+const LOGBOOK_SLIDE_OUT_W = 480;
 const INSPECTOR_W = 352;
 /** The open-map here / target inspector's widest size (44rem), px. */
 const INSPECTOR_MAX_W = 704;
@@ -384,12 +387,14 @@ export function GameScreen() {
   const [mobileView, setMobileView] = useState<MobileView>('map');
   const [sidePanel, setSidePanel] = useState<SidePanel | null>(null);
   const isPhone = useIsPhone();
-  // Craft can widen; the others keep the 360px column. Remembering
-  // the last panel keeps that width stable through the 200 ms close, so the
-  // workbench does not snap narrow while it is still sliding out.
+  // Craft and the logbook can widen; the others keep the 360px column.
+  // Remembering the last panel keeps that width stable through the 200 ms
+  // close, so the drawer does not snap narrow while it is still sliding out.
   const lastSidePanel = useRef<SidePanel | null>(null);
   if (sidePanel) lastSidePanel.current = sidePanel;
-  const wideSlideOut = (sidePanel ?? lastSidePanel.current) === 'craft';
+  const shownSidePanel = sidePanel ?? lastSidePanel.current;
+  const wideSlideOut = shownSidePanel === 'craft';
+  const logbookSlideOut = shownSidePanel === 'logbook';
   const [hereSheetOpen, setHereSheetOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [dayLogsOpen, setDayLogsOpen] = useState(false);
@@ -963,7 +968,11 @@ export function GameScreen() {
   const timelineWanted =
     !isPhone && (timelinePinned || inCombat || awaitingStance || !!pendingEvent || searchNonce !== null);
   const inspectorReserve = timelineWanted ? tlW + HUD_GAP : 0;
-  const inspectorRoomed = mapW - SLIDE_OUT_W - HUD_EDGE * 2 - inspectorReserve;
+  // Leave room for the logbook's reading width where the card can spare it,
+  // else for the standard column.
+  const inspectorRoomedWide = mapW - LOGBOOK_SLIDE_OUT_W - HUD_EDGE * 2 - inspectorReserve;
+  const inspectorRoomed =
+    inspectorRoomedWide >= INSPECTOR_W ? inspectorRoomedWide : mapW - SLIDE_OUT_W - HUD_EDGE * 2 - inspectorReserve;
   // Too narrow to leave a panel its room (a pinned timeline on a laptop): the
   // card will slide aside anyway, so keep it as wide as both spots allow.
   const inspectorW =
@@ -978,9 +987,13 @@ export function GameScreen() {
     (timelinePinned && timelineFits) || inCombat || awaitingStance || !!pendingEvent || searchNonce !== null;
   const timelineBeside = timelineFull && timelineFits;
   const timelineStacked = timelineFull && !timelineFits;
+  // Room left of the inspector card, so a wider drawer never pushes it aside.
+  const slideOutRoom = mapW - inspectorW - HUD_EDGE * 2 - inspectorReserve;
   const slideOutW = wideSlideOut
-    ? Math.max(CRAFT_SLIDE_OUT_W, Math.min(CRAFT_SLIDE_OUT_MAX_W, mapW - inspectorW - HUD_EDGE * 2 - inspectorReserve))
-    : SLIDE_OUT_W;
+    ? Math.max(CRAFT_SLIDE_OUT_W, Math.min(CRAFT_SLIDE_OUT_MAX_W, slideOutRoom))
+    : logbookSlideOut
+      ? Math.max(SLIDE_OUT_W, Math.min(LOGBOOK_SLIDE_OUT_W, slideOutRoom))
+      : SLIDE_OUT_W;
   const panelInset = !isPhone && sidePanel ? slideOutW : 0;
   const inspectorRight = HUD_EDGE + inspectorReserve;
   /** Narrow screens only: how far right the inspector eases to clear an open panel. */
