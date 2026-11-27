@@ -19,7 +19,7 @@ import { useGame } from '../../game/store';
 import { conditionBarColor } from '../../game/itemTileColor';
 import type { Equipment, EquipSlot, ItemInstance } from '../../game/types';
 import { Icon } from '../../icons/Icon';
-import { itemName, recipeName, useT } from '../../i18n';
+import { instanceName, recipeName, useT } from '../../i18n';
 import { RECIPES } from '../../game/crafting';
 import { itemIcon } from './itemIcon';
 import { itemKind, itemStatLines } from './itemStatLines';
@@ -122,6 +122,7 @@ export function ItemInspectBody({
   return (
     <div className={compact ? 'space-y-1.5' : undefined}>
       {inst.coldPrepared && <p className="text-body text-white/60">{t('ui.craft.roomPenalty')}</p>}
+      {inst.muddy && <p className="text-body text-white/60">{t('ui.craft.muddyPenalty')}</p>}
       {badge && (
         <div className="text-label uppercase text-white/40">{badge}</div>
       )}
@@ -130,7 +131,7 @@ export function ItemInspectBody({
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2">
             <span className={`font-bold ${compact ? 'text-read' : ''}`}>
-              {itemName(inst.defId, locale)}
+              {instanceName(inst, locale)}
             </span>
             {def.exotic && (
               <span className="rounded bg-amber-300/15 px-1.5 text-label uppercase text-amber-300">

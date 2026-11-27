@@ -794,6 +794,14 @@
       "made": "已制作 {n}× {name}",
       "unsafeWater": "使用浑水。饮用后感染增加 {n}。",
       "tearRemaining": "剩余 {n} 次",
+      "muddyPenalty": "用了浑水 · 所有恢复效果减半，补水也一样",
+      "madeAs": {
+        "hot": "热的{name}",
+        "hotMuddy": "热浑浊{name}",
+        "room": "常温{name}",
+        "roomMuddy": "常温浑浊{name}",
+        "muddy": "浑浊{name}"
+      },
       "categories": {
         "all": "全部类别",
         "medical": "医疗",

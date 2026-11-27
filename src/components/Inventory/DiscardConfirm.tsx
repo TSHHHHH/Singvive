@@ -13,7 +13,7 @@ import {
 import type { ItemInstance } from '../../game/types';
 import { tileColor } from '../../game/itemTileColor';
 import { Icon } from '../../icons/Icon';
-import { itemName, useT } from '../../i18n';
+import { instanceName, useT } from '../../i18n';
 import { itemIcon } from './itemIcon';
 
 const MAX_LISTED = 6;
@@ -96,7 +96,7 @@ export function DiscardConfirm({
               >
                 <Icon name={itemIcon(def)} size={16} />
                 <span className="min-w-0 flex-1 truncate text-body text-concrete-50">
-                  {itemName(inst.defId, locale)}
+                  {instanceName(inst, locale)}
                 </span>
                 {inst.stack > 1 && (
                   <span className="tabular-nums text-micro text-white/50">×{inst.stack}</span>

@@ -13,7 +13,7 @@ import {
   limbArmorForZone, LOAD_HARD_CAP, loadEffectsFor, packGridForBag, preparedEffect, scaledRestore, spoil, statusResistForZone,
 } from '../game/inventory';
 import { conditionRoll, ITEMS, LOOT_TABLES, rollLoot } from '../game/loot';
-import { canCraft, DEFAULT_CRAFT_CONTEXT, RECIPES, recipeInputs } from '../game/crafting';
+import { canCraft, craftedPrep, DEFAULT_CRAFT_CONTEXT, RECIPES, recipeInputs } from '../game/crafting';
 import { Rng } from '../game/rng';
 import {
   armCombatPenalty, applyPartDamage, BODY_PART_IDS, clampMeter, energyAttackBonus,
@@ -395,10 +395,7 @@ function reserveCraft(s: ExpeditionSurvivor, recipeId: string, seed: string): Ex
   const outputs = instances(recipe.outputDefId, recipe.outputCount, id);
   for (const output of outputs) {
     if (definition(output.defId)?.maxCondition !== undefined) output.condition = definition(output.defId)!.maxCondition;
-    if (recipe.preparation === 'drink') {
-      output.coldPrepared = true;
-      if (reserved.some(i => i.defId === 'dirty_water')) output.contaminationRisk = 8;
-    }
+    Object.assign(output, craftedPrep(recipe, inputs, DEFAULT_CRAFT_CONTEXT));
   }
   const craft: ExpeditionCraft = { id, recipeId, inputs: reserved, outputs };
   s.items = items;

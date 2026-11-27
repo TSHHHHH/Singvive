@@ -58,7 +58,7 @@ describe('location cooking', () => {
     expect(canCraft(recipe('fuel_stove'), [], true, undefined, context()).block?.kind).toBe('stove');
   });
   it('halves cold drink food/energy without halving hydration or contamination', () => {
-    const made = addToCarry([], 'kopi', 1, undefined, 8, true).items[0];
+    const made = addToCarry([], 'kopi', 1, undefined, { contaminationRisk: 8, coldPrepared: true }).items[0];
     const loaded: ItemInstance = JSON.parse(JSON.stringify(made));
     expect(preparedEffect(itemDef('kopi').effect, loaded)).toEqual({ kind: 'water', hunger: 3, energy: 8, thirst: 24 });
     expect(loaded.contaminationRisk).toBe(8);
