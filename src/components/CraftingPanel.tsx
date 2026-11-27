@@ -2,14 +2,14 @@ import { useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useGame } from '../game/store';
 import { itemDef, ITEMS } from '../game/loot';
-import { TEAR_HOURS, TEAR_RAGS_YIELD } from '../game/inventory';
+import { canTearForRags, garmentTearsLeft, TEAR_HOURS, TEAR_RAGS_YIELD } from '../game/inventory';
 import { countOf, type CraftBlock } from '../game/crafting';
 import { collectedRain, gameHour, heatRemaining, surfaceSite, type SiteFacilities } from '../game/facilities';
 import { ItemHoverCard } from './Inventory/ItemHoverCard';
 import { useCoarsePointer } from './tips/useCoarsePointer';
 import { sumTraitMod } from '../game/character';
 import { skillMods } from '../game/skills';
-import type { ItemDef, ItemInstance, ItemPrep } from '../game/types';
+import type { EquipSlot, ItemDef, ItemInstance, ItemPrep } from '../game/types';
 import { itemIcon } from './Inventory/itemIcon';
 import { itemStatLines } from './Inventory/itemStatLines';
 import { Icon } from '../icons/Icon';
@@ -33,16 +33,21 @@ function saveVariantPicks(picks: Record<string, string>) {
   try { localStorage.setItem(VARIANT_STORE, JSON.stringify(picks)); } catch { /* per-viewer convenience only */ }
 }
 
+/** Worn slots whose garment can be cut into strips, in body order. */
+const TEAR_SLOTS: EquipSlot[] = ['head', 'body', 'legs'];
+
+interface TearSource { id: string; label: string; usesLeft: number }
+
 /** The shortest drink takes this long; enough heat for it means "hot" is the sensible default. */
 const QUICKEST_DRINK_HOURS = 0.25;
 
 /** Browse without spending anything; one thin strip per thing you can make, click to open it. */
 export function CraftingPanel() {
   const { t, locale } = useT();
-  const { items, clothingTears, craftItem, tearOwnClothes, character, skills, site, atSite, day, hour, busy, equipment, seed } =
+  const { items, clothingTears, craftItem, tearOwnClothes, tearForRags, character, skills, site, atSite, day, hour, busy, equipment, seed } =
     useGame(useShallow((s) => ({
       items: s.items, clothingTears: s.clothingTears, seed: s.seed,
-      craftItem: s.craftItem, tearOwnClothes: s.tearOwnClothes,
+      craftItem: s.craftItem, tearOwnClothes: s.tearOwnClothes, tearForRags: s.tearForRags,
       character: s.character, skills: s.skills,
       site: surfaceSite(s)?.facilities, atSite: !!surfaceSite(s), day: s.day, hour: s.hour,
       busy: !!(s.combat || s.travelAnim || s.pendingSearch || s.pendingEvent),
@@ -69,11 +74,23 @@ export function CraftingPanel() {
   const waterSource: 'carried' | 'site' = siteWater > 0 ? waterPick : 'carried';
   const context = useMemo(() => ({ site, atSite, now, mode, waterSource }), [site, atSite, now, mode, waterSource]);
   const craftCost = sumTraitMod(character?.traitIds ?? [], 'craftCostMod') + skillMods(skills).craftCostMod;
+  const [tearPick, setTearPick] = useState<string>('own');
+  // What you can cut strips from: the clothes on your back, or any cloth garment you are wearing.
+  const tearSources = useMemo<TearSource[]>(() => [
+    { id: 'own', label: t('ui.craft.tearOwn', { n: clothingTears }), usesLeft: clothingTears },
+    ...TEAR_SLOTS.flatMap((slot) => {
+      const inst = equipment[slot];
+      if (!inst || !canTearForRags(itemDef(inst.defId))) return [];
+      const usesLeft = garmentTearsLeft(inst);
+      return [{ id: inst.uid, usesLeft, label: t('ui.craft.tearGarment', { slot: t(`ui.slots.${slot}`), item: itemName(inst.defId, locale), n: usesLeft }) }];
+    }),
+  ], [equipment, clothingTears, t, locale]);
+  const tearSource = tearSources.find((source) => source.id === tearPick) ?? tearSources[0];
   // The workbench rule is off for now, so every recipe is checked as if at a workbench.
   const rows = useMemo(() => [
     ...craftingRows(items, true, craftCost, context),
-    tearRow(clothingTears, TEAR_HOURS, TEAR_RAGS_YIELD, context),
-  ], [items, craftCost, context, clothingTears]);
+    tearRow(tearSource.usesLeft, TEAR_HOURS, TEAR_RAGS_YIELD, context, tearSource.id !== 'own'),
+  ], [items, craftCost, context, tearSource]);
   const entries = useMemo(() => groupCraftRows(rows), [rows]);
   const browse = { query, category, sort, locale };
   const browseKey = `${query}|${category}|${filter}|${sort}`;
@@ -92,7 +109,8 @@ export function CraftingPanel() {
     saveVariantPicks(next);
   };
   const craft = (row: CraftRecipeRow) => {
-    const result = row.recipe.id === TEAR_RECIPE_ID ? tearOwnClothes() : craftItem(row.recipe.id, mode, waterSource);
+    const result = row.recipe.id !== TEAR_RECIPE_ID ? craftItem(row.recipe.id, mode, waterSource)
+      : tearSource.id === 'own' ? tearOwnClothes() : tearForRags(tearSource.id);
     setCrafted(result ? { defId: row.recipe.outputDefId, prep: row.prep, count: row.recipe.outputCount, loose: result.loose } : null);
   };
   const hoverInst: ItemInstance | null = hover ? previewInstance(hover.row) : null;
@@ -167,6 +185,7 @@ export function CraftingPanel() {
             onPickVariant={(id) => pickVariantFor(view.entry.key, id)}
             mode={mode} onMode={setModePick}
             siteWater={siteWater} waterSource={waterSource} onWaterSource={setWaterPick}
+            tearSources={tearSources} tearPick={tearSource.id} onTearPick={setTearPick}
             onCraft={() => craft(view.row)} />)}
         </ul>
       )}
@@ -240,12 +259,13 @@ function facilityStatus(row: CraftRecipeRow, t: (key: string, vars?: Record<stri
   }
 }
 
-function RecipeStrip({ view, expanded, onToggle, onHover, onCraft, onPickVariant, busy, mode, onMode, siteWater, waterSource, onWaterSource }: {
+function RecipeStrip({ view, expanded, onToggle, onHover, onCraft, onPickVariant, busy, mode, onMode, siteWater, waterSource, onWaterSource, tearSources, tearPick, onTearPick }: {
   view: CraftEntryView; expanded: boolean; onToggle: () => void;
   onHover?: (e: { clientX: number; clientY: number } | null) => void;
   onCraft: () => void; onPickVariant: (recipeId: string) => void; busy: boolean;
   mode: 'hot' | 'room'; onMode: (mode: 'hot' | 'room') => void;
   siteWater: number; waterSource: 'carried' | 'site'; onWaterSource: (source: 'carried' | 'site') => void;
+  tearSources: TearSource[]; tearPick: string; onTearPick: (id: string) => void;
 }) {
   const { t, locale } = useT();
   const seed = useGame((s) => s.seed);
@@ -256,6 +276,7 @@ function RecipeStrip({ view, expanded, onToggle, onHover, onCraft, onPickVariant
   const name = entry.family ? t(`ui.craft.family.${entry.family}`) : itemName(out.id, locale);
   const variantName = multi ? (entry.family ? itemName(out.id, locale) : recipeName(recipe.id, locale)) : null;
   const status = facilityStatus(row, t, seed);
+  const tearing = recipe.id === TEAR_RECIPE_ID;
   const detailsId = `craft-details-${entry.key.replace(/[^a-z0-9_-]/gi, '-')}`;
   const ready = check.ok;
   // The edge bar marks the strip as craftable when any variant is, so it agrees with the Ready filter.
@@ -295,12 +316,17 @@ function RecipeStrip({ view, expanded, onToggle, onHover, onCraft, onPickVariant
     </button>
     <div id={detailsId} hidden={!expanded} className="border-t border-white/10 px-3 pb-3 pt-2.5">
       {expanded && <>
-        {(multi || recipe.preparation === 'drink' || (recipe.waterInput && recipe.preparation !== 'boil' && siteWater > 0)) && <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {(multi || tearing || recipe.preparation === 'drink' || (recipe.waterInput && recipe.preparation !== 'boil' && siteWater > 0)) && <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
           {multi && <label className="flex min-w-0 flex-col gap-1 text-label text-white/55">{t('ui.craft.variant')}
             <select aria-label={t('ui.craft.variant')} className={controlClass} value={recipe.id} onChange={(e) => onPickVariant(e.target.value)}>
               {entry.variants.map((v) => <option key={v.recipe.id} value={v.recipe.id}>
                 {v.check.ok ? '✓ ' : ''}{entry.family ? itemName(v.recipe.outputDefId, locale) : recipeName(v.recipe.id, locale)}
               </option>)}
+            </select>
+          </label>}
+          {tearing && <label className="flex min-w-0 flex-col gap-1 text-label text-white/55">{t('ui.craft.tearSource')}
+            <select aria-label={t('ui.craft.tearSource')} className={controlClass} value={tearPick} onChange={(e) => onTearPick(e.target.value)}>
+              {tearSources.map((source) => <option key={source.id} value={source.id}>{source.usesLeft > 0 ? '' : '✕ '}{source.label}</option>)}
             </select>
           </label>}
           {recipe.preparation === 'drink' && <label className="flex min-w-0 flex-col gap-1 text-label text-white/55">{t('ui.craft.preparation')}

@@ -880,7 +880,15 @@ export const OWN_CLOTHES_TEARS = 4;
  * broken hard hat.
  */
 export function canTearForRags(def: ItemDef): boolean {
-  return def.slot === 'body' || def.id === 'n95_mask';
+  return def.slot === 'body' || def.id === 'n95_mask' || CLOTH_LEGWEAR.has(def.id);
+}
+
+/** Trousers and shorts are plain cloth; pads and guards are not. */
+const CLOTH_LEGWEAR = new Set(['jeans', 'work_trousers', 'camo_pants', 'cargo_shorts', 'riding_pants']);
+
+/** How many more strips a garment gives before it is too far gone to cut clean. */
+export function garmentTearsLeft(inst: ItemInstance): number {
+  return Math.floor(conditionOf(inst) / TEAR_CONDITION_COST);
 }
 
 /** Condition as a whole number, for anything the player reads. */

@@ -707,6 +707,8 @@ export function tickInjuries(
   const regenMult = hpRegenMultiplier(hunger) * Math.max(0.1, recoveryMult);
   const legMult = Math.max(0.1, 1 + legHealMod);
 
+  // Blood a major bleed keeps losing once its own part is empty: it is the body's blood, not the limb's.
+  let bloodLoss = 0;
   for (const id of BODY_PART_IDS) {
     let p = parts[id];
     const partRegenMult = id === 'leftLeg' || id === 'rightLeg' ? legMult : 1;
@@ -768,9 +770,11 @@ export function tickInjuries(
       const dressingHours = p.dressing && p.dressing !== 'none' ? (p.dressingHours ?? 0) + step : 0;
       const fractureRecoveryHours = (p.fractureRecoveryHours ?? 0) + step * fractureRate;
       const healed = !!p.fractured && fractureRecoveryHours >= FRACTURE_RECOVERY_HOURS - 1e-9;
+      const rawHp = p.hp + step * (regenRate - BLEED_DRAIN[p.bleed]);
+      if (p.bleed === 'major' && rawHp < 0) bloodLoss += -rawHp;
       p = {
         ...p,
-        hp: Math.max(0, Math.min(Math.max(hpCap, Math.min(p.hp, p.maxHp)), p.hp + step * (regenRate - BLEED_DRAIN[p.bleed]))),
+        hp: Math.max(0, Math.min(Math.max(hpCap, Math.min(p.hp, p.maxHp)), rawHp)),
         woundCloseHours: open ? (p.woundCloseHours ?? 0) + step * closeRate : p.woundCloseHours,
         woundAgeHours: open ? (p.woundAgeHours ?? 0) + step : p.woundAgeHours,
         antibioticHours: Math.max(0, (p.antibioticHours ?? 0) - step),
@@ -793,7 +797,32 @@ export function tickInjuries(
     next[id] = p;
   }
 
-  return { parts: next, blocksRegen };
+  return { parts: bloodLoss > 1e-9 ? spillBloodLoss(next, bloodLoss) : next, blocksRegen };
+}
+
+/**
+ * An untreated major bleed does not stop at an empty limb: the loss carries on
+ * into the torso, then the rest of the body, until it is dressed or the
+ * survivor bleeds out (total HP 0 → `checkDeath` 'health').
+ */
+export function spillBloodLoss(parts: BodyParts, amount: number): BodyParts {
+  let left = amount;
+  const next = { ...parts };
+  const take = (id: BodyPartId, max: number) => {
+    const p = next[id];
+    const loss = Math.min(p.hp, max, left);
+    if (loss <= 0) return;
+    left -= loss;
+    next[id] = { ...p, hp: p.hp - loss, crippled: p.crippled || p.hp - loss <= 0 };
+  };
+  take('torso', left);
+  while (left > 1e-9) {
+    const others = BODY_PART_IDS.filter((id) => id !== 'torso' && next[id].hp > 0);
+    if (!others.length) break;
+    const share = left / others.length;
+    for (const id of others) take(id, share);
+  }
+  return next;
 }
 
 /** Starvation, dehydration, and infection wear on the torso first. */

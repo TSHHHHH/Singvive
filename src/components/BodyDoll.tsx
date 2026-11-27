@@ -1,7 +1,7 @@
 import { partConditionPct } from '../game/survival';
 import { useT } from '../i18n';
 import type { BleedLevel, BodyPartId, BodyParts } from '../game/types';
-import type { CareFeedback } from './WoundCarePanel';
+import type { CareFeedback } from './BodyCareList';
 
 const BLEED_LABEL: Record<BleedLevel, string> = {
   none: '',
