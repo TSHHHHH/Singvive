@@ -55,7 +55,7 @@ import { useLayerEvent, useMapEvent, useMapGL } from '../map/hooks';
 import { FLAT_PITCH, hudPadding, mixPadding, paddedMiddle, samePadding, setHudPadding, toPadding, type Padding } from '../map/padEase';
 import { MapMarker } from '../map/markers';
 import { createMarker } from '../map/markerDom';
-import { installOverlay, setData } from '../map/layers';
+import { installOverlay, setData, setVisible } from '../map/layers';
 import { PoiSources } from '../map/poiSources';
 import { useMarkerPresence } from '../map/useMarkerPresence';
 import { useRecognitionHint } from '../map/useRecognitionHint';
@@ -1161,100 +1161,225 @@ function CameraChrome({ target, inset, top, left, right, bottom }: {
 }
 
 
-const TRAIL_DONE = 'trail-done';
-const TRAIL_AHEAD = 'trail-ahead';
-const TRAIL_PREVIEW = 'trail-preview';
+const TRAIL = 'trail-route';
 
-const travelledStroke = (progress: number): ExpressionSpecification =>
-  ['step', ['line-progress'], '#9ad7eb', progress, 'transparent'];
+/** Route colours: the walked part, the part still ahead, and the travelling glint. */
+const TRAIL_DONE_COLOR = '#bfe9f7';
+const TRAIL_AHEAD_COLOR = '#7ec8e3';
+const TRAIL_BLOCKED_COLOR = '#d92d2d';
+/** One glint run from the player to the target (ms), and the glint's length along the line. */
+const FLOW_MS = 1700;
+const FLOW_BAND = 0.18;
+/** Runs after the route appears, and after the camera settles, before the glint rests. */
+const FLOW_RUNS = 2;
+
+/** Walked part in the bright tone, the rest in the route tone. */
+const coreStroke = (progress: number): ExpressionSpecification =>
+  progress <= 0
+    ? ['step', ['line-progress'], TRAIL_AHEAD_COLOR, 0, TRAIL_AHEAD_COLOR]
+    : ['step', ['line-progress'], TRAIL_DONE_COLOR, progress, TRAIL_AHEAD_COLOR];
+
+/** Only the part still ahead, for the see-through dashes. */
+const aheadStroke = (progress: number, color: string): ExpressionSpecification =>
+  progress <= 0
+    ? ['step', ['line-progress'], color, 0, color]
+    : ['step', ['line-progress'], 'transparent', progress, color];
 
 /**
- * The route line. Planning: one dashed preview (red when there is no dry
- * route). En route: traversed (solid) vs ahead (faint dash), driven by the
- * same `startedAt`/`durationMs`/`travelEase` clock as the pin, imperatively,
- * so GameScreen does not re-render at 60 Hz.
+ * A soft glint whose head sits at `head` (0 to 1 + band along the line),
+ * never drawn over the walked part. `null` hides it.
+ */
+const flowStroke = (head: number | null, from: number): ExpressionSpecification => {
+  if (head === null) return ['step', ['line-progress'], 'transparent', 0, 'transparent'];
+  const tail = head - FLOW_BAND;
+  const a = Math.max(from, tail);
+  const b = Math.max(a + 1e-4, Math.min(head, 1));
+  if (head <= from || tail >= 1) return ['step', ['line-progress'], 'transparent', 0, 'transparent'];
+  const mid = Math.max(a + 5e-5, Math.min(b - 5e-5, tail + FLOW_BAND * 0.8));
+  return [
+    'interpolate', ['linear'], ['line-progress'],
+    a, 'rgba(255, 255, 255, 0)',
+    mid, 'rgba(255, 255, 255, 1)',
+    b, 'rgba(255, 255, 255, 0)',
+  ];
+};
+
+const motionStill = () =>
+  typeof document !== 'undefined' && document.documentElement.classList.contains('motion-reduce-forced');
+
+/**
+ * The route line. Planning: the whole route (red dashes when there is no dry
+ * route). En route: walked (bright) vs ahead, driven by the same
+ * `startedAt`/`durationMs`/`travelEase` clock as the pin, imperatively, so
+ * GameScreen does not re-render at 60 Hz.
+ *
+ * In 3D, standing buildings hide most of a ground line, so the route draws
+ * twice: thick and glowing on the ground under the buildings, and as thin
+ * see-through dashes above them. Where nothing is in the way the two stack
+ * into one bright line; where a block stands in front, the dashes carry the
+ * route across it.
+ *
+ * A glint runs from the player to the target while you walk, for a couple of
+ * runs when a route appears, and again after the camera settles. Then it
+ * rests, so the map still reaches zero renders at idle.
  */
 function TravelPath({
   path,
   travelAnim,
   blocked,
+  threeD,
 }: {
   path: { lat: number; lng: number }[] | null;
   travelAnim: TravelAnim | null;
   blocked: boolean;
+  threeD: boolean;
 }) {
   const map = useMapGL();
-  useEffect(
-    () =>
-      installOverlay(map, 'trail', {
-        [TRAIL_DONE]: { type: 'geojson', data: EMPTY_FC, lineMetrics: true, tolerance: 0 },
-        [TRAIL_AHEAD]: 'geojson',
-        [TRAIL_PREVIEW]: 'geojson',
-      }, [
-        {
-          id: 'trail-preview-line',
-          type: 'line',
-          source: TRAIL_PREVIEW,
-          filter: ['!', ['get', 'blocked']],
-          layout: { 'line-cap': 'round', 'line-join': 'round' },
-          paint: { 'line-color': '#7ec8e3', 'line-width': 2.5, 'line-opacity': 0.75, 'line-dasharray': [3.2, 4] },
-        },
-        {
-          id: 'trail-preview-blocked',
-          type: 'line',
-          source: TRAIL_PREVIEW,
-          filter: ['get', 'blocked'],
-          layout: { 'line-cap': 'round', 'line-join': 'round' },
-          paint: { 'line-color': '#d92d2d', 'line-width': 2.5, 'line-opacity': 0.85, 'line-dasharray': [1.6, 3.2] },
-        },
-        {
-          id: 'trail-ahead-line',
-          type: 'line',
-          source: TRAIL_AHEAD,
-          layout: { 'line-cap': 'round', 'line-join': 'round' },
-          paint: { 'line-color': '#7ec8e3', 'line-width': 2.5, 'line-opacity': 0.4, 'line-dasharray': [3.2, 4] },
-        },
-        {
-          id: 'trail-done-line',
-          type: 'line',
-          source: TRAIL_DONE,
-          layout: { 'line-cap': 'round', 'line-join': 'round' },
-          paint: { 'line-gradient': travelledStroke(0), 'line-width': 3, 'line-opacity': 0.9 },
-        },
-      ]),
-    [map],
-  );
+  const clear = ['!', ['get', 'blocked']] as ExpressionSpecification;
+  const cut = ['get', 'blocked'] as ExpressionSpecification;
+  useEffect(() => {
+    const round = { 'line-cap': 'round', 'line-join': 'round' } as const;
+    const ground = installOverlay(map, 'trail', {
+      [TRAIL]: { type: 'geojson', data: EMPTY_FC, lineMetrics: true, tolerance: 0 },
+    }, [
+      {
+        id: 'trail-glow',
+        type: 'line',
+        source: TRAIL,
+        filter: clear,
+        layout: round,
+        paint: { 'line-color': TRAIL_AHEAD_COLOR, 'line-width': 20, 'line-blur': 10, 'line-opacity': 0.6 },
+      },
+      {
+        id: 'trail-case',
+        type: 'line',
+        source: TRAIL,
+        layout: round,
+        paint: { 'line-color': '#05090b', 'line-width': 9, 'line-opacity': 0.8 },
+      },
+      {
+        id: 'trail-core',
+        type: 'line',
+        source: TRAIL,
+        filter: clear,
+        layout: round,
+        paint: { 'line-gradient': coreStroke(0), 'line-width': 5, 'line-opacity': 1 },
+      },
+      {
+        id: 'trail-blocked',
+        type: 'line',
+        source: TRAIL,
+        filter: cut,
+        layout: round,
+        paint: { 'line-color': TRAIL_BLOCKED_COLOR, 'line-width': 4, 'line-opacity': 0.95, 'line-dasharray': [1.4, 2] },
+      },
+    ]);
+    const above = installOverlay(map, 'xray', {}, [
+      {
+        id: 'trail-xray',
+        type: 'line',
+        source: TRAIL,
+        filter: clear,
+        layout: { ...round, visibility: 'none' },
+        paint: { 'line-gradient': aheadStroke(0, TRAIL_DONE_COLOR), 'line-width': 3, 'line-opacity': 0.75, 'line-dasharray': [1.2, 1.4] },
+      },
+      {
+        id: 'trail-xray-blocked',
+        type: 'line',
+        source: TRAIL,
+        filter: cut,
+        layout: { ...round, visibility: 'none' },
+        paint: { 'line-color': TRAIL_BLOCKED_COLOR, 'line-width': 3, 'line-opacity': 0.65, 'line-dasharray': [1.2, 1.6] },
+      },
+      {
+        id: 'trail-flow',
+        type: 'line',
+        source: TRAIL,
+        filter: clear,
+        layout: round,
+        paint: { 'line-gradient': flowStroke(null, 0), 'line-width': 9, 'line-blur': 3 },
+      },
+    ]);
+    return () => {
+      above();
+      ground();
+    };
+    // Filters are constants; install once per map.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map]);
+
+  // The see-through dashes only earn their place over standing buildings.
+  useEffect(() => setVisible(map, ['trail-xray', 'trail-xray-blocked'], threeD), [map, threeD]);
 
   useEffect(() => {
-    const clear = () => {
-      setData(map, TRAIL_DONE, EMPTY_FC);
-      setData(map, TRAIL_AHEAD, EMPTY_FC);
-      setData(map, TRAIL_PREVIEW, EMPTY_FC);
+    const paint = (progress: number, head: number | null) => {
+      map.setPaintProperty('trail-core', 'line-gradient', coreStroke(progress));
+      map.setPaintProperty('trail-xray', 'line-gradient', aheadStroke(progress, TRAIL_DONE_COLOR));
+      map.setPaintProperty('trail-flow', 'line-gradient', flowStroke(head, progress));
     };
     if (!path || path.length < 2) {
-      clear();
+      setData(map, TRAIL, EMPTY_FC);
       return;
     }
-    if (!travelAnim || blocked) {
-      clear();
-      setData(map, TRAIL_PREVIEW, fc([lineFeature(path, { blocked })]));
-      return;
+    const traveling = !!travelAnim && !blocked;
+    setData(map, TRAIL, fc([lineFeature(path, { blocked: blocked && !travelAnim })]));
+    const still = motionStill();
+    const flowAt = (now: number, from: number) => ((now % FLOW_MS) / FLOW_MS) * (1 - from + FLOW_BAND) + from;
+    let frame = 0;
+
+    if (traveling) {
+      let timer: ReturnType<typeof setTimeout>;
+      // Tile the path once. Reveal the walked stroke by distance along the
+      // line, without sending new geometry to workers. The walk already
+      // repaints on this tick, so the glint rides along at no extra cost.
+      const { startedAt, durationMs } = travelAnim;
+      const tick = () => {
+        const t = Math.min(1, (Date.now() - startedAt) / durationMs);
+        const done = t >= 1 ? 1.001 : travelEase(t);
+        paint(done, still || t >= 1 ? null : flowAt(performance.now(), done));
+        if (t < 1) timer = setTimeout(tick, 32);
+      };
+      tick();
+      return () => clearTimeout(timer);
     }
-    setData(map, TRAIL_PREVIEW, EMPTY_FC);
-    // Tile the path once. Reveal the solid stroke over the stationary dashes
-    // by distance along the line, without sending new geometry to workers.
-    const route = fc([lineFeature(path)]);
-    setData(map, TRAIL_DONE, route);
-    setData(map, TRAIL_AHEAD, route);
-    const { startedAt, durationMs } = travelAnim;
-    let timer: ReturnType<typeof setTimeout>;
-    const tick = () => {
-      const t = Math.min(1, (Date.now() - startedAt) / durationMs);
-      map.setPaintProperty('trail-done-line', 'line-gradient', travelledStroke(t >= 1 ? 1.001 : travelEase(t)));
-      if (t < 1) timer = setTimeout(tick, 32);
+
+    paint(0, null);
+    if (blocked || still) return;
+    // Planning: a few glint runs, and a run more whenever the camera has been
+    // moved (the map was drawing anyway). Each run finishes before it rests.
+    let runsLeft = FLOW_RUNS;
+    let runStart = performance.now();
+    const step = () => {
+      const now = performance.now();
+      let k = (now - runStart) / FLOW_MS;
+      if (k >= 1) {
+        runsLeft -= Math.floor(k);
+        runStart += Math.floor(k) * FLOW_MS;
+        k -= Math.floor(k);
+        if (runsLeft <= 0 && !map.isMoving()) {
+          frame = 0;
+          paint(0, null);
+          return;
+        }
+      }
+      paint(0, k * (1 + FLOW_BAND));
+      frame = requestAnimationFrame(step);
     };
-    tick();
-    return () => clearTimeout(timer);
+    const wake = () => {
+      runsLeft = Math.max(runsLeft, 1);
+      if (!frame) {
+        runStart = performance.now();
+        frame = requestAnimationFrame(step);
+      }
+    };
+    frame = requestAnimationFrame(step);
+    map.on('movestart', wake);
+    map.on('moveend', wake);
+    return () => {
+      cancelAnimationFrame(frame);
+      map.off('movestart', wake);
+      map.off('moveend', wake);
+    };
   }, [map, path, travelAnim, blocked]);
 
   return null;
@@ -1982,7 +2107,7 @@ function GameMapInner({
         {/* Drawn under the pins — ground, not a destination. */}
         <HazardRings hazards={hazards} pathIds={pathIdSet} />
 
-        <TravelPath path={travelPath} travelAnim={travelAnim} blocked={!!travelPathBlocked} />
+        <TravelPath path={travelPath} travelAnim={travelAnim} blocked={!!travelPathBlocked} threeD={!!engine} />
 
         {trekTarget && <MapMarker lat={trekTarget.lat} lng={trekTarget.lng} icon={trekTargetIcon()} zIndex={800} />}
 
