@@ -12,7 +12,7 @@ import { conditionBarColor, tileColor } from '../../game/itemTileColor';
 import { packCellKey } from '../../game/packGrid';
 import { Icon } from '../../icons/Icon';
 import type { IconName } from '../../icons/keys';
-import { itemName, useT } from '../../i18n';
+import { instanceName, useT } from '../../i18n';
 import { itemIcon } from './itemIcon';
 import { useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { DockSectionHeader } from '../DockSectionHeader';
@@ -199,7 +199,7 @@ export function InventoryGrid({
             const wears = hasCondition(inst);
             const cond = conditionPct(inst);
             const broken = isBroken(inst);
-            const displayName = itemName(inst.defId, locale);
+            const displayName = instanceName(inst, locale);
             return (
               <div
                 key={inst.uid}

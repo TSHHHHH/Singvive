@@ -8,6 +8,7 @@ import type {
   ItemDef,
   ItemEffect,
   ItemInstance,
+  ItemPrep,
   PackGrid,
 } from './types';
 import { itemDef } from './loot';
@@ -237,7 +238,7 @@ function mergeIntoLooseStacks(items: ItemInstance[], uid: string): ItemInstance[
   let remaining = src.stack;
   const next = items.map((i) => {
     if (remaining <= 0 || i.uid === uid || i.container !== LOOSE || i.defId !== src.defId) return i;
-    if (!!i.coldPrepared !== !!src.coldPrepared || (i.contaminationRisk ?? 0) !== (src.contaminationRisk ?? 0)) return i;
+    if (!samePrep(i, src)) return i;
     const room = def.maxStack - i.stack;
     if (room <= 0) return i;
     const add = Math.min(room, remaining);
@@ -277,8 +278,7 @@ export function addToGrid(
   defId: string,
   count: number,
   condition?: number,
-  contaminationRisk?: number,
-  coldPrepared?: boolean,
+  prep: ItemPrep = {},
 ): { items: ItemInstance[]; leftover: number } {
   const def = itemDef(defId);
   let remaining = count;
@@ -287,7 +287,7 @@ export function addToGrid(
   if (def.stackable) {
     next = next.map((inst) => {
       if (remaining <= 0 || inst.container !== container || inst.defId !== defId) return inst;
-      if (!!inst.coldPrepared !== !!coldPrepared || (inst.contaminationRisk ?? 0) !== (contaminationRisk ?? 0)) return inst;
+      if (!samePrep(inst, prep)) return inst;
       const room = def.maxStack - inst.stack;
       if (room <= 0) return inst;
       const add = Math.min(room, remaining);
@@ -311,8 +311,7 @@ export function addToGrid(
       ...(def.maxCondition !== undefined
         ? { condition: Math.round(condition ?? def.maxCondition) }
         : {}),
-      ...(contaminationRisk !== undefined ? { contaminationRisk } : {}),
-      ...(coldPrepared ? { coldPrepared: true } : {}),
+      ...prepFields(prep),
     });
     remaining -= put;
   }
@@ -329,24 +328,55 @@ export function addToCarry(
   defId: string,
   count: number,
   condition?: number,
-  contaminationRisk?: number,
-  coldPrepared?: boolean,
+  prep: ItemPrep = {},
 ): { items: ItemInstance[]; loose: number } {
-  const packed = addToGrid(items, BACKPACK, defId, count, condition, contaminationRisk, coldPrepared);
+  const packed = addToGrid(items, BACKPACK, defId, count, condition, prep);
   if (packed.leftover === 0) return { items: packed.items, loose: 0 };
-  const rest = addToGrid(packed.items, LOOSE, defId, packed.leftover, condition, contaminationRisk, coldPrepared);
+  const rest = addToGrid(packed.items, LOOSE, defId, packed.leftover, condition, prep);
   return { items: rest.items, loose: packed.leftover };
 }
 
-/** Preparation quality is independent of freshness and never halves hydration or risk. */
-export function preparedEffect(effect: ItemEffect, inst: Pick<ItemInstance, 'coldPrepared'>): ItemEffect {
-  if (!inst.coldPrepared || !['water', 'food', 'energy'].includes(effect.kind)) return effect;
-  if (effect.kind !== 'water' && effect.kind !== 'food' && effect.kind !== 'energy') return effect;
+/**
+ * Murky water in a recipe halves everything the result restores, hydration
+ * included. Same ratio as drinking it straight (Murky Water 14 thirst vs
+ * Bottled Water 28), so a brew never launders murky water into more than the
+ * water itself gave. Boiling only kills germs; the mud stays.
+ */
+export const MUDDY_WATER_EFFECT = 0.5;
+/** Cold-mixed drinks: food/energy benefits halve, hydration is unchanged. */
+export const COLD_PREPARED_EFFECT = 0.5;
+
+/** The preparation fields of an instance, to carry across a move or merge. */
+export function prepOf(inst: ItemPrep): ItemPrep {
+  return prepFields(inst);
+}
+
+function prepFields(prep: ItemPrep): ItemPrep {
   return {
-    ...effect,
-    ...('hunger' in effect && effect.hunger !== undefined ? { hunger: Math.round(effect.hunger / 2) } : {}),
-    ...('energy' in effect && effect.energy !== undefined ? { energy: Math.round(effect.energy / 2) } : {}),
+    ...(prep.contaminationRisk !== undefined ? { contaminationRisk: prep.contaminationRisk } : {}),
+    ...(prep.coldPrepared ? { coldPrepared: true } : {}),
+    ...(prep.hotPrepared ? { hotPrepared: true } : {}),
+    ...(prep.muddy ? { muddy: true } : {}),
   };
+}
+
+/** Stacks only merge when they were made the same way. */
+export function samePrep(a: ItemPrep, b: ItemPrep): boolean {
+  return !!a.coldPrepared === !!b.coldPrepared && !!a.hotPrepared === !!b.hotPrepared
+    && !!a.muddy === !!b.muddy && (a.contaminationRisk ?? 0) === (b.contaminationRisk ?? 0);
+}
+
+/** Preparation quality is independent of freshness; the two multiply. */
+export function preparedEffect(effect: ItemEffect, inst: Pick<ItemInstance, 'coldPrepared' | 'muddy'>): ItemEffect {
+  if (effect.kind !== 'water' && effect.kind !== 'food' && effect.kind !== 'energy') return effect;
+  if (!inst.coldPrepared && !inst.muddy) return effect;
+  const mud = inst.muddy ? MUDDY_WATER_EFFECT : 1;
+  const nourish = mud * (inst.coldPrepared ? COLD_PREPARED_EFFECT : 1);
+  const out = { ...effect };
+  if (out.hunger !== undefined) out.hunger = Math.round(out.hunger * nourish);
+  if (out.energy !== undefined) out.energy = Math.round(out.energy * nourish);
+  if (out.thirst !== undefined) out.thirst = Math.round(out.thirst * mud);
+  return out;
 }
 
 /** Grid slot in the pack, or the loose pile when the pack has no room. */
@@ -639,15 +669,17 @@ export function armorConditionScale(inst: ItemInstance): number {
 }
 
 /**
- * How much of its printed restore a consumable still delivers. Steeper than
- * gear wear (floor 0.5, not 0.75): a tin that has sat in a hot bag for two days
- * is genuinely less of a meal, and freshness should be worth crossing a carpark
- * for. Never zero — spoiled food still feeds you, it just charges infection for
- * the privilege (see `applyItem`).
+ * How much of its printed restore a consumable still delivers. Much steeper
+ * than gear wear (floor 0.3, not 0.75): a packet of chicken rice that has sat
+ * in a hot bag for two days is barely a meal, and freshness should be worth
+ * crossing a carpark for. Never zero — spoiled food still feeds you, but below
+ * half freshness it also upsets the stomach (see `ingestLoad` in infection.ts).
  */
+export const CONSUMABLE_FLOOR = 0.3;
+
 export function consumableScale(inst: ItemInstance): number {
   if (!hasCondition(inst)) return 1;
-  return 0.5 + 0.5 * (conditionOf(inst) / 100);
+  return CONSUMABLE_FLOOR + (1 - CONSUMABLE_FLOOR) * (conditionOf(inst) / 100);
 }
 
 /** A restore amount after freshness. A positive gain never rounds away to 0. */

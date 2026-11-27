@@ -28,7 +28,11 @@ Overlay catalog: `src/i18n/messages/zh-Hans.json` (English source of truth: `en.
 | The 88 Tong / 88 Tong (`syndicate_88`) | 双八堂 | Secret-society 堂口 |
 | The Circle (`sta`) | 环线同盟 / 环线 | League of MRT stations; lines/stations prefer 地铁 |
 | auntie | 阿姨 | Never raw English |
+| kopi / teh drinks | 咖啡乌 · 咖啡西 · 茶乌 · 少甜 · 厚 · 薄 · 无糖 · 滴罗 | Kopitiam names, not descriptions (Kopi-O = 咖啡乌, not 黑咖啡加糖) |
 | bird (evac aircraft) | 班机 / 直升机 by context | |
+| surroundings / HDB heat bands | 安静 / 骚动 / 惊醒 / 猎杀 / 蜂拥 | Same words in the HUD chip, HDB heat bar and the guide |
+| loose (carried outside the bag) | 散装携带 | |
+| energy (meter) | 精力 | 体力 only for general stamina in flavour text |
 
 Banned regressions are gated by `scripts/check-zh-hans-glossary.mjs` (wired into `npm run lint`).
 
@@ -41,4 +45,6 @@ Banned regressions are gated by `scripts/check-zh-hans-glossary.mjs` (wired into
 5. **Dialogue:** spoken 简体; light 啊/啦 only where English has an ah/lah equivalent.
 6. **Keep Latin:** Kopi C/O, 100PLUS, DC, HP, OSM where already established.
 7. **Place names:** never translate OSM `{name}`.
-8. **Mechanics before wordplay:** say what an action costs and does. Preserve numbers, signs and `{placeholders}`; distinguish supplies consumed from tools merely required.
+8. **No 破折号 (——).** English dashes become ：，。 or ·. The lint fails on ——.
+9. **Say it the way a player would.** Prefer 打中 / 掉血 / 背太重 over 命中目标值 / 损失生命值 / 负重导致无法移动 in hints and tooltips. Keep the formal stat word only on the stat label itself.
+10. **Mechanics before wordplay:** say what an action costs and does. Preserve numbers, signs and `{placeholders}`; distinguish supplies consumed from tools merely required.

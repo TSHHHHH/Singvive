@@ -3,17 +3,17 @@ import { useShallow } from 'zustand/react/shallow';
 import { useGame } from '../game/store';
 import { itemDef, ITEMS } from '../game/loot';
 import { canTearForRags, garmentTearsLeft, TEAR_HOURS, TEAR_RAGS_YIELD } from '../game/inventory';
-import { countOf, DIRTY_WATER_DRINK_INFECTION, type CraftBlock } from '../game/crafting';
+import { countOf, type CraftBlock } from '../game/crafting';
 import { collectedRain, gameHour, heatRemaining, surfaceSite, type SiteFacilities } from '../game/facilities';
 import { ItemHoverCard } from './Inventory/ItemHoverCard';
 import { useCoarsePointer } from './tips/useCoarsePointer';
 import { sumTraitMod } from '../game/character';
 import { skillMods } from '../game/skills';
-import type { EquipSlot, ItemDef, ItemInstance } from '../game/types';
+import type { EquipSlot, ItemDef, ItemInstance, ItemPrep } from '../game/types';
 import { itemIcon } from './Inventory/itemIcon';
 import { itemStatLines } from './Inventory/itemStatLines';
 import { Icon } from '../icons/Icon';
-import { itemName, recipeBlurb, recipeName, useT } from '../i18n';
+import { instanceName, itemName, recipeBlurb, recipeName, useT } from '../i18n';
 import { tip } from './tips';
 import {
   browseCraftEntries, CRAFT_CATEGORIES, craftingRows, groupCraftRows, tearRow, TEAR_RECIPE_ID,
@@ -59,7 +59,7 @@ export function CraftingPanel() {
   const [sort, setSort] = useState<CraftSort>('ready');
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
-  const [crafted, setCrafted] = useState<{ defId: string; count: number; loose: number } | null>(null);
+  const [crafted, setCrafted] = useState<{ defId: string; prep: ItemPrep; count: number; loose: number } | null>(null);
   const [modePick, setModePick] = useState<'auto' | 'hot' | 'room'>('auto');
   const [waterPick, setWaterPick] = useState<'carried' | 'site'>('carried');
   const [picks, setPicks] = useState<Record<string, string>>(loadVariantPicks);
@@ -111,7 +111,7 @@ export function CraftingPanel() {
   const craft = (row: CraftRecipeRow) => {
     const result = row.recipe.id !== TEAR_RECIPE_ID ? craftItem(row.recipe.id, mode, waterSource)
       : tearSource.id === 'own' ? tearOwnClothes() : tearForRags(tearSource.id);
-    setCrafted(result ? { defId: row.recipe.outputDefId, count: row.recipe.outputCount, loose: result.loose } : null);
+    setCrafted(result ? { defId: row.recipe.outputDefId, prep: row.prep, count: row.recipe.outputCount, loose: result.loose } : null);
   };
   const hoverInst: ItemInstance | null = hover ? previewInstance(hover.row) : null;
 
@@ -161,7 +161,7 @@ export function CraftingPanel() {
       </div>
 
       <div role="status" aria-live="polite" className={crafted ? 'border-l-2 border-astral bg-astral/5 px-3 py-2 text-body text-astral' : 'sr-only'}>
-        {crafted && t('ui.craft.made', { n: crafted.count, name: itemName(crafted.defId, locale) })}
+        {crafted && t('ui.craft.made', { n: crafted.count, name: instanceName({ defId: crafted.defId, ...crafted.prep }, locale) })}
         {crafted && crafted.loose > 0 && <> · {t('ui.craft.carryLoose', { n: crafted.loose })}</>}
       </div>
 
@@ -238,7 +238,7 @@ function previewInstance(row: CraftRecipeRow): ItemInstance {
   const { recipe } = row;
   return {
     uid: `craft-${recipe.id}`, defId: recipe.outputDefId, container: 'backpack', x: 0, y: 0, rotated: false,
-    stack: recipe.outputCount, coldPrepared: recipe.preparation === 'drink' && row.context.mode === 'room',
+    stack: recipe.outputCount, ...row.prep,
   };
 }
 
@@ -395,7 +395,8 @@ function RecipeDetails({ row, onCraft, busy }: { row: CraftRecipeRow; onCraft: (
     {recipe.facility && <p className="text-signal">{t('ui.craft.staysHere')}</p>}
     <SiteCollect row={row} busy={busy} />
     {preview.coldPrepared && <p className="text-white/65">{t('ui.craft.roomPenalty')}</p>}
-    {row.waterId === 'dirty_water' && preview.coldPrepared && <p className="text-hiss">{t('ui.craft.unsafeWater', { n: DIRTY_WATER_DRINK_INFECTION })}</p>}
+    {preview.muddy && <p className="text-white/65">{t('ui.craft.muddyPenalty')}</p>}
+    {preview.contaminationRisk !== undefined && <p className="text-hiss">{t('ui.craft.unsafeWater', { n: preview.contaminationRisk })}</p>}
     {row.check.block && <p className="text-hiss">{craftBlockText(row.check.block, t, locale)}</p>}
     {busy && <p className="text-hiss">{t('ui.craft.busy')}</p>}
     <button type="button" disabled={!row.check.ok || busy} onClick={onCraft}

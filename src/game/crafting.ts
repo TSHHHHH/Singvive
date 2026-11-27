@@ -1,5 +1,5 @@
 import { isCarried } from './inventory';
-import type { ItemInstance } from './types';
+import type { ItemInstance, ItemPrep } from './types';
 import { ITEMS, itemDef } from './loot';
 import recipesCatalog from './data/recipes.json' with { type: 'json' };
 import type { RecipeFamily } from './recipeFamilies';
@@ -228,6 +228,31 @@ export function canCraft(
 /** Every drop in the pack, clean or murky — what a water blocker compares against. */
 export function waterCarried(items: ItemInstance[]): number {
   return WATER_INPUT_IDS.reduce((total, id) => total + countOf(items, id), 0);
+}
+
+/**
+ * How the output of a craft was made, from the water actually poured in.
+ * Murky water marks any water recipe's output muddy (see MUDDY_WATER_EFFECT);
+ * only a cold-mixed drink also carries its germs, since heat kills them.
+ * Site water is boiled water, and setup recipes (boiling itself) are the
+ * counterplay, so neither turns muddy.
+ */
+export function craftedPrep(
+  recipe: Recipe,
+  inputs: Record<string, number>,
+  ctx: Pick<CraftContext, 'mode' | 'waterSource'>,
+): ItemPrep {
+  const fromSite = ctx.waterSource === 'site' && recipe.preparation !== 'boil';
+  const muddy = !!recipe.waterInput && !recipe.facility && !fromSite
+    && (inputs.dirty_water ?? 0) > (recipe.inputs.dirty_water ?? 0);
+  const drink = recipe.preparation === 'drink';
+  const cold = drink && ctx.mode === 'room';
+  return {
+    ...(cold ? { coldPrepared: true } : {}),
+    ...(drink && !cold ? { hotPrepared: true } : {}),
+    ...(muddy ? { muddy: true } : {}),
+    ...(muddy && cold ? { contaminationRisk: DIRTY_WATER_DRINK_INFECTION } : {}),
+  };
 }
 
 /** Choose clean water first; murky water is accepted only as a last resort. */

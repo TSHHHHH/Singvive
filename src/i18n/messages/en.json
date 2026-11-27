@@ -679,7 +679,12 @@
         }
       },
       "craftUses": "Crafting uses",
-      "keptTool": "Reusable tool"
+      "keptTool": "Reusable tool",
+      "measure": {
+        "perishable": "Freshness",
+        "gear": "Durability",
+        "medicine": "Potency"
+      }
     },
     "load": {
       "light": "Pack is light — no load penalty",
@@ -794,6 +799,14 @@
       "made": "Made {n}× {name}",
       "unsafeWater": "Uses murky water. Drinking this adds {n} infection.",
       "tearRemaining": "{n} uses left",
+      "muddyPenalty": "Murky water · all restores halved, hydration included",
+      "madeAs": {
+        "hot": "Hot {name}",
+        "hotMuddy": "Hot Muddy {name}",
+        "room": "Room-temp {name}",
+        "roomMuddy": "Room-temp Muddy {name}",
+        "muddy": "Muddy {name}"
+      },
       "categories": {
         "all": "All categories",
         "medical": "Medical",
@@ -1083,7 +1096,10 @@
       "intelReveal": "Marks hidden sites on your map",
       "intelRumour": "Marks a fuzzy rumoured site",
       "damageOf": "{dmg} (of {base})",
-      "restoreOf": "{n} (of {base})"
+      "restoreOf": "{n} (of {base})",
+      "stomach": "Upset stomach",
+      "stomachSettles": "Settles it",
+      "stomachEases": "Halves it"
     },
     "sheet": {
       "group": {
@@ -2778,6 +2794,25 @@
       "badgeQuiet": "No disturbance here",
       "badgeEffect": "Searches and doorways here count {n} danger higher until it ends.",
       "reason": "{what} · {h} h"
+    },
+    "stomach": {
+      "upset": "{name} had turned. Your stomach churns (upset stomach +{n}).",
+      "murky": "{name} sits wrong. Your stomach churns (upset stomach +{n}).",
+      "settled": "{name} settles your stomach.",
+      "eased": "{name} eases your stomach a little."
+    },
+    "infection": {
+      "rate": "{n}/h",
+      "tier": {
+        "fever": "Feverish",
+        "high": "High fever",
+        "critical": "Gravely ill"
+      },
+      "stomach": "Upset stomach: {n} more on the way, and thirst drains faster. Po Chai settles it.",
+      "gut": "{n} of it came from your stomach and fades while you keep drinking.",
+      "hp": "Costs {n} HP an hour (torso).",
+      "clean": "No infection.",
+      "tierLine": "{tier}: {effects}"
     }
   },
   "settings": {
@@ -2970,7 +3005,7 @@
       "title": "Survive",
       "bullets": [
         "Hunger, thirst and infection change with elapsed time. Energy normally drains with time, but surface walking charges by distance instead. Hunger or thirst below 35 starts eating limb HP.",
-        "Health is the sum of your six limbs — see the Body topic for how each injury changes travel, aim, and stamina. Major bleeds block regen until bandaged; infection at 100 ends the run.",
+        "Health is the sum of your six limbs — see the Body topic for how each injury changes travel, aim, and stamina. Major bleeds block regen until bandaged. High infection brings fever: you tire faster, heal slower and drain HP until antibiotics bring it down. Spoiled food and murky water upset your stomach; Po Chai settles it.",
         "Before a run, pick a job seed or build traits on the same screen. Positives share one list; all negative traits are flaws. There are no trait-count caps: flaws earn points and positives spend them. Keep points left at 0 or above, and do not combine conflicting traits or pick the same trait twice.",
         "Night (after dusk) is more dangerous. Get inside before dark — the streets fill with a night swarm. After dark you only see as far as your light: fewer blips, fewer pockets on the trek card, and worse aim. A torch (off hand) or headlamp (head) pushes the dark back, but a lit survivor is easier to spot. Rest shows recovery and ambush chance; sleep still drains hunger and thirst (reduced).",
         "Arriving nearby can identify a place by its exterior within 20–60 metres, depending on awareness, before light and weather reduce that range. An identified marker gives its name and type; danger, occupants and supplies stay unknown until you visit or gain fuller intel. Identifying a place does not clear the surrounding fog.",

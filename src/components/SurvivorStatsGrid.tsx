@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { infectionEffect } from '../game/infection';
 import { useShallow } from 'zustand/react/shallow';
 import { tip } from './tips';
 import { useGame } from '../game/store';
@@ -107,7 +108,7 @@ export function SurvivorStatsGrid() {
       carryMod,
       torsoCarryMult(bodyParts),
     );
-    const armPen = armCombatPenalty(bodyParts) + headCombatPenalty(bodyParts);
+    const armPen = armCombatPenalty(bodyParts) + headCombatPenalty(bodyParts) + infectionEffect(meters.infection).attack;
     const pStats = playerCombatStats(
       character.attributes,
       character.traitIds,
@@ -135,7 +136,7 @@ export function SurvivorStatsGrid() {
     const loadKg = carriedWeight(items, equipment);
     const stealth = equipEncounterChanceMod(equipment);
     return { carryMod, fx, armPen, pStats, dodge, travel, carry, loadKg, stealth };
-  }, [character, items, equipment, bodyParts, meters.energy]);
+  }, [character, items, equipment, bodyParts, meters.energy, meters.infection]);
 
   if (!character || !derived) return null;
 

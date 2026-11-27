@@ -444,6 +444,10 @@ export interface ItemInstance {
   careUses?: number;
   /** Mixed without heat: food/energy benefits halve, hydration is unchanged. */
   coldPrepared?: boolean;
+  /** Brewed hot. Only labels the drink; the full-strength effect is the default. */
+  hotPrepared?: boolean;
+  /** Made with murky water: every restore is scaled by MUDDY_WATER_EFFECT (inventory.ts). */
+  muddy?: boolean;
   uid: string;
   defId: string;
   container: Container;
@@ -461,6 +465,9 @@ export interface ItemInstance {
   /** Rounds in a magazine item or loaded holstered firearm. */
   loadedRounds?: number;
 }
+
+/** How a crafted item was made. Items only stack with others made the same way. */
+export type ItemPrep = Pick<ItemInstance, 'coldPrepared' | 'hotPrepared' | 'muddy' | 'contaminationRisk'>;
 
 export type Equipment = Record<EquipSlot, ItemInstance | null>;
 
@@ -688,7 +695,11 @@ export interface Meters {
   hunger: number; // 100 = full, 0 = starving
   thirst: number; // 100 = hydrated
   energy: number; // 100 = rested
-  infection: number; // 0 = clean, 100 = turned
+  infection: number; // 0 = clean, 100 = gravely ill
+  /** Pending upset-stomach load from bad food or murky water; seeps into infection (see infection.ts). */
+  stomach?: number;
+  /** The part of `infection` that came from the gut and recedes on its own. */
+  gut?: number;
 }
 
 export type WeatherKind = 'clear' | 'cloudy' | 'rain' | 'thunderstorm' | 'haze' | 'heat';

@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
+import { infectionLines, infectionRateChip } from './infectionReadout';
 import { Icon } from '../icons/Icon';
 import { useHeldWhileRolling } from '../ui/diceGate';
 import { DockSectionHeader } from './DockSectionHeader';
@@ -129,6 +130,8 @@ export function ConditionPanel({
                 max={100}
                 color="#2bc4d9"
                 danger
+                rate={infectionRateChip(meters, t)}
+                modifiers={infectionLines(meters, t)}
               />
             </div>
           )}

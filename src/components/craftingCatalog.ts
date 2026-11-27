@@ -1,10 +1,10 @@
 import {
-  canCraft, countOf, RECIPES, waterCarried, recipeInputs, craftSetup, DEFAULT_CRAFT_CONTEXT, WATER_INPUT_IDS,
+  canCraft, countOf, craftedPrep, RECIPES, waterCarried, recipeInputs, craftSetup, DEFAULT_CRAFT_CONTEXT, WATER_INPUT_IDS,
   type Recipe, type RecipeAvailability, type CraftContext,
 } from '../game/crafting';
 import { adjustCraftInputs } from '../game/character';
 import { itemDef } from '../game/loot';
-import type { ItemDef, ItemInstance } from '../game/types';
+import type { ItemDef, ItemInstance, ItemPrep } from '../game/types';
 import { itemName, recipeName, type LocaleId } from '../i18n';
 
 export const CRAFT_CATEGORIES = ['all', 'food', 'drinks', 'medical', 'weapons', 'equipment', 'materials', 'tools', 'facilities'] as const;
@@ -29,6 +29,8 @@ export interface CraftRecipeRow {
   missingKinds: number;
   missingUnits: number;
   waterId: string | null;
+  /** How the output would come out with the water this row would pour. */
+  prep: ItemPrep;
   context: CraftContext;
   /** Only for limited-use actions (cutting up your clothes): how many uses remain. */
   usesLeft?: number;
@@ -68,7 +70,7 @@ export function craftingRows(items: ItemInstance[], atShelter: boolean, craftCos
     const toolHave = recipe.tool ? countOf(items, recipe.tool) : 0;
     const missing = ingredients.filter((input) => input.have < input.need || (input.water && !waterId));
     return {
-      recipe, ingredients, waterId, toolHave, context,
+      recipe, ingredients, waterId, toolHave, context, prep: craftedPrep(recipe, inputs, context),
       check: canCraft(recipe, items, atShelter, inputs, context),
       category: recipe.facility ? 'facilities' : outputCategory(itemDef(recipe.outputDefId)),
       setupReady: craftSetup(recipe, items, context).ok && (!recipe.tool || toolHave > 0),
@@ -94,7 +96,7 @@ export function tearRow(usesLeft: number, hours: number, yieldCount: number, con
     check: ok ? { ok: true, reason: '' } : { ok: false, reason: 'Nothing left to cut', block: { kind: garment ? 'tearsWorn' : 'tears' } },
     category: outputCategory(itemDef('cloth_rags')),
     ingredients: [], toolHave: 0, setupReady: ok, missingKinds: ok ? 0 : 1, missingUnits: ok ? 0 : 1,
-    waterId: null, context, usesLeft,
+    waterId: null, prep: {}, context, usesLeft,
   };
 }
 
