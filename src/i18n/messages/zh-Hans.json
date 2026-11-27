@@ -2,21 +2,21 @@
   "ui": {
     "crossing": {
       "log": {
-        "noticed": "路线经过{hazards}。你停在出发点，先决定如何通过。",
+        "noticed": "路线要穿过{hazards}。你在出发点停下，先想好怎么过。",
         "slipped": "你看清前方地形，悄悄绕过了{hazards}，没有被发现。",
         "slippedOut": "你找到一条安静的路，离开了{hazards}。",
         "caught": "你在路上被{hazards}缠上了，只能硬闯过去。",
-        "withdraw": "你在出发前撤回，没有消耗步行体力或时间，也没有结算穿越后果。",
-        "changed": "情况已有变化。出发前请重新查看路线。",
-        "careful": "你先检查落脚点，观察周围动静，再谨慎通过。额外花费 {minutes} 分钟。",
-        "direct": "你决定直接穿越，承担前方地形和威胁带来的风险。",
-        "resolved": "穿越结算：{injury}；{infection}。穿越额外耗时 {minutes} 分钟。{contact}",
+        "withdraw": "你在出发前退了回来。没花精力和时间，也没有任何穿越后果。",
+        "changed": "情况变了。出发前再看一遍路线。",
+        "careful": "你先看清落脚的地方，观察周围的动静，再小心通过。多花 {minutes} 分钟。",
+        "direct": "你决定直接穿过去，前方的地形和威胁都得硬扛。",
+        "resolved": "穿越结果：{injury}；{infection}。多花了 {minutes} 分钟。{contact}",
         "injury": "受到 {n} 点伤害",
         "noInjury": "穿越没有造成外伤",
         "infection": "感染值增加 {n}",
         "noInfection": "穿越没有增加感染值",
-        "intercepted": "即将抵达时，威胁拦住了去路。",
-        "clear": "你顺利通过，没有遭到拦截。"
+        "intercepted": "快到的时候，被拦住了。",
+        "clear": "你顺利通过，没被拦下。"
       },
       "kind": {
         "horde_pocket": "感染者聚集区",
@@ -55,10 +55,10 @@
       "unknownPlace": "岛上某处",
       "topScores": "最高分",
       "loadingWorld": "正在加载全球分数…",
-      "worldUnreachable": "无法访问全球排行榜。",
+      "worldUnreachable": "连不上全球排行榜。",
       "noWorldScores": "全球榜暂无记录。",
       "noDeviceScores": "本设备暂无记录。",
-      "blurb": "真实新加坡地图上的肉鸽生存——18000+ 真实地点搜刮，管好身体，冲分，或在准备好后搭直升机撤离。首次开局会弹出玩法指南，之后可随时在设置里重开。"
+      "blurb": "在真实新加坡地图上求生的肉鸽游戏。全岛 18000 多个真实地点可以搜刮。照顾好身体，冲高分，准备好了就搭直升机撤离。第一次开局会弹出玩法指南，之后可以在设置里随时重看。"
     },
     "scores": {
       "worldwide": "全球",
@@ -82,8 +82,8 @@
         "exportAction": "下载存档",
         "exportEmpty": "没有可导出的存档。",
         "importLabel": "导入存档",
-        "importDesc": "载入存档文件，将覆盖当前的续玩存档。",
-        "importMenuOnly": "仅限标题界面——游戏进行中会覆盖导入的文件。",
+        "importDesc": "载入存档文件，会覆盖“继续游戏”里的存档。",
+        "importMenuOnly": "只能在标题画面导入，游戏进行中的存档会覆盖导入的文件。",
         "importAction": "选择文件…",
         "importOk": "存档已载入。点击「继续游戏」开始。",
         "importFailed": "该文件不是 Singvive 存档。",
@@ -102,7 +102,7 @@
         "rotate": "旋转视角（3D）",
         "zoom": "放大 / 缩小",
         "recenter": "回到自己",
-        "note": "只有在列表或面板未获得焦点时，方向键才会平移地图。"
+        "note": "只有没选中列表或面板时，方向键才会移动地图。"
       }
     },
     "guide": {
@@ -116,7 +116,7 @@
         "thirst": "水分",
         "energy": "精力",
         "infect": "感染",
-        "hpLimbs": "生命值由 6 个身体部位构成",
+        "hpLimbs": "生命值 = 6 个部位之和",
         "sleepDrain": "睡眠时消耗 ×0.55",
         "lowHpLoss": "<35 时损失生命值",
         "pack": "背包",
@@ -154,22 +154,22 @@
       },
       "limbCoach": {
         "title": "你受伤了",
-        "blurb": "打开身体面板即可查看伤势，并按需包扎、清洁、止痛或固定。护理能稳定伤势，恢复需要时间。",
+        "blurb": "打开“身体”查看伤势，选择包扎、清洁、止痛或固定。护理能稳住伤势，痊愈靠时间。",
         "openGuide": "打开「身体」指南",
         "effect": {
-          "head": "头部受伤——瞄准、搜索与警觉都会变差。",
-          "torso": "躯干受伤——更容易疲劳，负重变少。",
-          "leftArm": "左臂受伤——格挡与空手节奏变差。",
-          "rightArm": "右臂受伤——武器命中变差。",
-          "leftLeg": "左腿受伤——地图上会跛行（不影响战斗条填充）。",
-          "rightLeg": "右腿受伤——地图上会跛行（不影响战斗条填充）。"
+          "head": "头部受伤：瞄准、搜索和警觉都会变差。",
+          "torso": "躯干受伤：更容易累，能背的东西变少。",
+          "leftArm": "左臂受伤：格挡和空手出手的节奏变差。",
+          "rightArm": "右臂受伤：武器命中变差。",
+          "leftLeg": "左腿受伤：在地图上走路会跛（不影响战斗行动条）。",
+          "rightLeg": "右腿受伤：在地图上走路会跛（不影响战斗行动条）。"
         }
       },
       "howThisWorks": "查看说明"
     },
     "instance": {
       "title": "已在别处打开",
-      "blurb": "SINGVIVE 正在另一个标签页中运行。关闭它后，此页面会从你离开的地方继续。"
+      "blurb": "SINGVIVE 已在另一个标签页打开。关掉那个，这里就会接着你上次的进度。"
     },
     "death": {
       "escaped": "你逃出来了",
@@ -183,11 +183,11 @@
       "posting": "正在上传至全球排行榜…",
       "posted": "已上传至全球排行榜。",
       "rank": "全球排名 #{rank}。",
-      "rateLimited": "全球排行榜限流中——已保存在本设备。",
-      "invalid": "无法上传此分数——已保存在本设备。",
-      "unreachableSaved": "无法访问全球排行榜——已保存在本设备。",
+      "rateLimited": "全球排行榜提交太频繁，已保存在本设备。",
+      "invalid": "这个分数没能上传，已保存在本设备。",
+      "unreachableSaved": "连不上全球排行榜，已保存在本设备。",
       "loadingWorld": "正在加载全球分数…",
-      "worldUnreachable": "无法访问全球排行榜。",
+      "worldUnreachable": "连不上全球排行榜。",
       "noWorldScores": "全球榜暂无记录。",
       "thisDevice": "本设备",
       "worldwide": "全球",
@@ -195,14 +195,14 @@
         "health": "失血倒下。",
         "starvation": "死于饥饿。",
         "dehydration": "死于脱水。",
-        "infection": "感染吞噬了你。你变了。",
+        "infection": "你尸变了。感染赢了。",
         "head": "头部遭到致命一击。",
         "torso": "躯干伤势致命。",
         "overrun": "尸潮席卷全城。再也无处可逃。"
       },
       "escapeSummary": "{name}在第 {day} 天逃离了新加坡。",
-      "survivedOne": "{name}在新加坡的废墟中生存了 {day} 天。",
-      "survivedMany": "{name}在新加坡的废墟中生存了 {day} 天。",
+      "survivedOne": "{name}在新加坡的废墟里撑了 {day} 天。",
+      "survivedMany": "{name}在新加坡的废墟里撑了 {day} 天。",
       "scoreMultiplier": "（得分倍率 ×{mult}）"
     },
     "spawn": {
@@ -211,18 +211,18 @@
       "locating": "定位中…",
       "random": "随机",
       "railMap": "地铁图",
-      "scanning": "正在扫描附近区域寻找补给…",
-      "hint": "点干燥陆地、用你的位置，或随机出生。",
+      "scanning": "正在搜寻附近的补给…",
+      "hint": "点一块陆地、用你的定位，或者随机出生。",
       "spawnLabel": "出生点：",
       "wakeUp": "在此醒来 →",
-      "geoUnavailable": "此浏览器无法获取你的位置。",
-      "outsideSg": "你位于新加坡之外——请点击地图或选择随机。",
-      "permissionDenied": "位置权限被拒绝——请点击地图选择。",
-      "geoFailed": "无法读取你的位置——请点击地图选择。",
-      "noWalkable": "找不到可行走的地面——请点击地图。",
-      "tooRemote": "太偏了，没什么基建——换个城区点。",
-      "dataUnavailable": "地点数据加载失败。请在网络连接恢复后重试。",
-      "myLocationTitle": "向浏览器请求你的真实位置",
+      "geoUnavailable": "这个浏览器无法提供你的位置。",
+      "outsideSg": "你不在新加坡。请点地图，或者选随机。",
+      "permissionDenied": "没有定位权限，请直接点地图。",
+      "geoFailed": "读不到你的位置，请直接点地图。",
+      "noWalkable": "找不到能走的地面，请点地图。",
+      "tooRemote": "这里太偏，没什么建筑。换一个城区。",
+      "dataUnavailable": "地点数据加载失败。请等网络恢复后再试。",
+      "myLocationTitle": "让浏览器读取你的真实位置",
       "railMapTitle": "显示地铁与轻轨路网"
     },
     "combat": {
@@ -230,11 +230,11 @@
       "fight": "战斗",
       "contactDetails": "战斗详情",
       "pursuit": "· 对方会追击一次",
-      "overloaded": "· 负重过高，无法撤离",
-      "fightHint": "以戒备姿态开战，战斗开始后可随时切换姿态。",
+      "overloaded": "· 背太重，跑不掉",
+      "fightHint": "开打时是戒备姿态，战斗开始后可以随时换姿态。",
       "flee": "逃跑",
       "breakOff": "脱离",
-      "breakOffTitle": "尝试脱离——逃跑 DC −4，对方会趁机追击一次",
+      "breakOffTitle": "脱离战斗：逃跑 DC −4，对方会趁你跑时补一下",
       "pause": "暂停",
       "resume": "继续",
       "seeResults": "查看结果",
@@ -242,8 +242,8 @@
       "dmg": "伤害",
       "def": "防御",
       "spd": "速度",
-      "spdTip": "行动条每秒积累的进度，受武器重量、姿态和副手是否空着影响",
-      "spdTipEnemy": "敌人行动条每秒积累的进度",
+      "spdTip": "行动条每秒涨多少。武器重量、姿态、副手是否空着都有影响",
+      "spdTipEnemy": "对方行动条每秒涨多少",
       "enemyBlocked": "你用{weapon}挡住了这一击。",
       "offHandHit": "副手{weapon}补上一击，造成 {dmg} 点伤害。",
       "offHandMiss": "副手{weapon}打了个空。",
@@ -257,12 +257,12 @@
       "guide": "战斗指南",
       "fire": "开火",
       "reload": "装填",
-      "fireTip": "单次射击：行动条归零，重新蓄满后开一枪",
-      "reloadTip": "用背包中的已装填弹匣或霰弹重新装填",
-      "noAmmo": "背包里没有可用弹匣或霰弹",
-      "fireBroken": "坏了——开不了火，还能拿枪砸",
-      "magCount": "枪套中弹药 {n}/{cap}",
-      "holstered": "枪套中弹药 {n} 发",
+      "fireTip": "半自动：行动条归零，然后开一枪",
+      "reloadTip": "从背包里换上装好的弹匣或霰弹",
+      "noAmmo": "背包里没有装好的弹匣或霰弹",
+      "fireBroken": "枪坏了，开不了火，但还能拿来砸",
+      "magCount": "枪套里 {n}/{cap} 发",
+      "holstered": "枪套里 {n} 发",
       "terrain": {
         "hdb_corridor": "组屋走廊",
         "void_deck": "组屋底层",
@@ -273,19 +273,19 @@
       },
       "stanceHint": {
         "aggressive": "全力进攻。命中 +2、伤害 +2、防御 −3、闪避 −2%。",
-        "guarded": "护住要害。防御 +2、闪避 +2%，出手较慢，肢体所受伤害 ×0.75。",
-        "precision": "暴击 +15%，无视护甲，出手缓慢谨慎，每次攻击耗时更长。",
-        "disengage": "脱离接触。逃跑 DC −4，但对方仍会以命中 −2 追击一次。"
+        "guarded": "护住自己。防御 +2、闪避 +2%，出手变慢，肢体受到的伤害 ×0.75。",
+        "precision": "暴击 +15%，无视护甲。出手慢而稳，每一下都更耗时。",
+        "disengage": "脱离战斗。逃跑 DC −4，但对方会以命中 −2 补你一下。"
       },
       "contactHuman": "{enemy}在{terrain}拦住了你。",
       "contactOther": "{enemy}在{terrain}发现了你。",
       "movesAt": "对方速度 {speed}",
       "you": "你",
       "them": "对方",
-      "yourInterval": "以当前速度行动一次所需秒数",
-      "theirInterval": "对方行动一次所需秒数",
+      "yourInterval": "按当前速度，你每次行动要几秒",
+      "theirInterval": "对方每次行动要几秒",
       "damageTip": "每次命中的伤害",
-      "defenceTip": "对手需要超过的防御值",
+      "defenceTip": "对方要掷过这个数才能打中",
       "fxMiss": "落空",
       "fxDodge": "闪避",
       "fxBlock": "格挡",
@@ -304,21 +304,21 @@
         },
         "verdictTip": {
           "flawless": "没有受到任何攻击。",
-          "clean": "挨了几下，但没有开放性伤口。",
-          "bloodied": "你赢了，但有伤口或在流血。去看看伤口处理。",
-          "barely": "骨折、大出血、肢体残废或生命值很低。下一场战斗前先处理伤势。",
-          "escaped": "你脱离了接触，活了下来。"
+          "clean": "挨了几下，没有开放伤口。",
+          "bloodied": "赢了，但你有伤口或在流血。去处理一下伤口。",
+          "barely": "骨折、大出血、肢体残废或生命值很低。下一仗之前先处理伤势。",
+          "escaped": "你甩开了对方，保住了命。"
         },
         "turns": "T{n}",
         "minutes": "{n} 分钟",
-        "timeTip": "{turns} 回合 · 战斗耗时 {min} 游戏分钟",
+        "timeTip": "{turns} 回合 · 打了 {min} 分钟（游戏时间）",
         "you": "你",
         "them": "对方",
         "dealt": "{n}",
         "dealtTip": "造成伤害",
         "hits": "{hits}/{swings}",
-        "hitsTip": "命中 / 攻击：{swings} 次中命中 {hits} 次（{rate}）。\n掷骰前平均命中率 {odds}。",
-        "hitsTipShots": "命中 / 攻击：{swings} 次中命中 {hits} 次（{rate}），其中 {shots} 次为射击。\n掷骰前平均命中率 {odds}。",
+        "hitsTip": "你出手 {swings} 次，打中 {hits} 次（{rate}）。\n掷骰前平均命中率 {odds}。",
+        "hitsTipShots": "你出手 {swings} 次，打中 {hits} 次（{rate}），其中 {shots} 次是开枪。\n掷骰前平均命中率 {odds}。",
         "odds": "{n}%",
         "crits": "{n}",
         "critsTip": "暴击次数 · 单次最高伤害 {best}",
@@ -328,8 +328,8 @@
         "taken": "{n}",
         "takenTip": "战斗中损失的生命值",
         "landed": "{hits}/{attacks}",
-        "landedTip": "对方命中你的攻击：{attacks} 次中 {hits} 次（{rate}）。\n对方掷骰平均有 {odds} 的概率突破你的防御，其余被闪避或格挡。",
-        "landedTipFlee": "对方命中你的攻击：{attacks} 次中 {hits} 次（{rate}），包括你逃跑时的追击。",
+        "landedTip": "对方出手 {attacks} 次，打中你 {hits} 次（{rate}）。\n对方平均有 {odds} 的几率掷过你的防御，其余被你闪开或挡住。",
+        "landedTipFlee": "对方出手 {attacks} 次，打中你 {hits} 次（{rate}），包括你逃跑时挨的那一下。",
         "dodges": "{n}",
         "dodgesTip": "闪避",
         "blocks": "{n}",
@@ -337,14 +337,14 @@
         "infection": "+{n}",
         "infectionTip": "被咬增加的感染",
         "health": "{before} → {after}",
-        "healthTip": "战斗前 → 战斗后生命值（上限 {max}）",
+        "healthTip": "战前 → 战后生命值（上限 {max}）",
         "noWounds": "没有新伤",
-        "noWoundsTip": "这场战斗没有留下需要处理的新伤。",
+        "noWoundsTip": "这一仗没有新伤要处理。",
         "partHits": "−{n}",
         "partTip": "{part}：被击中 {hits} 次，−{dmg} 生命",
         "woundNew": "新伤口：{wound}",
         "bleedMinor": "开始流血",
-        "bleedMajor": "大出血——需要包扎",
+        "bleedMajor": "大出血，赶紧包扎",
         "fractured": "骨折",
         "crippled": "残废",
         "drops": "尸体上",
@@ -368,7 +368,7 @@
         "hardware": "工具 · 近战武器 · 制作零件",
         "fuel": "燃料 · 零食 · 手电筒",
         "police": "枪械 · 弹药 · 防暴装备",
-        "residential": "家用物资 · 单位内物资",
+        "residential": "家用物资 · 住户屋内物资",
         "foodcourt": "食物 · 饮料",
         "mrt": "少量物资 · 隧道入口",
         "industrial": "工具 · 燃料 · 材料",
@@ -394,7 +394,7 @@
       "goInsideSearch": "进入并搜索",
       "nothingLeft": "已搜空",
       "nothingLeftToSearch": "没有东西可搜了",
-      "tooExhausted": "太疲惫了——先休息",
+      "tooExhausted": "太累了，先睡一觉",
       "noDryRoute": "没有干燥路线",
       "tooFar": "太远无法到达",
       "unknownLocation": "未知地点",
@@ -409,24 +409,24 @@
       "askIntel": "打听情报",
       "trade": "在柜台交易",
       "fence": "销赃摊",
-      "fenceHint": "黑市板 — 今日换货",
+      "fenceHint": "黑市 · 今天能换的货",
       "canteen": "坐下吃饭",
-      "canteenHint": "每日一次 — 不占背包",
+      "canteenHint": "每天一次 · 不占背包",
       "canteenLocked": "饭桌只给熟人",
       "escort": "请人护送",
-      "escortHint": "他们护送你去一个叫得出名字的地方",
+      "escortHint": "他们会护送你去一个有名字的地点",
       "escortLocked": "他们不护送陌生人",
       "escortBooked": "已约到 {name}",
-      "escortNoDest": "先自己走过一处 — 他们只护送到叫得出名字的地方。",
+      "escortNoDest": "先自己走过去一趟。他们只护送到有名字的地点。",
       "walkTheDecks": "走组屋底层",
-      "walkTheDecksHint": "自己人 — 这栋楼给你一次",
+      "walkTheDecksHint": "自己人：这栋楼放你搜一次",
       "walkTheDecksAgain": "这栋楼还认得你",
       "leaveBlock": "离开组屋",
       "route": "路线",
       "planTunnels": "规划隧道路线",
       "tunnelMeta": "{line}{meters} 米 · 无天气影响，无距离限制",
       "tunnelMetaRoute": "路线 · 无天气影响，无距离限制",
-      "pickStation": "选择任意车站 · 虚线部分为坍塌路段，通行艰难",
+      "pickStation": "选任意车站 · 虚线隧道要艰难爬行",
       "services": "服务",
       "desk": {
         "trade": "交易",
@@ -444,18 +444,18 @@
         "feedSub": "热饭，不占背包",
         "escortSub": "选一个你知道的地点",
         "feeHave": "费用：背包里的 1× {item}",
-        "feeNone": "费用：{items}——你一样也没带",
+        "feeNone": "费用：{items}。你一样都没有",
         "sneakSub": "敏捷检定",
         "forceSub": "为他们的储备开战",
         "behindWire": "铁丝网内：{what}",
         "lockedAt": "{rung}（{n}）解锁：{what}",
-        "next": "下一级：{n} {rung}——{what}",
+        "next": "下一级：{rung}（{n}）· {what}",
         "betterBoard": "更多交易",
         "reserved": "自己人专供货",
-        "kinTop": "自己人——他们把你当成一家人。",
+        "kinTop": "自己人：他们把你当成一家人。",
         "shortOf": "紧缺：",
-        "earnTip": "在门口付费、每完成三次交易都会提升声望。在他们的地盘上动手会降低声望。",
-        "membersOnly": "只对自己人开放——需要{rung}（{n}）。可以先接下面的悬赏。",
+        "earnTip": "在门口交费、每做成三笔交易都会涨声望。在他们的地盘上动手会掉声望。",
+        "membersOnly": "只对自己人开放，需要达到{rung}（{n}）。先做下面的任务攒声望。",
         "jobs": "门口悬赏",
         "take": "接",
         "turnIn": "交付",
@@ -466,82 +466,82 @@
         "jobReward": "+{s} 声望 · {n}× {item}",
         "jobPass": "可抵进门费，{d} 天"
       },
-      "approachGateFirst": "先靠近大门——他们不会在路边与你交易。",
+      "approachGateFirst": "先走到大门前。他们不会隔着马路跟你做买卖。",
       "gateFirst": "先靠近大门",
       "alreadyUsedToday": "今日已使用",
       "tradeHint": "今日交易",
       "restHint": "安全至天亮",
       "aidHint": "每日一次",
-      "intelHint": "每日一次 — 获得地图情报",
+      "intelHint": "每天一次 · 地图情报",
       "noDealStrangers": "他们不与陌生人交易",
       "bedsTrusted": "床位只留给信任的人",
-      "medicsTrusted": "医疗只提供给信任的人",
-      "noBriefStrangers": "他们不向陌生人提供情报",
+      "medicsTrusted": "只给信得过的人看伤",
+      "noBriefStrangers": "他们不跟陌生人透露消息",
       "approachGate": "靠近大门",
       "sneakIn": "潜入",
-      "sneakHint": "敏捷检定——搜刮丰厚，没有服务",
+      "sneakHint": "敏捷检定：物资丰厚，但没有服务",
       "forceEnter": "强行闯入",
-      "forceHint": "打进去——每次搜索都会开战",
+      "forceHint": "硬闯：每次搜索都会打起来",
       "enterBlock": "进入组屋",
       "openStashHere": "打开此处储藏点",
       "lastSeen": "上次所见",
       "metersFromSpawn": "距出生点 {m} 米",
       "danger": "危险度",
       "searchRisk": "搜索风险",
-      "searchRiskTip": "下一次在这里搜索时遭遇战斗的可能性——夜晚、噪音和周边局势都会影响。刚在这里打完一仗后会下降，搜得越久越高。",
+      "searchRiskTip": "下次在这里搜索时打起来的几率。夜晚、噪音和周边情况都有影响。刚在这里打完一仗会降低，搜得越久越高。",
       "searchRiskLow": "安静",
       "searchRiskUneasy": "不安",
       "searchRiskHigh": "多半要打",
       "searchRiskDire": "必有一战",
       "ruin": "废墟",
-      "factionOutpost": "势力前哨——提供完整服务，不可搜刮。",
-      "factionTerritory": "势力领地——NPC 据点，不可搜刮。",
-      "insideUnseen": "悄悄潜入——保持安静就能搜刮他们的物资。",
-      "forcedEntry": "强行闯入——物资丰厚，但每次搜索都会触发战斗。",
-      "twelveFloors": "12 层——逐层逐户清理，而非整体搜索。",
-      "blockStoreys": "{n} 层大楼，部分楼层可进入并逐户搜索。",
+      "factionOutpost": "势力前哨：服务齐全，不能搜刮。",
+      "factionTerritory": "势力领地：NPC 聚集地，不能搜刮。",
+      "insideUnseen": "潜入未被发现：只要不出声，就能搜他们的库存。",
+      "forcedEntry": "强行闯入：物资丰厚，但每次搜索都会打起来。",
+      "twelveFloors": "12 层：一户户清理，不是整栋一起搜。",
+      "blockStoreys": "{n} 层楼：只有几层能进，一户户清理。",
       "blockWorked": "已清理：{cleared}/{doors} 户",
       "blockWorkedShort": "已清理",
       "blockSealed": "{n} 层封死",
       "blockHunting": "正被追猎",
-      "pickedClean": "已被搜刮干净——资源耗尽。",
+      "pickedClean": "已经被搜空了。",
       "stillHasLoot": "还有东西可搜。",
       "searchesLeft": "剩余 {n} 次搜索",
       "searchesLeftPlural": "剩余 {n} 次搜索",
-      "searchingLeft": "搜索中… 本次搜索剩余约 {eta}",
+      "searchingLeft": "搜索中… 这一轮还剩约 {eta}",
       "territory": "领地",
       "standingAria": "声望：{label}",
-      "lastSeenDanger": "上次所见危险度 {n}",
+      "lastSeenDanger": "上次看到的危险度 {n}",
       "mayBeStale": "（可能已过时）",
       "intelTag": "（情报）",
       "rain": "雨",
       "heavy": "大雨",
       "forest": "森林",
-      "commitBlind": "盲目前进——到达前没有任何危险情报",
-      "arriveDark": "你会在天黑后才到达，那时街上危险得多",
-      "outAfterDark": "你会在天黑后还在外面，那时街上危险得多",
-      "beyondRange": "步行精力不足，或负重导致无法移动。先恢复精力、减轻负重或走地铁隧道。",
+      "commitBlind": "直接出发：到之前不知道有多危险",
+      "arriveDark": "到那里时天已经黑了，街上会危险得多",
+      "outAfterDark": "天黑后你还在外面，街上会危险得多",
+      "beyondRange": "走路的精力不够，或者背得太重走不动。先恢复精力、减轻负重，或者走地铁隧道。",
       "searchRemaining": "约剩 {time}",
       "blurb": {
         "supermarket": "大量食物与饮水。",
         "convenience": "零食与饮料。",
         "pharmacy": "药品与绷带。",
         "hospital": "充足的医疗物资，也到处都是丧尸。",
-        "clinic": "家庭诊所与综合诊疗所的药架。有用，但不像战场。",
+        "clinic": "家庭诊所和综合诊疗所的药架。有用，也没那么凶险。",
         "hardware": "工具、近战武器与制作零件。",
         "fuel": "燃料与路边零食。",
         "police": "枪械与弹药。极度危险。",
-        "residential": "组屋底层与住户单位，常见家用物资。双八堂在这些邻里活动。",
-        "foodcourt": "熟食摊档。只要邻里还守得住，普通幸存者就还在做饭。",
+        "residential": "组屋底层和住户，常见家用物资。双八堂在这些组屋区活动。",
+        "foodcourt": "熟食摊。只要这片组屋还守得住，普通幸存者就还在这里做饭。",
         "mrt": "列车已停运。站台通往隧道，闸机由环线同盟把守。",
         "industrial": "仓库与装卸区。工具、燃料、材料，还有不少阴暗角落。",
         "school": "食堂、医务室、工坊。这里曾是避难所，麻烦也正在于此。",
-        "waypoint": "旅途中的歇脚处。能找到什么，全看路上留下了什么。",
+        "waypoint": "不是目的地，是路上歇脚的地方。能找到什么，看路上留下了什么。",
         "landmark": "天际线依旧熟悉，人群却早已散去。翻翻游客留下的包、小卖部和杂物柜。",
-        "housing": "真实住宅中的家用橱柜与遗留物品。",
+        "housing": "地图上真实住宅里的橱柜和遗留物品。",
         "eatery": "餐馆柜台、咖啡店橱柜和小型食品店。",
         "community": "民众俱乐部、图书馆、宗教场所与文化建筑。",
-        "park": "露天场地与游客遗留物品。不保证有屋顶或封闭庇护。"
+        "park": "露天场地和游客留下的东西。不一定有屋顶或能遮挡的地方。"
       },
       "size": {
         "small": "小型",
@@ -561,8 +561,8 @@
       "equipped": "已装备",
       "candidate": "候选",
       "inspect": "查看",
-      "bagWontFit": "装不全——装不下的会散装携带。",
-      "bagWontUnequip": "口袋装不下全部——其余散装携带。",
+      "bagWontFit": "装不下全部，放不进的会散装携带。",
+      "bagWontUnequip": "口袋装不下全部，其余的散装携带。",
       "selectItem": "选择",
       "move": "移动",
       "useOrEquip": "使用 / 装备",
@@ -570,8 +570,8 @@
       "quickActions": "快捷操作",
       "moveRotate": "移动 · 旋转",
       "controls": "操作说明",
-      "hoverGesture": "悬停 · 2秒后固定",
-      "hoverToPin": "悬停2秒固定详情",
+      "hoverGesture": "悬停 · 停留 2 秒固定",
+      "hoverToPin": "悬停 2 秒固定详情",
       "detailsPinned": "详情已固定",
       "doubleClickGesture": "双击",
       "ctrlClickGesture": "Ctrl+点击",
@@ -605,7 +605,7 @@
         "confirm": "丢弃",
         "ghost": "丢弃"
       },
-      "carriedHint": "背包装不下的东西。按 ×{mult} 计重，会发出声响，战斗中拿不到。把格子里的物品拖到这里即可散装携带，把行拖进格子即可收进背包。",
+      "carriedHint": "背包放不下的东西。按 ×{mult} 计重，走路会叮当响，战斗中也拿不到。把格子里的物品拖到这里就是散装携带；把这里的一行拖进格子就是装进背包。",
       "looseEmpty": "没有散装物品。背包装不下的东西会放在这里。",
       "carriedNoMatch": "没有符合筛选条件的物品。",
       "sortBy": "排序",
@@ -621,43 +621,43 @@
       "perUnit": "{kg}/件",
       "packedWeightNote": "装在背包里：重量 −{n}%",
       "looseWeightNote": "散装携带：按 ×{mult} 计重",
-      "bagCutsPacked": "装进的物品重量减少 {n}%",
+      "bagCutsPacked": "装进去的物品重量减 {n}%",
       "loadKg": "{load} / {carry} 公斤",
       "loadEncumbered": "{load} / {carry} 公斤 · 超重",
       "rounds": "{n} 发",
       "holstered": "枪套 {n}/{cap}",
       "refillMag": "装填弹匣",
       "refillGun": "用霰弹装填",
-      "loadMag": "装入枪套中的手枪",
-      "confirmAbandon": "确认——放弃剩余物品并继续",
-      "stashLocked": "身在隧道中，无法使用地面的储藏点。",
+      "loadMag": "装进枪套里的枪",
+      "confirmAbandon": "确认：丢下剩下的东西，继续",
+      "stashLocked": "在隧道里用不了地面的储藏点。",
       "stashNamed": "储藏点 · {name}",
-      "dropGone": "永久丢弃，同时减轻负重",
+      "dropGone": "永久丢掉，负重也跟着减轻",
       "twoHandBlocked": "被双手武器占用",
       "freeHand": "空手",
-      "freeHandTip": "副手空着——行动条积累更快，更容易闪避",
+      "freeHandTip": "副手空着：行动条涨得更快，也更容易闪避",
       "clickToAct": "点击操作",
-      "selectHint": "选择物品以查看详情。拖动整理 · 拖动时按 R 旋转。",
+      "selectHint": "选中物品查看详情。拖动整理 · 拖动时按 R 旋转。",
       "selectHintTouch": "长按查看详情 · 轻点选择 · 拖动整理。",
       "repair": "修复",
       "rags": "✂ 撕布条",
-      "tearTitle": "消耗 {cost}% 耐久度——产出 {yield}× 布条用于包扎",
+      "tearTitle": "消耗 {cost}% 耐久，撕成 {yield}× 布条，可以拿来包扎",
       "usesOne": "消耗 1× {name}",
-      "usesInputs": "消耗 {inputs}，需备有{tool}（工具保留）",
+      "usesInputs": "消耗 {inputs}；需要{tool}（工具不消耗）",
       "betterThanEquipped": "优于已装备",
-      "newBonus": "比当前装备多出的加成",
+      "newBonus": "比身上装备多出的加成",
       "worseThanEquipped": "劣于已装备",
       "exotic": "珍品",
-      "broken": "已损坏——修复前无法使用",
-      "spoiled": "已变质——食用是场赌博",
-      "expired": "已过期——几乎失效",
+      "broken": "已损坏，修好之前不能用",
+      "spoiled": "已变质，吃不吃全看运气",
+      "expired": "已过期，基本没效果了",
       "controlsAria": "背包操作说明",
       "decipher": "破译",
       "gridSize": "占用格数",
       "weight": "重量",
       "tradeValue": "交易价值",
       "stacked": "堆叠 ×{n}",
-      "compared": "与已装备的{slot}比较",
+      "compared": "与身上的{slot}比较",
       "condition": {
         "gear": {
           "torn": "破旧",
@@ -687,8 +687,8 @@
       }
     },
     "load": {
-      "light": "包袱很轻——没有负重惩罚",
-      "travel": "行程时间 +{n}%",
+      "light": "背包很轻，没有负重惩罚",
+      "travel": "赶路时间 +{n}%",
       "energy": "精力消耗 +{n}%",
       "combatSpeed": "战斗速度 −{n}%",
       "attack": "命中 {n}",
@@ -698,9 +698,9 @@
       "stairs": "爬楼时间 +{n}%",
       "search": "搜索时间 +{n}%",
       "noFlee": "无法逃跑",
-      "injury": "腿和腰受损 {n} HP/公里",
+      "injury": "腿和腰每公里受伤 {n} 点",
       "loud": "脚步声大",
-      "pinned": "无法移动——超过上限两倍",
+      "pinned": "走不动了：负重超过上限两倍",
       "statusAria": "负重：{tier}。悬停查看惩罚",
       "statusSub": "{load} / {carry} kg · 上限的 {pct}%",
       "tier": {
@@ -737,11 +737,11 @@
     },
     "skills": {
       "title": "技能",
-      "blurb": "被动能力，靠练习与书籍成长。本局结束即清零。",
+      "blurb": "被动能力，靠实践和读书提升。这一局结束就清零。",
       "level": "等级 {level}",
       "xp": "{xp} / {need} 经验",
       "maxed": "已满级",
-      "practiceLeft": "今日练习经验剩余 {left}",
+      "practiceLeft": "今天还能靠练习获得 {left} 经验",
       "fromSkills": "来自技能等级",
       "starting": "开局技能",
       "mod": {
@@ -773,7 +773,7 @@
       }
     },
     "craft": {
-      "browserHint": "材料取自背包。展开配方即可查看详情并制作。",
+      "browserHint": "材料从背包里扣。展开配方可以查看和制作。",
       "search": "搜索配方、物品或材料…",
       "clear": "清除",
       "categoryLabel": "类别",
@@ -787,7 +787,7 @@
       "countLegend": "现有 / 所需",
       "reset": "重置筛选",
       "noMatches": "没有符合条件的配方",
-      "noneAlmost": "按当前的落脚处和工具条件，没有只差一种材料的配方。",
+      "noneAlmost": "以你现在的落脚处和工具，没有只差一样材料的配方。",
       "trySearch": "试试其他物品或材料，或重置筛选。",
       "details": "详情",
       "inspect": "查看{name}",
@@ -795,7 +795,7 @@
       "toolKept": "{name} · 不消耗",
       "craftAction": "制作",
       "unavailable": "暂不可做",
-      "carryLoose": "背包已满，{n} 件随身散放",
+      "carryLoose": "背包满了，{n} 件散装携带",
       "made": "已制作 {n}× {name}",
       "unsafeWater": "使用浑水。饮用后感染增加 {n}。",
       "tearRemaining": "剩余 {n} 次",
@@ -813,14 +813,14 @@
         "weapons": "武器与弹药",
         "equipment": "装备",
         "tools": "工具与零件",
-        "facilities": "营地设施（不可携带）",
+        "facilities": "营地设施（建在原地）",
         "food": "食物",
         "drinks": "饮品",
         "materials": "材料"
       },
-      "needHave": "{name} — 需要 {need}，现有 {have}",
-      "toolTip": "{name} — 留在背包（现有 {have}）",
-      "hint": "材料取自背包。需落脚处的配方要有储藏点或组屋。工具留在背包里。",
+      "needHave": "{name}：需要 {need}，现有 {have}",
+      "toolTip": "{name}：不消耗，留在背包里（现有 {have}）",
+      "hint": "材料从背包里扣。需要落脚处的配方，得在储藏点或组屋里做。工具不消耗。",
       "filterAll": "全部",
       "filterReady": "可做",
       "groupDesperate": "走投无路",
@@ -829,20 +829,20 @@
       "hoursShort": "{h}小时",
       "blockShelter": "需要一个能干活的地方",
       "blockTool": "需要{name}",
-      "blockInput": "需要 {need}× {name} — 现有 {have}",
-      "blockWater": "需要 {need}× 水 — 现有 {have}",
-      "boilNote": "需要炊锅和热源，备好的水留在此处，两小时后冷却但仍洁净。收取后成为普通洁净水。",
+      "blockInput": "需要 {need}× {name}，现有 {have}",
+      "blockWater": "需要 {need}× 水，现有 {have}",
+      "boilNote": "需要炊锅和热源。烧好的水留在原地，两小时内是热的，之后变凉但仍然干净。收取后就是普通的干净水。",
       "siteFacilities": "此处设施",
-      "heatLeft": "热源可用 · 剩余{h}小时",
+      "heatLeft": "有热源 · 还剩 {h} 小时",
       "noHeat": "没有可用热源",
-      "fireLit": "烹饪火堆正在燃烧，不能带走。",
-      "fireSpent": "火堆已熄灭，重新制作即可点燃。",
-      "stoveBuilt": "已有固定炉灶，燃料耗尽后可再次加注。",
+      "fireLit": "火堆正烧着，带不走。",
+      "fireSpent": "火已经灭了。再生一堆火就能重新点着。",
+      "stoveBuilt": "固定炉灶已搭好。燃料烧完后再加。",
       "shelterBuilt": "已有防雨棚 · 仅遮雨，不能防御敌人",
       "rainStored": "已收集雨水 · {n}/4",
       "collectRain": "收取未处理雨水",
-      "hotStored": "备好的水 · {n}份 · 还有{h}小时冷却",
-      "cleanStored": "备好的水 · {n}份 · 已冷却，仍洁净",
+      "hotStored": "烧好的水 · {n} 份 · 还热 {h} 小时",
+      "cleanStored": "烧好的水 · {n} 份 · 已凉，仍然干净",
       "collectClean": "收取为洁净水",
       "preparation": "饮品调制方式",
       "roomMode": "常温调制（50%）",
@@ -850,8 +850,8 @@
       "waterSource": "配方用水",
       "carriedWater": "使用随身水",
       "siteWater": "使用此处备好的水",
-      "staysHere": "建于此处 · 不能装包或带走",
-      "roomPenalty": "常温调制 · 饱食与精力恢复减半，补水不变",
+      "staysHere": "建在这里 · 不能装包带走",
+      "roomPenalty": "常温冲泡 · 饱食度和精力恢复减半，补水照常",
       "busy": "请先完成当前行动。",
       "family": {
         "kopi": "咖啡",
@@ -861,20 +861,20 @@
         "porridge": "白粥"
       },
       "block": {
-        "site": "请先到达一个地表地点。",
-        "heat": "需要此处热源维持整个制作过程。",
-        "pot": "需要随身携带炊锅，使用后不会消耗。",
+        "site": "先到一个地面地点。",
+        "heat": "整个制作过程都需要这里有热源。",
+        "pot": "需要随身带着炊锅，不会消耗。",
         "site_water": "此处备好的水不足。",
-        "occupied": "设施已建或仍在使用。再次烧水前请先用完或收取已有的水。",
-        "stove": "请先在此处搭建固定炉灶。",
+        "occupied": "已经建好了，或者还在用。再烧一锅水之前，先把存着的水用掉或收走。",
+        "stove": "先在这里搭一个固定炉灶。",
         "tears": "你身上的衣服已经撕光了。"
       },
       "variants": "{n} 种",
       "variant": "种类",
       "builtHere": "就地搭建",
-      "hoverHint": "悬停查看物品详情，点击展开配方。",
+      "hoverHint": "悬停查看物品详情，点一下展开配方。",
       "status": {
-        "burning": "燃烧中 · {h}小时",
+        "burning": "燃烧中 · 剩 {h} 小时",
         "built": "已建成",
         "rain": "雨水 {n}/4",
         "water": "备好 {n} 份"
@@ -893,7 +893,7 @@
       },
       "camp": {
         "title": "营地",
-        "away": "营地设施只能在地表地点搭建。",
+        "away": "营地设施只能在地面地点搭建。",
         "none": "此处尚未搭建设施",
         "fire": "火堆 {h}小时",
         "stove": "炉灶",
@@ -917,13 +917,13 @@
         "wits": "智"
       },
       "baseTo": "基础 {base} → {value}",
-      "atBaseline": "处于基线——无加成或惩罚。",
+      "atBaseline": "基础水平，没有加成也没有惩罚。",
       "blurb": {
         "strength": "近战伤害与负重能力。",
         "dexterity": "攻击命中与闪避。",
         "endurance": "生命上限与体力。",
         "perception": "发现物资与避开伏击。",
-        "wits": "危急关头作出更好的选择。"
+        "wits": "危急时刻做出更好的选择。"
       },
       "effects": {
         "melee": "近战伤害",
@@ -936,7 +936,7 @@
         "fleeStairs": "逃跑与楼梯检定",
         "hp": "生命上限",
         "stairs": "楼梯撤退检定",
-        "loot": "每次搜索的物资抽取次数",
+        "loot": "每次搜索的物资判定次数",
         "search": "搜索速度",
         "awareness": "警觉（视野与动静范围）",
         "encounter": "遭遇感知几率",
@@ -951,13 +951,13 @@
       "target": "目标",
       "callEvac": "登机撤离",
       "raiseChannel": "向撤离机组报到",
-      "youAreHere": "你在此处",
-      "inTheOpen": "在露天",
+      "youAreHere": "你在这里",
+      "inTheOpen": "露天",
       "insideBlock": "在组屋内",
-      "nowhereTitle": "无处可去。",
-      "nowhereBlurb": "没有避难所，没有储藏点，没有什么可搜索。点击建筑物前往，或点击空地继续前进。在外面睡觉几乎不算休息。",
+      "nowhereTitle": "这里什么也没有。",
+      "nowhereBlurb": "没有遮蔽，没有储藏点，也没东西可搜。点一栋建筑走过去，或者点空地继续走。在这里露宿，几乎等于没睡。",
       "loadingNeighbourhood": "正在加载街区…",
-      "departing": "正在出发…",
+      "departing": "出发中…",
       "windowDh": "{d}天 {h}时",
       "windowH": "{h}时"
     },
@@ -965,8 +965,8 @@
       "title": "目标",
       "atEvac": "已在撤离点",
       "reach": "前往 {zone}",
-      "channelDark": "机组正在安排下一次撤离。等待时可继续探索或补充物资。",
-      "noWindowSurvive": "当前无已知撤离点。你仍可继续求生冲分。",
+      "channelDark": "机组正在安排下一次撤离。等的时候可以继续探索或补给。",
+      "noWindowSurvive": "目前没有已知的撤离点开放。你可以继续活下去冲分。",
       "scoreLadder": "分数计算",
       "evacAndScore": "撤离与分数",
       "dayMult": "天数倍率 ×{mult}",
@@ -976,18 +976,18 @@
       "escapeSingapore": "逃离新加坡",
       "youAreHere": "你在此处",
       "metersAway": "距离 {m} 米",
-      "noActiveWindow": "当前无撤离窗口。",
-      "windowCloses": "窗口将在 {window} 后关闭",
+      "noActiveWindow": "目前没有开放的撤离窗口。",
+      "windowCloses": "窗口 {window} 后关闭",
       "horde": "尸潮 · {label}",
-      "hordeBlurb": "噪声会引来附近的注意。骚动随游戏时间消退，安静不代表安全。生存没有全岛倒计时。",
+      "hordeBlurb": "噪音会引来附近的丧尸。骚动会随时间平息，但安静不等于安全。全岛没有生存倒计时。",
       "leadsNotes": "{count} 张地图笔记待破译",
       "leadsRumours": "{count} 处传闻地点已标记",
       "leadsBoth": "{notes} 张笔记待读 · 地图上 {rumours} 处传闻",
       "leadsTitle": "线索",
-      "leadsBlurb": "在背包中使用地图笔记以解读线索。情报用于辅助探索，撤离不需要它。已知势力领地会为建筑和标记着色；前哨使用势力徽记。标记外的浅色圆环表示当前选中。",
+      "leadsBlurb": "在背包里使用地图笔记来解读线索。情报帮助探索，撤离时用不上。已知的势力领地会给建筑和标记上色；据点显示势力徽记。标记外有一圈浅色圆环，表示它被选中了。",
       "locateEvac": "定位下一个已知撤离点",
       "nextWindowIn": "距下一次撤离安排还有 {hours} 小时",
-      "procedure": "在公布的倒计时结束前抵达撤离点。先报到确认，再登机。两步都不耗时、不收费，也不需要任何物品；空背包也能撤离。",
+      "procedure": "在倒计时结束前赶到撤离点。先向机组报到，再登机。两步都不花时间、不收东西，也不需要任何物品；空着背包也能走。",
       "reportAtPoint": "下一步：抵达后向机组报到",
       "readyToBoard": "已报到：倒计时结束前可登机"
     },
@@ -1019,7 +1019,7 @@
       "bleedingTimes": "流血 ×{n}",
       "bleedingOutTimes": "大出血 ×{n}",
       "modifier": {
-        "recovery": "身体恢复 {n}",
+        "recovery": "部位恢复 {n}",
         "rest": "休息精力恢复 {n}",
         "drain": "精力消耗 {n}",
         "travel": "赶路速度 {n}",
@@ -1027,7 +1027,7 @@
         "dodge": "闪避几率 {n}",
         "flee": "逃跑 DC {n}"
       },
-      "woundsHoldMax": "未愈合的伤口占用 {n} 点最大生命，愈合后恢复。"
+      "woundsHoldMax": "伤口没愈合前，最大生命值少 {n} 点，愈合后恢复。"
     },
     "survivor": {
       "statsTitle": "幸存者属性",
@@ -1035,16 +1035,16 @@
       "dodge": "闪避",
       "attack": "攻击",
       "hp": "生命值",
-      "travel": "移动",
+      "travel": "赶路",
       "carry": "负重",
       "noise": "噪音",
-      "defenceTip": "敌方命中目标值",
-      "dodgeTip": "闪避已命中的攻击（消耗体力；无法闪避自然20）",
+      "defenceTip": "敌人要掷到这个数才能打中你",
+      "dodgeTip": "有机会躲开已经打中的攻击（消耗精力；天然 20 躲不开）",
       "attackTip": "命中修正",
-      "hpTip": "肢体生命值总和",
-      "travelTip": "移动速度（受精力、腿部、鞋履和特质影响）",
-      "carryTip": "当前 / 最大公斤。悬停查看实时负重惩罚。",
-      "noiseTip": "装备带来的遭遇概率（迷彩降低，噪音高的靴子提高）"
+      "hpTip": "各部位生命值之和",
+      "travelTip": "赶路速度（受精力、腿伤、鞋子和特质影响）",
+      "carryTip": "当前 / 上限（公斤）。悬停查看当前负重惩罚。",
+      "noiseTip": "装备对遭遇几率的影响（迷彩降低，吵的靴子提高）"
     },
     "stats": {
       "survivor": "幸存者",
@@ -1218,20 +1218,20 @@
     "log": {
       "timeline": "时间线",
       "timelineDay": "时间线 · 第 {day} 天",
-      "dayLogsTitle": "往日日志——查看之前每一天的记录",
+      "dayLogsTitle": "往日日志：之前每一天的记录",
       "settings": "设置",
       "showMode": "显示 {mode}",
-      "freshDay": "新的一天，尚未发生任何事。",
+      "freshDay": "新的一天，还什么都没发生。",
       "storyStarts": "你的故事从这里开始……",
-      "earlierHidden": "…今日另有 {n} 条较早记录已隐藏",
-      "earlierHiddenPlural": "…今日另有 {n} 条较早记录已隐藏",
-      "previousDays": "更早的记录见往日日志",
+      "earlierHidden": "…今天还有 {n} 条更早的记录没显示",
+      "earlierHiddenPlural": "…今天还有 {n} 条更早的记录没显示",
+      "previousDays": "之前几天的记录在往日日志里",
       "showOnMap": "在地图上显示",
       "showOnMapLabel": "在地图上显示 · {label}",
       "leftBehind": "留下：{items}",
-      "searchStopped": "你收手，结束了在{name}的搜索。",
+      "searchStopped": "你提前收手，没搜完{name}。",
       "searchDone": "你搜完了{name}。",
-      "lockOpened": "锁舌悄无声息地弹开了。",
+      "lockOpened": "锁一声不响地开了。",
       "lockFailed": "锁没开，开锁器断在了锁芯里。",
       "dayLogs": "往日日志",
       "nothingRecorded": "尚无记录。",
@@ -1280,7 +1280,7 @@
         "craft": "有新配方可制作",
         "logbook": "有新线索或情报",
         "skills": "技能已升级",
-        "timeline": "日志中有新危险"
+        "timeline": "时间线有新危险"
       },
       "timeline": "时间线",
       "dayLogs": "往日日志",
@@ -1291,15 +1291,15 @@
       "close": "关闭",
       "islandTip": "拉远查看全岛 · 悬停区域查看名称",
       "islandBackTip": "回到原来的视角",
-      "view3dTip": "倾斜地图并立起建筑",
+      "view3dTip": "倾斜地图，让建筑立起来",
       "railTip": "显示地铁与轻轨网络",
       "railMap": "轨道交通图"
     },
     "error": {
       "signalLost": "信号中断",
-      "brokeBlurb": "出了点问题。游戏进度已保存——重新加载应能继续。",
+      "brokeBlurb": "出错了。进度已经保存，重新加载就能接着玩。",
       "reload": "重新加载",
-      "deleteRun": "仍然无法运行？删除此局并重新开始"
+      "deleteRun": "还是不行？删掉这一局，重新开始"
     },
     "border": {
       "causeway": "新柔长堤",
@@ -1313,9 +1313,9 @@
     },
     "terrain": {
       "title": "地形",
-      "water": "水域——封闭",
-      "restricted": "禁区——封锁",
-      "vegetation": "植被——减速"
+      "water": "水域 · 过不去",
+      "restricted": "禁区 · 已封锁",
+      "vegetation": "植被 · 走得慢"
     },
     "weather": {
       "clear": "晴朗",
@@ -1324,7 +1324,7 @@
       "thunderstorm": "雷暴",
       "haze": "霾",
       "heat": "热浪",
-      "effects": "{kind}——效果",
+      "effects": "{kind} · 效果",
       "aria": "天气：{kind}"
     },
     "poi": {
@@ -1367,7 +1367,7 @@
       "voidDeck": "组屋底层",
       "quiet": "安静",
       "heatPlus": "+{n} 热度",
-      "inaccessible": "{label}——无法进入",
+      "inaccessible": "{label} · 进不去",
       "storeys": "{n} 层",
       "storeysLandings": "{n} 层 · {m} 个可达楼层",
       "landingsRevealed": "已探索 {revealed}/{height} 个可达楼层 · 大楼共 {storeys} 层",
@@ -1381,14 +1381,14 @@
       "point": "点式",
       "stageHead": "{label} · 热度 {from}–{to}",
       "stageHeadTop": "{label} · 热度 {at}",
-      "stageHere": "▶ 本层现在处于这个阶段（{heat}）",
+      "stageHere": "▶ 本层目前在这一段（{heat}）",
       "stageThreat": "• 门后的敌人：强度 +{n}",
       "stageThreatNone": "• 门后的敌人：正常强度",
       "stageEnc": "• 开门撞上战斗的概率：约 {from}–{to}%",
       "stageEncOne": "• 开门撞上战斗的概率：约 {n}%",
       "stageDc": "• 下楼经过这一层：要掷出 {dc}+，否则被缠住",
       "stageAmbush": "• 楼梯：{n}% 的概率有东西拦路",
-      "heatWhat": "热度＝这一层听到了多少动静。热度越高越危险。把鼠标移到热度条的每一段上，可以看到该阶段的效果。",
+      "heatWhat": "热度代表这一层听到了多少动静。热度越高越危险。把鼠标移到热度条的每一段，可以看到那一段的效果。",
       "heatHowTitle": "热度怎么变化：",
       "heatHowDoor": "• 破门：本层热度大涨，附近楼层小涨。",
       "heatHowSpread": "• 别的楼层传来的热度，最多只会把本层推到“惊醒”。",
@@ -1409,23 +1409,23 @@
       "scoutEncounter": "遭遇",
       "scoutRoom": "房间",
       "scoutContainers": "容器",
-      "scoutEncounterExact": "感知判读——破门后触发战斗的确切概率",
-      "scoutEncounterEstimate": "根据热度和门况估算；提高感知可得知确切概率",
-      "scoutContainersUnread": "无法看清容器；提高敏捷可从走廊侦察",
+      "scoutEncounterExact": "感知判读：破门后打起来的确切几率",
+      "scoutEncounterEstimate": "根据热度和门的情况估算；提高感知可以看到确切几率",
+      "scoutContainersUnread": "看不清屋里有什么；提高敏捷就能在走廊看清",
       "scoutFight": "开战",
-      "scoutNestFight": "里面已有一群丧尸，开门就会触发战斗",
-      "scoutDenFight": "里面盘踞着更大的东西，破门后将遭遇巨怪",
+      "scoutNestFight": "里面已经有一群丧尸，一开门就打起来",
+      "scoutDenFight": "里面窝着更大的东西。破门后要对付一只巨怪",
       "breachLine": "{verb} · {min} 分钟 · {heat}",
       "pickLine": "撬锁 · {min} 分钟 · 安静",
-      "pickNeed": "撬锁——背包里要有撬锁器",
+      "pickNeed": "撬锁：需要撬锁器",
       "readNotice": "看布告 · {min} 分钟",
       "restShelter": "躲进去 · {h} 小时 · −{heat} 热度",
       "roofDeck": "天台",
       "floorWord": "楼层",
       "floorGround": "底层",
       "unitClearedBlurb": "你已经搜过这里，里面什么都不剩了。",
-      "compactHint": "点选楼层和房间进行探索，最后回到组屋底层离开。",
-      "voidHint": "组屋底层没有可搜索的房门。点选上方楼层，走楼梯上去。",
+      "compactHint": "在楼层条上操作。一层层搜房间，最后从组屋底层离开。",
+      "voidHint": "组屋底层没有房门。点一个楼层，走楼梯上去。",
       "legendYou": "你",
       "legendBoarded": "封死",
       "legendDim": "暗=已清空",
@@ -1441,7 +1441,7 @@
         },
         "trapped": {
           "label": "陷阱",
-          "blurb": "门口有危险——想搜刮就得冒受伤的险。"
+          "blurb": "门口装了害人的机关，想搜就得冒受伤的险。"
         },
         "storeroom": {
           "label": "储藏室",
@@ -1453,11 +1453,11 @@
         },
         "holdout": {
           "label": "据点",
-          "blurb": "这里仍住着幸存者，只能请他们帮一次忙。"
+          "blurb": "还有幸存者住在这户，只能请他们帮一次忙。"
         },
         "burning": {
           "label": "起火",
-          "blurb": "每搜出一件都掉血——撑不住就撤。"
+          "blurb": "每搜出一件都会掉血，撑不住就走。"
         },
         "nest": {
           "label": "巢穴",
@@ -1482,7 +1482,7 @@
       },
       "themeAction": {
         "toll": "交过路费 · {item}",
-        "tollNeed": "交过路费——需要啤酒、罐头或首饰",
+        "tollNeed": "交过路费：需要啤酒、罐头或首饰",
         "tollTip": "交出一瓶啤酒、一个罐头或一件首饰。这一层开门遭遇降到原来的 {pct}%，遇到的也变回丧尸，而不是帮派。",
         "shaft": "顺电梯井爬下去 · {min} 分钟 · −{energy} 精力",
         "shaftTip": "直接下到底层：不用下楼检定，楼梯上也不会被伏击。缆绳只能用一次。"
@@ -1521,15 +1521,15 @@
         },
         "holdout": {
           "label": "据点",
-          "blurb": "幸存者守着这一层，进入房间时较少遭遇危险。"
+          "blurb": "幸存者守着这一层，开门比较安全。"
         },
         "fire": {
           "label": "失火楼层",
-          "blurb": "住家正在燃烧。物资较丰厚，但每次搜索都会损失生命。"
+          "blurb": "有住家在烧。东西更好，但每次搜索都会掉血。"
         },
         "nest": {
           "label": "巢穴",
-          "blurb": "尸潮在此筑巢，仍有一户物资充足。"
+          "blurb": "成群的丧尸在这层做窝。还有一户的物资没被动过。"
         },
         "picked_over": {
           "label": "被搜刮过",
@@ -1593,11 +1593,11 @@
         },
         "Stirring": {
           "label": "骚动",
-          "note": "楼梯井被人盯着。"
+          "note": "楼梯井里有东西在盯着。"
         },
         "Awake": {
           "label": "惊醒",
-          "note": "这一层的丧尸已被惊动，进门和走楼梯都更危险。"
+          "note": "这一层醒了。开门和走楼梯都更危险。"
         },
         "Hunting": {
           "label": "猎杀",
@@ -1605,7 +1605,7 @@
         },
         "Swarm": {
           "label": "蜂拥",
-          "note": "它们占了这层。往上走，或者出去。"
+          "note": "这层被它们占了。往上爬，或者赶紧出去。"
         }
       },
       "ground": {
@@ -1628,7 +1628,7 @@
       "travelUpFree": "上楼无需检定",
       "travelHunt": "{nn} 层：蜂拥 · {pct}% 伏击",
       "travelCheck": "{nn} 层：失败约 {pct}%（需 {dc}+）",
-      "travelClear": "约 {pct}% 概率不经战斗抵达",
+      "travelClear": "约 {pct}% 几率一路不遇敌",
       "youAreHere": "你在这里",
       "levelHeatTip": "本层热度 {heat}/100 · {band}",
       "levelHeat": "{nn} 层热度",
@@ -1664,7 +1664,7 @@
       "farAhead": "你看不了那么远",
       "furtherDown": "隧道更深处",
       "nodeTitle": "{name} · {label}",
-      "metaTitle": "{label}——{name}",
+      "metaTitle": "{label}：{name}",
       "minutesApprox": "约 {n} 分钟",
       "attrVsDc": "{attr}检定 · DC {dc}",
       "stalker": "潜行者",
@@ -1676,16 +1676,16 @@
       "keepWalking": "或继续沿隧道走",
       "pickForward": "选择前进路线",
       "sleep": "睡 5 小时",
-      "sleepHint": "睡觉并进食 · 一次",
+      "sleepHint": "睡一觉、吃顿饭 · 限一次",
       "patch": "包扎",
-      "patchHint": "消耗 1× 罐头 · 一次",
+      "patchHint": "1× 罐头 · 限一次",
       "trade": "交易",
       "pass": "不换了",
       "forConnector": " 换 ",
       "dropInvert": "钻到车底",
-      "invertHint": "{min} 分钟 · 消耗 {energy} 精力 · 无搜刮",
+      "invertHint": "{min} 分钟 · 消耗 {energy} 精力 · 没有物资",
       "smash": "砸穿车厢",
-      "smashHint": "{min} 分钟 · 可搜刮，或有遭遇",
+      "smashHint": "{min} 分钟 · 能拆到零件，可能惊动东西",
       "payFare": "付车费",
       "slipPast": "溜过去",
       "dexVsDc": "敏捷检定 · DC {dc}",
@@ -1698,12 +1698,12 @@
         "pack": {
           "label": "敌情",
           "verb": "冲过",
-          "blurb": "它们和你同在隧道里，这里却没有让路的余地。"
+          "blurb": "它们就在隧道里，隧道就这么宽，没处可躲。"
         },
         "scavenge": {
           "label": "搜刮",
           "verb": "翻找",
-          "blurb": "停运后就没人来过。可能是好事，也可能不是。"
+          "blurb": "停运后就没人来过。可能是好事，也可能是坏事。"
         },
         "settlement": {
           "label": "营地",
@@ -1718,12 +1718,12 @@
         "carriage": {
           "label": "车厢",
           "verb": "爬过去",
-          "blurb": "列车没能抵达下一站。要么从车底钻过，要么穿过车厢。"
+          "blurb": "一列没开到下一站的列车。从车底钻过去，或者从车厢里穿过去。"
         },
         "signal": {
           "label": "信号",
           "verb": "读指示板",
-          "blurb": "一柜熄灭的信号灯。若还有能用的，就能看清更远处的情况。"
+          "blurb": "一柜熄灭的信号灯。如果还有能用的，你就能看到隧道更远的地方。"
         },
         "checkpoint": {
           "label": "检查站",
@@ -1742,26 +1742,26 @@
         },
         "live_rail": {
           "label": "带电轨",
-          "blurb": "第三轨仍然带电。断电、跳过，或被电倒。"
+          "blurb": "第三轨还带电。断电、跳过去，或者被电焦。"
         },
         "blackout": {
           "label": "断电",
-          "blurb": "灯灭了，隧道把剩下的一切吞进黑暗。这段路要走很久。"
+          "blurb": "灯全灭了，隧道一片漆黑。这段要走很久。"
         },
         "pinch": {
           "label": "窄缝",
-          "blurb": "隧道被挤得只剩一道窄缝。能不能钻过去，就看你了。"
+          "blurb": "隧道塌得只剩一人宽的缝。要么挤过去，要么过不去。"
         }
       },
       "campWelcome": "{name} · 他们让你进来了",
-      "campUsed": "营地服务已用过。他们只肯帮一次。",
+      "campUsed": "营地已经帮过你了，他们只肯帮一次。",
       "carriageBlocked": "{name} · 列车挡住了路",
       "checkpointHeld": "{name} · 环线同盟控制着隧道",
       "unrevealedBlurb": "太远了，看不清。走近才知道。",
       "eliteBlurb": "有个东西一直在隧道里跟着你。",
-      "exitHint": "每个车站都有楼梯通往地面，也可以继续走向隧道另一端。",
-      "forwardHint": "到下一站才能回到地面。这段隧道只能继续向前。",
-      "directionsNone": "从这里没有通往{name}的隧道路线。可规划其他路线，或走地面。",
+      "exitHint": "每个车站都有楼梯上地面，也可以一直走到尽头。",
+      "forwardHint": "到下一站才有楼梯上地面。这段隧道只能往前走。",
+      "directionsNone": "从这里没有隧道能到{name}。可以规划别的路线，或者走地面。",
       "directionsVia": "经{line}，共 {stops} 站",
       "directionsRoute": "前往{name}需{where}。打开隧道规划，可一次走完全程。"
     },
@@ -1771,15 +1771,15 @@
       "title": "隧道路线",
       "from": "从 {name}",
       "to": " → {name}",
-      "tapStation": "——点选站点",
+      "tapStation": " · 点一个车站",
       "backToMap": "返回地图",
       "goldPlanned": "金色 = 计划路线",
-      "noPath": "无法到达 {name}——路网未连通。",
-      "tooSpent": "太疲惫了——先休息",
+      "noPath": "没有隧道能通到 {name}，从这里走不通。",
+      "tooSpent": "太累了，先休息",
       "enterTunnels": "进入隧道 · {n} 站",
       "enterTunnelsPlural": "进入隧道 · {n} 站",
       "pickDestination": "选择目的地",
-      "crawlHint": "整条路线一次爬行，途中可在任意站出站。",
+      "crawlHint": "整条路线一次走完，途中任意一站都能出站。",
       "changes": " · 换乘 {n} 次",
       "changesPlural": " · 换乘 {n} 次",
       "noChanges": " · 无需换乘",
@@ -1791,7 +1791,7 @@
       "stopsMany": "{n} 站",
       "tooltipHere": "（此处）",
       "tooltipDestination": "（目的地）",
-      "osmBaked": "OSM · 烘焙于 {date}"
+      "osmBaked": "OSM · 数据日期 {date}"
     },
     "stationStrip": {
       "arrived": "已到达",
@@ -1800,7 +1800,7 @@
       "nowNamed": "当前：{name}",
       "alighting": "即将下车",
       "changeAt": "换乘于",
-      "changeAtNamed": "换乘于 {name}",
+      "changeAtNamed": "在 {name} 换乘",
       "next": "下一站",
       "nextNamed": "下一站：{name}",
       "toLine": "至 {line}",
@@ -1812,12 +1812,12 @@
     },
     "trader": {
       "kinStock": "好货留给自己人",
-      "bare": "今天板子是空的，明天再来吧。",
+      "bare": "今天货单上什么都没有，明天再来。",
       "carrying": "携带 {n} 件",
       "taken": "已换走",
       "trade": "交易",
       "short": "不足",
-      "footer": "板子天亮翻新，换走的就不会再有了。"
+      "footer": "货单每天天亮更新。换走了就没了。"
     },
     "pending": {
       "sceneDetails": "现场详情",
@@ -1834,7 +1834,7 @@
         "thirst": "你被渴醒了，只睡了{dur}。",
         "blood": "伤口还在流血，你只睡了{dur}就晕沉沉地醒了。",
         "restless": "饥渴让你睡不安稳，只打了{dur}的盹。",
-        "rough": "这里睡不踏实，体力恢复效率为 {pct}%。",
+        "rough": "条件太差，精力只恢复了 {pct}%。",
         "damp": "潮湿加重了感染。",
         "rubble": "碎石滑落，砸伤了你的腿。",
         "ambush": "黑暗里有东西找到了你。"
@@ -1846,7 +1846,7 @@
       "bed": "床铺 · {label}",
       "combined": "合计",
       "nightAmbush": "夜间伏击",
-      "aria": "休息质量 {pct}% —— 伏击率 {ambushPct}% {ambush} —— {summary}",
+      "aria": "休息质量 {pct}% · 伏击几率 {ambushPct}% {ambush} · {summary}",
       "enclosed": {
         "none": "露天",
         "partial": "半封闭",
@@ -1884,7 +1884,7 @@
         "walls": "夜间尸潮在街上游荡，墙壁暂时挡得住。",
         "horde": "你躺在尸潮聚集区，近得连气味都闻得到。",
         "patrol": "这片地盘有主，今晚仍有人巡逻。",
-        "wildlife": "占据此地的东西不睡觉。",
+        "wildlife": "占着这一带的东西从不睡觉。",
         "damp": "地面潮湿，难以安睡。",
         "collapse": "铺盖下的楼板并不稳固。"
       },
@@ -1900,12 +1900,12 @@
         "cannot": "无法入睡",
         "ambush": "遇袭风险",
         "collapse": "瓦砾塌动",
-        "recovery": "此处睡眠质量：恢复 {pct}%。",
+        "recovery": "在这里睡，恢复效率 {pct}%。",
         "woke": {
-          "hunger": "饥饿会在 {dur} 后把你弄醒。",
-          "thirst": "口渴会在 {dur} 后把你弄醒。",
-          "blood": "伤口会在 {dur} 后把你疼醒。",
-          "restless": "太饿或太渴，睡不久——只能打个 {dur} 的盹。"
+          "hunger": "{dur} 后你会被饿醒。",
+          "thirst": "{dur} 后你会被渴醒。",
+          "blood": "{dur} 后伤口会把你疼醒。",
+          "restless": "太饿或太渴，睡不长，只能打个 {dur} 的盹。"
         },
         "blocked": {
           "meters": "又饿又渴，根本睡不着。先吃点或喝点东西。",
@@ -1924,17 +1924,17 @@
       "blind": "你看不清那边的地面，什么都可能趴在那儿。",
       "dark": "太黑了，看不清路。光照不到的地方有什么，要走进去才知道。",
       "night": "天黑后你会被困在外头，连门都关不上。",
-      "outOfRange": "步行精力不足，或负重导致无法移动。先恢复精力或减轻负重。",
-      "noDry": "没有干燥路线——水域或禁区挡住了去路。",
-      "tooExhausted": "太疲惫了——先休息",
+      "outOfRange": "走路的精力不够，或者背得太重走不动。先恢复精力或减轻负重。",
+      "noDry": "没有不用蹚水的路：水域或封锁区挡住了。",
+      "tooExhausted": "太累了，先睡一觉",
       "noDryRoute": "没有干燥路线",
       "tooClose": "太近无需特地前往",
       "tooFar": "太远无法到达",
       "crossCta": "步行穿越 · {dur}",
       "walkingEnergy": "步行精力",
       "energyLeft": "剩余 {n}",
-      "arriveExhausted": "抵达时将精疲力竭，没有精力继续步行。",
-      "encounterEnergy": "途中遭遇可能额外消耗精力。"
+      "arriveExhausted": "到了也会累垮，没力气再走了。",
+      "encounterEnergy": "路上遇敌可能额外耗精力。"
     },
     "faction": {
       "muster": {
@@ -1984,7 +1984,7 @@
       "savePreset": "保存方案",
       "nextTraits": "下一步：特质 →",
       "next": "下一步 →",
-      "skip": "跳过 — 使用当前方案",
+      "skip": "跳过，直接用这套开局",
       "backBackground": "← 背景",
       "title": "沦陷之前",
       "custom": "自定义",
@@ -1993,7 +1993,7 @@
       "overwrite": "覆盖方案“{name}”？",
       "fixBudget": "请先调整点数，剩余点数须不低于 0 才能保存。",
       "presetLimit": "已达方案上限（{n} 个）。请先删除一个。",
-      "saveFailed": "无法保存，请先修正配点方案。",
+      "saveFailed": "保存失败：当前配点不合规。",
       "saved": "已保存“{name}”。",
       "backgroundStep": "1 · 背景",
       "traitsStep": "2 · 特质",
@@ -2036,7 +2036,7 @@
         "worn": "穿戴",
         "oneOf": "随机 {n} 件：{items}",
         "dropped": "初始没有：{items}",
-        "hint": "来自身份与特质的装备。随机物品由本局种子决定。"
+        "hint": "装备来自你的身份和特质。随机物品由本局种子决定。"
       }
     },
     "tour": {
@@ -2056,28 +2056,28 @@
       "untrack": "取消追踪",
       "trackedPlace": "追踪中 · {name}",
       "activeLeads": "待探索地点 · {n}/6",
-      "leadHint": "循着线索或周边地图寻找附近地点。最多保留六条待办线索，亲自到访即可完成。",
-      "noLeads": "暂无线索。搜查地点，或阅读地铁站周边地图与邻里公告栏。",
+      "leadHint": "顺着线索或周边地图找到附近的地点。最多同时记六条线索，去过就算完成。",
+      "noLeads": "还没有线索。去搜搜地点，或者看看地铁站的周边地图、邻里布告栏。",
       "visitedLeads": "已到访线索 · {n}",
       "sourceDay": "{source} · {name} · 第{day}天",
-      "reportedFacility": "线索提及：{facility} · 到访后核实",
+      "reportedFacility": "听说有：{facility} · 到了再确认",
       "visitedDay": "第{day}天到访",
       "knownFacilities": "已到访的实用设施",
-      "facilityHint": "这里记录曾见过的设施。物资与状况须到场确认；使用炉灶须自备燃料。",
-      "noFacilities": "尚未记录实用设施，探索附近地点可能有所发现。",
+      "facilityHint": "这里记着你见过的设施。物资和状况要到现场确认；炉灶燃料要自己带。",
+      "noFacilities": "还没记下有用的设施。探索附近的地点也许能找到。",
       "stashes": "你的储藏点",
       "readLocality": "阅读周边地图",
       "readNoticeboard": "阅读公告栏",
-      "readCost": "游戏内5分钟 · 每处仅可阅读一次",
-      "alreadyRead": "已阅读此处地图或公告栏",
-      "tooManyLeads": "已有六条待办线索 · 先到访一处再添加",
+      "readCost": "花 5 分钟 · 每处只能看一次",
+      "alreadyRead": "这里的地图或布告栏已经看过了",
+      "tooManyLeads": "已经有六条线索 · 先去一个地方再加新的",
       "clueFound": "你找到一条指向{name}的线索。",
-      "nearbyRecognized": "你辨认出附近{count}处地点，内部情况仍未知。",
-      "recognitionNotice": "辨认出附近地点 · {count}",
-      "leadCompleted": "线索地点已到访：{name}。",
+      "nearbyRecognized": "你认出了附近 {count} 个地点，里面的情况还不清楚。",
+      "recognitionNotice": "认出附近的地点 · {count}",
+      "leadCompleted": "已到访线索地点：{name}。",
       "mapRead": "你在记录本上标记了{count}处附近地点。",
-      "boardRead": "居民公告栏列出了附近{count}处地点，已标在你的地图上。",
-      "mapEmpty": "地图上没有可新增的附近地点。",
+      "boardRead": "居民布告栏上写着附近 {count} 个地点，已经标到你的地图上。",
+      "mapEmpty": "地图上没有新的附近地点可以标了。",
       "facilityFound": "你在{name}发现了{facility}。",
       "sources": {
         "search": "搜查线索",
@@ -2086,8 +2086,8 @@
       },
       "descriptions": {
         "search": "送货单上用铅笔写下的地址指向这里。去看看还剩下什么。",
-        "noticeboard": "居民公告栏上的手写便条提到了这里。亲自走一趟，核实情况。",
-        "locality": "车站周边地图标出了这里。步行前往，看看这个地方。"
+        "noticeboard": "居民布告栏上一张手写纸条提到了这里。去看看是真是假。",
+        "locality": "车站的周边地图上标着这里。走过去看看。"
       },
       "facilities": {
         "water": "储水处",
@@ -2097,9 +2097,9 @@
       }
     },
     "stashLog": {
-      "empty": "还没有储藏点。前往一个地点，把物资存入当地储藏处。",
+      "empty": "还没有储藏点。去一个地点，把东西存进那里的储藏点。",
       "here": "（此处）",
-      "hint": "这里只能查看储藏点。取回物资须亲自前往。"
+      "hint": "这里只能看。要取东西得亲自过去。"
     },
     "mapHere": {
       "emptyLog": "还没有日志",
@@ -2127,16 +2127,16 @@
       "fractured": "骨折",
       "critical": "危重",
       "crippled": "残损",
-      "majorDetail": "包扎前肢体会持续失血。每处严重出血提高 10% 遭遇几率（有上限），血迹会引来它们。",
-      "minorDetail": "缓慢失血，可能自行凝血。每处仍提高 4% 遭遇几率（有上限）。有条件就包扎。",
-      "fracturedLeg": "骨折会减慢赶路并缩短单次行程。夹板能提供支撑，加快愈合；不固定也会缓慢恢复。",
-      "fracturedArm": "骨折会影响瞄准与近战。夹板能提供支撑，加快愈合；不固定也会缓慢恢复。",
-      "fracturedOther": "骨折需要数天恢复。夹板有助支撑；不固定也会缓慢愈合。",
+      "majorDetail": "包扎之前，这个部位会一直失血。每处大出血让遭遇几率 +10%（有上限），血迹会把它们引来。",
+      "minorDetail": "失血较慢，可能自己止住。每处仍让遭遇几率 +4%（有上限）。能包扎就包扎。",
+      "fracturedLeg": "赶路变慢，每一段能走的路也变短。上夹板有助愈合；不上夹板也会慢慢好。",
+      "fracturedArm": "影响射击和近战。上夹板有助愈合；不上夹板也会慢慢好。",
+      "fracturedOther": "要好几天才能好。上夹板有帮助；不上也会慢慢好。",
       "criticalTorso": "躯干要害重创，再挨一下重击就会丧命。",
-      "criticalHead": "头部要害重创，溢出伤害会波及躯干。",
-      "crippledLeg": "腿部重创，行走艰难。组织与骨折会逐渐恢复，护理可提供帮助。",
-      "crippledArm": "手臂重创，战斗能力大幅下降。组织与骨折会逐渐恢复，护理可提供帮助。",
-      "crippledOther": "部位重创。组织与骨折会逐渐恢复，护理可提供帮助。"
+      "criticalHead": "头部要害重创，多出来的伤害会转到躯干。",
+      "crippledLeg": "腿部重伤，走路非常慢。软组织和骨折会慢慢恢复，护理能帮上忙。",
+      "crippledArm": "手臂重伤，战斗能力大幅下降。软组织和骨折会慢慢恢复，护理能帮上忙。",
+      "crippledOther": "重伤。软组织和骨折会慢慢恢复，护理能帮上忙。"
     },
     "hazards": {
       "horde_pocket": {
@@ -2231,7 +2231,7 @@
     },
     "ghost": {
       "title": "一位仍然活着的幸存者",
-      "blurb": "你的前任没能活下来，他们却撑住了。只交易一次，然后就走：",
+      "blurb": "你上一个角色没活下来，这个人却撑住了。只做一次交易，然后就走：",
       "trade": "交易",
       "leave": "继续走"
     },
@@ -2239,60 +2239,60 @@
       "title": "附近动静",
       "bands": {
         "quiet": "安静",
-        "stirred": "惊动",
-        "hunting": "聚集"
+        "stirred": "骚动",
+        "hunting": "猎杀"
       },
       "causes": {
-        "player": "你刚才的噪声引来了注意。",
+        "player": "你刚才的动静引起了注意。",
         "car_alarm": "附近的汽车警报引来了注意。",
         "gunfire": "附近的枪声引来了注意。",
         "shutter": "松动的卷帘门惊动了周边。",
-        "scavengers": "附近一个独行拾荒者短暂离开遮挡，弄出了动静。"
+        "scavengers": "附近一个独行拾荒者短暂露了面，弄出了动静。"
       },
       "noCause": "附近没有新的骚动。",
-      "quietNotSafe": "安静不等于安全。地点本身的危险和夜色仍会带来风险。",
-      "indoors": "这里显示的是外面的地面状况。房间和隧道有各自的危险。",
+      "quietNotSafe": "安静不等于安全。危险的地点和黑夜照样要命。",
+      "indoors": "这里显示的是外面街上的情况。你所在的房间或隧道有它自己的危险。",
       "ignore": "不理会",
-      "ignoreConsequence": "不理会不消耗资源，骚动仍会随游戏时间逐渐平息。",
-      "busy": "先完成当前行动，或回到地面再处理。",
-      "needSupplies": "需要足够的精力或随身携带的干净饮用水。",
-      "outOfReach": "你已离开这处骚动。返回附近才能处理。",
+      "ignoreConsequence": "不管它也没损失，骚动会自己慢慢平息。",
+      "busy": "先做完手上的事，或者回到地面再处理。",
+      "needSupplies": "需要足够的精力，或者身上带着干净的水。",
+      "outOfReach": "你已经走远了。回到附近才能处理。",
       "events": {
         "car_alarm": {
           "title": "附近的汽车警报",
-          "description": "一辆最近被翻动的车接上了新电池，警报正响。接电的人已经走了，你可以断开它。",
-          "cost": "15 分钟 · 4 精力。减少骚动，但已引来的注意不会立刻消失。",
+          "description": "一辆车不久前被人动过，接上了新电瓶，警报正在响。接电的人已经走了。你可以把电断掉。",
+          "cost": "15 分钟 · 4 精力。骚动会减弱，但已经引来的注意不会马上散去。",
           "action": "关闭警报"
         },
         "shutter": {
           "title": "附近的卷帘门响声",
-          "description": "松动的金属卷帘门打破了寂静。你可以把它固定好。",
-          "cost": "15 分钟 · 4 精力。减少骚动，但已引来的注意不会立刻消失。",
+          "description": "一扇松掉的铁卷帘门在哐哐作响。你可以把它固定住。",
+          "cost": "15 分钟 · 4 精力。骚动会减弱，但已经引来的注意不会马上散去。",
           "action": "固定卷帘门"
         },
         "gunfire": {
           "title": "附近的枪声",
-          "description": "枪声已经停了。前去查看也许能找到废料，但也会弄出新动静。",
-          "cost": "20 分钟 · 5 精力。获得 2 份废金属，并产生少量新噪声。",
+          "description": "枪声停了。过去看看也许能捡到废料，但也会弄出新的动静。",
+          "cost": "20 分钟 · 5 精力。获得 2 份废金属，并弄出一点新动静。",
           "action": "前去查看"
         },
         "scavengers": {
           "title": "一个藏着的拾荒者",
-          "description": "一个独行拾荒者退到遮挡后，渴得轻咳。对方愿接下你隔远留下的干净饮水；你也可以不打扰。",
-          "cost": "10 分钟 · 1 份干净饮用水。获得附近地点的情报（或废金属），并减少骚动。",
+          "description": "一个独行拾荒者躲在掩体后，渴得直咳。你把干净的水远远放下，对方会默默收下；也可以不管。",
+          "cost": "10 分钟 · 1 份干净的水。获得附近地点的情报（或废金属），骚动也会减弱。",
           "action": "分享饮用水"
         }
       },
       "results": {
-        "quieted": "声音停了。已引来的注意仍在，但周边正在平息。",
+        "quieted": "声音停了。已经引来的注意还在，但这一带会慢慢平静下来。",
         "salvage": "你找到了两份废金属。翻找时又弄出了些动静。",
-        "intel": "拾荒者从遮挡后低声指了指 {name}，随后沿隐蔽路线离开。",
+        "intel": "拾荒者躲在掩体后，悄悄给你指了 {name} 的方向，然后从隐蔽的路离开了。",
         "thanks": "拾荒者留下一份废金属道谢，随后悄悄退走。"
       },
       "openTimeline": "打开时间线查看附近事件。",
-      "dismissed": "你没有干预。动静会自然平息。",
+      "dismissed": "你没去管它。动静会自己平息。",
       "responded": "你已处理这次动静。",
-      "expired": "机会已过。残留的动静会逐渐平息。"
+      "expired": "机会错过了。剩下的动静会慢慢平息。"
     },
     "care": {
       "title": "伤口护理",
@@ -2310,12 +2310,12 @@
         "support": "辅助恢复"
       },
       "effect": {
-        "bandage": "止血，帮助伤口愈合。能降低一部分感染几率。",
-        "clean": "清除污物：恢复更快，伤口感染几率大幅降低。",
-        "pain": "缓解伤势影响，持续4小时。",
-        "splint": "支撑骨折，加快长期恢复。",
+        "bandage": "止血，帮伤口愈合。也能稍微降低感染几率。",
+        "clean": "清掉脏东西：恢复更快，伤口也不容易感染。",
+        "pain": "缓解伤势带来的惩罚，持续 4 小时。",
+        "splint": "固定骨折，帮助愈合。",
         "firstAid": "清洁、包扎、固定并缓解疼痛。",
-        "support": "1片维生素C，为当前所有伤势提供25%恢复加成，持续8小时。"
+        "support": "一片维生素 C，所有现有伤势恢复 +25%，持续 8 小时。"
       },
       "result": {
         "bandage": "已包扎{part}。",
@@ -2323,7 +2323,7 @@
         "pain": "{part}疼痛已缓解。",
         "splint": "已固定{part}，骨折仍需时间恢复。",
         "firstAid": "已护理{part}，恢复仍需时间。",
-        "support": "已辅助{part}及其他当前伤势的恢复。"
+        "support": "{part}和其他现有伤势的恢复加快了。"
       },
       "wound": {
         "bruise": "挫伤",
@@ -2336,16 +2336,16 @@
       "dressingSoiled": "敷料已脏，恢复较慢",
       "fractureSupported": "骨折已固定，正在愈合",
       "fractureUnsupported": "骨折未固定，愈合较慢",
-      "painActive": "止痛中，约余{n}小时",
+      "painActive": "止痛中，还剩约 {n} 小时",
       "recovering": "恢复中",
-      "improvisedEffect": "可止血；污损敷料会拖慢恢复。",
+      "improvisedEffect": "能止血；但敷料不干净，恢复会变慢。",
       "noSupplies": "附近没有可用的护理用品。",
-      "busy": "忙碌中，结束当前行动后可护理。",
-      "recoveryHint": "护理稳定伤势，恢复需要时间。食物、水分和安稳睡眠有助恢复。",
-      "supplyCost": "{item} ×1 · 余{n}份",
-      "kitCost": "{item} · 消耗1次，余{n}次",
+      "busy": "先做完手上的事，再处理伤口。",
+      "recoveryHint": "护理能稳住伤势，痊愈靠时间。吃饱喝足、好好睡一觉都有助恢复。",
+      "supplyCost": "{item} ×1 · 剩 {n} 份",
+      "kitCost": "{item} · 用 1 次，剩 {n} 次",
       "recoveryPaused": "恢复暂停 · 仍有严重出血",
-      "supportActive": "恢复 +25% · 约余{n}小时",
+      "supportActive": "恢复 +25% · 还剩约 {n} 小时",
       "noSupplyFor": "附近没有合适的护理用品。",
       "tapAgain": "再点一次即可使用。",
       "statusLabel": "状况",
@@ -2354,8 +2354,8 @@
       "antibioticsCleared": "抗生素起效了。感染的伤口已清除，接下来 {n} 小时内新伤口也不易感染。",
       "antibioticsCover": "服用了抗生素：接下来 {n} 小时内伤口不易感染。",
       "infectedHint": "伤口感染 · 恢复 −65%\n抗生素可以清除。",
-      "openHint": "伤口未愈合 · 占用 {n} 点最大生命，直到愈合（按当前速度约 {left} 小时）\n干净的包扎愈合最快。",
-      "riskHint": "{h} 小时后感染判定 · {pct}% 几率\n清洁或抗生素能大幅降低，包扎只能降低一部分。",
+      "openHint": "伤口未愈合 · 最大生命值少 {n} 点，愈合后恢复（按现在的速度约 {left} 小时）\n干净的包扎好得最快。",
+      "riskHint": "{h} 小时后判定是否感染 · 几率 {pct}%\n清洁伤口或吃抗生素能大幅降低；包扎只能降一点。",
       "coverActive": "抗生素保护 · {n} 小时",
       "effectsLabel": "影响"
     },
@@ -2367,7 +2367,7 @@
       "privateExpedition": "私人远征 · 最多四名幸存者",
       "heroFirst": "带上你的队友",
       "heroSecond": "一起抵达撤离点。",
-      "intro": "一片街区，同一时钟，有限的物资。分头搜索，集结战斗，记得留一份医疗物资救援倒地的队友。",
+      "intro": "一小片街区，一个共用的时钟，有限的物资。分头去搜，会合了一起打，记得带一份医疗物资，留给倒下的队友。",
       "stepOne": "01 / 集合",
       "stepOneBody": "创建房间并分享邀请链接。每个标签页控制一名幸存者。",
       "stepTwo": "02 / 互相照应",
@@ -2419,7 +2419,7 @@
       "fleeRendezvous": "逃往集合点 · 8 秒",
       "noRoute": "从{site}无法直达，请选择相连的地点。",
       "seconds": "{count} 秒",
-      "travelCommitted": "赶路无法取消，到达后才会更新位置。",
+      "travelCommitted": "一旦出发就不能取消，到达时才会结算。",
       "cancel": "取消行动",
       "search": "搜索 · 6 秒",
       "rest": "休息 · 20 秒",
@@ -2574,7 +2574,7 @@
       "intro": "整座新加坡，共享的时钟，有限的物资。选择出发区域，结伴探索或分头行动，带上你的人一起撤离。",
       "prototypeNote": "在线远征 · 真实全岛地图 · 与单人生存独立",
       "mapAria": "新加坡远征地图，显示已发现地点和队友位置",
-      "mapLoading": "正在建立全岛地图连接……",
+      "mapLoading": "正在加载全岛地图……",
       "mapUnavailable": "部分地图图块暂时无法加载，请检查网络。幸存者与房间操作仍然可用。",
       "mapHint": "选择地点，或点击空地规划徒步路线。",
       "locateMe": "我的位置",
@@ -2584,10 +2584,10 @@
       "unknownSite": "未知地点",
       "danger": "危险度 {value}",
       "rendezvous": "集合点",
-      "travelHint": "每段行程最远 1.2 公里。服务器会检查陆路并确认行程时间，抵达后发现周边地点。",
+      "travelHint": "每段最远 1.2 公里。服务器会检查陆路并确认用时。到达后探索周边。",
       "travel": "前往这里",
       "tunnels": "地铁隧道",
-      "tunnelHint": "沿漆黑的轨道步行到相邻车站。隧道行进较慢，仅在出口发现地面地点。",
+      "tunnelHint": "沿漆黑的轨道走到相邻车站。隧道里走得慢，只有在出口才能看到地面的地点。",
       "crawl": "进入隧道",
       "tunnelDistance": "{line} · {km} 公里",
       "search": "搜索 · {seconds}秒",
@@ -2624,8 +2624,8 @@
       "startDistrict": "出发区域 · 由房主选择",
       "occupation": "你的职业",
       "lobbyHint": "小队从集合点一同出发。每位幸存者拥有独立的职业、装备和物资。",
-      "deadHelp": "物品留在死亡地点。当活跃队友在 {site} 等候时，可以让替补幸存者加入。",
-      "replacementHint": "需要一名空闲且活跃的队友位于 {site}。替补幸存者不会获得新的起始物资。",
+      "deadHelp": "你的东西留在死去的地方。等有活着的队友在 {site} 等着，就可以换一名幸存者加入。",
+      "replacementHint": "{site} 需要有一名空闲、还活着的队友。替补幸存者不会带新的起始物资。",
       "discovered": "已知地点：{count}",
       "panelNav": "幸存者与地点面板",
       "scope": "共享探索 · 独立幸存者 · 服务器确认行动",
@@ -2661,7 +2661,7 @@
       },
       "building": {
         "title": "楼栋内部",
-        "hint": "物资由小队共享，每位幸存者独立移动。当前支持开放的房门，锁门尚未开放。",
+        "hint": "物资全队共享，但每个人各自行动。目前只能进没锁的门，锁着的门暂时进不去。",
         "useDoors": "使用楼梯和房门在室内移动。前往室外地点前，先回到底层。",
         "unit": "进入 {name}",
         "stairs": "楼梯 · {storey} 层",
@@ -2670,7 +2670,7 @@
         "exit": "返回街道",
         "reasons": {
           "sealed": "这一楼层已永久封闭。",
-          "locked": "锁住或被堵住的门尚未开放。",
+          "locked": "锁着或被堵住的门暂时还不能进。",
           "unsupported": "这个房间的服务尚未开放。",
           "unavailable": "无法进入这个房间。"
         }
@@ -2688,23 +2688,23 @@
       "lookingFrom": "正在从 {name} 查看",
       "blockTab": "楼栋",
       "siteTab": "据点",
-      "leaveBlockFirst": "先下到底层架空层，离开这栋楼。",
+      "leaveBlockFirst": "先下到组屋底层，离开这栋楼。",
       "gate": "门口",
-      "gateOpen": "开放之门——只要没结仇，谁都能进。",
-      "gateFee": "收费之门——交一件贡品可在里面待一天。",
-      "gateMembers": "仅限成员——需要 {rung}（{n}）或以上。",
-      "passThrough": "已付至第 {d} 天。",
+      "gateOpen": "开放：只要没结仇，谁都能进。",
+      "gateFee": "收费：交一件贡品，可以在里面待一天。",
+      "gateMembers": "只对自己人开放：需要{rung}（{n}）或以上。",
+      "passThrough": "已付费，可待到第 {d} 天。",
       "inside": "你在铁丝网内。",
       "outside": "你在门外。",
       "standing": "声望",
       "ladder": "声望在这里能换到什么",
       "site": "此地",
-      "noJobs": "今天没有贴出活儿。天亮后再来。",
+      "noJobs": "今天没有活儿。天亮后再来。",
       "frameSite": "对准据点"
     },
     "injury": {
       "preFight": "带伤上阵",
-      "preFightTip": "这些伤在这场战斗中和战斗后的代价。",
+      "preFightTip": "这些伤在这一仗中和打完后会让你付出的代价。",
       "effect": {
         "accuracy": "命中 −{n}",
         "block": "格挡 −{n}%",
@@ -2712,7 +2712,7 @@
         "travel": "行进 −{n}%",
         "search": "搜索 +{n}%",
         "awareness": "感知 −{n}",
-        "energy": "体力消耗 +{n}%",
+        "energy": "精力消耗 +{n}%",
         "carry": "负重 −{n}%",
         "maxHp": "最大生命 −{n}",
         "recovery": "恢复 −{n}%"
@@ -2722,28 +2722,28 @@
       "infected": "感染"
     },
     "evac": {
-      "announced": "已知撤离点：{zone}。窗口将在 {hours} 小时后关闭。抵达后先报到，再登机；两步均免费且不耗时，无需物品。",
-      "nextAnnounced": "下一处已知撤离点：{zone}。窗口将在 {hours} 小时后关闭。抵达后免费报到，再登机，无需任何物品。",
-      "missed": "你错过了撤离窗口。下一次安排将在 {hours} 小时后公布。",
+      "announced": "已知撤离点：{zone}。窗口 {hours} 小时后关闭。赶到后先向机组报到，再登机；两步都不花时间、不收东西，也不需要任何物品。",
+      "nextAnnounced": "下一个已知撤离点：{zone}。窗口 {hours} 小时后关闭。到那里报到后就能登机，不收东西，也不需要任何物品。",
+      "missed": "你错过了撤离窗口。{hours} 小时后公布下一次。",
       "waiting": "机组正在安排下一次撤离，还有 {hours} 小时公布。",
       "unavailable": "当前没有可用的撤离点。",
-      "wrongPlace": "请先抵达公布的撤离点，再向机组报到或登机。",
-      "expired": "撤离窗口已关闭。请查看下一次安排。",
-      "contacted": "机组已确认报到。无需上交物资，空背包也能登机。请在公布的倒计时结束前选择登机。",
+      "wrongPlace": "先赶到公布的撤离点，才能报到或登机。",
+      "expired": "撤离窗口已关闭。留意下一次公布。",
+      "contacted": "机组确认了你的报到。不用交任何物资，空着背包也能走。在倒计时结束前选择登机。",
       "boarded": "你登上了撤离航班，安全离开新加坡。",
-      "searchAfterEvent": "你处理完了 {name} 附近的情况，可以继续搜索。"
+      "searchAfterEvent": "{name} 的事处理完了，可以继续搜索。"
     },
     "disturbance": {
       "made": {
-        "gunshot": "枪声在组屋之间回荡。{m} 米内的东西都被惊动了，持续 {h} 小时。",
-        "shotgun": "霰弹枪的轰响传遍整条街。{m} 米内的东西都被惊动了，持续 {h} 小时。",
-        "car_alarm": "汽车警报在尖叫。{m} 米内的东西都被惊动了，持续 {h} 小时。",
-        "gunfire": "几条街外有人开枪。枪声周围 {m} 米都被惊动了，持续 {h} 小时。",
-        "shutter": "一扇松掉的卷帘门在不停撞响。{m} 米内都被惊动了，持续 {h} 小时。",
-        "loud": "这一下传得很远。{m} 米内的东西都被惊动了，持续 {h} 小时。",
+        "gunshot": "枪声在组屋之间回荡。{m} 米内都被惊醒了，持续 {h} 小时。",
+        "shotgun": "霰弹枪的轰响传遍整条街。{m} 米内都被惊醒了，持续 {h} 小时。",
+        "car_alarm": "汽车警报在尖叫。{m} 米内都被惊醒了，持续 {h} 小时。",
+        "gunfire": "几条街外有人开枪。枪声周围 {m} 米都被惊醒了，持续 {h} 小时。",
+        "shutter": "一扇松掉的卷帘门在不停撞响。{m} 米内都被惊醒了，持续 {h} 小时。",
+        "loud": "这一下传得很远。{m} 米内都被惊醒了，持续 {h} 小时。",
         "botched": "动静太大了。{m} 米内有东西听见了，会警觉 {h} 小时。",
         "door": "撬门声顺着楼梯井传到街上：{m} 米，{h} 小时。",
-        "hdb_alarm": "组屋里的警报响了，方圆 {m} 米内的动静将持续 {h} 小时。",
+        "hdb_alarm": "警报响彻整栋楼：{m} 米，{h} 小时。",
         "barricade": "路障轰然倒下，整条街都听见了：{m} 米，{h} 小时。"
       },
       "quieted": "声音停了。这条街可以慢慢平静下来。",
@@ -2815,7 +2815,7 @@
     },
     "timelinePinned": {
       "label": "保持时间线展开",
-      "description": "在电脑上，时间线以会淡出的简短滚动条浮在地图上，需要你处理时会自动展开。开启后始终显示完整时间线。左侧栏的“时间线”按钮切换的是同一项。",
+      "description": "在电脑上，时间线会以一条会淡出的简短滚动消息浮在地图上，有事需要你处理时会自动展开。开启后会一直显示完整时间线。左侧栏的“时间线”按钮也是切换这一项。",
       "options": {
         "on": "开",
         "off": "关"
@@ -2831,7 +2831,7 @@
     },
     "weatherFx": {
       "label": "天气特效",
-      "description": "地图上的雨、眩光与霾。纯视觉——吃 GPU。电脑上默认「完整」，手机和平板默认关。",
+      "description": "画在地图上的雨、眩光和烟霾。纯视觉效果，比较吃显卡，所以电脑上默认「完整」，手机和平板默认关闭。",
       "options": {
         "off": "关",
         "subtle": "轻微",
@@ -2868,7 +2868,7 @@
     },
     "showGuideOnStart": {
       "label": "开局显示玩法指南",
-      "description": "开局弹出玩法入门。熟了再关。",
+      "description": "开局时弹出玩法入门。熟悉以后可以关掉。",
       "options": {
         "on": "开",
         "off": "关"
@@ -2876,7 +2876,7 @@
     },
     "limbCoachSeen": {
       "label": "肢体伤势提示",
-      "description": "第一次受明显肢伤时弹一次提示。改回「尚未显示」可再看。",
+      "description": "第一次受到明显的肢体伤害时弹出一次提示。改回「尚未显示」可以再看一次。",
       "options": {
         "off": "尚未显示",
         "on": "已显示过"
@@ -2891,7 +2891,7 @@
     },
     "railOverlay": {
       "label": "地铁图",
-      "description": "默认在地图上画地铁线网。地图上的按钮控制同一项。",
+      "description": "默认在地图上显示地铁线路。地图上的按钮也是切换这一项。",
       "options": {
         "on": "开",
         "off": "关"
@@ -2899,7 +2899,7 @@
     },
     "mapView3d": {
       "label": "3D 地图",
-      "description": "倾斜行动地图，并立起你见过的建筑。较慢的手机可关闭，改用平面俯视地图。地图上的 3D 按钮控制同一项。",
+      "description": "倾斜地图，让你见过的建筑立起来。手机较慢的话可以关掉，改用平面俯视地图。地图上的 3D 按钮也是切换这一项。",
       "options": {
         "on": "开",
         "off": "关"
@@ -2966,7 +2966,7 @@
     },
     "tooltips": {
       "label": "悬停提示",
-      "description": "悬停时弹出说明，触屏则长按。许多纯图标按钮没有其他标签——除非碍事，否则建议保持开启。",
+      "description": "悬停时弹出说明，触屏上则是长按。很多按钮只有图标，没有别的文字说明，除非碍事，建议一直开着。",
       "options": {
         "on": "开",
         "off": "关"
@@ -2977,98 +2977,98 @@
     "survive": {
       "title": "求生",
       "bullets": [
-        "饱食度、水分和感染值随时间变化。精力通常随时间消耗，但地面步行改为按距离扣除精力。饱食度或水分低于 35 时，身体开始损失生命值。",
-        "总生命值由六个身体部位的生命值相加而成。各处伤势对赶路、命中和体力的影响，见“身体”指南。重度出血须先包扎，否则无法自然恢复。感染高了会发烧：更容易累、恢复变慢，还会持续掉血，要靠抗生素压下去。吃了变质食物或喝了浑浊水会闹肚子，保济丸能压住。",
-        "开局可选择职业方案，也可自行搭配特质。所有正面特质共用一个列表，所有负面特质统一为缺点，两类都没有数量上限。缺点提供点数，正面特质消耗点数；剩余点数不得低于 0，互相冲突的特质不能组合，同一特质不能重复选择。",
-        "黄昏后街上会出现夜间尸潮，尽量在天黑前找到室内落脚点。夜间视野取决于照明范围，地图上的动静标记和路线卡上的危险区会减少，命中也会下降。副手手电或头灯能扩大视野，但灯光也会暴露你。休息前可查看恢复效果和伏击概率；睡眠时仍会消耗饱食度和水分，只是速度较慢。",
-        "抵达附近时，可从外观辨认地点。基础辨认范围随警觉高低在20–60米之间，光照与天气会进一步缩短范围。已辨认的标记会显示名称和类型；危险、占据者与物资仍须亲自到访或获得更详细情报才能确认。辨认地点不会清除周围迷雾。",
-        "地图虚线圆显示剩余精力能支持的步行距离。精力消耗按直线距离计算，并受属性、伤势、水分、装备、特质、体能技能和负重影响。路线卡显示消耗和抵达后的剩余精力；走到圆边可能耗尽精力。途中遭遇可能额外消耗精力。水域和禁区仍须有可通行路线才能通过。",
-        "地面赶路用时按实际路线计算。地形、天气和绕路只增加时间，不增加步行精力消耗；饱食度、水分、伤势和世界时间仍正常变化。每次移动没有固定精力费。精力充沛、属性平均的幸存者，在晴天开阔地走500米约需10分钟。出发前留意预计抵达时间。",
-        "地点之间可能有尸潮、巡逻队、塌方或积水等危险区。进入侦测范围后就能发现，能绕行就绕行。不同危险区造成的影响各不相同。",
-        "新加坡早已沦陷。天气旁的图标显示附近的安静、惊动或聚集状态。噪声会在数个游戏小时内引来注意，空地也不例外。安静不等于安全：地点本身和夜间仍有危险。可以离开、换地方休息，或等待骚动平息。游戏没有全岛倒计时，也不会因尸潮进度自动结束。",
-        "受感染的动物也使用同一套战斗规则，命中后可能造成感染。水獭和巨蜥出没于内陆水域，猕猴和野猪盘踞集水区，狗、猫和老鼠则在街道上活动。",
-        "战斗中，双方沿同一条行动轨道积累进度，谁先到终点谁出手。轻武器和空副手能加快行动；盾牌或副手武器则提供不同优势。",
-        "留意天气旁的动静图标：危险上升时会短暂闪动，点击可打开时间线。探索时可能遇到汽车警报、枪声、卷帘门或拾荒者事件；时间线中会显示可选行动及其代价。处理结果和已过期的机会会保留在记录中。不理会事件并不会消除噪声。"
+        "饱食度、水分和感染会随时间变化。精力一般也随时间消耗，但在地面上走路是按距离扣精力。饱食度或水分低于 35，身体各部位就会开始掉血。",
+        "总生命值是六个部位加起来的。每种伤怎样影响赶路、命中和体力，见“身体”一节。大出血不包扎就不会自然回血。感染高了会发烧：更容易累，恢复变慢，还会一直掉血，要靠抗生素压下去。吃了变质的食物或喝了浑浊的水会闹肚子，保济丸能压住。",
+        "开局前，可以选一个身份，也可以在同一页自己配特质。正面特质在一个列表里，负面特质都算缺点。特质数量不设上限：缺点给点数，正面特质花点数。剩余点数不能低于 0，互相冲突的特质不能同时选，同一个特质也不能选两次。",
+        "黄昏以后更危险，街上会出现夜间尸潮，天黑前尽量躲进室内。夜里你只能看到灯光照到的范围：地图上的动静变少，路线卡上显示的危险区变少，命中也会下降。副手拿手电或头上戴头灯能看得更远，但亮着灯也更容易被发现。休息前可以看到恢复效果和被伏击的几率；睡觉时饱食度和水分照样会掉，只是慢一些。",
+        "走到附近时，可以从外观认出一个地点。能认出的距离在 20 到 60 米之间，取决于警觉，光线和天气还会再缩短。认出的标记会显示名称和类型；危险程度、里面有谁、有什么物资，要亲自去过或拿到更详细的情报才知道。认出地点不会驱散周围的迷雾。",
+        "地图上的虚线圈表示你剩下的精力还能走多远。走路消耗的精力按直线距离算，也受属性、伤势、水分、装备、特质、体能和负重影响。路线卡会显示要花多少精力、到达后还剩多少；走到圈的边缘可能会累垮。路上遇敌会额外耗精力。过水域或封锁区时，仍然要有路能走。",
+        "地面赶路的时间按实际路线算。地形、天气和绕路只会多花时间，不会多花精力；饱食度、水分、伤势和时间照常变化。每次移动没有固定消耗。一个精力充沛的普通幸存者，在平坦开阔的路上走 500 米大约要 10 分钟。出发前看一眼预计到达时间。",
+        "地点之间可能有危险区：尸潮、巡逻队、塌方、积水。进入侦测范围就能察觉，能绕就绕。硬闯的话，每种危险区的后果都不一样。",
+        "新加坡已经沦陷。天气旁边的图标显示附近的动静：安静、骚动或猎杀。噪音会在几个游戏小时内引来附近的注意，空地上也一样。安静不等于安全：地点本身和夜晚的危险依然存在。可以继续走、换个地方休息，或者等骚动平息。游戏没有全岛倒计时，也不会突然全面失守。",
+        "受感染的动物用同一套战斗规则，被咬中可能会被感染。内陆水域有水獭和巨蜥，集水区有猕猴和野猪，街上则是狗、猫和老鼠。",
+        "双方在同一条行动条上竞速，谁先填满谁出手。轻武器和空着的副手涨得更快；拿盾牌还是拿第二把刀，各有取舍。",
+        "留意天气旁边的动静图标。危险上升时它会闪一下，点开就是时间线。汽车警报、枪声、卷帘门、拾荒者这些事件会出现在这里，可以选择怎么处理，各有代价。结果和错过的机会都会留在记录里。走开不管，噪音也不会消失。"
       ]
     },
     "body": {
       "title": "身体",
       "bullets": [
-        "身体分为六个部位，总生命值由它们相加而成。伤口、敷料与夹板会直接显示在身体面板中；护理稳定伤势，不会立即恢复生命或治好骨折。",
-        "包扎、清洁、止痛和固定可独立选择，先后顺序不限，也可以暂不处理。有污物的伤口仍会恢复，但速度较慢；无需先清洁才能包扎。",
-        "割伤和深伤口在愈合前会占用该部位的一部分最大生命（包扎好的割伤约半天，深伤口约一天半）。伤口开放满一天可能感染，恢复会慢很多：清洁或抗生素能大幅降低几率，包扎只能降低一部分。抗生素可以清除伤口感染。",
-        "洁净敷料有助恢复，约12小时后会变脏；可按需更换。简易绷带能止血，但带来的污损会减慢恢复。止痛效果持续4小时。",
-        "骨折需数天愈合；支撑良好时约需72小时等效恢复，未固定时速度为45%。食物、水分、安稳睡眠和减少负担有助恢复。急救包可为单个部位综合护理，共有3次用量。",
-        "腿伤会拖慢地图移动；右臂影响武器命中，左臂影响防御与副手节奏。头伤影响瞄准、搜索和警觉；躯干受伤会加快精力消耗并降低负重。"
+        "六个部位的生命值加起来就是总生命值。伤口、敷料和夹板都能在“身体”面板里看到。护理只能稳住伤势，不会立刻回血，也不会马上治好骨折。",
+        "包扎、清洁、止痛、上夹板可以分开做，先后不限，也可以先不管。伤口脏的话照样会好，只是慢一些。包扎前不一定要先清洁。",
+        "割伤和深伤口在愈合前，会让这个部位的最大生命值暂时减少一部分（包扎过的割伤约半天愈合，深伤口约一天半）。伤口一天没合上就可能感染，之后会好得非常慢：清洁或抗生素能大幅降低感染几率，包扎只能降一点。抗生素能清除伤口感染。",
+        "干净的敷料有助恢复，大约 12 小时后会变脏，需要时就换。简易绷带能止血，但敷料不干净，会拖慢恢复。止痛效果持续 4 小时。",
+        "骨折要好几天才能好：上了夹板约需 72 小时，不上夹板只有 45% 的速度。吃饱喝足、安稳睡觉、少折腾，都有助恢复。一个急救包可以对单个部位做 3 次全套处理。",
+        "腿伤会拖慢地图上的赶路。右臂影响武器命中，左臂影响格挡和副手节奏。头伤影响瞄准、搜索和警觉。躯干受伤会加快精力消耗，并降低负重上限。"
       ]
     },
     "fight": {
       "title": "战斗",
       "bullets": [
-        "双方的标记沿同一轨道前进，谁先到终点谁出手。速度决定行动条的积累快慢，受姿态、武器重量和副手是否空着影响。可随时切换猛攻、戒备或精准姿态；选择“脱离”则尝试逃跑。",
-        "手上没有武器就只能用拳头。对付蹒跚丧尸、行尸和小动物还行，对强壮的感染者或带武器的人几乎没用。找件能挥的东西。",
-        "手枪或霰弹枪须装备在枪套中才能射击。点击“开火”后重新蓄力，蓄满后射击，独立于近战攻击。空枪点击“开火”会自动尝试装填：手枪用背包中的已装填弹匣，霰弹枪用 12 号霰弹。主手持枪时用枪挥砸；在地面开枪会引来危险。",
-        "战斗外，备好弹药盒后右键点击弹匣可补满弹匣，再装入枪套中的手枪。霰弹枪可直接在枪套中装填霰弹。每种枪只能使用对应弹药，弹药并非通用。"
+        "双方的标记在同一条行动条上竞速，谁先到头谁出手。速度决定你涨得多快，姿态、武器重量和副手是否空着都有影响。猛攻、戒备、精准三种姿态随时可换；“脱离”就是逃跑。",
+        "手上没武器就只能用拳头。打蹒跚丧尸、行尸和小动物还行，碰上大块头感染者或带武器的人就几乎没用。赶紧找件能挥的东西。",
+        "手枪或霰弹枪要放进枪套才能开枪。“开火”有自己的行动条，和近战分开。枪里没子弹时按“开火”会自动换弹：手枪用背包里装好的弹匣，霰弹枪用背包里的 12 号霰弹。把枪拿在主手上可以当钝器砸。在地面上开枪会引来危险。",
+        "不在战斗时，在有弹药盒的情况下右键弹匣可以装满它，再装进枪套里的手枪。霰弹枪直接往枪套里的枪装霰弹。弹药分型号，不能混用。"
       ]
     },
     "skills": {
       "title": "技能",
       "bullets": [
-        "七项被动技能会影响你的能力：格斗、射击、体能、搜刮、医疗、手艺和潜行。特质仍提供自身加成，也常会赋予初始技能等级；消耗点数较多的特质可以提供更高的起点。",
-        "击杀、搜索、赶路、制作、治疗和逃跑等有效行动会积累经验。每项技能每天通过实践获得的经验都有软上限，反复刷同一种行动收益会降低。",
-        "搜集并阅读技能书和杂志。阅读需要时间，可获得大量经验，或在满足等级要求时提升一级。不符合当前等级的书不会被读掉。",
-        "技能只属于本局幸存者。角色死亡后不会保留，也没有跨局的账号技能树。"
+        "共有七项被动技能：格斗、射击、体能、搜刮、医疗、手艺、潜行。特质仍有自己的加成，很多还会给初始技能等级；点数越贵的特质，起点通常越高。",
+        "做有意义的事才涨经验：击杀、搜索、赶路、制作、治疗、逃跑。每项技能每天靠实践获得的经验有软上限，一直刷同一件事不划算。",
+        "搜来的技能书和杂志可以读。读书要花几个小时，能获得一大笔经验；如果你的等级还没到书的级别，则直接升一级。级别不对的书不会被读掉。",
+        "技能随这一局结束而清零，没有跨局解锁的技能树。"
       ]
     },
     "loot": {
       "title": "搜刮",
       "bullets": [
-        "抵达地点后开始搜索，遮住的格子会逐一揭开，实时显示找到的物品。街边地点通常能找到几件物资，其品相取决于地点的破损程度。",
-        "首次到访会确认地点的规模和破损程度。完好、受损、破败、洗劫一空，分别对应全新、略有磨损、严重磨损、破旧的物品。地点再危险，也不会让破烂变成全新装备。",
-        "点击未揭开的格子可优先搜索。点击已发现的物品，或选择“全部拿走”，即可带上物资。背包装不下的会散装携带，不会因格子不足而自动遗失。",
-        "背包决定格子的形状和容量，空洞不能放物品。装进背包的物资还能减轻计入负重的重量，减重幅度从日用背包的 30% 到军用背囊的 65% 不等。散装物品按 1.5 倍计重，会发出声响，战斗中也拿不到。",
-        "穿戴的装备也计入负重。超过上限后会变慢、变吵；超过 150% 后无法逃跑，每走一公里都会伤及腿和背；超过 200% 后无法步行，必须先减轻负重。负重条会显示当前等级和惩罚。",
-        "每个地点可搜索的次数有限，提前离开也会消耗部分次数。拿好想要的东西再结束；选择“完成”或“离开”会放弃剩余物品。",
-        "搜索时可能找到地图笔记，在背包中破译后可标出隐藏地点。与势力达到“相识”关系后，也可在据点获取每日情报。笔记可以随身携带，使用一次后消耗。",
-        "完成搜索也可能获得附近地点的线索。在地铁站阅读周边地图，或在住宅楼、社区地点阅读公告栏，可找到更多本地去处；每处仅限一次，花费游戏内5分钟。这些线索只标出地点，不会透露当前内部情况。",
-        "记录本最多保留六条待办线索，并记录来源与到访日期。“在地图上显示”会关闭面板并将镜头移到目标，不会自动赶路。线索提及的设施须到访核实；已到访的设施会保留记录，但不显示远处的剩余物资。有些地点藏有有限的净水、避雨棚或炉灶，炉灶须自备燃料。",
-        "势力据点最初不会显示，需通过探索或情报发现。“本地人脉”特质会在开局标出两个不同势力各一处据点。知道地点归属后，建筑和标记会显示势力颜色，据点则显示势力徽记。浅色圆环表示当前选中，建筑仍保留原有颜色。",
-        "可在地表地点搭建火堆和炉灶，点燃后供热24个游戏小时，离开期间也计时。携带炊锅即可煮面、熬粥和热制饮品。干方便面只恢复饱食。",
-        "调制前可分装咖啡、美禄和奶。常温饮品的饱食与精力恢复减半，补水不变。未经处理的常温污水仍会导致感染。烧好的水留在地点，两小时后冷却。",
-        "集雨器仅在游戏下雨时积水，最多储存四份未处理的水。防雨棚改善露天睡眠，但不能防止伏击。日常物品可改成装备、引火料或修理零件，可在物品详情查看制作用途。"
+        "到了一个地点就可以开始搜索：被遮住的格子会一个个实时揭开，露出找到的东西。街边地点一般能找到几件，东西新旧取决于这里破坏得有多严重。",
+        "第一次到访会看出地点的规模和破损程度（完好 → 洗劫一空）。破损程度决定东西的新旧：完好对应全新，受损对应略旧，破败对应很旧，洗劫一空对应破旧不堪。地点再危险，也不会让破烂变成好货。",
+        "点一个没揭开的格子，就会优先搜它。点找到的物品（或“全部拿走”）放进背包；格子放不下的会散装携带。不会因为没地方放就把东西扔掉。",
+        "背包不只改变格子数量，还会改变格子的形状，空洞的地方放不了东西。装进背包的东西还会减重（日用背包减 30%，军用背囊最多减 65%），所以装得好就能背得多。散装的东西按 1.5 倍计重，会叮当响，战斗中也拿不到。",
+        "穿戴的装备也算负重。超过上限是“沉重”（变慢、变吵）；超过 150% 是“吃力”（跑不掉，每走一公里都伤腿和腰）；超过 200% 是“压垮”，扔掉东西之前一步都走不了。负重条会显示当前等级和惩罚。",
+        "每个地点能搜的次数有限，提前离开也会用掉一部分次数。想要的先拿走，点“完成”或“离开”就会放弃剩下的东西。",
+        "搜索时可能找到地图笔记，在背包里破译就能标出隐藏地点。和势力达到“相识”后，据点每天也会给你情报。笔记可以随身带，用一次就没了。",
+        "搜完一个地点，有时还会得到附近地点的线索。在地铁站看周边地图，或在住宅、社区地点看布告栏，可以发现更多附近的去处：花 5 分钟，每处只能看一次。这些线索只告诉你地点在哪，不透露里面现在的情况。",
+        "记录本最多记六条线索，包括来源和你去过的日期。点“在地图上显示”会关掉面板、把镜头移过去，但不会自动出发。听说有的设施要到了才能确认；去过的设施会被记住，但看不到远处的剩余物资。有些地点有少量干净水、避雨棚或炉灶；炉灶燃料要自己带。",
+        "势力据点一开始是未知的，要靠探索或情报发现。“本地人脉”特质会在开局标出两个不同势力的据点各一处。知道地点归谁管后，建筑和标记会显示该势力的颜色，已知据点会显示势力徽记。标记外的浅色圆环表示选中，不会改变建筑颜色。",
+        "可以在地面地点生火或搭炉灶。点着后供热 24 个游戏小时，你离开期间也照样计时。有炊锅就能煮面、煮粥、冲热饮。干面只补饱食度。",
+        "咖啡、美禄和炼奶要先分装成份再调制。用常温水冲的饮料，饱食度和精力只恢复一半，补水照常。没处理过的冷水照样会让你感染。烧好的水留在原地，两小时后变凉。",
+        "集雨器最多存四份未处理的水，只有游戏里下雨时才会积水。避雨棚让露天睡觉更舒服，但挡不住伏击。日常物品可以改成装备、引火物或修理零件，在物品详情里能看到能做什么。"
       ]
     },
     "hdb": {
       "title": "进组屋",
       "bullets": [
-        "从组屋底层进入后，3D 大楼旁会出现楼层列表。悬停可高亮对应楼层，点击可走楼梯前往。大楼高度与地图一致，但只有部分楼层可达，其余楼层已封闭。可达楼层包括普通住家、幸存者据点、失火层、巢穴、已被搜刮的楼层或天台（出现时总在最顶层）。20 层以上的大楼还可能有避难层，该层楼梯不会触发伏击。",
-        "每个楼层都有独立热度。破门会让本层热度全额上升，全楼其他楼层也会上升一些，离得越远越少；仅靠波及不会让楼层超过“惊醒”。触发陷阱和战斗会波及上下相邻楼层。热度越高，遭遇概率、房间威胁和下楼检定难度越高。达到“蜂拥”的楼层会伏击经过的人。离开某层后，该层热度每小时约降 5；离开大楼期间，全楼热度还会减半。",
-        "多数有物资的房门已上锁或设障。撬锁器能安静开锁，每次尝试都会消耗；强行破门会增加热度，撬棍能降低破门代价。点击当前楼层的房间查看行动。下楼经过每一层时，都要根据该层热度进行敏捷与耐力检定；一旦遇敌就会停在该层。上楼无需检定，离开大楼则必须回到 01 层。若离开时仍有楼层处于“蜂拥”，动静会引来街上的危险。探索进度会保留，地图上的大楼会变暗，地点卡会显示已清空的房门数。"
+        "从组屋底层进去后，3D 大楼旁会出现一列楼层条。悬停某一条会点亮那一层，点一下就爬楼梯上去。大楼和地图上一样高，但只有少数几层能进，其他楼层都封死了。每个能进的楼层各有特点：普通住家、幸存者据守层、失火层、巢穴、已被搜过的楼层、天台（出现时总是最顶层），以及（20 层以上的大楼）避难层，避难层的楼梯不会遇到伏击。",
+        "每层楼有各自的热度。破门会让这一层热度直接拉满，同时让楼里其他层也升一点，离得越远升得越少；光靠波及，一层楼最多升到“惊醒”。陷阱和打斗的动静会传到上下相邻的楼层。热度越高，越容易遇敌，房间越危险，下楼检定也越难。“蜂拥”的楼层，谁经过都会被伏击。你不在的楼层会慢慢降温（每小时约 5 点），离开整栋楼时全楼热度减半。",
+        "大多数有物资的门都锁着或被堵住。有撬锁器就撬锁（很安静，每试一次消耗一个）；没有就硬闯，会升热度。有撬棍时破门代价更低。点楼层条上的房间可以看到能做什么。下楼时，每经过一层都要掷敏捷 + 耐力，对抗那一层的热度；一旦打起来，就会停在那一层。上楼不用检定。只能从 01 层离开。如果离开时还有楼层是“蜂拥”，动静会传到街上。大楼会记住你的进度：搜过的楼在地图上会变暗，地点卡会显示清了多少户。"
       ]
     },
     "tunnels": {
       "title": "隧道",
       "bullets": [
-        "在地铁站台选择“规划隧道行程”可打开线路图。选定目的地后，从站数最少的几条路线中挑选。隧道里，维修通道等支线会从主线分出，几站后再并回——每条都是不同的路线选择。",
-        "确认路线后，整个行程会连续进行。站点条显示线路、下一站和换乘处。你可以在中途车站离开，也可以继续走到终点。地下不受地面移动范围和天气限制，步行消耗比地面低，但沉重的背包仍会让你疲劳。",
-        "站间隧道可能出现岔路。可沿主线前进，也可进入经过几个节点后再汇合的支线。根据当前状态选择路线，一旦迈出去，就不能再走另一条。",
-        "营地可提供睡觉、包扎或交换物资的机会，也是地下唯一能睡的地方。不同障碍各有风险：积水里可能藏着受感染的水獭，坠物会造成重伤，断电路段会耽误时间。少见的敌情可能是一直尾随你的潜行者。环线同盟可能在下站楼梯或隧道检查站收取通行费。"
+        "在地铁站台选“规划隧道行程”，会打开线路图。选好目的地，再从站数最少的几条路线里挑一条。隧道里，维修通道会从主线分出去，过几站再并回来；走哪条，决定了你会碰上什么。",
+        "确认路线后，整段路一次走完。站点条会显示路线、下一站和换乘站。你可以在中途的车站出去，也可以一直走到终点。地下没有地面的移动范围限制，也没有天气。背包太重照样会累，但在隧道里走路比在街上省力。",
+        "两站之间的隧道可能会分岔。可以沿主线走，也可以拐进支线，支线可能要过几个节点才并回主线。挑一个你应付得了的方向；一旦迈出去，另一条路就走不了了。",
+        "营地可以睡一觉、包扎伤口或交换物资，也是地下唯一能睡觉的地方。路上的障碍各不相同：积水里可能藏着尸变的水獭，掉落的碎块会砸成重伤，停电路段很耗时间。偶尔遇到的敌人，是一路跟着你的潜行者。环线同盟可能会在下站的楼梯收过路费，有时在隧道里也收。"
       ]
     },
     "evac": {
       "title": "撤离",
       "bullets": [
-        "每次开局都会公布一个已知撤离点和关闭倒计时。在目标面板选择“定位下一个已知撤离点”，可把地图镜头移到该处；此操作不会移动幸存者、推进时间或揭露沿途地点。地图笔记和传闻只是可选情报，不是撤离条件。",
-        "在倒计时结束前抵达，先向撤离机组报到。首次点击只确认联络；再次选择“登机撤离”即可离开。报到和登机均不耗时、不收取物资，也不需要信号弹或其他物品，空背包也能撤离。战斗、事件、搜索、赶路、组屋和隧道行动结束后才能操作。",
-        "错过窗口后，面板会显示距下次安排的倒计时。新窗口开放时会公布下一处已知撤离点。撤离由你决定；等待时仍需照顾补给与伤势。"
+        "每一局都会公布一个已知的撤离点和关闭倒计时。在“目标”里选“定位下一个已知撤离点”，地图镜头就会移过去。定位不会移动你的幸存者，不会推进时间，也不会揭开沿途的地点。地图笔记和传闻只是可选的情报，撤离用不上。",
+        "在倒计时结束前赶到撤离点，向机组报到。第一次点击只是确认联络；再点“登机撤离”才会离开。报到和登机都不花时间、不收物资，也不需要信号弹之类的东西，空着背包也能走。如果正在战斗、处理事件、搜索、赶路、在组屋里或隧道里，要先结束才能操作。",
+        "错过了窗口，“目标”里会显示离下次公布还有多久。下一个窗口会公布另一个已知撤离点。撤不撤离由你决定；等待期间注意补给和伤势。"
       ]
     },
     "score": {
       "title": "分数",
       "bullets": [
-        "分数 =（击杀数 × 25 + 携带的战利品价值 + 存活天数 × 50）× 天数倍率。第 1 天倍率为 1.0，此后每天增加 0.1。",
-        "成功撤离额外获得 2000 × 当前天数倍率的分数。存活越久，倍率越高；多撑几天再成功撤离，才能冲击更高排名。",
-        "死亡后仍会在本机记录分数，联网时也会提交到全球榜。多活一天，分数倍率就更高。你可以尽力继续生存，也可以选择撤离获得奖励；周边危险、补给和伤势仍是挑战。"
+        "分数 =（击杀数 × 25 + 身上战利品价值 + 天数 × 50）× 天数倍率。第 1 天倍率 ×1.0，之后每多一天加 0.1。",
+        "成功撤离再加 2000 × 同一个天数倍率。多活几天把倍率堆高，再晚一点撤离，排行榜分数最高。",
+        "死了也会在本机记分，联网时还会提交到全球排行榜。每多活一天，分数就更值钱。你可以尽量活下去，也可以主动撤离拿奖励；附近的危险、补给和伤势才是真正的挑战。"
       ]
     }
   },
@@ -3077,7 +3077,7 @@
     "rice_pack": "袋装米",
     "instant_noodles": "方便面（干）",
     "snacks": "零食",
-    "hawker_meal": "剩的小贩餐",
+    "hawker_meal": "吃剩的小贩饭菜",
     "bak_kwa": "真空包装肉干",
     "army_ration": "SAF 口粮包",
     "milo_tin": "罐装美禄",
@@ -3089,7 +3089,7 @@
     "river_fish": "河鱼",
     "durian": "榴莲",
     "water_bottle": "瓶装水",
-    "newater": "NEWater 瓶",
+    "newater": "NEWater 瓶装水",
     "dirty_water": "浑水",
     "purification_tabs": "净水片",
     "soft_drink": "汽水",
@@ -3194,7 +3194,7 @@
     "jewellery": "首饰",
     "ez_link_card": "EZ-Link 卡",
     "red_packet": "红包",
-    "joss_paper": "冥纸",
+    "joss_paper": "金银纸",
     "rain_tarp": "防雨布",
     "powerbank": "充电宝",
     "four_d_ticket": "4D 彩票",
@@ -3229,7 +3229,7 @@
     "soya_bean": "豆奶",
     "bubble_tea": "珍珠奶茶",
     "premium_bento": "高级便当",
-    "plus_100": "100 Plus 罐",
+    "plus_100": "罐装 100PLUS",
     "plasters": "创可贴盒",
     "vitamin_c": "维C片",
     "oral_rehydration": "ORS 冲剂",
@@ -3237,11 +3237,11 @@
     "camp_pillow": "露营枕",
     "emergency_blanket": "应急毯",
     "ez_link_knife": "EZ-Link 刀",
-    "kopi_c": "淡奶咖啡",
+    "kopi_c": "咖啡西",
     "cooked_mee": "熟面汤",
     "milo_dinosaur": "美禄恐龙",
-    "kopi_o": "黑咖啡加糖",
-    "kopi_sachet_drink": "即溶咖啡",
+    "kopi_o": "咖啡乌",
+    "kopi_sachet_drink": "三合一咖啡",
     "milo_drink": "美禄",
     "canned_luncheon_meat": "午餐肉罐头",
     "canned_sardines": "沙丁鱼罐头",
@@ -3259,7 +3259,7 @@
     "intel_ration_slip": "配给单",
     "intel_turf_fragment": "地盘碎片",
     "intel_outpost_whisper": "据点耳语",
-    "intel_smudged_map": "污迹幸存者地图",
+    "intel_smudged_map": "脏污的幸存者地图",
     "firewood": "柴火捆",
     "tinder": "引火材料",
     "lighter": "打火机",
@@ -3275,23 +3275,23 @@
     "condensed_portion": "一份炼乳",
     "evaporated_portion": "一份淡奶",
     "milo_portion": "一份美禄粉",
-    "kopi": "炼乳咖啡",
-    "kopi_siew_dai": "少甜炼乳咖啡",
-    "kopi_gah_dai": "加甜炼乳咖啡",
-    "kopi_gau": "浓炼乳咖啡",
-    "kopi_po": "淡炼乳咖啡",
-    "kopi_c_kosong": "无加糖淡奶咖啡",
-    "kopi_c_siew_dai": "少糖淡奶咖啡",
-    "kopi_o_kosong": "无糖黑咖啡",
-    "kopi_o_siew_dai": "少糖黑咖啡",
-    "kopi_o_gau": "浓黑咖啡加糖",
-    "kopi_o_po": "淡黑咖啡加糖",
-    "kopi_o_kosong_di_lo": "无糖原浓黑咖啡",
-    "teh": "炼乳茶",
-    "teh_o": "红茶加糖",
-    "teh_o_kosong": "无糖红茶",
-    "teh_c": "淡奶茶",
-    "teh_c_kosong": "无加糖淡奶茶",
+    "kopi": "咖啡",
+    "kopi_siew_dai": "咖啡少甜",
+    "kopi_gah_dai": "咖啡加甜",
+    "kopi_gau": "咖啡厚",
+    "kopi_po": "咖啡薄",
+    "kopi_c_kosong": "咖啡西无糖",
+    "kopi_c_siew_dai": "咖啡西少甜",
+    "kopi_o_kosong": "咖啡乌无糖",
+    "kopi_o_siew_dai": "咖啡乌少甜",
+    "kopi_o_gau": "咖啡乌厚",
+    "kopi_o_po": "咖啡乌薄",
+    "kopi_o_kosong_di_lo": "咖啡乌无糖滴罗",
+    "teh": "茶",
+    "teh_o": "茶乌",
+    "teh_o_kosong": "茶乌无糖",
+    "teh_c": "茶西",
+    "teh_c_kosong": "茶西无糖",
     "milo_milk": "牛奶美禄",
     "sardine_noodles": "沙丁鱼面",
     "luncheon_noodles": "午餐肉面",
@@ -3333,13 +3333,13 @@
     "cat": "变异猫",
     "rat": "阴沟鼠",
     "human": {
-      "syndicate_88": "双八堂跑手",
-      "muster": "联防队巡逻",
+      "syndicate_88": "双八堂跑腿",
+      "muster": "联防队巡逻员",
       "gotong": "普通幸存者义工",
       "sta": "环线同盟隧道执勤员"
     },
     "loner": {
-      "scavenger": "对手拾荒者",
+      "scavenger": "抢货的拾荒者",
       "survivor": "绝望幸存者",
       "raider": "武装劫匪",
       "tout": "组屋掮客"
@@ -3347,16 +3347,16 @@
   },
   "recipe": {
     "kopi_o": {
-      "name": "调制黑咖啡加糖",
-      "blurb": "热制获得完整效果；常温调制的饱食与精力恢复减半，补水不变。未经处理的常温污水仍有风险。"
+      "name": "冲一杯咖啡乌",
+      "blurb": "趁热冲泡效果最好；用常温水冲，饱食和精力恢复减半，补水照常。没处理过的生水，冲成饮料也照样不干净。"
     },
     "kopi_sachet_drink": {
-      "name": "调制即溶咖啡",
-      "blurb": "热制获得完整效果；常温调制的饱食与精力恢复减半，补水不变。未经处理的常温污水仍有风险。"
+      "name": "冲一杯三合一咖啡",
+      "blurb": "趁热冲泡效果最好；用常温水冲，饱食和精力恢复减半，补水照常。没处理过的生水，冲成饮料也照样不干净。"
     },
     "milo_drink": {
       "name": "调制美禄",
-      "blurb": "热制获得完整效果；常温调制的饱食与精力恢复减半，补水不变。未经处理的常温污水仍有风险。"
+      "blurb": "趁热冲泡效果最好；用常温水冲，饱食和精力恢复减半，补水照常。没处理过的生水，冲成饮料也照样不干净。"
     },
     "purify": {
       "name": "净水",
@@ -3364,11 +3364,11 @@
     },
     "boil": {
       "name": "在此烧水",
-      "blurb": "用炊锅烧开两份随身水，热水留在此处，两小时后冷却但仍洁净。可收取携带或用于配方。"
+      "blurb": "用炊锅烧开两份随身带的水。烧好的水留在这里，两小时内是热的，之后变凉但仍然干净。可以收起来带走，或者拿来做别的。"
     },
     "bandages": {
       "name": "撕布做绷带",
-      "blurb": "把破布撕成绷带。能止血，却挡不住感染。"
+      "blurb": "把破布撕成条。能止血，但挡不住之后进去的东西。"
     },
     "spear_knife": {
       "name": "绑制刀矛",
@@ -3376,7 +3376,7 @@
     },
     "spear_cleaver": {
       "name": "绑制砍刀矛",
-      "blurb": "矛头比普通刀矛更重，刺得也更深。"
+      "blurb": "比菜刀矛头重，所以刺得更深。"
     },
     "nail_bat": {
       "name": "制作钉棒",
@@ -3408,7 +3408,7 @@
     },
     "tarp_poncho": {
       "name": "裁一件防水布雨披",
-      "blurb": "开个头洞，胶带封边。挡雨又不显眼——只是那块布本来是你的屋顶。"
+      "blurb": "开个头洞，胶带封好接缝。挡雨又不起眼，只是那块防水布本来是你的屋顶。"
     },
     "headlamp": {
       "name": "改制头灯",
@@ -3416,7 +3416,7 @@
     },
     "spear_parang": {
       "name": "绑制巴冷矛",
-      "blurb": "最趁手的一杆矛，代价是用掉你最好的那把刀。"
+      "blurb": "最好的一杆矛，代价是用掉你手上最好的那把刀。"
     },
     "parts": {
       "name": "拆出零件",
@@ -3424,7 +3424,7 @@
     },
     "shells": {
       "name": "装填霰弹",
-      "blurb": "手装弹。难看、慢，却是还在造的唯一弹药。"
+      "blurb": "手工装弹。粗糙、费时，但如今只有这种弹药还有人在造。"
     },
     "sleeping_bag": {
       "name": "缝制睡袋",
@@ -3435,16 +3435,16 @@
       "blurb": "四张废卡夹住一片铁刃。改成了刀，环线同盟就不收这些卡当贡品了。"
     },
     "kopi_c": {
-      "name": "调制淡奶咖啡",
-      "blurb": "热制获得完整效果；常温调制的饱食与精力恢复减半，补水不变。未经处理的常温污水仍有风险。"
+      "name": "冲一杯咖啡西",
+      "blurb": "趁热冲泡效果最好；用常温水冲，饱食和精力恢复减半，补水照常。没处理过的生水，冲成饮料也照样不干净。"
     },
     "cooked_mee": {
       "name": "烹制熟面汤",
-      "blurb": "需要炊锅与足够持续时间的热源。可使用随身水或此处备好的热水，做好后应尽早食用。"
+      "blurb": "整个烹煮过程都需要炊锅和热源。可以用随身带的水，或这里烧好的热水。做好后趁早吃，别放坏了。"
     },
     "milo_dinosaur": {
       "name": "调制美禄恐龙",
-      "blurb": "热制获得完整效果；常温调制的饱食与精力恢复减半，补水不变。未经处理的常温污水仍有风险。"
+      "blurb": "趁热冲泡效果最好；用常温水冲，饱食和精力恢复减半，补水照常。没处理过的生水，冲成饮料也照样不干净。"
     },
     "lockpick": {
       "name": "制作撬锁器",
@@ -3452,195 +3452,195 @@
     },
     "portion_coffee": {
       "name": "分装咖啡粉包",
-      "blurb": "将整罐分成多份原料，之后每次制作只消耗所需份数。"
+      "blurb": "把整罐分成一份份原料，之后每次制作只用掉需要的份数。"
     },
     "portion_condensed_milk": {
       "name": "分装炼乳",
-      "blurb": "将整罐分成多份原料，之后每次制作只消耗所需份数。"
+      "blurb": "把整罐分成一份份原料，之后每次制作只用掉需要的份数。"
     },
     "portion_evaporated_milk": {
       "name": "分装淡奶罐",
-      "blurb": "将整罐分成多份原料，之后每次制作只消耗所需份数。"
+      "blurb": "把整罐分成一份份原料，之后每次制作只用掉需要的份数。"
     },
     "portion_milo_tin": {
       "name": "分装罐装美禄",
-      "blurb": "将整罐分成多份原料，之后每次制作只消耗所需份数。"
+      "blurb": "把整罐分成一份份原料，之后每次制作只用掉需要的份数。"
     },
     "kopi": {
-      "name": "调制炼乳咖啡",
-      "blurb": "热制获得完整效果；常温调制的饱食与精力恢复减半，补水不变。未经处理的常温污水仍有风险。"
+      "name": "冲一杯咖啡",
+      "blurb": "趁热冲泡效果最好；用常温水冲，饱食和精力恢复减半，补水照常。没处理过的生水，冲成饮料也照样不干净。"
     },
     "kopi_siew_dai": {
-      "name": "调制少甜炼乳咖啡",
-      "blurb": "热制获得完整效果；常温调制的饱食与精力恢复减半，补水不变。未经处理的常温污水仍有风险。"
+      "name": "冲一杯咖啡少甜",
+      "blurb": "趁热冲泡效果最好；用常温水冲，饱食和精力恢复减半，补水照常。没处理过的生水，冲成饮料也照样不干净。"
     },
     "kopi_gah_dai": {
-      "name": "调制加甜炼乳咖啡",
-      "blurb": "热制获得完整效果；常温调制的饱食与精力恢复减半，补水不变。未经处理的常温污水仍有风险。"
+      "name": "冲一杯咖啡加甜",
+      "blurb": "趁热冲泡效果最好；用常温水冲，饱食和精力恢复减半，补水照常。没处理过的生水，冲成饮料也照样不干净。"
     },
     "kopi_gau": {
-      "name": "调制浓炼乳咖啡",
-      "blurb": "热制获得完整效果；常温调制的饱食与精力恢复减半，补水不变。未经处理的常温污水仍有风险。"
+      "name": "冲一杯咖啡厚",
+      "blurb": "趁热冲泡效果最好；用常温水冲，饱食和精力恢复减半，补水照常。没处理过的生水，冲成饮料也照样不干净。"
     },
     "kopi_po": {
-      "name": "调制淡炼乳咖啡",
-      "blurb": "热制获得完整效果；常温调制的饱食与精力恢复减半，补水不变。未经处理的常温污水仍有风险。"
+      "name": "冲一杯咖啡薄",
+      "blurb": "趁热冲泡效果最好；用常温水冲，饱食和精力恢复减半，补水照常。没处理过的生水，冲成饮料也照样不干净。"
     },
     "kopi_c_kosong": {
-      "name": "调制无加糖淡奶咖啡",
-      "blurb": "热制获得完整效果；常温调制的饱食与精力恢复减半，补水不变。未经处理的常温污水仍有风险。"
+      "name": "冲一杯咖啡西无糖",
+      "blurb": "趁热冲泡效果最好；用常温水冲，饱食和精力恢复减半，补水照常。没处理过的生水，冲成饮料也照样不干净。"
     },
     "kopi_c_siew_dai": {
-      "name": "调制少糖淡奶咖啡",
-      "blurb": "热制获得完整效果；常温调制的饱食与精力恢复减半，补水不变。未经处理的常温污水仍有风险。"
+      "name": "冲一杯咖啡西少甜",
+      "blurb": "趁热冲泡效果最好；用常温水冲，饱食和精力恢复减半，补水照常。没处理过的生水，冲成饮料也照样不干净。"
     },
     "kopi_o_kosong": {
-      "name": "调制无糖黑咖啡",
-      "blurb": "热制获得完整效果；常温调制的饱食与精力恢复减半，补水不变。未经处理的常温污水仍有风险。"
+      "name": "冲一杯咖啡乌无糖",
+      "blurb": "趁热冲泡效果最好；用常温水冲，饱食和精力恢复减半，补水照常。没处理过的生水，冲成饮料也照样不干净。"
     },
     "kopi_o_siew_dai": {
-      "name": "调制少糖黑咖啡",
-      "blurb": "热制获得完整效果；常温调制的饱食与精力恢复减半，补水不变。未经处理的常温污水仍有风险。"
+      "name": "冲一杯咖啡乌少甜",
+      "blurb": "趁热冲泡效果最好；用常温水冲，饱食和精力恢复减半，补水照常。没处理过的生水，冲成饮料也照样不干净。"
     },
     "kopi_o_gau": {
-      "name": "调制浓黑咖啡加糖",
-      "blurb": "热制获得完整效果；常温调制的饱食与精力恢复减半，补水不变。未经处理的常温污水仍有风险。"
+      "name": "冲一杯咖啡乌厚",
+      "blurb": "趁热冲泡效果最好；用常温水冲，饱食和精力恢复减半，补水照常。没处理过的生水，冲成饮料也照样不干净。"
     },
     "kopi_o_po": {
-      "name": "调制淡黑咖啡加糖",
-      "blurb": "热制获得完整效果；常温调制的饱食与精力恢复减半，补水不变。未经处理的常温污水仍有风险。"
+      "name": "冲一杯咖啡乌薄",
+      "blurb": "趁热冲泡效果最好；用常温水冲，饱食和精力恢复减半，补水照常。没处理过的生水，冲成饮料也照样不干净。"
     },
     "kopi_o_kosong_di_lo": {
-      "name": "调制无糖原浓黑咖啡",
-      "blurb": "热制获得完整效果；常温调制的饱食与精力恢复减半，补水不变。未经处理的常温污水仍有风险。"
+      "name": "冲一杯咖啡乌无糖滴罗",
+      "blurb": "趁热冲泡效果最好；用常温水冲，饱食和精力恢复减半，补水照常。没处理过的生水，冲成饮料也照样不干净。"
     },
     "teh": {
-      "name": "调制炼乳茶",
-      "blurb": "热制获得完整效果；常温调制的饱食与精力恢复减半，补水不变。未经处理的常温污水仍有风险。"
+      "name": "冲一杯茶",
+      "blurb": "趁热冲泡效果最好；用常温水冲，饱食和精力恢复减半，补水照常。没处理过的生水，冲成饮料也照样不干净。"
     },
     "teh_o": {
-      "name": "调制红茶加糖",
-      "blurb": "热制获得完整效果；常温调制的饱食与精力恢复减半，补水不变。未经处理的常温污水仍有风险。"
+      "name": "冲一杯茶乌",
+      "blurb": "趁热冲泡效果最好；用常温水冲，饱食和精力恢复减半，补水照常。没处理过的生水，冲成饮料也照样不干净。"
     },
     "teh_o_kosong": {
-      "name": "调制无糖红茶",
-      "blurb": "热制获得完整效果；常温调制的饱食与精力恢复减半，补水不变。未经处理的常温污水仍有风险。"
+      "name": "冲一杯茶乌无糖",
+      "blurb": "趁热冲泡效果最好；用常温水冲，饱食和精力恢复减半，补水照常。没处理过的生水，冲成饮料也照样不干净。"
     },
     "teh_c": {
-      "name": "调制淡奶茶",
-      "blurb": "热制获得完整效果；常温调制的饱食与精力恢复减半，补水不变。未经处理的常温污水仍有风险。"
+      "name": "冲一杯茶西",
+      "blurb": "趁热冲泡效果最好；用常温水冲，饱食和精力恢复减半，补水照常。没处理过的生水，冲成饮料也照样不干净。"
     },
     "teh_c_kosong": {
-      "name": "调制无加糖淡奶茶",
-      "blurb": "热制获得完整效果；常温调制的饱食与精力恢复减半，补水不变。未经处理的常温污水仍有风险。"
+      "name": "冲一杯茶西无糖",
+      "blurb": "趁热冲泡效果最好；用常温水冲，饱食和精力恢复减半，补水照常。没处理过的生水，冲成饮料也照样不干净。"
     },
     "milo_milk": {
       "name": "调制牛奶美禄",
-      "blurb": "热制获得完整效果；常温调制的饱食与精力恢复减半，补水不变。未经处理的常温污水仍有风险。"
+      "blurb": "趁热冲泡效果最好；用常温水冲，饱食和精力恢复减半，补水照常。没处理过的生水，冲成饮料也照样不干净。"
     },
     "sardine_noodles": {
       "name": "烹制沙丁鱼面",
-      "blurb": "需要炊锅与足够持续时间的热源。可使用随身水或此处备好的热水，做好后应尽早食用。"
+      "blurb": "整个烹煮过程都需要炊锅和热源。可以用随身带的水，或这里烧好的热水。做好后趁早吃，别放坏了。"
     },
     "luncheon_noodles": {
       "name": "烹制午餐肉面",
-      "blurb": "需要炊锅与足够持续时间的热源。可使用随身水或此处备好的热水，做好后应尽早食用。"
+      "blurb": "整个烹煮过程都需要炊锅和热源。可以用随身带的水，或这里烧好的热水。做好后趁早吃，别放坏了。"
     },
     "rice_porridge": {
       "name": "烹制白粥",
-      "blurb": "需要炊锅与足够持续时间的热源。可使用随身水或此处备好的热水，做好后应尽早食用。"
+      "blurb": "整个烹煮过程都需要炊锅和热源。可以用随身带的水，或这里烧好的热水。做好后趁早吃，别放坏了。"
     },
     "sardine_porridge": {
       "name": "烹制沙丁鱼粥",
-      "blurb": "需要炊锅与足够持续时间的热源。可使用随身水或此处备好的热水，做好后应尽早食用。"
+      "blurb": "整个烹煮过程都需要炊锅和热源。可以用随身带的水，或这里烧好的热水。做好后趁早吃，别放坏了。"
     },
     "cooking_fire": {
       "name": "烹饪火堆",
-      "blurb": "留在当前地表地点。完成后供热24个游戏小时，离开期间也会消耗时间。"
+      "blurb": "留在这个地点。做好后供热 24 个游戏小时，你离开时也照样计时。"
     },
     "fixed_stove": {
       "name": "固定炉灶",
-      "blurb": "在当前地表地点搭建固定炉灶，使用前需加燃料，不能放进背包带走。"
+      "blurb": "在这个地点搭一个固定炉灶，再加燃料。不能装包带走。"
     },
     "fuel_stove": {
       "name": "给炉灶加燃料",
-      "blurb": "留在当前地表地点。完成后供热24个游戏小时，离开期间也会消耗时间。"
+      "blurb": "留在这个地点。做好后供热 24 个游戏小时，你离开时也照样计时。"
     },
     "rain_collector": {
       "name": "集雨器",
-      "blurb": "留在此处。每下雨三小时收集一份水，最多四份，收集后仍需处理。"
+      "blurb": "留在这里。下雨每三小时接一份水，最多四份。接到的水要处理过才能喝。"
     },
     "rain_shelter": {
       "name": "防雨棚",
-      "blurb": "留在此处，为露天睡眠提供遮雨顶棚，但不能抵御敌人。"
+      "blurb": "留在这里。给露天睡觉的地方加个顶，但挡不住敌人。"
     },
     "salvage_firewood": {
       "name": "劈木棍作柴",
-      "blurb": "将有用的木杆劈成燃料。"
+      "blurb": "把一根有用的木杆劈了当柴烧。"
     },
     "paper_tinder": {
       "name": "制作纸引火料",
-      "blurb": "干纸可引火，但不足以维持一整天。"
+      "blurb": "干纸能引火，但烧不了一整天。"
     },
     "joss_tinder": {
       "name": "用金银纸引火",
-      "blurb": "将干燥金银纸留作应急引火料。"
+      "blurb": "干燥的金银纸可以留着应急引火。"
     },
     "ticket_tinder": {
       "name": "用旧彩票引火",
-      "blurb": "放弃可能的交易筹码，换取引火料。"
+      "blurb": "放弃一个也许能拿去交换的东西，换来引火物。"
     },
     "envelope_tinder": {
       "name": "用红包纸引火",
-      "blurb": "干燥的红包纸还有最后一种实用价值。"
+      "blurb": "干燥的红包还有最后一个用处。"
     },
     "battery_salvage": {
       "name": "拆解充电宝",
-      "blurb": "用工具回收可用电芯，充电宝会被拆毁。"
+      "blurb": "用工具拆出还能用的电池。充电宝会被拆掉。"
     },
     "repair_kit_salvage": {
       "name": "拆分自行车修理包",
-      "blurb": "从修理包中回收有用零件。"
+      "blurb": "从修理包里拆出有用的零件。"
     },
     "bottle_collector": {
       "name": "制作瓶式集雨器",
-      "blurb": "用防雨布将雨水导入一组瓶子，容量同为四份水，留在此处。"
+      "blurb": "防雨布下摆一排瓶子接雨。和水桶集雨器一样能存四份水；留在这里。"
     },
     "pot_helmet": {
       "name": "制作炊锅头盔",
-      "blurb": "将日常物品改成简易防护或携行装备，原物品会被消耗。"
+      "blurb": "把日常用品改成简单的护具或携行装备。制作会用掉原来的物品。"
     },
     "towel_vest": {
       "name": "制作毛巾软垫背心",
-      "blurb": "将日常物品改成简易防护或携行装备，原物品会被消耗。"
+      "blurb": "把日常用品改成简单的护具或携行装备。制作会用掉原来的物品。"
     },
     "magazine_guards": {
       "name": "制作杂志护胫",
-      "blurb": "将日常物品改成简易防护或携行装备，原物品会被消耗。"
+      "blurb": "把日常用品改成简单的护具或携行装备。制作会用掉原来的物品。"
     },
     "sling_bag": {
       "name": "制作简易斜挎包",
-      "blurb": "将日常物品改成简易防护或携行装备，原物品会被消耗。"
+      "blurb": "把日常用品改成简单的护具或携行装备。制作会用掉原来的物品。"
     },
     "treated_bedroll": {
       "name": "制作驱虫布铺",
-      "blurb": "用驱虫剂处理的软垫铺盖，可改善睡眠，但不能阻止伏击。"
+      "blurb": "用驱虫剂处理过的软垫铺盖。算作床铺，但挡不住伏击。"
     },
     "towel_rags": {
       "name": "将毛巾剪成布条",
-      "blurb": "将毛巾改作包扎、绑带或衬垫材料。"
+      "blurb": "把毛巾改成包扎布、绑带或衬垫。"
     },
     "battery_lantern": {
       "name": "组装电池灯",
-      "blurb": "将灯具零件和电线装进瓶壳，需要工具箱。"
+      "blurb": "把灯的零件和电线装进瓶子里。需要工具箱。"
     },
     "jewellery_pick": {
       "name": "将首饰金属丝弯成开锁器",
-      "blurb": "将贵重首饰改成一次性开锁器。"
+      "blurb": "拿值钱的首饰换一把一次性撬锁器。"
     },
     "tear_clothes": {
       "name": "撕开身上的衣服",
-      "blurb": "从身上穿的衣服上扯下布条。除了衣服，什么都不花。"
+      "blurb": "从身上的衣服撕下布条。不花别的，就是费衣服。"
     }
   },
   "trait": {
@@ -3651,7 +3651,7 @@
         "+1 格斗",
         "+1 射击",
         "+1 力量",
-        "开局与联防队达到“相识”关系"
+        "开局与联防队“相识”"
       ]
     },
     "medic": {
@@ -3676,7 +3676,7 @@
       "effects": [
         "+1 体能",
         "+1 耐力",
-        "+15 最大 HP",
+        "最大生命值 +15",
         "−10% 精力消耗"
       ]
     },
@@ -3709,7 +3709,7 @@
     },
     "thick_skin": {
       "name": "厚皮",
-      "description": "蚊子练出来的免疫系统。",
+      "description": "被蚊子咬惯了，免疫力也练出来了。",
       "effects": [
         "30% 感染抗性",
         "+1 防御"
@@ -3727,15 +3727,15 @@
       "name": "邻里情",
       "description": "末日也拆不散老邻里的交情。从第一天起，他们就愿意帮你。",
       "effects": [
-        "开局与联防队达到“相识”关系",
-        "开局与普通幸存者达到“相识”关系"
+        "开局与联防队“相识”",
+        "开局与普通幸存者“相识”"
       ]
     },
     "local_contacts": {
       "name": "本地人脉",
       "description": "通讯中断前，老相识告诉了你两处势力据点的位置。",
       "effects": [
-        "开局标出两个不同势力各一处据点"
+        "开局时地图上标出两个不同势力的据点各一处"
       ]
     },
     "ah_long_debt": {
@@ -3743,7 +3743,7 @@
       "description": "双八堂里有人认得你，肯放你进场交易，不会见面就开枪。可联防队也查过你的底细。",
       "effects": [
         "双八堂不会见面就开枪",
-        "联防队对你存戒心"
+        "联防队开局就提防你"
       ]
     },
     "water_baby": {
@@ -3765,7 +3765,7 @@
     },
     "sixth_sense": {
       "name": "第六感",
-      "description": "还没看见就先感觉到了。",
+      "description": "还没看见，你就先感觉到了。",
       "effects": [
         "+1 感知",
         "+30% 侦测半径",
@@ -3790,7 +3790,7 @@
     },
     "light_pockets": {
       "name": "轻装",
-      "description": "轻装上路——退还 1 点特质点。",
+      "description": "轻装上路，返还 1 个特质点。",
       "effects": [
         "背包 −1 列"
       ]
@@ -3821,7 +3821,7 @@
     },
     "iron_stomach": {
       "name": "铁胃",
-      "description": "几乎什么都能吃，还能继续走。",
+      "description": "几乎什么都吃得下，吃完照样赶路。",
       "effects": [
         "−15% 饱食度消耗"
       ]
@@ -3867,14 +3867,14 @@
     },
     "aircon_addict": {
       "name": "娇生惯养",
-      "description": "没空调过不了一天。",
+      "description": "一天没空调都过不下去。",
       "effects": [
         "户外与高温下精力消耗 +20%"
       ]
     },
     "picky_eater": {
       "name": "挑食",
-      "description": "口感与牌子居然还重要。",
+      "description": "都到这地步了，你还挑口感、认牌子。",
       "effects": [
         "食物恢复的饱食度 −25%"
       ]
@@ -3884,7 +3884,7 @@
       "description": "一下就黑屏。",
       "effects": [
         "−1 耐力",
-        "−15 最大 HP"
+        "最大生命值 −15"
       ]
     },
     "clumsy": {
@@ -3906,7 +3906,7 @@
     },
     "noisy": {
       "name": "吵闹",
-      "description": "嘴停不下来——东西也叮当响。",
+      "description": "嘴停不下来，身上的东西也叮当响。",
       "effects": [
         "−1 潜行",
         "+15% 赶路时遭遇概率",
@@ -3939,7 +3939,7 @@
     },
     "squeamish": {
       "name": "怕见血腥",
-      "description": "腐臭还是让你想吐。",
+      "description": "腐臭味还是让你想吐。",
       "effects": [
         "对丧尸攻击 −1"
       ]
@@ -3992,7 +3992,7 @@
     },
     "heavy_sleeper": {
       "name": "睡得太沉",
-      "description": "麻烦爬到身上才听见。",
+      "description": "麻烦找上身了，你才听见。",
       "effects": [
         "+10% 伏击概率"
       ]
@@ -4005,7 +4005,7 @@
         "+1 射击",
         "+2 力量",
         "每场战斗首次受到的伤害减半",
-        "开局与联防队达到“相识”关系"
+        "开局与联防队“相识”"
       ]
     },
     "trauma_medic": {
@@ -4024,7 +4024,7 @@
       "effects": [
         "+2 体能",
         "+2 耐力",
-        "+30 最大 HP",
+        "最大生命值 +30",
         "+25% 赶路速度",
         "−20% 精力消耗"
       ]
@@ -4046,7 +4046,7 @@
       "description": "守了三十年的摊，多添过无数勺饭。整片组屋区都记得你的手艺。",
       "effects": [
         "食物恢复的饱食度 +50%",
-        "开局与普通幸存者达到“相识”关系",
+        "开局与普通幸存者“相识”",
         "在小贩中心搜到的物资更丰富"
       ]
     },
@@ -4059,7 +4059,7 @@
         "每个地点额外可搜索 2 次",
         "+20% 搜索速度",
         "+2 警觉",
-        "能看见剩余搜索次数"
+        "能看到剩余搜索次数"
       ]
     },
     "operator": {
@@ -4071,7 +4071,7 @@
         "+20% 战利品价值",
         "背包 +1 列",
         "检定 +1",
-        "能看见剩余搜索次数"
+        "能看到剩余搜索次数"
       ]
     },
     "site_foreman": {
@@ -4082,7 +4082,7 @@
         "+1 力量",
         "制作配方少耗 2 份材料",
         "在五金店和工业区搜到的物资更丰富",
-        "组屋走廊侦察更准确",
+        "组屋走廊侦察更准",
         "组屋撬锁 +1",
         "组屋破门快 20%",
         "组屋破门热度 −15%"
@@ -4092,8 +4092,8 @@
       "name": "自己人",
       "description": "双八堂认得你的脸，组屋底层随你走动。联防队的检查站可没这么好说话。",
       "effects": [
-        "双八堂开局为信任+",
-        "联防队开局存戒心"
+        "双八堂开局就信任你",
+        "联防队开局就提防你"
       ]
     },
     "hypervigilant": {
@@ -4174,7 +4174,7 @@
       "name": "通缉",
       "description": "联防队有你的案底，而且很不好看。跟双八堂走得近，总要付出代价。",
       "effects": [
-        "联防队开局为仇恨"
+        "联防队开局就敌视你"
       ]
     },
     "shadow_habit": {
@@ -4197,7 +4197,7 @@
     },
     "haze_mask": {
       "name": "雾霾习惯",
-      "description": "PSI 爆表的日子教会你戴着口罩继续走。",
+      "description": "烟霾 PSI 爆表的日子里，你学会了戴上口罩照样出门。",
       "effects": [
         "−15% 户外与高温精力消耗",
         "感染抗性 10%"
@@ -4208,7 +4208,7 @@
       "description": "组屋楼下，日光灯一亮，你总能跟人聊上几句。",
       "effects": [
         "门口与对话检定 +1",
-        "开局与普通幸存者达到“相识”关系"
+        "开局与普通幸存者“相识”"
       ]
     },
     "train_memory": {
@@ -4316,27 +4316,27 @@
     "faction_checkpoint": {
       "title": "{short} 关卡",
       "choices": {
-        "pay": "交入场费——{price}",
+        "pay": "交入场费：{price}",
         "leave": "退开"
       },
       "lines": {
-        "payEmpty": "两手空空。他们耸耸肩，不算不客气，指你原路回去。",
+        "payEmpty": "你两手空空。他们耸耸肩，倒也客气，指你原路回去。",
         "leave": "你从桌前退开。他们不追。"
       },
       "tell": [
         "入口横着一张桌子，有人坐在那儿。",
-        "你走近时有人举手——不是武器。就是一只手。",
+        "你走近时有人举起手。不是武器，就是一只手。",
         "{name} 门边的箱子上摊着一本登记簿。",
-        "门口放了张凳子。整道闸就这样。"
+        "门口摆了张凳子。这就是整道关卡。"
       ],
       "text": [
-        "{faction} 在 {name} 备着登记簿。「一份 {tribute} 换进场——名字也得记上。」",
+        "{faction} 在 {name} 设了登记簿。「交一份 {tribute} 就能进去，名字也给你记在好的那一栏。」",
         "{name} 闸口那人敲了敲摊开的本子。「入场费。一份 {tribute}。记上了才算自己人。」",
         "一个 {short} 义工隔着折叠桌打量你。「脸生。一份 {tribute} 登记，就能进。」",
         "「签到，」闸口说。「一份 {tribute}。不然回去。」"
       ],
       "night": [
-        "{name} 守住的闸口后，一盏小电池灯照着登记簿。「{short}。一份 {tribute}，记进册子。」"
+        "{name} 关卡后面，一盏小电池灯照着登记簿。「{short}。交一份 {tribute}，给你记上名。」"
       ],
       "wet": [
         "他们把桌子拖到遮阳篷下。「{tribute}，进来躲雨。」"
@@ -4346,26 +4346,26 @@
       "title": "{short} 贡品",
       "titleTerrible": "{short} 强索贡品",
       "choices": {
-        "pay": "交贡品——{price}",
-        "refuse": "拒绝——动手",
+        "pay": "交贡品：{price}",
+        "refuse": "不给，动手",
         "leave": "退开"
       },
       "lines": {
-        "payEmpty": "空手换不了通行。他们把你掉头送走。",
-        "leave": "你在事情闹大之前离开。"
+        "payEmpty": "空着手什么也换不到。他们让你掉头走人。",
+        "leave": "趁还没见血，你先走了。"
       },
       "tell": [
-        "里面有说话声——不是死人。死人不会闲聊。",
-        "你走到入口时有人吹了一声口哨。信号。",
+        "里面有人说话。不是丧尸，丧尸不会聊天。",
+        "你走到入口时，有人吹了一声口哨。是暗号。",
         "门边喷了个标记，油漆还没干透。",
-        "一个身影从你前方的墙边溜出来。"
+        "前面墙边闪出一个人影。"
       ],
       "text": [
-        "{faction} 的人堵满 {name} 的门口。「贡品。一份 {tribute}。交完再说。」",
-        "{faction} 的两个人已经在 {name} 里面，而且先看见了你。「一份 {tribute}——算你砸坏的。」",
+        "{faction} 的人堵满了 {name} 门口。「贡品。一份 {tribute}。交了再说。」",
+        "{faction} 的两个人已经在 {name} 里面，而且先看见了你。「一份 {tribute}，算是赔损坏的。」",
         "{faction} 的望风从檐上跳下来，伸出手。「你欠我们的。一份 {tribute}。」",
-        "{faction} 把 {name} 捂死了。说话那个用撬棍敲着靴子。「{tribute}。弄坏的，赔。」",
-        "有人穿着 {short} 的颜色，慢慢堵着入口。「别往心里去。一份 {tribute}。」"
+        "{name} 被 {faction} 看得死死的。带头说话的女人拿撬棍敲着靴子。「{tribute}。弄坏的东西，你赔。」",
+        "一个穿 {short} 颜色的人不紧不慢地堵住入口。「不针对你。一份 {tribute}。」"
       ],
       "night": [
         "一道手电光把你钉在 {name} 门口。「{short}。一份 {tribute}，手放下。」",
@@ -4379,8 +4379,8 @@
       "title": "一间上锁的储藏室",
       "choices": {
         "pry": "撬开这间房门",
-        "pick": "试开房门锁",
-        "find": "找进这间房的别路",
+        "pick": "撬房门的锁",
+        "find": "找别的路进这间房",
         "leave": "不碰这间，搜别处",
         "smash": "直接砸开：一定能进去，但很响"
       },
@@ -4391,19 +4391,19 @@
         "findOk": "杂乱走廊尽头有个检修口，通向同一间储藏室。",
         "findFailTime": "你花时间检查旁边的走廊，没找到进这间房的路。",
         "findFailEnergy": "挪开旧家具后，你两腿发沉。",
-        "findFailDeny": "你放过这间锁着的房，回到还能进入的区域。",
+        "findFailDeny": "你不管这间锁着的房了，回去搜那些能进的房间。",
         "leave": "你不碰这一间，转去搜其他房间。",
         "smash": "砸了三下，锁扣连着门框一起掉了下来。整栋楼都听见了。"
       },
       "tell": [
-        "地点内部，一间储藏室的挂锁还在。",
+        "里面有一间储藏室，门上的挂锁还在。",
         "走廊畅通，只有旁边一间房锁着。",
         "内侧储藏室的门锈了，锁眼还看得清。"
       ],
       "text": [
-        "{name} 内部的走廊畅通，只有一间储藏室挂着锁。普通锁可以试开，也能硬撬；撬门声会传遍楼里。这里其他区域仍能进入。",
+        "{name} 里走廊畅通，只有一间储藏室挂着锁。普通的锁，可以撬锁芯，也可以硬撬；硬撬的声音会传遍整栋楼。其他地方照样能进。",
         "{name} 里面，一间储藏室装着钢门和钥匙锁。周围的房间都开着。你可以试这间，也可以不碰它，先搜别处。",
-        "有人离开 {name} 前锁住了内部的一间储藏室，生锈挂锁扣着门闩。这不是地点大门；其他地方仍可搜刮。"
+        "有人离开 {name} 前锁上了里面的一间储藏室，一把生锈的挂锁扣着门闩。这不是大门，里面别处照样能搜。"
       ],
       "night": [
         "灯光照见 {name} 内部一间储藏室的挂锁。走廊和其他房间仍开着。在黑暗里硬撬，动静会很大。"
@@ -4423,11 +4423,11 @@
         "give": "你把一份物资放在房门边，退开。一只手取走东西。门后低声道谢，也告诉你一些这里的情况。",
         "giveEmpty": "你没有合适的物资可留。门后说了声理解，随后安静下来。你不再打扰这间房。",
         "reasonOk": "过了一会儿，对方开口了。谁也没开门，但这次交谈平静地结束了。",
-        "reasonRefused": "门后没有回应。你尊重这份沉默，不去打扰。",
+        "reasonRefused": "门后没有回应。你没再打扰。",
         "leave": "你离开有人藏身的房门。那一间仍锁着，其他房间还进得去。"
       },
       "tell": [
-        "地点内部，一间锁着的房后传来轻咳。",
+        "里面一间锁着的房间后传来轻咳。",
         "一个杯子从内侧房门下推出来，又停住。",
         "一间房里的人压低声音，请你轻一点。"
       ],
@@ -4448,7 +4448,7 @@
       "choices": {
         "race": "赶在对方离开前到远处货架",
         "split": "提议各搜一间，互不靠近",
-        "watch": "躲着等对方离开，观察路线",
+        "watch": "躲起来等，看清这里的路数",
         "confront": "威胁对方，可能动手",
         "warn": "鸣枪示警：他们丢下东西就跑"
       },
@@ -4485,7 +4485,7 @@
         "warn": "鸣枪示警：他们会跑，但整条街都会听见"
       },
       "lines": {
-        "bluffOk": "你编了个还有同伴要来的说法。劫匪往后撤了些，够你通过。",
+        "bluffOk": "你编说同伴马上就到。劫匪退开了些，刚好够你过去。",
         "leave": "你沿原路退开。劫匪仍躲在掩体后。",
         "warn": "一枪打在雨棚上。他们头也不回地钻进后巷。"
       },
@@ -4516,12 +4516,12 @@
       },
       "tell": [
         "空椅子对着一本受潮的旧登记簿。",
-        "旧入场费告示从无人看守的桌边卷起。",
+        "没人看守的桌上，一张旧入场费告示卷了边。",
         "有人划掉印刷抬头，添上几组房号。"
       ],
       "text": [
-        "{name} 内部留着一张废弃登记桌。旧入场费告示已经褪色。后添的铅笔记号划掉几间房，再没守卫或办事员留下。",
-        "{name} 一本潮湿登记簿记着曾在此避难的人。后来有人在房号旁添了箭头。封面印着的机构，如今已无人代表。",
+        "{name} 里留着一张废弃的登记桌。旧入场费告示已经褪色。后来有人用铅笔划掉了几间房。守卫和办事员都不在了。",
+        "{name} 有一本受潮的登记簿，记着曾在这里避难的人。后来有人在一些房号旁添了箭头。封面上印着官方机构的名字，可背后早已没人了。",
         "{name} 的旧桌前空无一人。过期入场规定下面，有人记了哪些房间搜过。纸页也许还能帮你摸清这里。"
       ],
       "night": [
@@ -4556,7 +4556,7 @@
       "text": [
         "{name} 门口横着渔线，牵住一条坠重的锋利废铁。扯错了，废铁就会甩下，再撞响金属门框。这东西不需要电。",
         "{name} 门口留着机械陷阱：绷紧的线、悬挂的锋利废铁，以及一撞就响的金属门框。布置的人走了，重量还在。",
-        "有人给 {name} 入口装了绊线，连着一片会坠落的带刃废铁。既能割伤人，也会撞出远传的响声。锚点藏在门框上方。"
+        "有人在 {name} 入口装了绊线，连着一片会掉下来的锋利废铁。能割伤人，掉下来的响声也传得很远。锚点在门框上方某处。"
       ],
       "wet": [
         "雨珠挂在 {name} 的绊线上。上方的锋利废铁仍坠着重量，随时会甩向金属门框。整套机关不用电。"
@@ -4568,13 +4568,13 @@
         "queue": "检查封口，取走水（15 分钟）",
         "trade": "留下食物，换这瓶水",
         "push": "不拿水，查看维护标记",
-        "leave": "留下储备，继续进去"
+        "leave": "不拿水，继续进去"
       },
       "lines": {
         "queue": "原厂封口完好。你花一刻钟检查，取走留给路人的这一瓶水。",
         "trade": "你把一份食物放进干燥盒子，取走密封饮水。后来的人也许需要你留下的东西。",
         "tradeEmpty": "你没合适的食物可留。这次交换没成，你继续往里面走。",
-        "inspect": "你花一点时间查看维护标记，记下哪部分一直有人保持干燥。",
+        "inspect": "你花了点时间看维护标记，记下哪一块一直有人打理、保持干燥。",
         "leave": "你把水留给下一个人，继续穿过这里。"
       },
       "tell": [
@@ -4602,7 +4602,7 @@
       "lines": {
         "stripFailZombies": "背包突然松脱，金属零件哗啦砸响。附近的丧尸循声过来。",
         "readOk": "刮痕延伸向后面的房间，那边还有几只柜子关着。你记住位置，再往里走。",
-        "readFail": "你花时间查看，扰乱的灰尘没能说明发生过什么。",
+        "readFail": "你看了半天，灰被搅乱了，看不出发生过什么。",
         "drag": "你把尸体拖过台阶，皮带刮地，瓶子摔碎，包里的东西比你预想的多。"
       },
       "tell": [
@@ -4612,8 +4612,8 @@
       ],
       "text": [
         "旧遗骸躺在 {name} 进路旁。背包卡在掉落的金属零件下面，取出可能很响。后面的房间仍能进入。",
-        "{name} 留着风化遗骸和一个卡住的背包，是早先一次未能走完的旅程。松动金属压着背带。你可以查看痕迹，也可以不去打扰。",
-        "有人早在你来到 {name} 之前就死在这里。背包仍压在门槛旁的松动零件下。这些东西无法说明，当初同行的人后来怎样了。"
+        "{name} 门口有一具风化的遗骸和一个卡住的背包，看得出有人没能走完这一程。松动的金属压着背带。你可以查看痕迹，也可以不去碰它。",
+        "早在你来之前，就有人死在了 {name}。他的背包还压在门槛边的松动零件下。看不出和他同行的人后来是否活了下来。"
       ],
       "wet": [
         "雨水积在 {name} 入口旁的旧遗骸周围。背包卡在松动金属下面，需要小心取出。旁边仍有路能过。"
@@ -4623,7 +4623,7 @@
       "title": "没能带走的东西",
       "choices": {
         "chase": "沿散落物找出卡住的包裹",
-        "read": "观察这趟旧搬运的路线",
+        "read": "看看这些东西是沿哪条路散落的",
         "let": "不碰散物，继续进去",
         "shout": "冲他们大吼：他们会丢下一包东西，但很响"
       },
@@ -4634,13 +4634,13 @@
         "shout": "你大吼一声，猛拍货架。其中一人慌了，扔下包跑得更快。"
       },
       "tell": [
-        "破袋和散落包装，留下早先匆忙离开的痕迹。",
+        "一只破袋子，一地包装，看得出有人当初走得很急。",
         "零散包装从里间一路落到卡住的包裹旁。",
         "一个裂开的袋子挂在断架上，没有人在动。"
       ],
       "text": [
-        "{name} 内部，散落的物资在断架前断了线。一个封着的包裹仍卡在后面。丢下这趟收获的人早已不在。",
-        "{name} 里，破袋和旧退路都蒙了灰。倒下货架后的一个包裹也许还完好。这里没人可追。",
+        "{name} 里，一路散落的物资到一个断掉的货架前就没了。一个封好的包裹还卡在后面。丢下这些东西的人早就走了。",
+        "{name} 里，一只破袋子和当初撤走的路线上都积了灰。倒下的货架后面卡着一个包裹，也许还完好。这里没人可追。",
         "有人曾匆忙离开 {name}，把部分收获落在货架之间。旧擦痕也许说明哪些柜子没搜过；卡住的包裹也许还能用。"
       ],
       "night": [
@@ -4659,7 +4659,7 @@
         "sideOk": "你绕到维修门，那里空气还算清。",
         "sideFailDeny": "你花了 18 分钟寻找入口，每条路都被浓烟封住，只好退了回来。",
         "pushFailWound": "你在浓烟里绊倒，被锋利的边缘划伤，只得咳着退了出来。",
-        "wait": "你退到远处上风处等待。燃料所剩不多，这场新近的火终于弱到能进去。",
+        "wait": "你退到远处的上风位等着。火没什么可烧了，渐渐弱到能进去。",
         "leave": "你退到烟雾够不着的地方。"
       },
       "tell": [
@@ -4668,12 +4668,12 @@
         "里面一点做饭燃料还在闷烧，烟填满门口。"
       ],
       "text": [
-        "{name} 里，一处小炊火不久前才被丢下，烧着周边垃圾，烟堵住进路。燃料没剩多少，眼下却仍不能好好呼吸。",
+        "{name} 里有人不久前丢下一处小炊火，引燃了周围的垃圾，烟堵住了进去的路。燃料不多了，但现在里面的空气还吸不得。",
         "{name} 里，有人不久前把炭炉留在废包装旁。现在仍在慢慢闷烧，炉边没有人。",
-        "{name} 的新近炊火引燃了一点垃圾。燃料快烧尽了，烟却仍挡住门口，也看不清脚下。"
+        "{name} 里刚熄的炊火余烬引燃了一点垃圾。燃料快烧完了，但烟还挡着门口，脚下也看不清。"
       ],
       "night": [
-        "{name} 内，一只不久前丢下的炭炉还发红，最后一点燃料混着焦垃圾闷烧。烟让入口难以判断。"
+        "{name} 里，一只刚被丢下的炭炉还泛着红光，最后一点燃料混在烧焦的垃圾里闷烧。烟雾弥漫，看不清入口。"
       ],
       "wet": [
         "{name} 一处不久前丢下的炊火正被雨浇弱，烟却仍困在遮盖下。剩余燃料快烧完了。"
@@ -4687,19 +4687,19 @@
         "ignore": "不碰告示，安静进去"
       },
       "lines": {
-        "traceOk": "旧房号和后来添的铅笔标记帮你摸清这里。印着的接运日期早过了，这不是当前的撤离承诺。",
-        "traceFail": "你花时间分辨旧指示和残缺补记，没弄清有用的内容。",
+        "traceOk": "旧房号和后来添的铅笔记号帮你摸清了这里。印着的接运日期早就过了，这不代表现在还有人来接。",
+        "traceFail": "你花时间分辨哪些是原本的指示、哪些是后来残缺的补记，还是没看出有用的东西。",
         "rushZombies": "你匆忙靠近，惊动了原本就在隔板后刮擦的丧尸。"
       },
       "tell": [
-        "过期集合告示指向内部，隔板后有刮擦声。",
+        "一张过期的集合告示指向里面。隔板后有刮擦声。",
         "旧撤离指示下摆着没电的接收机，后方房间传来刮擦。",
         "旧接运告示的日期早过了，后面仍有缓慢刮擦声。"
       ],
       "text": [
-        "{name} 一张旧集合告示指向内部房间，旁边接收机已经没电。接运日期早过了，后来添的铅笔标记也许说明楼内情况；隔板后有刮擦声，不能贸然冲。",
+        "{name} 有张旧集合告示，指向一台没电的接收机旁边的里间。接运日期早过了。后来添的铅笔记号也许能说明楼里的情况；隔板后有刮擦声，别贸然冲进去。",
         "{name} 的废弃无线电桌上，接收机已被拆掉电池，撤离告示也已过期。后添的手写房号也许仍有用。标注的隔板后传来刮擦声。",
-        "{name} 没有实时广播，只有没电的接收机、过期接运指示和后来添的铅笔标记。后方房间的刮擦声说明，匆忙靠近会很危险。"
+        "{name} 没有在播的广播，只有一台没电的接收机、过期的接运指示和后来添的铅笔记号。里间传来刮擦声，冒失靠近会很危险。"
       ],
       "night": [
         "手电照见 {name} 没电的接收机和过期集合告示。铅笔记的是附近房间，不是当前撤离安排。隔板后缓缓传来刮擦声。"
@@ -4711,23 +4711,23 @@
     "nomad_trader": {
       "title": "压低声音的一次交换",
       "choices": {
-        "trade": "用 1 份食物换对方的余物",
+        "trade": "用 1 份食物换对方多出来的东西",
         "leave": "婉拒，继续搜这里"
       },
       "lines": {
-        "trade": "你把一份食物留在说定的地方，退开。对方放下余物，取走食物，再退回掩体。",
-        "tradeEmpty": "你没有合适食物。对方谢绝交换，退回去。这里其他区域仍可进入。",
+        "trade": "你把一份食物放在说好的地方，退开。对方放下东西，拿走食物，又退了回去。",
+        "tradeEmpty": "你没有合适的食物。对方不换了，退了回去。其他地方照样能搜。",
         "leave": "你婉拒了。对方退到遮挡后，你可以继续搜其他地方。"
       },
       "tell": [
-        "遮蔽凹处传来低语，一个人仍合着背包。",
-        "内侧隔板后有人示意一下，随即藏回去等。",
+        "墙角暗处传来低语。有个人背包扣得紧紧的。",
+        "隔板后有人打了个手势，又缩回去等着。",
         "一个独行幸存者躲在遮挡后，给你看一个小包。"
       ],
       "text": [
-        "{name} 内部，一个独行幸存者藏在隔板后，愿用一份余下物资换食物，隔开距离交换。只是偶遇的一次机会，谁都不必靠近。",
-        "{name} 里，一个藏着的拾荒者低声提议：余物换点吃的。你放下食物退开，对方才会把东西留在中间。没有摊位，也没有顾客。",
-        "{name} 的凹处藏着一个人，有一件东西愿意换。「拿这个换吃的？都别靠近。」你若婉拒，对方就会退走。"
+        "{name} 里，一个独行的幸存者躲在隔板后，想用一件多出来的物资换食物，隔着距离交换。只是碰巧遇上，谁都不必靠近。",
+        "{name} 里，一个躲着的拾荒者低声提议：拿一件多余的东西换点吃的。你先放下食物退开，对方才会把东西放在中间。没有摊位，也没人排队。",
+        "{name} 的墙角暗处躲着一个人，有一件东西可以让出来。「拿这个换吃的？大家都别靠近。」你不换，对方就会退走。"
       ],
       "night": [
         "{name} 遮挡后，一道压低的手电光照了照小包。独行幸存者想换食物，始终不靠近。你若婉拒，对方就走。"
@@ -4742,13 +4742,13 @@
         "leave": "不值得折腾"
       },
       "lines": {
-        "shiftOk": "铁皮吱呀作响，肩膀为每一寸发沉。",
+        "shiftOk": "铁皮嘎吱作响，每挪一寸，肩膀都在受罪。",
         "shiftFailEnergy": "车纹丝不动。倒是胳膊先撑不住了。",
         "shiftFailDeny": "路障纹丝不动。",
         "gapFailTime": "你沿着整道路障找缝。",
         "gapFailDeny": "没有够宽的缝。",
         "longTime": "你绕过街区，从卸货区进来。",
-        "longEnergy": "绕远路让你气喘——但进去了。",
+        "longEnergy": "绕了一大圈，累得直喘，但总算进来了。",
         "leave": "你不去动这路障了。"
       },
       "tell": [
@@ -4758,16 +4758,16 @@
         "轮胎和金属挡住唯一进路。"
       ],
       "text": [
-        "废弃车辆堵住 {name} 入口——车头接车尾，钥匙没了，门锁着。",
-        "有人把三辆车推过进 {name} 的路，然后走开了。",
-        "{name} 的前院是一堵熄火车堆成的墙。仔细找或许有缝。",
-        "废弃车辆组成的路障堵住 {name}。彻底。但不是过不去。"
+        "废弃车辆堵住了 {name} 的入口，一辆接一辆，钥匙没了，车门锁着。",
+        "有人把三辆车推到通往 {name} 的路上横成一排，然后走了。",
+        "{name} 门前的空地被一堆抛锚的车堵成了一道墙。仔细找找，也许有缝。",
+        "废弃车辆把 {name} 堵得严严实实。但不是过不去。"
       ],
       "night": [
-        "夜里 {name} 的车障只剩形状和金属。"
+        "夜里，{name} 的车障只剩一团团黑影和铁皮。"
       ],
       "wet": [
-        "雨把挡住 {name} 的引擎盖弄得滑溜。每处表面都滑。"
+        "雨水打湿了堵在 {name} 前的车头盖，到处都滑。"
       ]
     },
     "flooded_entry": {
@@ -4778,8 +4778,8 @@
         "back": "退开"
       },
       "lines": {
-        "wadeOk": "你挑了一条水下还能踩到底的线。",
-        "wadeFailWound": "你一脚踩空，重重栽进水里，腿被水下的利物划伤。你耽搁了 18 分钟。",
+        "wadeOk": "你挑了一条水下还踩得到实地的路线。",
+        "wadeFailWound": "你踩空了水下的台阶，腿被什么锋利的东西划破。蹚过去花了 18 分钟。",
         "rushWound": "你费力蹚过齐膝的浑水，脚下一滑，被碎地砖划伤。",
         "leave": "你不管积水，先撤。"
       },
@@ -4790,10 +4790,10 @@
         "你先听见里面的水声，才看见水。"
       ],
       "text": [
-        "{name} 入口积水齐膝——排水回流，或者更糟的东西在里面堵着。",
-        "季风水在 {name} 积着，没人排。进门就是蹚水。",
+        "{name} 入口积水齐膝。可能是排水倒灌，也可能里面堵着更糟的东西。",
+        "季风雨水积在 {name}，没人排掉。要进去只能蹚水。",
         "堵住的排水沟把 {name} 门口变成了浅水潭。货架或许还是干的。",
-        "洪水灌满 {name} 大堂。值得拿的都在水线以上——如果你够得着。"
+        "洪水灌满了 {name} 的大堂。值钱的东西都在水面以上，就看你够不够得着。"
       ],
       "wet": [
         "雨不断灌进 {name} 堵塞的排水沟。入口仍淹着，没有人维护抽水设施。"
@@ -4808,21 +4808,21 @@
         "leave": "改走地面"
       },
       "lines": {
-        "payEmpty": "没车费就没隧道。你原路爬回地面。",
+        "payEmpty": "不给过路费，就别想进隧道。你走楼梯回到地面。",
         "leave": "你改走地面。"
       }
     },
     "field_doctor": {
       "title": "战地医生",
-      "tell": "{name} 一户守牢的住家里，有个懂护理的人愿意处理伤口。",
+      "tell": "{name} 有一户人家守得很严，里面有个懂护理的人愿意帮你清理伤口。",
       "text": [
-        "一个穿脏 polo 衫的女人挥手让你坐到露营垫上。「我能清创包扎。不要钱——要食物。一罐也好，一餐也好。」",
+        "一个穿着脏 polo 衫的女人招手让你坐到露营垫上。「这个我能清理包扎。我不收钱，收吃的。一罐、一顿饭，有什么给什么。」",
         "屋里有碘酒味。「坐，」窗边整理纱布的男人说。「一小时换点能吃的。价目表就这些。」",
-        "有人在这单位大门上贴了红十字。「先给食物，」他们头也不抬地说。「然后我再看你。」"
+        "有人在这户的铁门上贴了红十字。「先给吃的，」对方头也不抬，「然后我再看你。」"
       ],
       "choices": {
-        "pay": "包扎一下——{price}，1 小时",
-        "leave": "算了——留着吃的"
+        "pay": "包扎伤口：{price}，1 小时",
+        "leave": "算了，吃的留着"
       },
       "lines": {
         "treatTime": "你躺着不动，让他们动手。",
@@ -4836,11 +4836,11 @@
         "faction_checkpoint": {
           "tell": [
             "守住的入口后，一张折叠桌、一本登记簿。",
-            "一位昔日公共服务人员在掩体后看着进路。",
+            "一个以前当公务员的人躲在掩体后盯着来路。",
             "{name} 门前一条短粉笔线，标着访客该停的位置。"
           ],
           "text": [
-            "联防队守着 {name} 这一小片地方。「现在自己记册子。一份 {tribute}，得知道谁进来了。」",
+            "联防队守着 {name} 这一小块地方。「现在登记册我们自己管。一份 {tribute}，我们得知道谁进来了。」",
             "一位昔日辅警在掩体后翻登记簿。「我们只守这道门。一份 {tribute}，可以进。」",
             "「哪一座的？」{name} 的旧登记簿已经摊开。「一份 {tribute}，都一样。里面的人也得顾着。」"
           ],
@@ -4856,16 +4856,16 @@
         "faction_checkpoint": {
           "tell": [
             "守住的门后，有人在分一小锅食物。",
-            "一位阿姨从 {name} 守牢的门后看着进路。",
-            "绳子标着小避难处的进路，没人站在外面等。"
+            "一位阿姨在 {name} 封好的门后望着你。",
+            "一根绳子拦出通往小避难点的路。外面没人等着。"
           ],
           "text": [
             "普通幸存者守着 {name}。「先吃，再谈。一份 {tribute} 进锅里。」",
-            "一个摊主擦擦手。「有的都凑一块。一份 {tribute}，就能进。」",
+            "一个摊主擦擦手。「大家有什么都凑在一起。一份 {tribute}，就能进来。」",
             "「这是邻居的饭。一份 {tribute}。别把麻烦带到桌上。」"
           ],
           "night": [
-            "{name} 守牢的门后，小燃料炉温着公用锅。「一份 {tribute}，添点还能分的东西。」"
+            "{name} 封好的门后，一个小炉子温着大家的锅。「一份 {tribute}，给还能分的东西添一份。」"
           ],
           "wet": [
             "雨打着 {name} 守住的入口外那张防水布。「一份 {tribute} 添进锅里。认过人再进。」"
@@ -4875,32 +4875,32 @@
       "sta": {
         "faction_checkpoint": {
           "tell": [
-            "未付费侧闸口齐腰高拉着一根链。",
-            "有人穿着曾经还管用的反光背心，坐在闸机上。",
-            "{name} 的闸杆放下了。唯一在动的是一名执勤。"
+            "闸机没付费那一侧，齐腰拉着一条铁链。",
+            "有人穿着一件反光背心坐在闸机上。这背心以前还代表点什么。",
+            "{name} 的闸杆放下了。只有一个执勤的人在走动。"
           ],
           "text": [
             "环线同盟用链子锁住 {name} 的闸口。「隧道不是免费的。一份 {tribute}。」",
             "一名执勤敲了敲闸机。「车费。一份 {tribute}。交了就能下去。」",
-            "「站台有人。一份 {tribute}，你就过。」"
+            "「站台有人守着。一份 {tribute}，就放你过。」"
           ],
           "night": [
-            "{name} 瓷砖上映出手电光。「环线同盟。一份 {tribute}，你可以下去。」"
+            "手电光从 {name} 的瓷砖上反射过来。「环线同盟。一份 {tribute}，就能下去。」"
           ],
           "wet": [
-            "雨敲着 {name} 守住的大厅上方。「一份 {tribute}。这段我们检查过，不代表下一站也能走。」"
+            "雨声敲在 {name} 大厅顶上，这里有人把守。「一份 {tribute}。这段我们查过了，下一站就不好说了。」"
           ]
         }
       },
       "syndicate_88": {
         "faction_checkpoint": {
           "tell": [
-            "口哨比上次客气。还是口哨。",
+            "口哨声比上次客气些。但还是口哨。",
             "{name} 有人朝凳子点点头示意你过去。"
           ],
           "text": [
             "双八堂在 {name} 也有自己的册子。「你在上面。一份 {tribute} 照样要。」",
-            "{name} 一个跑手躲在遮挡后，伸出掌心。「认识你不等于免费。一份 {tribute}。」"
+            "{name} 一个跑腿的躲在掩体后，摊开手掌。「认识你也不是免费的。一份 {tribute}。」"
           ]
         },
         "faction_shakedown": {
@@ -4910,9 +4910,9 @@
             "门边喷了个标记，油漆还没干透。"
           ],
           "text": [
-            "双八堂拦路人堵满 {name} 的门口。「贡品。一份 {tribute}。交完再说。」",
-            "双八堂的两个人已经在 {name} 里面。「一份 {tribute}——算你砸坏的。」",
-            "一名望风从檐上跳下来，伸出手。「你欠组屋底层的。一份 {tribute}。」"
+            "双八堂的人堵满了 {name} 门口。「贡品。一份 {tribute}。交了再说。」",
+            "双八堂的两个人已经在 {name} 里面了。「一份 {tribute}，算是赔你砸坏的。」",
+            "一个望风的从檐上跳下来，伸出手。「你欠底层兄弟的。一份 {tribute}。」"
           ],
           "night": [
             "一道手电光把你钉在 {name} 门口。「88。一份 {tribute}，手放下。」"
@@ -4931,7 +4931,7 @@
         "路边一辆车开始尖叫，没人来关。"
       ],
       "text": [
-        "{name}外面，一辆被人改过线路的车在尖叫，车灯乱闪。接电瓶的人已经走了。几条街内的东西都在朝这边转过来。",
+        "{name}外面，一辆被人改过线路的车在尖叫，车灯乱闪。接电瓶的人已经走了。几条街内的丧尸都在朝这边转过来。",
         "{name}旁边一辆轿车的引擎盖开着，夹着一块新电瓶。警报震耳欲聋，四面八方的丧尸都被引了过来。"
       ],
       "night": [
@@ -4945,8 +4945,8 @@
       "lines": {
         "disarmOk": "警报声戛然而止。电瓶到了你手里。",
         "disarmFail": "引擎盖砸在你的手指上。",
-        "disarmFailStill": "警报还在叫。你在东西赶到之前退开了。",
-        "cover": "所有东西都在往那辆车挪，这栋楼此刻安静得不能再安静。趁现在进去。",
+        "disarmFailStill": "警报还在叫。趁丧尸还没赶到，你先退开了。",
+        "cover": "丧尸都在往那辆车挪，这栋楼此刻安静得不能再安静。趁现在进去。",
         "leave": "你让它继续叫。这一角接下来几个小时都不会太平。"
       }
     },
@@ -4958,7 +4958,7 @@
         "附近有人在开枪。"
       ],
       "text": [
-        "{name}几条街外有人开枪。有人跟人打起来了，现在附近的东西都在听。他们争的东西也许还躺在那里。",
+        "{name}几条街外有人开枪。有人跟人打起来了，现在附近的丧尸都竖起了耳朵。他们争的东西也许还在那里。",
         "{name}附近的枪声停了。地上可能有弹壳，有个背包，也可能开枪的人还在等。那一带已经全醒了。"
       ],
       "choices": {
@@ -4979,7 +4979,7 @@
         "不知哪里的卷闸门在轨道上不停地砸。"
       ],
       "text": [
-        "{name}有一扇松掉的卷帘门，每阵风都把它砸在门框上。没人卡住它，它就会一直把东西引过来。",
+        "{name}有一扇松掉的卷帘门，每阵风都把它砸在门框上。没人卡住它，它就会一直把丧尸引过来。",
         "{name}旁的卷帘门脱了一边的轨，一次又一次撞在铁柱上。"
       ],
       "choices": {
