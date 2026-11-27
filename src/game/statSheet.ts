@@ -1,3 +1,4 @@
+import { infectionEffect } from './infection';
 import type {
   AttributeKey,
   Attributes,
@@ -235,7 +236,7 @@ export function buildStatSheet(input: StatSheetInput): StatSheet {
     attributes,
     traitIds,
     equipment,
-    armPen + headPen,
+    armPen + headPen + infectionEffect(meters.infection).attack,
     fx.attackMod,
   );
   const energyAtk = energyAttackBonus(meters.energy);

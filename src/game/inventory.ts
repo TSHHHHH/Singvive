@@ -669,15 +669,17 @@ export function armorConditionScale(inst: ItemInstance): number {
 }
 
 /**
- * How much of its printed restore a consumable still delivers. Steeper than
- * gear wear (floor 0.5, not 0.75): a tin that has sat in a hot bag for two days
- * is genuinely less of a meal, and freshness should be worth crossing a carpark
- * for. Never zero — spoiled food still feeds you, it just charges infection for
- * the privilege (see `applyItem`).
+ * How much of its printed restore a consumable still delivers. Much steeper
+ * than gear wear (floor 0.3, not 0.75): a packet of chicken rice that has sat
+ * in a hot bag for two days is barely a meal, and freshness should be worth
+ * crossing a carpark for. Never zero — spoiled food still feeds you, but below
+ * half freshness it also upsets the stomach (see `ingestLoad` in infection.ts).
  */
+export const CONSUMABLE_FLOOR = 0.3;
+
 export function consumableScale(inst: ItemInstance): number {
   if (!hasCondition(inst)) return 1;
-  return 0.5 + 0.5 * (conditionOf(inst) / 100);
+  return CONSUMABLE_FLOOR + (1 - CONSUMABLE_FLOOR) * (conditionOf(inst) / 100);
 }
 
 /** A restore amount after freshness. A positive gain never rounds away to 0. */

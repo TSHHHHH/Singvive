@@ -1,4 +1,5 @@
 import { itemDef } from '../../game/loot';
+import { ingestLoad, STOMACH_SETTLE } from '../../game/infection';
 import { careForItem, CARE_MINUTES } from '../../game/woundCare';
 import { effectiveDamage, equipDefenseBonus, scaledRestore, preparedEffect } from '../../game/inventory';
 import { weaponSpeedFactor } from '../../game/combat';
@@ -276,6 +277,8 @@ export function itemStatLines(
     // Consumables print what this instance actually gives, with the pristine
     // figure in brackets when freshness has eaten into it — same shape as a
     // worn weapon's damage row.
+    // What it would put on the stomach: rot past half freshness, murky water.
+    const stomach = ingestLoad(def, inst).load;
     const restore = (base: number): string => {
       const v = scaledRestore(inst, base);
       return v === base ? `+${v}` : t('ui.stats.restoreOf', { n: `+${v}`, base });
@@ -285,11 +288,13 @@ export function itemStatLines(
         lines.push(line('food', t('ui.stats.hunger'), restore(e.hunger)));
         if (e.thirst != null) lines.push(line('thirst', t('ui.stats.thirst'), restore(e.thirst)));
         if (e.energy != null) lines.push(line('en', t('ui.stats.energy'), restore(e.energy)));
+        if (stomach > 0) lines.push(line('inf', t('ui.stats.stomach'), `+${stomach}`));
         break;
       case 'water':
         lines.push(line('thirst', t('ui.stats.thirst'), restore(e.thirst)));
         if (e.hunger != null) lines.push(line('food', t('ui.stats.hunger'), restore(e.hunger)));
         if (e.energy != null) lines.push(line('en', t('ui.stats.energy'), restore(e.energy)));
+        if (stomach > 0) lines.push(line('inf', t('ui.stats.stomach'), `+${stomach}`));
         break;
       case 'heal':
         {
@@ -304,6 +309,9 @@ export function itemStatLines(
         break;
       case 'cure':
         lines.push(line('inf', t('ui.stats.cure'), `−${scaledRestore(inst, e.infection)}`));
+        if (STOMACH_SETTLE[def.id]) {
+          lines.push(line('inf', t('ui.stats.stomach'), t(STOMACH_SETTLE[def.id] >= 1 ? 'ui.stats.stomachSettles' : 'ui.stats.stomachEases')));
+        }
         break;
       case 'energy':
         lines.push(line('en', t('ui.stats.energy'), restore(e.energy)));

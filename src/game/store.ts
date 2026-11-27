@@ -27,6 +27,7 @@ import type {
   SkillsState,
 } from './types';
 import { freshEventClock } from './types';
+import { cureInfection, ingestLoad, infectionEffect, settleStomach, stomachOf, upsetStomach } from './infection';
 import { buildFacility, collectedRain, gameHour, surfaceSite } from './facilities';
 import {
   completeExplorationLeads, discoverLocalFacility, findExplorationLeads, readNoticeboard, type RevealTourCue,
@@ -472,6 +473,7 @@ import {
 let zoneCounter = 0;
 import { buildStreetScene, STREET_ZONE } from './streetScenes';
 import { t } from '../i18n/t';
+import { itemName } from '../i18n/display';
 import { ANTIBIOTIC_COVER_HOURS, applyAntibiotics, applyCare, isOpenWound, canCareWithItem, careForItem, chooseCareTarget, CARE_MINUTES, recoverySupportMultiplier, type CareAction } from './woundCare';
 import { activeLocale } from './eventCopy';
 import {
@@ -1225,7 +1227,7 @@ export const useGame = create<State>((set, get) => {
       character.attributes,
       character.traitIds,
       eq,
-      armCombatPenalty(s.bodyParts) + headCombatPenalty(s.bodyParts),
+      armCombatPenalty(s.bodyParts) + headCombatPenalty(s.bodyParts) + infectionEffect(s.meters.infection).attack,
       load.attackMod,
       s.skills,
     );
@@ -1729,7 +1731,7 @@ export const useGame = create<State>((set, get) => {
         injury.bleedStopBonus,
         // Unplanned sleeping paths are protected service beds/camps. Ordinary
         // rest passes its condition-specific recovery through the planned result.
-        recoverySupportMultiplier(s.meters.thirst, sleeping ? 1 : 0) * injury.careRecoveryMult,
+        recoverySupportMultiplier(s.meters.thirst, sleeping ? 1 : 0, s.meters.infection) * injury.careRecoveryMult,
       );
       partsAfterSystemic = tickSystemicDamage(bodyParts, s.meters, hours);
       meters = tickMeters(s.meters, hours, {
@@ -6029,8 +6031,6 @@ export const useGame = create<State>((set, get) => {
       const m = { ...s.meters };
       let newBodyParts = s.bodyParts;
       let consumed = false;
-      // Spoiled food still feeds you — it just asks for something back.
-      let spoiledInfection = 0;
       const effect = preparedEffect(def.effect, inst);
       switch (effect.kind) {
         case 'food': {
@@ -6049,15 +6049,8 @@ export const useGame = create<State>((set, get) => {
             m.hunger = clampMeter(m.hunger + Math.round(fresh(fx.hunger) * (1 + foodEffectMod)));
           }
           if (fx.energy != null) m.energy = clampMeter(m.energy + fresh(fx.energy));
-          const waterRisk = (fx.infectionRisk ?? 0) + (inst.contaminationRisk ?? 0);
-          if (waterRisk > 0) {
-            const resist = sumTraitMod(s.character!.traitIds, 'infectionResist') + skillPackage().infectionResist;
-            m.infection = clampMeter(m.infection + waterRisk * (1 - resist));
-            pushLog(
-              `Drank ${def.name}. ${consumableRestoreSummary(fx)} — it sits wrong (+${Math.round(waterRisk * (1 - resist))} infection).`,
-              'bad',
-            );
-          } else if (faded) {
+          // Murky water upsets the stomach like bad food does (see the consumed block).
+          if (faded) {
             pushLog(`Drank ${def.name}. ${consumableRestoreSummary(fx)}${freshnessNote(inst)}.`, 'info');
           }
           consumed = true;
@@ -6067,8 +6060,14 @@ export const useGame = create<State>((set, get) => {
           // Medical items need a care action; they never grant instant HP.
           return;
         }
-        case 'cure':
-          m.infection = clampMeter(m.infection - fresh(effect.infection));
+        case 'cure': {
+          Object.assign(m, cureInfection(m, fresh(effect.infection)));
+          // Po Chai (and a Yakult, partly) settles an upset stomach before it lands.
+          const settled = settleStomach(m, def.id);
+          if (stomachOf(settled) < stomachOf(m)) {
+            pushLog(t(stomachOf(settled) > 0 ? 'ui.stomach.eased' : 'ui.stomach.settled', { name: itemName(def.id, activeLocale()) }, activeLocale()), 'good');
+            Object.assign(m, settled);
+          }
           consumed = true;
           if (def.id === 'antibiotics') {
             const hadInfectedWound = BODY_PART_IDS.some((id) => newBodyParts[id].woundInfected);
@@ -6077,6 +6076,7 @@ export const useGame = create<State>((set, get) => {
           }
           if (faded) pushLog(`Took ${def.name}. Past its date — infection pushed back, but not as hard.`, 'info');
           break;
+        }
         case 'energy': {
           const fx = effect;
           m.energy = clampMeter(m.energy + fresh(fx.energy));
@@ -6254,12 +6254,14 @@ export const useGame = create<State>((set, get) => {
           pushLog(`${def.name} can't be used directly.`, 'info');
       }
       if (consumed) {
-        // Food that has gone over is a gamble, not a refusal — the player took
-        // it knowing the bag had been warm for three days.
-        if (def.perishable && def.effect.kind === 'food' && isBroken(inst)) {
-          spoiledInfection = 12;
-          m.infection = clampMeter(m.infection + spoiledInfection);
-          pushLog(`${def.name} had turned. It sits badly — infection +${spoiledInfection}.`, 'bad');
+        // Food past its best, or murky water, is a gamble rather than a refusal:
+        // it upsets the stomach, which seeps into infection over the next hours
+        // unless Po Chai settles it (infection.ts).
+        const resist = sumTraitMod(s.character!.traitIds, 'infectionResist') + skillPackage().infectionResist;
+        const gut = ingestLoad(def, inst, resist);
+        if (gut.load > 0) {
+          Object.assign(m, upsetStomach(m, gut.load));
+          pushLog(t(gut.murky && !gut.spoiled ? 'ui.stomach.murky' : 'ui.stomach.upset', { name: itemName(def.id, activeLocale()), n: gut.load }, activeLocale()), 'bad');
         }
         set({
           meters: m,
@@ -7697,7 +7699,7 @@ export const useGame = create<State>((set, get) => {
         s.character!.attributes,
         s.character!.traitIds,
         s.equipment,
-        armCombatPenalty(s.bodyParts) + headCombatPenalty(s.bodyParts),
+        armCombatPenalty(s.bodyParts) + headCombatPenalty(s.bodyParts) + infectionEffect(s.meters.infection).attack,
         load.attackMod,
         s.skills,
       );
