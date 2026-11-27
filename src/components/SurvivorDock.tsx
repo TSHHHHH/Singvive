@@ -12,6 +12,8 @@ import { ConditionPanel } from './ConditionPanel';
 import { InventoryPanel } from './Inventory/InventoryPanel';
 import { loadTierLabel, loadTierShown } from './loadTier';
 import { VitalMeter } from './VitalMeter';
+import { infectionLines, infectionRateChip } from './infectionReadout';
+import { gutOf } from '../game/infection';
 import { useHeldWhileRolling } from '../ui/diceGate';
 
 /** Desktop dock. Body and pack stay together; the phone retains its tabs. */
@@ -51,6 +53,11 @@ export function SurvivorDock({
           <VitalMeter label={t('ui.condition.energy')} icon="meter.energy" value={meters.energy} hint={meterModifiers('energy', meters, locale).map((m) => m.text).join('\n')} />
           <VitalMeter label={t('ui.dock.food')} icon="meter.hunger" value={meters.hunger} hint={meterModifiers('hunger', meters, locale).map((m) => m.text).join('\n')} />
           <VitalMeter label={t('ui.dock.water')} icon="meter.thirst" value={meters.thirst} hint={meterModifiers('thirst', meters, locale).map((m) => m.text).join('\n')} />
+          <div className="col-span-2" data-vital-infection>
+            <VitalMeter label={t('ui.condition.infection')} icon="meter.infection" value={meters.infection} goodWhenUp={false}
+              rate={infectionRateChip(meters, t)} receding={gutOf(meters)}
+              hint={infectionLines(meters, t).map((l) => l.text).join('\n')} />
+          </div>
         </div>
         <div className="mt-2 border-t border-white/10 pt-2">
           <AttributeRow />

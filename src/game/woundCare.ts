@@ -1,4 +1,5 @@
 import type { BodyPart, BodyPartId, BodyParts } from './types';
+import { infectionEffect } from './infection';
 
 export type CareAction = 'bandage' | 'clean' | 'pain' | 'splint' | 'firstAid' | 'support';
 
@@ -10,8 +11,9 @@ export const DRESSING_SOIL_HOURS = 12;
 export const FRACTURE_RECOVERY_HOURS = 72;
 
 /** Water and undisturbed shelter sleep support all tissue and fracture recovery. */
-export function recoverySupportMultiplier(thirst: number, restQuality = 0): number {
-  return (thirst < 35 ? 0.5 : 1) * (1 + Math.max(0, restQuality) * 0.5);
+export function recoverySupportMultiplier(thirst: number, restQuality = 0, infection = 0): number {
+  // Fever slows healing (infection.ts).
+  return (thirst < 35 ? 0.5 : 1) * (1 + Math.max(0, restQuality) * 0.5) * infectionEffect(infection).recovery;
 }
 
 const PART_IDS: BodyPartId[] = ['head', 'torso', 'leftArm', 'rightArm', 'leftLeg', 'rightLeg'];
