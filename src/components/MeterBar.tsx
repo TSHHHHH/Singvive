@@ -15,6 +15,8 @@ interface Props {
   dynamic?: boolean;
   /** Modifier lines shown on hover ("+15% travel speed"). */
   modifiers?: MeterModifier[];
+  /** Per-hour drift beside the value ("+1.5/h"); `bad` colours it. */
+  rate?: { text: string; bad: boolean } | null;
 }
 
 // Baseline-relative colouring: above 55 you're being buffed, below 45 you're
@@ -29,7 +31,7 @@ export function dynamicMeterColor(pct: number): string {
   return BAD;
 }
 
-export function MeterBar({ label, value, max, color, danger, icon, dynamic, modifiers }: Props) {
+export function MeterBar({ label, value, max, color, danger, icon, dynamic, modifiers, rate }: Props) {
   const pct = Math.max(0, Math.min(100, (value / max) * 100));
   const low = danger ? pct > 60 : pct < 35;
   const fill = dynamic ? dynamicMeterColor(pct) : color;
@@ -47,6 +49,9 @@ export function MeterBar({ label, value, max, color, danger, icon, dynamic, modi
           style={{ width: `${pct}%`, background: fill }}
         />
       </div>
+      {rate && (
+        <span className={`text-micro font-bold tabular-nums ${rate.bad ? 'text-hiss' : 'text-emerald-300'}`}>{rate.text}</span>
+      )}
       <span className="w-9 text-right text-read tabular-nums text-white/70">
         {Math.round(value)}
       </span>

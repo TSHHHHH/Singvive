@@ -1,3 +1,4 @@
+import { cureInfection, ingestLoad, settleStomach, upsetStomach } from '../game/infection';
 import type {
   BodyPartId, BodyParts, Character, EquipSlot, Equipment, ItemInstance, Meters,
   PoiCategory, SkillDayXp, SkillId, SkillsState, WeatherKind,
@@ -198,7 +199,7 @@ function tickStep(s: ExpeditionSurvivor, hours: number, resting: boolean, weathe
   if (resting) s.meters.energy = sleepRestore(s.meters.energy, hours, s.meters, trait('sleepRestoreMod'));
   s.bodyParts = tickInjuries(s.bodyParts, hours, hasTraitFlag(traits, 'bleedingSelfStopDisabled'),
     s.meters.hunger, trait('legHealMod') + mods.legHealMod, trait('bleedStopBonus') + mods.bleedStopBonus,
-    recoverySupportMultiplier(s.meters.thirst, resting ? 1 : 0) * (1 + (trait('healBonus') + mods.healBonus) / 100)).parts;
+    recoverySupportMultiplier(s.meters.thirst, resting ? 1 : 0, s.meters.infection) * (1 + (trait('healBonus') + mods.healBonus) / 100)).parts;
   // Solo systemic damage rounds integer HP. Scale the body and elapsed time
   // together so short room ticks retain 1/60 HP rather than rounding to zero.
   const scale = 60;
@@ -353,14 +354,12 @@ function consumeItem(s: ExpeditionSurvivor, inst: ItemInstance, part?: BodyPartI
     if (effect.hunger !== undefined) meters.hunger = clampMeter(meters.hunger + Math.round(scaledRestore(inst, effect.hunger) * foodMult));
     if (effect.thirst !== undefined) meters.thirst = clampMeter(meters.thirst + scaledRestore(inst, effect.thirst));
     if (effect.energy !== undefined) meters.energy = clampMeter(meters.energy + scaledRestore(inst, effect.energy));
-    if (effect.kind === 'water') {
-      const resist = sumTraitMod(s.character.traitIds, 'infectionResist') + skillMods(s.skills).infectionResist;
-      meters.infection = clampMeter(meters.infection + ((effect.infectionRisk ?? 0) + (inst.contaminationRisk ?? 0)) * Math.max(0, 1 - resist));
-    }
-    if (effect.kind === 'food' && def.perishable && isBroken(inst)) meters.infection = clampMeter(meters.infection + 12);
-  } else if (effect.kind === 'cure') meters.infection = clampMeter(meters.infection - scaledRestore(inst, effect.infection));
-  else return { error: 'This item cannot be used directly' };
-  s.meters = meters;
+    // Bad food and murky water upset the stomach (infection.ts), same as solo.
+    const resist = sumTraitMod(s.character.traitIds, 'infectionResist') + skillMods(s.skills).infectionResist;
+    s.meters = upsetStomach(meters, ingestLoad(def, inst, resist).load);
+  } else if (effect.kind === 'cure') {
+    s.meters = settleStomach(cureInfection(meters, scaledRestore(inst, effect.infection)), inst.defId);
+  } else return { error: 'This item cannot be used directly' };
   consume(s, inst);
   return {};
 }

@@ -695,7 +695,11 @@ export interface Meters {
   hunger: number; // 100 = full, 0 = starving
   thirst: number; // 100 = hydrated
   energy: number; // 100 = rested
-  infection: number; // 0 = clean, 100 = turned
+  infection: number; // 0 = clean, 100 = gravely ill
+  /** Pending upset-stomach load from bad food or murky water; seeps into infection (see infection.ts). */
+  stomach?: number;
+  /** The part of `infection` that came from the gut and recedes on its own. */
+  gut?: number;
 }
 
 export type WeatherKind = 'clear' | 'cloudy' | 'rain' | 'thunderstorm' | 'haze' | 'heat';

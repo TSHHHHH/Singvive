@@ -38,27 +38,21 @@ function ConditionBlock({
   if (!hasCondition(inst)) return null;
   const cond = conditionOf(inst);
   const broken = isBroken(inst);
+  const family = conditionFamily(itemDef(inst.defId));
+  // One measure per family ("Freshness 2%"), with the tier word as the flavour.
+  const tierWord = broken
+    ? t(family === 'gear' ? 'ui.inventory.broken' : family === 'medicine' ? 'ui.inventory.expired' : 'ui.inventory.spoiled')
+    : t(`ui.inventory.condition.${family}.${tierOf(inst)}`);
   return (
     <div className={compact ? 'mt-1.5' : 'mt-2'}>
-      <div className="flex items-baseline justify-between text-body">
-        <span
-          className={
-            broken
-              ? 'font-semibold text-hiss'
-              : 'uppercase tracking-wide text-white/50'
-          }
-        >
-          {broken
-            ? t(
-                conditionFamily(itemDef(inst.defId)) === 'gear'
-                  ? 'ui.inventory.broken'
-                  : conditionFamily(itemDef(inst.defId)) === 'medicine'
-                    ? 'ui.inventory.expired'
-                    : 'ui.inventory.spoiled',
-              )
-            : t(`ui.inventory.condition.${conditionFamily(itemDef(inst.defId))}.${tierOf(inst)}`)}
+      <div className="flex items-baseline justify-between gap-2 text-body">
+        <span className="uppercase tracking-wide text-white/50">
+          {t(`ui.inventory.measure.${family}`)}{' '}
+          <span className="tabular-nums text-white/70">{conditionPct(inst)}%</span>
         </span>
-        <span className="tabular-nums text-white/40">{conditionPct(inst)}%</span>
+        <span className={broken || tierOf(inst) === 'torn' ? 'font-semibold text-hiss' : 'text-white/45'}>
+          {tierWord}
+        </span>
       </div>
       <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/10">
         <div

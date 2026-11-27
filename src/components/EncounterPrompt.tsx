@@ -1,4 +1,5 @@
 import { useGame } from '../game/store';
+import { infectionEffect } from '../game/infection';
 import { Icon } from '../icons/Icon';
 import { combatantIcon } from '../game/enemies';
 import { armCombatPenalty, formatClock, headCombatPenalty, torsoCarryMult } from '../game/survival';
@@ -53,6 +54,7 @@ export function EncounterPrompt({
   const hour = useGame((s) => s.hour);
   const combatEngage = useGame((s) => s.combatEngage);
   const combatBreakOff = useGame((s) => s.combatBreakOff);
+  const infection = useGame((s) => s.meters.infection);
   const clock = useClockFormat();
 
   if (!combat || !character || !combat.awaitingStance) return null;
@@ -73,7 +75,7 @@ export function EncounterPrompt({
     character.attributes,
     character.traitIds,
     eq,
-    armCombatPenalty(bodyParts) + headCombatPenalty(bodyParts),
+    armCombatPenalty(bodyParts) + headCombatPenalty(bodyParts) + infectionEffect(infection).attack,
     load.attackMod,
   );
   const holsterRounds = holstered ? loadedRoundsOf(holstered) : null;

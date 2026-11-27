@@ -108,7 +108,7 @@ export function PhoneStatusBar({ onOpenStatus, weather, onOpenActivity }: {
         <MiniMeter icon="meter.hunger" value={meters.hunger} max={100} color="#b7b3a9" dynamic />
         <MiniMeter icon="meter.thirst" value={meters.thirst} max={100} color="#2bc4d9" dynamic />
         <MiniMeter icon="meter.energy" value={meters.energy} max={100} color="#e8e5dd" dynamic />
-        {meters.infection > 0 && (
+        {(meters.infection > 0 || (meters.stomach ?? 0) > 0) && (
           <MiniMeter
             icon="meter.infection"
             value={meters.infection}

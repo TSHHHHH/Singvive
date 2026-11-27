@@ -13,6 +13,7 @@
     "sim:kits": "node scripts/sim-kits.mjs",
     "sim:hdb-heat": "node scripts/sim-hdb-heat.mjs",
     "sim:combat": "node scripts/sim-combat.mjs",
+    "sim:spoil": "node scripts/sim-spoiled-food.mjs",
     "sim:encounters": "node scripts/sim-encounters.mjs",
     "sim:carry": "node scripts/sim-carry.mjs",
     "bake:pois": "node --experimental-strip-types scripts/bake-pois.mjs",
