@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { infectionEffect } from '../game/infection';
 import { useShallow } from 'zustand/react/shallow';
 import { tip } from './tips';
+import { sheetRow } from '../game/statSheet';
 import { useGame } from '../game/store';
 import { playerCombatStats, playerDodgeChance, STANCES, TERRAIN } from '../game/combat';
 import { maxHpFor, sumTraitMod } from '../game/character';
@@ -26,12 +27,7 @@ import { useT } from '../i18n';
 import { TipHint } from './TipHint';
 import { LOAD_TIP_CLASS, loadModifierLines } from './loadTip';
 import { loadTierLabel, loadTierShown } from './loadTier';
-import {
-  sheetLinesAsModifiers,
-  sheetRow,
-  sheetSourceLines,
-  useLiveStatSheet,
-} from './StatBonusesPanel';
+import { sheetLinesAsModifiers, sheetSourceLines, useLiveStatSheet } from './useLiveStatSheet';
 
 function pct(n: number): string {
   return `${Math.round(n * 100)}%`;

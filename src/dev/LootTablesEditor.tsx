@@ -23,6 +23,8 @@ import {
 } from './validateLootTables';
 import { ValidationErrorBadge } from './ValidationErrorBadge';
 
+const EMPTY_ROWS: LootTableEntry[] = [];
+
 type SortMode = 'order' | 'weight' | 'chance' | 'effective' | 'name';
 
 type Props = {
@@ -127,7 +129,7 @@ export function LootTablesEditor({
   );
   const valid = errors.length === 0;
 
-  const rows = tables?.[category] ?? [];
+  const rows = tables?.[category] ?? EMPTY_ROWS;
   const totalWeight = rows.reduce((sum, [, w]) => sum + w, 0);
 
   const maxCategoryWeight = useMemo(() => {

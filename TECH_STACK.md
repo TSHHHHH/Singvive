@@ -509,7 +509,7 @@ npm install
 npm run dev       # http://localhost:5190  (PORT env overrides; see vite.config.ts)
 npm run build     # typecheck (tsc -b) + production build
 npm run build:itch  # static zip for itch.io → release/singvive-itch.zip
-npm run lint      # oxlint (--max-warnings=23) + type-scale + zh-Hans glossary guards
+npm run lint      # oxlint with a warning cap + type-scale + zh-Hans glossary guards
 npm run preview   # serve the production build locally (Worker + assets)
 npm run db:migrate:local  # apply D1 migrations to the local honor board (first time)
 ```
@@ -903,7 +903,7 @@ there.
 | Gate | Command | What it covers |
 |---|---|---|
 | Types | `npm run build` (`tsc -b` runs first) | All four TS projects. **`strict` is on everywhere** — app, node, vitest, worker. |
-| Lint | `npm run lint` | oxlint (`--max-warnings=23`), `scripts/check-type-scale.mjs`, `scripts/check-zh-hans-glossary.mjs` |
+| Lint | `npm run lint` | oxlint, `scripts/check-type-scale.mjs`, `scripts/check-zh-hans-glossary.mjs` |
 | Tests | `npm run test` | Vitest, `environment: 'node'` |
 
 GitHub CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs `lint` → `test` → `build` on
@@ -927,13 +927,9 @@ putting new logic there. Broad Worker/D1 integration coverage remains limited.
 
 ### The lint warning ratchet
 
-`--max-warnings=23` pins the current warning count. New warnings fail CI; the 23 existing ones
-do not. They are:
-
-- 17 `react/only-export-components` — fast-refresh ergonomics only, no correctness impact.
-- 7 `react-hooks/exhaustive-deps` — each needs a judgement call, because adding a missing
-  dependency changes when an effect re-runs. Do not bulk-fix these.
-- 1 `eslint/no-control-regex`.
+The lint script in `package.json` sets the oxlint warning cap. CI fails when the count exceeds
+the cap. Lower it when a change removes warnings. Review hook dependency warnings individually
+because changing a dependency can change when an effect runs.
 
 When you genuinely remove a warning, **lower the number** so the ratchet keeps its grip.
 
@@ -950,29 +946,26 @@ gameplay state (meters, body parts, items, kills, gauges), never the prose.
 
 Recorded so it is not rediscovered. None of this is currently breaking; all of it is a ceiling.
 
-### `store.ts` is ~7,650 lines
+### Cross-system changes converge in `store.ts`
 
-A single flat `interface State` with ~85 data fields followed by ~95 action fields, ~187
-`set()` calls, and ~58 helper closures inside one factory. Naming does the namespacing
-(`tunnel*`, `hdb*`, `combat*`, `faction*`). It works and it is consistent, but it is the file
-every cross-system change touches. Splitting it into zustand slices is the obvious next
-structural move; it was deliberately deferred because the blast radius is large.
+One flat `State` interface and one Zustand factory hold state and actions for tunnels, HDBs,
+combat, and factions. Field prefixes identify each system, but changes spanning systems still
+touch the same factory. Splitting it into slices was deferred because the actions share state.
 
 Note also that `_combatRng`, `_eventRng`, and `_eventClock` are underscore-prefixed but fully
 public on the hook, and `window.__game` is assigned in production (harmless, intentional, and
 documented for console inspection).
 
-### Content catalogs are typed by assertion, not validation
+### Content catalog types and validators can drift
 
-`items.json` (175 defs), `lootTables.json`, `enemies.json`, `recipes.json`, and
+`items.json`, `lootTables.json`, `enemies.json`, `recipes.json`, and
 `itemTileColors.json` are static ESM imports `structuredClone`d at module init and cast through
 `as unknown as` — which erases *all* type checking of the JSON against `ItemDef` and friends.
 
-Two independent descriptions of the same schema exist: the TypeScript types, and the
-hand-written predicates in `src/dev/validate*.ts` (~360 lines each). Neither is checked against
-the JSON in `npm run build` or in the test suite. The only production-path checks in
-`src/game/loot.ts` are wrapped in `if (import.meta.env.DEV)` and `console.error` — they never
-throw and never run in a shipped build.
+The DEV editors validate catalogs with hand-written predicates in `src/dev/validate*.ts`.
+CI runs those validators against the committed JSON through `src/dev/catalogs.test.ts`.
+The validators and the game's TypeScript types describe the same fields independently,
+so a schema change requires updating both.
 
 **This has already cost a live crash.** Deleting `rotan_cane` and `bamboo_pole` from the DEV
 loot browser removed them from `items.json` but left their entries in the `residential` and
@@ -985,8 +978,7 @@ Fixed on several fronts: the stale entries are gone; `rollLoot` / `commonAlterna
 against a missing definition the way `rollStreetLoot` and the raid pull already did; `itemDef()`
 throws a named error instead of returning `undefined` disguised as an `ItemDef`; `loadRun()`
 strips items that have left the catalog instead of discarding the save; `handleDelete` in the DEV
-loot browser now lists what still references an item before you confirm; and
-`src/dev/catalogs.test.ts` runs every validator against the committed JSON in CI.
+loot browser now lists what still references an item before you confirm.
 
 **What is still open:** the delete path *warns* but does not *cascade* — clearing the loot-table,
 recipe, and locale entries is still manual, and the warning reflects saved tables rather than an
