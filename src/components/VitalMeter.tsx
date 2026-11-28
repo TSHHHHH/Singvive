@@ -70,6 +70,8 @@ export function VitalMeter({
   preview,
   goodWhenUp = true,
   locked = 0,
+  rate,
+  receding = 0,
 }: {
   label: string;
   icon: IconName;
@@ -81,6 +83,10 @@ export function VitalMeter({
   goodWhenUp?: boolean;
   /** Part of `max` held back (open wounds): drawn hatched at the bar's end, left out of the shown max. */
   locked?: number;
+  /** Per-hour drift shown beside the value ("+1.5/h"); `bad` colours it. */
+  rate?: { text: string; bad: boolean } | null;
+  /** Part of `value` that will fade on its own: drawn striped at the fill's end. */
+  receding?: number;
 }) {
   const still = useReducedMotion();
   const shown = useTweened(value, still || preview != null);
@@ -155,6 +161,12 @@ export function VitalMeter({
       <div className="mb-1 flex items-center justify-between gap-2 text-body">
         <span className="flex items-center gap-1.5 text-white/65"><Icon name={icon} size={13} />{label}</span>
         <span className="flex items-center gap-1.5">
+          {rate && (
+            <span data-vital-rate="" className="rounded px-1 text-micro font-bold tabular-nums"
+              style={{ color: rate.bad ? LOSS : GAIN, backgroundColor: `${rate.bad ? LOSS : GAIN}1f` }}>
+              {rate.text}
+            </span>
+          )}
           {dir && !still && (
             <span key={dir.key} className="vital-delta text-micro font-bold tabular-nums" style={{ color: dir.up ? GAIN : LOSS }}>
               {dir.diff > 0 ? `+${dir.diff}` : dir.diff}
@@ -174,6 +186,17 @@ export function VitalMeter({
           className="absolute inset-y-0 left-0"
           style={{ width: `${pct}%`, backgroundColor: dynamicMeterColor(health(pct)), transition: mainTransition }}
         />
+        {receding > 0 && (
+          <div
+            data-vital-receding=""
+            className="absolute inset-y-0"
+            style={{
+              left: `${Math.max(0, pct - clampPct(receding, max))}%`,
+              width: `${Math.min(pct, clampPct(receding, max))}%`,
+              backgroundImage: 'repeating-linear-gradient(135deg, rgba(255,255,255,0.55) 0 2px, transparent 2px 4px)',
+            }}
+          />
+        )}
         {locked > 0 && (
           <div
             data-vital-locked=""

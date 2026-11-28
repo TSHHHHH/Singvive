@@ -618,8 +618,21 @@ ground for rest; landmarks are not selected as guaranteed indoor spawn shelters.
 ### 3.5 Survival meters & the injury system
 - **Meters:** Health, Hunger, Thirst, Energy, Infection (drain per active hour). Hunger or thirst
   below **35** starts draining limb HP (ramps to empty); at 0 you die of starvation / dehydration.
-  Infection deals HP damage each hour until cured and is lethal at 100 (you turn). Sleep still drains
+  Infection deals HP damage each hour (infection ÷ 25 to the torso) until cured. A full meter does
+  **not** kill outright: it makes you ill in steps (`src/game/infection.ts`) and the HP drain is what
+  ends a run nobody treats. **Feverish** at 30 (energy drain +20%, recovery ×0.7), **High fever** at 60
+  (+40%, ×0.4, to hit −1), **Gravely ill** at 85 (+60%, ×0.2, to hit −2). Left untreated, gravely ill takes
+  about two game days to drain an unhurt survivor to 0 HP; the drain spills from an emptied torso onto the
+  parts that still have HP. Sleep still drains
   hunger/thirst at **×0.55** of the waking rate.
+- **Freshness & upset stomach:** a perishable's restore scales from 100% fresh down to **30%** at 0.
+  Below **50%** freshness, eating or drinking it **upsets the stomach**: a pending load of 6 (at 50%) to 20
+  (at 0) that seeps into the infection meter at 3/h and makes thirst drain ×1.6 while it lasts. Murky water
+  (and drinks brewed cold from it) upsets the stomach the same way. **Po Chai Pills** settle the pending load
+  outright, **Yakult** halves it. What lands from the stomach is **gut infection**: it sits in the same meter
+  but fades at 1.5/h while thirst is at 35 or above, and food can hold at most **40** of it at once, so bad food
+  alone can't kill. The vitals panel shows the meter with its per-hour drift and the fading share striped.
+  Item cards read **Freshness N%** with the tier word (Fresh … Spoiled) beside it.
 - **Injuries (Project-Zomboid-style), 6 body parts** — Head, Torso, L/R Arm, L/R Leg. Combat damage
   lands on a weighted-random part, lowering its condition and sometimes causing **bleeding** (drains
   HP until treated). Total health is the **sum of all six parts**.
@@ -645,7 +658,7 @@ ground for rest; landmarks are not selected as guaranteed indoor spawn shelters.
   - **Interface:** the existing Body panel shows injuries and independent care actions without an inspection step. The medical silhouette retains wound marks, dressings and splints; treatment briefly highlights the affected part. Healthy parts stay quiet. Inventory use selects an eligible part automatically; Body actions target explicitly. Care spends game time and carried/accessible supplies, and is unavailable during combat, travel or an unresolved action.
 - **Teaching:** How-to-play includes a **Body** topic; first meaningful injury shows a one-shot coach
   (settings flag `limbCoachSeen`).
-- Death causes: overwhelmed (HP 0), starvation, dehydration, infection, fatal head/torso wound.
+- Death causes: overwhelmed (HP 0), starvation, dehydration, infection (HP 0 while gravely ill), fatal head/torso wound.
   Survival is open-ended: supplies, injuries, local threats and night danger continue to matter.
 
 ### 3.6 Combat — contact, then live-stance auto-combat

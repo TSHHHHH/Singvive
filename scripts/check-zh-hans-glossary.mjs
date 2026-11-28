@@ -27,6 +27,7 @@ const RULES = [
   { re: /往往日日志|(?<!往)日日志/g, msg: 'use 往日日志 (glossary)' },
   { re: /脑筋|旅行速度|组屋破门热量/g, msg: 'use consistent stat labels: 机智 / 赶路速度 / 热度' },
   { re: /签名特质|软漏斗|撤离垫|拉起频道/g, msg: 'rewrite literal calques in natural Chinese' },
+  { re: /——/g, msg: 'no 破折号 —— (reads as translated); use ：，。 or · instead' },
 ];
 
 const hits = [];

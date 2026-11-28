@@ -10,7 +10,7 @@ import {
   STANDING_TRUSTED,
   standingLabel as standingLabelEn,
 } from '../game/factions';
-import type { DestructionTier, PoiCategory } from '../game/types';
+import type { DestructionTier, ItemInstance, ItemPrep, PoiCategory } from '../game/types';
 import { t, tList, type TVars } from './t';
 import type { LocaleId } from './types';
 import { DEFAULT_LOCALE } from './types';
@@ -87,6 +87,18 @@ export function itemName(id: string, locale: LocaleId = DEFAULT_LOCALE): string 
   const translated = t(`item.${id}`, undefined, locale);
   if (translated !== `item.${id}`) return translated;
   return ITEMS[id]?.name ?? id;
+}
+
+/**
+ * Display name for a carried instance: crafted drinks and meals say how they
+ * were made ("Hot Muddy Teh-O", 热浑浊茶乌). Plain loot reads as itemName.
+ */
+export function instanceName(inst: Pick<ItemInstance, 'defId'> & ItemPrep, locale: LocaleId = DEFAULT_LOCALE): string {
+  const base = itemName(inst.defId, locale);
+  const variant = inst.hotPrepared ? (inst.muddy ? 'hotMuddy' : 'hot')
+    : inst.coldPrepared ? (inst.muddy ? 'roomMuddy' : 'room')
+      : inst.muddy ? 'muddy' : null;
+  return variant ? msgOr(`ui.craft.madeAs.${variant}`, base, { name: base }, locale) : base;
 }
 
 export function enemyName(

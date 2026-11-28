@@ -137,7 +137,7 @@ export function planRest(input: RestPlanInput): RestOutcome {
       meters.hunger,
       input.injury.legHealMod,
       input.injury.bleedStopBonus,
-      recoverySupportMultiplier(meters.thirst, input.recoveryMult) * (input.injury.careRecoveryMult ?? 1),
+      recoverySupportMultiplier(meters.thirst, input.recoveryMult, meters.infection) * (input.injury.careRecoveryMult ?? 1),
     );
     const nextParts = tickSystemicDamage(healed, meters, step);
     const nextMeters = tickMeters(meters, step, { ...input.meterOpts, sleeping: true });

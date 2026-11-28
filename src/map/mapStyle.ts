@@ -72,6 +72,7 @@ export const SLOTS = [
   'veil',
   'mrt',
   'buildings',
+  'xray',
   'edge',
   'top',
 ] as const;

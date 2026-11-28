@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { infectionEffect } from '../game/infection';
 import { useGame } from '../game/store';
 import { tip } from './tips';
 import { Icon } from '../icons/Icon';
@@ -181,7 +182,7 @@ export function CombatPanel({
     character.attributes,
     character.traitIds,
     eq,
-    armCombatPenalty(bodyParts) + headCombatPenalty(bodyParts),
+    armCombatPenalty(bodyParts) + headCombatPenalty(bodyParts) + infectionEffect(meters.infection).attack,
     load.attackMod,
   );
   const stance = STANCES[combat.selectedStance];

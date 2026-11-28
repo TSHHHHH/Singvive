@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
+import { infectionLines, infectionRateChip } from './infectionReadout';
 import { Icon } from '../icons/Icon';
 import { useHeldWhileRolling } from '../ui/diceGate';
 import { DockSectionHeader } from './DockSectionHeader';
@@ -6,12 +7,11 @@ import { useShallow } from 'zustand/react/shallow';
 import { useGame } from '../game/store';
 import { MeterBar } from './MeterBar';
 import { BodyDoll } from './BodyDoll';
-import { LimbDetailPanel } from './LimbDetailPanel';
-import { WoundCarePanel, type CareFeedback } from './WoundCarePanel';
+import { BodyCareList, type CareFeedback } from './BodyCareList';
 import { AttributeRow } from './AttributeRow';
 import { SurvivorStatsGrid } from './SurvivorStatsGrid';
 import { GuideInfoButton } from './GuideInfoButton';
-import { countBleeding, meterModifiers, totalHp, totalMaxHp } from '../game/survival';
+import { BODY_PART_IDS, countBleeding, meterModifiers, totalHp, totalMaxHp } from '../game/survival';
 import { effectiveMaxHp } from '../game/injuryEffects';
 import type { GuideTopic } from '../content/guideContent';
 import type { BodyPartId, BodyParts } from '../game/types';
@@ -60,12 +60,13 @@ export function ConditionPanel({
   }, [lastCare]);
   // The header pill follows the dock vitals: a check's wounds show once its die lands.
   const shown = useHeldWhileRolling({ bodyParts, infection: meters.infection });
+  const majorBleed = BODY_PART_IDS.some((id) => bodyParts[id].bleed === 'major');
   const hp = totalHp(bodyParts);
   const hpMax = totalMaxHp(bodyParts);
   const careBadge = <CareBadge bodyParts={shown.bodyParts} infection={shown.infection} />;
 
   return (
-    <section className="rounded-lg border border-white/15 bg-concrete-900/80 p-2.5">
+    <section className={`rounded-lg border bg-concrete-900/80 p-2.5 ${majorBleed ? 'body-bleed-alarm border-hiss/70' : 'border-white/15'}`}>
       {onToggle ? (
         <DockSectionHeader title={t('ui.dock.body')} open={!collapsed} onToggle={onToggle} controls={contentId}
           badge={careBadge}
@@ -129,6 +130,8 @@ export function ConditionPanel({
                 max={100}
                 color="#2bc4d9"
                 danger
+                rate={infectionRateChip(meters, t)}
+                modifiers={infectionLines(meters, t)}
               />
             </div>
           )}
@@ -149,10 +152,8 @@ export function ConditionPanel({
                 careFeedback={feedback}
               />
             </div>
-            <LimbDetailPanel bodyParts={bodyParts} highlighted={hovered} onHover={setHovered} />
+            <BodyCareList bodyParts={bodyParts} feedback={feedback} highlighted={hovered} onHover={setHovered} />
           </div>
-
-          <WoundCarePanel bodyParts={bodyParts} feedback={feedback} onHighlight={setHovered} />
 
 
           {showSurvivorStats && <SurvivorStatsGrid />}

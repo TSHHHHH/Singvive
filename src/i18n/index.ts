@@ -21,6 +21,7 @@ export {
   destructionDisplayLabel,
   poiCategoryLabel,
   itemName,
+  instanceName,
   enemyName,
   recipeName,
   recipeBlurb,

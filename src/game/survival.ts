@@ -8,6 +8,7 @@ import {
   woundCloseRate, woundInfectChance,
 } from './woundCare';
 export { recoverySupportMultiplier } from './woundCare';
+import { infectionEffect, infectionTier, stomachOf, STOMACH_THIRST_MULT, tickGut } from './infection';
 
 export const HOURS_PER_DAY = 24;
 export const START_HOUR = 8; // survivors wake at 8am
@@ -182,7 +183,8 @@ export function tickMeters(
   } = {},
 ): Meters {
   const mult = opts.sleeping ? SLEEP_DEPLETION_MULT : 1;
-  const envThirst = opts.thirstMult ?? 1;
+  // An upset stomach (bad food, murky water) dries you out while it lasts.
+  const envThirst = (opts.thirstMult ?? 1) * (stomachOf(meters) > 0 ? STOMACH_THIRST_MULT : 1);
   const envEnergy = opts.energyMult ?? 1;
   const hungerMult = 1 + (opts.hungerDrainMod ?? 0);
   const thirstTraitMult = 1 + (opts.thirstDrainMod ?? 0);
@@ -190,7 +192,8 @@ export function tickMeters(
     (opts.outdoors || opts.heat) && (opts.outdoorEnergyDrainMod ?? 0) !== 0
       ? 1 + (opts.outdoorEnergyDrainMod ?? 0)
       : 1;
-  const energyTraitMult = (1 + (opts.energyDrainMod ?? 0)) * outdoor;
+  // Fever tires you faster (infection.ts).
+  const energyTraitMult = (1 + (opts.energyDrainMod ?? 0)) * outdoor * (1 + infectionEffect(meters.infection).energyDrain);
   const hunger = clampMeter(
     meters.hunger - DEPLETION_PER_HOUR.hunger * hours * mult * Math.max(0.1, hungerMult),
   );
@@ -204,7 +207,7 @@ export function tickMeters(
     Math.max(0.1, energyTraitMult);
   const energy = clampMeter(meters.energy - DEPLETION_PER_HOUR.energy * hours * energyMult);
 
-  return { hunger, thirst, energy, infection: meters.infection };
+  return tickGut({ ...meters, hunger, thirst, energy }, hours, meters.thirst);
 }
 
 // ---------- Vitality (limb HP) ----------
@@ -704,6 +707,8 @@ export function tickInjuries(
   const regenMult = hpRegenMultiplier(hunger) * Math.max(0.1, recoveryMult);
   const legMult = Math.max(0.1, 1 + legHealMod);
 
+  // Blood a major bleed keeps losing once its own part is empty: it is the body's blood, not the limb's.
+  let bloodLoss = 0;
   for (const id of BODY_PART_IDS) {
     let p = parts[id];
     const partRegenMult = id === 'leftLeg' || id === 'rightLeg' ? legMult : 1;
@@ -765,9 +770,11 @@ export function tickInjuries(
       const dressingHours = p.dressing && p.dressing !== 'none' ? (p.dressingHours ?? 0) + step : 0;
       const fractureRecoveryHours = (p.fractureRecoveryHours ?? 0) + step * fractureRate;
       const healed = !!p.fractured && fractureRecoveryHours >= FRACTURE_RECOVERY_HOURS - 1e-9;
+      const rawHp = p.hp + step * (regenRate - BLEED_DRAIN[p.bleed]);
+      if (p.bleed === 'major' && rawHp < 0) bloodLoss += -rawHp;
       p = {
         ...p,
-        hp: Math.max(0, Math.min(Math.max(hpCap, Math.min(p.hp, p.maxHp)), p.hp + step * (regenRate - BLEED_DRAIN[p.bleed]))),
+        hp: Math.max(0, Math.min(Math.max(hpCap, Math.min(p.hp, p.maxHp)), rawHp)),
         woundCloseHours: open ? (p.woundCloseHours ?? 0) + step * closeRate : p.woundCloseHours,
         woundAgeHours: open ? (p.woundAgeHours ?? 0) + step : p.woundAgeHours,
         antibioticHours: Math.max(0, (p.antibioticHours ?? 0) - step),
@@ -790,7 +797,32 @@ export function tickInjuries(
     next[id] = p;
   }
 
-  return { parts: next, blocksRegen };
+  return { parts: bloodLoss > 1e-9 ? spillBloodLoss(next, bloodLoss) : next, blocksRegen };
+}
+
+/**
+ * An untreated major bleed does not stop at an empty limb: the loss carries on
+ * into the torso, then the rest of the body, until it is dressed or the
+ * survivor bleeds out (total HP 0 → `checkDeath` 'health').
+ */
+export function spillBloodLoss(parts: BodyParts, amount: number): BodyParts {
+  let left = amount;
+  const next = { ...parts };
+  const take = (id: BodyPartId, max: number) => {
+    const p = next[id];
+    const loss = Math.min(p.hp, max, left);
+    if (loss <= 0) return;
+    left -= loss;
+    next[id] = { ...p, hp: p.hp - loss, crippled: p.crippled || p.hp - loss <= 0 };
+  };
+  take('torso', left);
+  while (left > 1e-9) {
+    const others = BODY_PART_IDS.filter((id) => id !== 'torso' && next[id].hp > 0);
+    if (!others.length) break;
+    const share = left / others.length;
+    for (const id of others) take(id, share);
+  }
+  return next;
 }
 
 /** Starvation, dehydration, and infection wear on the torso first. */
@@ -820,13 +852,15 @@ export function tickSystemicDamage(
     },
   };
   if (spill > 0) {
-    // Leftover systemic damage spreads to other parts evenly.
-    const others = BODY_PART_IDS.filter((id) => id !== 'torso');
+    // Leftover systemic damage spreads evenly over the parts that still have
+    // HP — an emptied limb can't soak it, or a long illness would stall at a
+    // dead head and never finish the job.
+    const others = BODY_PART_IDS.filter((id) => id !== 'torso' && next[id].hp > 0);
     let left = spill;
     for (const id of others) {
       if (left <= 0) break;
       const p = next[id];
-      const take = Math.min(left, Math.ceil(spill / others.length));
+      const take = Math.min(left, Math.ceil(spill / others.length), p.hp);
       next = {
         ...next,
         [id]: { ...p, hp: Math.max(0, p.hp - take), crippled: p.hp - take <= 0 },
@@ -884,6 +918,8 @@ export function migrateMeters(meters: Meters & { health?: number }): Meters {
     thirst: meters.thirst,
     energy: meters.energy,
     infection: meters.infection,
+    ...(meters.stomach ? { stomach: meters.stomach } : {}),
+    ...(meters.gut ? { gut: Math.min(meters.gut, meters.infection) } : {}),
   };
 }
 
@@ -944,12 +980,14 @@ export type DeathCause =
   | null;
 
 export function checkDeath(meters: Meters, parts?: BodyParts): DeathCause {
-  if (meters.infection >= METER_MAX) return 'infection';
+  // A full infection meter no longer kills outright: it makes you gravely ill
+  // (infection.ts) and drains the torso, and that HP loss is what ends a run.
   if (parts) {
     // Empty torso is Critical, not death — a follow-up mortalWound ends it.
     if (parts.torso.mortalWound) return 'torso';
     const hp = totalHp(parts);
     if (hp <= 0) {
+      if (infectionTier(meters.infection) === 'critical') return 'infection';
       if (parts.torso.hp <= 0) return 'torso';
       if (parts.head.hp <= 0) return 'head';
       if (meters.thirst <= 0) return 'dehydration';

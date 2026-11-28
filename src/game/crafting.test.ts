@@ -24,7 +24,7 @@ describe('powdered drink crafting', () => {
   });
 
   it('keeps unsafe-water contamination on the prepared drink instance', () => {
-    const made = addToGrid([], 'backpack', 'kopi_o', 1, undefined, 8);
+    const made = addToGrid([], 'backpack', 'kopi_o', 1, undefined, { contaminationRisk: 8 });
     expect(made.items[0]?.contaminationRisk).toBe(8);
   });
 });

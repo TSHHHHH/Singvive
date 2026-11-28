@@ -74,7 +74,7 @@ export interface CarriedRow {
 export function carriedRows(
   items: ItemInstance[],
   bagCut: number,
-  nameOf: (defId: string) => string,
+  nameOf: (defId: string, inst: ItemInstance) => string,
 ): CarriedRow[] {
   const out: CarriedRow[] = [];
   for (const inst of items) {
@@ -86,7 +86,7 @@ export function carriedRows(
     out.push({
       inst,
       def,
-      name: nameOf(inst.defId),
+      name: nameOf(inst.defId, inst),
       kind: carriedKind(def),
       packed,
       rawKg,
