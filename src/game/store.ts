@@ -37,6 +37,7 @@ import { sightFactor } from './nightSight';
 import { emptyRunStats, normalizeRunStats } from './stats';
 import { Rng, randomSeed } from './rng';
 import { crossingLogText, type CrossingLog } from './crossingEvent';
+import { getChoiceAvailability } from './choiceAvailability';
 import {
   adjustCraftInputs,
   attrEmoji,
@@ -5589,6 +5590,8 @@ export const useGame = create<State>((set, get) => {
       const ev = pe.event;
       const choice = ev.choices.find((c) => c.id === choiceId);
       if (!choice) return;
+      const availability = getChoiceAvailability(choice, s);
+      if (!availability.available) return;
       const rng = s._eventRng ?? new Rng(s.seed).fork(`ev2:${pe.locationId}:${s.day}`);
       set({ pendingEvent: null, _eventRng: null });
 
@@ -5822,25 +5825,17 @@ export const useGame = create<State>((set, get) => {
         else persist();
       };
 
+      if (availability.payment) {
+        consumeBackpackItem(availability.payment);
+        pushLog(`Handed over 1× ${itemDef(availability.payment).name}.`, 'info');
+      }
+
       switch (choice.kind) {
         case 'leave':
         case 'fight':
+        case 'pay':
           run(choice.onSuccess);
           break;
-        case 'pay': {
-          // They named several things they'd take; hand over the first one you
-          // actually have, which is also the one they'd rather be given.
-          const paying = choice.itemIds?.find((id) => hasBackpackItem(id));
-          if (paying) {
-            consumeBackpackItem(paying);
-            pushLog(`Handed over 1× ${itemDef(paying).name}.`, 'info');
-            run(choice.onSuccess);
-          } else {
-            pushLog("You don't have anything they'll take.", 'bad');
-            run(choice.onFailure ?? [{ t: 'deny', line: 'That ends the conversation.' }]);
-          }
-          break;
-        }
         case 'check': {
           const attrKey = choice.attr!;
           const attrVal = s.character!.attributes[attrKey];

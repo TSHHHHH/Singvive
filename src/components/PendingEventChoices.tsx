@@ -1,4 +1,4 @@
-import { isCarried } from '../game/inventory';
+import { getChoiceAvailability } from '../game/choiceAvailability';
 import { useGame } from '../game/store';
 import { Icon } from '../icons/Icon';
 import { ATTRIBUTE_ICONS } from '../game/character';
@@ -7,7 +7,6 @@ import type { IconName } from '../icons/keys';
 import { formatClock } from '../game/survival';
 import { useClockFormat } from '../game/settings';
 import { useT } from '../i18n';
-import { canFireHolstered } from '../game/firearms';
 import { choiceNoise, type ChoiceNoise } from '../game/choiceNoise';
 import { disturbanceSpec } from '../game/disturbance';
 import { useMemo } from 'react';
@@ -71,20 +70,15 @@ export function PendingEventChoices({
   className?: string;
 }) {
   const items = useGame((s) => s.items);
-  const loadedGun = useGame((s) => canFireHolstered(s.equipment));
-  const gunKind = useGame((s) => (s.equipment.firearm?.defId === 'shotgun' ? 'shotgun' : 'gunshot'));
+  const equipment = useGame((s) => s.equipment);
+  const gunKind = equipment.firearm?.defId === 'shotgun' ? 'shotgun' : 'gunshot';
   const resolveEvent = useGame((s) => s.resolveEvent);
   const { t } = useT();
-
-  const hasItem = (defId?: string) =>
-    !defId || items.some((i) => isCarried(i.container) && i.defId === defId);
 
   return (
     <div className={`flex flex-col gap-1 ${className}`}>
       {event.choices.map((c) => {
-        const affordable =
-          (c.kind !== 'pay' || !!c.itemIds?.some((id) => hasItem(id)))
-          && (c.needs !== 'loadedGun' || loadedGun);
+        const availability = getChoiceAvailability(c, { items, equipment });
         const noise = choiceNoise(c, gunKind);
         const tone =
           c.kind === 'fight'
@@ -100,18 +94,17 @@ export function PendingEventChoices({
           <button
             key={c.id}
             type="button"
-            disabled={!affordable}
+            disabled={!availability.available}
             onClick={() => resolveEvent(c.id)}
             className={`flex w-full items-center gap-1.5 rounded border px-2 py-1 text-left text-body transition disabled:opacity-30 ${tone}`}
           >
             <Icon name={CHOICE_ICON[c.kind]} size={13} className="shrink-0" />
             <span className="min-w-0 flex-1 whitespace-normal break-words">
               {c.label}
-              {c.kind === 'pay' && !affordable && (
-                <span className="ml-1 text-hiss">{t('ui.pending.youHaveNone')}</span>
-              )}
-              {c.needs === 'loadedGun' && !loadedGun && (
-                <span className="ml-1 text-hiss">{t('ui.disturbance.needsGun')}</span>
+              {!availability.available && (
+                <span className="ml-1 text-hiss">
+                  {t(availability.reason === 'loadedGun' ? 'ui.disturbance.needsGun' : 'ui.pending.youHaveNone')}
+                </span>
               )}
               {noise && <NoiseTag noise={noise} />}
             </span>

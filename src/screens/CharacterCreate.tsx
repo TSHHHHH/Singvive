@@ -28,10 +28,11 @@ import { previewStartingSkills, SKILL_IDS, SKILLS_ENABLED } from '../game/skills
 import { TRAIT_TAG_ORDER, traitTags, type TraitTag } from '../game/traitTags';
 import type { Occupation, Trait } from '../game/types';
 import { Icon } from '../icons/Icon';
+import { itemDef } from '../game/loot';
+import { itemIcon } from '../components/Inventory/itemIcon';
 import { TipHint, useCoarsePointer } from '../components/TipHint';
 import { itemName, traitDescription, traitEffects, traitHoverText, traitName, useT } from '../i18n';
 import {
-  kitLines,
   resolveStartingKit,
   traitKit,
   type KitEntry,
@@ -73,7 +74,7 @@ function kitLabel(e: KitEntry | KitLine, locale: ReturnType<typeof useT>['locale
 function SectionLabel({ children, right }: { children: ReactNode; right?: ReactNode }) {
   return (
     <div className="mb-1.5 flex items-baseline justify-between gap-2">
-      <span className="text-label uppercase text-white/40">{children}</span>
+      <span className="text-label uppercase text-white/70">{children}</span>
       {right}
     </div>
   );
@@ -218,7 +219,7 @@ export function CharacterCreate() {
   );
 
   const attributeRow = (
-    <div className="grid grid-cols-5 gap-1">
+    <div className="grid grid-cols-[repeat(auto-fit,minmax(5rem,1fr))] gap-1">
       {ATTRIBUTE_KEYS.map((k) => {
         const delta = attrs[k] - BASE_ATTRIBUTE;
         return (
@@ -238,7 +239,7 @@ export function CharacterCreate() {
                 </span>
               )}
             </span>
-            <span className="w-full truncate text-center text-micro uppercase text-white/40">
+            <span className="w-full text-center text-micro uppercase text-white/70">
               {t(`ui.attributes.${k}`)}
             </span>
           </div>
@@ -248,6 +249,7 @@ export function CharacterCreate() {
   );
 
   const startingSkills = previewStartingSkills(traitIds);
+  const traitCountLabel = (n: number) => t(n === 1 ? 'ui.create.oneTrait' : 'ui.create.traitCount', { n });
   const skillsLine = (
     <div className="flex flex-wrap gap-x-3 gap-y-0.5">
       {SKILL_IDS.map((id) => {
@@ -270,40 +272,32 @@ export function CharacterCreate() {
   const poolLine = (p: { pick: number; from: KitEntry[] }) =>
     t('ui.create.kit.oneOf', { n: p.pick, items: p.from.map((e) => kitLabel(e, locale)).join(listSep) });
 
-  /** One kit: what is worn, then what is packed, trait gear highlighted. */
-  const kitChips = (k: ResolvedKit) => (
-    <div className="flex flex-wrap gap-1" {...tip(t('ui.create.kit.hint'))}>
-      {kitLines(k).map((line) => {
-        const worn = Object.values(k.equip).includes(line);
-        const fromTrait = line.source !== 'role';
-        return (
-          <span
-            key={`${worn ? 'w' : 'p'}:${line.id}`}
-            className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-micro ${
-              fromTrait ? 'border-signal/30 bg-signal/10 text-signal' : 'border-white/10 bg-white/5 text-white/60'
-            }`}
-          >
+  const gearGroup = (label: string, lines: KitLine[]) => lines.length > 0 && (
+    <div className="mt-3">
+      <h4 className="mb-1.5 text-label uppercase text-white/70">{label}</h4>
+      <ul className="grid grid-cols-2 gap-1.5">
+        {lines.map((line) => (
+          <li key={line.id} className={`flex min-w-0 items-center gap-2 rounded px-2 py-2 text-read ${line.source === 'role' ? 'bg-white/[0.07] text-concrete-50' : 'bg-signal/15 text-signal'}`}>
+            <Icon name={itemIcon(itemDef(line.id))} size={26} className="shrink-0" />
             {kitLabel(line, locale)}
-            {worn && <span className="opacity-50">· {t('ui.create.kit.worn')}</span>}
-          </span>
-        );
-      })}
-      {k.pools.map((p) => {
-        const fromTrait = p.source !== 'role';
-        return (
-          <span
-            key={`pool:${fromTrait && typeof p.source === 'object' ? p.source.trait : 'role'}`}
-            className={`rounded border border-dashed px-1.5 py-0.5 text-micro ${
-              fromTrait ? 'border-signal/30 text-signal/80' : 'border-white/15 text-white/50'
-            }`}
-          >
-            {poolLine(p)}
-          </span>
-        );
-      })}
+          </li>
+        ))}
+      </ul>
     </div>
   );
-  const kitBlock = kitChips(kit);
+  const startingGear = (gear: ResolvedKit) => (
+    <section className="border-t border-white/20 pt-3">
+      <h3 className="text-plate uppercase text-signal">{t('ui.create.kit.title')}</h3>
+      {gearGroup(t('ui.create.kit.equipped'), Object.values(gear.equip))}
+      {gearGroup(t('ui.create.kit.packed'), gear.pack)}
+      {gear.pools.map((pool) => (
+        <p key={pool.source === 'role' ? 'role' : pool.source.trait}
+          className="mt-3 rounded border border-dashed border-signal/50 p-2 text-body text-concrete-50">
+          {poolLine(pool)}
+        </p>
+      ))}
+    </section>
+  );
 
   /** What one trait adds (detail panel, mobile tip). */
   const traitKitText = (id: string): string[] => {
@@ -320,7 +314,7 @@ export function CharacterCreate() {
 
   const selectedChips =
     traitIds.length === 0 ? (
-      <p className="text-micro text-white/35">{t('ui.create.noTraits')}</p>
+      <p className="text-body text-white/65">{t('ui.create.noTraits')}</p>
     ) : (
       <div className="flex flex-wrap gap-1">
         {traitIds.map((id) => {
@@ -349,11 +343,11 @@ export function CharacterCreate() {
 
   /** The build summary — the right rail on desktop, below the picker on mobile. */
   const summary = (
-    <div className="flex flex-col gap-3 rounded border border-white/15 bg-concrete-900/80 p-3">
+    <div className="flex flex-col gap-3 rounded border border-white/20 bg-concrete-900 p-4">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <span className="text-label uppercase text-white/40">{t('ui.create.identity')}</span>
-          <p className="truncate text-read font-bold uppercase tracking-wide text-signal">
+          <span className="text-plate uppercase text-white/75">{t(`occupation.${picked.id}.name`)}</span>
+          <p className="break-words text-title text-concrete-50">
             {identityLabel}
           </p>
         </div>
@@ -388,10 +382,7 @@ export function CharacterCreate() {
           {skillsLine}
         </div>
       )}
-      <div>
-        <SectionLabel>{t('ui.create.kit.title')}</SectionLabel>
-        {kitBlock}
-      </div>
+      {startingGear(kit)}
     </div>
   );
 
@@ -420,13 +411,10 @@ export function CharacterCreate() {
     </label>
   );
 
-  const roleKitText = (id: string): string => {
-    const k = resolveStartingKit(id, []);
-    return [...kitLines(k).map((line) => kitLabel(line, locale)), ...k.pools.map(poolLine)].join(listSep);
-  };
-
   const renderJobCard = (o: Occupation) => {
     const selected = picked.id === o.id;
+    const { equip } = resolveStartingKit(o.id, []);
+    const featured = equip.mainHand ?? equip.hands ?? equip.bag;
     return (
       <button
         key={o.id}
@@ -440,8 +428,13 @@ export function CharacterCreate() {
         }`}
       >
         <span className="text-plate uppercase">{t(`occupation.${o.id}.name`)}</span>
-        <span className="mt-0.5 line-clamp-2 text-micro text-white/55">{t(`occupation.${o.id}.tagline`)}</span>
-        <span className="mt-1.5 line-clamp-2 text-micro text-white/40">{roleKitText(o.id)}</span>
+        <span className="mb-3 mt-1 text-body text-white/75">{t(`occupation.${o.id}.tagline`)}</span>
+        {featured && (
+          <span className="mt-auto flex w-full items-center gap-2 border-t border-white/15 pt-2 text-read">
+            <Icon name={itemIcon(itemDef(featured.id))} size={22} className="shrink-0" />
+            {kitLabel(featured, locale)}
+          </span>
+        )}
       </button>
     );
   };
@@ -474,7 +467,7 @@ export function CharacterCreate() {
                 }`}
               >
                 <span className="text-plate uppercase">{p.name}</span>
-                <span className="ml-2 text-micro text-white/45">{t('ui.create.traitCount', { n: p.traitIds.length })}</span>
+                <span className="ml-2 text-micro text-white/65">{traitCountLabel(p.traitIds.length)}</span>
                 {!isLegalTraitBuild(p.traitIds) && (
                   <span className="ml-2 text-micro text-hiss">{t('ui.create.needsFixing')}</span>
                 )}
@@ -525,26 +518,31 @@ export function CharacterCreate() {
     </div>
   );
 
+  const roleGear = resolveStartingKit(picked.id, []);
   const jobDetail = (
-    <div className="rounded border border-white/10 bg-white/[0.03] p-3">
-      <p className="text-plate uppercase text-signal">{t(`occupation.${picked.id}.name`)}</p>
-      <p className="mt-1 text-body leading-relaxed text-white/60">{t(`occupation.${picked.id}.blurb`)}</p>
-      <div className="mt-2">
-        <SectionLabel>{t('ui.create.kit.startsWith')}</SectionLabel>
-        {kitChips(resolveStartingKit(picked.id, []))}
-      </div>
-    </div>
+    <section className="rounded border border-white/20 bg-concrete-900 p-4">
+      <h2 className="text-title text-concrete-50">{t(`occupation.${picked.id}.name`)}</h2>
+      <p className="mt-2 text-read text-white/85">{t(`occupation.${picked.id}.blurb`)}</p>
+      <div className="mt-4">{startingGear(roleGear)}</div>
+    </section>
   );
 
   const backgroundStep = (
     <div className="flex min-w-0 flex-col gap-4">
       {nameField}
-      <div>
+      <div className="hidden lg:block">
         <SectionLabel>{t('ui.create.backgroundPrompt')}</SectionLabel>
         <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
           {OCCUPATIONS.map(renderJobCard)}
         </div>
       </div>
+      <label className="flex flex-col gap-1.5 lg:hidden">
+        <span className="text-plate uppercase text-white/75">{t('ui.create.backgroundPrompt')}</span>
+        <select value={picked.id} onChange={(event) => setOccupationId(event.target.value)}
+          className="w-full rounded border border-signal/60 bg-concrete-900 px-3 py-2.5 text-read text-concrete-50">
+          {OCCUPATIONS.map((o) => <option key={o.id} value={o.id}>{t(`occupation.${o.id}.name`)}</option>)}
+        </select>
+      </label>
     </div>
   );
 
@@ -553,10 +551,8 @@ export function CharacterCreate() {
   const tileClass = (tr: Trait, selected: boolean, blocked: boolean): string => {
     if (selected && tr.category === 'positive') return 'border-signal bg-signal/30';
     if (selected) return 'border-hiss bg-hiss/30';
-    if (blocked) return 'border-white/5 bg-white/[0.02] opacity-40 cursor-not-allowed';
-    return tr.category === 'positive'
-      ? 'border-signal/20 bg-signal/[0.04] hover:border-signal/55 hover:bg-signal/[0.1]'
-      : 'border-hiss/20 bg-hiss/[0.04] hover:border-hiss/55 hover:bg-hiss/[0.1]';
+    if (blocked) return 'border-white/5 bg-white/[0.02] text-white/60 cursor-not-allowed';
+    return 'border-white/15 bg-white/[0.03] hover:border-white/40 hover:bg-white/[0.07]';
   };
 
   const renderTile = (tr: Trait) => {
@@ -570,7 +566,7 @@ export function CharacterCreate() {
       <div
         key={tr.id}
         onMouseEnter={() => setFocusId(tr.id)}
-        className={`flex items-center gap-1 rounded border-2 transition ${tileClass(tr, selected, blocked)}`}
+        className={`flex items-stretch rounded border transition focus-within:ring-1 focus-within:ring-white/70 ${tileClass(tr, selected, blocked)}`}
       >
         <button
           type="button"
@@ -581,20 +577,22 @@ export function CharacterCreate() {
           onFocus={() => setFocusId(tr.id)}
           aria-pressed={selected}
           aria-disabled={blocked}
-          className={`flex min-w-0 flex-1 items-center gap-1.5 px-1.5 py-1.5 text-left lg:gap-2 lg:px-2 ${
+          className={`grid min-w-0 flex-1 grid-cols-[auto_minmax(0,1fr)_auto] content-start items-center gap-x-2 gap-y-1 px-3 py-3 text-left ${
             blocked ? 'cursor-not-allowed' : ''
           }`}
         >
-          <Icon name={tr.icon} size={20} className="shrink-0" />
-          <span className="min-w-0 flex-1 text-plate uppercase leading-tight max-lg:tracking-normal lg:truncate">
+          <Icon name={tr.icon} size={24} className="shrink-0" />
+          <span className="min-w-0 text-read font-semibold">
             {label}
           </span>
           <span
-            className={`shrink-0 text-body font-semibold tabular-nums ${isPos ? 'text-signal' : 'text-hiss'}`}
+            className={`rounded bg-black/30 px-1.5 py-0.5 text-read font-semibold tabular-nums ${isPos ? 'text-signal' : 'text-hiss'}`}
           >
             {isPos ? '−' : '+'}
             {Math.abs(tr.cost)}
           </span>
+          <span className="col-span-3 text-body text-white/75">{traitEffects(tr.id, locale)[0]}</span>
+          {selected && <span className="col-span-3 text-label text-concrete-50">✓ {t('ui.create.selectedTrait')}</span>}
         </button>
         {coarsePointer && (
           <TipHint
@@ -632,19 +630,18 @@ export function CharacterCreate() {
       <button
         key={id}
         type="button"
-        role="tab"
-        aria-selected={active}
-        onClick={() => setSide(id)}
-        className={`flex flex-1 items-baseline justify-center gap-2 border-b-2 px-3 py-2 text-read font-bold uppercase tracking-widest transition ${
+        aria-pressed={active}
+        onClick={() => { setSide(id); setFocusId(null); }}
+        className={`flex flex-1 flex-wrap items-baseline gap-x-2 gap-y-1 rounded border px-3 py-2.5 text-plate uppercase transition ${
           active
             ? isPos
-              ? 'border-signal text-signal'
-              : 'border-hiss text-hiss'
-            : 'border-white/10 text-white/40 hover:text-white/70'
+              ? 'border-signal bg-signal/15 text-signal'
+              : 'border-hiss bg-hiss/15 text-concrete-50'
+            : 'border-white/15 bg-white/[0.03] text-white/75 hover:border-white/40'
         }`}
       >
         {t(isPos ? 'ui.create.positives' : 'ui.create.negatives')}
-        <span className="hidden text-label font-normal normal-case tracking-normal opacity-70 sm:inline">
+        <span className="text-body font-normal normal-case tracking-normal text-white/75">
           {t(isPos ? 'ui.create.spendPoints' : 'ui.create.earnPoints')}
           {count > 0 ? t('ui.create.picked', { n: count }) : ''}
         </span>
@@ -658,9 +655,9 @@ export function CharacterCreate() {
       <button
         key={tag ?? 'all'}
         type="button"
-        onClick={() => setTagFilter(tag)}
+        onClick={() => { setTagFilter(tag); setFocusId(null); }}
         aria-pressed={active}
-        className={`rounded-full border px-2.5 py-0.5 text-label uppercase transition ${
+        className={`rounded border px-2 py-1 text-body transition ${
           active
             ? 'border-signal bg-signal/15 text-signal'
             : 'border-white/15 text-white/50 hover:border-white/30 hover:text-white/80'
@@ -672,8 +669,12 @@ export function CharacterCreate() {
   };
 
   const traitsStep = (
-    <div className="flex min-w-0 flex-col gap-2">
-      <div role="tablist" className="flex">
+    <div className="flex min-w-0 flex-col gap-3">
+      <details className="rounded border border-white/20 bg-concrete-900 lg:hidden">
+        <summary className="cursor-pointer px-3 py-2.5 text-read text-concrete-50">{t(`occupation.${picked.id}.name`)} · {traitCountLabel(traitIds.length)}</summary>
+        {summary}
+      </details>
+      <div className="flex gap-2">
         {sideTab('negative')}
         {sideTab('positive')}
       </div>
@@ -704,7 +705,7 @@ export function CharacterCreate() {
         </div>
       </div>
       <div className="flex flex-col gap-2.5">
-        <div className="grid grid-cols-2 gap-1 sm:grid-cols-3 xl:grid-cols-4">
+        <div className="grid gap-2 min-[450px]:grid-cols-2 xl:grid-cols-3">
           {sortTraitsByPoints(sideTraits, pointSort, locale).map(renderTile)}
         </div>
         {sideTraits.length === 0 && (
@@ -720,10 +721,10 @@ export function CharacterCreate() {
       ? pickBlockReason(focusTrait.id, traitIds, locale)
       : null;
   const traitDetail = focusTrait ? (
-    <div className="rounded border border-white/15 bg-concrete-900/80 p-3">
+    <div className="rounded border border-white/20 bg-concrete-900 p-4">
       <div className="flex items-center gap-2">
         <Icon name={focusTrait.icon} size={24} className="shrink-0" />
-        <span className="min-w-0 flex-1 truncate text-plate uppercase">
+        <span className="min-w-0 flex-1 text-title">
           {traitName(focusTrait.id, locale)}
         </span>
         <span
@@ -735,10 +736,10 @@ export function CharacterCreate() {
           {Math.abs(focusTrait.cost)} {t('ui.create.pointUnit')}
         </span>
       </div>
-      <p className="mt-1.5 text-body italic leading-snug text-white/50">
+      <p className="mt-2 text-read text-white/80">
         {traitDescription(focusTrait.id, locale)}
       </p>
-      <ul className="mt-1.5 space-y-0.5 text-body text-concrete-50">
+      <ul className="mt-2 space-y-1 text-read text-concrete-50">
         {traitEffects(focusTrait.id, locale).map((line) => (
           <li key={line}>• {line}</li>
         ))}
@@ -851,11 +852,15 @@ export function CharacterCreate() {
         </main>
         <aside className="flex min-h-0 flex-col gap-3 lg:overflow-y-auto">
           {/* Background is story + kit only: the build summary waits for the traits step. */}
-          {step === 'traits' && summary}
-          {step === 'background' ? jobDetail : traitDetail}
+          {step === 'background' ? jobDetail : (
+            <>
+              <div className={coarsePointer ? 'hidden lg:block' : ''}>{traitDetail}</div>
+              <div className="hidden lg:block">{summary}</div>
+            </>
+          )}
           {step === 'traits' && presetsBlock}
           {step === 'traits' && savePresetRow}
-          <div className="hidden flex-col items-center gap-2 lg:mt-auto lg:flex">
+          <div className="sticky bottom-0 hidden flex-col items-center gap-2 bg-concrete-950 py-2 lg:mt-auto lg:flex">
             {primaryButton}
             {secondaryAction}
           </div>

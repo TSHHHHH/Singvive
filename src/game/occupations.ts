@@ -13,17 +13,17 @@ export const OCCUPATIONS: Occupation[] = [
   {
     id: 'survivor',
     name: 'Classic Survivor',
-    tagline: 'A knife, a jacket, a bag. The same kit as everyone still walking.',
+    tagline: 'Someone keeps setting your table for two.',
     blurb:
-      'Whatever you were before, it stopped mattering around the third month. You kept what works: a blade that holds an edge, a jacket that turns a scratch, and a bag you never put down.',
+      'For months you ate alone at the same plastic table downstairs. Yesterday there were two bowls. You sat with your knife on your knee until the soup went cold. This morning you brought something to share.',
     kit: { standard: true },
   },
   {
     id: 'drifter',
     name: 'Drifter',
-    tagline: 'Rags on your hands, a tote on your shoulder. Everything else went somewhere.',
+    tagline: 'You sleep where the mynahs do.',
     blurb:
-      'You lost the knife in the second month and the bag in the third, and stopped counting after that. What you have now is wrapped knuckles, a shopping tote and the habit of walking until you find something.',
+      'At the bus interchange, the mynahs always woke a minute before the dead came through. You got months of sleep that way. Last night the whole flock left. You slipped on your flip-flops and followed.',
     kit: {
       items: [{ id: 'cloth_wraps' }, { id: 'jeans' }, { id: 'flip_flops' }, { id: 'grocery_tote' }],
     },
@@ -31,9 +31,9 @@ export const OCCUPATIONS: Occupation[] = [
   {
     id: 'student',
     name: 'College Student',
-    tagline: 'Campus legs and a school bag. The lectures ended months ago.',
+    tagline: 'Your project group still takes attendance.',
     blurb:
-      'The hall emptied in the first week and you never went back for your notes. A box cutter from the art room, a water bottle you refill wherever you can, and legs that still walk all day.',
+      'Four of you agreed to mark the campus bus map whenever you passed. For months there were three sets of initials. This morning the fourth appeared beside a stop you had all crossed out. You recognised the little heart she always put over the i.',
     kit: {
       items: [
         { id: 'school_bag' },
@@ -47,9 +47,9 @@ export const OCCUPATIONS: Occupation[] = [
   {
     id: 'trainer',
     name: 'Personal Trainer',
-    tagline: 'The gym is dark. The engine is not.',
+    tagline: 'Uncle Lim finally beat you up the stairs.',
     blurb:
-      'The condo gym went dark in the first month, so you train on stairwells now. Grip gloves, a hammer from the maintenance room, and a gel you save for the long days.',
+      'When the lifts failed, you taught Uncle Lim to take one landing at a time. He complained all the way to twelve. Months later, carrying water up those same stairs, you stopped for breath on nine. From above came his best impression of you. “Rest when you get here.”',
     kit: {
       items: [
         { id: 'cargo_shorts' },
@@ -65,9 +65,9 @@ export const OCCUPATIONS: Occupation[] = [
   {
     id: 'soldier',
     name: 'Soldier',
-    tagline: 'Your unit stopped reporting in. You did not stop.',
+    tagline: 'The last entry in the duty book is a breakfast order.',
     blurb:
-      'The last order came months ago. You still wear the uniform, because it still works: boots that hold up, a parang from the field kit, and one ration you are saving.',
+      'You drew the dawn shift at the checkpoint. Your relief pencilled his usual order beside your name and left to get kopi. Months later you can barely picture his face, but you still catch yourself ordering two cups, one with extra milk.',
     kit: {
       items: [
         { id: 'army_uniform' },
@@ -82,9 +82,9 @@ export const OCCUPATIONS: Occupation[] = [
   {
     id: 'nurse',
     name: 'Nurse',
-    tagline: 'The ward closed. Your hands still know the work.',
+    tagline: 'Bed six wants her slippers back.',
     blurb:
-      'The hospital stopped taking people in the second month. You kept the gloves, a mask, one clean bandage, and the box cutter you used to open supply crates.',
+      'When the ward moved downstairs, the woman in bed six made you promise to fetch her red slippers. By the time you got back, the beds were gone. Months later, someone at a void deck clinic asked for you by name. Apparently you still owe her a pair.',
     kit: {
       items: [
         { id: 'rubber_gloves' },
@@ -100,9 +100,9 @@ export const OCCUPATIONS: Occupation[] = [
   {
     id: 'hawker',
     name: 'Food Vendor',
-    tagline: 'No stall, no customers. Still the cleaver, still the pot.',
+    tagline: 'Three knocks on the shutter means one more for dinner.',
     blurb:
-      'The hawker centre went quiet months ago. You took what a cook cannot work without: the cleaver, the pot, a lighter, and boots that do not slip on a wet floor.',
+      'You used to bang the pot against the shutter when the last porridge was going cheap. After the centre emptied, you did it once out of habit. A spoon tapped back from the drinks stall. These days you always scrape the bottom for two.',
     kit: {
       items: [
         { id: 'meat_cleaver' },
@@ -117,9 +117,9 @@ export const OCCUPATIONS: Occupation[] = [
   {
     id: 'karung_guni',
     name: 'Scavenger',
-    tagline: 'Rag-and-bone before. Rag-and-bone now. Business is better.',
+    tagline: 'The auntie on seven still owes you a radio.',
     blurb:
-      'You collected what other people threw out for thirty years. Now nobody throws anything out, but the empty flats are full. A duffel bag, a pipe wrench, work gloves, and always something odd in a pocket.',
+      'For thirty years she saved her newspapers for you and swore the broken radio would be next. Yesterday a basket came down from her seventh-floor window. Inside was the radio, polished clean, with a note in her square handwriting. “Can fix?”',
     kit: {
       items: [
         { id: 'work_gloves' },
@@ -134,9 +134,9 @@ export const OCCUPATIONS: Occupation[] = [
   {
     id: 'office',
     name: 'Office Worker',
-    tagline: 'The office emptied. You kept the golf club and the powerbank.',
+    tagline: 'Your mother saves her messages for office hours.',
     blurb:
-      'The last email went out in the first week. The golf bag in your car boot had one club that swings well, and a powerbank you keep charged by any means.',
+      'The powerbank gives your phone just long enough to play one old voice note. You keep picking the same one. Mum spends half of it trying to turn the recorder off. In the last second you can hear Dad laughing.',
     kit: {
       items: [
         { id: 'work_trousers' },
@@ -150,9 +150,9 @@ export const OCCUPATIONS: Occupation[] = [
   {
     id: 'contractor',
     name: 'Contractor',
-    tagline: 'You built these blocks. Now you take them apart for parts.',
+    tagline: 'You know who left a thumbprint in the concrete.',
     blurb:
-      'No renovation jobs since the first month. The hard hat, vest and safety boots stay on, because the concrete has not stopped falling. A hammer and a roll of duct tape fix most things.',
+      'Your daughter was six when you let her press a thumb into the wet landing. The block is boarded up now. On your last visit you found a much bigger thumbprint traced around the first one in chalk. You stood there with your hard hat in your hands.',
     kit: {
       items: [
         { id: 'hard_hat' },
@@ -168,9 +168,9 @@ export const OCCUPATIONS: Occupation[] = [
   {
     id: 'runner',
     name: 'Fixer',
-    tagline: 'Collections, before. Now you open the doors other people cannot.',
+    tagline: 'For once, somebody is glad to hear your knock.',
     blurb:
-      'You did work nobody put on a résumé. Months on, the work is the same: a bat for arguments, a pick for locks, and a jacket that says you are not worth the trouble.',
+      'You used to collect debts three doors down from the provision shop. After the shutters went up for good, you brought the old shopkeeper his first tin of peaches in months. He still made you sign the ledger. Under your name he wrote “delivery”.',
     kit: {
       items: [
         { id: 'leather_jacket' },

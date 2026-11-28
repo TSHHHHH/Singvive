@@ -98,6 +98,39 @@ describe('disturbances in play', () => {
     expect(zones().map((z) => z.kind)).toEqual(['gunshot']);
   });
 
+  it('leaves the encounter pending when a warning shot cannot be fired', () => {
+    const gun: ItemInstance = { uid: 'gun', defId: 'pistol', container: 'equipment', stack: 1,
+      x: 0, y: 0, rotated: false, loadedRounds: 0 };
+    useGame.setState({ equipment: { ...useGame.getState().equipment, firearm: gun } });
+    pend({ kind: 'rival_scavenger', factionId: null, title: '', tell: '', text: '', choices: [
+      { id: 'warn', label: 'Warn', kind: 'leave', needs: 'loadedGun',
+        onSuccess: [{ t: 'fireShot' }, { t: 'gain', defId: 'bandage' }, { t: 'access' }] },
+    ] });
+    const before = useGame.getState();
+    before.resolveEvent('warn');
+    expect(useGame.getState() === before).toBe(true);
+  });
+
+  it('keeps an unaffordable offer open, then spends one preferred carried item', () => {
+    const food: ItemInstance = { uid: 'food', defId: 'canned_food', container: site.id, stack: 2,
+      x: 0, y: 0, rotated: false };
+    useGame.setState({ items: [food] });
+    pend({ kind: 'nomad_trader', factionId: null, title: '', tell: '', text: '', choices: [
+      { id: 'trade', label: 'Trade', kind: 'pay', itemIds: ['canned_food', 'bandage'],
+        onSuccess: [{ t: 'deny', line: 'Deal.' }] },
+    ] });
+    const before = useGame.getState();
+    before.resolveEvent('trade');
+    expect(useGame.getState() === before).toBe(true);
+
+    const bandage = { ...food, uid: 'bandage', defId: 'bandage', container: 'backpack' };
+    const carriedFood = { ...food, uid: 'carried-food', container: 'loose' };
+    useGame.setState({ items: [food, bandage, carriedFood] });
+    useGame.getState().resolveEvent('trade');
+    expect(useGame.getState().pendingEvent).toBeNull();
+    expect(useGame.getState().items).toEqual([food, bandage, { ...carriedFood, stack: 1 }]);
+  });
+
   it('using the car alarm as cover buys one search that ignores the zone', () => {
     const quiet = risk();
     useGame.getState().disturb('car_alarm');
